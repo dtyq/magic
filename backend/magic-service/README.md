@@ -1,3 +1,138 @@
+# Magic Service ⚡
+
+## 📋 Panoramica del Progetto
+
+Magic Service è un'applicazione microservizi PHP ad alte prestazioni basata sul framework Hyperf, che utilizza il driver di coroutine Swow per implementare capacità di elaborazione ad alta concorrenza. Questo progetto integra molteplici moduli funzionali, inclusi ricerca AI, funzionalità di chat, elaborazione file, gestione autorizzazioni, ecc., con l'obiettivo di fornire una soluzione di servizio completa.
+
+## ✨ Caratteristiche Principali
+
+- **🔍 Funzionalità di Ricerca AI**: Integrazione delle API di motori di ricerca come Google, fornisce capacità di ricerca intelligente
+- **💬 Sistema di Chat**: Supporta comunicazioni in tempo reale e gestione delle conversazioni
+- **📁 Elaborazione File**: Funzionalità di caricamento, download e gestione file
+- **🔄 Gestione Processi**: Supporta configurazione ed esecuzione dei flussi di lavoro
+- **🤖 Funzionalità Assistente**: Supporto per funzionalità assistente estensibili
+
+## 🛠️ Requisiti di Sistema
+
+- PHP >= 8.3
+- Estensione Swow
+- Estensione Redis
+- Estensione PDO
+- Altre estensioni: bcmath, curl, fileinfo, openssl, xlswriter, zlib, ecc.
+- Composer
+
+## 📦 Installazione e Distribuzione
+
+### 1. 🧬 Clonazione del Progetto
+
+```bash
+git clone https://github.com/dtyq/magic.git
+cd magic-service
+```
+
+### 2. 📥 Installazione Dipendenze
+
+```bash
+composer install
+```
+
+### 3. ⚙️ Configurazione Ambiente
+
+Copia il file di configurazione dell'ambiente e modificalo secondo necessità:
+
+```bash
+cp .env.example .env
+```
+
+### 🗄️ Migrazione Database
+
+```bash
+php bin/hyperf.php migrate
+```
+
+## 🚀 Esecuzione dell'Applicazione
+
+### Avvio del Servizio Frontend
+
+```bash
+cd static/web && npm install && npm run dev
+```
+
+### Avvio del Servizio Backend
+
+```bash
+php bin/hyperf.php start
+```
+
+È anche possibile utilizzare lo script di avvio:
+
+```bash
+sh start.sh
+```
+
+## 🛠️ Guida allo Sviluppo
+
+### Struttura del Progetto
+
+- `app/` - Codice dell'applicazione
+  - `Application/` - Codice del livello applicazione
+  - `Domain/` - Codice del livello dominio
+  - `Infrastructure/` - Codice del livello infrastruttura
+  - `Interfaces/` - Codice del livello interfaccia
+  - `ErrorCode/` - Definizioni codici errore
+  - `Listener/` - Listener eventi
+- `config/` - File di configurazione
+- `migrations/` - File migrazione database
+- `test/` - Test unitari
+- `bin/` - Script eseguibili
+- `static/` - File risorse statiche
+
+### Standard di Codice
+
+Il progetto utilizza PHP-CS-Fixer per il controllo e la correzione dello stile del codice:
+
+```bash
+composer fix
+```
+
+Utilizza PHPStan per l'analisi statica del codice:
+
+```bash
+composer analyse
+```
+
+### Test Unitari
+
+Utilizza il seguente comando per eseguire i test unitari:
+
+```bash
+vendor/bin/phpunit
+# oppure
+composer test
+```
+
+## 🐳 Distribuzione Docker
+
+Il progetto fornisce un Dockerfile, è possibile utilizzare il seguente comando per costruire l'immagine:
+
+```bash
+docker build -t magic-service .
+```
+
+## 🤝 Guida ai Contributi
+
+1. Fork del progetto
+2. Crea un branch per la funzionalità (`git checkout -b feature/amazing-feature`)
+3. Commit delle modifiche (`git commit -m 'Add some amazing feature'`)
+4. Push al branch (`git push origin feature/amazing-feature`)
+5. Invia una Pull Request
+
+## 📄 Licenza
+
+Questo progetto adotta la licenza MIT - per i dettagli consulta il file LICENSE
+
+---
+
 # Magic Service
 
 ## 项目概述
@@ -35,9 +170,6 @@ cd magic-service
 ```bash
 composer install
 ```
-
-
-
 
 ### 3. 环境配置
 

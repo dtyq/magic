@@ -1,3 +1,106 @@
+# 🚀 Nodo Iniziale
+
+Il nodo iniziale è il punto di ingresso di qualsiasi flusso in Magic. Definisce come inizia il flusso e quali dati iniziali riceve.
+
+## 📋 Panoramica
+
+Il nodo iniziale è il primo nodo nel flusso, non può essere connesso da nessun altro nodo lato input. Può avere solo connessioni output.
+
+## ⚙️ Configurazione
+
+### Impostazioni Base
+
+- **Nome**: Identificatore univoco del nodo
+- **Descrizione**: Descrizione opzionale dello scopo del nodo
+- **Tipo**: Impostato su "iniziale" (sola lettura)
+
+### Parametri Input
+
+Il nodo iniziale può essere configurato per accettare vari tipi di input:
+
+1. **Richiesta HTTP**
+   - Metodo (GET, POST, PUT, DELETE)
+   - Intestazioni richiesta
+   - Parametri query
+   - Corpo richiesta
+
+2. **Webhook**
+   - URL
+   - Autenticazione
+   - Formato payload
+
+3. **Attività Programmata**
+   - Espressione Cron
+   - Fuso orario
+   - Opzioni ripetizione
+
+## 💡 Esempi di Utilizzo
+
+### Endpoint HTTP
+
+```javascript
+// Esempio configurazione nodo iniziale per endpoint HTTP
+{
+  "type": "start",
+  "config": {
+    "method": "POST",
+    "path": "/api/process",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}
+```
+
+### Attività Programmata
+
+```javascript
+// Esempio configurazione nodo iniziale per attività programmata
+{
+  "type": "start",
+  "config": {
+    "schedule": "0 0 * * *",  // Esegue ogni giorno a mezzanotte
+    "timezone": "UTC"
+  }
+}
+```
+
+## 🌟 Migliori Pratiche
+
+1. **Norme Denominazione**
+   - Utilizzare nomi descrittivi che indicano lo scopo
+   - Includere tipo trigger nel nome (esempio: "HTTP_Inizio", "Programmata_Inizio")
+
+2. **Gestione Errori**
+   - Validare sempre dati input
+   - Includere risposte errore appropriate
+   - Registrare eventi importanti
+
+3. **Sicurezza**
+   - Implementare autenticazione appropriata
+   - Validare dati input
+   - Utilizzare HTTPS per endpoint HTTP
+
+## ❓ Problemi Comuni
+
+1. **Configurazione Non Valida**
+   - Controllare metodo e percorso endpoint HTTP
+   - Validare espressione cron attività programmate
+   - Assicurare che tutti campi obbligatori siano compilati
+
+2. **Problemi Connessione**
+   - Verificare connessione rete
+   - Controllare impostazioni firewall
+   - Validare certificati SSL
+
+## 🔗 Nodi Correlati
+
+- [Nodo Risposta](./reply-node.md)
+- [Nodo Attesa](./wait-node.md)
+- [Nodo Finale](./end-node.md)
+
+---
+
 # 开始节点
 
 开始节点是 Magic 中任何流程的入口点。它定义了流程如何开始以及接收什么初始数据。

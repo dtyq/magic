@@ -1,3 +1,65 @@
+# MagicSearch 🔍 Componente di Ricerca Magica
+
+`MagicSearch` è una versione semplificata del componente Input di Ant Design, che fornisce un'icona di ricerca integrata e stili ottimizzati.
+
+## Proprietà
+
+| Nome Proprietà | Tipo | Valore Predefinito | Descrizione                          |
+| -------------- | ---- | ------------------ | ------------------------------------ |
+| ...InputProps  | -    | -                  | Supporta tutte le proprietà di Input di Ant Design |
+
+## Utilizzo Base
+
+```tsx
+import { MagicSearch } from '@/components/base/MagicSearch';
+
+// Utilizzo base
+<MagicSearch />
+
+// Con valore predefinito
+<MagicSearch defaultValue="Contenuto di ricerca predefinito" />
+
+// Ascolta cambiamenti di input
+<MagicSearch
+  onChange={(e) => console.log('Input corrente:', e.target.value)}
+/>
+
+// Segnaposto personalizzato
+<MagicSearch placeholder="Segnaposto personalizzato" />
+
+// Stato disabilitato
+<MagicSearch disabled />
+
+// Stile personalizzato
+<MagicSearch
+  style={{ width: 300 }}
+/>
+
+// Utilizzo con riferimento
+const searchRef = useRef<InputRef>(null);
+<MagicSearch ref={searchRef} />
+```
+
+## Caratteristiche
+
+1. **Icona di ricerca integrata** 🔍: Mostra per default un'icona di ricerca davanti all'input
+2. **Supporto internazionalizzazione** 🌍: Utilizza automaticamente la traduzione i18n di "Ricerca" come segnaposto predefinito
+3. **Design semplice** ✨: Fornisce uno stile semplice per l'input di ricerca
+4. **Completamente personalizzabile** 🎨: Supporta tutte le proprietà del componente Input di Ant Design
+
+## Quando Utilizzare
+
+-   Quando hai bisogno di aggiungere un semplice input di ricerca alla pagina
+-   Quando non hai bisogno di un pulsante di ricerca, solo dell'input e dell'icona di ricerca
+-   Quando hai bisogno di un componente di ricerca leggero
+-   Quando hai bisogno di utilizzarlo con altri componenti per ricerche
+
+Il componente MagicSearch rende il tuo input di ricerca più semplice e facile da usare, adatto a vari scenari che richiedono funzionalità di ricerca. 🚀
+
+---
+
+**Testo Originale (Inglese):**
+
 # MagicSearch 魔法搜索组件
 
 `MagicSearch` 是一个基于 Ant Design Input 组件的简化版搜索输入框，提供了内置搜索图标和优化的样式。

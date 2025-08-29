@@ -1,3 +1,106 @@
+# MagicTable Componente Tabella Magica 📊
+
+`MagicTable` è una versione migliorata del componente Table di Ant Design, che offre un migliore stato di caricamento, comportamento di scorrimento e ottimizzazioni di stile. ✨
+
+## Proprietà
+
+| Nome Proprietà | Tipo                                                   | Valore Predefinito     | Descrizione                         |
+| -------------- | ------------------------------------------------------ | ---------------------- | ----------------------------------- |
+| loading        | boolean \| SpinProps                                   | false                  | Stato di caricamento della tabella  |
+| scroll         | { x?: number \| string \| true; y?: number \| string } | { x: 'max-content' }   | Configurazione scorrimento tabella  |
+| ...TableProps  | -                                                      | -                      | Supporta tutte le proprietà di Ant Design Table |
+
+## Uso Base
+
+```tsx
+import { MagicTable } from '@/components/base/MagicTable';
+import type { ColumnsType } from 'antd/es/table';
+
+// Definire il tipo di dati
+interface DataType {
+  key: string;
+  name: string;
+  age: number;
+  address: string;
+}
+
+// Definire le colonne
+const columns: ColumnsType<DataType> = [
+  {
+    title: 'Nome',
+    dataIndex: 'name',
+    key: 'name',
+  },
+  {
+    title: 'Età',
+    dataIndex: 'age',
+    key: 'age',
+  },
+  {
+    title: 'Indirizzo',
+    dataIndex: 'address',
+    key: 'address',
+  },
+];
+
+// Definire i dati
+const data: DataType[] = [
+  {
+    key: '1',
+    name: 'Mario Rossi',
+    age: 32,
+    address: 'Via Roma, Milano',
+  },
+  {
+    key: '2',
+    name: 'Luca Bianchi',
+    age: 42,
+    address: 'Via Garibaldi, Roma',
+  },
+];
+
+// Uso base
+<MagicTable columns={columns} dataSource={data} />
+
+// Stato di caricamento
+<MagicTable loading columns={columns} dataSource={data} />
+
+// Scorrimento con altezza fissa
+<MagicTable
+  scroll={{ y: 300 }}
+  columns={columns}
+  dataSource={data}
+/>
+
+// Evento click sulla riga
+<MagicTable
+  columns={columns}
+  dataSource={data}
+  onRow={(record) => ({
+    onClick: () => console.log('Cliccata la riga:', record),
+  })}
+/>
+```
+
+## Caratteristiche
+
+1. **Stato di caricamento ottimizzato** 🔄: Utilizza il componente MagicSpin per un effetto di caricamento più elegante
+2. **Gestione automatica dello scorrimento** 📜: Imposta per default lo scorrimento x su 'max-content' per evitare compressioni del contenuto
+3. **Stile click sulle righe** 👆: Aggiunge uno stile cursore alle righe della tabella per indicare che sono cliccabili
+4. **Ottimizzazione stato vuoto** 🚫: Nasconde il prompt di stato vuoto durante il caricamento per evitare sfarfallii
+5. **Controllo flessibile dell'altezza** 📏: Puoi controllare l'altezza fissa della tabella tramite la proprietà scroll.y
+
+## Quando Usare
+
+- Quando devi mostrare grandi quantità di dati strutturati 📈
+- Quando devi eseguire operazioni come ordinamento, filtraggio, paginazione 🔍
+- Quando la tabella necessita di una migliore visualizzazione dello stato di caricamento ⏳
+- Quando il contenuto della tabella deve essere scorrevole 📖
+- Quando le righe devono essere cliccabili 🖱️
+
+Il componente MagicTable rende la visualizzazione delle tue tabelle più elegante e user-friendly, mantenendo tutte le potenti funzionalità di Ant Design Table. 🎉
+
+## Testo Originale (Cinese)
 # MagicTable 魔法表格组件
 
 `MagicTable` 是一个基于 Ant Design Table 组件的增强版表格，提供了更好的加载状态、滚动行为和样式优化。

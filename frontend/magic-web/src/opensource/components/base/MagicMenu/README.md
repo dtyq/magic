@@ -1,3 +1,143 @@
+# MagicMenu Componente Menu Magico 🪄
+
+`MagicMenu` è una versione migliorata del componente Menu di Ant Design, che offre uno stile più pulito e una migliore esperienza utente.
+
+## Proprietà
+
+| Nome Proprietà | Tipo | Valore Predefinito | Descrizione                          |
+| -------------- | ---- | ------------------ | ------------------------------------ |
+| ...MenuProps   | -    | -                  | Supporta tutte le proprietà del Menu di Ant Design |
+
+## Uso Base
+
+```tsx
+import { MagicMenu } from '@/components/base/MagicMenu';
+import { IconHome, IconUser, IconSettings } from '@tabler/icons-react';
+
+// Uso base
+<MagicMenu
+  items={[
+    {
+      key: 'home',
+      label: 'Home 🏠',
+      icon: <IconHome size={16} />,
+    },
+    {
+      key: 'profile',
+      label: 'Profilo 👤',
+      icon: <IconUser size={16} />,
+    },
+    {
+      key: 'settings',
+      label: 'Impostazioni ⚙️',
+      icon: <IconSettings size={16} />,
+    },
+  ]}
+/>
+
+// Elemento selezionato predefinito
+<MagicMenu
+  defaultSelectedKeys={['home']}
+  items={[
+    {
+      key: 'home',
+      label: 'Home 🏠',
+    },
+    {
+      key: 'profile',
+      label: 'Profilo 👤',
+    },
+  ]}
+/>
+
+// Menu verticale
+<MagicMenu
+  mode="vertical"
+  items={[
+    {
+      key: 'home',
+      label: 'Home 🏠',
+    },
+    {
+      key: 'profile',
+      label: 'Profilo 👤',
+    },
+  ]}
+/>
+
+// Con sottomenu
+<MagicMenu
+  mode="vertical"
+  items={[
+    {
+      key: 'home',
+      label: 'Home 🏠',
+    },
+    {
+      key: 'settings',
+      label: 'Impostazioni ⚙️',
+      children: [
+        {
+          key: 'general',
+          label: 'Impostazioni Generali 🔧',
+        },
+        {
+          key: 'account',
+          label: 'Impostazioni Account 🔐',
+        },
+      ],
+    },
+  ]}
+/>
+
+// Operazioni pericolose
+<MagicMenu
+  items={[
+    {
+      key: 'profile',
+      label: 'Profilo 👤',
+    },
+    {
+      key: 'logout',
+      label: 'Esci 🚪',
+      danger: true,
+    },
+  ]}
+/>
+
+// Ascolta eventi di selezione
+<MagicMenu
+  onClick={({ key }) => console.log('Cliccato:', key)}
+  items={[
+    {
+      key: 'home',
+      label: 'Home 🏠',
+    },
+    {
+      key: 'profile',
+      label: 'Profilo 👤',
+    },
+  ]}
+/>
+```
+
+## Caratteristiche ✨
+
+1. **Design Pulito** 🧹: Rimuove il colore di sfondo e il bordo degli elementi selezionati per un effetto visivo più pulito.
+2. **Sfondo Trasparente** 🔍: Sfondo del menu trasparente per una migliore integrazione in varie interfacce.
+3. **Spaziatura Ottimizzata** 📏: Spaziatura ragionevole tra gli elementi del menu per migliorare la leggibilità.
+4. **Ottimizzazione Operazioni Pericolose** ⚠️: Gli elementi di operazioni pericolose hanno un effetto hover speciale per renderli più evidenti.
+
+## Quando Usare 📋
+
+- Quando hai bisogno di fornire funzionalità di navigazione in una pagina.
+- Quando devi mostrare un gruppo di operazioni o funzionalità correlate.
+- Quando devi mostrare opzioni in un menu a discesa.
+- Quando devi creare un menu contestuale (menu destro).
+
+Il componente MagicMenu rende i tuoi menu più puliti e user-friendly, mantenendo tutte le funzionalità del Menu di Ant Design.
+
+## Testo Originale (Cinese e Inglese)
 # MagicMenu 魔法菜单组件
 
 `MagicMenu` 是一个基于 Ant Design Menu 组件的增强版菜单，提供了更简洁的样式和更好的用户体验。

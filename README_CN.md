@@ -1,9 +1,207 @@
 <div align="left">
-  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
-  <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
+  <a href="./README.md"><img alt="README in inglese" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="./README_CN.md"><img alt="README in cinese semplificato" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
-![麦吉开源产品矩阵](https://public-cdn.letsmagic.ai/static/img/super-magic-publish-header.png?v=20250819)
+![Matrice di Prodotti Open Source Magic](https://public-cdn.letsmagic.ai/static/img/super-magic-publish-header.png?v=20250819)
+
+# 🔥 Magic - Prima Piattaforma Open Source Tutto-in-Uno per la Produttività AI 🚀
+
+<div align="center">
+  <p align="center">
+    <a href="https://www.letsmagic.ai" target="_blank">
+      <img alt="Sito Ufficiale" src="https://img.shields.io/badge/Official Website-301AD2">
+    </a>
+    <a href="https://github.com/dtyq/magic/releases">
+      <img src="https://poser.pugx.org/dtyq/magic/v/stable" alt="Versione Stabile">
+    </a>
+    <a href="https://github.com/dtyq/magic/graphs/commit-activity" target="_blank">
+      <img alt="Commit nell'ultimo mese" src="https://img.shields.io/github/commit-activity/m/dtyq/magic?labelColor=%20%2332b583&color=%20%2312b76a">
+    </a>
+    <a href="https://github.com/dtyq/magic/" target="_blank">
+      <img alt="Issue chiuse" src="https://img.shields.io/github/issues-search?query=repo%3Adtyq%2Fmagic%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98">
+    </a>
+    <a href="https://github.com/dtyq/magic/discussions/" target="_blank">
+      <img alt="Discussioni" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
+    </a>
+    <a href="https://www.letsmagic.ai" target="_blank">
+      <img alt="Creato con Magic 🔮" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
+    </a>
+  </p>
+</div>
+
+Magic mira ad aiutare imprese di tutte le dimensioni a costruire e distribuire rapidamente applicazioni AI per ottenere un aumento di produttività di 100x. ⚡️
+
+## Matrice di Prodotto Magic 🧩
+
+Magic è la prima **"piattaforma open source tutto-in-uno per la produttività AI"**, non un singolo prodotto AI, ma una matrice di prodotti completa con capacità ricche.
+
+![Matrice di Prodotti](https://public-cdn.letsmagic.ai/static/img/super-magic-open-source-projects.png?v=20250819)
+
+- **[Super Magic](https://github.com/dtyq/super-magic)** - Un **AI Agent general purpose** progettato per scenari di compiti complessi 🤖
+- **[Magic IM](https://github.com/dtyq/magic)** - Un sistema di messaggistica istantanea di livello enterprise che integra conversazioni con Agent AI nella comunicazione interna aziendale 💬
+- **[Magic Flow](https://github.com/dtyq/magic)** - Un potente sistema di orchestrazione di workflow AI visuale 🔁
+- **Teamshare OS** (Prossimamente) - Un sistema di ufficio collaborativo online di livello enterprise 🏢
+
+Oltre ai prodotti AI sopra, abbiamo anche open-sourcizzato alcune delle infrastrutture utilizzate per costruire questi prodotti:
+
+- **[Agentlang](https://github.com/dtyq/agentlang)** - Un framework per Agent AI basato sul linguaggio per costruire agenti AI con linguaggio naturale (attualmente disponibile in versione Python, versione TypeScript in arrivo) 🗣️
+- **[Magic Lens](https://github.com/dtyq/magiclens)** - Uno strumento potente e flessibile di conversione da HTML a Markdown che utilizza un sistema di regole estensibile per convertire accuratamente documenti HTML complessi in formato Markdown conciso 🔍
+- **Magic Use** (Prossimamente) - Uno strumento rivoluzionario per operazioni browser specificamente progettato per Agent AI 🧭
+- **Magic Space** (Prossimamente) - Un sistema di gestione hosting contenuti statici completamente nuovo specificamente orientato agli Agent AI
+- **Sandbox OS** (Prossimamente) - Un potente sistema runtime sandbox orientato agli Agent AI
+
+### Super Magic
+
+Un potente **AI Agent general purpose**, progettato specificamente per scenari di compiti complessi. Attraverso un sistema di design multi-agente e capacità di tool ricchi, Super Magic supporta capacità intelligenti come **comprensione autonoma dei task**, **pianificazione autonoma dei task**, **azione autonoma** e **correzione autonoma degli errori**. È in grado di comprendere istruzioni in linguaggio naturale, eseguire vari processi aziendali e consegnare risultati finali degli obiettivi. Come prodotto di punta della matrice di prodotti Magic, Super Magic fornisce potenti capacità di sviluppo secondario attraverso open source, permettendo alle imprese di costruire e distribuire rapidamente assistenti intelligenti che soddisfano esigenze aziendali specifiche, migliorando significativamente l'efficienza e la qualità delle decisioni.
+
+![Super Magic](https://public-cdn.letsmagic.ai/static/img/super-magic-buffett.gif)
+
+#### Alcuni Casi di Super Magic
+- [Analisi delle intuizioni di investimento dell'Assemblea Azionisti 2025 di Warren Buffett](https://www.letsmagic.cn/share/777665156986277889)
+- [Analisi delle azioni correlate alla mezza maratona dei robot umanoidi di Pechino](https://www.letsmagic.cn/share/774280936479625217)
+- [Riassunto dei concetti core di "Thinking, Fast and Slow"](https://www.letsmagic.cn/share/777461325648195584)
+- [Analisi IPO e consigli di investimento di Shanghai Auntie](https://www.letsmagic.cn/share/777604044873928705)
+- [Richiesta previsione vendite SKU](https://www.letsmagic.cn/share/771022574397648897)
+- Per più casi visita il [sito ufficiale](https://www.letsmagic.cn)
+
+### Magic Flow
+
+Magic Flow è un potente sistema di orchestrazione di workflow AI visuale che permette agli utenti di costruire workflow complessi di AI Agent su un canvas libero. Ha le seguenti caratteristiche core:
+
+- **Orchestrazione Visuale**: Interfaccia intuitiva drag-and-drop, progettare workflow AI complessi senza scrivere codice, realizzare facilmente varie combinazioni di funzionalità attraverso connessioni di nodi.
+- **Libreria Componenti Ricca**: Componenti predefiniti integrati multipli, inclusi moduli di elaborazione testo, generazione immagini, esecuzione codice, ecc., soddisfacendo esigenze aziendali diversificate.
+- **Supporto Modelli Completo**: Compatibile con qualsiasi modello di grandi dimensioni che segue il protocollo OpenAI API, scelta flessibile di capacità AI adatte allo scenario aziendale.
+- **Capacità Integrazione Sistema**: Supporta integrazione seamless con Magic IM e altri sistemi IM di terze parti (WeChat aziendale, DingTalk, Feishu), realizzazione collaborazione cross-platform.
+- **Estensione Personalizzata**: Supporta sviluppo di nodi tool personalizzati, soddisfacendo esigenze specifiche di scenari aziendali particolari.
+- **Debug e Monitoraggio in Tempo Reale**: Fornisce funzioni complete di debug e monitoraggio, aiutando a identificare e risolvere rapidamente problemi nei workflow, assicurando funzionamento stabile delle applicazioni AI.
+
+![Magic Flow](https://public-cdn.letsmagic.ai/static/img/magic-flow.png)
+
+Come componente importante della matrice di prodotti Magic, Magic Flow può integrarsi seamless con altri prodotti Magic, creando un ecosistema applicativo AI di livello enterprise completo.
+
+![Magic Multi-Agents and Events](https://public-cdn.letsmagic.ai/static/img/super-magic-multi-agents-and-events.png?v=20250819)
+
+### Magic IM
+
+Magic IM è un sistema di dialogo AI Agent di livello enterprise, progettato specificamente per scenari di gestione conoscenza interna aziendale e customer service intelligente. Fornisce capacità di dialogo ricche, supportando dialogo multi-turno, comprensione contesto, ricerca knowledge base, ecc., permettendo alle imprese di costruire rapidamente applicazioni come customer service intelligente, knowledge assistant, ecc.
+
+Il sistema Magic IM ha le seguenti caratteristiche core:
+
+- **Gestione Knowledge Base**: Potente funzione di gestione knowledge base, supportando importazione documenti in molteplici formati, indicizzazione automatica e ricerca semantica, assicurando che le risposte AI siano basate su conoscenza aziendale reale.
+- **Gestione Dialogo**: Gestione dialogo completa, supportando distinzione contenuti dialogo diversi attraverso topic, supportando contemporaneamente dialogo con AI Agent e dialogo con persone nell'organizzazione.
+- **Capacità Group Chat**: Potente funzione group chat, supportando collaborazione in tempo reale multi-persona, AI intelligente partecipa al group chat e fornisce risposte immediate, promuovendo comunicazione efficiente del team e condivisione conoscenza.
+- **Architettura Multi-Organizzazione**: Supporta deployment multi-organizzazione e isolamento dati organizzazione rigoroso, ogni organizzazione possiede spazio dati indipendente e permessi di accesso.
+- **Sicurezza Dati**: Meccanismo rigoroso di isolamento dati e controllo accesso, gestione permessi multi-livello, salvaguardia sicurezza informazioni sensibili aziendali, assicurando che dati tra organizzazioni non si divulghino reciprocamente.
+
+![Magic IM](https://public-cdn.letsmagic.ai/static/img/magic-im-group-chat.png?v=20250819)
+
+## Teamshare OS Sistema Collaborativo Ufficio
+
+Teamshare OS è una piattaforma collaborativa ufficio moderna di livello enterprise, progettata specificamente per migliorare efficienza collaborazione team e gestione conoscenza. Come componente importante della matrice Magic, Teamshare integra profondamente capacità AI nelle attività ufficio quotidiane, ottenendo workflow e gestione conoscenza intelligenti.
+
+Teamshare OS ha le seguenti caratteristiche core:
+
+- **Gestione Documenti Intelligente**: Supporta editing online, collaborazione e controllo versioni di molteplici formati documento, generazione e ottimizzazione contenuti assistita da AI, rendendo gestione documenti team più efficiente.
+- **Magic Table**: Potente strumento gestione dati multidimensionale, supportando tipi campo personalizzati, viste multiple e workflow automatizzati, combinato con capacità AI per ottenere elaborazione dati intelligente, soddisfacendo esigenze diversificate di gestione dati.
+- **Gestione Collaborazione Progetti**: Bacheche progetto e gestione attività intuitive, supportando workflow personalizzati, combinate con analisi intelligente AI per fornire previsioni progresso progetto e suggerimenti ottimizzazione risorse.
+- **Costruzione Knowledge Base**: Potente sistema consolidamento e ricerca conoscenza, strutturando automaticamente documenti interni aziendali per formare asset conoscenza aziendale sostenibili.
+- **Capacità Integrazione Completa**: Integrazione seamless con matrice prodotti Magic, supportando anche collegamento con software ufficio mainstream e applicazioni aziendali, creando piattaforma lavoro unificata.
+
+### Magic Table 🧾
+
+https://gist.github.com/user-attachments/assets/6ef46e66-292c-4a8a-8a00-a3b9fb7beec7
+
+### Magic Doc 📄
+
+https://gist.github.com/user-attachments/assets/7327f331-be7d-4aeb-8e19-0949adde66b2
+
+## 🚀 Uso di Super Magic
+
+### Servizio Cloud ☁️
+
+Forniamo [servizi cloud](https://www.letsmagic.ai) per [Super Magic](https://www.letsmagic.ai), [Magic IM](https://www.letsmagic.ai) e [Magic Flow](https://www.letsmagic.ai), permettendo a chiunque di iniziare a provarli e usarli senza configurazione, offrendo tutte le funzionalità della versione open source.
+*Attualmente è richiesto un codice di invito per l'accesso, che può essere richiesto online e concesso per uso di prova dopo approvazione.* 🔑
+
+### Magic per Imprese/Organizzazioni 🏢✨
+
+Forniamo capacità e funzionalità di gestione più potenti per team e imprese. [Mandaci una email](mailto:bd@dtyq.com?subject=[GitHub]Business%20License%20Inquiry) per discutere le esigenze enterprise.
+
+### Edizione Community Self-Hosted 🧑‍💻
+
+#### Requisiti di Sistema ⚙️
+- Docker 24.0+
+- Docker Compose 2.0+
+
+#### Avviare il Sistema con Docker ▶️
+
+```bash
+# Clona il repository
+git clone https://github.com/dtyq/magic.git
+cd magic
+
+# Avvia il servizio in primo piano
+./bin/magic.sh start
+```
+
+##### Altri Comandi 🛠️
+
+```bash
+# Avvia il servizio in background
+./bin/magic.sh daemon
+
+# Visualizza lo stato del servizio
+./bin/magic.sh status
+
+# Visualizza i log
+./bin/magic.sh logs
+```
+
+##### Configurazione Variabili Ambiente
+
+```bash
+# Configura variabili ambiente magic, deve configurare variabili ambiente di qualsiasi modello di grandi dimensioni per poter usare normalmente magic
+cp .env.example .env
+
+# Configura variabili ambiente Super Magic, deve configurare variabili ambiente di qualsiasi modello di grandi dimensioni che supporti formato openai per poter usare normalmente
+./bin/magic.sh status
+cp config/.env_super_magic.example .env_super_magic
+```
+
+##### Accesso ai Servizi
+- Servizio API: http://localhost:9501
+- Applicazione Web: http://localhost:8080
+  - Account `13812345678`: password `letsmagic.ai`
+  - Account `13912345678`: password `letsmagic.ai`
+- Interfaccia di gestione RabbitMQ: http://localhost:15672
+  - Username: admin
+  - Password: magic123456
+
+## 📚 Sito Ufficiale e Documentazione
+
+Sito ufficiale [https://www.letsmagic.ai](https://www.letsmagic.ai)
+Documentazione [https://docs.letsmagic.ai/zh](https://docs.letsmagic.ai/zh)
+
+## 🤝 Contributi
+
+Per chi vuole contribuire codice, consulta la nostra [Guida ai Contributi](https://github.com/dtyq/magic/blob/master/CONTRIBUTING_CN.md).
+Inoltre, considera di supportare Magic attraverso social media, eventi e conferenze - lo sviluppo di Magic non può fare a meno del tuo supporto.
+
+## 🔒 Vulnerabilità di Sicurezza
+
+Se scopri vulnerabilità di sicurezza in Magic, invia un'email al team ufficiale Magic all'indirizzo [team@dtyq.com](mailto:team@dtyq.com), tutte le vulnerabilità di sicurezza saranno risolte tempestivamente.
+
+## 📄 Licenza
+
+Questo repository segue il protocollo open source [Magic Open Source License](LICENSE), questa licenza è essenzialmente Apache 2.0 ma con alcune restrizioni aggiuntive.
+
+## 🙏 Ringraziamenti
+
+Grazie a tutti gli sviluppatori che hanno contribuito a Magic!
+
+[![Grafico Cronologia Stelle](https://api.star-history.com/svg?repos=dtyq/magic&type=Date)](https://star-history.com/#dtyq/magic&Date)
+
+---
 
 # 🔥 麦吉 - 首个开源一站式 AI 生产力平台
 
@@ -163,14 +361,10 @@ cd magic
 # 配置magic 环境变量, 必须配置任意一种大模型的环境变量才可正常使用magic
 cp .env.example .env
 
-
 # 配置超级麦吉 环境变量,必须配置任意一种支持openai 格式的大模型环境变量, 才可正常使用使用
 ./bin/magic.sh status
 cp config/.env_super_magic.example .env_super_magic
-
 ```
-
-
 
 ##### 访问服务
 - API 服务: http://localhost:9501

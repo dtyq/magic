@@ -1,3 +1,142 @@
+# 👥 Nodo Recupero Personale
+
+## ❓ Cos'è il Nodo Recupero Personale?
+
+Il nodo Recupero Personale è un nodo funzionale specializzato nei flussi di lavoro Magic Flow per interrogare e filtrare le informazioni del personale organizzativo. Permette di localizzare e ottenere rapidamente dati del personale basati su molteplici condizioni (come nome, numero dipendente, posizione, dipartimento, ecc.), proprio come effettuare una ricerca precisa nella rubrica aziendale.
+
+**Spiegazione Interfaccia:**
+
+L'interfaccia del nodo Recupero Personale è composta principalmente dall'area di impostazione delle condizioni di ricerca e dall'area di anteprima della struttura dei dati di output. In alto vengono mostrati vari opzioni di configurazione delle condizioni di filtro, inclusi condizioni di filtro come nome utente, numero dipendente, posizione, ecc.; in basso viene mostrata la struttura dei dati dei risultati della query, inclusi campi di informazioni di base dell'utente e informazioni del dipartimento.
+![Nodo Recupero Personale](https://cdn.letsmagic.cn/static/img/Personnel-retrieval.png)
+
+## 🤔 Perché Serve il Nodo Recupero Personale?
+
+Nel flusso di lavoro aziendale, ottenere accuratamente le informazioni del personale è una esigenza di base per molti processi di automazione:
+- **Associazione Dati**: Associare i dati aziendali con responsabili specifici o team
+- **Controllo Permessi**: Dividere i permessi di accesso alle informazioni secondo il ruolo o dipartimento del personale
+- **Flusso del Processo**: Identificare la persona che gestisce o approva il passo successivo del processo
+- **Notifiche Messaggi**: Inviare notifiche automatiche a personale specifico o team
+- **Collaborazione Team**: Costruire processi di collaborazione intelligente basati sulla struttura organizzativa
+
+## 🎯 Scenari Applicabili
+
+### 1. Processo di Approvazione Intelligente
+Basandosi sul contenuto della richiesta, trovare automaticamente la persona di approvazione del dipartimento corrispondente, inoltrare con precisione la richiesta di approvazione, migliorare l'efficienza del processo.
+
+### 2. Riepilogo Informazioni Dipartimentali
+Recuperare rapidamente le informazioni di tutti i membri di un dipartimento specifico, utilizzato per generare report dipartimentali, analisi team o allocazione risorse.
+
+### 3. Collegamento Dati Personale
+Quando l'utente presenta una richiesta, associare automaticamente informazioni come il suo dipartimento, superiore diretto, ecc. basandosi sulla sua identità, riducendo l'input manuale.
+
+### 4. Distribuzione Messaggi Intelligente
+Trovare automaticamente i responsabili correlati secondo le regole aziendali, consegnare con precisione i messaggi di sistema o i promemoria di lavoro alla persona appropriata.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Condizioni di Ricerca
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Predefinito|
+|---|---|---|---|
+|Nome Utente|Corrispondenza secondo il nome reale del personale|No|Nessuno|
+|Numero Dipendente|Corrispondenza secondo il numero dipendente del personale|No|Nessuno|
+|Posizione|Corrispondenza secondo la posizione o titolo del personale|No|Nessuno|
+|Numero Cellulare|Corrispondenza secondo il numero di cellulare del personale|No|Nessuno|
+|Nome Dipartimentale|Corrispondenza secondo il nome del dipartimento|No|Nessuno|
+|Nome Chat di Gruppo|Corrispondenza secondo il nome della chat di gruppo|No|Nessuno|
+
+### Spiegazione Regole Condizioni
+Ogni condizione di ricerca supporta i seguenti tipi di regole:
+|Tipo Regola|Spiegazione|Esempio|
+|---|---|---|
+|Uguale|Il valore del campo è completamente uguale al valore specificato|Nome uguale a "Mario Rossi"|
+|Diverso|Il valore del campo non è uguale al valore specificato|Posizione diversa da "Stagista"|
+|Contiene|Il valore del campo contiene il contenuto specificato|Nome dipartimento contiene "Tecnico"|
+|Non Contiene|Il valore del campo non contiene il contenuto specificato|Nome non contiene "Test"|
+|Vuoto|Il valore del campo è vuoto|Numero cellulare vuoto|
+|Non Vuoto|Il valore del campo non è vuoto|Numero dipendente non vuoto|
+
+### Impostazione Tipo Valore
+|Tipo Valore|Spiegazione|Esempio|
+|---|---|---|
+|Valore Fisso|Inserire direttamente il valore di query specifico|"Mario Rossi", "Dipartimento Sviluppo"|
+|Valore Variabile|Fare riferimento a variabili nel flusso di lavoro come valore di query|department_name|
+
+### Contenuto Output
+|Campo Output|Spiegazione|
+|---|---|
+|Dati Utente (Array)|Lista utenti che soddisfano le condizioni, ogni utente contiene: ID utente univoco, nome reale, nome posizione, ecc.|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Imposta le condizioni di ricerca base**:
+    1. Clicca sulla condizione di ricerca necessaria (come "Nome Utente")
+    2. Seleziona la regola di corrispondenza (come "Uguale", "Contiene", ecc.)
+    3. Seleziona il tipo di valore ("Valore Fisso" o "Valore Variabile")
+    4. Inserisci il valore di query specifico o seleziona la variabile
+2. **Aggiungi molteplici condizioni di ricerca (opzionale)**:
+    1. Clicca il pulsante "Aggiungi Condizione" per aumentare ulteriori condizioni di filtro
+    2. Molteplici condizioni sono predefinite come relazione "E", cioè tutte le condizioni devono essere soddisfatte
+3. **Visualizza i campi di output**:
+    1. Espandi la sezione "Output" per conoscere la struttura dei dati dei risultati della query
+    2. Familiarizzati con il significato dei campi per fare riferimento corretto nei nodi successivi
+4. **Connetti i nodi successivi**:
+    1. Connetti l'output del nodo Recupero Personale ai nodi che necessitano di informazioni del personale
+    2. Utilizza `NomeNodo.userData` nei nodi successivi per fare riferimento ai risultati della ricerca
+
+## ⚠️ Note Importanti
+
+### Efficienza di Ricerca
+Quando la scala dell'organizzazione è grande, è necessario prestare attenzione all'impatto delle impostazioni delle condizioni di ricerca sull'efficienza:
+- Dai priorità all'utilizzo di condizioni precise (come numero dipendente, numero cellulare) piuttosto che condizioni fuzzy (come nome contiene)
+- Combina ragionevolmente molteplici condizioni per restringere l'ambito di ricerca
+- Evita query complete non necessarie, riduci il carico del sistema
+
+### Permessi sui Dati
+Il recupero del personale è limitato dai permessi dell'account Bot corrente:
+- Può recuperare solo dipartimenti e personale che il Bot ha il permesso di accedere
+- Alcune informazioni sensibili (come numero cellulare) potrebbero richiedere permessi specifici
+- Assicurati che l'account Bot abbia permessi sufficienti di accesso alla struttura organizzativa
+
+### Tempestività dei Dati
+Le informazioni del personale potrebbero cambiare, è necessario prestare attenzione:
+- I risultati della ricerca riflettono lo stato della struttura organizzativa al momento attuale
+- È necessaria una strategia per affrontare cambiamenti di posizione del personale, dimissioni, ecc.
+- Si consiglia di aggiungere logica di verifica dei risultati nei processi critici
+
+## ❓ Problemi Comuni
+
+### Problema 1: Ho Impostato le Condizioni di Ricerca ma Non Ho Ottenuto i Risultati Previsti?
+**Soluzioni**: Potrebbe essere un problema di mancata corrispondenza delle condizioni o di permessi, si consiglia:
+- Verifica se i valori delle condizioni sono corretti, specialmente i riferimenti alle variabili
+- Conferma che gli operatori di confronto siano utilizzati correttamente (come "Uguale" e "Contiene")
+- Prova ad allentare le condizioni o utilizzare condizioni più precise (come numero dipendente)
+- Verifica se l'account Bot ha i permessi per accedere alle informazioni del personale target
+
+### Problema 2: Come Gestire Situazioni di Omonimia?
+**Soluzioni**: Il fenomeno dell'omonimia è comune nelle grandi organizzazioni:
+- Combina molteplici condizioni (come nome+dipartimento) per filtrare
+- Dai priorità all'utilizzo di identificatori univoci (come numero dipendente o ID utente) per la ricerca
+- Aggiungi logica di giudizio dell'omonimia nell'elaborazione dei risultati (come distinzione per dipartimento)
+
+### Problema 3: C'è un Limite alla Quantità dei Risultati di Ricerca?
+**Soluzioni**: Sì, generalmente c'è un limite al numero di restituzioni:
+- Per impostazione predefinita vengono restituiti al massimo 50 record corrispondenti
+- Per scenari che necessitano di interrogare grandi quantità di utenti, considera l'elaborazione in batch o l'ottimizzazione delle condizioni di ricerca
+- Per scenari di ampio raggio come query di intero dipartimento, considera l'utilizzo di strumenti di report più professionali
+
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo di Nodo|Motivo dell'Abbinamento|
+|---|---|
+|Nodo Risposta Messaggio|Mostrare all'utente le informazioni del personale recuperate|
+|Nodo Ramo Condizionale|Decidere il flusso successivo basandosi sull'esistenza di risultati di ricerca|
+|Nodo Chiamata Modello Grande|Utilizzare le informazioni del personale per costruire risposte personalizzate o analisi|
+|Nodo Creazione Chat di Gruppo|Creare automaticamente chat di gruppo specifiche basandosi sui risultati della ricerca|
+|Nodo Richiesta HTTP|Inviare le informazioni del personale a sistemi esterni per l'elaborazione|
+
+---
+
 # 人员检索节点
 
 ## 什么是人员检索节点？

@@ -1,3 +1,103 @@
+# MagicSplitter 🪄 Componente Pannello di Divisione Magico
+
+`MagicSplitter` è una versione migliorata del componente Splitter di Ant Design, che offre uno stile più pulito e una migliore esperienza utente.
+
+## Proprietà
+
+| Nome Proprietà   | Tipo | Valore Predefinito | Descrizione                          |
+| ---------------- | ---- | ------------------ | ------------------------------------ |
+| ...SplitterProps | -    | -                  | Supporta tutte le proprietà di Ant Design Splitter |
+
+## Sottocomponenti
+
+-   `MagicSplitter.Panel` - Sottocomponente pannello di divisione, utilizzato per definire ciascuna area ridimensionabile
+
+## Uso Base
+
+```tsx
+import { MagicSplitter } from '@/components/base/MagicSplitter';
+
+// Uso base - divisione orizzontale
+<MagicSplitter>
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello sinistro</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello destro</div>
+  </MagicSplitter.Panel>
+</MagicSplitter>
+
+// Divisione verticale
+<MagicSplitter split="horizontal">
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello superiore</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello inferiore</div>
+  </MagicSplitter.Panel>
+</MagicSplitter>
+
+// Impostare dimensioni predefinite
+<MagicSplitter defaultSizes={[30, 70]}>
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello sinistro (30%)</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <div>Contenuto pannello destro (70%)</div>
+  </MagicSplitter.Panel>
+</MagicSplitter>
+
+// Pannelli multipli
+<MagicSplitter>
+  <MagicSplitter.Panel>
+    <div>Primo pannello</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <div>Secondo pannello</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <div>Terzo pannello</div>
+  </MagicSplitter.Panel>
+</MagicSplitter>
+
+// Uso annidato
+<MagicSplitter>
+  <MagicSplitter.Panel>
+    <div>Pannello sinistro</div>
+  </MagicSplitter.Panel>
+  <MagicSplitter.Panel>
+    <MagicSplitter split="horizontal">
+      <MagicSplitter.Panel>
+        <div>Pannello destro superiore</div>
+      </MagicSplitter.Panel>
+      <MagicSplitter.Panel>
+        <div>Pannello destro inferiore</div>
+      </MagicSplitter.Panel>
+    </MagicSplitter>
+  </MagicSplitter.Panel>
+</MagicSplitter>
+```
+
+## Caratteristiche ✨
+
+1. **Design Pulito** 🧹: Rimossi gli stili predefiniti della barra di trascinamento, per un effetto visivo più pulito
+2. **Trascinamento Senza Interruzioni** 🔄: Nessuna interferenza visiva durante il trascinamento della linea di divisione
+3. **Layout Flessibile** 🏗️: Supporta divisione orizzontale e verticale, oltre all'uso annidato
+4. **Margini Zero** 📏: I pannelli non hanno margini interni predefiniti, permettendo al contenuto di utilizzare pienamente lo spazio
+
+## Quando Usare
+
+-   Quando è necessario creare layout ridimensionabili 📐
+-   Quando è necessario dividere lo schermo in più aree interattive 🖥️
+-   Quando si implementano interfacce come editor di codice, browser di file, ecc., che richiedono regolazioni flessibili dello spazio 💻
+-   Quando gli utenti devono personalizzare le dimensioni di ciascuna area 🎛️
+
+Il componente MagicSplitter rende i tuoi pannelli di divisione più puliti e user-friendly, mantenendo tutte le funzionalità di Ant Design Splitter. 🪄
+
+---
+
+## Testo Originale (Inglese e Cinese)
+
 # MagicSplitter 魔法分割面板组件
 
 `MagicSplitter` 是一个基于 Ant Design Splitter 组件的增强版分割面板，提供了更简洁的样式和更好的用户体验。

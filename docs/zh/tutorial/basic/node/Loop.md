@@ -1,3 +1,131 @@
+# 🔄 Nodo Ciclo
+
+## ❓ Cos'è il Nodo Ciclo?
+
+Il nodo Ciclo è un tipo di nodo di controllo del flusso nei flussi di lavoro Magic Flow che permette di ripetere l'esecuzione di una serie di operazioni fino a quando non viene soddisfatta una condizione specifica o completato un numero designato di volte. In parole semplici, il nodo Ciclo è come un'istruzione "ripeti esecuzione" che aiuta ad automatizzare compiti ripetitivi, migliorando l'efficienza lavorativa.
+
+**Spiegazione Immagine:**
+L'interfaccia del nodo Ciclo include due parti principali: il componente "Ciclo" esterno e il "Nodo Inizio" interno. Nel componente Ciclo, puoi impostare il tipo di ciclo, le condizioni di ciclo o il numero di volte; il nodo Inizio rappresenta invece il punto di partenza per ogni esecuzione del ciclo.
+![Nodo Ciclo](https://cdn.letsmagic.cn/static/img/Loop.png)
+
+## 🤔 Perché Serve il Nodo Ciclo?
+
+Nella costruzione di applicazioni intelligenti, il nodo Ciclo risolve il problema dell'esecuzione ripetuta di alcune operazioni, ed è in grado di:
+- **Elaborazione Dati in Batch**: Eseguire la stessa operazione su ogni elemento di una lista o array
+- **Tentativi Ripetuti**: Continuare l'esecuzione di un compito fino a quando non viene soddisfatta una condizione specifica
+- **Esecuzione Programmata**: Ripetere l'esecuzione di compiti secondo un numero fisso di volte
+- **Flussi di Lavoro Dinamici**: Decidere flessibilmente il numero di esecuzioni secondo la situazione effettiva
+- **Risparmio di Lavoro**: Evitare la copia manuale e incolla di sequenze di nodi identiche
+
+## 🎯 Scenari Applicabili
+
+### 1. Elaborazione Dati in Batch
+Elaborare un gruppo di dati, come scorrere una lista clienti per inviare messaggi personalizzati, o elaborare ogni riga di dati in una tabella.
+
+### 2. Meccanismo di Retry
+Effettuare retry quando alcune operazioni falliscono, fino al successo o al raggiungimento del numero massimo di tentativi.
+
+### 3. Richieste Paginazione
+Quando è necessario chiamare più volte un'API per ottenere dati paginati, controllare il numero di richieste e la variazione dei parametri attraverso il ciclo.
+
+### 4. Controlli Programmati
+Ripetere controlli di uno stato secondo il numero impostato o le condizioni, come controllare periodicamente lo stato di completamento di un compito.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Base
+|Nome Parametro|Tipo Parametro|Obbligatorio|Descrizione|
+|---|---|---|---|
+|Tipo Ciclo|Selezione Dropdown|Sì|Scegli il tipo di ciclo, include "Ciclo Conteggio", "Ciclo Array" e "Ciclo Condizionale"|
+|Numero Cicli|Numero/Variabile|A seconda del tipo|Quando si sceglie "Ciclo Conteggio", imposta il numero totale di esecuzioni del ciclo|
+|Array Ciclo|Variabile|A seconda del tipo|Quando si sceglie "Ciclo Array", specifica l'array o lista da scorrere|
+|Ciclo Condizionale|Espressione|A seconda del tipo|Quando si sceglie "Ciclo Condizionale", imposta l'espressione di condizione per continuare il ciclo|
+|Nome Variabile Indice Corrente|Testo|No|Utilizzato per memorizzare il nome della variabile dell'indice corrente del ciclo, predefinito "loopIndex"|
+|Nome Variabile Elemento Corrente|Testo|No|Utilizzato per memorizzare il nome della variabile dell'elemento corrente del ciclo, predefinito "loopItem"|
+|Numero Massimo Cicli|Numero|No|Limitazione di sicurezza per prevenire cicli infiniti, imposta il numero massimo di cicli eseguibili|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Seleziona il tipo di ciclo**:
+    1. Per numero: Adatto per situazioni in cui si conosce il numero esatto di esecuzioni
+    2. Scorrimento array: Adatto per situazioni in cui è necessario elaborare ogni elemento dell'array
+    3. Giudizio condizionale: Adatto per situazioni in cui è necessario fermarsi quando viene soddisfatta una condizione specifica
+2. **Configura i parametri del ciclo**:
+    1. Per numero: Imposta il numero specifico di cicli, come "10"
+    2. Scorrimento array: Seleziona o inserisci la variabile array da scorrere
+    3. Giudizio condizionale: Imposta l'espressione di condizione del ciclo e il numero massimo di cicli
+3. **Configura il corpo del ciclo**:
+    1. Aggiungi all'interno del nodo Ciclo i nodi che necessitano di esecuzione ripetuta
+    2. Questi nodi verranno ripetuti secondo le impostazioni del ciclo
+4. **Gestisci i risultati del ciclo**:
+    1. Puoi utilizzare il nodo Salvataggio Variabili all'interno del ciclo per salvare risultati intermedi
+    2. Dopo la fine del ciclo, queste variabili possono essere utilizzate dai nodi successivi
+
+## ⚠️ Note Importanti
+
+### Considerazioni sulle Performance
+Il nodo Ciclo può causare un prolungamento del tempo di esecuzione del flusso di lavoro:
+- Cerca di evitare di impostare numeri di cicli troppo grandi
+- Per grandi quantità di dati, considera l'elaborazione in batch
+- Per i cicli condizionali è necessario impostare un numero massimo di cicli ragionevole per prevenire cicli infiniti
+
+### Ambito delle Variabili nel Ciclo
+Le variabili modificate nel ciclo influenzeranno i cicli successivi:
+- Se necessiti di variabili indipendenti per ogni ciclo, reinizializzale all'inizio del ciclo
+- Le modifiche delle variabili all'interno del ciclo verranno mantenute fino alla fine del ciclo
+
+### Limitazioni dei Cicli Annidati
+Anche se tecnicamente supporta cicli annidati, presta attenzione:
+- I cicli annidati aumenteranno significativamente la complessità e il tempo di esecuzione
+- Si consiglia di non superare 2 livelli di annidamento per mantenere la manutenibilità del flusso di lavoro
+- Nei cicli annidati presta particolare attenzione all'impostazione di numeri di cicli ragionevoli
+
+## ❓ Problemi Comuni
+
+### Problema 1: Il Numero di Esecuzioni del Nodo Ciclo Supera le Aspettative?
+**Soluzioni**: Potrebbe essere dovuto a impostazioni errate delle condizioni del ciclo. Si consiglia:
+- Verifica se le condizioni del ciclo sono impostate correttamente
+- Assicurati di aggiornare le variabili di giudizio delle condizioni al momento opportuno
+- Utilizza il nodo Esecuzione Codice per impostare manualmente un flag di interruzione per terminare anticipatamente il ciclo
+
+### Problema 2: I Nodi all'Interno del Ciclo Non Vengono Eseguiti Come Previsto?
+**Soluzioni**: Questo potrebbe avere diverse cause:
+- Assicurati che i nodi all'interno del corpo del ciclo siano connessi correttamente
+- Verifica se i giudizi condizionali di ogni nodo sono corretti
+- Utilizza il nodo Salvataggio Variabili per salvare risultati intermedi, facilitando il debug
+- Verifica se le variabili utilizzate nel ciclo sono inizializzate correttamente
+
+### Problema 3: Come Salvare i Risultati di Ogni Iterazione nel Ciclo?
+**Soluzioni**: Puoi:
+- Utilizzare variabili array per raccogliere i risultati di ogni ciclo
+- Nel nodo Esecuzione Codice aggiungere i risultati all'array
+- Dopo la fine del ciclo, l'array conterrà tutti i risultati delle iterazioni
+
+```javascript
+// Inizializza array risultati (prima del ciclo)
+context.variableSave("results", []);
+
+// Nel ciclo salva ogni risultato
+let results = context.variableGet("results", []);
+results.push(someResult);
+context.variableSave("results", results);
+```
+
+## 💡 Migliori Pratiche
+
+### Nodi Comuni da Abbinare
+
+|Tipo di Nodo|Motivo dell'Abbinamento|
+|---|---|
+|Nodo Esecuzione Codice|Gestisce logica complessa nel ciclo, opera su array e oggetti|
+|Nodo Ramo Condizionale|Esegue diverse operazioni nel ciclo basate su condizioni|
+|Nodo Salvataggio Variabili|Memorizza risultati intermedi o valori cumulativi nel ciclo|
+|Nodo Richiesta HTTP|Invia richieste in batch o ottiene dati paginati|
+|Nodo Memorizzazione Dati|Salva i risultati dell'elaborazione del ciclo in memoria persistente|
+
+---
+
 # 循环节点
 ## 什么是循环节点？
 循环节点是Magic Flow工作流中的一种流程控制节点，它允许您重复执行一系列操作，直到满足特定的条件或完成指定的次数。简单来说，循环节点就像是一个"重复执行"的指令，帮助您自动化重复性任务，提高工作效率。

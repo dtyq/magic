@@ -1,3 +1,430 @@
+# Guida al Deployment Multi-Ambiente del Gateway API
+
+Questo documento spiega in dettaglio come utilizzare la tecnologia dei container Docker per implementare uno schema di deployment con tre ambienti indipendenti per il gateway API: test, pre-release (pre) e produzione (prod).
+
+## Panoramica della Soluzione
+
+Attraverso la tecnologia dei container Docker, possiamo creare istanze completamente isolate del gateway API per ogni ambiente, ciascuna con le proprie:
+- File di configurazione
+- Variabili d'ambiente
+- Porte di rete
+- Volumi di storage
+
+Questa soluzione offre i seguenti vantaggi:
+- Isolamento ambientale: Garantisce che gli ambienti non si interferiscano reciprocamente
+- Separazione della configurazione: Ogni ambiente utilizza file di configurazione indipendenti
+- Consistenza del deployment: Garantisce che tutti gli ambienti utilizzino la stessa versione del codice
+- Scalabilità: Facilita l'aggiunta di ulteriori ambienti (come sviluppo, QA, ecc.)
+- Controllo delle risorse: Possibilità di allocare risorse diverse per ambienti diversi
+
+## Prerequisiti
+
+- Docker 20.10.x o versione superiore
+- Docker Compose 2.x o versione superiore
+- Git (per clonare il repository)
+- Conoscenze di base delle operazioni da riga di comando
+
+## Passi di Implementazione
+
+### 1. Adeguamento della Struttura del Progetto
+
+Innanzitutto, adeguare la struttura del progetto per supportare la configurazione multi-ambiente:
+
+```bash
+mkdir -p config/{test,pre,prod}
+```
+
+Creare la seguente struttura di directory:
+
+```
+magic-gateway/
+├── config/                  # Directory di configurazione multi-ambiente
+│   ├── test/                # Configurazione ambiente di test
+│   │   └── .env            # Variabili ambiente di test
+│   ├── pre/                 # Configurazione ambiente pre-release
+│   │   └── .env            # Variabili ambiente pre-release
+│   └── prod/                # Configurazione ambiente produzione
+│       └── .env            # Variabili ambiente produzione
+├── Dockerfile              # File di costruzione del container
+├── docker-compose.yml      # Configurazione orchestrazione container
+└── ...                     # Altri file del progetto
+```
+
+### 2. Creazione dei File di Configurazione Multi-Ambiente
+
+Creare file di configurazione delle variabili d'ambiente indipendenti per ogni ambiente.
+
+#### File di Configurazione Ambiente Test (config/test/.env)
+
+```ini
+# Configurazione ambiente test
+JWT_SECRET=test-jwt-secret-key-change-me
+API_GATEWAY_VERSION=1.0.0-test
+MAGIC_GATEWAY_DEBUG=true
+PORT=8001
+MAGIC_GATEWAY_API_KEY=test-gateway-api-key
+
+# Configurazione servizio OpenAI ambiente test
+OPENAI_API_KEY=sk-test-xxxx
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-3.5-turbo
+
+# Configurazione altri servizi ambiente test
+MAGIC_API_KEY=test-xxx
+MAGIC_API_BASE_URL=https://api.magic-test.com/v1
+MAGIC_MODEL=gpt-4-test
+```
+
+#### File di Configurazione Ambiente Pre-Release (config/pre/.env)
+
+```ini
+# Configurazione ambiente pre-release
+JWT_SECRET=pre-jwt-secret-key-change-me
+API_GATEWAY_VERSION=1.0.0-pre
+MAGIC_GATEWAY_DEBUG=true
+PORT=8002
+MAGIC_GATEWAY_API_KEY=pre-gateway-api-key
+
+# Configurazione servizio OpenAI ambiente pre-release
+OPENAI_API_KEY=sk-pre-xxxx
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4
+
+# Configurazione altri servizi ambiente pre-release
+MAGIC_API_KEY=pre-xxx
+MAGIC_API_BASE_URL=https://api.magic-pre.com/v1
+MAGIC_MODEL=gpt-4-pre
+```
+
+#### File di Configurazione Ambiente Produzione (config/prod/.env)
+
+```ini
+# Configurazione ambiente produzione
+JWT_SECRET=prod-jwt-secret-key-change-me
+API_GATEWAY_VERSION=1.0.0
+MAGIC_GATEWAY_DEBUG=false
+PORT=8003
+MAGIC_GATEWAY_API_KEY=prod-gateway-api-key
+
+# Configurazione servizio OpenAI ambiente produzione
+OPENAI_API_KEY=sk-prod-xxxx
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4
+
+# Configurazione altri servizi ambiente produzione
+MAGIC_API_KEY=prod-xxx
+MAGIC_API_BASE_URL=https://api.magic.com/v1
+MAGIC_MODEL=gpt-4o-global
+```
+
+### 3. Aggiornamento del Dockerfile
+
+Ottimizzare il Dockerfile per supportare il deployment multi-ambiente:
+
+```dockerfile
+FROM golang:1.20-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway main.go
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/api-gateway .
+# Creare directory di configurazione
+RUN mkdir -p /app/config
+# Impostare variabili d'ambiente
+ENV PORT=8000
+ENV MAGIC_GATEWAY_ENV=dev
+# Esporre porta
+EXPOSE 8000
+# Comando di avvio
+CMD ["./api-gateway"]
+```
+
+### 4. Creazione della Configurazione Docker Compose Multi-Ambiente
+
+Creare un file `docker-compose.yml` che supporti ambienti multipli:
+
+```yaml
+version: '3'
+
+services:
+  magic-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - PORT=${PORT:-8000}
+      - MAGIC_GATEWAY_ENV=${ENV:-dev}
+      - JWT_SECRET=${JWT_SECRET:-default-secret-key}
+      - MAGIC_GATEWAY_API_KEY=${API_KEY:-default-api-key}
+      - MAGIC_GATEWAY_DEBUG=${DEBUG:-false}
+    ports:
+      - "${EXTERNAL_PORT:-8000}:${PORT:-8000}"
+    volumes:
+      - ./config/${ENV:-dev}/.env:/app/.env
+    networks:
+      - gateway-network
+
+networks:
+  gateway-network:
+    driver: bridge
+```
+
+### 5. Creazione di Script di Avvio Rapido
+
+Creare uno script `deploy.sh` per semplificare il processo di deployment multi-ambiente:
+
+```bash
+#!/bin/bash
+
+# Definire colori
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # Ripristinare colore predefinito
+
+# Informazioni di aiuto
+function show_help {
+  echo -e "${YELLOW}Script di Deployment Multi-Ambiente Gateway API${NC}"
+  echo "Utilizzo: $0 [ambiente] [operazione]"
+  echo ""
+  echo "Opzioni ambiente:"
+  echo "  test       - Ambiente test (porta 8001)"
+  echo "  pre        - Ambiente pre-release (porta 8002)"
+  echo "  prod       - Ambiente produzione (porta 8003)"
+  echo ""
+  echo "Opzioni operazione:"
+  echo "  start      - Avviare ambiente specificato"
+  echo "  stop       - Fermare ambiente specificato"
+  echo "  restart    - Riavviare ambiente specificato"
+  echo "  logs       - Visualizzare log ambiente specificato"
+  echo "  status     - Visualizzare stato ambiente specificato"
+  echo "  all        - Operare su tutti gli ambienti"
+  echo ""
+  echo "Esempi:"
+  echo "  $0 test start    - Avviare ambiente test"
+  echo "  $0 all start     - Avviare tutti gli ambienti"
+  echo "  $0 prod logs     - Visualizzare log ambiente produzione"
+}
+
+# Verifica parametri ambiente
+if [ "$1" != "test" ] && [ "$1" != "pre" ] && [ "$1" != "prod" ] && [ "$1" != "all" ]; then
+  show_help
+  exit 1
+fi
+
+# Verifica parametri operazione
+if [ "$2" != "start" ] && [ "$2" != "stop" ] && [ "$2" != "restart" ] && [ "$2" != "logs" ] && [ "$2" != "status" ]; then
+  show_help
+  exit 1
+fi
+
+# Avviare ambiente specificato
+function start_env {
+  local env=$1
+  local port
+  local api_key
+  local jwt_secret
+  local debug
+  
+  echo -e "${GREEN}Avvio ambiente $env in corso...${NC}"
+  
+  case $env in
+    test)
+      port=8001
+      api_key="test-gateway-api-key"
+      jwt_secret="test-jwt-secret-key"
+      debug="true"
+      ;;
+    pre)
+      port=8002
+      api_key="pre-gateway-api-key"
+      jwt_secret="pre-jwt-secret-key"
+      debug="true"
+      ;;
+    prod)
+      port=8003
+      api_key="prod-gateway-api-key"
+      jwt_secret="prod-jwt-secret-key"
+      debug="false"
+      ;;
+  esac
+  
+  ENV=$env PORT=$port EXTERNAL_PORT=$port API_KEY=$api_key JWT_SECRET=$jwt_secret DEBUG=$debug \
+    docker-compose -p magic-gateway-$env up -d
+  
+  echo -e "${GREEN}Ambiente $env avviato, indirizzo di accesso: http://localhost:$port${NC}"
+}
+
+# Fermare ambiente specificato
+function stop_env {
+  local env=$1
+  echo -e "${YELLOW}Fermando ambiente $env...${NC}"
+  docker-compose -p magic-gateway-$env down
+  echo -e "${YELLOW}Ambiente $env fermato${NC}"
+}
+
+# Visualizzare log ambiente specificato
+function view_logs {
+  local env=$1
+  echo -e "${GREEN}Visualizzando log ambiente $env...${NC}"
+  docker-compose -p magic-gateway-$env logs -f
+}
+
+# Verificare stato ambiente specificato
+function check_status {
+  local env=$1
+  echo -e "${GREEN}Stato ambiente $env:${NC}"
+  docker-compose -p magic-gateway-$env ps
+}
+
+# Elaborare operazione
+function process_operation {
+  local env=$1
+  local operation=$2
+  
+  case $operation in
+    start)
+      start_env $env
+      ;;
+    stop)
+      stop_env $env
+      ;;
+    restart)
+      stop_env $env
+      start_env $env
+      ;;
+    logs)
+      view_logs $env
+      ;;
+    status)
+      check_status $env
+      ;;
+  esac
+}
+
+# Elaborare tutti gli ambienti
+function process_all_envs {
+  local operation=$1
+  
+  for env in test pre prod; do
+    process_operation $env $operation
+  done
+}
+
+# Flusso principale
+if [ "$1" == "all" ]; then
+  process_all_envs $2
+else
+  process_operation $1 $2
+fi
+```
+
+Assicurarsi che lo script abbia i permessi di esecuzione:
+
+```bash
+chmod +x deploy.sh
+```
+
+### 6. Deployment e Gestione
+
+Ora è possibile utilizzare lo script `deploy.sh` per gestire facilmente i diversi ambienti:
+
+```bash
+# Avviare ambiente test
+./deploy.sh test start
+
+# Avviare ambiente pre-release
+./deploy.sh pre start
+
+# Avviare ambiente produzione
+./deploy.sh prod start
+
+# Avviare tutti gli ambienti
+./deploy.sh all start
+
+# Visualizzare log ambiente test
+./deploy.sh test logs
+
+# Fermare ambiente produzione
+./deploy.sh prod stop
+```
+
+## Modalità di Accesso agli Ambienti
+
+I gateway API dei diversi ambienti sono accessibili attraverso porte diverse:
+
+- Ambiente test: http://localhost:8001
+- Ambiente pre-release: http://localhost:8002
+- Ambiente produzione: http://localhost:8003
+
+## Isolamento Ambientale e Indipendenza dei Dati
+
+- Ogni ambiente utilizza container Docker indipendenti, garantendo l'isolamento dei processi
+- Ogni ambiente utilizza file di variabili d'ambiente indipendenti, garantendo l'isolamento della configurazione
+- Ogni ambiente utilizza porte indipendenti, garantendo l'isolamento di rete
+- Le chiavi JWT sono impostate indipendentemente in ogni ambiente, garantendo che i token non siano intercambiabili
+
+## Differenze nelle Caratteristiche degli Ambienti
+
+1. **Ambiente test**:
+   - Modalità debug abilitata, output di log dettagliati
+   - Utilizzo di chiavi API di test
+   - Possibilità di utilizzare modelli con configurazione inferiore per i test
+
+2. **Ambiente pre-release**:
+   - Modalità debug abilitata, facilita la risoluzione dei problemi
+   - Utilizzo di configurazione vicina alla produzione
+   - Utilizzato per verifica funzionale e test delle prestazioni
+
+3. **Ambiente produzione**:
+   - Modalità debug disabilitata, migliora le prestazioni
+   - Utilizzo di chiavi API ufficiali
+   - Utilizzo della configurazione di modello più stabile
+
+## Raccomandazioni di Sicurezza
+
+1. I file di configurazione dell'ambiente produzione dovrebbero essere custoditi adeguatamente, evitando la divulgazione di informazioni sensibili
+2. Le chiavi JWT e API di ogni ambiente dovrebbero essere diverse
+3. Ruotare periodicamente le chiavi di ogni ambiente
+4. L'ambiente produzione dovrebbe utilizzare HTTPS o protezione di rete interna
+5. Utilizzare l'iniezione di variabili d'ambiente per informazioni sensibili, evitando di codificare informazioni sensibili nei file di configurazione
+
+## Risoluzione dei Problemi
+
+1. Visualizzare i log del container
+   ```bash
+   ./deploy.sh <ambiente> logs
+   ```
+
+2. Verificare i file di configurazione dell'ambiente
+   ```bash
+   cat config/<ambiente>/.env
+   ```
+
+3. Verificare lo stato del container
+   ```bash
+   ./deploy.sh <ambiente> status
+   ```
+
+4. Riavviare il servizio
+   ```bash
+   ./deploy.sh <ambiente> restart
+   ```
+
+## Estensioni e Ottimizzazioni
+
+1. **Aggiungere monitoraggio**: Integrare Prometheus e Grafana per monitorare lo stato dei container
+2. **Load balancing**: In scenari ad alto traffico, è possibile scalare orizzontalmente il servizio attraverso Docker Compose
+3. **Integrazione CI/CD**: Integrare il deployment multi-ambiente nel flusso CI/CD
+4. **Test automatizzati**: Aggiungere script di test automatizzati per ogni ambiente
+
+---
+
 # API网关的多环境部署指南
 
 本文档详细说明如何使用Docker容器技术为API网关实现测试(test)、预发布(pre)和生产(production)三套独立环境的部署方案。
@@ -425,4 +852,4 @@ chmod +x deploy.sh
 
 ---
 
-本部署方案通过Docker容器技术实现了API网关的多环境部署，确保各环境之间的隔离性和配置独立性，同时保持代码的一致性，便于管理和维护。 
+本部署方案通过Docker容器技术实现了API网关的多环境部署，确保各环境之间的隔离性和配置独立性，同时保持代码的一致性，便于管理和维护。

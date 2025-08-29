@@ -1,3 +1,504 @@
+# Servizio API Gateway in Go 🏰
+
+Questo è un servizio API gateway ad alte prestazioni per container Docker, implementato in linguaggio Go, che può gestire in modo sicuro le variabili d'ambiente e fornire token di accesso temporanei.
+
+**Nota importante:** Questo gateway supporta solo la sostituzione del contenuto degli header e del dominio URL, non supporta la sostituzione del contenuto del body.
+
+## 🚀 Caratteristiche Principali
+
+- **⚡ Alte Prestazioni**: Implementato in Go, con miglioramenti significativi delle prestazioni rispetto alla versione Python
+- **🔐 Servizio di Autenticazione**: Genera token di accesso temporanei per i container
+- **🛡️ Protezione delle Variabili d'Ambiente**: I container non possono ottenere direttamente i valori delle variabili d'ambiente, possono solo usarli indirettamente tramite proxy API
+- **🔗 Supporto Multi-Servizio**: Può supportare contemporaneamente più servizi API (come OpenAI, DeepSeek, Magic, ecc.)
+- **🛤️ Routing per Nome Variabile d'Ambiente**: Accesso diretto ai servizi corrispondenti tramite nome della variabile d'ambiente
+- **🔄 Proxy API**: Sostituzione automatica dei riferimenti alle variabili d'ambiente nelle richieste
+- **📝 Supporto Formati Multipli di Riferimento alle Variabili**: `env:VAR`, `${VAR}`, `$VAR`, `OPENAI_*`, ecc.
+- **🌍 Distribuzione Multi-Ambiente**: Supporta tre ambienti indipendenti: test, pre-release e produzione
+
+## 📁 Struttura del Progetto
+
+```
+magic-gateway/
+├── main.go                    # Punto di ingresso principale del programma
+├── .env                       # File di configurazione delle variabili d'ambiente
+├── README.md                  # Documentazione del progetto
+├── deploy.sh                  # Script di distribuzione multi-ambiente
+├── docker-compose.yml         # Configurazione Docker Compose
+├── Dockerfile                 # File di costruzione Docker
+├── config/                    # Directory di configurazione multi-ambiente
+│   ├── test/                  # Configurazione ambiente di test
+│   ├── pre/                   # Configurazione ambiente pre-release
+│   └── prod/                  # Configurazione ambiente produzione
+├── docs/                      # Directory documentazione
+│   └── multi-environment-deployment.md # Guida dettagliata distribuzione multi-ambiente
+├── tests/                     # Directory test unitari e funzionali
+│   ├── auth_test_client.go    # Client di test interfaccia autenticazione
+│   ├── auth_key_test.go       # Test validazione API Key
+│   └── test_api_key.go        # Test funzionalità API Key
+└── test_client/               # Strumenti client di test
+    └── test_client.go         # Client di test generico
+```
+
+## 🏁 Avvio Rapido
+
+### 📋 Prerequisiti
+
+- Go 1.18+ (per costruzione locale)
+- Docker & Docker Compose (per distribuzione containerizzata)
+
+### 🚀 Avvio con Script
+
+```bash
+# Rendere eseguibile lo script di avvio del servizio
+chmod +x start.sh
+
+# Avviare il servizio
+./start.sh
+```
+
+### 🐳 Avvio con Docker Compose
+
+```bash
+# Avviare il servizio
+docker-compose up -d
+
+# Visualizzare i log
+docker-compose logs -f
+```
+
+### 🌍 Distribuzione Multi-Ambiente
+
+Il gateway API supporta tre ambienti indipendenti: test, pre-release e produzione, ciascuno con configurazioni e porte diverse:
+
+```bash
+# Prima assicurarsi che lo script di distribuzione sia eseguibile
+chmod +x deploy.sh
+
+# Avviare ambiente di test (porta 8001)
+./deploy.sh test start
+
+# Avviare ambiente pre-release (porta 8002)
+./deploy.sh pre start
+
+# Avviare ambiente produzione (porta 8003)
+./deploy.sh prod start
+
+# Avviare tutti gli ambienti contemporaneamente
+./deploy.sh all start
+
+# Visualizzare log dell'ambiente specifico
+./deploy.sh test logs
+
+# Verificare stato dell'ambiente
+./deploy.sh pre status
+
+# Fermare ambiente specifico
+./deploy.sh prod stop
+
+# Riavviare ambiente specifico
+./deploy.sh test restart
+```
+
+Lo script di distribuzione crea automaticamente directory e file di configurazione per ciascun ambiente. Le configurazioni di ciascun ambiente sono memorizzate nel file `config/<ambiente>/.env`, che può essere modificato secondo necessità.
+
+**Porte di accesso ambiente:**
+- Ambiente test: http://localhost:8001
+- Ambiente pre-release: http://localhost:8002
+- Ambiente produzione: http://localhost:8003
+
+Per informazioni più dettagliate sulla distribuzione multi-ambiente, fare riferimento alla [Guida alla Distribuzione Multi-Ambiente](docs/multi-environment-deployment.md).
+
+## ⚙️ Spiegazione Configurazione
+
+### 🔧 Variabili d'Ambiente
+
+Nel file `.env` configurare le seguenti variabili d'ambiente:
+
+```
+# Configurazioni Generali
+JWT_SECRET=your-secret-key-change-me
+API_GATEWAY_VERSION=1.0.0
+DEFAULT_API_URL=https://api.default-service.com
+MAGIC_GATEWAY_API_KEY=your-gateway-api-key-here
+
+# Configurazioni Servizio OpenAI
+OPENAI_API_KEY=sk-xxxx
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4
+
+# Configurazioni Servizio Magic
+MAGIC_API_KEY=xxx
+MAGIC_API_BASE_URL=https://api.magic.com/v1
+MAGIC_MODEL=gpt-4o-global
+
+# Configurazioni Servizio DeepSeek
+DEEPSEEK_API_KEY=xxxxx
+DEEPSEEK_API_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-coder
+
+# Configurazioni Servizio Azure OpenAI
+AZURE_OPENAI_EMBEDDING_API_KEY=xxxx
+AZURE_OPENAI_EMBEDDING_ENDPOINT=https://example.openai.azure.com/
+AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=example-text-embedding
+AZURE_OPENAI_EMBEDDING_API_VERSION=2023-05-15
+```
+
+**⚠️ Importante:** `MAGIC_GATEWAY_API_KEY` è una credenziale di sicurezza chiave, utilizzata solo per l'autenticazione dell'interfaccia `/auth`. Solo quando si ottiene il token è necessario fornire questa chiave API, le altre richieste dopo aver ottenuto il token utilizzano il token ottenuto per l'autenticazione e non necessitano più di fornire questa chiave API.
+
+### 📦 Variabili d'Ambiente Container
+
+Nel container, utilizzare gli stessi nomi di variabili d'ambiente, ma senza valori effettivi. Ad esempio nel file `.env` del container:
+
+```
+OPENAI_API_KEY="OPENAI_API_KEY"
+OPENAI_API_BASE_URL="OPENAI_API_BASE_URL"
+OPENAI_MODEL="OPENAI_MODEL"
+
+MAGIC_API_KEY="MAGIC_API_KEY"
+MAGIC_API_BASE_URL="MAGIC_API_BASE_URL"
+MAGIC_MODEL="MAGIC_MODEL"
+```
+
+## 📖 Spiegazione Utilizzo API
+
+### 1. 🏷️ Ottenere Token Temporaneo
+
+**⚠️ Suggerimento Importante:**
+1. Le richieste per ottenere token temporaneo possono essere effettuate **solo** localmente dall'host (localhost/127.0.0.1), non possono essere effettuate dai container. Questo è progettato per motivi di sicurezza.
+2. Quando si ottiene il token, **è necessario** fornire l'header di richiesta `X-Gateway-API-Key` valido, il cui valore deve corrispondere a `MAGIC_GATEWAY_API_KEY` nelle variabili d'ambiente.
+
+```bash
+curl -X POST http://localhost:8000/auth \
+  -H "magic-user-id: your-user-id" \
+  -H "magic-organization-code: your-organization-code" \
+  -H "X-Gateway-API-Key: your-gateway-api-key-here"
+```
+
+Esempio risposta:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "header": "Magic-Authorization",
+  "example": "Magic-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Il token temporaneo ora è **permanentemente valido**, senza limite di tempo di scadenza. È sufficiente ottenerlo una volta e può essere utilizzato a lungo termine. Durante l'esecuzione del container, dovrebbe essere iniettato dalle variabili d'ambiente dell'host nel container al momento dell'avvio. Si noti di utilizzare l'header `Magic-Authorization` invece del `Authorization` standard.
+
+### 2. 🔍 Query Variabili d'Ambiente Disponibili
+
+```bash
+# Ottenere tutti i nomi delle variabili d'ambiente consentite
+curl http://host.docker.internal:8000/env \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN"
+
+# Verificare se una variabile d'ambiente specifica è disponibile
+curl "http://host.docker.internal:8000/env?vars=OPENAI_API_KEY,OPENAI_MODEL" \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN"
+```
+
+Esempio risposta:
+```json
+{
+  "available_vars": ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_API_BASE_URL", "MAGIC_API_KEY", "MAGIC_MODEL", "API_GATEWAY_VERSION"],
+  "message": "Non è consentito ottenere direttamente i valori delle variabili d'ambiente, utilizzare il proxy API per utilizzare queste variabili"
+}
+```
+
+### 3. 🔗 Query Servizi Disponibili
+
+```bash
+curl http://localhost:8000/services \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN"
+```
+
+Esempio risposta:
+```json
+{
+  "available_services": [
+    {
+      "name": "OPENAI",
+      "base_url": "api.openai.com",
+      "default_model": "gpt-4"
+    },
+    {
+      "name": "MAGIC",
+      "base_url": "api.magic.com",
+      "default_model": "gpt-4o-global"
+    },
+    {
+      "name": "DEEPSEEK",
+      "base_url": "api.deepseek.com",
+      "default_model": "deepseek-coder"
+    }
+  ],
+  "message": "È possibile utilizzare il proxy API per utilizzare questi servizi, formato: /{service}/path o utilizzare riferimenti env:"
+}
+```
+
+### 4. 🔄 Utilizzo Proxy API e Sostituzione Variabili d'Ambiente
+
+Esistono molteplici modi per chiamare diversi servizi:
+
+#### 📍 Metodo 1: Accesso diretto tramite nome variabile d'ambiente (consigliato)
+
+```bash
+# Accesso diretto tramite nome variabile d'ambiente
+curl -X POST http://host.docker.internal:8000/OPENAI_API_BASE_URL/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+
+# È anche possibile utilizzare direttamente il nome della variabile d'ambiente come valore (quando la stringa corrisponde completamente)
+curl -X POST http://host.docker.internal:8000/OPENAI_API_BASE_URL/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "OPENAI_MODEL",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+
+# Utilizzo servizio Magic
+curl -X POST http://host.docker.internal:8000/MAGIC_API_BASE_URL/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "MAGIC_MODEL",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+#### 📍 Metodo 2: Accesso tramite nome servizio
+
+```bash
+# Chiamata servizio OpenAI
+curl -X POST http://host.docker.internal:8000/openai/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "env:OPENAI_MODEL",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+
+# Chiamata servizio Magic
+curl -X POST http://host.docker.internal:8000/magic/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "env:MAGIC_MODEL",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+#### 📍 Metodo 3: Utilizzo parametri query per specificare servizio
+
+```bash
+curl -X POST "http://host.docker.internal:8000/v1/chat/completions?service=deepseek" \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "env:DEEPSEEK_MODEL",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+#### 📍 Metodo 4: Utilizzo riferimenti variabili d'ambiente
+
+```bash
+curl -X POST http://host.docker.internal:8000/v1/chat/completions \
+  -H "Magic-Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "env:OPENAI_MODEL",
+    "api_base": "${OPENAI_API_BASE_URL}",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+## 🐳 Integrazione Container Docker
+
+Poiché esistono limitazioni di sicurezza nei container Docker, non è possibile ottenere direttamente token temporanei. Seguire i seguenti passaggi per ottenere il token dall'host e iniettarli nel container:
+
+### 1. 🏠 Ottenere Token Temporaneo dall'Host
+
+#### 🔸 Modalità Ambiente Singolo
+
+```bash
+# Eseguire sull'host
+USER_ID="your-user-id"
+GATEWAY_API_KEY="your-gateway-api-key"
+
+# Ottenere token temporaneo (può essere eseguito solo localmente)
+TOKEN=$(curl -s -X POST "http://localhost:8000/auth" \
+  -H "X-USER-ID: $USER_ID" \
+  -H "X-Gateway-API-Key: $GATEWAY_API_KEY" | jq -r '.token')
+
+echo "Token ottenuto: $TOKEN"
+```
+
+#### 🔸 Modalità Multi-Ambiente
+
+```bash
+# Eseguire sull'host - specificare ambiente (test, pre, prod)
+ENV="test"  # Valori possibili: test, pre, prod
+USER_ID="your-user-id"
+
+# Selezionare porta e chiave API in base all'ambiente
+case $ENV in
+  test)
+    PORT=8001
+    GATEWAY_API_KEY="test-gateway-api-key"
+    ;;
+  pre)
+    PORT=8002
+    GATEWAY_API_KEY="pre-gateway-api-key"
+    ;;
+  prod)
+    PORT=8003
+    GATEWAY_API_KEY="prod-gateway-api-key"
+    ;;
+esac
+
+# Ottenere token temporaneo dell'ambiente specificato
+TOKEN=$(curl -s -X POST "http://localhost:$PORT/auth" \
+  -H "X-USER-ID: $USER_ID" \
+  -H "X-Gateway-API-Key: $GATEWAY_API_KEY" | jq -r '.token')
+
+echo "Token $ENV ottenuto: $TOKEN"
+```
+
+### 2. 🚀 Avvio Container con Iniezione Token
+
+#### 🔸 Modalità Ambiente Singolo
+
+```bash
+# Utilizzare il token ottenuto per avviare il container
+docker run -e API_TOKEN="$TOKEN" \
+  -e API_GATEWAY_URL="http://host.docker.internal:8000" \
+  your-image
+```
+
+#### 🔸 Modalità Multi-Ambiente
+
+```bash
+# Utilizzare il token ottenuto per avviare il container, specificando l'ambiente
+docker run -e API_TOKEN="$TOKEN" \
+  -e API_GATEWAY_URL="http://host.docker.internal:$PORT" \
+  -e API_GATEWAY_ENV="$ENV" \
+  your-image
+```
+
+### 3. 🔧 Utilizzo Token Iniettato nel Container
+
+```bash
+# L'applicazione nel container può ottenere il token dalle variabili d'ambiente
+TOKEN=$API_TOKEN
+GATEWAY_URL=$API_GATEWAY_URL
+
+# Query servizi disponibili
+curl -s "$GATEWAY_URL/services" \
+  -H "Magic-Authorization: Bearer $TOKEN"
+```
+
+### 4. 🐳 Configurazione Multi-Ambiente con Docker Compose
+
+È possibile configurare i container dell'applicazione nel file docker-compose.yml per connettersi al gateway API di un ambiente specifico:
+
+```yaml
+version: '3'
+
+services:
+  your-app:
+    image: your-app-image
+    environment:
+      - API_TOKEN=${API_TOKEN}
+      - API_GATEWAY_URL=http://host.docker.internal:${PORT:-8000}
+      - API_GATEWAY_ENV=${ENV:-dev}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+Poi avviare il container utilizzando le variabili d'ambiente:
+
+```bash
+# Iniettare variabili d'ambiente per avviare il container dell'applicazione
+ENV=test PORT=8001 API_TOKEN=$TOKEN docker-compose up -d
+```
+
+## 🔒 Caratteristiche di Sicurezza
+
+1. **🛡️ Protezione Variabili d'Ambiente**: I container non possono ottenere direttamente i valori delle variabili d'ambiente dell'host, possono solo utilizzarli indirettamente tramite richieste proxy API
+2. **🔄 Sostituzione Variabili d'Ambiente**: Il gateway API sostituisce automaticamente i riferimenti alle variabili d'ambiente nelle richieste, il container non ha bisogno di conoscere i valori effettivi
+3. **🏷️ Header di Autenticazione Personalizzati**: Utilizza l'header Magic-Authorization per evitare conflitti con l'Authorization di altri servizi
+4. **🔐 Isolamento Multi-Servizio**: Le chiavi API di ciascun servizio sono gestite dal gateway e non vengono divulgate ai container
+5. **⏰ Token Temporanei**: Tutte le richieste richiedono un token di autenticazione valido con limite di tempo
+6. **📦 Isolamento Container**: Ogni container utilizza un token indipendente e non può accedere ai token di altri container
+7. **🔑 Chiave API Gateway**: L'ottenimento del token richiede una chiave API del gateway valida (`X-Gateway-API-Key`), aggiungendo un ulteriore livello di sicurezza
+
+## ⚡ Confronto Prestazioni
+
+Rispetto alla versione Python, la versione Go del gateway API ha i seguenti vantaggi prestazionali:
+
+1. **💾 Minor Occupazione Memoria**: La versione Go generalmente occupa meno memoria rispetto alla versione Python
+2. **🚀 Maggiore Capacità Elaborazione Concorrente**: Il modello di concorrenza di Go gli permette di gestire più efficacemente un gran numero di richieste
+3. **⚡ Tempo di Avvio Più Rapido**: Go viene compilato in un singolo file eseguibile, con tempi di avvio più rapidi
+4. **🔥 Latenza Ridotta**: La latenza di elaborazione delle richieste è significativamente ridotta
+
+## 🏗️ Istruzioni di Costruzione
+
+Se è necessario costruire manualmente:
+
+```bash
+# Ottenere dipendenze
+go mod tidy
+
+# Costruire file eseguibile
+go build -o api-gateway
+```
+
+## 🛡️ Suggerimenti di Sicurezza
+
+1. Cambiare `JWT_SECRET` in ambiente di produzione
+2. Aggiungere un livello proxy HTTPS quando necessario
+3. Limitare i container autorizzati ad accedere
+4. Ruotare regolarmente le chiavi API
+
+## 🔄 Funzionalità Sostituzione Variabili d'Ambiente
+
+Il gateway API fornisce una potente funzionalità di sostituzione delle variabili d'ambiente che può sostituire i riferimenti alle variabili d'ambiente in diverse posizioni:
+
+1. **📝 Sostituzione Corpo Richiesta** - Sostituisce i riferimenti alle variabili d'ambiente nel corpo JSON della richiesta nei seguenti formati:
+   - Corrispondenza completa nome variabile d'ambiente: `"model": "OPENAI_MODEL"`
+   - Prefisso `env:`: `"model": "env:OPENAI_MODEL"`
+   - Formato `${VAR}`: `"url": "https://example.com/${SERVICE_URL}"`
+   - Formato `$VAR`: `"key": "$OPENAI_API_KEY"`
+
+2. **🏷️ Sostituzione Header Richiesta** - Sostituisce i riferimenti alle variabili d'ambiente negli header personalizzati della richiesta
+
+3. **🛤️ Sostituzione Percorso URL** - Utilizza le variabili d'ambiente come prefisso del percorso URL: `/OPENAI_API_BASE_URL/v1/chat/completions`
+
+Questo permette ai container di utilizzare in sicurezza le variabili d'ambiente senza conoscerne i valori effettivi. Il gateway API rileva e sostituisce automaticamente i riferimenti alle variabili d'ambiente nelle richieste, e tutte le sostituzioni vengono completate lato proxy, garantendo che le informazioni sensibili non vengano esposte ai container.
+
+---
+
 # Go 版 API 网关服务
 
 这是一个用于 Docker 容器的高性能 API 网关服务，使用 Go 语言实现，可以安全地管理环境变量并提供临时访问令牌。

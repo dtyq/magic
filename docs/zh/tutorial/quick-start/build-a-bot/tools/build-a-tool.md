@@ -1,29 +1,37 @@
 
-# 基本介绍
-【工具】与【子流程】实际上本质是一样的，只是用法和场景有所不同。
+# 🔧 Introduzione Base
+【## 🛠️ Due, Creazione dell'Insieme di Strumenti Assistente Conoscenza
+1. Accedi alla piattaforma [Magic](https://www.letsmagic.cn/login). (Se è un deployment privato, accedi alla piattaforma di login privata corrispondente)
+2. Nella barra dei menu a sinistra clicca【AI Assistant】, a destra clicca【Crea Insieme Strumenti】
+3. Carica l'immagine dell'insieme strumenti e compila il nome dell'assistente e una semplice descrizione
+4. Clicca【Insieme Strumenti Assistente Conoscenza】, a destra clicca【Aggiungi Strumento】
+5. Inserisci【srm_knowledge_search】, e aggiungi la descrizione corrispondente, come: "Recupera contenuti della knowledge base SRM"
 
-【子流程】：一般用于拆分主流程，允许将主流程的一部分功能模块抽象成一个独立的工具能力，从而避免一个流程主体过大，进一步提升维护效率
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-1.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-2.png)】e【Sottoprocesso】sono in realtà essenzialmente la stessa cosa, solo che l'uso e gli scenari sono diversi.
 
-【工具】：而工具一般用于被大模型调用，当然也允许以工具节点的形式存在
+【Sottoprocesso】: Generalmente utilizzato per suddividere il flusso principale, permette di astrarre una parte delle funzionalità del flusso principale in uno strumento indipendente, evitando che il corpo del flusso diventi troppo grande, migliorando ulteriormente l'efficienza di manutenzione
 
-**对于「工具」有几种概念需要了解一下**
+【Strumento】: Gli strumenti sono generalmente utilizzati per essere chiamati dai modelli grandi, ma possono anche esistere come nodi strumento
 
-**系统自定义参数**：当工具作为工具节点的形式存在时，定义工具节点的自定义入参
+**Per quanto riguarda gli "strumenti" ci sono alcuni concetti da capire**
 
-**大模型参数**：当被大模型调用时，定义大模型调用时的入参
+**Parametri personalizzati del sistema**: Quando lo strumento esiste come forma di nodo strumento, definisce i parametri di input personalizzati del nodo strumento
 
-**输出**：工具调用完后返回的数据
+**Parametri del modello grande**: Quando viene chiamato dal modello grande, definisce i parametri di input durante la chiamata del modello grande
 
-## 一、设计你想要得到的效果
-SRM 系统在实际的业务过程中使用广泛，用户需要频繁的去查找 SRM 知识库进行疑难解答，但是又不想重复设置多个 AI 助理，希望在一个 AI 助理上支持多个系统的知识问答，那么我们就需要将用户查找 SRM 知识库的能力抽象成一个独立的工具给大模型调用即可。
+**Output**: I dati restituiti dopo la chiamata dello strumento
 
-基于以上的场景目标我们设计的工作流会包含以下几个部分：
+## 🎯 Uno, Progetta l'Effetto che Vuoi Ottenere
+Il sistema SRM è ampiamente utilizzato nei processi aziendali effettivi, gli utenti hanno frequentemente bisogno di cercare nella knowledge base SRM per risolvere problemi, ma non vogliono impostare ripetutamente più assistenti AI, sperano di supportare le domande e risposte di più sistemi su un singolo assistente AI, quindi abbiamo bisogno di astrarre la capacità dell'utente di cercare nella knowledge base SRM in uno strumento indipendente da chiamare per il modello grande.
 
-1、创建一个知识助理工具集
+Basandoci sugli obiettivi di scenario sopra, il flusso di lavoro che progettiamo includerà le seguenti parti:
 
-2、在对应的知识工具集下添加 **srm_knowledge_search** 工具
+1. Creare un insieme di strumenti assistente conoscenza
 
-3、在对应的 AI 助理的【大模型节点】上配置上对应工具即可
+2. Nell'insieme di strumenti conoscenza corrispondente aggiungere lo strumento **srm_knowledge_search**
+
+3. Nel【nodo modello grande】dell'assistente AI corrispondente configurare lo strumento corrispondente
 
 ## 二、创建知识助理工具集
 1. 登录 [Magic](https://www.letsmagic.cn/login)平台。（如果私有化部署则登录对应私有化登录平台）
@@ -35,73 +43,74 @@ SRM 系统在实际的业务过程中使用广泛，用户需要频繁的去查�
 ![工具截图](https://cdn.letsmagic.cn/static/img/tool-1.png)
 ![工具截图](https://cdn.letsmagic.cn/static/img/tool-2.png)
 
-## 三、编排工作流
-### 1、点击创建【开始节点】
-1.1 点击【添加参数】
+## ⚙️ Tre, Orchestrazione del Flusso di Lavoro
+### 1. Clicca per creare【nodo iniziale】
+1.1 Clicca【Aggiungi Parametro】
 
-1.2 输入对应大模型参数输入内容如下图
+1.2 Inserisci il contenuto di input del parametro del modello grande come mostrato nell'immagine
 
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-3.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-3.png)
 
-### 2、连接并创建【向量搜索节点】
-2.1 选择知识库：固定值，选择供应链知识库
+### 2. Connetti e crea【nodo ricerca vettoriale】
+2.1 Seleziona knowledge base: valore fisso, seleziona knowledge base supply chain
 
-2.2 搜索关键词：通过 @ 引用开始节点问题
+2.2 Parole chiave di ricerca: tramite @ riferimento alla domanda del nodo iniziale
 
-2.3 元数据匹配：设置对应的参数值 
+2.3 Corrispondenza metadati: imposta i valori dei parametri corrispondenti 
 
-（参数名：**knowledge_base_id**、参数值：**固定值、716406779765358592**）
+(Parametro nome: **knowledge_base_id**, valore parametro: **valore fisso, 716406779765358592**)
 
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-4.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-4.png)
 
-### 3、连接并创建【大模型节点】
-3.1 模型区域，选择已支持的大模型节点，其他参数保持不变，同时也开启视觉理解能力（这里 默认选择 GPT-4o） 
+### 3. Connetti e crea【nodo modello grande】
+3.1 Area modello, seleziona il nodo modello grande supportato, altri parametri rimangono invariati, e attiva anche la capacità di comprensione visiva (qui seleziona GPT-4o per default) 
 
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-5.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-5.png)
 
-3.2、输入区域， System 输入框填写输入给大模型的提示词，User 区域 通过 @引用**开始节点的问题**和**向量搜索节点的片段列表**
+3.2 Area input, casella System compila il prompt da dare al modello grande, area User tramite @riferimento alla **domanda del nodo iniziale** e alla **lista frammenti del nodo ricerca vettoriale**
 
-3.3、开启自动加载记忆
+3.3 Attiva caricamento automatico memoria
 ```
-#角色
-数据处理专家
-#任务
-根据给定问题选择关联性较高的若干片段，然后组织最恰当的答案。
-#目标
-答案要基于所选择的关联性较高的若干片段，在此基础上适当扩展，符合问题Q的逻辑，语法通顺流畅。
-#要求
-1、根据给定问题 Q，从fragment选项列表中选择最相关的若干个片段；
-2、必须确保所选片段是和问题有关联的。如果你认为所有片段和问题都没有关联的话，查询不到相关信息。那么你就回答"检索不到该内容"；
-3、回答不能生硬，可以适当根据答案润色一下，使得回答更通畅，但不得改变原答案的主旨；
-4、如果所有fragment关联性都比较低的话，查询不到相关信息那么认为不存在答案，则输出"检索不到该内容"；
-5、你的回答不能遗漏片段中的图片，需要一起展示渲染图片在你的回答内容中；
+#Ruolo
+Esperto di elaborazione dati
+#Compito
+In base alla domanda data, seleziona diversi frammenti con elevata correlazione, poi organizza la risposta più appropriata.
+#Obiettivo
+La risposta deve basarsi sui frammenti selezionati con elevata correlazione, estendendosi appropriatamente su questa base, essere conforme alla logica della domanda Q, grammaticalmente scorrevole.
+#Requisiti
+1. In base alla domanda Q data, seleziona i frammenti più rilevanti dalla lista opzioni frammenti;
+2. Devi assicurarti che i frammenti selezionati siano correlati alla domanda. Se ritieni che tutti i frammenti non abbiano correlazione con la domanda, non è possibile recuperare informazioni rilevanti. Allora rispondi "Impossibile recuperare questo contenuto";
+3. La risposta non deve essere rigida, può essere leggermente ritoccata in base alla risposta per renderla più scorrevole, ma non deve cambiare l'essenza della risposta originale;
+4. Se tutti i frammenti hanno bassa correlazione, non è possibile recuperare informazioni rilevanti quindi non esiste risposta, allora output "Impossibile recuperare questo contenuto";
+5. La tua risposta non deve omettere le immagini nei frammenti, deve mostrare insieme il rendering delle immagini nel tuo contenuto di risposta;
 
-#返回格式
-只返回答案；使用漂亮的 markdown 格式返回。
-#流程
-你需要严格按照以下流程思考并执行每一步：
-1、接收一个问题（Q）；
-2、从fragment列表中选择关联性较高的若干个片段；根据第二步选择的关联性较高的若干个片段，根据问题Q组织答案，并且返回；
-3、答案可以稍加润色，使得语法通畅；
+#Formato di ritorno
+Restituisci solo la risposta; usa un bel formato markdown.
+#Flusso
+Devi seguire rigorosamente il seguente flusso per pensare ed eseguire ogni passo:
+1. Ricevi una domanda (Q);
+2. Dalla lista frammenti seleziona diversi frammenti con elevata correlazione;
+3. In base ai frammenti selezionati con elevata correlazione del passo 2, organizza la risposta in base alla domanda Q e restituisci;
+4. La risposta può essere leggermente ritoccata per rendere la grammatica scorrevole;
 ```
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-6.png)
-### 4、连接并创建【结束节点】
-4.1、添加对应结束参数值（参数名：**response**、参数值：**固定值，并通过 @引用大模型文本字符串**）
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-6.png)
+### 4. Connetti e crea【nodo finale】
+4.1 Aggiungi il valore del parametro finale corrispondente (nome parametro: **response**, valore parametro: **valore fisso, e tramite @riferimento alla stringa di testo del modello grande**)
       
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-7.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-7.png)
 
-### 5、工具发布
-5.1、点击发布，填上对应的版本命名和版本描述即可
+### 5. Pubblicazione strumento
+5.1 Clicca pubblica, compila il nome versione corrispondente e la descrizione versione
 
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-8.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-8.png)
 
-### 6、AI 知识助理引用
+### 6. Riferimento assistente AI conoscenza
 
-6.1、选择需要支持 SRM 问答的 AI 助理，在大模型节点点击【添加工具】
+6.1 Seleziona l'assistente AI che necessita di supportare le domande SRM, nel nodo modello grande clicca【Aggiungi Strumento】
 
-6.2、选择【知识助理工具集】，添加【srm_knowledge_search】工具，也可以通过搜索栏快速搜索
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-9.png)
-![工具截图](https://cdn.letsmagic.cn/static/img/tool-10.png)
+6.2 Seleziona【Insieme Strumenti Assistente Conoscenza】, aggiungi lo strumento【srm_knowledge_search】, oppure puoi cercare rapidamente tramite barra di ricerca
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-9.png)
+![Screenshot Strumento](https://cdn.letsmagic.cn/static/img/tool-10.png)
 
 ---
-完成上述配置，对应的 AI 助理就能支持查询 SRM知识库的内容啦。
+Dopo aver completato la configurazione sopra, l'assistente AI corrispondente potrà supportare l'interrogazione dei contenuti della knowledge base SRM.

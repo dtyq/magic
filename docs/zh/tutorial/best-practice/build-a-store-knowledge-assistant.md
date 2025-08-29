@@ -1,3 +1,113 @@
+# 🏬 Costruire un Assistente di Conoscenza per il Negozio
+
+Questo tutorial usa come esempio la costruzione di un “Assistente di Conoscenza del Negozio”, spiegando come utilizzare la funzione di knowledge base di Magic per realizzare scenari di Q&A basati sulla conoscenza.
+
+## 🧠 Conoscenze di Sfondo
+Magic è una nuova generazione di piattaforma di authoring per AI Chat Bot. Che tu abbia o meno basi di programmazione, puoi creare rapidamente vari tipi di Chat Bot e pubblicarli per l’uso nel team.
+Teamshare Knowledge Base è una piattaforma di gestione informativa interna all’azienda, che supporta gestione documenti, creazione Wiki e Q&A interattivo, includendo controllo versioni, impostazione permessi e ricerca ottimizzata, migliorando la collaborazione e la condivisione della conoscenza.
+
+## 📌 Introduzione al Caso
+Con l’aumento del numero di negozi, crescono anche le richieste dei commessi verso il reparto centrale. Per migliorare l’efficienza e servire meglio i negozi, basandoci su Magic costruiamo un “Assistente di Conoscenza del Negozio”. Può rispondere rapidamente e con precisione a domande comuni come “gestione dispositivi e risoluzione guasti” o “operazione sistema cassa”, migliorando sensibilmente l’efficienza operativa del centro.
+
+## 🧭 Progettazione del Flusso
+(Da integrare)
+
+## 🏗️ Passi di Costruzione
+### Passo 1: Raccolta Dati
+- Confermare le fonti informative: analizza i ticket storici dei negozi e categorizza i problemi.
+
+Esempi di categorie e contenuti:
+> “La fattura può sostituire il buono?” — Categoria finanziaria
+> “Guasto stampante A4 / stampante termica?” — Categoria post‑vendita ingegneria materiali
+
+Secondo passo: raccolta e organizzazione dei contenuti
+| Categoria | Contenuto | Fonte |
+|---|---|---|
+| Finanza | Regole di rimborso | “Regolamento rimborso finanziario” |
+| Q&A rimborso (integrazioni) | Nuovo documento cloud |
+| HR & Amministrazione | Timbratura e turni | Knowledge base HR |
+| Sistemi interni | Cassa | Nuovo documento cloud |
+| Guasti di rete | Interruzioni ecc. | Nuovo documento cloud |
+| Manuali stampanti | Manuali d’uso | — |
+| Turni | Ricerca personale di turno | Nuovo documento cloud; mantenimento info turni |
+
+Nota: la classificazione reale sarà più ricca; qui è solo di riferimento per la metodologia.
+
+### Passo 2: Creare la Knowledge Base
+- Per basi esistenti (es. regolamenti), importa direttamente le basi già mantenute da altri team.
+- Per Q&A su guasti e problemi comuni, crea una nuova knowledge base e aggiungi/manutieni i contenuti:
+1) Accedi a Magic
+2) Crea la knowledge base “Knowledge Base del Negozio”, organizza per cartelle
+3) Inserisci i contenuti in formato “domanda-risposta” per migliorare il hit rate di ricerca
+Al termine del riempimento, la base è pronta.
+Guida operativa dettagliata: “Configurare Q&A su Knowledge” https://www.teamshare.cn/knowledge/preview/710857519214628864/754479332682764288
+
+### Passo 3: Costruire l’AI Assistant
+1) Accedi a Magic: https://www.letsmagic.cn/explore
+2) Crea un AI Assistant (nome: Assistente Conoscenza Negozio; descrizione: rispondo alle questioni relative ai negozi)
+3) Orchestrazione del flusso del bot. Flusso generale:
+![FigxmKkXEa2k3XAdDoUgHxf77g2Z.png](https://cdn.letsmagic.cn/static/img/20250512162935.jpg)
+
+Configurazioni chiave:
+| Nome Nodo | Configurazione |
+|---|---|
+| Nodo Iniziale | Usa 4 eventi; “quando aggiunge come amico” → nodo risposta con saluto e guida. “Quando riceve nuovo messaggio” → collega nodo esecuzione codice e nodo strumenti |
+| Nodo Esecuzione Codice | Determina se l’utente è “internazionale” in base a conversationId. Input: conversationId (stringa, valore fisso dal nodo iniziale). Output: isNationalUser. Codice PHP utilizzato (non modificare): return [ 'isNationalUser' => str_contains($conversationId, 'TBC-D-xxxxx') ? '是' : '否', ]; |
+| Nodo Strumento | Recupera contenuti da “documento cloud”: tool teamshare_doc_markdown_query; parametrizza l’ID del documento; quindi collega il nodo “Chiamata Modello Grande” |
+| Nodo Chiamata Modello Grande | Modello: GPT‑4o; Strumenti: user_search, create_group; Knowledge base: aggiungi “Knowledge Base del Negozio” e “Knowledge base HR”; Prompt: lasciato vuoto in questa fase. L’output va mostrato in un nodo risposta testo |
+| Nodo Log (opzionale) | Dopo la risposta LLM, registra domanda e risposta per audit/soddisfazione: tool log_question_and_answer; input: answer (risposta LLM), is_national_user |
+
+### Passo 4: Scrivere i Prompt
+I prompt includono: impostazione ruolo, contesto, descrizione capacità e vincoli.
+
+Ruolo (esempio sintetico):
+“Sei l’Assistente di Conoscenza del Negozio. Stile cordiale, professionale e conciso; rispondi nella lingua dell’utente; se l’utente scrive in inglese, effettua retrieval in cinese e poi rispondi in inglese; preferisci contenuti con immagini quando disponibili.”
+
+Contesto: include cronologia chat, knowledge esterne, profilo utente (reparto/ruolo/turno). Usa le variabili dei nodi precedenti tramite @.
+
+Capacità: elenca capacità come “gestione dispositivi e troubleshooting”, “operazioni sistema cassa”, “post‑vendita e gestione materiali”, “linee guida processi/regolamenti”, ecc., e specifica che le risposte devono basarsi sui risultati di retrieval.
+
+Vincoli (esempio):
+1) Quando chiami teamshare_knowledge_search, setta knowledge_list in base a isNationalUser.
+2) A parte “chi sei/cosa sai fare”, tutte le risposte devono basarsi su retrieval; evita allucinazioni.
+3) Risposte strutturate e concise; niente contenuti fuori tema.
+4) Se l’utente ripete la stessa domanda, riesegui il retrieval (non basarti solo sul contesto).
+5) Adatta le risposte al reparto/ruolo dell’utente quando possibile.
+
+Prompt completo: resta invariato nel documento originale per tutela struttura; mantieni stile conciso e ben formattato.
+
+### Passo 5: Debug e Pubblicazione
+1) Clic “Prova esecuzione” per valutare l’effetto dell’assistente
+![Fi37wHLpYs9I6JomVXW4ZT6_l1oH.png](https://cdn.letsmagic.cn/static/img/Fi37wHLpYs9I6JomVXW4ZT6_l1oH.png)
+
+2) Verifica se l’output della risposta è conforme alle attese
+![FhDUPfdOisZ3eUrWDhEus6Gjvyto.png](https://cdn.letsmagic.cn/static/img/FhDUPfdOisZ3eUrWDhEus6Gjvyto.png)
+
+3) Se tutto ok, clicca “Pubblica” per farlo provare agli altri
+![FowHlZdD4BUfNUmgcjd-N60NU2hG.png](https://cdn.letsmagic.cn/static/img/FowHlZdD4BUfNUmgcjd-N60NU2hG.png)
+
+### Passo 6: Pubblicare su Piattaforme Terze (Opzionale)
+Ad esempio DingTalk:
+1) In Magic, nel pannello di pubblicazione, clic “Aggiungi piattaforma”
+2) Imposta un identificatore bot leggibile (es. dingtalk_store_assistant)
+3) Su DingTalk Open Platform, crea app e copia client id/secret
+4) Torna su Magic e incolla id/secret per completare binding
+5) Ottieni l’URL di ricezione messaggi e configurarlo su DingTalk
+6) Pubblica su DingTalk e verifica messaggistica
+7) Infine, spunta la piattaforma appena aggiunta e pubblica il bot
+
+## ✅ Effetto Finale
+Effetto in Magic:
+![20250512171912.jpg](https://cdn.letsmagic.cn/static/img/20250512171912.jpg)
+
+Effetto in DingTalk:
+![20250512172022.jpg](https://cdn.letsmagic.cn/static/img/20250512172022.jpg)
+
+A questo punto, l’Assistente di Conoscenza del Negozio è stato completato.
+
+---
+
+# 中文原文
 本教程以搭建一个门店知识助理为例，说明如何使用麦吉的知识库功能来实现知识问答场景。
 ## 背景知识
 **Magic麦吉** 新一代 AI Chat Bot 的应用编辑平台，无论你是否有编程基础，都可以通过这个平台快速创建各种类型的Chat Bot，发布到团队上使用。

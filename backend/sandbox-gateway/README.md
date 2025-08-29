@@ -1,3 +1,193 @@
+# Sandbox Gateway Service 🏗️
+
+Il Sandbox Gateway Service fornisce interfacce HTTP e WebSocket, permettendo ai client di creare e gestire container Docker sandbox, e comunicare con i container attraverso connessioni WebSocket.
+
+## ✨ Caratteristiche Principali
+
+- Creazione di container Docker sandbox isolati
+- Separazione del processo di creazione e connessione sandbox
+- Fornitura di API RESTful per gestire il ciclo di vita dei sandbox
+- Esecuzione di comandi all'interno dei container tramite interfaccia WebSocket
+- Pulizia automatica dei container inattivi
+
+## 📋 Prerequisiti
+
+- Docker installato
+- Python 3.8+
+- Immagine container sandbox `sandbox-websocket-image` già costruita
+
+## 🚀 Avvio Rapido
+
+Usa lo script di avvio fornito per avviare il servizio:
+
+```bash
+./start.sh
+```
+
+Per default, il servizio si avvierà sulla porta 8003. Se hai bisogno di specificare una porta diversa, puoi passarla come parametro:
+
+```bash
+./start.sh 8080
+```
+
+## 📚 Riferimento API
+
+### HTTP API
+
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/sandboxes` | POST | Crea un nuovo container sandbox |
+| `/sandboxes` | GET | Ottieni la lista di tutti i container sandbox |
+| `/sandboxes/{sandbox_id}` | GET | Ottieni informazioni sul sandbox specificato |
+| `/sandboxes/{sandbox_id}` | DELETE | Elimina il container sandbox specificato |
+
+#### Creazione Sandbox
+
+**Richiesta:**
+```
+POST /sandboxes
+```
+
+**Risposta:**
+```json
+{
+  "sandbox_id": "abcd1234",
+  "status": "created",
+  "message": "Container sandbox creato con successo"
+}
+```
+
+#### Ottieni Lista Sandbox
+
+**Richiesta:**
+```
+GET /sandboxes
+```
+
+**Risposta:**
+```json
+[
+  {
+    "sandbox_id": "abcd1234",
+    "status": "idle",
+    "created_at": 1648371234.567,
+    "ip_address": "172.17.0.2"
+  },
+  {
+    "sandbox_id": "efgh5678",
+    "status": "connected",
+    "created_at": 1648371345.678,
+    "ip_address": "172.17.0.3"
+  }
+]
+```
+
+#### Ottieni Informazioni Sandbox
+
+**Richiesta:**
+```
+GET /sandboxes/{sandbox_id}
+```
+
+**Risposta:**
+```json
+{
+  "sandbox_id": "abcd1234",
+  "status": "idle",
+  "created_at": 1648371234.567,
+  "ip_address": "172.17.0.2"
+}
+```
+
+#### Elimina Sandbox
+
+**Richiesta:**
+```
+DELETE /sandboxes/{sandbox_id}
+```
+
+**Risposta:**
+```json
+{
+  "message": "Sandbox abcd1234 eliminato con successo"
+}
+```
+
+### WebSocket API
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `/ws/{sandbox_id}` | Connetti al sandbox specificato via WebSocket |
+
+#### Connessione al Sandbox
+
+Formato URL connessione WebSocket:
+```
+ws://localhost:8003/ws/{sandbox_id}
+```
+
+Dopo la connessione a questo endpoint, il servizio:
+1. Si connette al container sandbox specificato
+2. Stabilisce comunicazione bidirezionale tra client e container
+3. Alla disconnessione non distrugge automaticamente il container, che diventa inattivo
+
+## 📨 Formato Messaggi
+
+### Invio Comandi
+
+```json
+{
+  "command": "ls -la",
+  "request_id": "optional-unique-id"
+}
+```
+
+Se non fornisci `request_id`, il servizio ne genererà uno automaticamente.
+
+### Ricezione Risposte
+
+```json
+{
+  "request_id": "same-as-request",
+  "command": "ls -la",
+  "success": true,
+  "output": "command output",
+  "error": "error message if any",
+  "returncode": 0,
+  "timestamp": "2023-03-27T12:34:56.789"
+}
+```
+
+## 🔄 Flusso di Utilizzo
+
+1. Crea un sandbox tramite interfaccia HTTP:
+   ```
+   POST /sandboxes
+   ```
+
+2. Ottieni l'ID sandbox dalla risposta
+
+3. Usa l'ID sandbox per stabilire connessione WebSocket:
+   ```
+   ws://localhost:8003/ws/{sandbox_id}
+   ```
+
+4. Invia comandi e ricevi risultati tramite WebSocket
+
+5. Una volta finito, puoi eliminare il sandbox:
+   ```
+   DELETE /sandboxes/{sandbox_id}
+   ```
+
+## ⚠️ Note di Sicurezza
+
+- I container vengono eseguiti nella rete bridge Docker predefinita
+- Il servizio è destinato solo per ambienti di sviluppo e test, non raccomandato per uso diretto in produzione
+- I container verranno automaticamente puliti dopo un'ora di inattività
+- Gli ID sandbox dovrebbero essere custoditi con cura, chiunque conosca l'ID sandbox può accedere al container tramite interfaccia WebSocket
+
+---
+
 # 沙箱网关服务
 
 沙箱网关服务提供了HTTP和WebSocket接口，允许客户端创建和管理沙箱Docker容器，并通过WebSocket连接与容器进行通信。

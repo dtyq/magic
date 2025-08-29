@@ -1,3 +1,383 @@
+# Funzionalità Linee Guida di ReactFlow 🚀
+
+Il componente delle linee guida di React Flow fornisce funzionalità di linee di riferimento per l'allineamento dei nodi, aiutando gli utenti a ottenere un allineamento preciso durante il trascinamento dei nodi.
+
+## Caratteristiche Principali 📋
+
+- Visualizza linee di riferimento durante il trascinamento dei nodi
+- Supporta la funzionalità di snap dei nodi per un allineamento preciso
+- Supporta l'allineamento in direzione orizzontale e verticale
+- Supporta vari modi di allineamento: allineamento sinistro, destro, centrato, superiore, inferiore, ecc.
+- Si adatta al zoom e alla panoramica del viewport
+- Fornisce opzioni di configurazione personalizzate ricche
+- Supporta l'attivazione/disattivazione tramite pulsante del pannello di controllo o scorciatoie da tastiera
+
+## Metodo di Utilizzo 🛠️
+
+### Utilizzo Base
+
+```tsx
+import { ReactFlow, useViewport } from 'reactflow';
+import { HelperLines, useHelperLines } from '@/MagicFlow/components/HelperLines';
+
+function FlowComponent() {
+  const { x, y, zoom } = useViewport();
+  const [helperLinesEnabled, setHelperLinesEnabled] = useState(false);
+  
+  const {
+    horizontalLines,
+    verticalLines,
+    handleNodeDragStart,
+    handleNodeDrag,
+    handleNodeDragStop,
+    hasHelperLines
+  } = useHelperLines({
+    nodes,
+    onNodeDragStart,
+    onNodeDrag,
+    onNodeDragStop,
+    onNodesChange, // Se necessario per la funzionalità di snap dei nodi, questo parametro deve essere fornito
+    enabled: helperLinesEnabled, // Controlla l'interruttore della funzionalità delle linee guida
+  });
+
+  return (
+    <>
+      {/* Aggiungi un pulsante di controllo */}
+      <button onClick={() => setHelperLinesEnabled(!helperLinesEnabled)}>
+        {helperLinesEnabled ? 'Disabilita Linee Guida' : 'Abilita Linee Guida'}
+      </button>
+      
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodeDragStart={handleNodeDragStart}
+        onNodeDrag={handleNodeDrag}
+        onNodeDragStop={handleNodeDragStop}
+        onNodesChange={onNodesChange} // Se necessario per la funzionalità di snap dei nodi, questo parametro deve essere fornito
+        {...otherProps}
+      >
+        {/* Altri componenti */}
+        
+        {/* Renderizza le linee guida */}
+        {hasHelperLines && (
+          <HelperLines
+            horizontalLines={horizontalLines}
+            verticalLines={verticalLines}
+            transform={{ x, y, zoom }}
+          />
+        )}
+      </ReactFlow>
+    </>
+  );
+}
+```
+
+### Configurazione Personalizzata 🎨
+
+Puoi personalizzare il comportamento e lo stile delle linee guida tramite il parametro `options`:
+
+```tsx
+const {
+  horizontalLines,
+  verticalLines,
+  // ...
+} = useHelperLines({
+  nodes,
+  onNodeDragStart,
+  onNodeDrag,
+  onNodeDragStop,
+  onNodesChange,
+  enabled: helperLinesEnabled, // Controlla abilitazione/disabilitazione tramite stato
+  options: {
+    threshold: 8,        // Soglia di allineamento
+    color: '#0077ff',    // Colore delle linee guida
+    lineWidth: 2,        // Larghezza delle linee guida
+    zIndex: 10000,       // z-index
+    enableSnap: true     // Se abilitare la funzionalità di snap dei nodi
+  }
+});
+```
+
+Quindi passa queste opzioni al componente `HelperLines`:
+
+```tsx
+<HelperLines
+  horizontalLines={horizontalLines}
+  verticalLines={verticalLines}
+  transform={{ x, y, zoom }}
+  color={options.color}
+  lineWidth={options.lineWidth}
+  zIndex={options.zIndex}
+/>
+```
+
+## Riferimento API 📖
+
+### Hook `useHelperLines`
+
+#### Parametri
+
+Il hook `useHelperLines` accetta un oggetto di configurazione con le seguenti proprietà:
+
+| Proprietà | Tipo | Obbligatorio | Descrizione |
+| --- | --- | --- | --- |
+| nodes | Node[] | Sì | Array di nodi di React Flow |
+| onNodeDragStart | Function | No | Callback originale per l'inizio del trascinamento del nodo |
+| onNodeDrag | Function | No | Callback originale per il trascinamento del nodo |
+| onNodeDragStop | Function | No | Callback originale per la fine del trascinamento del nodo |
+| onNodesChange | Function | No | Callback per le modifiche dei nodi, utilizzato per implementare la funzionalità di snap dei nodi |
+| options | HelperLinesOptions | No | Opzioni di configurazione delle linee guida |
+| enabled | boolean | No | Se abilitare la funzionalità delle linee guida, predefinito false |
+
+#### Valori di Ritorno
+
+| Proprietà | Tipo | Descrizione |
+| --- | --- | --- |
+| horizontalLines | number[] | Array delle posizioni delle linee guida orizzontali |
+| verticalLines | number[] | Array delle posizioni delle linee guida verticali |
+| handleNodeDragStart | Function | Funzione di gestione dell'inizio del trascinamento del nodo |
+| handleNodeDrag | Function | Funzione di gestione del trascinamento del nodo |
+| handleNodeDragStop | Function | Funzione di gestione della fine del trascinamento del nodo |
+| hasHelperLines | boolean | Se ci sono linee guida da visualizzare |
+| options | Object | Opzioni di configurazione attualmente utilizzate |
+| enabled | boolean | Se la funzionalità delle linee guida è attualmente abilitata |
+
+### Componente `HelperLines`
+
+#### Proprietà
+
+| Proprietà | Tipo | Obbligatorio | Valore Predefinito | Descrizione |
+| --- | --- | --- | --- | --- |
+| horizontalLines | number[] | Sì | - | Array delle posizioni delle linee guida orizzontali |
+| verticalLines | number[] | Sì | - | Array delle posizioni delle linee guida verticali |
+| transform | ViewportTransform | Sì | - | Informazioni sulla trasformazione del viewport |
+| color | string | No | '#ff0071' | Colore delle linee guida |
+| lineWidth | number | No | 1 | Larghezza delle linee guida |
+| zIndex | number | No | 9999 | z-index delle linee guida |
+
+### Definizioni dei Tipi
+
+```typescript
+interface ViewportTransform {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+interface HelperLinesOptions {
+  threshold?: number;
+  color?: string;
+  lineWidth?: number;
+  zIndex?: number;
+  enableSnap?: boolean;
+}
+```
+
+## Integrazione nel Pannello di Controllo ⚙️
+
+Puoi aggiungere un pulsante interruttore nel pannello di controllo del diagramma di flusso per controllare l'abilitazione/disabilitazione della funzionalità delle linee guida:
+
+```tsx
+// Aggiungi il pulsante di controllo delle linee guida negli elementi di controllo del pannello
+const controlItemGroups = [
+  // ... altri gruppi di controllo
+  [
+    {
+      icon: helperLinesEnabled ? (
+        <IconRuler stroke={1} color="#FF7D00" />
+      ) : (
+        <IconRuler stroke={1} />
+      ),
+      callback: () => setHelperLinesEnabled(!helperLinesEnabled),
+      tooltips: `${helperLinesEnabled ? 'Disabilita' : 'Abilita'} Linee Guida (Ctrl+H)`,
+      helperLinesEnabled,
+    },
+  ],
+];
+
+// Aggiungi supporto per scorciatoie da tastiera
+useEffect(() => {
+  const handleKeyDown = (event) => {
+    // Ctrl+H o Command+H per alternare la funzionalità delle linee guida
+    if ((event.ctrlKey || event.metaKey) && event.key === 'h') {
+      event.preventDefault();
+      setHelperLinesEnabled(!helperLinesEnabled);
+    }
+  };
+  
+  document.addEventListener('keydown', handleKeyDown);
+  return () => {
+    document.removeEventListener('keydown', handleKeyDown);
+  };
+}, [helperLinesEnabled, setHelperLinesEnabled]);
+```
+
+## Principio di Implementazione 🧠
+
+Il principio di implementazione principale della funzionalità delle linee guida:
+
+1. Ascolta gli eventi di trascinamento dei nodi
+2. Durante il trascinamento, calcola la relazione di posizione tra il nodo attualmente trascinato e gli altri nodi
+3. Quando i bordi o i centri dei nodi si avvicinano (inferiore alla soglia impostata), visualizza le linee di riferimento di allineamento
+4. Utilizza elementi posizionati assolutamente per renderizzare le linee guida, calcolando la posizione corretta in base allo zoom e alla panoramica del viewport
+
+Principio di implementazione della funzionalità di snap dei nodi:
+
+1. Quando si rileva che il nodo si avvicina alla posizione di allineamento, calcola le coordinate di allineamento precise
+2. Aggiorna la posizione del nodo tramite il callback `onNodesChange` per far "snap" il nodo alla posizione di allineamento
+3. Tra più posizioni di allineamento possibili, priorita la linea di riferimento più vicina alla posizione attuale di trascinamento
+
+Principio di implementazione del controllo di abilitazione/disabilitazione:
+
+1. Utilizza la variabile di stato `helperLinesEnabled` per controllare l'interruttore della funzionalità delle linee guida
+2. Quando la funzionalità è disabilitata, gli eventi di trascinamento vengono passati direttamente alle funzioni di gestione originali, senza calcoli delle linee guida
+3. Alterna lo stato di abilitazione tramite pulsante del pannello di controllo o scorciatoia da tastiera
+4. Renderizza il componente delle linee guida solo quando la funzionalità è abilitata e ci sono nodi allineati
+
+Le linee guida controllano i seguenti modi di allineamento:
+
+- Direzione orizzontale
+  - Allineamento superiore: il bordo superiore del nodo si allinea con il bordo superiore di altri nodi
+  - Allineamento inferiore: il bordo inferiore del nodo si allinea con il bordo inferiore di altri nodi
+  - Allineamento centrale: la linea centrale verticale del nodo si allinea con la linea centrale verticale di altri nodi
+
+- Direzione verticale
+  - Allineamento sinistro: il bordo sinistro del nodo si allinea con il bordo sinistro di altri nodi
+  - Allineamento destro: il bordo destro del nodo si allinea con il bordo destro di altri nodi
+  - Allineamento centrale: la linea centrale orizzontale del nodo si allinea con la linea centrale orizzontale di altri nodi
+
+## Esempio 💡
+
+### Esempio Completo con Controllo Interruttore
+
+```tsx
+import React, { useState, useCallback, useEffect } from 'react';
+import ReactFlow, { 
+  addEdge, 
+  Background, 
+  Controls, 
+  useNodesState, 
+  useEdgesState, 
+  useViewport 
+} from 'reactflow';
+import { HelperLines, useHelperLines } from '@/MagicFlow/components/HelperLines';
+import { IconRuler } from '@tabler/icons-react';
+import 'reactflow/dist/style.css';
+
+const initialNodes = [
+  {
+    id: '1',
+    type: 'default',
+    data: { label: 'Nodo 1' },
+    position: { x: 250, y: 5 },
+  },
+  // ... altri nodi
+];
+
+const initialEdges = [
+  // ... definizioni dei bordi
+];
+
+function Flow() {
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const { x, y, zoom } = useViewport();
+  const [helperLinesEnabled, setHelperLinesEnabled] = useState(false);
+
+  const onConnect = useCallback(
+    (params) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges],
+  );
+
+  // Utilizza l'hook delle linee guida
+  const {
+    horizontalLines,
+    verticalLines,
+    handleNodeDragStart,
+    handleNodeDrag,
+    handleNodeDragStop,
+    hasHelperLines,
+  } = useHelperLines({
+    nodes,
+    onNodesChange,
+    enabled: helperLinesEnabled,
+    options: {
+      threshold: 8,
+      color: '#ff0071',
+      enableSnap: true
+    }
+  });
+  
+  // Aggiungi supporto per scorciatoie da tastiera
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Ctrl+H o Command+H per alternare la funzionalità delle linee guida
+      if ((event.ctrlKey || event.metaKey) && event.key === 'h') {
+        event.preventDefault();
+        setHelperLinesEnabled(!helperLinesEnabled);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [helperLinesEnabled]);
+
+  return (
+    <div style={{ height: '100%' }}>
+      {/* Pannello di controllo */}
+      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
+        <button
+          onClick={() => setHelperLinesEnabled(!helperLinesEnabled)}
+          style={{
+            background: helperLinesEnabled ? '#ff7d00' : '#ffffff',
+            color: helperLinesEnabled ? '#ffffff' : '#000000',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            padding: '8px',
+            cursor: 'pointer',
+          }}
+          title={`${helperLinesEnabled ? 'Disabilita' : 'Abilita'} Linee Guida (Ctrl+H)`}
+        >
+          <IconRuler size={20} stroke={1.5} />
+        </button>
+      </div>
+      
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDragStart={handleNodeDragStart}
+        onNodeDrag={handleNodeDrag}
+        onNodeDragStop={handleNodeDragStop}
+        fitView
+      >
+        <Background />
+        <Controls />
+        
+        {/* Renderizza le linee guida */}
+        {hasHelperLines && (
+          <HelperLines
+            horizontalLines={horizontalLines}
+            verticalLines={verticalLines}
+            transform={{ x, y, zoom }}
+            color="#ff0071"
+            lineWidth={1}
+          />
+        )}
+      </ReactFlow>
+    </div>
+  );
+}
+```
+
+---
+
+## Testo Originale (Cinese) 📜
+
 # ReactFlow 辅助线功能
 
 React Flow 辅助线组件提供了节点对齐参考线功能，帮助用户在拖拽节点时实现精确对齐。
@@ -371,4 +751,5 @@ function Flow() {
       </ReactFlow>
     </div>
   );
-} 
+}
+```

@@ -1,3 +1,114 @@
+# 💬 Nodo Risposta
+
+Il nodo risposta è utilizzato per inviare risposte a utenti o sistemi esterni. È solitamente utilizzato alla fine del flusso o prima del nodo finale.
+
+## 📋 Panoramica
+
+Il nodo risposta gestisce l'output del flusso, formattando e inviando i dati al destinatario in formato appropriato.
+
+## ⚙️ Configurazione
+
+### Impostazioni Base
+
+- **Nome**: Identificatore univoco del nodo
+- **Descrizione**: Descrizione opzionale dello scopo del nodo
+- **Tipo**: Impostato su "risposta" (sola lettura)
+
+### Impostazioni Risposta
+
+1. **Formato Risposta**
+   - JSON
+   - XML
+   - Testo semplice
+   - HTML
+   - Formato personalizzato
+
+2. **Intestazioni Risposta**
+   - Content-Type
+   - Codice stato
+   - Intestazioni personalizzate
+
+3. **Corpo Risposta**
+   - Contenuto statico
+   - Contenuto dinamico (utilizzando espressioni)
+   - Contenuto basato su template
+
+## 💡 Esempi di Utilizzo
+
+### Risposta JSON
+
+```javascript
+// Esempio configurazione nodo risposta per risposta JSON
+{
+  "type": "reply",
+  "config": {
+    "format": "json",
+    "statusCode": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "status": "success",
+      "data": "${context.processedData}"
+    }
+  }
+}
+```
+
+### Risposta HTML
+
+```javascript
+// Esempio configurazione nodo risposta per risposta HTML
+{
+  "type": "reply",
+  "config": {
+    "format": "html",
+    "statusCode": 200,
+    "headers": {
+      "Content-Type": "text/html"
+    },
+    "body": "<html><body><h1>${context.title}</h1><p>${context.message}</p></body></html>"
+  }
+}
+```
+
+## 🌟 Migliori Pratiche
+
+1. **Formattazione Risposta**
+   - Utilizzare tipo contenuto appropriato
+   - Mantenere consistenza formato dati
+   - Includere dettagli errore quando necessario
+
+2. **Gestione Errori**
+   - Impostare codice stato appropriato
+   - Includere messaggio errore
+   - Registrare dettagli errore
+
+3. **Performance**
+   - Minimizzare dimensione risposta
+   - Utilizzare compressione quando appropriato
+   - Memorizzare risposta quando possibile
+
+## ❓ Problemi Comuni
+
+1. **Errori Formato**
+   - Controllare sintassi JSON/XML
+   - Verificare espressioni template
+   - Confermare intestazione tipo contenuto
+
+2. **Ritardo Risposta**
+   - Ottimizzare elaborazione dati
+   - Controllare ritardo rete
+   - Monitorare tempo risposta
+
+## 🔗 Nodi Correlati
+
+- [Nodo Iniziale](./start-node.md)
+- [Nodo Attesa](./wait-node.md)
+- [Nodo Finale](./end-node.md)
+
+---
+
 # 回复节点
 
 回复节点用于向用户或外部系统发送响应。它通常用于流程的末尾或在结束节点之前。

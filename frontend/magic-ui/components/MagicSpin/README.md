@@ -1,3 +1,66 @@
+# MagicSpin Componente di Caricamento Magico ⏳
+
+`MagicSpin` è una versione migliorata del componente Spin di Ant Design, che offre animazioni di caricamento brandizzate e un migliore controllo degli stili. 🔄
+
+## Proprietà
+
+| Nome Proprietà | Tipo    | Valore Predefinito | Descrizione                          |
+| -------------- | ------- | ------------------ | ------------------------------------ |
+| section        | boolean | false              | Se utilizzare l'animazione di caricamento segmentata |
+| ...SpinProps   | -       | -                  | Supporta tutte le proprietà di Ant Design Spin |
+
+## Uso Base
+
+```tsx
+import { MagicSpin } from '@/components/base/MagicSpin';
+
+// Uso base
+<MagicSpin spinning />
+
+// Avvolgere contenuto
+<MagicSpin spinning>
+  <div>Contenuto in caricamento</div>
+</MagicSpin>
+
+// Dimensioni diverse
+<MagicSpin size="small" spinning />
+<MagicSpin spinning /> {/* Dimensione predefinita */}
+<MagicSpin size="large" spinning />
+
+// Animazione di caricamento segmentata
+<MagicSpin section={true} spinning />
+
+// Centrare in un contenitore
+<div style={{ height: '200px', position: 'relative' }}>
+  <MagicSpin spinning />
+</div>
+
+// Con testo di suggerimento
+<MagicSpin tip="Caricamento in corso..." spinning />
+```
+
+## Caratteristiche ✨
+
+1. **Animazione Brandizzata**: Utilizza l'animazione Lottie del brand Magic come indicatore di caricamento 🎨
+2. **Dimensioni Adattive**: Fornisce tre dimensioni preimpostate: piccola, media e grande 📏
+3. **Layout Centrato**: Si centra automaticamente nel contenitore 🔍
+4. **Animazione Segmentata**: Puoi alternare stili di animazione diversi tramite la proprietà `section` 🎭
+5. **Adattamento Tema**: Si adatta automaticamente ai temi chiaro/scuro 🌙
+
+## Quando Usare
+
+- Quando carichi una pagina o un componente per mostrare lo stato di caricamento 📄
+- Durante richieste di dati per fornire feedback visivo 📊
+- Per operazioni di lunga durata per fornire un suggerimento di attesa ⏱️
+- Quando è necessario impedire all'utente di interagire con il contenuto in caricamento 🚫
+- Quando è necessaria un'esperienza di caricamento brandizzata 🏷️
+
+Il componente MagicSpin rende la visualizzazione dello stato di caricamento più bella e brandizzata, adatto per vari scenari che richiedono suggerimenti di caricamento. 👍
+
+---
+
+**Testo Originale (Cinese e Inglese):**
+
 # MagicSpin 魔法加载组件
 
 `MagicSpin` 是一个基于 Ant Design Spin 组件的增强版加载组件，提供了品牌化的加载动画和更好的样式控制。

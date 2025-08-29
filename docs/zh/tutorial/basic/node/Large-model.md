@@ -1,3 +1,142 @@
+# 🧠 Nodo di Chiamata Modello Grande
+## ❓ Cosa è il Nodo di Chiamata Modello Grande?
+Il nodo di chiamata modello grande è il nodo core nel flusso di lavoro Magic Flow, permette di interagire direttamente con modelli di linguaggio di grandi dimensioni (come GPT-4, ecc.), utilizzato per generare contenuti testuali, rispondere a domande, analizzare contenuti o effettuare ragionamenti. In parole semplici, questo nodo è come un ponte per dialogare con l'intelligenza artificiale sulla piattaforma Magic.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo di chiamata modello grande include aree di configurazione core come selezione modello, prompt di sistema, prompt utente, e opzioni di configurazione avanzate come regolazione parametri modello, configurazione knowledge base, ecc.
+![Nodo Modello Grande](https://cdn.letsmagic.cn/static/img/Large-model.png)
+
+## 🎯 Perché Serve il Nodo di Chiamata Modello Grande?
+Nel processo di costruzione di applicazioni intelligenti, il nodo di chiamata modello grande svolge il ruolo di "cervello", fornendo capacità di decisione intelligente e generazione contenuti per il flusso di lavoro:
+- **Elaborazione Linguaggio Naturale**: Comprensione e generazione di linguaggio umano, permettendo all'applicazione di comunicare con gli utenti in modo naturale
+- **Creazione Contenuti**: Generazione di copy, riassunti, traduzioni o altri contenuti creativi
+- **Domande e Risposte Conoscenza**: Risposta a domande in campi professionali basate sulla knowledge base configurata
+- **Ragionamento Logico**: Analisi informazioni e raggiungimento conclusioni, assistenza nella formulazione decisioni
+- **Interazione Personalizzata**: Fornitura risposte personalizzate basate sulle esigenze utente e storico
+
+## 📋 Scenari Applicabili
+### 1. 🤖 Robot Assistente Clienti Intelligente
+Progettare un robot assistente clienti capace di rispondere a consulenze prodotto, risolvere problemi utente, attraverso configurazione knowledge base professionale, fornire informazioni accurate sui prodotti e soluzioni.
+### 2. ✍️ Assistente Creazione Contenuti
+Costruire un assistente capace di generare vari tipi di copy, riassunti o contenuti creativi, come copy marketing, descrizioni prodotto o post social media.
+### 3. 📚 Sistema Domande e Risposte Knowledge Base
+Creare un sistema di domande e risposte basato su documenti interni aziendali, permettendo ai dipendenti di ottenere rapidamente informazioni professionali, migliorando l'efficienza lavorativa.
+### 4. 📊 Analisi e Interpretazione Dati
+Convertire risultati di analisi dati in spiegazioni di linguaggio naturale facilmente comprensibili, aiutando il personale non tecnico a comprendere dati complessi.
+
+## ⚙️ Spiegazione Parametri Nodo
+### Parametri Base
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Modello|Selezione del modello di linguaggio da utilizzare, come GPT-4, Claude, ecc.|Sì|gpt-4o-global|
+|Strumenti|Configurazione capacità strumenti associati, permettere al modello di rispondere basandosi su conoscenze specifiche|||
+|Impostazione Knowledge Base|Configurazione knowledge base associata, permettere al modello di rispondere basandosi su conoscenze specifiche|No|Nessuna|
+|Prompt Sistema|Istruzioni di background per il modello, definizione ruolo e comportamento generale del modello|Sì|Nessuno|
+|Prompt Utente|Domanda specifica o istruzioni dell'utente|No|Nessuno|
+
+### Configurazione Modello
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Temperatura|Controllo casualità output, valore maggiore risposta più creativa, valore minore risposta più deterministica|No|0.5|
+|Caricamento Automatico Memoria|Se abilitare funzione memoria automatica, ricordare storico conversazione|No|Sì|
+|Numero Massimo Memoria|Quantità massima messaggi storici da ricordare|No|50|
+|Modello Comprensione Visiva|Nome modello grande per elaborazione immagini|No|Nessuno|
+|Messaggi Storici|Impostazione messaggi conversazione storica, per costruire contesto dialogo|No|Nessuno|
+
+### Contenuto Output
+|Campo Output|Spiegazione|
+|---|---|
+|Risposta Modello Grande (response)|Contenuto risposta del modello grande, utilizzabile per mostrare all'utente o passare a nodi downstream|
+|Strumenti Chiamati (tool_calls)|Informazioni strumenti chiamati dal modello, contenenti nome strumento, parametri, risultati, ecc.|
+
+## 📖 Istruzioni per l'Uso
+### Passi di Configurazione Base
+1. **Selezionare il Modello Appropriato**：
+    1. Selezionare il modello di linguaggio grande corrispondente in base alle esigenze
+    2. Per compiti generali è possibile selezionare modelli ordinari, per compiti complessi selezionare modelli avanzati come GPT-4
+2. **Scrivere il Prompt di Sistema**：
+    1. Definire chiaramente il ruolo del modello, come "Sei un addetto al servizio clienti"
+    2. Impostare lo stile e l'ambito delle risposte
+    3. Informare il modello sulle risorse o strumenti utilizzabili
+3. **Configurare il Prompt Utente**：
+    1. È possibile inserire direttamente domande o istruzioni fisse
+    2. È anche possibile utilizzare riferimenti variabili per contenuti dinamici, come `{{user_message}}` per fare riferimento all'input effettivo dell'utente
+4. **Impostare i Parametri del Modello**：
+    1. Regolare la temperatura per controllare la creatività o accuratezza delle risposte
+    2. Impostare se abilitare la memoria automatica e la quantità di record storici
+5. **Configurare la Knowledge Base (Opzionale)**：
+    1. Selezionare la knowledge base da associare
+    2. Impostare la soglia di similarità e il numero di risultati di ricerca
+
+### Tecniche Avanzate
+#### Ottimizzazione Prompt
+Scrivere prompt di alta qualità è la chiave per utilizzare efficacemente i modelli grandi：
+1. **Essere Specifico e Chiaro**：Esprimere chiaramente le proprie aspettative e esigenze
+2. **Impostazione Ruolo**：Assegnare al modello una posizione di ruolo chiara nel prompt di sistema
+3. **Suddivisione Passi**：Guidare il modello a pensare per passi su problemi complessi
+
+#### Collaborazione con Altri Nodi
+1. **In Combinazione con il Nodo Risposta Messaggio**：
+    1. Mostrare all'utente l'output generato dal modello grande attraverso il nodo risposta messaggio
+    2. Impostare il prompt utente come vuoto, permettendo al messaggio dell'utente di diventare automaticamente l'input
+2. **In Combinazione con il Nodo Ramo Condizionale**：
+    1. Utilizzare il nodo riconoscimento intento per analizzare l'intento dell'utente
+    2. Dirigere verso diversi flussi di elaborazione in base a diversi intenti
+3. **In Combinazione con il Nodo Recupero Conoscenza**：
+    1. Utilizzare prima il nodo recupero conoscenza per ottenere informazioni rilevanti
+    2. Fornire poi i risultati della ricerca come contesto al modello grande
+
+## ⚠️ Note di Attenzione
+### Limitazioni Token
+Ogni modello ha un limite massimo di token elaborabili, superarlo causerà errori：
+- GPT-3.5：Supporta al massimo 16K tokens
+- GPT-4：Supporta al massimo 128K tokens
+- Claude：Supporta al massimo 200K tokens
+
+*<font color="#CE2B2E">Suggerimento：Circa 1 carattere cinese ≈ 1.5-2 tokens, 1 parola inglese ≈ 1-2 tokens</font>*
+
+### Aggiornabilità delle Conoscenze
+Le conoscenze dei modelli grandi hanno una data di cutoff dell'addestramento, potrebbero non conoscere le informazioni più recenti, si consiglia：
+- Per scenari che richiedono informazioni aggiornate, considerare l'utilizzo combinato del nodo richiesta HTTP per ottenere dati in tempo reale
+- O aggiornare regolarmente le ultime informazioni attraverso la knowledge base
+
+### Gestione Informazioni Sensibili
+I modelli grandi potrebbero elaborare informazioni fornite dagli utenti, prestare attenzione：
+- Evitare di includere informazioni riservate o sensibili nei prompt
+- Per dati che necessitano di riservatezza, si consiglia di utilizzare la knowledge base invece dell'input diretto
+
+## ❓ Domande Frequenti
+### Domanda 1: Cosa fare se il contenuto della risposta del modello grande non corrisponde alle aspettative?
+**Soluzioni**：Potrebbe essere che il prompt non sia abbastanza chiaro. Provare：
+- Modificare il prompt di sistema, definire più specificamente il compito e le aspettative
+- Aggiungere esempi, mostrare la modalità di domanda e risposta ideale
+- Regolare il parametro temperatura, abbassare la temperatura per rendere la risposta più deterministica
+
+### Domanda 2: Come gestire domande professionali che il modello grande non riesce a rispondere?
+**Soluzioni**：Il modello grande dipende dai dati di addestramento, potrebbe avere conoscenze limitate in campi specifici：
+- Configurare una knowledge base professionale, fornire supporto di conoscenze di settore
+- Aggiungere conoscenze di background necessarie nel prompt di sistema
+- Utilizzare l'istruzione "se non si trova informazione, informare chiaramente" per evitare di inventare risposte
+
+### Domanda 3: Cosa fare se l'esecuzione del nodo chiamata modello grande è lenta?
+**Soluzioni**：I fattori che influenzano la velocità sono molteplici：
+- Provare a utilizzare modelli con risposta più veloce (come GPT-3.5 al posto di GPT-4)
+- Ridurre la quantità di messaggi storici, diminuire il carico di elaborazione
+- Ottimizzare il prompt, renderlo più conciso e chiaro
+
+## 🌟 Migliori Pratiche
+### Nodi di Combinazione Comuni
+|Tipo di Nodo|Motivo di Combinazione|
+|---|---|
+|Nodo Risposta Messaggio|Inviare all'utente il contenuto generato dal modello grande|
+|Nodo Ramo Condizionale|Decidere l'operazione successiva in base all'output del modello grande|
+|Nodo Recupero Conoscenza|Fornire supporto di conoscenze professionali|
+|Nodo Query Messaggi Storici|Fornire contesto di conversazione, migliorare la coerenza|
+|Nodo Salvataggio Variabili|Salvare informazioni importanti per l'utilizzo nei flussi successivi|
+
+---
+
 # 大模型调用节点
 ## 什么是大模型调用节点？
 大模型调用节点是Magic Flow工作流中的核心节点，它允许您直接与大型语言模型（如GPT-4等）进行交互，用于生成文本内容、回答问题、分析内容或进行推理。简单来说，这个节点就像是您在Magic平台上与人工智能对话的桥梁。
@@ -28,7 +167,7 @@
 |参数名称|说明|是否必填|默认值|
 |---|---|---|---|
 |模型|选择要使用的大语言模型，如GPT-4、Claude等|是|gpt-4o-global|
-|工具|配置关联的工具能力，让模型基于特定知识回答|||
+|工具|配置关联的工具能力，让模型基于特定知识回答|||  
 |知识库设置|配置关联的知识库，让模型基于特定知识回答|否|无|
 |系统提示词|给模型的背景指令，定义模型的角色和整体行为|是|无|
 |用户提示词|用户的具体问题或指令|否|无|

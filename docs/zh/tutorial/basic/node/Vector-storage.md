@@ -1,3 +1,144 @@
+# 🔒 Nodo Memorizzazione Vettoriale
+## ❓ Che Cos'è il Nodo Memorizzazione Vettoriale?
+Il nodo Memorizzazione Vettoriale è un componente funzionale nel flusso di lavoro Magic Flow utilizzato per memorizzare il contenuto testuale nel database vettoriale. Può convertire il contenuto testuale in forma vettoriale e salvarlo nella knowledge base, facilitando la ricerca semantica e l'abbinamento dei contenuti successivi. In parole semplici, la memorizzazione vettoriale è come un magazzino di informazioni intelligente, non solo memorizza il contenuto stesso, ma conserva anche le caratteristiche semantiche del contenuto, rendendo possibile la query tramite similarità semantica successivamente.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Memorizzazione Vettoriale mostra l'area principale di configurazione del nodo, includendo selezione knowledge base, input del contenuto da memorizzare, impostazioni metadati e configurazione ID business e altre opzioni di impostazione parametri
+![Nodo Inizio](https://cdn.letsmagic.cn/static/img/Vector-storage.png)
+
+## 🤔 Perché Serve il Nodo Memorizzazione Vettoriale?
+**Nella costruzione di applicazioni intelligenti, il nodo Memorizzazione Vettoriale risolve i seguenti problemi chiave:**
+- **Sedimentazione della Conoscenza**: Trasforma informazioni importanti in conoscenza ricercabile, costruisce knowledge base dedicate all'azienda
+- **Comprensione Semantica**: Diverso dai database tradizionali, la memorizzazione vettoriale conserva le informazioni semantiche del contenuto, supporta ricerca per similarità
+- **Organizzazione Informazioni**: Attraverso metadati e ID business, classifica e gestisce i contenuti memorizzati
+- **Conoscenza Personalizzata**: Fornisce al modello grande supporto di conoscenza dedicato, risolvendo il problema della conoscenza limitata dei modelli generici
+- **Base per Applicazioni Intelligenti**: Fornisce base dati per sistemi di domanda e risposta, sistemi di raccomandazione e altre applicazioni intelligenti
+
+## 🎯 Scenari Applicabili
+
+### 1. Costruzione di Knowledge Base Aziendale
+Memorizza contenuti come documenti aziendali, manuali prodotto, guide operative nel database vettoriale, formando un sistema di conoscenza aziendale ricercabile, aiutando i dipendenti a ottenere rapidamente le informazioni necessarie.
+
+### 2. Accumulo Conoscenza per Servizio Clienti Intelligente
+Memorizza soluzioni a problemi comuni, informazioni prodotto, processi di servizio e altri contenuti, fornendo supporto di conoscenza ai chatbot, migliorando la qualità del servizio clienti.
+
+### 3. Gestione Contenuti Personalizzata
+Memorizza preferenze utente, cronologia interazioni e altre informazioni, fornendo supporto dati per raccomandazioni e servizi personalizzati, migliorando l'esperienza utente.
+
+## ⚙️ Spiegazione Parametri del Nodo
+### Parametri Base
+|Nome Parametro|Descrizione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Selezione Knowledge Base|Scegli la knowledge base da operare, attraverso 【Valore Fisso o Espressione】, seleziona dalla knowledge base già create nel sistema|Sì|Nessuno|
+|Contenuto da Memorizzare|Contenuto testuale da memorizzare nel database vettoriale|Sì|Nessuno|
+|ID Business|Identificatore univoco del contenuto, utilizzato per query o operazioni di cancellazione successive|Sì|Nessuno|
+|Metadati|Informazioni aggiuntive del contenuto, come categoria, fonte, tempo, ecc., facilitano il filtraggio|No|Nessuno|
+
+
+### Contenuto Output
+Dopo esecuzione riuscita, il nodo Memorizzazione Vettoriale completerà la memorizzazione dei contenuti in background, ma non restituirà direttamente dati risultato specifici. Dopo memorizzazione riuscita, il contenuto può essere ricercato attraverso il nodo Ricerca Vettoriale.
+
+## 📋 Istruzioni per l'Uso
+### Passi di Configurazione Base
+1. **Selezione Knowledge Base**:
+    1. Dal menu dropdown seleziona modalità diverse
+    2. Attraverso @ riferimento dinamico alla knowledge base del nodo precedente oppure knowledge base già create
+2. **Configurazione Frammenti da Memorizzare**:
+    1. Inserisci il contenuto testuale da memorizzare
+    2. Oppure utilizza riferimento variabile per contenuto dinamico, come `{{message_content}}` per referenziare l'output di altri nodi
+3. **Impostazione ID Business**:
+    1. Inserisci un identificatore di business univoco
+    2. Si consiglia di utilizzare modalità di identificazione significative, come "FAQ_Prodotto_001" o UUID generato dinamicamente
+    3. L'ID business è molto importante nelle operazioni di cancellazione o aggiornamento successive
+4. **Configurazione Metadati (Opzionale)**:
+    1. Aggiungi informazioni aggiuntive come categoria, tag, fonte del contenuto
+    2. I metadati sono coppie chiave-valore, come "category: FAQ", "source: sito ufficiale"
+    3. I metadati possono essere utilizzati come condizioni di filtro durante la ricerca vettoriale
+
+### Tecniche Avanzate
+#### Ottimizzazione Contenuto
+**Per migliorare l'effetto della memorizzazione vettoriale e della ricerca successiva, si consiglia di ottimizzare adeguatamente il contenuto memorizzato:**
+1. **Memorizzazione a Blocchi del Contenuto**:
+    1. Suddividi testi lunghi in blocchi di contenuto indipendenti più piccoli prima di memorizzarli
+    2. Utilizza il nodo Segmentazione Testo per elaborare testi lunghi prima di memorizzarli
+    3. Si consiglia di controllare ogni blocco di contenuto tra 500-1000 caratteri
+2. **Controllo Qualità Contenuto**:
+    1. Assicurati che il contenuto memorizzato sia semanticamente chiaro ed espresso accuratamente
+    2. Rimuovi simboli di formattazione inutili e contenuti ridondanti
+    3. Aggiungi adeguate informazioni di contesto per migliorare la comprensibilità
+3. **Progettazione Metadati**:
+    1. Progetta strutture metadati ragionevoli per facilitare filtri successivi
+    2. Metadati comuni includono: categoria (category), fonte (source), tempo (time), ecc.
+    3. Utilizza formati e convenzioni di denominazione unificati
+
+#### Collaborazione con Altri Nodi
+**Il nodo Memorizzazione Vettoriale necessita solitamente di essere utilizzato in combinazione con altri nodi:**
+1. **In Combinazione con Nodo Segmentazione Testo**:
+    1. Segmenta prima il testo lungo in frammenti adatti alla memorizzazione
+    2. Poi memorizza in ciclo ogni frammento segmentato
+    3. Mantieni l'associazione dell'ID business, come utilizzare prefisso + numero indice
+2. **In Combinazione con Nodo Esecuzione Codice**:
+    1. Utilizza il nodo Esecuzione Codice per generare ID business univoco
+    2. Oppure per elaborare e formattare contenuti e metadati da memorizzare
+3. **In Combinazione con Nodo Richiesta HTTP**:
+    1. Ottieni dati da interfacce esterne
+    2. Dopo elaborazione, memorizza nel database vettoriale
+
+## ⚠️ Note Importanti
+### Progettazione ID Business
+**La progettazione dell'ID business influisce direttamente sull'efficienza di gestione del contenuto successivo:**
+- Assicura l'unicità dell'ID business, evita sovrascritture di contenuti esistenti dovute a memorizzazione duplicata
+- Utilizza modalità di denominazione ID significative e facilmente identificabili per facilitare la gestione
+- Considera la modalità di denominazione prefisso + categoria + numero, come "PRD_FAQ_001"
+- Se utilizzi ID casuali, assicurati di salvare la corrispondenza tra ID e contenuto
+
+### Formato e Qualità del Contenuto
+**La qualità del contenuto memorizzato influisce direttamente sull'effetto di ricerca successivo:**
+- Evita di memorizzare troppe informazioni irrilevanti, concentrati sul contenuto core
+- Assicura formati di testo uniformi, rimuovi tag HTML e altri simboli di formattazione
+- Per contenuti non testuali come tabelle e grafici, converti in descrizioni testuali prima di memorizzare
+- Aggiorna e mantieni regolarmente il contenuto della knowledge base per mantenere accuratezza e tempestività delle informazioni
+
+### Sicurezza e Permessi
+**La sicurezza dei dati della knowledge base richiede particolare attenzione:**
+- Evita di memorizzare informazioni personali sensibili o segreti aziendali
+- Imposta marcatori di permessi di accesso attraverso metadati
+- Verifica regolarmente il contenuto della knowledge base per garantire conformità
+
+## ❓ Problemi Comuni
+### Problema 1: Dopo la memorizzazione del contenuto non riesco a trovarlo tramite ricerca vettoriale, come fare?
+**Soluzioni**:
+- Verifica se l'ID del database vettoriale corrisponde, assicurati che ricerca e memorizzazione utilizzino lo stesso database vettoriale
+- Conferma la qualità del contenuto memorizzato, contenuti troppo brevi o privi di significato potrebbero essere difficili da ricercare
+- Regola la soglia di similarità del nodo Ricerca Vettoriale, abbassala adeguatamente per ottenere più risultati
+- Verifica se il testo di query di ricerca sia semanticamente correlato al contenuto memorizzato
+
+### Problema 2: Come aggiornare contenuti già memorizzati?
+**Soluzioni**:
+- Utilizza lo stesso ID business per memorizzare nuovamente il contenuto, sovrascriverà il contenuto originale
+- Se necessiti di eliminare completamente e poi creare, puoi prima utilizzare il nodo Cancellazione Vettoriale per eliminare, poi memorizzare nuovo contenuto
+- Per aggiornamenti parziali, si consiglia di utilizzare nuovo contenuto completo per sovrascrivere quello vecchio, invece di aggiornare solo una parte
+
+### Problema 3: La memorizzazione di grandi quantità di contenuti è lenta, come gestire?
+**Soluzioni**:
+- Elabora grandi quantità di contenuti in batch, evita di memorizzare troppi dati in una sola volta
+- Utilizza il nodo ciclo per memorizzare contenuti in batch
+- Ottimizza la dimensione del contenuto, memorizza solo informazioni necessarie
+- Pre-elabora adeguatamente il contenuto per ridurre il carico computazionale durante la memorizzazione
+
+## 🏆 Migliori Pratiche
+### Nodi Comuni da Abbinare
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Segmentazione Testo|Segmenta testi lunghi in frammenti adatti alla memorizzazione|
+|Nodo Esecuzione Codice|Elabora contenuti, genera ID business o metadati|
+|Nodo Ricerca Vettoriale|Ricerca contenuti vettoriali già memorizzati|
+|Nodo Cancellazione Vettoriale|Elimina contenuti vettoriali non più necessari|
+|Nodo Ciclo|Elabora e memorizza in batch numerosi contenuti|
+
+---
+
 # 向量存储节点
 ## 什么是向量存储节点？
 向量存储节点是Magic Flow工作流中用于将文本内容存储到向量数据库的功能组件。它能够将文本内容转换为向量形式并保存在知识库中，便于后续的语义检索和内容匹配。简单来说，向量存储就像是一个智能信息仓库，不仅存储了内容本身，还保留了内容的语义特征，使得后续可以通过语义相似度进行查询。

@@ -1,136 +1,136 @@
-# 文档解析节点
+# Nodo Analisi Documenti 📄
 
-## 什么是文档解析节点？
+## Che cos'è il Nodo Analisi Documenti?
 
-文档解析节点是您在 Magic Flow 中处理各类文件和数据源的"入口"，它就像一个智能阅读器，能够读取和理解不同格式的文档内容，将原始文件转换为后续节点可以处理的文本数据。无论是本地上传的 PDF、WORD 文件，还是网络上的网页内容，文档解析节点都能帮您提取出有价值的信息。
+Il Nodo Analisi Documenti è il vostro "ingresso" in Magic Flow per elaborare vari tipi di file e fonti dati, è come un lettore intelligente che può leggere e comprendere contenuti di documenti in diversi formati, convertendo file originali in dati di testo che i nodi successivi possono elaborare. Che si tratti di PDF, file WORD caricati localmente, o contenuti web online, il Nodo Analisi Documenti può aiutarvi a estrarre informazioni preziose.
 
-**图片说明:**
+**Spiegazione Immagine:**
 
-文档解析节点界面主要由"显示名称"、"添加参数"选项、"参数值"和"表达式"设置区域组成。用户可以在此配置数据来源、文件类型及解析方式等参数。
-![文档解析节点](https://cdn.letsmagic.cn/static/img/Document-parsing.png)
+L'interfaccia del Nodo Analisi Documenti è composta principalmente da aree di "Nome Visualizzato", "Aggiungi Parametro", "Valore Parametro" e impostazioni "Espressione". Gli utenti possono configurare qui parametri come fonte dati, tipo file e modalità di analisi.
+![Nodo Analisi Documenti](https://cdn.letsmagic.cn/static/img/Document-parsing.png)
 
-## 为什么需要文档解析节点？
+## Perché serve il Nodo Analisi Documenti?
 
-在构建 AI 应用时，我们经常需要处理各种格式的文档和数据。文档解析节点解决了以下问题：
-1. **格式转换**：将各种格式（PDF、DOCX、网页等）的文档转换为标准文本格式，方便后续处理
-2. **内容提取**：从复杂文件中提取出有价值的文本内容
-3. **统一入口**：为不同来源的数据（本地文件、网络内容、数据库等）提供统一的处理入口
-4. **预处理**：对原始数据进行初步清洗和格式化，提高后续分析的质量
+Nella costruzione di applicazioni AI, spesso abbiamo bisogno di elaborare documenti e dati in vari formati. Il Nodo Analisi Documenti risolve i seguenti problemi:
+1. **Conversione Formato**: Convertire documenti in vari formati (PDF, DOCX, pagine web, ecc.) in formato testo standard, facilitando l'elaborazione successiva
+2. **Estrazione Contenuto**: Estrarre contenuti testuali preziosi da file complessi
+3. **Ingresso Unificato**: Fornire un ingresso di elaborazione unificato per dati da diverse fonti (file locali, contenuti web, database, ecc.)
+4. **Pre-elaborazione**: Effettuare pulizia e formattazione preliminare dei dati originali, migliorare la qualità dell'analisi successiva
 
-通过文档解析节点，您可以轻松将各种来源的数据转换为可供大模型理解和处理的文本形式，是构建知识问答、文档分析类应用的必备组件。
+Attraverso il Nodo Analisi Documenti, è possibile convertire facilmente dati da varie fonti in forma testuale comprensibile per i modelli grandi, è un componente essenziale per costruire applicazioni di question-answering basato su conoscenza, analisi documenti.
 
-## 适用场景
+## Scenari di Applicazione
 
-### 场景一：知识库问答系统
+### Scenario 1: Sistema Question-Answering Basato su Conoscenza
 
-将公司内部文档、产品手册、培训资料等导入并解析，结合大模型节点构建基于企业知识的问答系统，帮助员工快速获取所需信息。
+Importare e analizzare documenti interni aziendali, manuali prodotto, materiali di formazione, ecc., combinandoli con nodi di modello grande per costruire sistemi di question-answering basati su conoscenza aziendale, aiutare i dipendenti a ottenere rapidamente le informazioni necessarie.
 
-### 场景二：网页内容分析
+### Scenario 2: Analisi Contenuto Web
 
-解析特定网页的内容，提取关键信息，用于市场分析、竞品监控或信息汇总。
+Analizzare il contenuto di pagine web specifiche, estrarre informazioni chiave, per analisi di mercato, monitoraggio concorrenti o riepilogo informazioni.
 
-### 场景三：文档智能处理
+### Scenario 3: Elaborazione Intelligente Documenti
 
-批量解析客户提交的文档（如简历、申请表等），提取关键信息并进行自动化处理和分类。
+Analizzare in batch documenti presentati dai clienti (come CV, moduli di richiesta, ecc.), estrarre informazioni chiave ed effettuare elaborazione e classificazione automatizzate.
 
-## 节点参数说明
+## Spiegazione Parametri del Nodo
 
-### 输入参数
+### Parametri di Input
 
-文档解析节点主要有以下输入参数：
-|参数名称|说明|是否必填|默认值|
+Il Nodo Analisi Documenti ha principalmente i seguenti parametri di input:
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
 |---|---|---|---|
-|文件列表|需要解析的文件列表，可以是本地上传的文件、网络URL或变量引用|是|无|
+|Lista File|Lista dei file da analizzare, può essere file caricati localmente, URL di rete o riferimento variabile|Sì|Nessuno|
 
-### 输出变量
+### Variabili di Output
 
-文档解析节点会输出以下变量，可在后续节点中使用：
-|变量名|说明|示例值|
+Il Nodo Analisi Documenti emetterà le seguenti variabili, utilizzabili nei nodi successivi:
+|Nome Variabile|Spiegazione|Valore Esempio|
 |---|---|---|
-|全部内容（content）|解析后的文本内容|"这是一份产品说明书，包含以下特点..."|
-|文件（file_info）|文件的基本信息，包括文件名、文件地址、内容、类型等|`{"name": "产品手册.pdf", "size": 1024, "type": "application/pdf"}`|
+|Tutto il Contenuto (content)|Contenuto testuale analizzato|"Questo è un manuale prodotto, contiene le seguenti caratteristiche..."|
+|File (file_info)|Informazioni base del file, inclusi nome file, indirizzo file, contenuto, tipo, ecc.|`{"name": "Manuale_prodotto.pdf", "size": 1024, "type": "application/pdf"}`|
 
-## 使用说明
+## Istruzioni per l'Uso
 
-### 基本配置步骤
+### Passi di Configurazione Base
 
-1. **添加文档解析节点**
-2. **配置文件来源**
-    1. 选择"文件上传"可上传本地文件
-    2. 选择"网络URL"可输入网页地址
-    3. 选择"变量"可使用之前节点输出的文件数据
-3. **连接下游节点**
-将文档解析节点的输出连接到后续处理节点，例如文本切割节点、大模型调用节点等
+1. **Aggiungere Nodo Analisi Documenti**
+2. **Configurare Fonte File**
+    1. Selezionare "Caricamento File" per caricare file locali
+    2. Selezionare "URL Rete" per inserire indirizzo web
+    3. Selezionare "Variabile" per utilizzare dati file emessi da nodi precedenti
+3. **Connettere Nodi Downstream**
+Connettere l'output del nodo analisi documenti a nodi di elaborazione successivi, come nodo segmentazione testo, nodo chiamata modello grande, ecc.
 
-### 进阶技巧
+### Tecniche Avanzate
 
-1. **批量文件处理**
-2. **动态URL解析**
-3. **结合循环节点**
-4. **条件解析**
+1. **Elaborazione File in Batch**
+2. **Analisi URL Dinamica**
+3. **Combinazione con Nodo Ciclo**
+4. **Analisi Condizionale**
 
-## 注意事项
+## Note Importanti
 
-### 文件大小限制
+### Limitazione Dimensione File
 
-Magic Flow平台对上传文件有大小限制，通常不超过50MB。对于更大的文件，建议分割后上传或使用URL方式引入。
+La piattaforma Magic Flow ha limitazioni di dimensione per i file caricati, solitamente non superiori a 50MB. Per file più grandi, si consiglia di dividerli prima del caricamento o utilizzare il metodo URL per l'introduzione.
 
-### 文件格式支持
+### Supporto Formati File
 
-虽然文档解析节点支持多种格式，但不同格式的解析效果可能有差异：
-- PDF文档：支持文本提取和表格识别
-- Word文档：支持完整文本和格式提取
-- 网页内容：支持HTML解析，但复杂JavaScript渲染的内容可能无法完全获取
-- 图片文件：需要通过OCR提取文字，准确率受图片质量影响
+Sebbene il Nodo Analisi Documenti supporti molteplici formati, l'effetto di analisi può differire per formati diversi:
+- Documenti PDF: Supporta estrazione testo e riconoscimento tabelle
+- Documenti Word: Supporta estrazione testo completo e formati
+- Contenuti Web: Supporta analisi HTML, ma contenuti con rendering JavaScript complesso potrebbero non essere completamente acquisibili
+- File Immagine: Necessitano estrazione testo tramite OCR, l'accuratezza è influenzata dalla qualità dell'immagine
 
-### 网络资源访问
+### Accesso Risorse di Rete
 
-通过URL解析网络内容时，请确保：
-- URL是可公开访问的
-- 内容不需要登录验证
-- 资源不违反版权和法律法规
+Quando si analizza contenuto web tramite URL, assicurarsi che:
+- L'URL sia accessibile pubblicamente
+- Il contenuto non richieda autenticazione di login
+- La risorsa non violi copyright e leggi
 
-### 性能考虑
+### Considerazioni Prestazionali
 
-解析大型文档或复杂格式可能需要较长时间，建议：
-- 适当设置超时时间
-- 对大文档进行预处理或分割
-- 避免在一个流程中解析过多文件
+L'analisi di documenti di grandi dimensioni o formati complessi potrebbe richiedere tempo relativamente lungo, si consiglia:
+- Impostare appropriatamente il tempo di timeout
+- Pre-elaborare o dividere documenti di grandi dimensioni
+- Evitare di analizzare troppi file in un singolo flusso
 
-## 常见问题
+## Domande Frequenti
 
-### 问题一：文档解析失败或内容缺失
+### Problema 1: Analisi documento fallita o contenuto mancante
 
-**可能原因**：文件格式不兼容、文件损坏或加密、OCR识别失败
-**解决方案**：
-- 检查文件是否可以正常打开
-- 尝试将文件转换为更通用的格式（如PDF转TXT）
-- 对于加密文档，需要先解除加密后再上传
-- 提高图片质量或调整OCR参数
+**Possibili Cause**: Formato file incompatibile, file danneggiato o criptato, fallimento riconoscimento OCR
+**Soluzioni**:
+- Verificare se il file può essere aperto normalmente
+- Provare a convertire il file in formato più universale (come PDF a TXT)
+- Per documenti criptati, rimuovere prima la crittografia poi ricaricare
+- Migliorare la qualità dell'immagine o regolare parametri OCR
 
-### 问题二：解析时间过长
+### Problema 2: Tempo di analisi troppo lungo
 
-**可能原因**：文件过大、格式复杂、网络资源加载慢
-**解决方案**：
-- 分割大型文档为多个小文件
-- 增加超时时间设置
-- 对于网络资源，可以先下载到本地再上传解析
-- 简化处理流程，只提取必要内容
+**Possibili Cause**: File troppo grande, formato complesso, caricamento risorse di rete lento
+**Soluzioni**:
+- Dividere documenti di grandi dimensioni in molteplici file più piccoli
+- Aumentare l'impostazione del tempo di timeout
+- Per risorse di rete, è possibile scaricarle prima localmente poi caricarle per l'analisi
+- Semplificare il flusso di elaborazione, estrarre solo contenuti necessari
 
-### 问题三：特殊格式无法解析
+### Problema 3: Formati speciali non analizzabili
 
-**可能原因**：非标准格式、新版本格式、专业软件格式
-**解决方案**：
-- 将文件转换为标准格式后再上传
-- 使用专业软件导出为兼容格式
-- 结合代码节点自定义解析逻辑
-- 联系平台支持团队寻求技术帮助
+**Possibili Cause**: Formati non standard, formati di nuova versione, formati software professionale
+**Soluzioni**:
+- Convertire il file in formato standard prima del caricamento
+- Utilizzare software professionale per esportare in formato compatibile
+- Combinare con nodo codice per logica di analisi personalizzata
+- Contattare il team di supporto della piattaforma per assistenza tecnica
 
-## 常见搭配节点
+## Nodi di Combinazione Comuni
 
-文档解析节点通常与以下节点配合使用：
-1. **文本切割节点**：将解析出的长文本切割为适合大模型处理的片段
-2. **向量存储节点**：将解析的文档内容转换为向量并存储，用于后续相似度搜索
-3. **大模型调用节点**：使用大模型对解析的内容进行分析、总结或问答
-4. **代码节点**：对解析结果进行自定义处理和转换
-5. **条件节点**：根据解析结果的不同特征，选择不同的处理路径
+Il Nodo Analisi Documenti solitamente si combina con i seguenti nodi:
+1. **Nodo Segmentazione Testo**: Tagliare il testo lungo analizzato in frammenti adatti all'elaborazione del modello grande
+2. **Nodo Memorizzazione Vettori**: Convertire il contenuto del documento analizzato in vettori e memorizzarli, per ricerche di similarità successive
+3. **Nodo Chiamata Modello Grande**: Utilizzare il modello grande per analizzare, riassumere o rispondere al contenuto analizzato
+4. **Nodo Codice**: Effettuare elaborazione e conversione personalizzate sui risultati di analisi
+5. **Nodo Condizionale**: Secondo diverse caratteristiche dei risultati di analisi, scegliere percorsi di elaborazione diversi

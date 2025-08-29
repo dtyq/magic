@@ -1,3 +1,124 @@
+# 🔄 Nodo Sottoprocesso
+
+## ❓ Che Cos'è il Nodo Sottoprocesso?
+
+Il nodo Sottoprocesso è uno strumento organizzativo potente che permette di isolare una parte di moduli funzionali, formando un flusso separato, e poi richiamarlo nel flusso principale. Proprio come quando si scrive un articolo, dividiamo il contenuto in capitoli e paragrafi, il sottoprocesso aiuta a suddividere flussi di lavoro complessi in parti più piccole e gestibili.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Sottoprocesso è composta da aree di selezione flusso e configurazione flusso. L'area di configurazione contiene principalmente due parti: impostazioni parametri di input e ricezione parametri di output, dove puoi configurare i dati da scambiare con il sottoprocesso.
+![Nodo Sottoprocesso](https://cdn.letsmagic.cn/static/img/Subprocess.png)
+
+## 🤔 Perché Serve il Nodo Sottoprocesso?
+
+Nella progettazione di flussi di lavoro complessi, se si mettono tutte le funzionalità in un singolo flusso, il diagramma del flusso diventa enorme e difficile da gestire. Il nodo Sottoprocesso può aiutarti a:
+1. **Semplificare il Flusso Principale**: Separare la logica complessa nei sottoprocessi, rendendo il flusso principale più chiaro
+2. **Migliorare la Riutilizzabilità**: Un sottoprocesso può essere richiamato da molteplici flussi principali diversi
+3. **Facilitare la Collaborazione di Team**: Diversi membri del team possono concentrarsi sullo sviluppo di sottoprocessi diversi
+4. **Aumentare l'Efficienza di Manutenzione**: Quando si modifica una funzionalità, è necessario aggiornare solo il sottoprocesso corrispondente
+
+## 🎯 Scenari Applicabili
+
+### Scenario 1: Elaborazione Modularizzata di Compiti Complessi
+Quando il tuo assistente AI deve eseguire una serie di operazioni complesse (come elaborazione dati multi-step, giudizi condizionali multipli, ecc.), puoi suddividere queste operazioni in molteplici sottoprocessi, rendendo la struttura complessiva più chiara.
+
+### Scenario 2: Incapsulamento di Funzionalità Riutilizzabili
+Per funzionalità che necessitano di essere riutilizzate in molteplici luoghi (come autenticazione utente, conversione formato dati, ecc.), puoi incapsularle come sottoprocessi, realizzando sviluppo una volta, utilizzo multiplo.
+
+### Scenario 3: Collaborazione di Team in Progetti di Grandi Dimensioni
+In progetti di grandi dimensioni, puoi assegnare moduli funzionali diversi a diversi membri del team per sviluppare sottoprocessi, poi integrarli nel flusso principale, migliorando l'efficienza della collaborazione di team.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+Il nodo Sottoprocesso contiene principalmente configurazione parametri di input e output:
+
+### Parametri di Input
+|Nome Parametro|Descrizione Parametro|Obbligatorio|Tipo Parametro|Valore Predefinito|
+|---|---|---|---|---|
+|Nome Sottoprocesso|Nome del sottoprocesso da richiamare|Sì|Selezione Dropdown|Nessuno|
+|Parametri di Input|Dopo aver selezionato il sottoprocesso, dati passati al sottoprocesso|Sì|Stringa/Numero/Valore Booleano ecc.|Nessuno|
+
+Il nodo Sottoprocesso permette di impostare molteplici parametri di input, ogni parametro ha il proprio nome, tipo e valore. Questi parametri verranno passati come dati iniziali per l'utilizzo del sottoprocesso.
+
+### Parametri di Output
+|Nome Parametro|Descrizione Parametro|Tipo Parametro|
+|---|---|---|
+|Output (output)|Riceve il risultato restituito dal sottoprocesso|Stringa/Numero/Valore Booleano ecc.|
+
+I parametri di output servono a ricevere i valori restituiti dopo il completamento dell'esecuzione del sottoprocesso, puoi utilizzare questi valori nei nodi successivi.
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Crea Sottoprocesso**:
+    1. Crea un nuovo flusso sulla piattaforma Magic
+    2. Configura nodi di inizio e fine appropriati
+    3. Progetta la logica interna del sottoprocesso
+2. **Aggiungi Nodo Sottoprocesso nel Flusso Principale**:
+    1. Trascina il nodo Sottoprocesso nel canvas del flusso principale
+    2. Connetti nodi precedenti e successivi
+3. **Configura Nodo Sottoprocesso**:
+    1. Nel menu dropdown ID Sottoprocesso seleziona il sottoprocesso da richiamare
+    2. Imposta parametri di input: clicca il pulsante "+" per aggiungere parametri, specifica nome parametro, tipo e valore
+    3. Imposta parametri di output: specifica il nome della variabile per ricevere il risultato restituito dal sottoprocesso
+4. **Salva e Testa**:
+    1. Salva la progettazione del flusso principale
+    2. Esegui il flusso principale e verifica se il sottoprocesso viene eseguito come previsto
+
+### Tecniche Avanzate
+1. **Ottimizzazione Passaggio Parametri**:
+    1. Utilizza il modo riferimento variabile per passare parametri, può passare dinamicamente l'output del nodo precedente
+    2. Per strutture dati complesse, puoi utilizzare formato JSON per il passaggio, migliorando la capacità di scambio dati
+2. **Gestione Errori**:
+    1. Aggiungi nodi di giudizio condizionale nel sottoprocesso, gestisci situazioni eccezionali che potrebbero verificarsi
+    2. Restituisci lo stato di esecuzione attraverso parametri di output, fai sapere al flusso principale se il sottoprocesso è stato eseguito con successo
+3. **Sottoprocessi Annidati**:
+    1. Nel sottoprocesso puoi richiamare nuovamente altri sottoprocessi, formando strutture annidate multilivello
+    2. Presta attenzione a controllare la profondità di annidamento, evita complessità eccessiva che renda difficile la manutenzione
+
+## ⚠️ Note Importanti
+
+### Evita Chiamate Circolari
+Non richiamare il flusso padre nel sottoprocesso, questo causerà chiamate circolari infinite, consumando infine le risorse di sistema.
+
+### Corrispondenza Tipi Parametri
+Assicurati che i tipi dei parametri passati al sottoprocesso corrispondano ai tipi attesi dal sottoprocesso, tipi non corrispondenti potrebbero causare errori di esecuzione del sottoprocesso.
+
+### Gestione Versioni Flusso
+Quando modifichi il sottoprocesso, presta attenzione al fatto che potrebbe influenzare tutti i flussi principali che richiamano quel sottoprocesso. Si consiglia di creare prima una copia del sottoprocesso per testare prima di modifiche importanti.
+
+### Limitazioni Risorse
+Anche i sottoprocessi consumano risorse di sistema, sottoprocessi eccessivamente annidati potrebbero causare calo delle prestazioni. Si consiglia di controllare che il livello di annidamento non superi i 3 livelli.
+
+## ❓ Problemi Comuni
+
+### Impossibile Ottenere l'Output del Sottoprocesso nel Flusso Principale
+**Problema**: Ho configurato il nodo Sottoprocesso, ma non riesco a ottenere il risultato di output del sottoprocesso nel flusso principale.
+
+**Soluzioni**:
+- Verifica se il sottoprocesso ha impostato correttamente i parametri di output del nodo finale
+- Conferma che la configurazione del nome variabile di output nel nodo Sottoprocesso sia corretta
+- Verifica se il sottoprocesso viene eseguito normalmente fino al completamento, senza rimanere bloccato in qualche fase
+
+### Esecuzione Sottoprocesso Fallita ma Senza Messaggio di Errore
+**Problema**: Il sottoprocesso non viene eseguito come previsto, ma il sistema non mostra informazioni di errore chiare.
+
+**Soluzioni**:
+- Testa il sottoprocesso separatamente, verifica se può funzionare normalmente
+- Verifica se i parametri di input vengono passati correttamente
+- Aggiungi nodi di log o nodi di risposta messaggio nel sottoprocesso, output informazioni di processo intermedio, aiutando a localizzare il problema
+
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Ramificazione Condizionale|Decide il percorso successivo del flusso in base al risultato di esecuzione del sottoprocesso|
+|Nodo Salvataggio Variabili|Salva il risultato di output del sottoprocesso come variabile, per utilizzo successivo|
+|Nodo Chiamata Modello Grande|Elabora i dati restituiti dal sottoprocesso, genera risposte più intelligenti|
+|Nodo Risposta Messaggio|Mostra all'utente il risultato elaborato dal sottoprocesso|
+
+---
+
 # 子流程节点
 ## 什么是子流程节点？
 子流程节点是一个强大的组织工具，它允许您将一部分功能模块独立出来，形成单独的流程，然后在主流程中调用这个子流程。就像在写文章时，我们会将内容分为章节和段落，子流程就是帮助您将复杂工作流拆分成更小、更易管理的部分。

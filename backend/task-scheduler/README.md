@@ -1,5 +1,129 @@
 # dtyq/task-scheduler
 
+## 📦 Installazione
+```
+composer require dtyq/task-scheduler
+php bin/hyperf.php vendor:publish dtyq/task-scheduler
+```
+
+## 🚀 Utilizzo
+Vedere il servizio:
+```
+\Dtyq\TaskScheduler\Service\TaskSchedulerDomainService
+```
+
+## 📋 Spiegazione
+> ⚠️ Supporta solo chiamate a livello di minuti
+
+### Metodi di schedulazione
+1. ⏰ Schedulazione programmata
+2. 🎯 Schedulazione specifica
+
+### Creazione di task schedulati
+1. La schedulazione programmata richiede un timer per generare i dati dei task da eseguire nelle prossime n ore
+2. Generare task di schedulazione basati sul tempo del task
+
+### Esecuzione dei task
+1. Eseguire i task scaduti, cambiare lo stato, se ci sono errori eseguire l'evento di errore
+2. Dopo la fine della schedulazione, registrare nella tabella di archivio
+
+### Esecuzione in background
+1. Ogni giorno controllare i task di schedulazione completati oltre n giorni, eliminarli. Prevenire che la tabella di schedulazione diventi troppo grande
+2. Ogni minuto controllare i task da eseguire nei prossimi n giorni, generare task di schedulazione
+3. Ogni minuto controllare i task scaduti, eseguire
+
+### Database
+1. Tabella di schedulazione task (task_scheduler) utilizzata per i record dei task specifici da eseguire
+2. Tabella di archivio task (task_scheduler_log) utilizzata per salvare i record dei task completati, solo per archivio, per facilitare la visualizzazione della cronologia futura
+3. Tabella dei task programmati (task_scheduler_crontab) utilizzata per salvare le regole dei task programmati
+
+## 🛠️ Ricordati di creare la struttura delle tabelle
+```shell
+php bin/hyperf.php migrate
+```
+
+```sql
+-- auto-generated definition
+create table task_scheduler
+(
+    id              bigint unsigned         not null primary key,
+    external_id     varchar(64)             not null comment 'ID business',
+    name            varchar(64)             not null comment 'Nome',
+    expect_time     datetime                not null comment 'Tempo di esecuzione previsto',
+    actual_time     datetime                null comment 'Tempo di esecuzione effettivo',
+    type            tinyint      default 2  not null comment 'Tipo di schedulazione: 1 schedulazione programmata, 2 schedulazione specifica',
+    cost_time       int          default 0  not null comment 'Tempo impiegato millisecondi',
+    retry_times     int          default 0  not null comment 'Tentativi rimanenti',
+    status          tinyint      default 0  not null comment 'Stato',
+    callback_method json                    not null comment 'Metodo di callback',
+    callback_params json                    not null comment 'Parametri di callback',
+    remark          varchar(255) default '' not null comment 'Nota',
+    creator         varchar(64)  default '' not null comment 'Creatore',
+    created_at      datetime                not null comment 'Tempo di creazione'
+)
+    collate = utf8mb4_unicode_ci;
+
+create index task_scheduler_external_id_index
+    on task_scheduler (external_id);
+
+create index task_scheduler_status_expect_time_index
+    on task_scheduler (status, expect_time);
+
+-- auto-generated definition
+create table task_scheduler_crontab
+(
+    id              bigint unsigned         not null primary key,
+    name            varchar(64)             not null comment 'Nome',
+    crontab         varchar(64)             not null comment 'Espressione crontab',
+    last_gen_time   datetime                null comment 'Ultimo tempo di generazione',
+    enabled         tinyint(1)   default 1  not null comment 'Se abilitato',
+    retry_times     int          default 0  not null comment 'Totale tentativi',
+    callback_method json                    not null comment 'Metodo di callback',
+    callback_params json                    not null comment 'Parametri di callback',
+    remark          varchar(255) default '' not null comment 'Nota',
+    creator         varchar(64)  default '' not null comment 'Creatore',
+    created_at      datetime                not null comment 'Tempo di creazione'
+)
+    collate = utf8mb4_unicode_ci;
+
+
+
+-- auto-generated definition
+-- auto-generated definition
+create table task_scheduler_log
+(
+    id              bigint unsigned         not null primary key,
+    task_id         bigint unsigned         not null comment 'ID task',
+    external_id     varchar(64)             not null comment 'Identificatore business',
+    name            varchar(64)             not null comment 'Nome',
+    expect_time     datetime                not null comment 'Tempo di esecuzione previsto',
+    actual_time     datetime                null comment 'Tempo di esecuzione effettivo',
+    type            tinyint      default 2  not null comment 'Tipo',
+    cost_time       int          default 0  not null comment 'Tempo impiegato',
+    status          tinyint      default 0  not null comment 'Stato',
+    callback_method json                    not null comment 'Metodo di callback',
+    callback_params json                    not null comment 'Parametri di callback',
+    remark          varchar(255) default '' not null comment 'Nota',
+    creator         varchar(64)  default '' not null comment 'Creatore',
+    created_at      datetime                not null comment 'Tempo di creazione',
+    result          json                    null comment 'Risultato'
+)
+    collate = utf8mb4_unicode_ci;
+
+create index task_scheduler_log_external_id_index
+    on task_scheduler_log (external_id);
+
+create index task_scheduler_log_status_expect_time_index
+    on task_scheduler_log (status, expect_time);
+
+create index task_scheduler_log_task_id_index
+    on task_scheduler_log (task_id);
+```
+
+---
+
+# dtyq/task-scheduler
+
 ## 安装
 ```
 composer require dtyq/task-scheduler

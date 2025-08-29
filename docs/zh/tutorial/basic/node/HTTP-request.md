@@ -1,3 +1,172 @@
+# 🌐 Nodo Richiesta HTTP
+## ❓ Cosa è il Nodo Richiesta HTTP?
+Il nodo richiesta HTTP è un nodo importante nel flusso di lavoro Magic Flow utilizzato per interagire con API esterne e servizi di rete. È come un ponte per la comunicazione del flusso di lavoro con il mondo esterno, permette di inviare vari tipi di richieste di rete (come GET, POST, ecc.), ottenere dati esterni o sottoporre informazioni a sistemi esterni. Attraverso questo nodo, è possibile integrare facilmente servizi e fonti dati esterni nelle proprie applicazioni intelligenti.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo richiesta HTTP include aree di configurazione come URL richiesta, metodo richiesta, header richiesta e corpo richiesta, oltre a parti di impostazione risposta e output. Attraverso queste configurazioni, l'utente può definire come interagire con l'API esterna.
+![Nodo Richiesta HTTP](https://cdn.letsmagic.cn/static/img/HTTP-request.png)
+
+## 🎯 Perché Serve il Nodo Richiesta HTTP?
+Nella costruzione di applicazioni intelligenti, spesso è necessario ottenere dati esterni o interagire con altri sistemi, il nodo richiesta HTTP è progettato proprio per questo:
+- **Ottenere Dati in Tempo Reale**: Ottenere le ultime informazioni da API esterne, come previsioni del tempo, tassi di cambio, quotazioni azionarie, ecc.
+- **Integrazione di Sistema**: Interfacciarsi con sistemi interni aziendali o di terze parti, realizzare scambio dati cross-sistema
+- **Attivare Servizi Esterni**: Chiamare servizi esterni per completare funzioni specifiche, come inviare SMS, notifiche push, ecc.
+- **Sottomissione Dati**: Sottoporre dati di form o altre informazioni a sistemi esterni
+- **Autenticazione**: Interfacciarsi con servizi di autenticazione di terze parti, come autenticazione OAuth
+
+## 📋 Scenari Applicabili
+### 1. 📊 Applicazione Aggregazione Dati
+Creare un'applicazione che aggrega informazioni da molteplici fonti dati, come integrare dati di vendita da diverse piattaforme in un unico report, fornire una visione completa per il decision-making.
+### 2. 🏢 Integrazione Sistemi Interni Aziendali
+Integrare il flusso di lavoro Magic Flow con sistemi interni aziendali (come CRM, ERP, OA, ecc.), realizzare circolazione dati e collaborazione operativa.
+### 3. 🤖 Miglioramento Assistente Intelligente
+Attraverso la chiamata di API professionali (come API meteo, API traduzione, ecc.), espandere i confini delle capacità dell'assistente intelligente, fornire servizi più ricchi.
+### 4. 🔔 Sistema Trigger e Notifiche
+Costruire un sistema capace di monitorare eventi specifici e attivare notifiche, come avvisi scorte, promemoria oscillazioni prezzi, ecc.
+
+## ⚙️ Spiegazione Parametri Nodo
+### Parametri Base
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|URL Richiesta|Specificare l'indirizzo target della richiesta|Sì|Nessuno|
+|Metodo Richiesta|Selezionare il metodo richiesta HTTP (GET/POST/PUT/DELETE, ecc.)|Sì|GET|
+|Header Richiesta|Impostare informazioni header richiesta HTTP, come Content-Type, Authorization, ecc.|No|Nessuno|
+|Corpo Richiesta|Quando si utilizzano metodi come POST/PUT, impostare i dati da inviare|No|Nessuno|
+
+#### Parametri Query
+I parametri query vengono allegati all'URL in forma di coppie chiave-valore, formato `?key1=value1&key2=value2`
+|Elemento Configurazione|Spiegazione|
+|---|---|
+|Nome Parametro|Nome del parametro query|
+|Tipo Parametro|Tipo dati del parametro, come stringa, numero, ecc.|
+|Valore Parametro|Valore specifico del parametro, supporta riferimento variabili|
+
+#### Parametri Path
+I parametri path sono la parte dinamica nel percorso URL, comunemente utilizzati nelle API, come `/user/{id}`
+|Elemento Configurazione|Spiegazione|
+|---|---|
+|Nome Parametro|Nome del parametro path|
+|Nome Visualizzato|Nome parametro visualizzato nell'interfaccia|
+|Tipo Parametro|Tipo dati del parametro|
+|Valore Parametro|Valore specifico del parametro, supporta riferimento variabili|
+
+#### Corpo Richiesta (Body)
+Il corpo richiesta viene utilizzato per inviare dati in richieste POST, PUT, ecc.
+|Elemento Configurazione|Spiegazione|
+|---|---|
+|Tipo Contenuto|Formato del corpo richiesta, come JSON, Form, ecc.|
+|Contenuto Corpo Richiesta|Contenuto specifico del corpo richiesta, diversi modi di editing in base al tipo di contenuto|
+
+#### Header Richiesta (Headers)
+Gli header richiesta vengono utilizzati per inviare metadati della richiesta HTTP
+|Elemento Configurazione|Spiegazione|
+|---|---|
+|Nome Parametro|Nome dell'header richiesta|
+|Nome Visualizzato|Nome parametro visualizzato nell'interfaccia|
+|Tipo Parametro|Tipo dati del parametro|
+|Valore Parametro|Valore specifico del parametro, supporta riferimento variabili|
+
+### Impostazioni Output
+|Elemento Configurazione|Spiegazione|
+|---|---|
+|Output Sistema|Il risultato della risposta alla richiesta HTTP verrà automaticamente memorizzato nell'output sistema|
+|Output Personalizzato|È possibile estrarre parti specifiche del risultato della risposta come variabili personalizzate|
+
+## 📖 Istruzioni per l'Uso
+### Passi di Configurazione Base
+1. **Impostare URL Richiesta**：
+    1. Inserire l'indirizzo API completo, includendo il protocollo ([http:// o https://](http:// o https://))
+    2. È possibile utilizzare riferimento variabili per URL dinamici, come `https://api.example.com/users/{{user_id}}`
+2. **Selezionare Metodo Richiesta**：
+    1. GET：Utilizzato per ottenere dati, come interrogare informazioni
+    2. POST：Utilizzato per sottoporre dati, come creare record
+    3. PUT：Utilizzato per aggiornare dati, come aggiornare informazioni utente
+    4. DELETE：Utilizzato per eliminare dati
+3. **Configurare Header Richiesta**：
+    1. Impostare Content-Type (come application/json, multipart/form-data, ecc.)
+    2. Aggiungere informazioni di autenticazione, come Authorization: Bearer token
+    3. Altri header necessari come Accept, User-Agent, ecc.
+4. **Scrivere Corpo Richiesta (applicabile a metodi POST/PUT, ecc.)**：
+    1. Per formato JSON, è possibile utilizzare l'editor JSON
+    2. È possibile fare riferimento a variabili, come `{"name": "{{user_name}}", "age": {{user_age}}}`
+5. **Configurare Parsing Risposta**：
+    1. Selezionare il formato risposta appropriato (JSON, XML, Text, ecc.)
+    2. Impostare il percorso di estrazione dei dati risposta (se necessario)
+
+### Tecniche Avanzate
+#### Elaborazione Dati JSON
+L'elaborazione di API in formato JSON è lo scenario più comune：
+1. **Inviare Dati JSON**：
+    1. Impostare Content-Type come application/json
+    2. Utilizzare il formato JSON corretto nel corpo richiesta
+1. **Elaborare Risposta JSON**：
+    1. Selezionare il modo di parsing risposta JSON
+    2. È possibile estrarre campi specifici tramite percorso JSON, come `response.data.items`
+2. **Elaborare Dati Annidati**：
+    1. Per JSON complessi annidati, è possibile elaborarli ulteriormente in nodi successivi (come nodo esecuzione codice)
+
+#### Autenticazione e Sicurezza
+L'interazione con API esterne generalmente richiede autenticazione：
+1. **Autenticazione Base**：
+    1. Utilizzare header Authorization: `Basic base64(username:password)`
+    2. È possibile configurarlo direttamente negli header richiesta
+2. **Autenticazione OAuth**：
+    1. Ottenere token di accesso (potrebbe richiedere un nodo richiesta HTTP separato)
+    2. Utilizzare nell'header Authorization: `Bearer your_access_token`
+3. **Autenticazione Chiave API**：
+    1. In base ai requisiti dell'API, potrebbe essere necessario aggiungere la chiave in parametri query URL, header richiesta o corpo richiesta
+    2. Esempio：`https://api.example.com/data?api_key=your_api_key`
+## ⚠️ Note di Attenzione
+### Timeout e Performance
+Le chiamate API esterne possono causare ritardi nell'esecuzione del flusso di lavoro：
+- Impostare un timeout ragionevole per API importanti o potenzialmente lente
+- Configurare un numero appropriato di tentativi per API instabili
+- Considerare l'utilizzo di modalità asincrone per gestire richieste a lunga esecuzione
+
+### Gestione Errori
+Le richieste di rete possono fallire per molteplici motivi：
+- Configurare meccanismi di gestione errori corretti, come rami condizionali per giudicare lo stato della risposta
+- Controllare i campi di output errore per ottenere informazioni dettagliate sugli errori
+- Aggiungere meccanismi di fallback per flussi critici, come soluzioni alternative quando l'API non è disponibile
+
+### Sicurezza Dati
+Attenzione nella gestione di dati sensibili：
+- Evitare di includere informazioni sensibili negli URL (come password), utilizzare header o corpo richiesta
+- Utilizzare protocollo HTTPS per garantire la crittografia della trasmissione dati
+- Considerare l'utilizzo di variabili d'ambiente o sistemi di gestione chiavi per memorizzare informazioni sensibili come chiavi API
+
+## ❓ Domande Frequenti
+### Domanda 1: Come Gestire i Problemi di Limitazione API?
+**Soluzioni**：Molteplici API hanno limiti di frequenza di chiamata, è possibile：
+- Implementare controllo velocità richieste, evitare di inviare troppe richieste in breve tempo
+- Gestire correttamente il codice di stato 429 (Too Many Requests), aggiungere logica di attesa
+- Quando possibile, considerare la cache dei dati per ridurre le chiamate API
+
+### Domanda 2: Cosa Fare se il Formato dei Dati Restituiti dalla Richiesta non è Corretto?
+**Soluzioni**：Quando il formato dati non corrisponde alle aspettative：
+- Verificare se il modo di parsing della risposta è corretto (JSON/XML/Text)
+- Utilizzare il nodo esecuzione codice per conversioni e elaborazioni dei dati
+- Confermare la documentazione API, verificare se i parametri richiesta sono corretti
+
+### Domanda 3: Come Trasmettere File o Dati Binari?
+**Soluzioni**：La trasmissione di file richiede elaborazioni speciali：
+- Impostare Content-Type come multipart/form-data
+- Utilizzare il formato corpo richiesta corretto per incapsulare i dati del file
+- Per file di grandi dimensioni, prestare attenzione alle impostazioni di timeout della richiesta
+
+## 🌟 Migliori Pratiche
+### Nodi di Combinazione Comuni
+|Tipo di Nodo|Motivo di Combinazione|
+|---|---|
+|Nodo Esecuzione Codice|Elaborare dati di risposta, convertire formati o estrarre informazioni chiave|
+|Nodo Ramo Condizionale|Decidere l'operazione successiva in base allo stato della risposta API o al contenuto|
+|Nodo Chiamata Modello Grande|Fornire i dati ottenuti dall'API come contesto al modello grande|
+|Nodo Salvataggio Variabili|Salvare dati chiave restituiti dall'API per l'utilizzo nei flussi successivi|
+|Nodo Ciclo|Elaborare API con paginazione o richieste batch di molteplici risorse|
+
+---
+
 # HTTP请求节点
 ## 什么是HTTP请求节点？
 HTTP请求节点是Magic Flow工作流中用于与外部API和网络服务进行交互的重要节点。它就像是您的工作流与外部世界沟通的桥梁，允许您发送各种网络请求（如GET、POST等），获取外部数据或向外部系统提交信息。通过这个节点，您可以轻松地将外部服务和数据源集成到您的智能应用中。

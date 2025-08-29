@@ -1,3 +1,150 @@
+# 🔍 Nodo Ricerca Vettoriale
+
+## ❓ Che Cos'è il Nodo Ricerca Vettoriale?
+
+Il nodo Ricerca Vettoriale è un nodo funzionale nel flusso di lavoro Magic Flow utilizzato per ricercare rapidamente contenuti simili nel database vettoriale. Può trovare frammenti di contenuto semanticamente simili nella knowledge base pre-memorizzata in base al testo di query fornito dall'utente. In parole semplici, la ricerca vettoriale è come un motore di ricerca intelligente che non solo trova contenuti contenenti parole chiave, ma comprende anche la semantica della domanda e restituisce informazioni rilevanti.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Ricerca Vettoriale mostra l'area di configurazione principale del nodo, includendo selezione knowledge base, input testo di query, impostazione soglia similarità e limitazione numero risultati e altre opzioni di configurazione parametri.
+![Nodo Ricerca Vettoriale](https://cdn.letsmagic.cn/static/img/Vector-search.png)
+
+## 🤔 Perché Serve il Nodo Ricerca Vettoriale?
+
+**Nella costruzione di applicazioni intelligenti, il nodo Ricerca Vettoriale risolve il problema di trovare informazioni precise da grandi quantità di dati non strutturati:**
+- **Comprensione Semantica**: Basata su semantica piuttosto che semplice abbinamento di parole chiave, può comprendere la vera intenzione della domanda dell'utente
+- **Recupero Informazioni**: Trova rapidamente i frammenti di contenuto più rilevanti da documenti e knowledge base di massa
+- **Supporto Conoscenza**: Fornisce al modello grande conoscenze professionali accurate e informazioni di background, migliorando la qualità delle risposte
+- **Conoscenza Personalizzata**: Utilizza dati specifici dell'azienda per costruire capacità di domanda e risposta dedicate, risolvendo il problema della conoscenza limitata dei modelli generici
+- **Elaborazione Efficiente**: Riduce la quantità di informazioni elaborate dal modello grande, migliora la velocità di risposta, risparmia consumo di token
+
+## 🎯 Scenari Applicabili
+
+### 1. Sistema di Domande e Risposte Knowledge Base Aziendale
+Costruisci sistema di domande e risposte basato su documenti interni aziendali, manuali prodotto o documentazione tecnica, i dipendenti possono porre domande in linguaggio naturale per ottenere risposte precise, senza dover sfogliare numerosi file.
+
+### 2. Assistente Clienti Intelligente
+Fornisci all'assistente clienti supporto di conoscenza come informazioni prodotto, soluzioni a problemi comuni, ecc., aiutando il personale di assistenza clienti o chatbot a rispondere rapidamente e accuratamente alle domande dei clienti.
+
+### 3. Analisi Documenti ed Estrazione Informazioni
+Estrai informazioni specifiche da numerosi documenti, come termini contrattuali, specifiche tecniche o dati chiave nei rapporti di ricerca, risparmiando tempo di ricerca manuale.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Base
+|Nome Parametro|Descrizione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Selezione Knowledge Base|Scegli la knowledge base da operare, attraverso 【Valore Fisso o Espressione】, seleziona dalla knowledge base già create nel sistema|Sì|Nessuno|
+|Parole Chiave Ricerca|Testo utilizzato per ricercare contenuti simili, solitamente una domanda o descrizione chiave|Sì|Nessuno|
+|Numero Massimo Richiami|Limite superiore del numero di contenuti simili restituiti|No|5|
+|Similarità Minima|Requisito minimo di similarità dei contenuti, range 0-1, valore più alto significa requisito più severo|No|0.4|
+|Abbinamento Metadati|Filtra in base alle informazioni metadati del documento, come fonte documento, tempo creazione, ecc.|No|-|
+
+### Contenuto Output
+|Campo Output|Descrizione|Tipo|
+|---|---|---|
+|Set Risultati Richiamo (similarities)|Array dei contenuti simili trovati, contiene tutti i frammenti di testo corrispondenti|Array Stringhe|
+|Lista Frammenti (fragments)|Informazioni complete dei risultati di ricerca, contiene contenuto, metadati e ID business ecc.|Array Oggetti|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Selezione Knowledge Base**:
+    1. Dal menu dropdown seleziona modalità diverse
+    2. Attraverso @ riferimento dinamico alla knowledge base del nodo precedente oppure knowledge base già create
+2. **Configurazione Parole Chiave**:
+    1. Inserisci testo di ricerca fisso
+    2. Oppure utilizza riferimento variabile per contenuto dinamico, come `{{user_message}}` per referenziare la domanda effettiva dell'utente
+3. **Impostazione Numero Massimo Risultati Richiamo**:
+    1. Imposta il limite superiore del numero di risultati restituiti secondo le esigenze
+    2. Generalmente si consiglia 5-10 risultati, troppi potrebbero introdurre informazioni irrilevanti, troppo pochi potrebbero omettere contenuti importanti
+4. **Regolazione Soglia Similarità**:
+    1. Imposta la soglia di similarità per controllare la precisione dei risultati
+    2. Soglia più alta significa risultati più precisi ma potrebbe omettere contenuti rilevanti
+    3. Soglia più bassa significa copertura più ampia ma potrebbe includere contenuti non molto rilevanti
+5. **Configurazione Filtro Metadati (Opzionale)**:
+    1. Se necessiti di filtrare ulteriormente i risultati, puoi impostare condizioni di filtro metadati
+    2. Ad esempio, limita documenti di fonte specifica o range temporale
+
+### Tecniche Avanzate
+#### Ottimizzazione Testo di Ricerca
+La chiave per migliorare l'effetto della ricerca vettoriale è scrivere testo di query efficace:
+1. **Specifico e Chiaro**: Utilizza descrizioni chiare e specifiche, non formulazioni vaghe
+2. **Informazioni Chiave Prioritarie**: Posiziona le parole chiave e i concetti più importanti all'inizio del testo di query
+3. **Evita Informazioni Irrilevanti**: Semplifica il testo di query, elimina parole che non aiutano la ricerca
+
+#### Collaborazione con Altri Nodi
+Il nodo Ricerca Vettoriale necessita solitamente di essere utilizzato in combinazione con altri nodi:
+1. **In Combinazione con Nodo Chiamata Modello Grande**:
+    1. Fornisci i risultati della ricerca vettoriale come contesto al modello grande
+    2. Utilizza il nodo Esecuzione Codice per elaborare i risultati di ricerca, poi passali al modello grande
+2. **In Combinazione con Nodo Ramificazione Condizionale**:
+    1. Verifica se i risultati di ricerca sono vuoti
+    2. Secondo numero risultati o similarità decide la modalità di elaborazione successiva
+3. **In Combinazione con Nodo Segmentazione Testo**:
+    1. Prima utilizza il nodo Segmentazione Testo per elaborare testi lunghi
+    2. Poi effettua memorizzazione vettoriale e ricerca sui frammenti segmentati
+
+## ⚠️ Note Importanti
+
+### Preparazione Knowledge Base Vettoriale
+**Prima di utilizzare il nodo Ricerca Vettoriale, è necessario preparare la knowledge base vettoriale:**
+- Assicurati di aver creato e importato i documenti di conoscenza rilevanti
+- Verifica lo stato di aggiornamento della knowledge base vettoriale, assicurati che i dati siano aggiornati
+- Per knowledge base di grandi dimensioni, considera una classificazione ragionevole per migliorare la precisione di ricerca
+
+### Lunghezza Testo Query
+**La lunghezza del testo di query influenza l'effetto di ricerca:**
+- Query troppo brevi potrebbero mancare di informazioni sufficienti per abbinamento accurato
+- Query troppo lunghe potrebbero introdurre rumore, diluendo il peso delle parole chiave core
+- Si consiglia di mantenere il testo di query tra 20-100 caratteri
+
+### Ottimizzazione Soglia Similarità
+**La soglia di similarità necessita di essere regolata secondo lo scenario applicativo specifico:**
+- Domande e risposte generiche: si consiglia di utilizzare soglia 0.4-0.6
+- Ricerca conoscenza professionale: può essere aumentata a 0.6-0.8 per assicurare accuratezza
+- Ricerca esplorativa: può essere diminuita a 0.3-0.5 per ottenere più informazioni rilevanti
+
+## ❓ Problemi Comuni
+
+### Problema 1: I risultati di ricerca non corrispondono alle aspettative, come fare?
+
+**Soluzioni**:
+- Verifica se il contenuto della knowledge base include informazioni rilevanti
+- Prova a riscrivere il testo di query, utilizzando descrizioni più precise
+- Abbassa la soglia di similarità per ottenere risultati più ampi
+- Utilizza filtro metadati per restringere l'ambito di ricerca
+
+### Problema 2: Come gestire il caso in cui i risultati di ricerca sono vuoti?
+
+**Soluzioni**:
+- Aggiungi nel flusso di lavoro una ramificazione condizionale per rilevare il numero di risultati
+- Imposta risposta di backup o conoscenza predefinita
+- Abbassa la soglia di similarità, allenta le condizioni di abbinamento
+- Utilizza testo di query più generico per ricercare nuovamente
+
+### Problema 3: La velocità di ricerca è lenta, come ottimizzare?
+
+**Soluzioni**:
+- Riduci il numero di knowledge base da ricercare, seleziona solo quelle più rilevanti
+- Ottimizza la struttura della knowledge base, evita librerie singole troppo grandi
+- Riduci il limite del numero di risultati restituiti
+- Utilizza filtro metadati per restringere l'ambito di ricerca
+
+## 🏆 Migliori Pratiche
+
+### Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Chiamata Modello Grande|Utilizza i risultati di ricerca per fornire supporto di conoscenza professionale al modello grande|
+|Nodo Esecuzione Codice|Elabora e converte i risultati di ricerca, estrae informazioni chiave|
+|Nodo Ramificazione Condizionale|Decide il flusso successivo in base ai risultati di ricerca|
+|Nodo Segmentazione Testo|Elabora testi lunghi, prepara memorizzazione vettoriale o ricerca|
+|Nodo Memorizzazione Vettoriale|In combinazione con ricerca vettoriale, realizza aggiornamento e ricerca della knowledge base|
+
+---
+
 # 向量搜索节点
 ## 什么是向量搜索节点？
 向量搜索节点是Magic Flow工作流中用于在向量数据库中快速检索相似内容的功能节点。它能够根据用户提供的查询文本，在预先存储的知识库中找出语义相似的内容片段。简单来说，向量搜索就像是一个智能搜索引擎，不仅能找到包含关键词的内容，还能理解问题的语义并返回相关信息。

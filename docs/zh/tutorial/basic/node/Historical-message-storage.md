@@ -1,85 +1,105 @@
-# 历史消息存储节点
+# Nodo Memorizzazione Messaggi Storici 💾
 
-## 什么是历史消息存储节点？
-历史消息存储节点是 Magic Flow 工作流中用于记录和保存对话消息的功能节点。它就像一个内存存储单元，可以将指定的文本信息保存到对话历史中，以便后续查询和使用。这些存储的消息可以在后续交互中检索，为 AI 助手提供会话记忆能力。
+## Che cos'è il Nodo Memorizzazione Messaggi Storici?
 
-**界面说明：**
+Il Nodo Memorizzazione Messaggi Storici è un nodo funzionale in Magic Flow utilizzato per registrare e salvare messaggi di conversazione. È come un'unità di memoria che può salvare informazioni testuali specificate nella cronologia della conversazione, per essere recuperate e utilizzate successivamente. Questi messaggi memorizzati possono essere recuperati nelle interazioni successive, fornendo all'assistente AI capacità di memoria di sessione.
 
-顶部区域用于消息类型选择，目前支持文本、图片和文件卡片类型消息；底部区域用于消息内容输入，支持使用"@"添加变量实现动态内容存储。
-![历史消息存储节点](https://cdn.letsmagic.cn/static/img/Historical-message-storage.png)
+**Spiegazione Interfaccia:**
 
-## 为什么需要历史消息存储节点？
-在智能对话系统中，记忆和上下文管理是提供连贯交互体验的关键。历史消息存储节点帮助您：
-1. **构建 AI 助手记忆**：让 AI 助手"记住"重要信息，无需用户重复提供
-2. **保存中间结果**：存储工作流中的关键数据和中间结果，供后续流程引用
-3. **维持对话连贯性**：通过存储上下文信息，确保对话的连续性和上下文感知
-4. **创建用户画像**：记录用户提供的关键信息，逐步构建用户画像，提供个性化体验
+L'area superiore è utilizzata per la selezione del tipo di messaggio, attualmente supporta tipi di messaggio testo, immagine e scheda file; l'area inferiore è utilizzata per l'input del contenuto del messaggio, supporta l'utilizzo di "@" per aggiungere variabili per realizzare memorizzazione dinamica del contenuto.
+![Nodo Memorizzazione Messaggi Storici](https://cdn.letsmagic.cn/static/img/Historical-message-storage.png)
 
-## 应用场景
-### 场景一：用户信息收集与记忆
-在用户首次提供个人信息（如姓名、偏好等）后，可以使用历史消息存储节点记录这些信息。在后续对话中，系统可以直接使用这些记忆，避免重复询问，提升用户体验。
+## Perché serve il Nodo Memorizzazione Messaggi Storici?
 
-### 场景二：多轮对话记忆管理
-在复杂的多轮对话场景中，某些关键信息需要在多个对话轮次中使用。通过历史消息存储节点，可以有选择地保存重要内容，而不仅仅依赖自动记忆的近期消息。
+Nei sistemi di conversazione intelligente, la memoria e la gestione del contesto sono la chiave per fornire esperienze di interazione coerenti. Il Nodo Memorizzazione Messaggi Storici aiuta a:
+1. **Costruire Memoria Assistente AI**: Far "ricordare" all'assistente AI informazioni importanti, senza bisogno che l'utente le fornisca ripetutamente
+2. **Salvare Risultati Intermedi**: Memorizzare dati chiave e risultati intermedi nel flusso di lavoro, per riferimento nei processi successivi
+3. **Mantenere Coerenza Conversazione**: Attraverso la memorizzazione di informazioni contestuali, garantire continuità e consapevolezza del contesto della conversazione
+4. **Creare Profilo Utente**: Registrare informazioni chiave fornite dall'utente, costruire gradualmente un profilo utente, fornire esperienze personalizzate
 
-### 场景三：工作流状态记录
-在处理工单、审批等场景中，可以使用历史消息存储节点记录每一步的状态和结果，形成完整的处理记录，便于后续查询和追踪。
+## Scenari di Applicazione
 
-## 节点参数说明
-### 输入参数
-**历史消息存储节点的主要输入参数包括：**
-|参数名称|说明|是否必填|默认值|
+### Scenario 1: Raccolta e Memoria Informazioni Utente
+
+Dopo che l'utente fornisce per la prima volta informazioni personali (come nome, preferenze, ecc.), è possibile utilizzare il Nodo Memorizzazione Messaggi Storici per registrare queste informazioni. Nelle conversazioni successive, il sistema può utilizzare direttamente questi ricordi, evitando domande ripetitive, migliorando l'esperienza utente.
+
+### Scenario 2: Gestione Memoria Conversazioni Multi-turno
+
+In scenari di conversazioni multi-turno complesse, alcune informazioni chiave necessitano di essere utilizzate in molteplici turni di conversazione. Attraverso il Nodo Memorizzazione Messaggi Storici, è possibile salvare selettivamente contenuti importanti, piuttosto che affidarsi solo alla memoria automatica dei messaggi recenti.
+
+### Scenario 3: Registrazione Stato Flusso di Lavoro
+
+In scenari di elaborazione ticket, approvazioni, ecc., è possibile utilizzare il Nodo Memorizzazione Messaggi Storici per registrare lo stato e i risultati di ogni passo, formare registrazioni complete di elaborazione, facilitando query e tracciamento successivi.
+
+## Spiegazione Parametri del Nodo
+
+### Parametri di Input
+
+**I principali parametri di input del Nodo Memorizzazione Messaggi Storici includono:**
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
 |---|---|---|---|
-|消息类型|目前支持文本、图片和文件卡片类型消息|是|文本|
-|消息内容|要存储的文本信息，支持变量引用|是|无|
+|Tipo Messaggio|Attualmente supporta tipi di messaggio testo, immagine e scheda file|Sì|Testo|
+|Contenuto Messaggio|Le informazioni testuali da memorizzare, supporta riferimento variabili|Sì|Nessuno|
 
-### 输出内容
-历史消息存储节点没有标准的输出参数；其主要功能是将内容写入系统的历史消息记录中。
+### Contenuto di Output
 
-## 使用说明
-### 基本配置步骤
-1. **添加节点**：将历史消息存储节点拖入工作流编辑器
-2. **选择消息类型**：从消息类型下拉菜单中选择"文本"
-3. **编写消息内容**：在消息内容输入框中输入要存储的文本
-    1. 可以直接输入固定文本，如"已记录用户偏好"
-    2. 也可以使用"@"符号引用变量，如"用户偏好：@user_preference"
-4. **连接节点**：将历史消息存储节点与前置节点（如条件分支或代码执行节点）和后续节点连接起来
+Il Nodo Memorizzazione Messaggi Storici non ha parametri di output standard; la sua funzione principale è scrivere il contenuto nei registri di messaggi storici del sistema.
 
-### 高级技巧
-1. **组合变量使用**：消息内容支持多个变量组合，构建结构化的记忆内容
-2. **使用条件筛选**：与条件分支节点配合，仅在特定条件满足时存储信息
-3. **格式化存储内容**：使用格式良好的文本模板，便于后续检索和处理
+## Istruzioni per l'Uso
 
-## 重要提示
-### 存储数量限制
-- **适度存储**：不要存储过多不必要的信息，可能导致历史记录过长
-- **关注重点**：只存储对后续交互有价值的关键信息，提高存储效率
+### Passi di Configurazione Base
 
-### 内容安全
-- **敏感信息处理**：避免存储用户隐私和敏感信息，如密码、详细联系方式等
-- **合规使用**：确保存储的内容符合数据隐私法规
+1. **Aggiungere Nodo**: Trascinare il nodo memorizzazione messaggi storici nell'editor del flusso di lavoro
+2. **Selezionare Tipo Messaggio**: Dal menu a tendina del tipo di messaggio selezionare "Testo"
+3. **Scrivere Contenuto Messaggio**: Nella casella di input del contenuto del messaggio inserire il testo da memorizzare
+    1. È possibile inserire direttamente testo fisso, come "Preferenze utente registrate"
+    2. È anche possibile utilizzare il simbolo "@" per referenziare variabili, come "Preferenza utente: @user_preference"
+4. **Connettere Nodi**: Connettere il nodo memorizzazione messaggi storici con nodi precedenti (come diramazione condizionale o esecuzione codice) e nodi successivi
 
-### 内容格式
-- **清晰结构**：设计结构化的存储格式，便于后续检索和理解
-- **长度控制**：过长的内容在后续查询中可能难以处理，建议控制合理长度
+### Tecniche Avanzate
 
-## 常见问题
-### 在后续流程中找不到存储的内容
-**解决方案**：
-1. 确认工作流执行顺序正确；存储节点必须在查询节点之前执行
-2. 检查历史消息查询节点的时间范围设置，确保涵盖存储消息的时间点
-3. 增加历史消息查询节点的最大记录数设置，确保覆盖存储的消息
+1. **Utilizzo Combinato Variabili**: Il contenuto del messaggio supporta combinazione di molteplici variabili, costruire contenuti di memoria strutturati
+2. **Utilizzo Filtraggio Condizionale**: In combinazione con il nodo diramazione condizionale, memorizzare informazioni solo quando condizioni specifiche sono soddisfatte
+3. **Formattazione Contenuto Memorizzato**: Utilizzare template di testo ben formattati, facilitare recupero e elaborazione successivi
 
-### 存储的变量内容不正确
-**解决方案**：
-1. 检查变量引用是否正确，确保使用正确的变量名
-2. 验证前置节点是否成功输出预期的变量值
-3. 使用代码执行节点打印变量内容进行调试，确认工作流中的变量传递正确
+## Note Importanti
 
-## 常见配对节点
-|节点类型|配对说明|
+### Limitazioni Quantità Memorizzazione
+
+- **Memorizzazione Adeguata**: Non memorizzare troppe informazioni non necessarie, potrebbe causare eccessiva lunghezza dei registri storici
+- **Focus sui Punti Chiave**: Memorizzare solo informazioni chiave che hanno valore per le interazioni successive, migliorare l'efficienza di memorizzazione
+
+### Sicurezza Contenuto
+
+- **Gestione Informazioni Sensibili**: Evitare di memorizzare privacy utente e informazioni sensibili, come password, dettagliati contatti, ecc.
+- **Uso Conforme**: Assicurarsi che il contenuto memorizzato sia conforme alle normative sulla privacy dei dati
+
+### Formato Contenuto
+
+- **Struttura Chiara**: Progettare formato di memorizzazione strutturato, facilitare recupero e comprensione successivi
+- **Controllo Lunghezza**: Contenuti troppo lunghi potrebbero essere difficili da elaborare nelle query successive, si consiglia di controllare lunghezze ragionevoli
+
+## Domande Frequenti
+
+### Non riesco a trovare il contenuto memorizzato nei processi successivi
+
+**Soluzioni**:
+1. Confermare che l'ordine di esecuzione del flusso di lavoro sia corretto; il nodo di memorizzazione deve essere eseguito prima del nodo di query
+2. Verificare l'impostazione dell'intervallo temporale del nodo interrogazione messaggi storici, assicurarsi di coprire il punto temporale del messaggio memorizzato
+3. Aumentare l'impostazione del numero massimo record del nodo interrogazione messaggi storici, assicurarsi di coprire il messaggio memorizzato
+
+### Il contenuto della variabile memorizzata non è corretto
+
+**Soluzioni**:
+1. Verificare che il riferimento alla variabile sia corretto, assicurarsi di utilizzare il nome variabile corretto
+2. Validare che i nodi precedenti abbiano emesso con successo i valori variabili previsti
+3. Utilizzare il nodo esecuzione codice per stampare il contenuto delle variabili per debug, confermare che il passaggio delle variabili nel flusso di lavoro sia corretto
+
+## Nodi di Combinazione Comuni
+
+|Tipo Nodo|Spiegazione Combinazione|
 |---|---|
-|历史消息查询节点|存储和查询配合使用，实现完整的记忆管理|
-|大模型调用节点|向大模型提供存储的历史信息，增强上下文理解|
-|条件分支节点|根据条件决定是否存储特定信息|
-|代码执行节点|处理和格式化要存储的内容|
+|Nodo Interrogazione Messaggi Storici|Utilizzo combinato di memorizzazione e interrogazione, realizzare gestione memoria completa|
+|Nodo Chiamata Modello Grande|Fornire al modello grande informazioni storiche memorizzate, migliorare comprensione del contesto|
+|Nodo Diramazione Condizionale|Decidere secondo condizioni se memorizzare informazioni specifiche|
+|Nodo Esecuzione Codice|Elaborare e formattare il contenuto da memorizzare|

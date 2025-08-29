@@ -1,3 +1,81 @@
+# Magic - Piattaforma di Sviluppo Applicazioni AI
+
+Magic è una piattaforma di sviluppo applicazioni AI enterprise-level che fornisce alle aziende una soluzione completa dalla creazione di assistenti AI al deployment multipiattaforma. Di seguito sono presentate le funzionalità e caratteristiche principali della piattaforma:
+
+## Panoramica delle Funzionalità Principali
+
+### 1. Chat in Tempo Reale e Collaborazione
+
+La piattaforma fornisce un'interfaccia intuitiva simile a WeChat, supportando la comunicazione simultanea di più utenti, inclusi chat private e discussioni di gruppo. Le potenti funzionalità di gestione dei gruppi permettono agli amministratori di assegnare flessibilmente le autorizzazioni ai diversi membri, migliorando l'efficienza della comunicazione interna aziendale.
+
+![Interfaccia Chat in Tempo Reale](https://cdn.letsmagic.cn/static/img/20250512164817.jpg)
+
+### 2. Creazione e Gestione Assistenti AI
+
+- **Costruzione Zero-Codice**: Senza bisogno di basi di programmazione, è possibile creare assistenti AI intelligenti attraverso un'interfaccia visuale
+- **Gestione Versioni**: Supporta il rilascio di versioni degli assistenti, controllo dello stato abilitato/disabilitato
+- **Pubblicazione Interna Aziendale**: Facilita la condivisione dell'elenco degli assistenti AI all'interno dell'azienda
+
+![Interfaccia Gestione Assistenti AI](https://cdn.letsmagic.cn/static/img/20250512164212.jpg)
+
+### 3. Sistema di Orchestrazione Workflow
+
+- **Design Drag-and-Drop**: Costruisci rapidamente workflow attraverso il drag-and-drop per gestire compiti logici complessi
+- **Componenti Nodo Ricchi**: Fornisce vari nodi come modelli di linguaggio di grandi dimensioni, codice personalizzato, logica di giudizio
+- **Controllo del Flusso**: Supporta controllo del flusso di base come nodi di inizio, risposta, attesa e fine
+- **Supporto Template**: Template workflow integrati per ridurre la soglia di utilizzo
+
+![Interfaccia Orchestrazione Workflow](https://cdn.letsmagic.cn/static/img/workflow-1.png)
+
+### 4. Knowledge Base e Funzionalità di Memoria
+
+- **Capacità di Memoria a Lungo Termine**: Realizza la memoria a lungo termine degli assistenti AI attraverso variabili, database, file
+- **Integrazione Knowledge Base**: Supporta l'importazione di documenti aziendali e knowledge base per migliorare l'accuratezza delle risposte AI
+- **Memoria Database**: Capacità di memoria database conveniente per ricordare persistentemente contenuti importanti nelle conversazioni utente
+
+![Interfaccia Funzionalità Memoria](https://cdn.letsmagic.cn/static/img/memory-1.png)
+
+### 5. Esperienza di Interazione Multimodale
+
+- **Modalità di Interazione Multiple**: Supporta varie modalità di interazione come testo, voce, immagini
+- **Creazione Creativa**: Gli utenti possono utilizzare funzioni come generazione immagini AI, ritratti AI per lavori creativi
+
+![Interfaccia Interazione Multimodale](https://cdn.letsmagic.cn/static/img/multimodal.png)
+
+### 6. Pubblicazione Applicazioni Multipiattaforma
+
+- **Deployment Multipiattaforma**: Supporta la pubblicazione delle applicazioni AI sviluppate su multiple piattaforme come WeChat aziendale, DingTalk
+- **Pubblicazione API/SDK**: Pubblica gli agenti intelligenti come API o SDK per l'utilizzo secondario da parte degli utenti
+
+![Interfaccia Pubblicazione Applicazioni](https://cdn.letsmagic.cn/static/img/app-publishing.png)
+
+## Casi di Best Practice
+
+### Assistente Conoscenze Punto Vendita
+
+Attraverso l'integrazione delle conoscenze relative al punto vendita, crea un assistente AI capace di rispondere alle domande quotidiane dei dipendenti, coprendo aspetti come gestione dispositivi, operazioni sistema di cassa, servizio post-vendita, migliorando l'efficienza del lavoro dei dipartimenti di supporto.
+
+### Assistente Approvazioni Magic
+
+Realizza la funzionalità "avvia approvazione con una frase", completando revisioni intelligenti e decisioni automatiche attraverso tecnologia AI, aumentando significativamente l'efficienza delle approvazioni e riducendo l'intervento manuale.
+
+### Realizza Compiti Complessi con una Frase
+
+Attraverso la collaborazione di molteplici Agent (Agent di Pensiero, Agent di Suddivisione Compiti, Agent di Esecuzione Compiti), realizza compiti di gestione progetti complessi con un solo comando dell'utente.
+
+## Funzionalità Enterprise e Valore Commerciale
+
+- **Collaborazione Team**: Supporta la collaborazione team per lo sviluppo congiunto di agenti intelligenti attraverso spazi team
+- **AI FLOW**: Utilizza AI per accelerare l'implementazione del FLOW, dalla creatività al lancio richiede in media solo 3.2 giorni, risparmiando il 78% dei costi di manodopera rispetto allo sviluppo FLOW tradizionale
+- **Servizio Professional**: Fornisce soluzioni SaaS a pagamento, supportando più funzionalità e servizi avanzati
+- **Super Magic**: Basandosi su algoritmi AI avanzati, comprende profondamente l'intento di ricerca, recupera rapidamente knowledge base aziendali, documenti e informazioni web, formando rapporti di ricerca approfondita
+
+La piattaforma Magic rende lo sviluppo di applicazioni AI semplice ed efficiente. Che abbiate o meno basi di programmazione, potrete costruire rapidamente le applicazioni intelligenti necessarie alla vostra azienda, elevando il livello di digitalizzazione e intelligenza dell'azienda.
+
+---
+
+## 中文原文
+
 # Magic - AI 应用开发平台
 
 Magic是一个企业级AI应用开发平台，为企业提供了从AI助手创建到多平台部署的完整解决方案。以下是平台的核心功能和特性：

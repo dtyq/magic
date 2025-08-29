@@ -1,3 +1,263 @@
+# Guida all'Architettura del Sistema di Eventi SuperMagic
+
+## Panoramica
+
+Il sistema di eventi SuperMagic è un'architettura basata su modello publish-subscribe per l'evento-driven, utilizzata durante l'esecuzione dell'Agent per implementare il disaccoppiamento e la comunicazione tra vari componenti. Il sistema di eventi è diviso in due livelli:
+
+1. **Livello Base (agentlang)**: Fornisce la definizione dei tipi di eventi core e il meccanismo di distribuzione degli eventi
+2. **Livello Applicazione (app)**: Fornisce l'implementazione degli eventi business specifici e i servizi listener
+
+Questo sistema di eventi permette a SuperMagic di realizzare un design modulare altamente scalabile, dove i listener possono rispondere a vari eventi nel ciclo di vita dell'Agent, come operazioni sui file, completamento dei task, interazioni con modelli di grandi dimensioni, ecc.
+
+## 1. Architettura Base del Sistema di Eventi (agentlang)
+
+### 1.1 Tipi di Eventi Core (EventType)
+
+`agentlang/event/event.py` definisce tutti i tipi di eventi supportati dal sistema:
+
+```python
+class EventType(str, Enum):
+    """Enumerazione dei tipi di eventi"""
+    # Eventi del ciclo di vita dell'Agent
+    BEFORE_INIT = "before_init"            # Evento prima dell'inizializzazione
+    AFTER_INIT = "after_init"              # Evento dopo l'inizializzazione
+    AGENT_SUSPENDED = "agent_suspended"    # Evento di terminazione agent
+    MAIN_AGENT_FINISHED = "main_agent_finished"  # Evento di completamento esecuzione agent principale
+    
+    # Eventi di controllo sicurezza
+    BEFORE_SAFETY_CHECK = "before_safety_check"  # Evento prima del controllo sicurezza
+    AFTER_SAFETY_CHECK = "after_safety_check"    # Evento dopo il controllo sicurezza
+    
+    # Eventi di interazione utente
+    AFTER_CLIENT_CHAT = "after_client_chat"      # Evento dopo la chat del client
+    
+    # Eventi di interazione con modelli di grandi dimensioni
+    BEFORE_LLM_REQUEST = "before_llm_request"    # Evento prima della richiesta al modello di grandi dimensioni
+    AFTER_LLM_REQUEST = "after_llm_request"      # Evento dopo la richiesta al modello di grandi dimensioni
+    
+    # Eventi di chiamata strumento
+    BEFORE_TOOL_CALL = "before_tool_call"        # Evento prima della chiamata strumento
+    AFTER_TOOL_CALL = "after_tool_call"          # Evento dopo la chiamata strumento
+    
+    # Eventi di operazione file
+    FILE_CREATED = "file_created"                # Evento di creazione file
+    FILE_UPDATED = "file_updated"                # Evento di aggiornamento file
+    FILE_DELETED = "file_deleted"                # Evento di eliminazione file
+    
+    # Eventi di gestione errori
+    ERROR = "error"                              # Evento di errore
+```
+
+### 1.2 Classe Base Evento (Event)
+
+La classe base evento definisce la struttura base dell'evento:
+
+```python
+class Event(Generic[T]):
+    def __init__(self, event_type: EventType, data: BaseEventData):
+        self._event_type = event_type
+        self._data = data
+        
+    @property
+    def event_type(self) -> EventType:
+        return self._event_type
+        
+    @property
+    def data(self) -> T:
+        return self._data
+```
+
+### 1.3 Evento Arrestabile (StoppableEvent)
+
+Alcuni eventi possono interrompere il flusso di propagazione:
+
+```python
+class StoppableEvent(Event[T]):
+    def __init__(self, event_type: EventType, data: BaseEventData):
+        super().__init__(event_type, data)
+        self._propagation_stopped = False
+        
+    def stop_propagation(self) -> None:
+        self._propagation_stopped = True
+        
+    def is_propagation_stopped(self) -> bool:
+        return self._propagation_stopped
+```
+
+### 1.4 Dispatcher degli Eventi (EventDispatcher)
+
+`EventDispatcher` è responsabile della registrazione e distribuzione degli eventi:
+
+```python
+# In agentlang/event/dispatcher.py
+class EventDispatcher:
+    def __init__(self):
+        self._listeners = defaultdict(list)
+        
+    def add_listener(self, event_type: EventType, listener: Callable[[Event[Any]], None]) -> None:
+        self._listeners[event_type].append(listener)
+        
+    async def dispatch(self, event_type: EventType, data: BaseEventData) -> Event[Any]:
+        event = Event(event_type, data)
+        for listener in self._listeners.get(event_type, []):
+            await asyncio.ensure_future(listener(event))
+        return event
+        
+    async def dispatch_stoppable(self, event_type: EventType, data: BaseEventData) -> StoppableEvent[Any]:
+        event = StoppableEvent(event_type, data)
+        for listener in self._listeners.get(event_type, []):
+            if event.is_propagation_stopped():
+                break
+            await asyncio.ensure_future(listener(event))
+        return event
+```
+
+## 2. Sistema di Eventi del Livello Applicazione (app)
+
+### 2.1 Strutture Dati degli Eventi
+
+Il livello applicazione definisce le strutture dati degli eventi specifici in `app/core/entity/event/event.py`:
+
+```python
+# Di seguito alcuni esempi di strutture dati eventi chiave:
+class BeforeLlmRequestEventData(BaseEventData):
+    """Struttura dati evento prima della richiesta al modello di grandi dimensioni"""
+    model_name: str
+    chat_history: List[Dict[str, Any]]
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_context: ToolContext
+
+class AfterLlmResponseEventData(BaseEventData):
+    """Struttura dati evento dopo la richiesta al modello di grandi dimensioni"""
+    model_name: str
+    request_time: float
+    success: bool
+    error: Optional[str] = None
+    tool_context: ToolContext
+    llm_response_message: ChatCompletionMessage
+    show_in_ui: bool = True
+```
+
+### 2.2 Classe Base Servizio Listener
+
+Tutti i servizi listener ereditano da `BaseListenerService`, fornendo la logica di registrazione eventi generica:
+
+```python
+class BaseListenerService:
+    @staticmethod
+    def register_event_listener(agent_context: AgentContext, event_type: EventType, 
+                             listener: Callable[[Event[Any]], None]) -> None:
+        agent_context.add_event_listener(event_type, listener)
+
+    @staticmethod
+    def register_listeners(agent_context: AgentContext, 
+                        event_listeners: Dict[EventType, Callable[[Event[Any]], None]]) -> None:
+        for event_type, listener in event_listeners.items():
+            BaseListenerService.register_event_listener(agent_context, event_type, listener)
+```
+
+### 2.3 Meccanismo di Registrazione Listener
+
+Nel metodo `setup` di `AgentDispatcher` vengono registrati uniformemente vari listener:
+
+```python
+async def setup(self):
+    """Imposta il contesto Agent e registra i listener"""
+    self.agent_context = self.agent_service.create_agent_context(
+        stream_mode=False,
+        task_id="",
+        streams=[StdoutStream()],
+        is_main_agent=True,
+        sandbox_id=str(config.get("sandbox.id"))
+    )
+
+    # Registra vari listener
+    FileStorageListenerService.register_standard_listeners(self.agent_context)
+    TodoListenerService.register_standard_listeners(self.agent_context)
+    FinishTaskListenerService.register_standard_listeners(self.agent_context)
+    StreamListenerService.register_standard_listeners(self.agent_context)
+    RagListenerService.register_standard_listeners(self.agent_context)
+    FileListenerService.register_standard_listeners(self.agent_context)
+    CostLimitListenerService.register_standard_listeners(self.agent_context)
+```
+
+### 2.4 Implementazione Servizi Listener Specifici
+
+Ogni servizio listener implementa la funzionalità corrispondente, prendendo come esempio `FileStorageListenerService`:
+
+```python
+class FileStorageListenerService:
+    @staticmethod
+    def register_standard_listeners(agent_context: AgentContext) -> None:
+        # Crea la mappatura da tipo evento a funzione di gestione
+        event_listeners = {
+            EventType.FILE_CREATED: FileStorageListenerService._handle_file_event,
+            EventType.FILE_UPDATED: FileStorageListenerService._handle_file_event,
+            EventType.FILE_DELETED: FileStorageListenerService._handle_file_deleted,
+            EventType.MAIN_AGENT_FINISHED: FileStorageListenerService._handle_main_agent_finished
+        }
+
+        # Utilizza il metodo della classe base per registrare in batch i listener
+        BaseListenerService.register_listeners(agent_context, event_listeners)
+        
+    @staticmethod
+    async def _handle_file_event(event: Event[FileEventData]) -> None:
+        # Implementazione della gestione degli eventi di creazione e aggiornamento file...
+```
+
+## 3. Supporto Eventi in Agent Context
+
+La classe `AgentContext` fornisce le funzionalità core del meccanismo eventi:
+
+```python
+class AgentContext(BaseContext, AgentContextInterface):
+    def add_event_listener(self, event_type: EventType, listener: Callable[[Event[Any]], None]) -> None:
+        """Aggiunge un listener di eventi"""
+        self.agent_common_context._event_dispatcher.add_listener(event_type, listener)
+        
+    async def dispatch_event(self, event_type: EventType, data: BaseEventData) -> Event[Any]:
+        """Distribuisce l'evento"""
+        return await self.agent_common_context._event_dispatcher.dispatch(event_type, data)
+        
+    async def dispatch_stoppable_event(self, event_type: EventType, data: BaseEventData) -> StoppableEvent[Any]:
+        """Distribuisce l'evento arrestabile"""
+        return await self.agent_common_context._event_dispatcher.dispatch_stoppable(event_type, data)
+```
+
+## 4. Panoramica Funzionalità Principali Servizi Listener
+
+SuperMagic contiene molteplici servizi listener, ognuno responsabile della gestione di tipi specifici di eventi:
+
+| Servizio Listener | Funzionalità Principali |
+|-------------------|-------------------------|
+| FileStorageListenerService | Gestisce eventi file, carica file al servizio di storage |
+| TodoListenerService | Gestisce aggiunta, aggiornamento ed eliminazione dei task in sospeso |
+| FinishTaskListenerService | Gestisce eventi di completamento task, esegue pulizie successive |
+| StreamListenerService | Gestisce eventi di output streaming, invia messaggi al client |
+| RagListenerService | Gestisce eventi relativi alla generazione aumentata di retrieval |
+| FileListenerService | Gestisce monitoraggio cambiamenti del file system |
+| CostLimitListenerService | Monitora e limita il costo delle chiamate API |
+
+## 5. Estensione del Sistema di Eventi
+
+Per aggiungere nuova gestione eventi, si consiglia di seguire questi passi:
+
+1. Se necessario un nuovo tipo di evento, aggiungere nell'enumerazione `EventType` in `agentlang/event/event.py`
+2. Definire la struttura dati evento corrispondente in `app/core/entity/event/event.py`
+3. Creare una nuova classe servizio listener, ereditando o facendo riferimento a `BaseListenerService`
+4. Implementare il metodo di gestione eventi
+5. Registrare il nuovo servizio listener in `AgentDispatcher.setup()`
+
+## Conclusione
+
+Il sistema di eventi SuperMagic fornisce un modo flessibile ed estensibile per gestire vari cambiamenti di stato e interazioni nel sistema. Attraverso l'architettura event-driven, i vari componenti possono comunicare senza un accoppiamento stretto, rendendo il sistema più modulare e manutenibile.
+
+Il design a livelli del sistema di eventi (agentlang fornisce le basi, app fornisce l'implementazione business) riflette anche la buona pratica architettonica della separazione delle preoccupazioni, rendendo il sistema più facile da comprendere ed estendere.
+
+---
+
+# Original Chinese Content / Contenuto Originale Cinese
+
 # SuperMagic 事件系统架构指南
 
 ## 概述

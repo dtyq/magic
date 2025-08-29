@@ -1,3 +1,149 @@
+# 🔍 Nodo Corrispondenza Knowledge Base Vettoriale
+
+## ❓ Che Cos'è il Nodo Corrispondenza Knowledge Base Vettoriale?
+
+Il nodo Corrispondenza Knowledge Base Vettoriale è un nodo specializzato nel flusso di lavoro Magic Flow per recuperare e abbinare contenuti della knowledge base vettoriale. Può aiutarti a filtrare le knowledge base vettoriali necessarie in base a condizioni specifiche, fornendo supporto di base per operazioni successive (come ricerca di similarità, domande e risposte sulla conoscenza, ecc.). In parole semplici, questo nodo è come filtrare gli "scaffali" appropriati nella tua knowledge base vettoriale, per poter successivamente cercare informazioni rilevanti su questi "scaffali".
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Corrispondenza Knowledge Base Vettoriale è composta principalmente da due parti - l'area "Configurazione Condizioni di Filtro" in alto, utilizzata per impostare le condizioni di filtro delle knowledge base vettoriali; l'area "Output" in basso, che mostra la lista delle knowledge base vettoriali filtrate. Le condizioni di filtro supportano molteplici modalità di abbinamento come uguale, diverso, contiene, non contiene per ID o nome.
+![Nodo Inizio](https://cdn.letsmagic.cn/static/img/Vector-knowledge-base-matching.png)
+
+## 🤔 Perché Serve il Nodo Corrispondenza Knowledge Base Vettoriale?
+
+**Nel processo di costruzione di applicazioni intelligenti, il nodo Corrispondenza Knowledge Base Vettoriale svolge il ruolo di "filtro della conoscenza", può aiutarti a:**
+- **Localizzare Precisamente le Fonti di Conoscenza**: Filtrare knowledge base vettoriali che soddisfano condizioni specifiche da molteplici knowledge base
+- **Migliorare l'Efficienza di Ricerca**: Ridurre l'ambito della ricerca vettoriale successiva, migliorando precisione e velocità di ricerca
+- **Selezionare Dinamicamente Knowledge Base**: Secondo scenari diversi o esigenze degli utenti, selezionare dinamicamente knowledge base appropriate
+- **Filtro Combinato Multi-Condizioni**: Supportare combinazione multi-condizioni per realizzare logica di abbinamento knowledge base complessa
+- **Fornire Dati ai Nodi Downstream**: Fornire la lista delle knowledge base filtrate ai successivi nodi di ricerca vettoriale
+
+## 🎯 Scenari Applicabili
+
+### 1. Sistema di Domande e Risposte Intelligente Multi-Dominio
+Quando costruisci un sistema di domande e risposte che copre molteplici domini, puoi prima utilizzare il nodo Corrispondenza Knowledge Base Vettoriale per filtrare le knowledge base relative al dominio delle domande dell'utente, poi procedere con la ricerca precisa dei contenuti, migliorando l'accuratezza delle risposte.
+
+### 2. Ricerca di Conoscenza con Controllo Permessi
+All'interno dell'azienda, diversi dipartimenti o ruoli potrebbero avere il diritto di accedere a knowledge base diverse. Attraverso il nodo Corrispondenza Knowledge Base Vettoriale, puoi filtrare le knowledge base che l'utente ha il diritto di accedere in base alle informazioni di dipartimento o ruolo dell'utente, assicurando la sicurezza delle informazioni.
+
+### 3. Ricerca Collaborativa Multi-Knowledge Base
+Quando necessiti di effettuare ricerca collaborativa in molteplici knowledge base correlate, puoi prima utilizzare il nodo Corrispondenza Knowledge Base Vettoriale per filtrare queste knowledge base correlate, poi effettuare ricerca unificata in queste knowledge base, ottenendo informazioni più complete.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Base
+|Nome Parametro|Descrizione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Condizioni di Ricerca|Imposta la combinazione di condizioni per ricercare knowledge base vettoriali|Sì|Nessuno|
+
+### Dettagli Condizioni di Ricerca
+|Componenti Condizione|Valori Opzionali|Descrizione|
+|---|---|---|
+|Tipo Valore Sinistro|ID Knowledge Base|Filtra per identificatore univoco knowledge base|
+||Nome Knowledge Base|Filtra per nome knowledge base|
+|Operatore|Uguale|Abbinamento completo al valore specificato|
+||Diverso|Esclude risultati che corrispondono completamente al valore specificato|
+||Contiene|Contiene la stringa specificata|
+||Non Contiene|Non contiene la stringa specificata|
+|Valore Destro|Input Personalizzato|Inserisci il valore di filtro specifico, può essere ID o nome (dipende dal tipo valore sinistro)|
+
+### Contenuto Output
+|Campo Output|Descrizione|
+|---|---|
+|Lista Knowledge Base Vettoriali (vector_databases)|Lista delle knowledge base vettoriali filtrate, contiene ID e nome di ciascuna knowledge base|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Aggiungere Condizioni di Ricerca**:
+    1. Clicca il pulsante "Aggiungi Condizione" per aggiungere una condizione di filtro
+    2. Dal menu dropdown tipo valore sinistro seleziona "ID Knowledge Base" o "Nome Knowledge Base"
+    3. Seleziona l'operatore appropriato (uguale, diverso, contiene, non contiene)
+    4. Nel campo input valore destro inserisci il valore di filtro specifico
+2. **Impostare Molteplici Condizioni (Opzionale)**:
+    1. Se necessiti di impostare molteplici condizioni, ripeti cliccando il pulsante "Aggiungi Condizione"
+    2. Tra molteplici condizioni puoi scegliere relazione "E" o "O"
+3. **Combinazione Condizioni (Opzionale)**:
+    1. Per logica di filtro complessa, puoi creare gruppi di condizioni
+    2. Clicca il pulsante "Aggiungi Gruppo Condizioni" per creare un nuovo gruppo di condizioni
+    3. Nel gruppo di condizioni aggiungi condizioni e imposta relazioni tra condizioni
+4. **Anteprima Output**:
+    1. Dopo la configurazione, puoi visualizzare in anteprima la lista delle knowledge base vettoriali filtrate nella sezione output del nodo
+
+### Tecniche Avanzate
+#### Strategie di Ricerca Efficienti
+1. **Filtro Preciso**: Quando conosci chiaramente l'ID o il nome completo della knowledge base target, utilizza l'operatore "Uguale" per abbinamento preciso
+2. **Filtro Fuzzy**: Quando conosci solo parte delle informazioni del nome della knowledge base, utilizza l'operatore "Contiene" per abbinamento fuzzy
+3. **Strategia di Esclusione**: Utilizza gli operatori "Diverso" o "Non Contiene" per escludere knowledge base non necessarie
+
+#### Collaborazione con Altri Nodi
+**Il nodo Corrispondenza Knowledge Base Vettoriale necessita solitamente di essere utilizzato in combinazione con altri nodi:**
+1. **In Combinazione con Nodo Ricerca Vettoriale**:
+    1. Utilizza il nodo Corrispondenza Knowledge Base Vettoriale per filtrare knowledge base rilevanti
+    2. Poi utilizza il nodo Ricerca Vettoriale per effettuare ricerca di similarità dei contenuti in queste knowledge base
+2. **In Combinazione con Nodo Ramificazione Condizionale**:
+    1. Secondo se i risultati di filtro sono vuoti decide il flusso successivo
+    2. Puoi impostare soluzioni di backup quando non vengono trovate knowledge base corrispondenti
+3. **In Combinazione con Nodo Chiamata Modello Grande**:
+    1. Passa le informazioni delle knowledge base filtrate al modello grande
+    2. Fa sì che il modello grande generi risposte basate su queste knowledge base specifiche
+
+## ⚠️ Note Importanti
+
+### Limitazioni di Autorizzazione
+Il nodo può filtrare solo le knowledge base vettoriali che l'utente corrente ha il permesso di accedere:
+- Le knowledge base senza permesso di accesso non appariranno nei risultati di filtro, anche se soddisfano le condizioni di filtro
+- Assicurati che il creatore del flusso abbia permessi di lettura sulle knowledge base rilevanti
+
+### Considerazioni sulle Prestazioni
+Quando il numero di knowledge base è elevato, condizioni di filtro complesse potrebbero influenzare l'efficienza di esecuzione:
+- Cerca di utilizzare condizioni di filtro precise
+- Evita di utilizzare troppi operatori "Contiene" o "Non Contiene"
+- Riduci il più possibile i livelli di annidamento dei gruppi di condizioni
+
+### Gestione Risultati Vuoti
+Se le condizioni di filtro sono troppo restrittive, potrebbero portare a nessuna knowledge base che soddisfa le condizioni:
+- Assicurati di gestire nel flusso i possibili casi di risultati vuoti
+- Considera di utilizzare il nodo Ramificazione Condizionale per verificare se i risultati di filtro sono vuoti
+
+## ❓ Problemi Comuni
+
+### Problema 1: Dopo la ricerca non viene restituita alcuna knowledge base, ma sono sicuro che esistono knowledge base che soddisfano le condizioni, quale potrebbe essere la causa?
+
+**Soluzioni**: Le possibili cause includono:
+- Problema di permessi: Potresti non avere il permesso di accedere a queste knowledge base
+- Impostazione condizioni errata: Verifica che l'ortografia, maiuscole/minuscole delle condizioni di filtro siano corrette
+- Stato knowledge base: La knowledge base target potrebbe essere disabilitata o eliminata
+
+### Problema 2: Come filtrare contemporaneamente per ID e nome delle knowledge base?
+
+**Soluzioni**: Puoi aggiungere molteplici condizioni di filtro:
+- Aggiungi la prima condizione, seleziona "ID Knowledge Base" come tipo valore sinistro, imposta operatore e valore destro corrispondenti
+- Clicca "Aggiungi Condizione" per aggiungere la seconda condizione
+- Seleziona "Nome Knowledge Base" come tipo valore sinistro, imposta operatore e valore destro corrispondenti
+- Tra le due condizioni scegli la relazione "E" o "O"
+
+### Problema 3: Come utilizzare la lista delle knowledge base vettoriali in output del nodo nei nodi successivi?
+
+**Soluzioni**: La lista delle knowledge base vettoriali in output può essere utilizzata nei nodi successivi attraverso riferimento variabile:
+- Nel nodo Ricerca Vettoriale, puoi referenziare `output_nodo_precedente.vector_databases`
+- Se necessiti di ottenere l'ID di una knowledge base specifica, puoi utilizzare `output_nodo_precedente.vector_databases[0].id`
+- Nel nodo Esecuzione Codice, puoi accedere e elaborare questi dati attraverso JavaScript
+
+## 🏆 Migliori Pratiche
+
+### Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Ricerca Vettoriale|Effettua ricerca di similarità dei contenuti nelle knowledge base filtrate|
+|Nodo Ramificazione Condizionale|Decide il flusso di elaborazione successivo in base ai risultati di filtro|
+|Nodo Chiamata Modello Grande|Utilizza le knowledge base filtrate per domande e risposte con arricchimento di conoscenza|
+|Nodo Salvataggio Variabili|Salva i risultati di filtro per utilizzo in molteplici nodi successivi|
+|Nodo Esecuzione Codice|Effettua elaborazione o conversione avanzata dei risultati di filtro|
+
+---
+
 # 向量知识库匹配节点
 ## 什么是向量知识库匹配节点？
 向量知识库匹配节点是 Magic Flow 工作流中专门用于检索和匹配向量知识库内容的节点。它能帮助您根据特定条件筛选出需要的向量知识库，为后续的相关操作（如相似度搜索、知识问答等）提供基础支持。简单来说，这个节点就像是在您的向量知识库中筛选出合适的"书架"，以便后续可以在这些"书架"上查找相关信息。

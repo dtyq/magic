@@ -1,4 +1,109 @@
-# 结束节点
+# Nodo di Fine 🔚
+
+## Che cos'è il nodo di fine?
+Il nodo di fine è l'ultimo nodo di un flusso di lavoro; serve a restituire le informazioni di risultato al termine dell'esecuzione. Ogni flusso di lavoro necessita almeno di un nodo di fine, ma è possibile averne più di uno per gestire diversi percorsi di terminazione.
+
+Immagine esplicativa:
+
+L'interfaccia del nodo di fine contiene l'area di configurazione "Output", dove puoi definire i parametri da restituire alla fine del flusso. È possibile aggiungere più parametri di output; per ciascuno si impostano nome parametro, nome visualizzato e valore. Il valore può essere un'espressione o un valore fisso e può referenziare dati prodotti da altri nodi del flusso.
+![结束节点](https://cdn.letsmagic.cn/static/img/End-node.png)
+
+## Perché serve il nodo di fine?
+Nel disegno dei flussi, il nodo di fine risolve questi punti chiave:
+1. Chiarezza del punto di termine: marca esplicitamente dove termina l'esecuzione, rendendo più chiara la logica del flusso.
+2. Definizione dell'output: consente di configurare cosa esporre come risultato finale.
+3. Ritorno dati coerente: formatta e organizza l'output per garantirne coerenza e usabilità.
+4. Supporto a flussi complessi: su percorsi multipli, nodi di fine diversi possono restituire risultati differenti.
+
+## Scenari tipici
+### 1. Flusso Q&A intelligente
+Restituisce la risposta finale elaborata e, se necessario, raccomandazioni o riferimenti.
+### 2. Flussi di elaborazione dati
+Ritorna risultati elaborati come report statistici o conclusioni di analisi.
+### 3. Sottoprocessi
+Quando il flusso è invocato come sottoprocesso, definisce i dati da restituire al flusso principale, come il valore di ritorno di una funzione.
+
+## Parametri del nodo
+### Parametri di output
+La configurazione centrale è l'output, ovvero i dati da restituire alla fine:
+|Voce|Descrizione|Obbligatorio|
+|---|---|---|
+|Nome|Identificatore del parametro per i riferimenti nel sistema|Sì|
+|Nome visualizzato|Nome amichevole per l'interfaccia|Sì|
+|Tipo|Stringa, array, ecc.|Sì|
+|Valore|Valore effettivo (fisso, espressione o variabile)|Sì|
+
+## Istruzioni d'uso
+### Passi base
+1. Aggiungi il nodo di fine:
+    1. Trascinalo dal pannello nel canvas
+    2. Collega l'output del nodo precedente al nodo di fine
+2. Configura gli output:
+    1. Clicca "Aggiungi parametro" per ogni output necessario
+    2. Imposta nome (es. "result") e nome visualizzato (es. "Risultato")
+    3. Scegli tipo di valore (espressione o fisso)
+    4. Con espressioni, usa `${nomeVariabile}` per referenziare variabili del flusso
+3. Salva:
+    1. Verifica di aver configurato tutti gli output necessari
+    2. Salva la configurazione del nodo
+
+### Suggerimenti avanzati
+#### Organizzazione multi-parametro
+Per restituire parametri correlati:
+1. Raggruppa per funzione o tipo di dato
+2. Usa strutture annidate JSON, ad es. `{"data": ${result}, "meta": ${metadata}}`
+3. Segui regole di naming coerenti, es. `result_main`, `result_details`
+
+#### Output dinamici
+Restituisci risultati diversi su percorsi diversi:
+1. Preponi una diramazione condizionale e collega a nodi di fine diversi
+2. Pre-impacchetta i possibili risultati in un'unica variabile tramite un nodo codice e referenzialo qui
+
+## Note
+### Naming dei parametri
+1. Evita caratteri speciali; usa lettere, numeri e underscore
+2. Naming semantico, es. `search_result` invece di `data`
+3. Mantieni coerenza tra più nodi di fine nello stesso flusso
+
+### Tipi di dato
+1. Garantisci la compatibilità con ciò che il consumer si aspetta
+2. Converti formati con un nodo codice quando serve
+3. Gestisci i null con default ragionevoli
+
+### Gestione di più nodi di fine
+1. Etichettali chiaramente
+2. Pianifica i percorsi assicurando un nodo di fine per ciascuno
+3. Mantieni coerente la struttura dei parametri chiave
+
+## FAQ
+### Perché i parametri di output non compaiono nel risultato?
+1. Controlla il nome (typo)
+2. Verifica la sintassi dell'espressione e l'esistenza della variabile
+3. Verifica che l'esecuzione arrivi al nodo di fine
+4. Verifica lo scope delle variabili
+
+### Come restituire strutture complesse?
+1. Usa JSON: `{"items": ${list}, "count": ${count}}`
+2. Prepara i dati prima con un nodo codice
+3. Usa naming gerarchico: `result_header`, `result_body`, `result_footer`
+
+### Come garantire un termine corretto su percorsi multipli?
+1. Analizza i percorsi possibili
+2. Prevedi un nodo di fine per ogni percorso principale
+3. Uniforma la struttura del payload
+4. Includi uno stato (`status`, `code`) per distinguere i casi
+
+## Nodi spesso abbinati
+|Tipo nodo|Motivo|
+|---|---|
+|Diramazione condizionale|Collega a nodi di fine diversi per risultati diversi|
+|Esecuzione codice|Prepara e formatta l'output finale|
+|Chiamata modello LLM|Genera risposte strutturate poi restituite|
+|Risposta messaggio|Invia un messaggio prima della fine e registra l'esito|
+
+---
+
+# 中文原文
 
 ## 什么是结束节点？
 结束节点是工作流的最终节点，用于返回工作流程运行后的结果信息。每个工作流至少需要一个结束节点，但也可以有多个结束节点对应不同的结束路径。

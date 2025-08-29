@@ -1,3 +1,96 @@
+# MagicEllipseWithTooltip Componente di Ellissi Magica con Tooltip ✨
+
+`MagicEllipseWithTooltip` è un componente intelligente per l'ellissi del testo, che mostra automaticamente i puntini di sospensione quando il testo supera la larghezza specificata e visualizza il testo completo tramite un tooltip al passaggio del mouse 📏.
+
+## Proprietà
+
+| Nome Proprietà    | Tipo   | Valore Predefinito | Descrizione                                               |
+| ----------------- | ------ | ------------------ | --------------------------------------------------------- |
+| text              | string | -                  | Il contenuto del testo da visualizzare                    |
+| maxWidth          | string | -                  | Larghezza massima del testo, la parte eccedente viene sostituita con puntini di sospensione, es. "200px", "50%" |
+| ...HTMLAttributes | -      | -                  | Supporta tutti gli attributi dell'elemento HTML div      |
+
+## Uso Base
+
+```tsx
+import { MagicEllipseWithTooltip } from '@/components/base/MagicEllipseWithTooltip';
+
+// Uso base
+<MagicEllipseWithTooltip
+  text="Questo è un testo molto lungo, che mostrerà i puntini di sospensione quando supera la larghezza specificata, e al passaggio del mouse mostrerà il contenuto completo"
+  maxWidth="200px"
+/>
+
+// Stile personalizzato
+<MagicEllipseWithTooltip
+  text="Testo ellittico con stile personalizzato"
+  maxWidth="150px"
+  style={{
+    color: 'blue',
+    fontSize: '16px',
+    fontWeight: 'bold'
+  }}
+/>
+
+// Utilizzo in una cella di tabella
+<Table
+  columns={[
+    {
+      title: 'Descrizione',
+      dataIndex: 'description',
+      render: (text) => (
+        <MagicEllipseWithTooltip
+          text={text}
+          maxWidth="150px"
+        />
+      ),
+    },
+    // Altre colonne...
+  ]}
+  dataSource={data}
+/>
+
+// Utilizzo in un elemento di lista
+<List
+  dataSource={data}
+  renderItem={(item) => (
+    <List.Item>
+      <MagicEllipseWithTooltip
+        text={item.title}
+        maxWidth="100%"
+      />
+    </List.Item>
+  )}
+/>
+
+// Gestione eventi
+<MagicEllipseWithTooltip
+  text="Cliccami per attivare un evento"
+  maxWidth="120px"
+  onClick={() => console.log('Il testo è stato cliccato')}
+/>
+```
+
+## Caratteristiche
+
+1. **Rilevamento Intelligente** 🧠: Mostra il tooltip solo quando il testo effettivamente trabocca
+2. **Design Semplice** 🎨: Utilizza ellissi su una sola riga per mantenere l'interfaccia pulita
+3. **Configurazione Flessibile** 🔧: Puoi impostare la larghezza massima per adattarsi a vari layout
+4. **Completamente Personalizzabile** 🎛️: Supporta tutti gli attributi e stili dell'elemento div
+
+## Quando Usare
+
+- Quando devi visualizzare testi potenzialmente lunghi in uno spazio limitato 📝
+- Quando vuoi mantenere l'interfaccia pulita senza perdere informazioni 🧹
+- In tabelle, liste, carte e altri componenti per mostrare titoli o descrizioni 📋
+- Quando devi assicurarti che gli utenti possano vedere il contenuto completo del testo troncato 👀
+
+Il componente MagicEllipseWithTooltip rende la visualizzazione dei tuoi testi lunghi più elegante e user-friendly, mantenendo l'interfaccia pulita e garantendo l'integrità delle informazioni. 🌟
+
+---
+
+**Testo Originale (Cinese):**
+
 # MagicEllipseWithTooltip 魔法省略提示组件
 
 `MagicEllipseWithTooltip` 是一个智能的文本省略组件，当文本超出指定宽度时自动显示省略号，并在鼠标悬停时通过工具提示显示完整文本。

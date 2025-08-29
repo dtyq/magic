@@ -1,3 +1,96 @@
+# MagicDropdown Componente Dropdown Magico 📋
+
+`MagicDropdown` è una versione migliorata del componente Dropdown di Ant Design, che offre stili più belli e una migliore esperienza utente.
+
+## Proprietà 📋
+
+| Nome Proprietà   | Tipo      | Valore Predefinito | Descrizione                              |
+| ---------------- | --------- | ------------------ | ---------------------------------------- |
+| menu             | MenuProps | -                  | Configurazione del menu, per definire il contenuto e il comportamento del dropdown |
+| overlayClassName | string    | -                  | Classe personalizzata per il dropdown    |
+| ...DropDownProps | -         | -                  | Supporta tutte le proprietà di Ant Design Dropdown |
+
+## Uso Base 💡
+
+```tsx
+import { MagicDropdown } from '@/components/base/MagicDropdown';
+import { Button, Space } from 'antd';
+import type { MenuProps } from 'antd';
+import { IconSettings, IconUser, IconLogout } from '@tabler/icons-react';
+
+// Definire gli elementi del menu
+const items: MenuProps['items'] = [
+  {
+    key: '1',
+    label: 'Informazioni Personali',
+    icon: <IconUser size={16} />,
+  },
+  {
+    key: '2',
+    label: 'Impostazioni',
+    icon: <IconSettings size={16} />,
+  },
+  {
+    type: 'divider',
+  },
+  {
+    key: '3',
+    label: 'Esci dal Login',
+    icon: <IconLogout size={16} />,
+    danger: true,
+  },
+];
+
+// Uso base
+<MagicDropdown menu={{ items }}>
+  <Button>Clicca per mostrare il dropdown</Button>
+</MagicDropdown>
+
+// Con modalità di attivazione
+<MagicDropdown menu={{ items }} trigger={['hover']}>
+  <Button>Passa il mouse per mostrare il dropdown</Button>
+</MagicDropdown>
+
+// Con freccia
+<MagicDropdown menu={{ items }} arrow>
+  <Button>Dropdown con freccia</Button>
+</MagicDropdown>
+
+// Con gestione eventi
+<MagicDropdown
+  menu={{
+    items,
+    onClick: (e) => console.log('Cliccato elemento menu:', e.key),
+  }}
+>
+  <Button>Clicca elemento per attivare evento</Button>
+</MagicDropdown>
+
+// Stato disabilitato
+<MagicDropdown menu={{ items }} disabled>
+  <Button>Dropdown disabilitato</Button>
+</MagicDropdown>
+```
+
+## Caratteristiche ✨
+
+1. **Stili Ottimizzati** 🎨: Angoli più arrotondati, spaziatura più ragionevole ed effetti hover più belli
+2. **Ottimizzazione Spaziatura Icone** 📏: Migliorata la spaziatura tra icone e testo per un layout più armonioso
+3. **Miglioramento Stili Elementi Pericolosi** ⚠️: Forniti segnali visivi più evidenti per operazioni pericolose
+4. **Ottimizzazione Posizione Sottomenu** 📍: Regolata la posizione dei sottomenu per una visualizzazione più naturale
+5. **Adattamento Tema** 🌙: Adatta automaticamente temi chiari/scuri, fornendo un'esperienza visiva coerente
+
+## Quando Usare ❓
+
+- Quando hai bisogno di posizionare un dropdown nella pagina
+- Quando vuoi fornire all'utente molteplici opzioni operative senza occupare troppo spazio
+- Quando hai bisogno di raggruppare operazioni correlate
+- Quando il dropdown include operazioni pericolose
+- Quando desideri uno stile di dropdown più bello
+
+Il componente MagicDropdown rende i tuoi dropdown più belli e facili da usare, mantenendo tutte le funzionalità di Ant Design Dropdown.
+
+## Testo Originale (Cinese e Inglese)
 # MagicDropdown 魔法下拉菜单组件
 
 `MagicDropdown` 是一个基于 Ant Design Dropdown 组件的增强版下拉菜单，提供了更美观的样式和更好的用户体验。

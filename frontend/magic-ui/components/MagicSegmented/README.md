@@ -1,3 +1,145 @@
+# Componente MagicSegmented 🎨
+
+Il componente MagicSegmented è un controller segmentato migliorato basato su Ant Design Segmented, che offre stili e effetti interattivi più belli. ✨
+
+## Caratteristiche Funzionali 🚀
+
+-   **Design Arrotondato** 🔄: Fornisce di default uno stile con angoli arrotondati, più moderno e accattivante
+-   **Stili Personalizzati** 🌙: Adattato alla modalità scura, per un'esperienza visiva unificata
+-   **Facilità d'Uso** 🛠️: Mantiene la stessa API di Ant Design Segmented
+-   **Compatibilità Completa** ✅: Supporta tutte le proprietà e funzionalità di Ant Design Segmented
+
+## Installazione 📦
+
+```bash
+# Già incluso in @dtyq/magic-ui, non richiede installazione separata
+```
+
+## Uso Base 📖
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+
+const App = () => {
+	return <MagicSegmented options={["Giornaliero", "Settimanale", "Mensile"]} defaultValue="Giornaliero" />
+}
+```
+
+## Gestione dei Cambiamenti di Opzione 🔄
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+import { useState } from "react"
+
+const App = () => {
+	const [value, setValue] = useState("Giornaliero")
+
+	const handleChange = (newValue) => {
+		setValue(newValue)
+		console.log("Selezionato corrente:", newValue)
+	}
+
+	return (
+		<MagicSegmented options={["Giornaliero", "Settimanale", "Mensile"]} value={value} onChange={handleChange} />
+	)
+}
+```
+
+## Opzioni di Tipo Oggetto 📋
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+
+const App = () => {
+	return (
+		<MagicSegmented
+			options={[
+				{ label: "Opzione Uno", value: "option1" },
+				{ label: "Opzione Due", value: "option2" },
+				{ label: "Opzione Tre", value: "option3" },
+			]}
+			defaultValue="option1"
+		/>
+	)
+}
+```
+
+## Opzioni con Icone 🖼️
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+import { AppstoreOutlined, BarsOutlined } from "@ant-design/icons"
+
+const App = () => {
+	return (
+		<MagicSegmented
+			options={[
+				{
+					value: "list",
+					icon: <BarsOutlined />,
+					label: "Lista",
+				},
+				{
+					value: "grid",
+					icon: <AppstoreOutlined />,
+					label: "Griglia",
+				},
+			]}
+		/>
+	)
+}
+```
+
+## Design Non Arrotondato 🔲
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+
+const App = () => {
+	return <MagicSegmented options={["Opzione Uno", "Opzione Due", "Opzione Tre"]} circle={false} />
+}
+```
+
+## Stato Disabilitato 🚫
+
+```tsx
+import { MagicSegmented } from "@dtyq/magic-ui"
+
+const App = () => {
+	return <MagicSegmented options={["Opzione Uno", "Opzione Due", "Opzione Tre"]} disabled={true} />
+}
+```
+
+## Descrizione delle Proprietà 📋
+
+Il componente MagicSegmented eredita tutte le proprietà del componente Ant Design Segmented e aggiunge le seguenti proprietà:
+
+| Nome Proprietà | Tipo    | Valore Predefinito | Descrizione         |
+| -------------- | ------- | ------------------ | ------------------- |
+| circle         | boolean | true               | Se usare il design arrotondato |
+
+Proprietà principali ereditate:
+
+| Nome Proprietà | Tipo                                                                                                               | Valore Predefinito | Descrizione                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------ | ---------------------------- |
+| options        | string[] \| number[] \| Array<{ label: ReactNode; value: string \| number; icon?: ReactNode; disabled?: boolean }> | []                 | Configura ogni Segmented Item |
+| defaultValue   | string \| number                                                                                                   | -                  | Valore selezionato di default |
+| value          | string \| number                                                                                                   | -                  | Valore attualmente selezionato |
+| onChange       | (value: string \| number) => void                                                                                  | -                  | Funzione di callback per i cambiamenti di opzione |
+| disabled       | boolean                                                                                                            | false              | Se disabilitare              |
+| block          | boolean                                                                                                            | false              | Regola la larghezza alla larghezza dell'elemento padre |
+| size           | 'large' \| 'middle' \| 'small'                                                                                     | 'middle'           | Dimensione del controllo     |
+
+Per più proprietà, consulta la [documentazione di Ant Design Segmented](https://ant.design/components/segmented-cn/).
+
+## Note Importanti ⚠️
+
+1. MagicSegmented usa di default il design arrotondato, può essere impostato a angoli squadrati tramite la proprietà `circle`
+2. Questo componente ha ottimizzazioni di stile speciali in modalità scura, senza bisogno di configurazioni aggiuntive
+3. Quando necessario combinare con altri componenti, si raccomanda di usare opzioni di tipo oggetto per una gestione più facile dello stato
+
+## Testo Originale (Cinese) 📜
+
 # MagicSegmented 组件
 
 MagicSegmented 是一个基于 Ant Design Segmented 的增强分段控制器组件，提供了更美观的样式和交互效果。

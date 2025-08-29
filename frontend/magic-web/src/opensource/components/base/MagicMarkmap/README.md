@@ -1,3 +1,90 @@
+# MagicMarkmap 🧙‍♂️ Componente Magico per Mappa Mentale
+
+`MagicMarkmap` è un componente per rendere e visualizzare mappe mentali, basato sulla libreria Markmap, che supporta la conversione di testo in formato Markdown in mappe mentali interattive.
+
+## Proprietà
+
+| Nome Proprietà | Tipo    | Valore Predefinito | Descrizione                          |
+| -------------- | ------- | ------------------ | ------------------------------------ |
+| content        | string  | -                  | Contenuto della mappa mentale in formato Markdown |
+| readonly       | boolean | false              | Se è in modalità sola lettura, non permette modifiche |
+| ...rest        | -       | -                  | Supporta il passaggio di altre proprietà HTML all'elemento contenitore |
+
+## Uso Base
+
+```tsx
+import { MagicMarkmap } from '@/components/base/MagicMarkmap';
+
+// Uso base
+const markdownContent = `
+# Piano Progetto
+## Fase Uno
+### Analisi Requisiti
+### Progettazione Prototipo
+## Fase Due
+### Sviluppo
+### Test
+## Fase Tre
+### Distribuzione
+### Manutenzione
+`;
+
+<MagicMarkmap content={markdownContent} />
+
+// Modalità sola lettura
+<MagicMarkmap content={markdownContent} readonly />
+
+// Stile personalizzato
+<MagicMarkmap
+  content={markdownContent}
+  style={{ height: '500px', width: '100%' }}
+/>
+```
+
+## Formato Mappa Mentale
+
+MagicMarkmap utilizza la struttura dei titoli Markdown per definire i livelli dei nodi della mappa mentale:
+
+```markdown
+# Nodo Radice
+
+## Nodo Livello 2-1
+
+### Nodo Livello 3-1-1
+
+### Nodo Livello 3-1-2
+
+## Nodo Livello 2-2
+
+### Nodo Livello 3-2-1
+
+#### Nodo Livello 4-2-1-1
+```
+
+Ogni titolo diventa un nodo nella mappa mentale, e il livello del titolo determina il livello del nodo nella mappa mentale.
+
+## Caratteristiche
+
+1. **Supporto Markdown** 📝: Usa la sintassi Markdown familiare per creare mappe mentali
+2. **Esperienza Interattiva** 🖱️: Supporta zoom, pan e collasso/espansione dei nodi
+3. **Layout Automatico** 🔄: Calcola automaticamente posizioni e collegamenti dei nodi, senza layout manuale
+4. **Design Responsivo** 📱: Si adatta automaticamente alle dimensioni del contenitore
+5. **Leggero** ⚡: Caricamento veloce, prestazioni eccellenti
+
+## Quando Usare
+
+-   Quando devi mostrare informazioni con struttura gerarchica 📊
+-   Quando devi visualizzare piani di progetto o strutture organizzative 🏢
+-   Quando devi mostrare sistemi di conoscenza o relazioni concettuali 🧠
+-   Quando devi convertire documenti Markdown in mappe mentali 📄
+-   Quando devi incorporare mappe mentali interattive in conversazioni o documenti 💬
+
+Il componente MagicMarkmap rende la creazione e la visualizzazione delle mappe mentali semplice ed efficiente, ed è la scelta ideale per mostrare informazioni strutturate. ✨
+
+---
+
+## Testo Originale (Inglese)
+
 # MagicMarkmap 魔法思维导图组件
 
 `MagicMarkmap` 是一个用于渲染和展示思维导图的组件，基于 Markmap 库实现，支持将 Markdown 格式的文本转换为交互式思维导图。

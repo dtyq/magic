@@ -1,3 +1,381 @@
+# Guida all'Architettura del Sistema di Strumenti
+
+Questo documento fornisce una descrizione dettagliata dell'architettura del sistema di strumenti SuperMagic, inclusi i principi di design, i componenti core, i metodi di sviluppo degli strumenti e le migliori pratiche.
+
+## 1. Panoramica dell'Architettura
+
+Il sistema di strumenti adotta un design modulare, composto principalmente dai seguenti componenti core:
+
+- **BaseTool**: Classe base degli strumenti, tutti gli strumenti ereditano da questa classe
+- **BaseToolParams**: Classe base dei parametri degli strumenti, tutte le classi di parametri ereditano da questa classe
+- **tool_factory**: Factory singleton degli strumenti, responsabile della scansione, registrazione e istanziazione degli strumenti
+- **tool_executor**: Esecutore singleton degli strumenti, responsabile dell'esecuzione degli strumenti e della gestione degli errori
+- **@tool()**: Decoratore degli strumenti, utilizzato per la registrazione automatica delle classi di strumenti
+- **ToolContext**: Contesto degli strumenti, contiene le informazioni ambientali dell'esecuzione degli strumenti
+- **ToolResult**: Risultato degli strumenti, contiene le informazioni del risultato dell'esecuzione degli strumenti
+
+### 1.1 Diagramma dell'Architettura
+
+```
+                           ┌────────────────┐
+                           │ @tool()        │
+                           │ Decoratore     │
+                           └───────┬────────┘
+                                   │
+                                   ▼
+┌────────────────┐         ┌───────────────┐         ┌────────────────┐
+│ BaseToolParams │◄────────┤   BaseTool    │────────►│  ToolResult    │
+└────────────────┘         └───────┬───────┘         └────────────────┘
+                                   │
+                                   │
+                  ┌────────────────┴────────────────┐
+                  │                                  │
+                  ▼                                  ▼
+         ┌────────────────┐                 ┌───────────────────┐
+         │  tool_factory  │◄────────────────┤   tool_executor   │
+         └────────────────┘                 └───────────────────┘
+                  ▲                                  ▲
+                  │                                  │
+                  └────────────────┬────────────────┘
+                                   │
+                                   ▼
+┌────────────────┐         ┌──────────────────────┐
+│  ToolContext   │────────►│    Implementazione    │
+└────────────────┘         │   strumento concreta  │
+                           │  (ListDir, ReadFile)  │
+                           └──────────────────────┘
+```
+
+### 1.2 Principi di Design
+
+1. **Singola Responsabilità**: Ogni strumento è responsabile di una singola funzionalità, la factory gestisce, l'esecutore esegue
+2. **Iniezione delle Dipendenze**: Passare le dipendenze attraverso costruttore e contesto, evitare relazioni di dipendenza hardcoded
+3. **Sicurezza dei Tipi**: Utilizzare modelli Pydantic per garantire la sicurezza e validazione dei tipi dei parametri
+4. **Registrazione Automatica**: Utilizzare decoratori per implementare la registrazione automatica degli strumenti, ridurre il codice di registrazione manuale
+5. **Isolamento degli Errori**: Catturare e gestire gli errori di esecuzione degli strumenti, evitare di influenzare il flusso principale
+6. **Errori User-Friendly**: Fornire messaggi di errore dettagliati e contesto, facilitare il debugging e la risoluzione dei problemi
+
+## 2. Componenti Core
+
+### 2.1 Classe Base degli Strumenti (BaseTool)
+
+Tutti gli strumenti devono ereditare dalla classe base `BaseTool`, che fornisce l'interfaccia e l'implementazione base degli strumenti.
+
+```python
+class BaseTool(ABC, Generic[T]):
+    """Classe base degli strumenti"""
+    # Metadati dello strumento
+    name: str = ""
+    description: str = ""
+
+    # Tipo di modello dei parametri
+    params_class: Type[T] = None
+
+    @abstractmethod
+    async def execute(self, tool_context: ToolContext, params: T) -> ToolResult:
+        """Eseguire strumento, sottoclasse deve implementare"""
+        pass
+
+    async def __call__(self, tool_context: ToolContext, **kwargs) -> ToolResult:
+        """Punto di ingresso della chiamata dello strumento, gestisce logica generica come conversione parametri"""
+        # ...gestisce conversione parametri e cattura errori
+        return result
+```
+
+Caratteristiche principali della classe `BaseTool`:
+- Utilizza generici per supportare modelli di parametri tipizzati
+- Il metodo astratto `execute` deve essere implementato dalla sottoclasse
+- Il metodo `__call__` fornisce un punto di ingresso unificato, gestisce validazione parametri e cattura errori
+- Fornisce meccanismo di generazione di messaggi di errore user-friendly
+
+### 2.2 Classe Base dei Parametri degli Strumenti (BaseToolParams)
+
+I parametri degli strumenti devono ereditare dalla classe base `BaseToolParams`, che fornisce i campi base e le regole di validazione dei parametri.
+
+```python
+class BaseToolParams(BaseModel):
+    """Classe base dei parametri degli strumenti"""
+    explanation: str = Field(
+        "",
+        description="Explain why you're using this tool in first person - briefly state your purpose, expected outcome, and how you'll use the results to help the user."
+    )
+
+    @classmethod
+    def get_custom_error_message(cls, field_name: str, error_type: str) -> Optional[str]:
+        """Ottenere messaggio di errore parametri personalizzato"""
+        return None
+```
+
+Caratteristiche principali della classe `BaseToolParams`:
+- Eredita da `BaseModel` di Pydantic, supporta validazione parametri e conversione tipi
+- Contiene campo `explanation`, utilizzato per spiegare lo scopo della chiamata dello strumento
+- Fornisce meccanismo di messaggi di errore personalizzati, le sottoclassi possono fornire messaggi user-friendly per campi e tipi di errore specifici
+
+### 2.3 Decoratore degli Strumenti (@tool)
+
+Il decoratore degli strumenti è utilizzato per la registrazione automatica delle classi di strumenti, semplificando la definizione e gestione degli strumenti.
+
+```python
+@tool()
+class MyTool(BaseTool):
+    """Descrizione del mio strumento"""
+    # Implementazione strumento...
+```
+
+Funzionalità principali del decoratore `@tool()`:
+- Genera automaticamente il nome dello strumento dal nome della classe (convertito in snake_case)
+- Estrae la descrizione dello strumento dalla docstring
+- Marca gli attributi dello strumento, facilita la scansione e registrazione da parte della factory degli strumenti
+- Associa automaticamente il nome della classe al nome del file corrispondente
+
+### 2.4 Factory degli Strumenti (tool_factory)
+
+La factory degli strumenti è responsabile della scoperta automatica, registrazione e istanziazione degli strumenti. Utilizza il pattern singleton per garantire consistenza globale.
+
+```python
+# Utilizzare la factory degli strumenti per ottenere istanza strumento
+from app.tools.core.tool_factory import tool_factory
+
+tool_instance = tool_factory.get_tool_instance("list_dir")
+
+# Ottenere tutti i nomi degli strumenti
+tool_names = tool_factory.get_tool_names()
+
+# Inizializzare factory (generalmente non necessario chiamare manualmente)
+tool_factory.initialize()
+```
+
+Funzionalità principali di `tool_factory`:
+- Scansiona e scopre automaticamente tutte le classi di strumenti nel package `app.tools`
+- Registra gli strumenti e memorizza nella cache le informazioni degli strumenti
+- Crea istanze degli strumenti e le memorizza nella cache
+- Fornisce interfaccia di query delle informazioni degli strumenti
+
+### 2.5 Esecutore degli Strumenti (tool_executor)
+
+L'esecutore degli strumenti è responsabile dell'esecuzione degli strumenti e della gestione degli errori. Utilizza anche il pattern singleton per garantire consistenza globale.
+
+```python
+# Utilizzare l'esecutore degli strumenti per eseguire strumento
+from app.tools.core.tool_executor import tool_executor
+
+result = await tool_executor.execute_tool_call(tool_context, arguments)
+
+# Ottenere istanza strumento
+tool = tool_executor.get_tool("list_dir")
+
+# Ottenere tutti gli schemi delle funzioni di chiamata degli strumenti
+schemas = tool_executor.get_tool_schemas()
+```
+
+Funzionalità principali di `tool_executor`:
+- Esegue chiamate di strumenti, inclusa gestione parametri e cattura errori
+- Fornisce meccanismo di gestione errori user-friendly
+- Ottiene istanze strumenti e informazioni schemi
+- Timing delle prestazioni e registrazione log
+
+### 2.6 Contesto degli Strumenti (ToolContext)
+
+Il contesto degli strumenti contiene le informazioni ambientali dell'esecuzione degli strumenti, come nome strumento, ID chiamata e altri metadati.
+
+```python
+# Creare contesto strumento
+from agentlang.context.tool_context import ToolContext
+
+tool_context = ToolContext(
+    tool_name="list_dir",
+    tool_call_id="some-id",
+    # Altre informazioni contesto...
+)
+```
+
+### 2.7 Risultato degli Strumenti (ToolResult)
+
+Il risultato degli strumenti contiene le informazioni del risultato dell'esecuzione degli strumenti, come contenuto, errore, tempo di esecuzione, ecc.
+
+```python
+# Creare risultato strumento
+from app.core.entity.tool.tool_result import ToolResult
+
+result = ToolResult(
+    content="Risultato esecuzione strumento",
+    error=None,
+    name="list_dir",
+    execution_time=0.1
+)
+```
+
+## 3. Guida allo Sviluppo degli Strumenti
+
+### 3.1 Definire Parametri degli Strumenti
+
+Prima definire la classe dei parametri degli strumenti, ereditando da `BaseToolParams`:
+
+```python
+from pydantic import Field
+from app.tools.core import BaseToolParams
+
+class MyToolParams(BaseToolParams):
+    """Parametri strumento"""
+    param1: str = Field(..., description="Descrizione del parametro 1")
+    param2: int = Field(10, description="Descrizione del parametro 2")
+    param3: bool = Field(False, description="Descrizione del parametro 3")
+    
+    @classmethod
+    def get_custom_error_message(cls, field_name: str, error_type: str) -> Optional[str]:
+        """Ottenere messaggio di errore parametri personalizzato"""
+        if field_name == "param1" and error_type == "missing":
+            return "param1 è un parametro obbligatorio, fornire un valore stringa"
+        return None
+```
+
+Suggerimenti per la definizione dei parametri:
+- Utilizzare `Field` di Pydantic per aggiungere descrizioni dettagliate a ogni parametro
+- Fornire valori predefiniti ragionevoli per parametri opzionali
+- Utilizzare annotazioni di tipo per specificare il tipo dei parametri
+- Fornire messaggi di errore user-friendly attraverso `get_custom_error_message`
+
+### 3.2 Definire Classe Strumento
+
+Poi definire la classe strumento, ereditando da `BaseTool`, utilizzando il decoratore `@tool()` per la registrazione:
+
+```python
+from app.tools.core import BaseTool, tool
+from agentlang.context.tool_context import ToolContext
+from app.core.entity.tool.tool_result import ToolResult
+
+@tool()
+class MyTool(BaseTool):
+    """Descrizione del mio strumento
+
+    Qui la descrizione dettagliata dello strumento, la prima riga verrà estratta automaticamente come descrizione breve.
+    """
+
+    # Impostare tipo parametri
+    params_class = MyToolParams
+
+    async def execute(self, tool_context: ToolContext, params: MyToolParams) -> ToolResult:
+        """Eseguire logica strumento"""
+        try:
+            # Implementare logica strumento
+            result_content = f"Elaborazione parametri: {params.param1}, {params.param2}, {params.param3}"
+            
+            # Restituire risultato
+            return ToolResult(content=result_content)
+        except Exception as e:
+            # Gestione errori
+            return ToolResult(error=f"Esecuzione strumento fallita: {e}")
+```
+
+Suggerimenti per la definizione della classe strumento:
+- Fornire docstring dettagliata, specialmente la prima riga
+- Specificare chiaramente l'attributo `params_class`
+- Implementare la logica strumento nel metodo `execute`
+- Utilizzare blocchi try-except per catturare possibili errori
+- Restituire oggetto `ToolResult` formattato
+
+### 3.3 Flusso di Esecuzione degli Strumenti
+
+Il flusso completo di esecuzione degli strumenti è il seguente:
+
+1. Quando l'applicazione si avvia, `tool_factory` scannerà e registrerà automaticamente tutte le classi di strumenti con decoratore `@tool()`
+2. Il chiamante crea oggetto `ToolContext`, contenente nome strumento e informazioni chiamata
+3. Il chiamante esegue lo strumento attraverso `tool_executor.execute_tool_call()`
+4. L'esecutore ottiene l'istanza strumento attraverso la factory degli strumenti
+5. L'esecutore converte i parametri nel modello di parametri dello strumento
+6. L'esecutore chiama il metodo `__call__` dell'istanza strumento
+7. Il metodo `__call__` valida i parametri e chiama il metodo `execute`
+8. Il metodo `execute` esegue la logica strumento e restituisce `ToolResult`
+9. L'esecutore gestisce possibili errori e restituisce il risultato
+
+## 4. Migliori Pratiche
+
+### 4.1 Denominazione degli Strumenti
+
+- I nomi delle classi strumento utilizzano CamelCase, come `ListDir`
+- I nomi strumento vengono convertiti automaticamente in snake_case, come `list_dir`
+- Il nome file dovrebbe essere consistente con il nome strumento, come `list_dir.py`
+- La descrizione dello strumento dovrebbe essere concisa e chiara, specialmente la prima riga
+
+### 4.2 Design dei Parametri
+
+- Utilizzare nomi parametri chiari, evitare abbreviazioni
+- Utilizzare Field di Pydantic per aggiungere descrizioni dettagliate a ogni parametro
+- Fornire valori predefiniti ragionevoli per parametri opzionali
+- Utilizzare annotazioni di tipo precise
+- Fornire suggerimenti user-friendly attraverso `get_custom_error_message`
+
+### 4.3 Implementazione degli Strumenti
+
+- Implementare strumenti focalizzati, seguire il principio di singola responsabilità
+- Utilizzare blocchi try-except per gestire possibili errori
+- Utilizzare annotazioni di tipo nel metodo execute
+- Estrarre logica comune nella classe base o metodi ausiliari
+- Restituire risultati formattati, evitare strutture annidate complesse
+
+### 4.4 Gestione degli Errori
+
+- Catturare e gestire possibili eccezioni
+- Fornire messaggi di errore dettagliati, inclusi tipo errore e contesto
+- Utilizzare meccanismo di messaggi di errore personalizzati per fornire suggerimenti user-friendly
+- Registrare log di errore dettagliati, inclusi stack trace
+- Restituire codici di errore e descrizioni significative
+
+### 4.5 Ottimizzazione delle Prestazioni
+
+- Evitare calcoli e operazioni I/O non necessarie
+- Utilizzare I/O asincroni per migliorare le prestazioni concorrenti
+- Memorizzare nella cache dati e risultati utilizzati frequentemente
+- Limitare l'ambito di operazioni che richiedono molte risorse
+- Fornire meccanismi di timeout per operazioni di lunga durata
+
+## 5. Problemi Comuni
+
+### 5.1 Strumento non Scoperto
+
+**Problema**: È stato aggiunto un nuovo strumento, ma il sistema non lo ha scoperto.
+
+**Soluzione**:
+1. Assicurarsi che la classe strumento utilizzi il decoratore `@tool()`
+2. Assicurarsi che il file strumento sia nella directory `app/tools` o sue sottodirectory
+3. Assicurarsi che il nome della classe strumento e il nome file corrispondano
+4. Riavviare l'applicazione o chiamare manualmente `tool_factory.initialize()`
+
+### 5.2 Validazione Parametri Fallita
+
+**Problema**: Durante l'esecuzione dello strumento viene riportato errore di validazione parametri.
+
+**Soluzione**:
+1. Verificare che i parametri passati siano conformi alla definizione del modello parametri
+2. Verificare che tutti i parametri obbligatori siano stati forniti
+3. Verificare che i tipi dei parametri siano corretti
+4. Implementare `get_custom_error_message` per fornire suggerimenti di errore user-friendly
+
+### 5.3 Esecuzione Strumento Fallita
+
+**Problema**: L'esecuzione dello strumento riporta errore.
+
+**Soluzione**:
+1. Controllare le informazioni di errore dettagliate e lo stack trace nei log
+2. Verificare la gestione degli errori nella logica dello strumento
+3. Assicurarsi che tutti i servizi e risorse dipendenti siano disponibili
+4. Verificare la funzionalità dello strumento attraverso test unitari in ambiente di sviluppo
+
+### 5.4 Problemi di Prestazioni
+
+**Problema**: L'esecuzione dello strumento è lenta o occupa molte risorse.
+
+**Soluzione**:
+1. Utilizzare strumenti di analisi delle prestazioni per identificare i colli di bottiglia
+2. Ottimizzare operazioni I/O, utilizzare elaborazione asincrona o batch
+3. Memorizzare nella cache dati utilizzati frequentemente
+4. Limitare l'ambito di operazioni che richiedono molte risorse
+5. Considerare l'elaborazione batch per scenari con grandi quantità di dati
+
+---
+
+# Original Chinese Content / Contenuto Originale Cinese
+
 # 工具系统架构指南
 
 本文档提供了 SuperMagic 工具系统架构的详细说明，包括设计原则、核心组件、工具开发方法和最佳实践。

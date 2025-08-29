@@ -1,3 +1,61 @@
+# MagicButton Componente Pulsante Magico ✨
+
+`MagicButton` è una versione migliorata del componente Button di Ant Design, che offre più opzioni di personalizzazione e ottimizzazioni stilistiche. 🔘
+
+## Proprietà
+
+| Nome Proprietà | Tipo                            | Valore Predefinito | Descrizione                          |
+| -------------- | ------------------------------- | ------------------ | ------------------------------------ |
+| justify        | CSSProperties["justifyContent"] | "center"           | Allineamento orizzontale del contenuto del pulsante |
+| theme          | boolean                         | true               | Se applicare gli stili del tema      |
+| tip            | ReactNode                       | -                  | Contenuto del suggerimento mostrato al passaggio del mouse |
+| ...ButtonProps | -                               | -                  | Supporta tutte le proprietà del Button di Ant Design |
+
+## Uso Base
+
+```tsx
+import { MagicButton } from '@/components/base/MagicButton';
+
+// Pulsante base
+<MagicButton>Cliccami</MagicButton>
+
+// Pulsante con icona
+<MagicButton icon={<IconStar />}>Preferiti</MagicButton>
+
+// Pulsante con suggerimento
+<MagicButton tip="Questo è un suggerimento">Passa il mouse per vedere il suggerimento</MagicButton>
+
+// Allineamento personalizzato
+<MagicButton justify="flex-start">Contenuto allineato a sinistra</MagicButton>
+
+// Senza stili del tema
+<MagicButton theme={false}>Senza stili del tema</MagicButton>
+
+// Diversi tipi di pulsante
+<MagicButton type="primary">Pulsante Principale</MagicButton>
+<MagicButton type="default">Pulsante Predefinito</MagicButton>
+<MagicButton type="dashed">Pulsante Tratteggiato</MagicButton>
+<MagicButton type="link">Pulsante Link</MagicButton>
+<MagicButton type="text">Pulsante Testo</MagicButton>
+```
+
+## Caratteristiche
+
+1. **Controllo Stilistico Migliorato** 🎨: Offre più opzioni di personalizzazione stilistica, come l'allineamento del contenuto
+2. **Funzione Suggerimento Integrata** 💡: Tramite la proprietà `tip` puoi facilmente aggiungere suggerimenti al passaggio del mouse
+3. **Integrazione Tema** 🌟: Puoi controllare se applicare gli stili del tema con la proprietà `theme`
+4. **Supporto Icone Flessibile** 🖼️: Completamente compatibile con il sistema di icone di Ant Design
+
+## Quando Usare
+
+- Quando devi posizionare un pulsante sulla pagina 📄
+- Quando hai bisogno di un migliore controllo stilistico sul pulsante 🎯
+- Quando il pulsante deve avere un suggerimento al passaggio del mouse 🖱️
+- Quando il contenuto del pulsante necessita di un allineamento specifico 📐
+
+Il componente MagicButton rende i tuoi pulsanti più flessibili e belli, mantenendo tutte le funzionalità del pulsante di Ant Design. 🚀
+
+## Testo Originale
 # MagicButton 魔法按钮组件
 
 `MagicButton` 是一个基于 Ant Design Button 组件的增强版按钮，提供了更多的自定义选项和样式优化。

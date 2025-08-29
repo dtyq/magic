@@ -1,5 +1,62 @@
 # SuperMagic
 
+SuperMagic è il prodotto di punta della matrice di prodotti Magic, un **Sistema di Intelligenza Artificiale Generale (AGI)** progettato specificamente per scenari di task complessi. Attraverso un sistema di design multi-agente e capacità di tool ricchi, supporta capacità intelligenti come **comprensione autonoma dei task**, **pianificazione autonoma dei task**, **azione autonoma** e **correzione autonoma degli errori**. SuperMagic può comprendere istruzioni in linguaggio naturale, eseguire vari processi aziendali e consegnare risultati finali degli obiettivi.
+
+Come prodotto di punta della matrice di prodotti Magic, SuperMagic fornisce potenti capacità di sviluppo secondario attraverso open source, permettendo alle imprese di costruire e distribuire rapidamente assistenti intelligenti che soddisfano esigenze aziendali specifiche, migliorando significativamente l'efficienza e la qualità delle decisioni.
+
+## 🛠️ Caratteristiche Principali
+
+- **🔧 Supporto Multi-Tool**: Pre-carica tool comuni, inclusi esecuzione Python, ricerca web, operazioni browser, operazioni file, ecc.
+- **📊 Gestione Stato**: Meccanismo completo di gestione dello stato, supporta stati come IDLE, RUNNING, FINISHED, ERROR, ecc.
+- **🎛️ Controllo Esecuzione**: Supporta limitazione del numero massimo di iterazioni e limitazione della lunghezza dell'output
+- **🤖 Collaborazione Multi-Agente**: Supporta collaborazione tra molteplici agenti, gestendo scenari di task complessi
+- **🔗 Integrazione Seamless**: Integrazione seamless con prodotti della matrice come Magic Flow, realizzando orchestrazione workflow più potente
+
+## 📋 Requisiti di Installazione
+
+- Python 3.12+
+- Chiave API del modello di grandi dimensioni (Claude, OpenAI, DeepSeek V3, Qwen)
+- Pacchetti di dipendenze correlati
+
+## ⚙️ Impostazione Variabili Ambiente
+
+Prima dell'uso, assicurati di aver impostato le variabili ambiente attraverso file `.env` o impostazioni di sistema.
+
+Variabili ambiente obbligatorie:
+- `OPENAI_API_KEY`: Chiave API OpenAI
+
+## 💼 Casi d'Uso
+
+SuperMagic può essere applicato a vari scenari aziendali complessi, di seguito alcuni casi tipici:
+
+- [Analisi delle intuizioni di investimento dell'Assemblea Azionisti 2025 di Warren Buffett](https://www.letsmagic.cn/share/777665156986277889)
+- [Analisi delle azioni correlate alla mezza maratona dei robot umanoidi di Pechino](https://www.letsmagic.cn/share/774280936479625217)
+- [Riassunto dei concetti core di "Thinking, Fast and Slow"](https://www.letsmagic.cn/share/777461325648195584)
+- [Analisi IPO e consigli di investimento di Shanghai Auntie](https://www.letsmagic.cn/share/777604044873928705)
+- [Richiesta previsione vendite SKU](https://www.letsmagic.cn/share/771022574397648897)
+
+Per più casi visita il [sito ufficiale](https://www.letsmagic.cn).
+
+## 🔗 Progetti Correlati
+
+SuperMagic è parte della matrice di prodotti Magic, collabora con i seguenti prodotti:
+
+- **[Magic IM](https://github.com/dtyq/magic)** - Sistema di comunicazione istantanea aziendale che integra agenti AI con comunicazioni interne aziendali
+- **[Magic Flow](https://github.com/dtyq/magic-flow)** - Sistema potente di orchestrazione workflow AI visualizzato
+- **[Agentlang](https://github.com/dtyq/agentlang)** - Framework agente AI centrato sul linguaggio, utilizzato per costruire agenti AI utilizzando linguaggio naturale
+
+## 🤝 Contributi e Supporto
+
+Benvenuti a contribuire codice o proporre suggerimenti per SuperMagic. Se trovate problemi, vi preghiamo di sottoporre issue nel repository GitHub.
+
+## 📄 Licenza
+
+Questo progetto segue la [Licenza Open Source Magic](https://github.com/dtyq/magic/blob/main/LICENSE), essenzialmente Apache 2.0 ma con alcune restrizioni aggiuntive.
+
+---
+
+# SuperMagic
+
 SuperMagic 是 Magic 产品矩阵的旗舰产品，是一个专为复杂任务场景设计的**通用人工智能系统(AGI)**。它通过多智能体设计系统和丰富的工具能力，支持**自主任务理解**、**自主任务规划**、**自主行动**以及**自主错误修正**等智能能力。SuperMagic 可以理解自然语言指令，执行各种业务流程，并交付最终目标结果。
 
 作为 Magic 产品矩阵的旗舰产品，SuperMagic 通过开源提供强大的二次开发能力，使企业能够快速构建和部署满足特定业务需求的智能助手，大幅提升决策效率和质量。

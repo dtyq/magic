@@ -1,3 +1,94 @@
+# PageContainer 📄 Componente Contenitore Pagina
+
+`PageContainer` è un componente contenitore utilizzato per avvolgere il contenuto della pagina, fornendo un layout di pagina unificato, una barra del titolo e funzionalità di chiusura.
+
+## Proprietà
+
+| Nome Proprietà | Tipo       | Valore Predefinito | Descrizione                          |
+| -------------- | ---------- | ------------------ | ------------------------------------ |
+| icon           | ReactNode  | -                  | Icona prima del titolo della pagina  |
+| closeable      | boolean    | false              | Se mostrare il pulsante di chiusura  |
+| onClose        | () => void | -                  | Funzione di callback per il clic sul pulsante di chiusura |
+| className      | string     | -                  | Nome classe personalizzato del contenitore |
+| ...CardProps   | -          | -                  | Supporta tutte le proprietà di Ant Design Card |
+
+## Utilizzo Base
+
+```tsx
+import { PageContainer } from '@/components/base/PageContainer';
+import { IconHome } from '@tabler/icons-react';
+
+// Utilizzo base
+<PageContainer title="Titolo Pagina">
+  <div>Contenuto Pagina</div>
+</PageContainer>
+
+// Pagina con icona
+<PageContainer
+  title="Home"
+  icon={<IconHome size={20} />}
+>
+  <div>Contenuto Home</div>
+</PageContainer>
+
+// Pagina chiudibile
+<PageContainer
+  title="Pagina Dettagli"
+  closeable
+  onClose={() => console.log('Pagina chiusa')}
+>
+  <div>Contenuto Pagina Dettagli</div>
+</PageContainer>
+
+// Stile intestazione personalizzato
+<PageContainer
+  title="Intestazione Personalizzata"
+  headStyle={{ background: '#f0f2f5' }}
+>
+  <div>Contenuto Pagina</div>
+</PageContainer>
+
+// Utilizzo in layout
+<Layout>
+  <Layout.Sider>Barra Laterale</Layout.Sider>
+  <Layout.Content>
+    <PageContainer title="Area Contenuto Principale">
+      <div>Contenuto Principale</div>
+    </PageContainer>
+  </Layout.Content>
+</Layout>
+
+// Utilizzo annidato
+<PageContainer title="Pagina Esterna">
+  <div style={{ padding: '20px' }}>
+    <PageContainer title="Pagina Interna">
+      <div>Contenuto Interno</div>
+    </PageContainer>
+  </div>
+</PageContainer>
+```
+
+## Caratteristiche ✨
+
+1. **Layout Unificato** 📐: Fornisce una struttura di layout di pagina unificata
+2. **Design Responsivo** 📱: Si adatta automaticamente a diverse dimensioni dello schermo
+3. **Adattamento Tema** 🌙: Si adatta automaticamente a temi chiari/scuri
+4. **Barra Titolo Fissa** 📌: La barra del titolo rimane fissa in alto durante lo scorrimento
+5. **Funzionalità Chiusura** ❌: Può aggiungere un pulsante di chiusura per la navigazione in app multipagina
+
+## Quando Usare
+
+-   Quando è necessario fornire una struttura di layout unificata per la pagina
+-   Quando la pagina necessita di una barra del titolo e funzionalità di chiusura
+-   Quando si creano più pagine con aspetto coerente nell'app
+-   Quando la barra del titolo della pagina deve rimanere visibile durante lo scorrimento
+-   Quando è necessario mostrare icone e titoli nella pagina
+
+Il componente PageContainer rende il layout della tua pagina più unificato e professionale, adatto a vari scenari che richiedono pagine strutturate.
+
+---
+
+## Testo Originale (Cinese/Inglese)
 # PageContainer 页面容器组件
 
 `PageContainer` 是一个用于包裹页面内容的容器组件，提供了统一的页面布局、标题栏和关闭功能。

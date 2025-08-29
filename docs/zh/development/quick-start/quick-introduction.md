@@ -1,15 +1,15 @@
-# Magic 入门教程
+# Tutorial Introduttivo Magic
 
-## 一、系统要求
+## I. Requisiti di Sistema
 
-- 支持操作系统：macOS、Linux 或 Windows
-- 已安装 Docker 和 Docker Compose（安装 Docker 参考 3.3）
-- 网络连接（用于拉取镜像和检测公网 IP）
-- 已安装 Git (用于拉取 Magic 代码)
+- Sistemi operativi supportati: macOS, Linux o Windows
+- Docker e Docker Compose installati (per l'installazione di Docker fare riferimento alla sezione 3.3)
+- Connessione di rete (per scaricare immagini e rilevare IP pubblico)
+- Git installato (per clonare il codice Magic)
 
-## 二、安装步骤
+## II. Passi di Installazione
 
-### 2.1 克隆项目
+### 2.1 Clonare il Progetto
 
 ```bash
 git clone git@github.com:dtyq/magic.git
@@ -19,41 +19,41 @@ cd magic
 ![git clone magic](https://public-cdn.letsmagic.cn/static/img/git_clone_magic.png)
 
 
-## 2.2. 配置文件
+## 2.2. Configurazione File
 
-#### 主要配置文件
-- .env：主要环境变量配置文件
-- config/.env_super_magic：Super Magic 服务配置文件（如果选择安装）
-- config/.env_magic_gateway：Magic Gateway 配置文件（如果选择安装 Super Magic）
-- config/.env_sandbox_gateway：Sandbox Gateway 配置文件（如果选择安装 Super Magic）
-- macOS/Linux 安装过程中，如果不存在文件不存在，会自动复制，Windows 需要手动复制修改
+#### File di configurazione principali
+- .env: File di configurazione principale delle variabili d'ambiente
+- config/.env_super_magic: File di configurazione del servizio Super Magic (se si sceglie di installarlo)
+- config/.env_magic_gateway: File di configurazione Magic Gateway (se si sceglie di installare Super Magic)
+- config/.env_sandbox_gateway: File di configurazione Sandbox Gateway (se si sceglie di installare Super Magic)
+- Durante l'installazione su macOS/Linux, se i file non esistono, verranno copiati automaticamente, su Windows è necessario copiarli e modificarli manualmente
 
-##### 手动配置文件，并修改所需要的值
+##### Configurare manualmente i file e modificare i valori necessari
 ```bash
-# 如需要使用 Magic，复制 .env.example 到 .env
+# Se si necessita utilizzare Magic, copiare .env.example in .env
 sudo cp .env.example .env
 
 ```
-##### Magic 环境变量配置参考：
+##### Riferimento configurazione variabili d'ambiente Magic:
 https://docs.letsmagic.cn/zh/development/deploy/environment.html
 
 ```bash
-# 如需使用 Super Magic 服务，复制以下文件：
+# Se si necessita utilizzare il servizio Super Magic, copiare i seguenti file:
 sudo cp config/.env_super_magic.example  config/.env_super_magic
 sudo cp config/.env_magic_gateway.example  config/.env_magic_gateway
 sudo cp config/.env_sandbox_gateway.example  config/.env_sandbox_gateway
 ```
-##### Super Magic 环境变量配置参考：
+##### Riferimento configurazione variabili d'ambiente Super Magic:
 https://docs.letsmagic.cn/zh/development/deploy/super-magic.html
 
-##### 配置IP（可选）
-如果是远程服务器部署，编辑 .env 文件，将以下内容中的 localhost 替换为服务器 IP：
+##### Configurazione IP (opzionale)
+Se si effettua il deployment su server remoto, modificare il file .env, sostituendo localhost con l'IP del server nel seguente contenuto:
 ```
-MAGIC_SOCKET_BASE_URL=ws://<服务器IP>:9502
-MAGIC_SERVICE_BASE_URL=http://<服务器IP>:9501
+MAGIC_SOCKET_BASE_URL=ws://<IP_SERVER>:9502
+MAGIC_SERVICE_BASE_URL=http://<IP_SERVER>:9501
 ```
 
-如果您选择安装 Super Magic 服务，请确保以下配置文件存在：
+Se si sceglie di installare il servizio Super Magic, assicurarsi che esistano i seguenti file di configurazione:
 - config/.env_super_magic
 - config/.env_magic_gateway
 - config/.env_sandbox_gateway

@@ -1,3 +1,77 @@
+# MagicEmojiPanel Componente Pannello Emoji Magico 😀
+
+MagicEmojiPanel è un componente pannello di selezione emoji ricco di funzionalità, utilizzato per fornire funzionalità di selezione emoji nelle applicazioni. Questo componente mostra una serie di emoji cliccabili e supporta il passaggio tra diversi tipi di pannelli emoji (come emoji normali e emoji preferiti). 📱
+
+## Proprietà
+
+| Nome Proprietà | Tipo                       | Valore Predefinito | Descrizione                                       |
+| -------------- | -------------------------- | ------------------ | ------------------------------------------------- |
+| onClick        | (emoji: EmojiInfo) => void | -                  | Funzione di callback quando si clicca su un emoji, con parametro le informazioni dell'emoji selezionato |
+
+Dove la definizione del tipo EmojiInfo è la seguente:
+
+```typescript
+export type EmojiInfo = {
+	/** Codice emoji */
+	code: string
+	/** Namespace emoji */
+	ns: string
+	/** Suffisso emoji */
+	suffix?: string
+	/** Tonalità della pelle */
+	tone?: string
+	/** Dimensione emoji */
+	size?: number
+}
+```
+
+## Uso Base
+
+```tsx
+import MagicEmojiPanel from "@/components/base/MagicEmojiPanel"
+import type { EmojiInfo } from "@/components/base/MagicEmojiPanel/types"
+
+// Uso base
+const handleEmojiClick = (emoji: EmojiInfo) => {
+	console.log("Emoji selezionato:", emoji)
+	// Gestisci la logica di selezione emoji
+}
+
+;<MagicEmojiPanel onClick={handleEmojiClick} />
+
+// Utilizzo in un popover
+import { Popover } from "antd"
+;<Popover
+	content={<MagicEmojiPanel onClick={handleEmojiClick} />}
+	trigger="click"
+	styles={{
+		body: {
+			padding: 0,
+		},
+	}}
+>
+	<Button>Apri pannello emoji</Button>
+</Popover>
+```
+
+## Caratteristiche
+
+-   **Raccolta ricca di emoji** 🎉: Emoji integrati vari per la scelta degli utenti
+-   **Passaggio tra categorie** 🔄: Supporta il passaggio tra diversi tipi di pannelli emoji
+-   **Interfaccia accattivante** ✨: Interfaccia progettata con cura, inclusa area di scorrimento e barra di passaggio in basso
+-   **Callback personalizzato** ⚙️: Personalizza il comportamento dopo la selezione emoji tramite la proprietà onClick
+-   **Layout responsivo** 📐: Emoji disposti in griglia, adattabili a contenitori di dimensioni diverse
+
+## Scenari d'Uso
+
+-   Selettore emoji in app di chat 💬
+-   Input emoji nell'area commenti dei social media 📱
+-   Funzione di inserimento emoji in editor di testo ricchi ✏️
+-   Qualsiasi scenario interattivo che richieda la selezione di emoji da parte degli utenti
+
+Il componente MagicEmojiPanel fornisce una soluzione completa per la selezione di emoji, facilmente integrabile in varie applicazioni che necessitano di funzionalità di input emoji, migliorando l'esperienza utente e il divertimento interattivo. 🚀
+
+## Testo Originale
 # MagicEmojiPanel 魔法表情面板组件
 
 MagicEmojiPanel 是一个功能丰富的表情选择面板组件，用于在应用中提供表情选择功能。该组件展示了一系列可点击的表情，并支持切换不同类型的表情面板（如普通表情和喜欢表情）。

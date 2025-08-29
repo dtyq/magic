@@ -1,3 +1,146 @@
+# 🎯 Nodo Riconoscimento Intenzioni
+
+## ❓ Cos'è il Nodo Riconoscimento Intenzioni?
+
+Il nodo Riconoscimento Intenzioni è un nodo di analisi intelligente nei flussi di lavoro Magic Flow che può comprendere e analizzare il contenuto testuale dell'input dell'utente, identificando l'intenzione dell'utente al suo interno. In parole semplici, questo nodo è come un "interprete intelligente" che può distinguere cosa vuole fare l'utente, poi guida il flusso di lavoro verso percorsi di elaborazione diversi basati su intenzioni diverse.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Riconoscimento Intenzioni include l'area di selezione del modello e configurazione dei rami. Qui puoi definire molteplici rami di intenzione, ogni ramo contiene il nome dell'intenzione e la descrizione, oltre ai percorsi di flusso corrispondenti a diverse intenzioni.
+![Nodo Riconoscimento Intenzioni](https://cdn.letsmagic.cn/static/img/Intent-recognition.png)
+
+## 🤔 Perché Serve il Nodo Riconoscimento Intenzioni?
+
+Nella costruzione di applicazioni intelligenti, il nodo Riconoscimento Intenzioni svolge un ruolo chiave di "navigazione intelligente":
+- **Elaborazione Automatica di Classificazione**: Identifica automaticamente l'intenzione dell'utente basandosi sul suo input, senza bisogno che l'utente scelga esplicitamente la funzionalità
+- **Design di Flussi Multi-percorso**: Attiva diversi flussi di elaborazione basati su intenzioni diverse, fornendo esperienze personalizzate
+- **Miglioramento dell'Esperienza Utente**: Permette agli utenti di esprimere le proprie esigenze in linguaggio naturale, invece di seguire comandi fissi o menu
+- **Riduzione del Giudizio Manuale**: Automatizza il processo di analisi delle intenzioni, risparmiando risorse umane
+- **Semplificazione di Flussi Complessi**: Semplifica giudizi condizionali complessi in riconoscimento delle intenzioni basato sulla semantica
+
+## 🎯 Scenari Applicabili
+
+### 1. Smistamento Assistenza Clienti Intelligente
+Progetta un sistema di assistenza clienti che può giudicare automaticamente il tipo di consultazione dell'utente, come consultazione prodotto, servizio post-vendita, reclami e suggerimenti, ecc., e guida l'utente verso i rispettivi flussi di elaborazione professionale.
+
+### 2. Assistente Multi-funzione
+Costruisci un assistente personale integrato con molteplici funzionalità che può giudicare dall'input in linguaggio naturale dell'utente se vuole controllare il meteo, impostare promemoria, cercare informazioni o chiacchierare, ed eseguire la funzionalità corrispondente.
+
+### 3. Compilazione Intelligente Moduli
+Crea un assistente moduli intelligente che può estrarre informazioni chiave dalle descrizioni in linguaggio naturale dell'utente e compilare automaticamente i campi del modulo corrispondenti, semplificando il processo di inserimento dati.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Base
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Predefinito|
+|---|---|---|---|
+|Modello|Seleziona il modello di linguaggio grande da utilizzare per il riconoscimento delle intenzioni|Sì|gpt-4o-mini-global|
+|Intenzione|Il contenuto dell'input dell'utente, utilizzato per l'analisi delle intenzioni|Sì|Nessuno|
+|Rami Intenzione|Definisci diverse categorie di intenzione e i loro flussi di elaborazione|Sì|Nessuno|
+
+### Parametri Modello
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Predefinito|
+|---|---|---|---|
+|Caricamento Automatico Memoria|Se abilitare la funzione di memoria automatica, ricordare la cronologia delle conversazioni per assistere il riconoscimento delle intenzioni|No|Sì|
+|Numero Massimo Memoria|Questo nodo ricorderà al massimo n messaggi, n è il numero massimo di memoria che imposti|No|10|
+
+### Parametri Intenzione
+|Nome Parametro|Spiegazione|Obbligatorio|
+|---|---|---|
+|Nome Intenzione|Definisci un nome di intenzione specifico, come "consultazione prodotto", "richiesta rimborso", ecc.|Sì|
+|Descrizione Intenzione|Descrizione dettagliata di questa intenzione, aiuta il modello a riconoscere più accuratamente l'intenzione|No|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Seleziona il modello appropriato**:
+    1. Per garantire l'accuratezza del riconoscimento, si consiglia di scegliere modelli avanzati come GPT-4
+    2. Per compiti di riconoscimento intenzioni semplici, si possono anche utilizzare modelli più veloci come GPT-3.5
+2. **Imposta l'input dell'intenzione**:
+    1. Nel parametro "Intenzione" fai riferimento al messaggio di input dell'utente, generalmente utilizzando variabili come `{{user_message}}`
+    2. Assicurati che il contenuto di input contenga informazioni sufficienti per l'analisi delle intenzioni del modello
+3. **Definisci i rami delle intenzioni**:
+    1. Clicca il pulsante "Aggiungi Ramo" per creare molteplici rami di intenzione
+    2. Imposta nomi di intenzione chiari e descrizioni dettagliate per ogni ramo
+    3. Imposta almeno un ramo "else" di fallback per gestire situazioni non riconoscibili
+4. **Configura la destinazione dei rami**:
+    1. Imposta per ogni ramo di intenzione il nodo verso cui il flusso dovrebbe andare quando viene riconosciuta questa intenzione
+    2. Assicurati che tutti i possibili percorsi di intenzione abbiano elaborazione corrispondente
+5. **Regola parametri avanzati (opzionale)**:
+    1. Regola parametri come temperatura, memoria automatica secondo necessità
+    2. Per scenari che richiedono alta accuratezza, puoi impostare la temperatura più bassa (come 0.2)
+
+#### Collaborazione con Altri Nodi
+Il nodo Riconoscimento Intenzioni generalmente necessita di essere utilizzato in combinazione con altri nodi:
+1. **In Combinazione con il Nodo Attesa**:
+    1. Dopo l'input dell'utente, utilizza il nodo Attesa per ottenere il messaggio
+    2. Utilizza l'output del nodo Attesa come input per il riconoscimento delle intenzioni
+2. **In Combinazione con il Nodo Chiamata Modello Grande**:
+    1. Basandosi sull'intenzione riconosciuta, utilizza diversi template di prompt
+    2. Puoi passare il risultato del riconoscimento delle intenzioni al modello grande per migliorare la comprensione del contesto
+3. **Complementare al Nodo Ramo Condizionale**:
+    1. Per giudizi con regole chiare utilizza il nodo Ramo Condizionale
+    2. Per comprensione semantica fuzzy utilizza il nodo Riconoscimento Intenzioni
+
+## ⚠️ Note Importanti
+
+### Quantità e Qualità delle Intenzioni
+La quantità di intenzioni influisce sulla precisione e efficienza del riconoscimento:
+- Troppe intenzioni possono causare confusione e giudizi errati
+- Si consiglia di controllare ogni nodo tra 5-10 intenzioni, assicurando distinzioni chiare tra le varie intenzioni
+- Per sistemi complessi, considera l'utilizzo di riconoscimento intenzioni multi-livello, come riconoscere prima la categoria principale, poi la sottocategoria
+
+### Impostazione Ramo Predefinito
+Assicurati sempre di impostare un ramo predefinito di tipo "else":
+- Come percorso di fallback quando non viene riconosciuta alcuna intenzione predefinita
+- Può guidare l'utente a chiarire l'intenzione o fornire più informazioni
+- Previene l'interruzione del flusso a causa dell'impossibilità di riconoscere l'intenzione
+
+### Considerazioni sulle Performance
+Il processo di riconoscimento delle intenzioni può consumare una certa quantità di risorse computazionali:
+- Sistemi di intenzioni complessi possono aumentare il tempo di riconoscimento
+- Per scenari con requisiti di real-time elevati, puoi semplificare leggermente le descrizioni delle intenzioni
+- Considera l'utilizzo di modelli più veloci o ottimizzazione della struttura dei prompt
+
+## ❓ Problemi Comuni
+
+### Problema 1: Come Migliorare l'Accuratezza del Riconoscimento delle Intenzioni?
+**Soluzioni**: Diversi fattori chiave per migliorare l'accuratezza:
+- Fornire descrizioni dettagliate delle intenzioni ed esempi diversificati
+- Assicurare sufficiente distinzione tra diverse intenzioni
+- Utilizzare modelli più avanzati (come GPT-4 al posto di GPT-3.5)
+- Abbassare il parametro temperatura (come 0.2-0.3) per aumentare la determinabilità
+- Considerare l'abilitazione della funzione memoria per utilizzare la cronologia delle conversazioni come contesto
+
+### Problema 2: Il Riconoscimento delle Intenzioni Va Sempre Verso il Ramo Predefinito?
+**Soluzioni**: Possibili cause e soluzioni:
+- Verifica se le descrizioni delle intenzioni sono sufficientemente chiare e dettagliate
+- Conferma se l'input dell'utente contiene informazioni sufficienti per indicare l'intenzione
+- Controlla se ci sono sovrapposizioni tra intenzioni che causano confusione
+- Prova ad aggiungere alcune espressioni comuni nelle descrizioni delle intenzioni
+- Utilizza la funzione di debug per visualizzare il processo di riconoscimento del modello e la confidenza
+
+### Problema 3: Come Gestire Situazioni di Intenzioni Multiple?
+**Soluzioni**: Quando l'input dell'utente può contenere molteplici intenzioni:
+- Progetta priorità dei rami, lascia che il modello riconosca l'intenzione principale
+- Considera l'impostazione di rami di intenzione ibrida per gestire combinazioni di intenzioni comuni
+- Aggiungi passi di chiarimento nel flusso, chiedi all'utente di confermare l'intenzione principale
+- Utilizza elaborazione a catena: prima elabora l'intenzione principale, poi quella secondaria
+
+## 💡 Migliori Pratiche
+
+### Nodi Comuni da Abbinare
+
+|Tipo di Nodo|Motivo dell'Abbinamento|
+|---|---|
+|Nodo Attesa|Ottieni l'input dell'utente come fonte per il riconoscimento delle intenzioni|
+|Nodo Chiamata Modello Grande|Genera risposte corrispondenti basandosi sull'intenzione riconosciuta|
+|Nodo Ramo Condizionale|Gestisci giudizi semplici basati su regole|
+|Nodo Risposta Messaggio|Feedback all'utente del risultato del riconoscimento o richiesta di chiarimento|
+|Nodo Sottoprocesso|Esegui flussi di elaborazione indipendenti per ciascuna intenzione|
+
+---
+
 # 意图识别节点
 ## 什么是意图识别节点？
 意图识别节点是Magic Flow工作流中的智能分析节点，它能够理解和分析用户输入的文本内容，从中识别出用户的意图。简单来说，这个节点就像是一个"理解师"，能够分辨用户想要做什么，然后根据不同意图将工作流引导到不同的处理路径。

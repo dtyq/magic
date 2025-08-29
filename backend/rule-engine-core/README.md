@@ -1,3 +1,210 @@
+# Motore di Regole Core ⚙️
+
+## ✅ Funzionalità Implementate
+
+1. Traduzione delle specifiche JSR-94
+2. Servizio di regole di tipo script PHP
+
+## 📝 Esempi
+
+### Registrazione del Servizio di Regole
+
+```php
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$container = ApplicationContext::getContainer();
+RuleServiceProviderManager::registerRuleServiceProvider($uri, RuleServiceProvider::class, $container);
+```
+
+Il repository delle regole script PHP predefinito è efficace a livello di processo (repository funzioni) e coroutine (gruppo regole). Se è necessario un repository personalizzato (ad esempio utilizzando cache o DB per l'archiviazione), è possibile utilizzare il seguente metodo per la sostituzione.
+
+```php
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+
+$provider = new RuleServiceProvider();
+$provider
+    ->setExecutionSetRepository(new CustomExecutionSetRepository())  //Utilizzo repository gruppo regole personalizzato
+    ->setFunctionRepository(new CustomFunctionRepository());  	//Utilizzo repository funzioni personalizzato
+$container = ApplicationContext::getContainer();
+RuleServiceProviderManager::registerRuleServiceProvider(RuleServiceProvider::RULE_SERVICE_PROVIDER, $provider, $container);
+```
+
+I repository di funzioni e gruppi di regole devono implementare `\Dtyq\RuleEngineCore\PhpScript\Repository\ExpressionFunctionRepositoryInterface` e `\Dtyq\RuleEngineCore\PhpScript\Repository\RuleExecutionSetRepositoryInterface`.
+
+Inoltre, si consiglia di registrare il servizio di regole all'avvio del framework. L'esempio seguente completa la registrazione del servizio di regole ascoltando gli eventi del framework.
+
+```php
+use Hyperf\Event\Contract\ListenerInterface;
+use Hyperf\Utils\ApplicationContext;
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+use Hyperf\Event\Annotation\Listener;
+
+#[Listener]
+class AutoRegister implements ListenerInterface
+{
+    public function listen(): array
+    {
+        return [
+            \Hyperf\Framework\Event\BootApplication::class,
+        ];
+    }
+
+    public function process(object $event): void
+    {
+        $uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+        $container = ApplicationContext::getContainer();
+        RuleServiceProviderManager::registerRuleServiceProvider($uri, RuleServiceProvider::class, $container);
+    }
+}
+```
+
+### Registrazione delle Funzioni
+
+Gli script e le espressioni per default proibiscono l'esecuzione di qualsiasi funzione, gli utenti possono registrarle tramite il seguente metodo.
+
+```php
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$ruleProvider = RuleServiceProviderManager::getRuleServiceProvider($uri);
+$admin = $ruleProvider->getRuleAdministrator();
+$executableCode = new ExecutableFunction('add', function ($arg1, $arg2) {
+    return $arg1 + $arg2;
+});
+$admin->registerExecutableCode($executableCode);
+```
+
+Metodo di registrazione rapida basato sulle funzioni native PHP:
+
+```php
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$ruleProvider = RuleServiceProviderManager::getRuleServiceProvider($uri);
+$admin = $ruleProvider->getRuleAdministrator();
+$executableCode = ExecutableFunction::fromPhp('is_array', 'is_array2'); //Nello script è necessario utilizzare is_array2 per la chiamata
+$admin->registerExecutableCode($executableCode);
+```
+
+Da notare, si prega di non scrivere codice che potrebbe causare il cambio di coroutine all'interno delle funzioni.
+
+### Registrazione del Gruppo di Esecuzione Regole
+
+```php
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+use Dtyq\RuleEngineCore\Standards\Admin\InputType;
+use Dtyq\RuleEngineCore\PhpScript\RuleType;
+
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$ruleProvider = RuleServiceProviderManager::getRuleServiceProvider($uri);
+$admin = $ruleProvider->getRuleAdministrator();
+$ruleExecutionSetProvider = $admin->getRuleExecutionSetProvider(InputType::from(InputType::String));
+$input = ['$a + $b'];  //Contenuto script o espressione
+$properties = new RuleExecutionSetProperties();
+$properties->setName('add-rule');
+$properties->setRuleType(RuleType::Expression); // Tipo di regola, supporta script o tipo espressione. Se non definito, è script per default.
+$set = $ruleExecutionSetProvider->createRuleExecutionSet($input, $properties);
+$admin->registerRuleExecutionSet('mysample', $set, $properties);
+```
+
+### Esecuzione del Gruppo di Regole
+
+```php
+use Dtyq\RuleEngineCore\Standards\RuleSessionType;
+
+$runtime = $ruleProvider->getRuleRuntime();
+$properties = new RuleExecutionSetProperties();
+$ruleSession = $runtime->createRuleSession('mysample', $properties, RuleSessionType::from(RuleSessionType::Stateless));
+$inputs = [];
+$inputs['a'] = 1;
+$inputs['b'] = 2;
+$res = $ruleSession->executeRules($inputs);
+$ruleSession->release();
+```
+
+### Albero Sintassi Astratta (AST)
+
+Quando non esistono segnaposto nella regola, l'analisi sintattica verrà eseguita durante la creazione del gruppo di regole, a quel punto sarà possibile ottenere l'albero sintassi astratta (AST).
+
+```php
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+use Dtyq\RuleEngineCore\Standards\Admin\InputType;
+use Dtyq\RuleEngineCore\PhpScript\RuleType;
+use PhpParser\Node;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitorAbstract;
+
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$ruleProvider = RuleServiceProviderManager::getRuleServiceProvider($uri);
+$admin = $ruleProvider->getRuleAdministrator();
+$ruleExecutionSetProvider = $admin->getRuleExecutionSetProvider(InputType::from(InputType::String));
+$input = ['$a + $b'];  //Non contiene segnaposto
+$properties = new RuleExecutionSetProperties();
+$properties->setName('add-rule');
+$properties->setRuleType(RuleType::Expression); // Tipo di regola, supporta script o tipo espressione. Se non definito, è script per default.
+$set = $ruleExecutionSetProvider->createRuleExecutionSet($input, $properties);
+//Eseguire azioni di validazione di analisi personalizzate
+$ast = $set->getAsts();
+$traverser = new NodeTraverser();
+$visitor = new class() extends NodeVisitorAbstract {
+	public function leaveNode(Node $node)
+	{
+		var_dump($node);
+	}
+};
+$traverser->addVisitor($visitor);
+foreach ($ast as $stmts) {
+	$traverser->traverse($stmts);
+}
+```
+
+Se la regola contiene segnaposto, è necessario attendere la fase di esecuzione delle regole per ottenere l'albero sintassi astratta (AST).
+
+```php
+use Dtyq\RuleEngineCore\PhpScript\RuleServiceProvider;
+use Dtyq\RuleEngineCore\Standards\RuleServiceProviderManager;
+use Dtyq\RuleEngineCore\Standards\Admin\InputType;
+use Dtyq\RuleEngineCore\PhpScript\RuleType;
+use PhpParser\Node;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitorAbstract;
+
+$uri = RuleServiceProvider::RULE_SERVICE_PROVIDER;
+$ruleProvider = RuleServiceProviderManager::getRuleServiceProvider($uri);
+$admin = $ruleProvider->getRuleAdministrator();
+$ruleExecutionSetProvider = $admin->getRuleExecutionSetProvider(InputType::from(InputType::String));
+$input = ['if( {{ruleEnableCondition}} ) return $so;'];  //Contiene segnaposto
+$properties = new RuleExecutionSetProperties();
+$properties->setName('testPlaceholder-rule');
+$properties->setRuleType(RuleType::Script); // Tipo di regola, supporta script o tipo espressione. Se non definito, è script per default.
+$properties->setResolvePlaceholders(true);
+$set = $ruleExecutionSetProvider->createRuleExecutionSet($input, $properties);
+$admin->registerRuleExecutionSet('mysample', $set, $properties);
+//Dopo la registrazione, passare le informazioni segnaposto e i fatti per preparare l'esecuzione delle regole
+$runtime = $ruleProvider->getRuleRuntime();
+$properties = new RuleExecutionSetProperties();
+$properties->setPlaceholders(['ruleEnableCondition' => '1 == 1']);
+$ruleSession = $runtime->createRuleSession('mysample', $properties, RuleSessionType::from(RuleSessionType::Stateless));
+$inputs = [];
+$inputs['so'] = 'aaaa111122';
+$res = $ruleSession->getAsts();
+$traverser = new NodeTraverser();
+$visitor = new class() extends NodeVisitorAbstract {
+	public function leaveNode(Node $node)
+	{
+		var_dump($node);
+	}
+};
+$traverser->addVisitor($visitor);
+foreach ($res as $stmts) {
+	$traverser->traverse($stmts);
+}
+```
+
+---
+
 # rule engine core
 
 ## 已实现功能

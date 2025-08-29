@@ -1,86 +1,102 @@
-# 历史消息查询节点
+# Nodo Interrogazione Messaggi Storici 📜
 
-## 什么是历史消息查询节点？
-历史消息查询节点是 Magic Flow 中用于检索历史对话记录的功能节点。它就像一个智能记忆库，帮助您从过去的对话中提取重要信息，实现对历史交互内容的快速查询和分析。
+## Che cos'è il Nodo Interrogazione Messaggi Storici?
 
-**界面说明：**
+Il Nodo Interrogazione Messaggi Storici è un nodo funzionale in Magic Flow utilizzato per recuperare registri di conversazioni storiche. È come una libreria di memoria intelligente che aiuta a estrarre informazioni importanti dalle conversazioni passate, realizzando interrogazioni e analisi rapide dei contenuti di interazioni storiche.
 
-历史消息查询节点界面展示了节点的主要配置区域，包括最大记录数设置区和时间范围筛选区。最大数量默认设置为10条记录，时间范围可以通过选择起始和结束日期自定义。底部输出区显示查询结果将包含历史消息列表(history_messages)、消息角色(role)和消息内容(content)。
-![历史消息查询节点](https://cdn.letsmagic.cn/static/img/Historical-message-query.png)
+**Spiegazione Interfaccia:**
 
-## 为什么需要历史消息查询节点？
-在智能对话系统中，理解上下文和历史交互是提供连贯、个性化服务的关键。历史消息查询节点帮助您：
-1. **追踪对话流程**：快速检索之前的通信内容，理解当前对话上下文
-2. **提取关键信息**：从历史记录中找出用户已经提供的重要信息，避免重复询问
-3. **分析用户习惯**：通过历史交互记录了解用户偏好和行为模式
-4. **实现连续对话**：基于历史对话构建连贯的交互体验，提高用户满意度
+L'interfaccia del Nodo Interrogazione Messaggi Storici mostra le aree di configurazione principali del nodo, inclusa l'area di impostazione numero massimo record e l'area di filtro per intervallo temporale. Il numero massimo è impostato di default a 10 record, l'intervallo temporale può essere personalizzato selezionando date di inizio e fine. L'area di output in basso mostra che i risultati della query conterranno lista messaggi storici (history_messages), ruolo messaggio (role) e contenuto messaggio (content).
+![Nodo Interrogazione Messaggi Storici](https://cdn.letsmagic.cn/static/img/Historical-message-query.png)
 
-## 应用场景
-### 场景一：个性化客服机器人
-客服机器人需要了解用户之前的咨询内容和提供的解决方案，避免重复回答或给出矛盾信息。通过历史消息查询节点，系统可以检索用户之前的咨询记录，提供连贯的服务体验。
+## Perché serve il Nodo Interrogazione Messaggi Storici?
 
-### 场景二：学习助手记忆功能
-在教育应用中，学习助手需要记住学生之前的学习内容和问题。历史消息查询节点可以帮助检索学生之前的学习记录，为个性化学习推荐提供基础。
+Nei sistemi di conversazione intelligente, comprendere il contesto e le interazioni storiche è la chiave per fornire servizi coerenti e personalizzati. Il Nodo Interrogazione Messaggi Storici aiuta a:
+1. **Tracciare il Flusso di Conversazione**: Recuperare rapidamente contenuti di comunicazione precedenti, comprendere il contesto della conversazione corrente
+2. **Estrarre Informazioni Chiave**: Trovare dalle registrazioni storiche informazioni importanti già fornite dall'utente, evitare domande ripetitive
+3. **Analizzare Abitudini Utente**: Comprendere preferenze e modelli di comportamento dell'utente attraverso registrazioni di interazioni storiche
+4. **Realizzare Conversazione Continua**: Costruire esperienze di interazione coerenti basate su conversazioni storiche, migliorare la soddisfazione dell'utente
 
-### 场景三：多轮对话中的上下文管理
-在复杂的多轮对话场景中，对话内容可能涉及多个话题。历史消息查询节点可以帮助提取特定话题的历史对话段落，维持对话的连贯性和上下文完整性。
+## Scenari di Applicazione
 
-## 节点参数说明
-### 输入参数
-历史消息查询节点的输入参数用于设置查询条件，主要包括：
-|参数名称|说明|是否必填|默认值|
+### Scenario 1: Robot Assistenza Clienti Personalizzato
+Il robot assistenza clienti necessita di conoscere contenuti di consultazione precedenti dell'utente e soluzioni fornite, per evitare risposte ripetitive o contraddittorie. Attraverso il Nodo Interrogazione Messaggi Storici, il sistema può recuperare registrazioni di consultazione precedenti dell'utente, fornire esperienze di servizio coerenti.
+
+### Scenario 2: Funzione Memoria Assistente di Apprendimento
+Nelle applicazioni educative, l'assistente di apprendimento necessita di ricordare contenuti di apprendimento e problemi precedenti dello studente. Il Nodo Interrogazione Messaggi Storici può aiutare a recuperare registrazioni di apprendimento precedenti dello studente, fornire basi per raccomandazioni di apprendimento personalizzate.
+
+### Scenario 3: Gestione Contesto in Conversazioni Multi-turno
+In scenari di conversazioni multi-turno complesse, i contenuti di conversazione potrebbero coinvolgere molteplici argomenti. Il Nodo Interrogazione Messaggi Storici può aiutare a estrarre paragrafi di conversazione storica relativi ad argomenti specifici, mantenere coerenza e integrità del contesto della conversazione.
+
+## Spiegazione Parametri del Nodo
+
+### Parametri di Input
+
+I parametri di input del Nodo Interrogazione Messaggi Storici sono utilizzati per impostare condizioni di query, includono principalmente:
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
 |---|---|---|---|
-|最大数量|限制返回的历史消息记录数量|是|10|
-|时间范围筛选|设置查询时间区间，包括起始日期和结束日期|否|无|
+|Numero Massimo|Limitare il numero di record di messaggi storici restituiti|Sì|10|
+|Filtro Intervallo Temporale|Impostare l'intervallo di tempo della query, inclusi data di inizio e data di fine|No|Nessuno|
 
-### 输出参数
-查询结果将作为节点的输出参数，可用于后续节点：
-|参数名称|说明|数据类型|
+### Parametri di Output
+
+I risultati della query saranno utilizzati come parametri di output del nodo, per nodi successivi:
+|Nome Parametro|Spiegazione|Tipo Dati|
 |---|---|---|
-|历史消息(history_messages)|历史消息记录列表|数组|
-|角色(role)|消息发送者角色（如用户、系统）|字符串|
-|内容(content)|消息内容|字符串|
+|Messaggi Storici (history_messages)|Lista registrazioni messaggi storici|Array|
+|Ruolo (role)|Ruolo mittente messaggio (come utente, sistema)|Stringa|
+|Contenuto (content)|Contenuto del messaggio|Stringa|
 
-## 使用说明
-### 基本配置步骤
-1. **添加节点**：将历史消息查询节点拖入工作流编辑器
-2. **设置最大数量**：在"最大数量"输入框中输入需要查询的历史消息数量（建议设置合理值，如10-20条记录）
-3. **设置时间范围**（可选）：如需时间筛选，点击时间范围选择器设置起始和结束日期
-4. **连接节点**：将历史消息查询节点与前置节点（如开始或触发节点）和后续节点（如大模型调用节点）连接
+## Istruzioni per l'Uso
 
-### 高级技巧
-1. **精确时间控制**：对于需要高精度时间筛选的场景，可以设置精确的时间范围，获取特定时间段的对话记录
-2. **结合变量使用**：可以将查询结果`history_messages`保存到变量中，供后续节点使用
-3. **与大模型节点结合**：将历史消息查询结果作为大模型调用节点的输入，实现基于历史对话的智能回复
+### Passi di Configurazione Base
 
-## 重要提示
-### 性能考量
-- **查询数量限制**：设置过大的历史消息数量可能会降低工作流执行效率；建议根据实际需求设置合理的最大数量
-- **时间范围设置**：过大的时间范围可能会返回过多无关消息，影响后续分析效率
+1. **Aggiungere Nodo**: Trascinare il nodo interrogazione messaggi storici nell'editor del flusso di lavoro
+2. **Impostare Numero Massimo**: Nella casella di input "Numero Massimo" inserire il numero di messaggi storici da interrogare (si consiglia di impostare valori ragionevoli, come 10-20 record)
+3. **Impostare Intervallo Temporale** (opzionale): Se necessario filtrare per tempo, cliccare il selettore intervallo temporale per impostare date di inizio e fine
+4. **Connettere Nodi**: Connettere il nodo interrogazione messaggi storici con nodi precedenti (come nodi di inizio o trigger) e nodi successivi (come nodi chiamata modello grande)
 
-### 内容安全
-- **敏感信息处理**：历史消息可能包含敏感信息，在将查询结果传递给后续节点时要考虑信息安全
-- **数据使用合规**：确保历史消息的使用符合隐私保护法规
+### Tecniche Avanzate
 
-## 常见问题
-### 查询结果为空
-**问题**：配置了历史消息查询节点但得到空结果。
-**解决方案**：
-1. 检查时间范围设置是否正确，确保查询时间范围内有对话记录
-2. 确认前置节点是否正确传递了会话信息
-3. 考虑放宽查询条件，如扩大时间范围或增加最大数量
+1. **Controllo Temporale Preciso**: Per scenari che richiedono filtri temporali ad alta precisione, è possibile impostare intervalli temporali precisi, ottenere registrazioni di conversazione di periodi specifici
+2. **Combinazione con Variabili**: È possibile salvare i risultati della query `history_messages` in variabili, per l'utilizzo in nodi successivi
+3. **Combinazione con Nodo Modello Grande**: Utilizzare i risultati dell'interrogazione messaggi storici come input del nodo chiamata modello grande, realizzare risposte intelligenti basate su conversazioni storiche
 
-### 查询结果不完整
-**问题**：查询结果中缺少一些预期的历史消息。
-**解决方案**：
-1. 增加最大数量设置，确保检索足够多的历史记录
-2. 检查时间范围设置，确保覆盖所有需要的历史消息时间段
-3. 确认历史消息是否正确存储在系统中
+## Note Importanti
 
-## 常见配对节点
-|节点类型|配对说明|
+### Considerazioni Prestazionali
+
+- **Limitazione Numero Query**: Impostare numeri troppo grandi di messaggi storici potrebbe ridurre l'efficienza di esecuzione del flusso di lavoro; si consiglia di impostare numeri massimi ragionevoli secondo le esigenze effettive
+- **Impostazione Intervallo Temporale**: Intervalli temporali troppo ampi potrebbero restituire troppi messaggi irrilevanti, influenzare l'efficienza dell'analisi successiva
+
+### Sicurezza Contenuto
+
+- **Gestione Informazioni Sensibili**: I messaggi storici potrebbero contenere informazioni sensibili, considerare la sicurezza delle informazioni quando si passano i risultati della query a nodi successivi
+- **Uso Dati Conforme**: Assicurarsi che l'uso dei messaggi storici sia conforme alle normative sulla protezione della privacy
+
+## Domande Frequenti
+
+### Risultati Query Vuoti
+
+**Problema**: È stato configurato il nodo interrogazione messaggi storici ma si ottengono risultati vuoti.
+**Soluzioni**:
+1. Verificare che l'impostazione dell'intervallo temporale sia corretta, assicurarsi che nell'intervallo di tempo della query ci siano registrazioni di conversazione
+2. Confermare che i nodi precedenti abbiano passato correttamente le informazioni di sessione
+3. Considerare di allentare le condizioni di query, come ampliare l'intervallo temporale o aumentare il numero massimo
+
+### Risultati Query Incompleti
+
+**Problema**: Nei risultati della query mancano alcuni messaggi storici previsti.
+**Soluzioni**:
+1. Aumentare l'impostazione del numero massimo, assicurarsi di recuperare registrazioni storiche sufficienti
+2. Verificare l'impostazione dell'intervallo temporale, assicurarsi di coprire tutti i periodi di tempo dei messaggi storici necessari
+3. Confermare che i messaggi storici siano stati correttamente memorizzati nel sistema
+
+## Nodi di Combinazione Comuni
+
+|Tipo Nodo|Spiegazione Combinazione|
 |---|---|
-|大模型调用节点|向大模型提供历史消息，实现基于上下文的智能回复|
-|条件分支节点|根据历史消息内容做出决策，选择不同的处理路径|
-|代码执行节点|对历史消息进行深度分析和处理|
-|消息回复节点|基于历史分析结果构建回复内容|
+|Nodo Chiamata Modello Grande|Fornire al modello grande messaggi storici, realizzare risposte intelligenti basate su contesto|
+|Nodo Diramazione Condizionale|Prendere decisioni secondo i contenuti dei messaggi storici, scegliere percorsi di elaborazione diversi|
+|Nodo Esecuzione Codice|Effettuare analisi e elaborazione approfondite dei messaggi storici|
+|Nodo Risposta Messaggio|Costruire contenuti di risposta basati sui risultati dell'analisi storica|

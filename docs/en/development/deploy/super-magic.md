@@ -1,3 +1,218 @@
+# Guida all'Installazione e all'Uso di Super Magic 🚀
+
+Questa guida ti guiderà attraverso l'installazione, la configurazione e l'uso del servizio Super Magic.
+
+## Prerequisiti
+
+Prima di iniziare, assicurati che il tuo sistema abbia il seguente software installato:
+
+- Docker
+- Docker Compose
+- Git
+
+## Passi di Installazione
+
+### 1. Ottieni il Codice del Progetto
+
+```bash
+git clone https://github.com/dtyq/magic.git
+cd magic
+```
+
+### 2. Configura i File di Ambiente
+
+Il servizio Super Magic dipende da diversi file di configurazione chiave:
+
+#### 2.1 Crea il File di Configurazione di Super Magic
+
+```bash
+cp config/.env_super_magic.example config/.env_super_magic
+```
+Configura le variabili di ambiente di Super Magic. Devi configurare almeno una variabile di ambiente per un modello di linguaggio di grandi dimensioni che supporti il formato OpenAI per il corretto funzionamento.
+
+Modifica il file `config/.env_super_magic` per configurare le variabili di ambiente necessarie:
+
+```bash
+vim config/.env_super_magic
+```
+
+### 3. Esegui lo Script di Installazione
+
+Usa lo script `magic.sh` fornito con il progetto per l'installazione:
+
+```bash
+./bin/magic.sh
+```
+
+Quando eseguito per la prima volta, lo script di installazione eseguirà le seguenti operazioni:
+
+1. Rileva la lingua del sistema e ti permette di scegliere la lingua dell'interfaccia (cinese o inglese)
+2. Verifica se Docker e Docker Compose sono installati e in esecuzione
+3. Rileva l'architettura del sistema e imposta i parametri di piattaforma appropriati
+4. Chiede il metodo di distribuzione (distribuzione su computer locale o server remoto)
+5. Se selezionata la distribuzione su server remoto, rileva l'IP pubblico e aggiorna le configurazioni correlate
+6. Chiede se installare il servizio Super Magic
+
+Quando ti viene chiesto "Vuoi installare il servizio Super Magic?", seleziona "1" per installare il servizio Super Magic.
+
+## Guida all'Uso
+
+### Avvio dei Servizi
+
+#### Avvia Tutti i Servizi in Primo Piano
+
+```bash
+./bin/magic.sh start
+```
+
+#### Avvia Tutti i Servizi in Secondo Piano
+
+```bash
+./bin/magic.sh daemon
+```
+
+#### Avvia Solo il Servizio Super Magic (Primo Piano)
+
+```bash
+./bin/magic.sh super-magic
+```
+
+#### Avvia Solo il Servizio Super Magic (Secondo Piano)
+
+```bash
+./bin/magic.sh super-magic-daemon
+```
+
+### Gestione dei Servizi
+
+#### Visualizza lo Stato del Servizio
+
+```bash
+./bin/magic.sh status
+```
+
+#### Visualizza i Log del Servizio
+
+```bash
+./bin/magic.sh logs
+```
+
+#### Riavvia i Servizi
+
+```bash
+./bin/magic.sh restart
+```
+
+#### Ferma i Servizi
+
+```bash
+./bin/magic.sh stop
+```
+
+## Dettagli di Configurazione
+
+### Configurazione dell'Ambiente Super Magic
+
+Il file `config/.env_super_magic` contiene i seguenti elementi di configurazione importanti:
+
+#### Configurazione Base
+- `APP_ENV`: Impostazione dell'ambiente dell'applicazione, valori possibili includono "test", "production", ecc.
+- `LOG_LEVEL`: Livello di log, come INFO, DEBUG, ERROR, ecc.
+- `STORAGE_PLATFORM`: Piattaforma di archiviazione, predefinita è "local"
+
+#### Configurazione delle Chiamate agli Strumenti
+- `AGENT_ENABLE_MULTI_TOOL_CALLS`: Se abilitare chiamate multiple agli strumenti (True/False)
+- `AGENT_ENABLE_PARALLEL_TOOL_CALLS`: Se abilitare chiamate parallele agli strumenti (True/False)
+
+#### Configurazione del Modello di Linguaggio di Grandi Dimensioni
+
+##### Configurazione OpenAI
+- `OPENAI_API_BASE_URL`: URL base per l'API OpenAI
+- `OPENAI_API_KEY`: Chiave API OpenAI
+- `OPENAI_MODEL`: Modello OpenAI predefinito da usare, ad es. "gpt-4o-global"
+- `OPENAI_4_1_MODEL`: Nome del modello OpenAI 4.1
+- `OPENAI_4_1_MINI_MODEL`: Nome del modello OpenAI 4.1 Mini
+- `OPENAI_4_1_NANO_MODEL`: Nome del modello OpenAI 4.1 Nano
+
+#### Configurazione del Database Vettoriale
+- `QDRANT_COLLECTION_PREFIX`: Prefisso della collezione Qdrant, predefinito è "SUPERMAGIC-"
+
+#### Configurazione del Browser
+- `BROWSER_HEADLESS`: Se il browser funziona in modalità headless (True/False)
+- `BROWSER_STORAGE_STATE_TEMPLATE_URL`: URL del template dello stato di archiviazione del browser
+
+#### Configurazione della Ricerca
+- `BING_SUBSCRIPTION_ENDPOINT`: Endpoint dell'API di ricerca Bing
+- `BING_SUBSCRIPTION_KEY`: Chiave di sottoscrizione Bing
+
+#### Configurazione del Servizio Modello
+
+##### Servizio OpenAI
+- `OPENAI_API_KEY`: Chiave API OpenAI
+- `OPENAI_API_BASE_URL`: URL base dell'API OpenAI
+- `OPENAI_MODEL`: Modello OpenAI da usare
+
+## Risoluzione dei Problemi
+
+### Problemi Comuni
+
+1. **I File di Configurazione Non Esistono**
+
+   Assicurati di aver copiato e configurato correttamente tutti i file di ambiente necessari dai file di esempio:
+   - `config/.env_sandbox_gateway`
+
+2. **Fallimento nell'Avvio del Servizio**
+
+   Verifica se il servizio Docker è in esecuzione correttamente:
+   ```bash
+   docker info
+   ```
+
+   Visualizza i log del servizio per informazioni dettagliate sugli errori:
+   ```bash
+   ./bin/magic.sh logs
+   ```
+
+3. **Problemi di Connessione di Rete**
+
+   Se usi la distribuzione remota, assicurati che l'indirizzo IP configurato sia corretto e che le porte rilevanti siano aperte:
+   - Porte del servizio Super Magic
+   - Porte del servizio gateway
+
+## Configurazione Avanzata
+
+### Distribuzione Personalizzata
+
+Per scenari di distribuzione personalizzata, puoi modificare il file `.env` per cambiare le seguenti configurazioni:
+
+- Mappature delle porte dei servizi
+- Percorsi di persistenza dei dati
+- Limitazioni delle risorse
+
+### Configurazione Manuale
+
+Se hai bisogno di configurazioni più granulari manualmente, puoi modificare direttamente il file `docker-compose.yml`.
+
+## Aggiornamento del Servizio
+
+Quando hai bisogno di aggiornare il servizio Super Magic, segui questi passi:
+
+1. Scarica il codice più recente
+   ```bash
+   git pull
+   ```
+
+2. Ricostruisci e riavvia i servizi
+   ```bash
+   ./bin/magic.sh restart
+   ```
+
+## Conclusione
+
+Attraverso questa guida, dovresti aver installato e configurato con successo il servizio Super Magic. Se hai domande, consulta la documentazione del progetto o contatta il team di supporto tecnico.
+
+## Testo Originale in Inglese
+
 # Super Magic Installation and Usage Guide
 
 This guide will walk you through how to install, configure, and use the Super Magic service.

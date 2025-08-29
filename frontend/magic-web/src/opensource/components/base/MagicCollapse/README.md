@@ -1,3 +1,85 @@
+# MagicCollapse Componente Pannello Collassabile Magico 📖
+
+`MagicCollapse` è una versione migliorata del componente Collapse di Ant Design, che offre stili più belli e una migliore esperienza utente. 🔧
+
+## Proprietà
+
+| Nome Proprietà   | Tipo | Valore Predefinito | Descrizione                          |
+| ---------------- | ---- | ------------------ | ------------------------------------ |
+| ...CollapseProps | -    | -                  | Supporta tutte le proprietà di Ant Design Collapse |
+
+## Uso Base
+
+```tsx
+import { MagicCollapse } from '@/components/base/MagicCollapse';
+import { Collapse } from 'antd';
+
+const { Panel } = Collapse;
+
+// Uso base
+<MagicCollapse>
+  <Panel header="Questo è il titolo del pannello 1" key="1">
+    <p>Questo è il contenuto del pannello 1</p>
+  </Panel>
+  <Panel header="Questo è il titolo del pannello 2" key="2">
+    <p>Questo è il contenuto del pannello 2</p>
+  </Panel>
+  <Panel header="Questo è il titolo del pannello 3" key="3">
+    <p>Questo è il contenuto del pannello 3</p>
+  </Panel>
+</MagicCollapse>
+
+// Espandi pannelli specifici per default
+<MagicCollapse defaultActiveKey={['1']}>
+  <Panel header="Pannello espanso per default" key="1">
+    <p>Questo è il contenuto del pannello espanso per default</p>
+  </Panel>
+  <Panel header="Pannello chiuso per default" key="2">
+    <p>Questo è il contenuto del pannello chiuso per default</p>
+  </Panel>
+</MagicCollapse>
+
+// Modalità fisarmonica (solo un pannello espanso alla volta)
+<MagicCollapse accordion>
+  <Panel header="Pannello fisarmonica 1" key="1">
+    <p>Contenuto pannello fisarmonica 1</p>
+  </Panel>
+  <Panel header="Pannello fisarmonica 2" key="2">
+    <p>Contenuto pannello fisarmonica 2</p>
+  </Panel>
+</MagicCollapse>
+
+// Ascolta eventi di espansione/collasso
+<MagicCollapse onChange={(key) => console.log('Pannello attualmente espanso:', key)}>
+  <Panel header="Pannello ascoltabile 1" key="1">
+    <p>Contenuto pannello 1</p>
+  </Panel>
+  <Panel header="Pannello ascoltabile 2" key="2">
+    <p>Contenuto pannello 2</p>
+  </Panel>
+</MagicCollapse>
+```
+
+## Caratteristiche ✨
+
+1. **Stili ottimizzati** 🎨: Usa la modalità ghost, rimuove i bordi per un aspetto più pulito e bello.
+2. **Icona di espansione personalizzata** 🔄: Usa il componente MagicIcon come icona di espansione per un effetto visivo più uniforme.
+3. **Animazione fluida** 🌊: Effetto di rotazione fluida durante espansione/collasso.
+4. **Layout flessibile** 📐: Icona di espansione sul lato destro, in linea con le tendenze di design moderne.
+
+## Quando Usare ❓
+
+- Quando devi raggruppare contenuti complessi per la visualizzazione 📂
+- Quando devi risparmiare spazio sulla pagina, collassando i contenuti 🗂️
+- Quando devi creare un effetto fisarmonica (solo un pannello espanso alla volta) 🎼
+- Quando devi mostrare informazioni categorizzate, permettendo agli utenti di visualizzarle su richiesta 📋
+
+Il componente MagicCollapse rende i tuoi pannelli collassabili più belli e user-friendly, mantenendo tutte le funzionalità di Ant Design Collapse. 🚀
+
+---
+
+**Testo Originale (Cinese e Inglese):**
+
 # MagicCollapse 魔法折叠面板组件
 
 `MagicCollapse` 是一个基于 Ant Design Collapse 组件的增强版折叠面板，提供了更美观的样式和更好的用户体验。

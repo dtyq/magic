@@ -1,3 +1,68 @@
+# MagicAvatar ✨ Componente Avatar Magico
+
+`MagicAvatar` è una versione migliorata del componente Avatar di Ant Design, che offre generazione automatica di colori, supporto per badge e altro.
+
+## Proprietà
+
+| Nome Proprietà | Tipo                                      | Valore Predefinito | Descrizione                          |
+| -------------- | ----------------------------------------- | ------------------ | ------------------------------------ |
+| badgeProps     | BadgeProps                                | -                  | Proprietà del badge per mostrare un badge sull'avatar |
+| size           | number \| 'large' \| 'small' \| 'default' | 40                 | Dimensione dell'avatar               |
+| shape          | 'circle' \| 'square'                      | 'square'           | Forma dell'avatar, predefinita quadrata |
+| src            | string                                    | -                  | URL dell'immagine dell'avatar        |
+| ...AvatarProps | -                                         | -                  | Supporta tutte le proprietà di Ant Design Avatar |
+
+## Uso Base
+
+```tsx
+import { MagicAvatar } from '@/components/base/MagicAvatar';
+
+// Uso base - con testo (tronca automaticamente i primi due caratteri)
+<MagicAvatar>Username</MagicAvatar>
+
+// Con immagine
+<MagicAvatar src="https://example.com/avatar.png" />
+
+// Dimensione personalizzata
+<MagicAvatar size={64}>Avatar Grande</MagicAvatar>
+<MagicAvatar size={24}>Avatar Piccolo</MagicAvatar>
+
+// Con badge
+<MagicAvatar
+  badgeProps={{
+    count: 5,
+    dot: true,
+    status: 'success'
+  }}
+>
+  Utente
+</MagicAvatar>
+
+// Stile personalizzato
+<MagicAvatar style={{ border: '2px solid red' }}>Personalizzato</MagicAvatar>
+```
+
+## Caratteristiche
+
+1. **Generazione Automatica Colori** 🎨: Quando non viene fornita un'immagine, genera automaticamente colore di sfondo e testo basato sul contenuto.
+2. **Supporto Badge** 🏷️: Aggiungi badge sull'avatar tramite `badgeProps` per mostrare stato o numeri.
+3. **Troncamento Testo** ✂️: Tronca automaticamente i primi due caratteri del testo come contenuto avatar.
+4. **Validazione URL** 🔗: Valida automaticamente se src è un URL valido, altrimenti torna al testo.
+5. **Stile Uniforme** ✨: Fornisce bordi uniformi e ombre testo.
+
+## Quando Usare
+
+- Quando devi mostrare un avatar utente 👤
+- Quando devi mostrare stato o numero notifiche sull'avatar
+- Quando devi generare avatar colorati automaticamente dal nome utente
+- Quando devi mostrare identificatori utente in liste o commenti
+
+Il componente MagicAvatar rende la presentazione degli avatar più bella e intelligente, senza bisogno di immagini per ogni utente, offrendo effetti personalizzati.
+
+---
+
+## Testo Originale (Inglese)
+
 # MagicAvatar 魔法头像组件
 
 `MagicAvatar` 是一个基于 Ant Design Avatar 组件的增强版头像组件，提供了自动生成颜色、徽章支持等功能。

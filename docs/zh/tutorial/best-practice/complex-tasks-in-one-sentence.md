@@ -1,3 +1,51 @@
+# 🚀 Realizzare Compiti Complessi con una Frase
+
+## 📚 Conoscenze di Base
+Nel lavoro, solitamente abbiamo bisogno di comprendere l'intenzione del superiore attraverso una frase, e scomporla in compiti lavorativi, eseguendola passo dopo passo. Questo documento mostra come, in Magic, realizzare la gestione di compiti complessi attraverso una frase.
+
+## 📋 Introduzione al Caso
+L'Assistente Progetto Magic è utilizzato nella gestione aziendale per assistere i manager nel completare la gestione progetti, aiutando i manager a gestire le questioni frammentarie del follow-up progetti, permettendo ai manager di progetti di concentrare il tempo sugli affari core.
+
+## 🛠️ Modalità di Realizzazione:
+**Agente di Pensiero (DeepSeek)**: Output piano di esecuzione compiti.
+
+**Agente di Suddivisione Compiti (GPT4o)**: Responsabile della suddivisione passi compiti.
+
+**Agente di Esecuzione Compiti (GPT4o)**: Esegue i compiti secondo i passi
+
+## 📝 Passi di Realizzazione
+
+### I. Costruire il Processo Principale:
+1. Utilizzare il modello DeepSeek-R1 per comprendere e pensare l'intenzione utente
+2. Attraverso il nodo intenzione, giudicare se procedere con suddivisione compiti o esecuzione compiti
+3. Descrivere gli strumenti necessari da utilizzare e le capacità degli strumenti
+
+![Processo Principale](https://cdn.letsmagic.cn/static/img/flow1.png)
+
+### II. Costruire il Processo di Suddivisione Compiti, secondo l'intenzione utente ragionata, scomporre passi e compiti
+1. Creare un processo di suddivisione compiti
+
+![Processo Suddivisione Compiti](https://cdn.letsmagic.cn/static/img/flow2.png)
+
+2. Selezionare GPT4o come modello per la suddivisione compiti
+
+![Selezione Modello](https://cdn.letsmagic.cn/static/img/flow3.png)
+
+### III. Costruire il Processo di Esecuzione Compiti, caricare gli strumenti corrispondenti
+1. Creare il processo per eseguire i compiti
+
+![Processo Esecuzione Compiti](https://cdn.letsmagic.cn/static/img/flow4.png)
+
+2. Caricare gli strumenti necessari per eseguire i compiti
+
+![Caricamento Strumenti](https://cdn.letsmagic.cn/static/img/flow5.png)
+
+### IV. Osservare e Verificare l'Effetto
+
+![Verifica Effetto](https://cdn.letsmagic.cn/static/img/flow5.png)
+
+---
+
 # 一句话实现复杂任务
 ## 背景知识
 在工作中，我们通常需要通过上级的一句话，去理解上级的意图，并拆解成工作任务，和一步步执行， 本文档展示在麦吉中，如何通过一句话实现复杂任务的处理

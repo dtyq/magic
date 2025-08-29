@@ -1,3 +1,74 @@
+# UploadAction Componente Azione di Caricamento 📤
+
+UploadAction è un componente di basso livello per gestire le interazioni di caricamento file. Incapsula la logica principale per la selezione dei file, fornendo un input file nascosto e un metodo per attivare la selezione, che può essere utilizzato con vari pulsanti personalizzati o aree di trascinamento.
+
+## Proprietà
+
+| Nome Proprietà | Tipo                                     | Valore Predefinito | Descrizione                                             |
+| -------------- | ---------------------------------------- | ------------------ | ------------------------------------------------------- |
+| multiple       | boolean                                  | false              | Se supportare la selezione di più file 📁               |
+| handler        | (trigger: () => void) => React.ReactNode | -                  | Per rendere l'elemento che attiva il caricamento, riceve una funzione trigger come parametro 🔄 |
+| onFileChange   | (files: File[]) => void                  | -                  | Funzione di callback dopo la selezione dei file, riceve l'array dei file selezionati 📂 |
+
+## Uso Base
+
+```tsx
+import UploadAction from '@/opensource/components/base/UploadAction';
+
+// Uso base - pulsante personalizzato per attivare il caricamento
+const handleFileChange = (files: File[]) => {
+  console.log('File selezionati:', files);
+  // Gestisci la logica di caricamento file
+};
+
+<UploadAction
+  onFileChange={handleFileChange}
+  handler={(trigger) => (
+    <button onClick={trigger}>Seleziona File</button>
+  )}
+/>
+
+// Supporto per caricamento multi-file
+<UploadAction
+  multiple
+  onFileChange={handleFileChange}
+  handler={(trigger) => (
+    <button onClick={trigger}>Seleziona Più File</button>
+  )}
+/>
+
+// Combinazione con altri componenti
+import { Button } from 'antd';
+
+<UploadAction
+  onFileChange={handleFileChange}
+  handler={(trigger) => (
+    <Button type="primary" onClick={trigger}>
+      Carica File
+    </Button>
+  )}
+/>
+```
+
+## Caratteristiche
+
+-   **Modalità di Attivazione Flessibile** 🔄: Personalizza l'elemento che attiva il caricamento tramite la proprietà handler
+-   **Input File Nascosto** 👁️‍🗨️: Nasconde l'input file nativo poco attraente
+-   **Supporto Multi-File** 📁: Abilita la selezione di più file con la proprietà multiple
+-   **Gestione File Semplificata** 📋: Gestisce automaticamente l'evento di selezione file e fornisce i file selezionati tramite callback
+-   **Riutilizzabilità** 🔄: Riutilizzabile in diversi scenari di caricamento
+
+## Scenari di Uso
+
+-   Implementazione di pulsanti di caricamento personalizzati 🎨
+-   Funzionalità di selezione file per aree di trascinamento 🖱️
+-   Interfacce di caricamento che necessitano di nascondere l'input file nativo
+-   Come blocco di costruzione per componenti di caricamento più complessi 🏗️
+-   Qualsiasi scenario interattivo che richieda la selezione di file 📂
+
+Il componente UploadAction si concentra sulla logica principale della selezione file, senza includere stili o elementi visivi, rendendolo flessibile per combinarsi con vari elementi di interfaccia personalizzati, fornendo un'esperienza di caricamento file coerente per l'applicazione.
+
+## Testo Originale
 # UploadAction 上传动作组件
 
 UploadAction 是一个用于处理文件上传交互的底层组件。它封装了文件选择的核心逻辑，提供了一个隐藏的文件输入框和触发文件选择的方法，可以与各种自定义上传按钮或拖拽区域配合使用。

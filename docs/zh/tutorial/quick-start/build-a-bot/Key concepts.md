@@ -1,3 +1,25 @@
+# 🔑 Concetti Chiave
+
+## 🧩 Nodi
+I nodi sono componenti chiave del workflow. Connettendo nodi con diverse funzionalità, è possibile eseguire una serie di operazioni nel workflow. Per i nodi workflow core, fare riferimento alla documentazione nodi.
+
+## 📊 Variabili
+Le variabili sono utilizzate per connettere input e output tra nodi nel workflow, implementando logica di elaborazione complessa nel processo. Include variabili ambiente e variabili sessione (pianificato supporto futuro).
+![Concetti Chiave](https://cdn.letsmagic.cn/static/img/Key-concepts-1.png)
+
+---
+## 📝 Lista Versioni
+Magic fornisce meccanismo di salvataggio online in tempo reale. Attraverso i record lista versioni, è possibile salvare le ultime modifiche in qualsiasi momento, facilitando la collaborazione e registrazione, prevenendo perdita dati.
+
+![Concetti Chiave](https://cdn.letsmagic.cn/static/img/Key-concepts-2.png)
+
+## ⚡ Comandi Rapidi
+I comandi rapidi sono un modo efficiente di interazione, attraverso sequenze operative preimpostate o personalizzate, per attivare rapidamente funzionalità o compiti specifici. Forniamo metodi di impostazione efficienti, semplificando operazioni complesse in clic o comandi vocali (pianificato upgrade futuro). Possono essere impostati nella barra strumenti e finestra dialogo, aiutando gli utenti a superare colli di bottiglia efficienza, riducendo contemporaneamente la dipendenza da dettagli tecnici.
+
+![Concetti Chiave](https://cdn.letsmagic.cn/static/img/Key-concepts-3.png)
+
+---
+
 # 关键概念
 
 ## 节点

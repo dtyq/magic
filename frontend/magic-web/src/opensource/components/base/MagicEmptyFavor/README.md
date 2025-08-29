@@ -1,3 +1,49 @@
+# MagicEmptyFavor Componente Vuoto Preferiti Magico
+
+MagicEmptyFavor è un componente utilizzato per visualizzare lo stato vuoto dei preferiti. Quando la lista dei preferiti dell'utente è vuota, questo componente mostra un messaggio amichevole e un'icona, migliorando l'esperienza utente. ❤️
+
+## Proprietà
+
+| Nome Proprietà | Tipo   | Valore Predefinito | Descrizione                                             |
+| -------------- | ------ | ------------------ | ------------------------------------------------------- |
+| text           | string | -                  | Testo personalizzato da visualizzare; se non fornito, usa il testo di internazionalizzazione predefinito |
+
+## Uso Base
+
+```tsx
+import MagicEmptyFavor from '@/components/base/MagicEmptyFavor';
+
+// Uso base - con testo predefinito
+<MagicEmptyFavor />
+
+// Testo personalizzato
+<MagicEmptyFavor text="Non hai ancora aggiunto alcun elemento ai preferiti" />
+
+// In rendering condizionale
+{favoritesList.length === 0 && <MagicEmptyFavor />}
+```
+
+## Caratteristiche
+
+-   **Prompt amichevole per stato vuoto** 💬: Fornisce feedback visivo, evitando pagine bianche
+-   **Supporto internazionalizzazione** 🌍: Testo predefinito supporta più lingue
+-   **Design semplice** ✨: Usa una combinazione semplice di icona e testo
+-   **Testo personalizzabile** ✏️: Supporta testo di visualizzazione personalizzato
+-   **Leggero** 🪶: Implementazione semplice del componente, senza dipendenze aggiuntive
+
+## Scenari d'Uso
+
+-   Visualizzazione dello stato quando la lista dei preferiti o dei favoriti è vuota
+-   Prompt quando l'utente non ha ancora aggiunto alcun contenuto
+-   Prompt amichevole quando i risultati di ricerca sono vuoti
+-   Qualsiasi scenario che necessita di mostrare uno stato "nessun dato"
+
+Il componente MagicEmptyFavor migliora l'esperienza utente quando si affronta una lista vuota fornendo un prompt di stato vuoto visivamente accattivante, incoraggiando al contempo gli utenti ad aggiungere contenuti ai preferiti. 📚
+
+---
+
+**Testo Originale (Inglese/Cinese):**
+
 # MagicEmptyFavor 魔法空收藏组件
 
 MagicEmptyFavor 是一个用于显示收藏夹为空状态的组件。当用户的收藏列表为空时，该组件会显示一个友好的提示信息和图标，提升用户体验。

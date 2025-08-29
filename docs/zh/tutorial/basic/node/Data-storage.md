@@ -1,80 +1,109 @@
-# 数据存储节点
-## 什么是数据存储节点？
-数据存储节点是麦吉平台中用于将关键信息持久化保存的功能组件。它就像一个可靠的笔记本，能够记录下工作流中的重要数据，并在需要时随时查阅使用，即使在对话结束后依然保留这些信息。
+# Nodo Memorizzazione Dati 💾
 
-**图片说明：**
+## Che cos'è il Nodo Memorizzazione Dati?
 
-数据存储节点界面主要包含作用域选择区、数据键输入区、数据值编辑区和过期时间设置区四个主要部分，通过这些区域的配置，用户可以指定要保存的数据及其存储方式。
-![数据存储节点](https://cdn.letsmagic.cn/static/img/Data-storage.png)
+Il Nodo Memorizzazione Dati è un componente funzionale nella piattaforma Magic utilizzato per salvare in modo persistente informazioni chiave. È come un affidabile blocco note che può registrare importanti dati nel flusso di lavoro e consultarli in qualsiasi momento necessario, mantenendo queste informazioni anche dopo la fine della conversazione.
 
-## 为什么需要数据存储节点？
-在AI 助理使用过程中，我们经常需要记住一些重要信息以便后续使用，例如：
-1. **跨会话记忆**：用户的偏好设置、历史互动记录等需要长期保存
-2. **数据持久化**：将临时生成的重要数据（如分析结果、用户输入的关键信息）保存起来
-3. **状态管理**：记录工作流的执行状态，支持复杂业务流程的断点续传
-4. **共享信息**：在不同的AI 助理或工作流之间共享数据
-数据存储节点就像是AI 助理的"长期记忆"，让AI 助理具备了"过目不忘"的能力，极大提升了用户体验和AI 助理的实用性。
-## 适用场景
-### 场景一：用户信息记忆
-记住用户的姓名、偏好等个人信息，在后续交互中直接调用，无需重复询问，提供个性化服务。
-### 场景二：多轮对话上下文保存
-在复杂问题解决过程中，保存中间结果或讨论要点，即使对话中断后重新开始，也能快速回到之前的讨论状态。
-### 场景三：业务状态跟踪
-在办理业务流程中，记录用户当前处理到哪一步，以便下次继续办理时无需重头开始。
-## 节点参数说明
-### 输入说明
-|参数名称|说明|是否必填|
+**Spiegazione Immagine:**
+
+L'interfaccia del Nodo Memorizzazione Dati contiene principalmente quattro parti principali: area di selezione dell'ambito, area di input della chiave dati, area di modifica del valore dati e area di impostazione del tempo di scadenza. Attraverso la configurazione di queste aree, gli utenti possono specificare i dati da salvare e il loro metodo di memorizzazione.
+![Nodo Memorizzazione Dati](https://cdn.letsmagic.cn/static/img/Data-storage.png)
+
+## Perché serve il Nodo Memorizzazione Dati?
+
+Durante l'utilizzo dell'assistente AI, spesso abbiamo bisogno di ricordare alcune informazioni importanti per utilizzi successivi, ad esempio:
+1. **Memoria tra Sessioni**: Preferenze utente, registri di interazioni storiche, ecc. che necessitano di essere salvati a lungo termine
+2. **Persistenza Dati**: Salvare dati importanti generati temporaneamente (come risultati di analisi, informazioni chiave inserite dall'utente)
+3. **Gestione Stato**: Registrare lo stato di esecuzione del flusso di lavoro, supportare la continuazione da punto di interruzione per processi aziendali complessi
+4. **Condivisione Informazioni**: Condividere dati tra diversi assistenti AI o flussi di lavoro
+
+Il Nodo Memorizzazione Dati è come la "memoria a lungo termine" dell'assistente AI, permette all'assistente AI di avere la capacità di "non dimenticare mai ciò che ha visto", migliorando enormemente l'esperienza utente e l'utilità dell'assistente AI.
+
+## Scenari di Applicazione
+
+### Scenario 1: Memoria Informazioni Utente
+Ricordare nome utente, preferenze, ecc., richiamarli direttamente nelle interazioni successive, senza bisogno di chiedere ripetutamente, fornendo servizi personalizzati.
+
+### Scenario 2: Salvataggio Contesto Conversazione Multi-turno
+Nel processo di risoluzione di problemi complessi, salvare risultati intermedi o punti chiave della discussione, in modo che anche se la conversazione viene interrotta e ripresa, si possa tornare rapidamente allo stato di discussione precedente.
+
+### Scenario 3: Tracciamento Stato Aziendale
+Nel processo di gestione di pratiche aziendali, registrare a quale passo è arrivato l'utente attualmente, in modo che al prossimo proseguimento della pratica non sia necessario ricominciare da capo.
+
+## Spiegazione Parametri del Nodo
+
+### Spiegazione Input
+
+|Nome Parametro|Spiegazione|Obbligatorio|
 |---|---|---|
-|作用域|选择数据的存储范围，决定谁可以访问这些数据。默认选项通常是"当前话题"。|是|
-|数据键|用于标识存储的数据，相当于数据的"名字"，便于后续查找和使用。支持使用"@"引用变量。|是|
-|数据值|需要存储的具体内容，可以是文本、数字或其他格式的数据。支持使用"@"引用变量。|是|
-|过期时间（秒）|设置数据的有效期，超过该时间后数据将被自动删除。不填则表示永不过期。支持使用"@"引用变量。|否|
+|Ambito|Selezionare l'ambito di memorizzazione dei dati, determinare chi può accedere a questi dati. L'opzione predefinita solitamente è "Argomento Corrente".|Sì|
+|Chiave Dati|Utilizzata per identificare i dati memorizzati, equivalente al "nome" dei dati, facilitando la ricerca e l'utilizzo successivi. Supporta l'utilizzo di "@" per referenziare variabili.|Sì|
+|Valore Dati|Il contenuto specifico da memorizzare, può essere testo, numeri o dati in altri formati. Supporta l'utilizzo di "@" per referenziare variabili.|Sì|
+|Tempo Scadenza (secondi)|Impostare il periodo di validità dei dati, dopo tale tempo i dati verranno automaticamente eliminati. Se non compilato significa che non scade mai. Supporta l'utilizzo di "@" per referenziare variabili.|No|
 
-### 输出说明
-数据存储节点会将指定的数据保存到持久化存储中，但不直接生成输出变量。保存成功后，可通过"数据加载节点"使用相同的键名来检索已保存的数据。
-## 使用说明
-### 基本配置步骤
-1. **添加数据存储节点**：在工作流编辑器中，将数据存储节点拖入画布。
-2. **配置作用域**：选择适合的作用域，通常使用"当前话题"即可满足大多数需求。
-3. **设置数据键**：为要存储的数据指定一个清晰、有意义的名称，便于日后识别。
-    1. 例如：`user_preference`、`last_order_id`等。
-    2. 如需使用变量作为键名，可点击"@"按钮选择现有变量。
-4. **填写数据值**：输入需要存储的具体内容。
-    1. 可以是固定文本，如`"已完成订单"`。
-    2. 也可以引用变量，如`@user_response`。
-5. **设置过期时间**（可选）：根据数据的使用场景设置合适的过期时间。
-    1. 临时数据可设置较短时间，如`3600`（1小时）。
-    2. 长期使用的数据可留空（永不过期）或设置较长时间。
-### 进阶技巧
-1. **动态键名设计**：
-    1. 可以使用变量组合生成动态键名，如`user_@user_id`，这样可以为不同用户创建专属的数据条目。
-    2. 使用有规律的键名前缀，如`temp_data_1`、`temp_data_2`，便于批量管理相关数据。
-2. **数据组织优化**：
-    1. 对于复杂数据，可以考虑使用JSON格式存储，如`{"name": "张三", "age": 28}`。
-    2. 使用前缀区分不同业务数据，如`order_xxx`和`user_xxx`。
-## 注意事项
-### 数据键命名规范
-1. **避免特殊字符**：键名应尽量使用字母、数字和下划线，避免特殊字符可能引起的解析问题。
-2. **保持唯一性**：在相同作用域内，不同数据应使用不同的键名，否则新值会覆盖旧值。
-3. **命名有意义**：使用能反映数据内容的键名，提高代码可读性，如`user_age`比`u_a`更直观。
-### 数据存储限制
-1. **数据大小限制**：单个数据项大小应控制在合理范围内（通常建议不超过10MB）。
-2. **存储容量考虑**：持久化存储有总容量限制，请合理规划使用，及时清理不需要的数据。
-3. **敏感信息处理**：避免存储用户隐私等敏感信息，如必须存储，请确保加密处理。
-## 常见问题
-### 保存的数据找不到了怎么办？
-**回答**：可能的原因有：
-- 数据键名拼写错误：检查数据加载时使用的键名是否与存储时完全一致。
-- 作用域选择不同：确保加载数据时选择了与存储时相同的作用域。
-- 数据已过期：检查存储时设置的过期时间是否已到。
-- 数据被其他流程覆盖：同名键会被新值覆盖，检查是否有其他流程使用了相同的键名。
-### 如何高效管理多个相关数据？
-**回答**：推荐以下方法：
-- 使用命名前缀：如所有与用户相关的数据键以"user_"开头。
-- 采用JSON格式：将相关数据组织成JSON对象一起存储，而不是分散存储。
-- 设置合理的过期时间：临时数据设置较短的过期时间，自动清理不再需要的数据。
-## 常见搭配节点
-|**节点类型**|**搭配原因**|
+### Spiegazione Output
+
+Il Nodo Memorizzazione Dati salverà i dati specificati nel deposito persistente, ma non genera direttamente variabili di output. Dopo il salvataggio riuscito, è possibile utilizzare il "Nodo Caricamento Dati" con lo stesso nome chiave per recuperare i dati salvati.
+
+## Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+
+1. **Aggiungere Nodo Memorizzazione Dati**: Nell'editor del flusso di lavoro, trascinare il nodo memorizzazione dati nella tela.
+2. **Configurare Ambito**: Selezionare l'ambito appropriato, solitamente utilizzare "Argomento Corrente" può soddisfare la maggior parte delle esigenze.
+3. **Impostare Chiave Dati**: Specificare un nome chiaro e significativo per i dati da memorizzare, per facilitare l'identificazione futura.
+    1. Ad esempio: `user_preference`, `last_order_id`, ecc.
+    2. Se necessario utilizzare variabile come nome chiave, cliccare il pulsante "@" per selezionare variabili esistenti.
+4. **Compilare Valore Dati**: Inserire il contenuto specifico da memorizzare.
+    1. Può essere testo fisso, come `"Ordine Completato"`.
+    2. Può anche referenziare variabile, come `@user_response`.
+5. **Impostare Tempo Scadenza** (opzionale): Secondo lo scenario di utilizzo dei dati impostare un tempo di scadenza appropriato.
+    1. Dati temporanei possono impostare tempo breve, come `3600` (1 ora).
+    2. Dati per utilizzo a lungo termine possono lasciare vuoto (mai scadenza) o impostare tempo lungo.
+
+### Tecniche Avanzate
+
+1. **Progettazione Nome Chiave Dinamica**:
+    1. È possibile utilizzare combinazioni di variabili per generare nomi chiave dinamici, come `user_@user_id`, in questo modo è possibile creare voci dati dedicate per diversi utenti.
+    2. Utilizzare prefissi nome con regolarità, come `temp_data_1`, `temp_data_2`, facilitando la gestione in batch di dati correlati.
+2. **Ottimizzazione Organizzazione Dati**:
+    1. Per dati complessi, considerare l'utilizzo del formato JSON per la memorizzazione, come `{"name": "Mario", "age": 28}`.
+    2. Utilizzare prefissi per distinguere dati aziendali diversi, come `order_xxx` e `user_xxx`.
+
+## Note Importanti
+
+### Norme Denominazione Chiave Dati
+
+1. **Evitare Caratteri Speciali**: Il nome chiave dovrebbe utilizzare principalmente lettere, numeri e trattini bassi, evitare caratteri speciali che potrebbero causare problemi di analisi.
+2. **Mantenere Unicità**: Nello stesso ambito, dati diversi dovrebbero utilizzare nomi chiave diversi, altrimenti il nuovo valore sovrascriverà il vecchio.
+3. **Denominazione Significativa**: Utilizzare nomi chiave che possano riflettere il contenuto dei dati, migliorare la leggibilità del codice, come `user_age` è più intuitivo di `u_a`.
+
+### Limitazioni Memorizzazione Dati
+
+1. **Limitazione Dimensione Dati**: La dimensione di ogni singolo elemento dati dovrebbe essere controllata in un range ragionevole (solitamente suggerito non superare 10MB).
+2. **Considerazione Capacità Deposito**: Il deposito persistente ha una limitazione di capacità totale, pianificare ragionevolmente l'utilizzo, pulire tempestivamente i dati non necessari.
+3. **Gestione Informazioni Sensibili**: Evitare di memorizzare informazioni sensibili come privacy utente, se necessario memorizzare, assicurarsi di crittografarle.
+
+## Domande Frequenti
+
+### Cosa fare se i dati salvati non si trovano?
+
+**Risposta**: Le possibili cause sono:
+- Errore ortografia nome chiave: Verificare se il nome chiave utilizzato nel caricamento dati sia completamente identico a quello della memorizzazione.
+- Selezione ambito diverso: Assicurarsi che nell'ambito di caricamento dati sia selezionato lo stesso di quello di memorizzazione.
+- Dati scaduti: Verificare se il tempo di scadenza impostato nella memorizzazione sia già trascorso.
+- Dati sovrascritti da altri processi: Chiavi con lo stesso nome verranno sovrascritte dai nuovi valori, verificare se altri processi abbiano utilizzato lo stesso nome chiave.
+
+### Come gestire efficientemente molteplici dati correlati?
+
+**Risposta**: Si raccomandano i seguenti metodi:
+- Utilizzare prefissi nome: Come tutti i dati correlati all'utente iniziano con "user_".
+- Adottare formato JSON: Organizzare dati correlati in oggetti JSON da memorizzare insieme, piuttosto che memorizzarli in modo disperso.
+- Impostare tempo di scadenza ragionevole: Dati temporanei impostare tempo di scadenza breve, pulizia automatica dei dati non più necessari.
+
+## Nodi di Combinazione Comuni
+
+|Tipo Nodo|Motivo Combinazione|
 |---|---|
-|条件分支节点|根据数据加载结果判断是否存在特定数据，选择不同处理路径。|
-|大模型调用节点|使用存储的上下文信息，提供更连贯的对话体验。|
+|Nodo Diramazione Condizionale|Secondo i risultati del caricamento dati giudicare se esistano dati specifici, scegliere percorsi di elaborazione diversi.|
+|Nodo Chiamata Modello Grande|Utilizzare le informazioni di contesto memorizzate, fornire esperienze di conversazione più coerenti.|

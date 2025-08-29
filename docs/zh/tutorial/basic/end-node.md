@@ -1,3 +1,111 @@
+# 🏁 Nodo Finale
+
+Il nodo finale è utilizzato per terminare l'esecuzione del flusso. È l'ultimo nodo nel flusso, che segna il completamento del flusso.
+
+## 📋 Panoramica
+
+Il nodo finale è utilizzato per chiudere correttamente l'esecuzione del flusso, assicurando che tutte le risorse siano pulite e il flusso sia terminato correttamente.
+
+## ⚙️ Configurazione
+
+### Impostazioni Base
+
+- **Nome**: Identificatore univoco del nodo
+- **Descrizione**: Descrizione opzionale dello scopo del nodo
+- **Tipo**: Impostato su "finale" (sola lettura)
+
+### Impostazioni Finale
+
+1. **Stato Completamento**
+   - Successo
+   - Fallimento
+   - Stato personalizzato
+
+2. **Opzioni Pulizia**
+   - Pulizia risorse
+   - Chiusura connessioni
+   - Cancellazione cache
+
+3. **Opzioni Log**
+   - Sommario esecuzione
+   - Metriche performance
+   - Dettagli errore
+
+## 💡 Esempi di Utilizzo
+
+### Nodo Finale Base
+
+```javascript
+// Esempio configurazione nodo finale
+{
+  "type": "end",
+  "config": {
+    "status": "success",
+    "cleanup": true,
+    "logging": {
+      "summary": true,
+      "metrics": true
+    }
+  }
+}
+```
+
+### Nodo Finale Errore
+
+```javascript
+// Esempio configurazione nodo finale per gestione errori
+{
+  "type": "end",
+  "config": {
+    "status": "failure",
+    "errorCode": "${context.error.code}",
+    "errorMessage": "${context.error.message}",
+    "cleanup": true,
+    "logging": {
+      "summary": true,
+      "errorDetails": true
+    }
+  }
+}
+```
+
+## 🌟 Migliori Pratiche
+
+1. **Gestione Risorse**
+   - Pulire tutte le risorse
+   - Chiudere tutte le connessioni
+   - Cancellare dati temporanei
+
+2. **Gestione Errori**
+   - Registrare dettagli errore
+   - Impostare stato appropriato
+   - Includere contesto errore
+
+3. **Monitoraggio Performance**
+   - Registrare tempo esecuzione
+   - Tracciare utilizzo risorse
+   - Monitorare stato completamento
+
+## ❓ Problemi Comuni
+
+1. **Perdita Risorse**
+   - Verificare esecuzione pulizia
+   - Controllare chiusura connessioni
+   - Monitorare utilizzo risorse
+
+2. **Terminazione Incompleta**
+   - Controllare processi in sospeso
+   - Verificare completamento pulizia
+   - Monitorare risorse sistema
+
+## 🔗 Nodi Correlati
+
+- [Nodo Iniziale](./start-node.md)
+- [Nodo Risposta](./reply-node.md)
+- [Nodo Attesa](./wait-node.md)
+
+---
+
 # 结束节点
 
 结束节点用于终止流程执行。它是流程中的最后一个节点，标志着流程的完成。

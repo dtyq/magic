@@ -1,3 +1,126 @@
+# 🗑️ Nodo Cancellazione Vettoriale
+
+## 🔍 Introduzione al Nodo
+
+Il nodo Cancellazione Vettoriale è un nodo utilizzato per rimuovere frammenti di conoscenza specifici dalla knowledge base, può aiutarti a rimuovere selettivamente contenuti di conoscenza non più necessari. Questo nodo ti permette di mantenere l'attualità e l'accuratezza della knowledge base, rimuovendo frammenti di conoscenza obsoleti, errati o ridondanti.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Cancellazione Vettoriale contiene principalmente tre parti: area selezione knowledge base, impostazioni corrispondenza metadati e area ID business. Dall'alto verso il basso puoi selezionare la knowledge base da operare, puoi impostare condizioni di cancellazione, includendo cancellazione per ID, cancellazione per parole chiave, ecc.
+![Nodo Cancellazione Vettoriale](https://cdn.letsmagic.cn/static/img/Vector-deletion.png)
+
+## 🤔 Perché Serve il Nodo Cancellazione Vettoriale?
+
+**Nel processo di utilizzo della knowledge base vettoriale, con il passare del tempo, potresti incontrare le seguenti situazioni che richiedono la cancellazione di parte della conoscenza:**
+- Il contenuto della conoscenza è obsoleto, necessita pulizia dati vecchi
+- Sono stati importati erroneamente informazioni errate o non rilevanti, necessitano rimozione
+- Regolazione struttura knowledge base, necessita cancellazione contenuti duplicati o ridondanti
+- Informazioni privacy o sensibili necessitano rimozione dalla knowledge base
+- La capacità della knowledge base si avvicina al limite, necessita cancellazione contenuti a basso valore
+Il nodo Cancellazione Vettoriale fornisce capacità di cancellazione precisa, può rimuovere selettivamente frammenti di conoscenza specifici senza influenzare altri contenuti di conoscenza, mantenendo qualità e prestazioni della knowledge base.
+
+## 🎯 Scenari Applicabili
+
+### Scenario 1: Manutenzione Aggiornamento Contenuti
+Quando i tuoi documenti business hanno aggiornamenti, puoi prima cancellare i frammenti di conoscenza della versione precedente, poi importare il contenuto della nuova versione, assicurando che le informazioni nella knowledge base mantengano sempre l'ultima versione.
+
+### Scenario 2: Correzione Contenuti Errati
+Quando scopri che nella knowledge base esistono informazioni errate o inaccurate, puoi utilizzare il nodo Cancellazione Vettoriale per rimuovere precisamente questi contenuti, evitando di influenzare l'esperienza utente.
+
+### Scenario 3: Riorganizzazione e Pulizia Knowledge Base
+Quando necessiti di riorganizzare o ripulire la knowledge base, puoi prima cancellare contenuti di categorie specifiche, poi reimportare strutture di conoscenza più ordinate.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri di Input
+|Nome Parametro|Descrizione|Obbligatorio|Tipo Parametro|
+|---|---|---|---|
+|Selezione Knowledge Base|Scegli la knowledge base da operare, attraverso 【Valore Fisso o Espressione】, seleziona dalla knowledge base già create nel sistema|Sì|Selezione Dropdown|
+|Modalità Cancellazione|Quando selezioni "Cancellazione per ID Business", attraverso aggiunta variabile, cancella i dati della knowledge base specificata. Quando selezioni "Cancellazione per Condizione", attraverso espressione imposta condizioni di filtro, come parole chiave, intervallo temporale, ecc.|Sì|Scelta Binaria|
+
+### Parametri di Output
+Il nodo Cancellazione Vettoriale dopo esecuzione riuscita, completerà la cancellazione dei contenuti in background, ma non restituirà direttamente dati risultato specifici. Dopo cancellazione riuscita, il contenuto può essere confermato attraverso ricerca tramite il nodo Ricerca Vettoriale.
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Selezione Knowledge Base**:
+    1. Dal menu dropdown seleziona modalità diverse
+    2. Attraverso @ riferimento dinamico alla knowledge base del nodo precedente oppure knowledge base già create
+2. **Selezione Modalità Cancellazione**:
+    1. Se selezioni "Cancellazione per ID", inserisci gli ID da cancellare nel campo "Lista ID Frammenti", ID multipli separati da virgola
+    2. Se selezioni "Cancellazione per Condizione", imposta condizioni di filtro, come frammenti contenenti parole chiave specifiche
+3. **Connessione Nodi**: Connetti il nodo Cancellazione Vettoriale con nodi upstream (che forniscono condizioni di cancellazione) e nodi downstream (che elaborano risultati di cancellazione)
+
+### Tecniche Avanzate
+1. **Utilizzo Variabili per Specificare Dinamicamente ID**: Puoi utilizzare variabili di output del nodo upstream come condizioni di cancellazione, realizzando cancellazione dinamica. Ad esempio, attraverso il nodo "Esecuzione Codice" filtra la lista ID da cancellare, passandola al nodo Cancellazione Vettoriale.
+2. **Cancellazione Condizionale Batch**: Quando necessiti di ripulire grandi quantità di dati che soddisfano condizioni specifiche, puoi utilizzare la funzionalità di cancellazione condizionale in combinazione con molteplici condizioni (come intervallo temporale + parole chiave), migliorando l'efficienza.
+3. **Utilizzo in Combinazione con Nodo Ciclo**: Per scenari di cancellazione complessi, puoi combinare con il nodo ciclo per realizzare cancellazione a lotti, evitando problemi di timeout causati da cancellazione eccessiva in una volta sola.
+
+## ⚠️ Note Importanti
+
+### Operazione di Cancellazione Irreversibile
+Una volta eseguita l'operazione di cancellazione, i dati dei frammenti di conoscenza cancellati **non potranno essere recuperati**. Pertanto, prima di effettuare cancellazioni batch, si consiglia di:
+- Esportare backup dei frammenti di conoscenza correlati
+- Utilizzare test su piccola scala per verificare l'accuratezza delle condizioni di cancellazione
+- Assicurarsi che l'operazione di cancellazione abbia chiare esigenze business
+
+### Impatto sulle Prestazioni
+Operazioni di cancellazione su larga scala potrebbero influenzare le prestazioni del sistema, presta attenzione a:
+- Evitare di effettuare operazioni di cancellazione massiva durante i picchi di business
+- Per knowledge base di grandi dimensioni, si consiglia cancellazione a lotti invece di cancellazione totale in una volta
+- Dopo l'operazione di cancellazione, l'indice vettoriale della knowledge base necessita di tempo per la ricostruzione, durante questo periodo le prestazioni di ricerca potrebbero essere influenzate
+
+### Limitazioni di Autorizzazione
+L'esecuzione dell'operazione di cancellazione vettoriale necessita delle corrispondenti autorizzazioni, assicurati di:
+- Il creatore del flusso di lavoro abbia autorizzazioni di gestione della knowledge base
+- L'operazione di cancellazione sia conforme alle normative di gestione dati aziendali
+- Operazioni di cancellazione su knowledge base critiche dovrebbero impostare appropriati flussi di approvazione
+
+## ❓ Problemi Comuni
+
+### L'Operazione di Cancellazione È Eseguita con Successo ma i Risultati di Ricerca della Knowledge Base Non Sono Aggiornati
+**Problema**: L'operazione di cancellazione mostra successo, ma attraverso il nodo Ricerca Vettoriale è ancora possibile ricercare i contenuti cancellati.
+
+**Soluzioni**:
+- L'aggiornamento dell'indice della knowledge base vettoriale ha un certo ritardo, solitamente necessita di 1-5 minuti per completare il refresh dell'indice
+- Se non si aggiorna da molto tempo, puoi provare ad aggiungere un appropriato nodo di attesa dopo il nodo di cancellazione
+- Verifica se esistano contenuti duplicati, assicurati che le condizioni di cancellazione coprano tutti i contenuti da cancellare
+
+### Errore di Timeout durante Cancellazione Batch
+**Problema**: Durante la cancellazione di grandi quantità di frammenti di conoscenza, il nodo va in timeout o dà errore.
+
+**Soluzioni**:
+- Suddividi la cancellazione batch di grandi dimensioni in molteplici operazioni di piccoli lotti
+- Utilizza il nodo ciclo per realizzare cancellazione a lotti
+- Aumenta l'impostazione del timeout di esecuzione del nodo (se disponibile questa opzione)
+- Seleziona orari con carico di sistema più basso per eseguire cancellazioni batch di grandi dimensioni
+
+### Impossibile Cancellare Frammenti di Conoscenza Specifici
+**Problema**: Alcuni frammenti di conoscenza non possono essere cancellati, anche fornendo l'ID corretto.
+
+**Soluzioni**:
+- Verifica se il frammento di conoscenza abbia marcatori di protezione speciali
+- Conferma che l'account operativo abbia sufficienti autorizzazioni
+- Verifica che l'ID del frammento di conoscenza sia corretto (presta attenzione al formato ID e maiuscole/minuscole)
+- Prova ad utilizzare la modalità di cancellazione condizionale come soluzione alternativa
+
+## 🏆 Migliori Pratiche
+
+### Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Ricerca Vettoriale|Prima conferma attraverso ricerca vettoriale i contenuti da cancellare, poi procedi alla cancellazione|
+|Nodo Esecuzione Codice|Utilizzato per elaborare logica di condizioni di cancellazione complesse o formattare liste ID di cancellazione|
+|Nodo Ramificazione Condizionale|Giudica il flusso successivo in base al risultato di cancellazione|
+|Nodo Ciclo|Realizza cancellazione a lotti di grandi quantità di dati|
+|Nodo Archiviazione Vettoriale|Dopo la cancellazione dei contenuti vecchi, archivia contenuti aggiornati|
+
+<font color="#CE2B2E">Nota: L'operazione di cancellazione sebbene semplice è irreversibile, utilizza con cautela dopo aver pienamente compreso l'impatto dell'operazione. La manutenzione e l'aggiornamento periodici della knowledge base manterranno le tue applicazioni intelligenti sempre nel migliore stato</font>
+
+---
+
 # 向量删除节点
 ## 一、节点介绍
 向量删除节点是一个用于从知识库中移除特定知识片段的节点，它可以帮助您有选择地移除不再需要的知识内容。这个节点使您能够维护知识库的时效性和准确性，移除过时、错误或冗余的知识片段。

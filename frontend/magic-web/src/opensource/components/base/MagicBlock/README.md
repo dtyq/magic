@@ -1,3 +1,62 @@
+# MagicBlock Componente Blocco Magico 🪄
+
+`MagicBlock` è un semplice componente blocco di contenuto modificabile, che fornisce un contenitore div con proprietà `contentEditable`, permettendo agli utenti di modificare direttamente il contenuto al suo interno.
+
+## Proprietà
+
+| Nome Proprietà | Tipo                           | Valore Predefinito | Descrizione                          |
+| -------------- | ------------------------------ | ------------------ | ------------------------------------ |
+| children       | ReactNode                      | -                  | Contenuto visualizzato nel blocco    |
+| ...props       | HTMLAttributes<HTMLDivElement> | -                  | Supporta tutte le proprietà HTML del div |
+
+## Uso Base
+
+```tsx
+import MagicBlock from '@/components/base/MagicBlock';
+
+// Uso base
+<MagicBlock>Contenuto modificabile</MagicBlock>
+
+// Impostare stili
+<MagicBlock
+  style={{
+    padding: '10px',
+    border: '1px solid #eee',
+    borderRadius: '4px'
+  }}
+>
+  Contenuto modificabile con stili
+</MagicBlock>
+
+// Aggiungere gestori di eventi
+<MagicBlock
+  onBlur={(e) => console.log('Modifica completata', e.currentTarget.textContent)}
+  onInput={(e) => console.log('Contenuto cambiato', e.currentTarget.textContent)}
+>
+  Contenuto modificabile con gestori di eventi
+</MagicBlock>
+```
+
+## Caratteristiche ✨
+
+1. **Semplice e Leggero** 📏: Fornisce funzionalità di modifica contenuto di base, senza controlli di formato complessi
+2. **Facile da Integrare** 🔗: Può essere facilmente integrato in vari scenari che richiedono modifica contenuto
+3. **Completamente Personalizzabile** 🎨: Supporta tutte le proprietà HTML del div, permettendo personalizzazione di stili e comportamenti secondo necessità
+4. **Riferimento Trasparente** 🔍: Usa useRef per mantenere il riferimento all'elemento DOM, facilitando operazioni esterne
+
+## Quando Usare
+
+-   Quando è necessaria una funzionalità di modifica contenuto semplice
+-   Quando gli utenti devono poter modificare direttamente il testo sulla pagina
+-   Per scenari di modifica semplici che non richiedono funzionalità di editing rich text complesse
+-   Quando è necessario personalizzare l'aspetto e il comportamento dell'area di modifica
+
+Il componente MagicBlock fornisce una soluzione semplice e flessibile per la modifica contenuto, adatta a vari scenari che richiedono funzionalità di modifica testo di base. 🚀
+
+---
+
+**Testo Originale (Cinese e Inglese):**
+
 # MagicBlock 魔法块组件
 
 `MagicBlock` 是一个简单的可编辑内容块组件，提供了一个具有 `contentEditable` 属性的 div 容器，允许用户直接编辑其中的内容。

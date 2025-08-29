@@ -1,3 +1,139 @@
+# 🔀 Nodo Selettore
+
+## ❓ Cos'è il Nodo Selettore?
+
+Il nodo Selettore è un nodo di giudizio condizionale nei flussi di lavoro Magic Flow che permette di dividere il flusso di lavoro in percorsi di esecuzione diversi basandosi su condizioni impostate. È come un bivio stradale, dove si sceglie direzione diversa in base a situazioni diverse. Attraverso il nodo Selettore, puoi costruire flussi di lavoro intelligenti con ramificazioni logiche, implementando la funzionalità di eseguire operazioni diverse basate su condizioni diverse.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Selettore mostra l'area di impostazione delle condizioni, inclusa la configurazione di riferimento variabile, selezione condizioni (come uguale, condizione, ecc.) e valori di confronto (espressioni o valori fissi). L'interfaccia supporta la combinazione di molteplici condizioni attraverso i pulsanti "O" e "E", implementando logica di giudizio complessa.
+![Nodo Selettore](https://cdn.letsmagic.cn/static/img/Selector.png)
+
+## 🤔 Perché Serve il Nodo Selettore?
+
+Nella costruzione di flussi di lavoro intelligenti, il nodo Selettore svolge il ruolo di "decisore", fornendo alla tua applicazione capacità di giudizio condizionale e selezione percorso:
+- **Elaborazione Ramificazioni Logiche**: Selezionare percorsi di elaborazione diversi basandosi su condizioni diverse
+- **Adattamento Multi-scenario**: Eseguire operazioni diverse per diversi input utente o stati dati
+- **Implementazione Regole Aziendali**: Convertire le regole aziendali in giudizi condizionali eseguibili
+- **Gestione Errori**: Selezionare flusso normale o elaborazione eccezionale basandosi sui risultati delle operazioni
+- **Flussi Personalizzati**: Fornire esperienze personalizzate basandosi su caratteristiche utente o comportamenti storici
+
+## 🎯 Scenari Applicabili
+
+### 1. Guida Classificazione Utente
+Guidare gli utenti verso flussi di servizio diversi basandosi sulle informazioni fornite (come età, professione, esigenze, ecc.), fornendo aiuto mirato.
+
+### 2. Processo di Approvazione
+Decidere se necessiti di approvazione di livello superiore o approvazione diretta basandosi su importo richiesta, livello richiedente, ecc.
+
+### 3. Sistema Domande&Risposte Intelligente
+Analizzare il tipo di domanda dell'utente, indirizzare verso flussi di risposta specialistici corrispondenti basandosi su diverse categorie di domande.
+
+### 4. Flusso Elaborazione Dati
+Selezionare metodi di elaborazione successivi diversi basandosi su qualità dati, caratteristiche dati o risultati elaborazione.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri Base
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Predefinito|
+|---|---|---|---|
+|Riferimento Variabile|Selezionare la variabile da giudicare|Sì|Nessuno|
+|Selezione Condizione|Impostare il modo di confronto, come uguale, condizione, ecc.|Sì|Uguale|
+|Valore Confronto|Impostare il valore target del confronto, può essere espressione o valore fisso|Sì|Nessuno|
+|Logica Combinazione Condizioni|Relazione tra molteplici condizioni, può essere "E" o "O"|No|E|
+
+### Spiegazione Tipi Condizione
+|Tipo Condizione|Spiegazione|Tipi Dati Applicabili|
+|---|---|---|
+|Uguale|Giudicare se il valore della variabile è completamente identico al valore impostato|Testo, numero, valore booleano|
+|Condizione|Utilizzare espressioni di condizione complesse per giudicare|Tutti i tipi|
+|Valore Fisso|Confrontare con un valore fisso specifico|Testo, numero, valore booleano|
+|Espressione|Utilizzare il risultato del calcolo dell'espressione per confrontare|Testo, numero, oggetto|
+
+### Contenuto Output
+Il nodo Selettore non ha contenuto di output specifico, ma seleziona percorsi di esecuzione diversi basandosi sui risultati del giudizio condizionale:
+- Quando la condizione è soddisfatta: Esegue il ramo "Corrispondente"
+- Quando la condizione non è soddisfatta: Esegue il ramo "Altrimenti"
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Seleziona la variabile di giudizio**:
+    1. Seleziona la variabile da giudicare dal menu a tendina
+    2. Può essere input utente, output di nodi upstream o variabile globale
+2. **Imposta la condizione di giudizio**:
+    1. Seleziona il tipo di condizione appropriato (uguale, condizione, ecc.)
+    2. Imposta il valore di confronto corrispondente secondo il tipo di condizione
+3. **Configura multi-condizioni (opzionale)**:
+    1. Clicca il pulsante "+" per aggiungere condizioni aggiuntive
+    2. Utilizza il pulsante "E" per richiedere che tutte le condizioni siano soddisfatte contemporaneamente
+    3. Utilizza il pulsante "O" per richiedere che almeno una condizione sia soddisfatta
+4. **Connetti nodi downstream**:
+    1. Connetti l'uscita "Corrispondente" al nodo da eseguire quando la condizione è soddisfatta
+    2. Connetti l'uscita "Altrimenti" al nodo da eseguire quando la condizione non è soddisfatta
+
+#### Collaborazione con Altri Nodi
+Il nodo Selettore generalmente necessita di essere utilizzato in combinazione con altri nodi:
+1. **In Combinazione con il Nodo Salvataggio Variabili**:
+    1. Utilizza il nodo Salvataggio Variabili prima del selettore per registrare le informazioni necessarie per il giudizio
+    2. Dopo il giudizio del selettore, salva nuovamente lo stato del risultato
+2. **In Combinazione con il Nodo Chiamata Modello Grande**:
+    1. Utilizza il modello grande per generare contenuto o analisi
+    2. Il selettore decide l'elaborazione successiva basandosi sui risultati dell'analisi
+3. **In Combinazione con il Nodo Elaborazione Dati**:
+    1. Pre-elabora e controlla i dati
+    2. Il selettore seleziona il metodo di elaborazione basandosi sulle caratteristiche dei dati
+
+## ⚠️ Note Importanti
+
+### Corrispondenza Tipi Variabile
+Assicurati che il tipo della variabile di giudizio corrisponda al tipo del valore di confronto, per evitare risultati inaspettati:
+- Confronto numero con numero (come `5 > 3`)
+- Confronto testo con testo (come `"hello" == "hello"`)
+- Confronto valore booleano con valore booleano (come `true == false`)
+
+### Priorità Condizioni
+Quando utilizzi molteplici condizioni, presta attenzione alla priorità della combinazione delle condizioni:
+- La priorità di "E" è superiore a "O"
+- Per condizioni complesse si consiglia di utilizzare espressioni per chiarire la priorità
+
+### Gestione Percorsi
+Assicurati che tutti i possibili rami condizionali abbiano flussi di elaborazione corrispondenti:
+- Evita percorsi "sospesi"
+- Verifica se sono state gestite tutte le situazioni possibili
+
+## ❓ Problemi Comuni
+
+### Problema 1: I Risultati del Giudizio Condizionale Non Corrispondono alle Aspettative?
+**Soluzioni**: Potrebbe essere che il tipo o valore della variabile non corrisponda alle aspettative:
+- Verifica il valore e tipo effettivo della variabile (puoi utilizzare il nodo Codice per output informazioni variabile)
+- Conferma se le condizioni di confronto sono impostate correttamente
+- Per confronti di testo, presta attenzione a differenze maiuscolo/minuscolo e spazi
+
+### Problema 2: Come Gestire il Giudizio di Molteplici Situazioni Diverse?
+**Soluzioni**: Per scenari che necessitano di giudicare molteplici situazioni diverse:
+- Utilizza molteplici nodi Selettore in serie, formando una catena di giudizio completa
+- Oppure utilizza prima il nodo Riconoscimento Intenzioni per classificare, poi utilizza il selettore per elaborazione ulteriore
+- Situazioni complesse possono considerare l'utilizzo del nodo Esecuzione Codice per logica personalizzata
+
+### Problema 3: Errore nel Giudizio di Oggetti o Array del Nodo Selettore?
+**Soluzioni**: Oggetti e array necessitano di elaborazione speciale:
+- Utilizza espressioni per accedere a proprietà specifiche dell'oggetto (come `user.name`)
+- Per array puoi utilizzare espressioni per controllare lunghezza o elementi specifici
+- Per confronti di oggetti complessi si consiglia di utilizzare prima il nodo Codice per conversione a tipi semplici
+
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo di Nodo|Motivo dell'Abbinamento|
+|---|---|
+|Nodo Chiamata Modello Grande|Analizzare contenuto poi giudicare basandosi sui risultati|
+|Nodo Salvataggio Variabili|Registrare risultati di giudizio per riferimento nei flussi successivi|
+|Nodo Esecuzione Codice|Gestire logica di giudizio complessa o conversione dati|
+|Nodo Risposta Messaggio|Rispondere contenuti diversi basandosi su condizioni diverse|
+|Nodo Richiesta HTTP|Selezionare modi di elaborazione diversi basandosi sui risultati della richiesta|
+
+---
+
 # 选择器节点
 ## 什么是选择器节点？
 选择器节点是Magic Flow工作流中的条件判断节点，它允许您根据设定的条件将工作流分为不同的执行路径。就像在道路上的分叉口，根据不同情况选择不同的前进方向。通过选择器节点，您可以构建具有逻辑分支的智能工作流，实现根据不同条件执行不同操作的功能。

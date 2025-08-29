@@ -1,4 +1,91 @@
-# 云文档解析节点
+# Nodo Analisi Documenti Cloud ☁️📄
+## Che cos'è il nodo Analisi Documenti Cloud?
+Il nodo Analisi Documenti Cloud è un modulo per leggere ed elaborare documenti Markdown archiviati nel cloud. Permette di ottenere e usare direttamente nel flusso i documenti di conoscenza interni dell'azienda, senza copiare-incollare manualmente. Con questo nodo puoi caricare automaticamente il contenuto del documento nel flusso per l'elaborazione a valle.
+
+Immagine esplicativa:
+
+L'interfaccia di configurazione comprende l'area di selezione documento, in cui puoi indicare tramite selettore il documento cloud da analizzare.
+![云文档解析节点](https://cdn.letsmagic.cn/static/img/Cloud-document-parsing.png)
+
+## Perché serve?
+Nella costruzione di flussi intelligenti spesso bisogna riferirsi/analizzare documenti esistenti. Questo nodo risolve:
+1. Automazione acquisizione: lettura automatica dei documenti cloud, niente copia manuale
+2. Integrazione della conoscenza: integra la knowledge base interna nei flussi
+3. Aggiornamento in tempo reale: quando il documento cambia, il flusso può leggere il contenuto più recente
+4. Elaborazione strutturata: converte Markdown in strutture dati utilizzabili dai nodi successivi
+
+## Scenari d'uso
+### Scenario 1: Q&A su knowledge base
+Costruisci un sistema Q&A basato su documenti interni: all'interrogazione, estrae info dai documenti e genera la risposta.
+### Scenario 2: Analisi contenuto documenti
+Analizza automaticamente contenuti, estrae chiavi/metriche o genera report riassuntivi.
+### Scenario 3: Alert aggiornamento documenti
+Monitora documenti critici e notifica quando ci sono aggiornamenti con changelog o sommario.
+
+## Parametri del nodo
+### Input
+|Nome|Descrizione|Obbligatorio|Default|
+|---|---|---|---|
+|Selettore documento|Scegli il documento cloud da analizzare|Sì|—|
+
+### Output
+|Nome|Descrizione|Tipo|
+|---|---|---|
+|Contenuto (content)|Testo del documento analizzato|Stringa|
+
+## Istruzioni d'uso
+### Passi base
+1. Aggiungi il nodo al canvas dall'elenco nodi
+2. Seleziona documento:
+    1. Dal menu a discesa scegli direttamente il documento cloud da analizzare
+3. Collega i nodi a valle: collega l'output a nodi di elaborazione successivi
+
+### Suggerimenti avanzati
+1. Selezione dinamica: passa l'ID documento come variabile per scegliere dinamicamente
+2. Estrazione mirata: insieme al nodo codice estrai sezioni specifiche
+3. Multi-documento: usa un ciclo per elaborare più documenti in batch
+4. Diff contenuti: confronta versioni diverse con logiche personalizzate nel nodo codice
+
+## Note
+### Permessi di accesso
+Assicurati che l'esecutore del flusso abbia accesso al documento selezionato.
+### Dimensione documenti
+Documenti molto grandi possono impattare le performance; valuta split o pre-estrazioni.
+### Supporto Markdown
+Supporta Markdown standard; formati speciali/custom potrebbero non essere interpretati correttamente.
+### Tempistiche
+Si legge il contenuto al momento dell'esecuzione; per documenti che cambiano spesso valuta una cache.
+
+## FAQ
+### Il documento non si visualizza o analizza correttamente
+Soluzioni:
+- Verifica la conformità del formato Markdown
+- Verifica caratteri speciali/encoding
+- Verifica i permessi sul documento
+
+### Come gestire immagini e allegati?
+Soluzioni:
+- Il nodo estrae solo testo per default
+- Per immagini usa un nodo Richiesta HTTP per recuperarle
+- Per allegati usa API dedicate ai file
+
+### Come trattare tabelle formattate?
+Soluzioni:
+- Le tabelle Markdown vengono estratte come testo
+- Converti in strutture con un nodo codice a valle
+- Per casi complessi valuta il nodo analisi fogli di calcolo
+
+## Nodi spesso abbinati
+|Tipo|Motivo|
+|---|---|
+|Chiamata LLM|Riassumere, rispondere, estrarre info dal contenuto
+|Segmentazione testo|Spezzare testi lunghi in chunk
+|Codice|Trasformazioni/estrazioni personalizzate
+|Ricerca conoscenza|Q&A basato su vettori e similarità
+
+---
+
+# 中文原文
 ## 什么是云文档解析节点？
 云文档解析节点是一个专门用于读取和处理云端存储的Markdown文档的功能模块。它能够帮助您直接在工作流中获取和使用企业内部的知识文档，无需手动复制粘贴文档内容。通过此节点，您可以将文档内容自动加载到工作流中，以便后续节点进行处理和分析。
 

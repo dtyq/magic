@@ -1,3 +1,107 @@
+# Funzionalità di Passthrough degli Header di Magic Gateway
+
+## Panoramica
+
+Magic Gateway ora supporta il passthrough degli header `magic-user-id` e `magic-organization-code` a tutte le richieste API proxy degli agenti.
+
+## Header Supportati
+
+### magic-user-id
+- **Descrizione**: Identificatore univoco dell'utente
+- **Tipo**: String
+- **Esempio**: `magic-user-id: user123`
+
+### magic-organization-code
+- **Descrizione**: Identificatore del codice organizzazione
+- **Tipo**: String
+- **Esempio**: `magic-organization-code: org456`
+
+## Metodi di Utilizzo
+
+### 1. Impostazione degli Header durante l'Autenticazione
+
+Durante la chiamata all'endpoint `/auth`, è possibile impostare questi header:
+
+```bash
+curl -X POST http://localhost:8000/auth \
+  -H "X-Gateway-API-Key: your-api-key" \
+  -H "magic-user-id: user123" \
+  -H "magic-organization-code: org456"
+```
+
+### 2. Passthrough durante le Richieste API Proxy
+
+Durante le richieste API proxy attraverso il gateway, questi header vengono automaticamente passati al servizio di destinazione:
+
+```bash
+curl -X POST http://localhost:8000/openai/v1/chat/completions \
+  -H "Authorization: Bearer your-token" \
+  -H "magic-user-id: user123" \
+  -H "magic-organization-code: org456" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+### 3. Compatibilità
+
+Per mantenere la compatibilità all'indietro, il gateway supporta anche i seguenti header:
+
+- `X-USER-ID` - Se `magic-user-id` non esiste, verrà utilizzato questo valore
+- `X-Container-ID` - Utilizzato nelle richieste di lista servizi
+
+## Registrazione dei Log
+
+Quando la modalità debug è abilitata, il gateway registra i dettagli del passthrough degli header:
+
+```
+Passthrough magic-user-id: user123
+Passthrough magic-organization-code: org456
+```
+
+## Ricezione del Servizio di Destinazione
+
+Il servizio API di destinazione riceverà la richiesta contenente questi header:
+
+```
+magic-user-id: user123
+magic-organization-code: org456
+```
+
+## Note di Attenzione
+
+1. I nomi degli header sono case-sensitive
+2. Se il valore dell'header è vuoto, non verrà passato
+3. Questi header non vengono filtrati dalla funzione `shouldSkipHeader`
+4. Supporta tutti gli endpoint API degli agenti
+
+## Test
+
+È possibile testare la funzionalità utilizzando i seguenti comandi:
+
+```bash
+# Avvio del servizio gateway
+go run main.go
+
+# Test autenticazione
+curl -X POST http://localhost:8000/auth \
+  -H "X-Gateway-API-Key: your-api-key" \
+  -H "magic-user-id: test-user" \
+  -H "magic-organization-code: test-org"
+
+# Test richiesta proxy
+curl -X POST http://localhost:8000/openai/v1/chat/completions \
+  -H "Authorization: Bearer your-token" \
+  -H "magic-user-id: test-user" \
+  -H "magic-organization-code: test-org" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+---
+
 # Magic Gateway Header 透传功能
 
 ## 概述

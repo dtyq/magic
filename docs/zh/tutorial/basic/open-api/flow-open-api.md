@@ -1,3 +1,176 @@
+# 📘 Documentazione API di Magic Flow
+
+## 🔐 1. Autenticazione
+Le API supportano due metodi di autenticazione. Puoi fornire la tua API Key in uno dei due modi seguenti:
+
+Metodo 1: Intestazione api-key (consigliato)
+```
+api-key: YOUR_API_KEY
+```
+
+Metodo 2: Intestazione Authorization
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Formato della chiave: inizia con `api-sk-`.
+Per istruzioni sulla generazione e configurazione dell’API Key, vedi: https://www.teamshare.cn/knowledge/preview/710857519214628864/775765654906695680
+
+## 📎 2. Spiegazioni di base
+- URL base delle API: `https://[API_HOST]`
+- Tutte le richieste e risposte usano JSON
+- I timestamp usano il formato ISO 8601
+- Tutte le richieste devono includere le intestazioni di autenticazione
+
+## 🧩 3. Elenco delle API
+
+### 3.1 Chat API
+Crea una conversazione, supporta dialoghi generali e in modalità Flow.
+- Percorso: `/api/chat`
+- Metodo: `POST`
+- Content-Type: `application/json`
+
+Parametri richiesta:
+| Nome | Tipo | Obbligatorio | Descrizione |
+|---|---|---|---|
+| message | string | Sì | Contenuto del messaggio |
+| conversation_id | string | No | ID conversazione per mantenere il contesto; se omesso, il server ne crea uno nuovo e lo restituisce |
+| attachments | array | No | Elenco degli allegati (solo l’API chat lo supporta) |
+| stream | boolean | No | Abilita risposta in streaming, predefinito false |
+
+Allegati: carica prima i file su un URL pubblico, quindi fornisci i riferimenti nella richiesta.
+Esempio struttura allegato:
+```json
+{
+  "attachment_name": "filename.ext",
+  "attachment_url": "https://example.com/path/to/file"
+}
+```
+
+Tipi di allegato supportati:
+- Immagini: jpeg, jpg, png, gif
+- Documenti: pdf, doc, docx, txt
+
+Note sugli allegati:
+1) L’URL deve essere pubblicamente accessibile
+2) Dimensione massima 10MB
+3) Per analisi immagini serve un modello che supporti la visione
+
+Struttura risposta (principale):
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| conversation_id | string | ID conversazione |
+| messages | array | Array di messaggi (stessa struttura del non-stream) |
+
+Struttura oggetto messaggio:
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| id | string | ID messaggio |
+| message | object | Contenuto del messaggio |
+| conversation_id | string | ID conversazione |
+| error_information | string | Dettagli errore, se presenti |
+| success | boolean | Indica successo esecuzione, default true |
+
+Esempi richiesta/risposta e streaming: invariati nei blocchi di codice sottostanti.
+
+### 3.2 API chiamata con parametri
+Esegue chiamate con parametri.
+- Percorso: `/api/param-call`
+- Metodo: `POST`
+- Content-Type: `application/json`
+
+Parametri richiesta:
+| Nome | Tipo | Obbligatorio | Descrizione |
+|---|---|---|---|
+| message | string | Sì | Contenuto del messaggio |
+| conversation_id | string | No | ID conversazione (solo a fini di log) |
+| params | object | Sì | Parametri chiave-valore della chiamata |
+
+Parametri risposta:
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| conversation_id | string | ID conversazione |
+| result | object | Risultato dell’esecuzione |
+
+Gli esempi di richiesta e risposta sono riportati nei blocchi sottostanti.
+
+### 3.3 Chat asincrona
+Crea una conversazione in modalità asincrona.
+- Percorso: `/api/async-chat`
+- Metodo: `POST`
+- Content-Type: `application/json`
+
+Parametri richiesta:
+| Nome | Tipo | Obbligatorio | Descrizione |
+|---|---|---|---|
+| message | string | Sì | Contenuto del messaggio |
+| conversation_id | string | No | ID conversazione |
+| attachments | array | No | Elenco allegati, stesso formato della Chat API |
+| async | boolean | Sì | Deve essere true |
+
+Parametri risposta:
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| conversation_id | string | ID conversazione |
+| task_id | string | ID del task asincrono |
+
+Gli esempi di richiesta e risposta sono riportati nei blocchi sottostanti.
+
+### 3.4 Chiamata con parametri (asincrona)
+- Percorso: `/api/param-call`
+- Metodo: `POST`
+- Content-Type: `application/json`
+
+Parametri richiesta:
+| Nome | Tipo | Obbligatorio | Descrizione |
+|---|---|---|---|
+| message | string | Sì | Contenuto del messaggio |
+| conversation_id | string | No | ID conversazione (solo log) |
+| params | object | Sì | Parametri chiave-valore |
+| async | boolean | Sì | Deve essere true |
+
+Parametri risposta:
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| conversation_id | string | ID conversazione |
+| task_id | string | ID del task asincrono |
+
+### 3.5 Recupero risultato asincrono
+Ottieni il risultato dell’elaborazione di un task asincrono.
+- Percorso: `/api/async-chat/{task_id}`
+- Metodo: `GET`
+
+Parametri richiesta:
+| Nome | Tipo | Obbligatorio | Descrizione |
+|---|---|---|---|
+| task_id | string | Sì | ID del task asincrono (nel path) |
+
+Parametri risposta:
+| Campo | Tipo | Descrizione |
+|---|---|---|
+| task_id | string | ID task |
+| status | integer | Codice stato |
+| status_label | string | Descrizione stato: "pending" | "processing" | "completed" | "failed" |
+| created_at | string | Data creazione |
+| result | object | Risultato (solo quando completato) |
+
+Gli esempi per chat e chiamate parametriche sono riportati nei blocchi sottostanti.
+
+## 🧯 4. Codici di errore
+| Codice | Descrizione |
+|---|---|
+| 400 | Parametri richiesta non validi |
+| 401 | Non autorizzato, API Key non valida |
+| 403 | Permessi insufficienti |
+| 404 | Risorsa non trovata |
+| 429 | Troppe richieste |
+| 500 | Errore interno del server |
+
+Esempio di risposta errore: invariato nel blocco sottostante.
+
+---
+
+# 中文原文
 # Magic Flow API 接口文档
 ## 一、认证方式
 API 支持两种认证方式，您可以选择以下任一方式提供 API Key：

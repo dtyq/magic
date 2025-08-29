@@ -1,75 +1,104 @@
-# 数据加载节点
-## 什么是数据加载节点？
-数据加载节点是一个用于从持久化数据库中读取之前存储的数据的工具。它就像是一个智能检索员，能够根据您提供的"数据键"，快速找到并取出之前保存在持久化数据库中的信息，供工作流中的其他节点使用。
+# Nodo Caricamento Dati 📊
 
-**图片说明：**
+## Che cos'è il Nodo Caricamento Dati?
 
-数据加载节点界面主要由查询条件区域组成，包括作用域选择、数据键输入框等关键元素。用户可以通过配置这些参数从持久化数据库中检索出之前存储的数据。
-![数据加载节点](https://cdn.letsmagic.cn/static/img/Data-loading.png)
+Il Nodo Caricamento Dati è uno strumento utilizzato per leggere dati precedentemente memorizzati da un database persistente. È come un intelligente ricercatore che, secondo la "chiave dati" fornita dall'utente, può rapidamente trovare e estrarre le informazioni precedentemente salvate nel database persistente, per l'utilizzo da parte di altri nodi nel flusso di lavoro.
 
-## 为什么需要数据加载节点？
-**在智能工作流中，常常需要在不同时间或不同会话之间传递和使用数据。例如：**
-- 记住用户的偏好设置，下次对话时直接使用
-- 存储上次交互的关键信息，以便后续处理
-- 保存业务数据，允许在未来任何时候检索使用
-数据加载节点正是为解决这一需求而设计的，它让您可以方便地检索出之前存储的任何信息，建立起工作流的"长期记忆"能力，使AI 助理拥有持久化的数据访问能力。
-## 适用场景
-数据加载节点适用于以下场景：
-1. **用户设置记忆**：读取用户的偏好设置、使用习惯等信息，提供个性化服务
-2. **业务流程连续性**：在多次对话之间保持业务连续性，如读取上次未完成的订单信息
-3. **知识检索**：从持久化存储中读取之前保存的专业知识或规则
-4. **用户身份识别**：读取用户的身份信息，用于后续的权限控制和个性化服务
-## 节点参数说明
-### 输入参数
-|参数名称|参数描述|是否必填|默认值|说明|
+**Spiegazione Immagine:**
+
+L'interfaccia del Nodo Caricamento Dati è composta principalmente dall'area delle condizioni di query, inclusi elementi chiave come la selezione dell'ambito, la casella di input della chiave dati, ecc. Gli utenti possono recuperare dati precedentemente memorizzati nel database persistente configurando questi parametri.
+![Nodo Caricamento Dati](https://cdn.letsmagic.cn/static/img/Data-loading.png)
+
+## Perché serve il Nodo Caricamento Dati?
+
+**Nei flussi di lavoro intelligenti, spesso è necessario trasferire e utilizzare dati tra diversi momenti o diverse sessioni. Ad esempio:**
+- Ricordare le preferenze dell'utente, utilizzarle direttamente nella prossima conversazione
+- Memorizzare informazioni chiave dell'ultima interazione, per l'elaborazione successiva
+- Salvare dati aziendali, permettendo il recupero in qualsiasi momento futuro
+
+Il Nodo Caricamento Dati è progettato proprio per soddisfare questa esigenza, permette di recuperare convenientemente qualsiasi informazione precedentemente memorizzata, stabilendo la capacità di "memoria a lungo termine" del flusso di lavoro, facendo sì che l'assistente AI abbia capacità di accesso ai dati persistenti.
+
+## Scenari di Applicazione
+
+Il Nodo Caricamento Dati è applicabile nei seguenti scenari:
+1. **Memoria Impostazioni Utente**: Leggere informazioni sulle preferenze dell'utente, abitudini d'uso, ecc., fornire servizi personalizzati
+2. **Continuità Processo Aziendale**: Mantenere la continuità aziendale tra molteplici conversazioni, come leggere informazioni di ordini incompleti dalla volta precedente
+3. **Ricerca Conoscenza**: Leggere conoscenze professionali o regole precedentemente salvate dal deposito persistente
+4. **Identificazione Identità Utente**: Leggere informazioni di identità dell'utente, per il controllo dei permessi successivo e servizi personalizzati
+
+## Spiegazione Parametri del Nodo
+
+### Parametri di Input
+
+|Nome Parametro|Descrizione Parametro|Obbligatorio|Valore Default|Spiegazione|
 |---|---|---|---|---|
-|作用域|数据的存储范围|是|当前话题|确定从哪个范围内查找数据，可选范围包括：当前话题、全局等|
-|数据键|要读取的数据的标识符|是|无|用于查找数据的唯一标识，支持使用变量，如"@用户ID"|
+|Ambito|D'ambito di memorizzazione dei dati|Sì|Argomento Corrente|Determina da quale ambito cercare i dati, gli ambiti opzionali includono: argomento corrente, globale, ecc.|
+|Chiave Dati|L'identificatore dei dati da leggere|Sì|Nessuno|Utilizzato per cercare l'identificatore unico dei dati, supporta l'utilizzo di variabili, come "@ID_Utente"|
 
-### 输出参数
-数据加载节点成功执行后，会输出以下变量，可在后续节点中使用：
-|输出变量名|数据类型|说明|
+### Parametri di Output
+
+Dopo l'esecuzione riuscita del Nodo Caricamento Dati, verranno emesse le seguenti variabili, utilizzabili nei nodi successivi:
+|Nome Variabile Output|Tipo Dati|Spiegazione|
 |---|---|---|
-|数据值（value）|字符串/数组|根据存储时的数据类型，可能是简单的文本字符串，也可能是复杂的JSON对象或数组|
+|Valore Dati (value)|Stringa/Array|Secondo il tipo di dati al momento della memorizzazione, potrebbe essere una semplice stringa di testo, oppure un oggetto JSON complesso o array|
 
-## 使用说明
-### 基本配置步骤
-1. **选择作用域**：从下拉菜单中选择要查询的数据作用域，通常有"当前话题"、"当前用户"等选项
-2. **设置数据键**：在"数据键"输入框中输入要读取的数据的标识符
-    1. 可以直接输入文本，如"用户偏好"
-    2. 也可以点击"@"按钮，从变量列表中选择一个变量作为数据键
-3. **连接后续节点**：将数据加载节点的输出连接到需要使用该数据的后续节点
-### 进阶技巧
-1. **动态数据键**：当您需要根据不同情况读取不同的数据时，可以使用变量作为数据键。例如，您可以使用"@用户ID"作为数据键，系统会根据当前用户ID自动读取对应的数据。
-2. **结合条件判断**：在读取数据后，可以使用条件判断节点检查数据是否存在、是否有效，从而构建更复杂的逻辑流程。
-3. **数据转换**：如果读取的是JSON格式数据，可以使用代码节点进行解析和转换，提取其中的特定字段。
-## 注意事项
-### 数据不存在的处理
-当要读取的数据键在数据库中不存在时，数据加载节点会输出一个空值。在后续节点中，建议先判断该值是否为空，避免因数据不存在导致流程出错。
-### 数据过期问题
-如果数据在存储时设置了过期时间，超过该时间后数据会自动失效。请确保在数据可能过期的情况下有适当的备选处理方案。
-### 数据类型一致性
-数据加载节点会返回与存储时相同类型的数据。例如，如果存储的是JSON对象，加载时也会获得JSON对象。请确保后续节点能正确处理该类型的数据。
-## 常见问题
-### 问题1：为什么我读取不到之前存储的数据？
-**可能原因**：
-- 数据键名称错误或拼写不一致
-- 作用域选择错误（例如数据存储在"全局"作用域，但读取时选择了"当前话题"）
-- 数据已过期（如果存储时设置了过期时间）
-- 数据可能被其他流程删除或覆盖
-**解决方法**：
-- 确认数据键的名称是否与存储时完全一致
-- 检查作用域是否与存储时相同
-- 如果怀疑数据已过期，可以先重新存储一次
-- 在数据加载节点后添加日志或调试节点，输出加载的结果进行检查
-### 问题2：如何判断数据是否成功加载？
-**解决方法**：
+## Istruzioni per l'Uso
 
-在数据加载节点后添加条件判断节点，检查输出的 value 是否为空。如果不为空，则说明成功加载了数据；如果为空，则可能是数据不存在或已过期。
-## 常见搭配节点
-|**节点类型**|**搭配原因**|
+### Passi di Configurazione Base
+
+1. **Selezionare Ambito**: Dal menu a tendina selezionare l'ambito dei dati da interrogare, solitamente ci sono opzioni come "Argomento Corrente", "Utente Corrente", ecc.
+2. **Impostare Chiave Dati**: Nella casella di input "Chiave Dati" inserire l'identificatore dei dati da leggere
+    1. È possibile inserire direttamente testo, come "Preferenze Utente"
+    2. È anche possibile cliccare il pulsante "@" per selezionare una variabile dalla lista delle variabili come chiave dati
+3. **Connettere Nodi Successivi**: Connettere l'output del nodo caricamento dati ai nodi successivi che necessitano di utilizzare questi dati
+
+### Tecniche Avanzate
+
+1. **Chiave Dati Dinamica**: Quando è necessario leggere dati diversi secondo diverse situazioni, è possibile utilizzare variabili come chiave dati. Ad esempio, è possibile utilizzare "@ID_Utente" come chiave dati, il sistema leggerà automaticamente i dati corrispondenti secondo l'ID utente corrente.
+2. **Combinazione con Giudizio Condizionale**: Dopo aver letto i dati, è possibile utilizzare il nodo di giudizio condizionale per verificare se i dati esistono, se sono validi, costruendo così processi logici più complessi.
+3. **Conversione Dati**: Se i dati letti sono in formato JSON, è possibile utilizzare il nodo codice per analizzarli e convertirli, estraendo campi specifici.
+
+## Note Importanti
+
+### Gestione Dati Inesistenti
+
+Quando la chiave dati da leggere non esiste nel database, il Nodo Caricamento Dati emetterà un valore vuoto. Nei nodi successivi, si consiglia di verificare prima se questo valore è vuoto, per evitare che il processo vada in errore a causa di dati inesistenti.
+
+### Problema Scadenza Dati
+
+Se i dati hanno un tempo di scadenza impostato al momento della memorizzazione, dopo tale tempo i dati diventeranno automaticamente invalidi. Assicurarsi di avere schemi di elaborazione alternativi appropriati nel caso in cui i dati possano scadere.
+
+### Consistenza Tipo Dati
+
+Il Nodo Caricamento Dati restituirà dati dello stesso tipo di quando sono stati memorizzati. Ad esempio, se è stato memorizzato un oggetto JSON, al momento del caricamento si otterrà anche un oggetto JSON. Assicurarsi che i nodi successivi possano elaborare correttamente questo tipo di dati.
+
+## Domande Frequenti
+
+### Problema 1: Perché non riesco a leggere i dati precedentemente memorizzati?
+
+**Possibili Cause**:
+- Nome chiave dati errato o errori di ortografia
+- Selezione ambito errata (ad esempio i dati sono memorizzati nell'ambito "Globale", ma durante la lettura è stato selezionato "Argomento Corrente")
+- I dati sono scaduti (se al momento della memorizzazione è stato impostato un tempo di scadenza)
+- I dati potrebbero essere stati eliminati o sovrascritti da altri processi
+
+**Metodi di Risoluzione**:
+- Confermare che il nome della chiave dati sia completamente identico a quello della memorizzazione
+- Verificare che l'ambito sia lo stesso della memorizzazione
+- Se si sospetta che i dati siano scaduti, è possibile memorizzarli nuovamente prima
+- Dopo il nodo caricamento dati aggiungere nodi di log o debug, emettere i risultati del caricamento per verificarli
+
+### Problema 2: Come giudicare se i dati sono stati caricati con successo?
+
+**Metodo di Risoluzione**:
+
+Dopo il nodo caricamento dati aggiungere un nodo di giudizio condizionale, verificare se il valore di output value sia vuoto. Se non è vuoto, significa che i dati sono stati caricati con successo; se è vuoto, potrebbe significare che i dati non esistono o sono scaduti.
+
+## Nodi di Combinazione Comuni
+
+|Tipo Nodo|Motivo Combinazione|
 |---|---|
-|条件判断节点|读取数据后进行判断，决定后续流程|
-|代码执行节点|对读取的复杂数据进行处理和转换|
-|大模型调用节点|将读取的数据作为上下文传递给大模型，提升模型回答的相关性|
-|数据存储节点|先使用数据存储节点保存数据，后续使用数据加载节点读取|
+|Nodo Giudizio Condizionale|Dopo aver letto i dati effettuare giudizi, decidere il processo successivo|
+|Nodo Esecuzione Codice|Elaborare e convertire dati complessi letti|
+|Nodo Chiamata Modello Grande|Passare i dati letti come contesto al modello grande, migliorare la pertinenza delle risposte del modello|
+|Nodo Memorizzazione Dati|Utilizzare prima il nodo memorizzazione dati per salvare i dati, successivamente utilizzare il nodo caricamento dati per leggerli|

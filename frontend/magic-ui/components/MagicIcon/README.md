@@ -1,3 +1,61 @@
+# MagicIcon Componente Icona Magica ✨
+
+`MagicIcon` è un componente wrapper per icone basato su Tabler Icons, che fornisce adattamento al tema e controllo uniforme degli stili.
+
+## Proprietà
+
+| Nome Proprietà | Tipo                                                                    | Valore Predefinito | Descrizione                     |
+| -------------- | ----------------------------------------------------------------------- | ------------------ | ------------------------------- |
+| component      | ForwardRefExoticComponent<Omit<IconProps, "ref"> & RefAttributes<Icon>> | -                  | Il componente icona Tabler da renderizzare |
+| active         | boolean                                                                 | false              | Se è in stato attivo            |
+| animation      | boolean                                                                 | false              | Se abilitare effetti di animazione |
+| ...IconProps   | -                                                                       | -                  | Supporta tutte le proprietà di Tabler Icons |
+
+## Utilizzo Base
+
+```tsx
+import { MagicIcon } from '@/components/base/MagicIcon';
+import { IconHome, IconStar, IconSettings } from '@tabler/icons-react';
+
+// Icona base
+<MagicIcon component={IconHome} />
+
+// Dimensione personalizzata
+<MagicIcon component={IconStar} size={24} />
+
+// Colore personalizzato (sovrascrive il colore del tema)
+<MagicIcon component={IconSettings} color="blue" />
+
+// Spessore linea personalizzato
+<MagicIcon component={IconHome} stroke={2} />
+
+// Stato attivo
+<MagicIcon component={IconStar} active />
+
+// Con effetto animazione (se implementato)
+<MagicIcon component={IconSettings} animation />
+```
+
+## Caratteristiche 🌟
+
+1. **Adattamento al Tema** 🎨: Regola automaticamente il colore dell'icona in base al tema corrente (chiaro/scuro)
+2. **Stile Uniforme** 📏: Fornisce spessore linea e colore uniformi per default
+3. **Sicurezza dei Tipi** 🔒: Supporto completo per TypeScript con definizioni di tipo complete
+4. **Estensione Flessibile** 🔧: Facilita la personalizzazione delle caratteristiche dell'icona tramite proprietà
+
+## Quando Usare ❓
+
+- Quando hai bisogno di usare icone Tabler nella tua app
+- Quando le icone devono adattarsi automaticamente ai cambiamenti di tema
+- Quando devi gestire uniformemente gli stili delle icone
+- Quando devi aggiungere stati interattivi alle icone (come stato attivo)
+
+Il componente MagicIcon rende l'uso delle icone più semplice e uniforme, assicurando che si adattino alle impostazioni del tema della tua app. 🚀
+
+---
+
+**Testo Originale (Cinese):**
+
 # MagicIcon 魔法图标组件
 
 `MagicIcon` 是一个基于 Tabler Icons 的图标包装组件，提供了主题适配和统一的样式控制。

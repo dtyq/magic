@@ -1,3 +1,97 @@
+# MagicMermaid 📊 Componente Diagramma di Flusso Magico
+
+`MagicMermaid` è un componente di rendering di diagrammi basato su mermaid.js, che supporta la conversione di testo in sintassi mermaid in diagrammi visivi come diagrammi di flusso, diagrammi di sequenza, diagrammi di Gantt e altro.
+
+## Proprietà
+
+| Nome Proprietà | Tipo   | Valore Predefinito | Descrizione                   |
+| -------------- | ------ | ------------------ | ----------------------------- |
+| data           | string | -                  | Definizione del diagramma in sintassi mermaid |
+
+## Uso Base
+
+```tsx
+import { MagicMermaid } from '@/components/base/MagicMermaid';
+
+// Diagramma di flusso base
+<MagicMermaid
+  data={`
+    graph TD
+    A[Inizio] --> B{Decisione}
+    B -->|Sì| C[Elaborazione]
+    B -->|No| D[Fine]
+    C --> D
+  `}
+/>
+
+// Diagramma di sequenza
+<MagicMermaid
+  data={`
+    sequenceDiagram
+    PartecipanteA->>PartecipanteB: Ciao, B!
+    PartecipanteB->>PartecipanteA: Ciao, A!
+  `}
+/>
+
+// Diagramma di Gantt
+<MagicMermaid
+  data={`
+    gantt
+    title Piano Progetto
+    dateFormat  YYYY-MM-DD
+    section Fase 1
+    Compito1           :a1, 2023-01-01, 30d
+    Compito2           :after a1, 20d
+    section Fase 2
+    Compito3           :2023-02-15, 12d
+    Compito4           :24d
+  `}
+/>
+
+// Diagramma di classe
+<MagicMermaid
+  data={`
+    classDiagram
+    ClasseA <|-- ClasseB
+    ClasseA : +String Proprietà1
+    ClasseA : +Metodo1()
+    ClasseB : +Metodo2()
+  `}
+/>
+
+// Diagramma di stato
+<MagicMermaid
+  data={`
+    stateDiagram-v2
+    [*] --> Stato1
+    Stato1 --> Stato2: Condizione di attivazione
+    Stato2 --> [*]
+  `}
+/>
+```
+
+## Caratteristiche ✨
+
+1. **Visualizzazione a doppia modalità** 🔄: Supporta il passaggio tra modalità diagramma e modalità codice, per una facile visualizzazione e modifica
+2. **Adattamento tema** 🌙: Si adatta automaticamente ai temi chiaro/scuro, offrendo un'esperienza visiva coerente
+3. **Anteprima clic** 👀: Clicca sul diagramma per un'anteprima a schermo intero, per vedere più dettagli
+4. **Gestione errori** ⚠️: In caso di errori nella sintassi mermaid, mostra un messaggio di errore amichevole
+5. **Esportazione SVG** 📤: Supporta l'esportazione del diagramma in formato SVG, per una facile condivisione e utilizzo
+
+## Quando Usare 🛠️
+
+-   Quando hai bisogno di visualizzare processi, relazioni o sequenze
+-   Quando devi incorporare diagrammi di flusso, sequenze, Gantt, ecc. nei documenti
+-   Quando devi convertire descrizioni testuali in rappresentazioni grafiche intuitive
+-   Quando devi mostrare diagrammi complessi nel contenuto Markdown
+-   Quando devi creare presentazioni di diagrammi interattive
+
+Il componente MagicMermaid rende la visualizzazione di diagrammi di flusso, relazioni e altro più intuitiva e professionale, adatto a vari scenari che richiedono visualizzazioni diagrammatiche.
+
+---
+
+**Testo Originale (Cinese e Inglese):**
+
 # MagicMermaid 魔法流程图组件
 
 `MagicMermaid` 是一个基于 mermaid.js 的流程图渲染组件，支持将 mermaid 语法的文本转换为可视化的流程图、时序图、甘特图等图表。

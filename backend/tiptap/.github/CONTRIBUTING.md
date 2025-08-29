@@ -1,3 +1,55 @@
+# Contributi
+
+I contributi sono **benvenuti** e saranno completamente **riconosciuti**.
+
+Si prega di leggere e comprendere la guida ai contributi prima di creare un issue o una pull request.
+
+## Etichetta
+
+Questo progetto è open source, e come tale, i maintainer dedicano il loro tempo libero a costruire e mantenere il codice sorgente contenuto al suo interno. Rendono il codice liberamente disponibile nella speranza che sia utile ad altri sviluppatori. Sarebbe estremamente ingiusto che subissero abusi o rabbia per il loro duro lavoro.
+
+Si prega di essere rispettosi nei confronti dei maintainer quando si sollevano issue o si presentano pull request. Mostriamo al mondo che gli sviluppatori sono persone civili e altruiste.
+
+È dovere del maintainer garantire che tutti i contributi al progetto siano di qualità sufficiente per beneficiare il progetto. Molti sviluppatori hanno competenze, punti di forza e debolezze diversi. Rispettate la decisione del maintainer e non siate arrabbiati o offensivi se il vostro contributo non viene utilizzato.
+
+## Viabilità
+
+Quando si richiedono o si propongono nuove funzionalità, considerare prima se potrebbero essere utili ad altri. I progetti open source sono utilizzati da molti sviluppatori, che potrebbero avere esigenze completamente diverse dalle proprie. Pensate se la vostra funzionalità è probabile che venga utilizzata da altri utenti del progetto.
+
+## Procedura
+
+Prima di segnalare un issue:
+
+- Tentare di replicare il problema, per assicurarsi che non sia stato un incidente occasionale.
+- Verificare che il suggerimento di funzionalità non sia già presente nel progetto.
+- Controllare la scheda delle pull request per assicurarsi che il bug non abbia già una correzione in corso.
+- Controllare la scheda delle pull request per assicurarsi che la funzionalità non sia già in corso.
+
+Prima di inviare una pull request:
+
+- Controllare il codebase per assicurarsi che la funzionalità non esista già.
+- Controllare le pull request per assicurarsi che nessun altro abbia già inviato la funzionalità o la correzione.
+
+## Requisiti
+
+Se il maintainer del progetto ha requisiti aggiuntivi, li troverete elencati qui.
+
+- **[PSR-2 Coding Standard](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-2-coding-style-guide.md)** - Il modo più semplice per applicare le convenzioni è installare [PHP Code Sniffer](https://pear.php.net/package/PHP_CodeSniffer).
+
+- **Aggiungere test!** - La vostra patch non sarà accettata se non ha test.
+
+- **Documentare qualsiasi cambiamento nel comportamento** - Assicurarsi che il `README.md` e qualsiasi altra documentazione rilevante siano mantenuti aggiornati.
+
+- **Considerare il nostro ciclo di rilascio** - Cerchiamo di seguire [SemVer v2.0.0](https://semver.org/). Rompere casualmente le API pubbliche non è un'opzione.
+
+- **Una pull request per funzionalità** - Se si vuole fare più di una cosa, inviare più pull request.
+
+- **Inviare una cronologia coerente** - Assicurarsi che ogni singolo commit nella pull request sia significativo. Se si sono dovuti fare più commit intermedi durante lo sviluppo, si prega di [schiacciarli](https://www.git-scm.com/book/en/v2/Git-Tools-Rewriting-History#Changing-Multiple-Commit-Messages) prima di inviare.
+
+**Buon coding**!
+
+---
+
 # Contributing
 
 Contributions are **welcome** and will be fully **credited**.

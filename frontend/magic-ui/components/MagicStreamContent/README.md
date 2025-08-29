@@ -1,3 +1,60 @@
+# MagicStreamContent Componente di Contenuto in Streaming Magico 🪄
+
+MagicStreamContent è un componente per visualizzare contenuti in streaming, che simula l'effetto di digitazione, mostrando il testo parola per parola, offrendo agli utenti un'esperienza di lettura dinamica. Questo componente è particolarmente adatto per risposte di chatbot, generazione di codice e altri scenari che richiedono una presentazione graduale dei contenuti.
+
+## Proprietà
+
+| Nome Proprietà | Tipo                              | Valore Predefinito | Descrizione                                     |
+| -------------- | --------------------------------- | ------------------ | ----------------------------------------------- |
+| content        | string                            | -                  | Il contenuto di testo da visualizzare in streaming |
+| children       | (text: string) => React.ReactNode | -                  | Funzione di rendering opzionale per personalizzare la modalità di rendering del contenuto |
+
+## Utilizzo Base
+
+```tsx
+import MagicStreamContent from '@/components/base/MagicStreamContent';
+
+// Utilizzo base - visualizzazione diretta del testo
+<MagicStreamContent content="Questo è un contenuto di testo visualizzato in streaming, che appare parola per parola, simulando l'effetto di digitazione." />
+
+// Utilizzo con funzione di rendering personalizzata
+<MagicStreamContent content="Questo è un contenuto di testo **con formato Markdown** .">
+  {(text) => <ReactMarkdown>{text}</ReactMarkdown>}
+</MagicStreamContent>
+
+// Utilizzo in un'interfaccia di chat
+<div className="chat-message">
+  <div className="avatar">
+    <img src="/bot-avatar.png" alt="Bot" />
+  </div>
+  <div className="message-content">
+    <MagicStreamContent content={botResponse} />
+  </div>
+</div>
+```
+
+## Caratteristiche ✨
+
+-   **Effetto Digitazione** ⌨️: Simula un processo di digitazione reale, mostrando il contenuto parola per parola
+-   **Aggiornamento in Streaming** 🔄: Supporta aggiornamenti incrementali del contenuto, adatto per risposte API in streaming
+-   **Rendering Personalizzato** 🎨: Tramite la funzione children è possibile personalizzare la modalità di rendering del contenuto
+-   **Transizione Fluida** 🌊: Mantiene un effetto visivo fluido quando si aggiunge nuovo contenuto
+-   **Leggero** ⚡: Implementazione del componente semplice, con basso impatto sulle prestazioni
+
+## Scenari di Utilizzo 📋
+
+-   Visualizzazione delle risposte di chatbot AI 🤖
+-   Visualizzazione dell'output di generatori di codice 💻
+-   Presentazione graduale di contenuti tutoriali e guidati 📖
+-   Visualizzazione dinamica di storie e narrazioni 📚
+-   Qualsiasi presentazione di contenuti graduali che richieda di catturare l'attenzione dell'utente 👀
+
+Il componente MagicStreamContent, attraverso la simulazione dell'effetto di digitazione, fornisce alle applicazioni un modo più vivace e coinvolgente per visualizzare i contenuti, particolarmente adatto per scenari che richiedono un senso di interazione in tempo reale.
+
+---
+
+**Testo Originale (Cinese):**
+
 # MagicStreamContent 魔法流式内容组件
 
 MagicStreamContent 是一个用于展示流式内容的组件，它能够模拟打字效果，逐字显示文本内容，为用户提供动态的阅读体验。该组件特别适用于聊天机器人回复、代码生成等需要渐进式展示内容的场景。

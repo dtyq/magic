@@ -1,3 +1,142 @@
+# 🔍 Nodo Recupero Conoscenza
+
+## ❓ Cosa è il Nodo Recupero Conoscenza?
+
+Il nodo recupero conoscenza è uno strumento potente di ricerca semantica, capace di cercare contenuti rilevanti nella knowledge base Magic specificata basandosi sulle parole chiave inserite dall'utente. Questo nodo utilizza la tecnologia di matching di similarità vettoriale per aiutare a localizzare rapidamente i frammenti di conoscenza necessari, realizzando un recupero e un'applicazione efficiente della conoscenza.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo recupero conoscenza include principalmente l'area di selezione knowledge base, l'area di impostazione parametri di ricerca e l'area di configurazione output. È possibile selezionare la fonte della knowledge base al centro e impostare parametri come soglia di similarità, numero massimo, ecc.
+![Nodo Recupero Conoscenza](https://cdn.letsmagic.cn/static/img/Knowledge-retrieval-node.png)
+
+## 🎯 Perché Serve il Nodo Recupero Conoscenza?
+Nel processo di costruzione di applicazioni intelligenti, il nodo recupero conoscenza risolve i seguenti problemi chiave:
+- **Acquisizione Conoscenza Professionale**: Permettere all'AI di ottenere e utilizzare documenti, materiali o conoscenze professionali interne all'azienda
+- **Migliorare Accuratezza Risposte**: Attraverso il recupero di informazioni rilevanti, rendere le risposte AI più accurate e professionali, ridurre risposte "immaginate" o obsolete
+- **Aggiornabilità Conoscenze**: È possibile ottenere contenuti di conoscenza aggiornati, risolvere la limitazione della data di cutoff delle conoscenze dei modelli grandi
+- **Contenuti Personalizzati**: Fornire risposte di conoscenza mirate in base alle esigenze specifiche dell'utente
+- **Ridurre Costi Addestramento**: Non è necessario riaddestrare il modello per ogni nuova conoscenza, basta aggiornare la knowledge base
+
+## 📋 Scenari Applicabili
+### 1. 🏢 Sistema Domande e Risposte Interne Aziendali
+Costruire un assistente capace di rispondere a domande su policy aziendali, processi, informazioni prodotto, ecc., aiutare i nuovi dipendenti a comprendere rapidamente le informazioni aziendali o assistere i dipendenti esperti nella consultazione delle ultime disposizioni.
+### 2. 🤖 Robot Assistente Clienti Professionale
+Creare un robot assistente clienti capace di rispondere con precisione a domande su prodotti, risoluzione problemi, guide d'uso, ecc., migliorare la qualità e l'efficienza del servizio clienti.
+### 3. 📄 Assistente Intelligente Documenti
+Progettare un assistente intelligente capace di comprendere e rispondere a contenuti di documenti specifici, come interpretazione manuali prodotto, spiegazione termini contrattuali, analisi rapporti di ricerca, ecc.
+### 4. 🎓 Sistema Tutoraggio Didattico
+Costruire un sistema di tutoraggio capace di rispondere a domande di apprendimento basate su materiali didattici, fornire spiegazioni di conoscenza, aiutare gli studenti a comprendere meglio concetti complessi.
+
+## ⚙️ Spiegazione Parametri Nodo
+### Parametri Base
+|Nome Parametro|Spiegazione|Obbligatorio|Valore Default|
+|---|---|---|---|
+|Knowledge Base|Selezionare la knowledge base da ricercare, è possibile scegliere una o più|Sì|Nessuna|
+|Parole Chiave Ricerca|Parole chiave o domanda per la ricerca, utilizzate per trovare contenuti rilevanti|Sì|Nessuna|
+|Similarità Minima|Impostare il requisito di similarità minima per il matching della conoscenza, range 0~1|-|0.4|
+|Numero Massimo Richiami|Numero massimo di risultati da restituire|-|5|
+
+### Parametri Avanzati
+### Contenuto Output
+|Campo Output|Spiegazione|
+|---|---|
+|Lista Frammenti (fragments)|Lista dei frammenti di conoscenza recuperati, contenenti contenuto e informazioni di similarità|
+|Set Risultati Richiamati (similarities)|Lista dei punteggi di similarità di ciascun frammento|
+|total_count|Quantità totale di frammenti di conoscenza recuperati|
+
+## 📖 Istruzioni per l'Uso
+### Passi di Configurazione Base
+1. **Selezionare Knowledge Base**：
+    1. Cliccare sul menu a tendina della knowledge base, selezionare una o più knowledge base da ricercare
+    2. È possibile scegliere knowledge base pubbliche o knowledge base dedicate create autonomamente
+2. **Impostare Parole Chiave Ricerca**：
+    1. Inserire le parole chiave o la domanda per la ricerca
+    2. È possibile inserire direttamente testo fisso, come "Qual è la policy aziendale per le ferie annuali?"
+    3. È anche possibile utilizzare riferimento variabili per contenuti dinamici, come `user_question}}` per fare riferimento alla domanda effettiva dell'utente
+3. **Regolare Similarità Minima**：
+    1. Trascinare il cursore per impostare la soglia di similarità (tra 0.01 e 0.99)
+    2. Valore più alto richiede matching più preciso, ma potrebbe perdere contenuti rilevanti
+    3. Valore più basso include più contenuti rilevanti, ma potrebbe mostrare risultati non molto correlati
+4. **Impostare Numero Massimo Richiami**：
+    1. Impostare il numero massimo di risultati da restituire in base alle esigenze
+    2. Si consiglia 3-5 elementi, per fornire informazioni sufficienti senza eccedere
+
+### Tecniche Avanzate
+#### Ottimizzazione Effetto Ricerca
+1. **Migliorare Precisione Ricerca**：
+    1. Utilizzare domande chiare e specifiche piuttosto che parole chiave generiche
+    2. Aumentare la soglia di similarità (come 0.7 o superiore) per ottenere matching più precisi
+    3. Selezionare knowledge base specializzate per temi specifici piuttosto che knowledge base generali
+2. **Aumentare Copertura Ricerca**：
+    1. Utilizzare molteplici knowledge base correlate contemporaneamente
+    2. Abbassare appropriatamente la soglia di similarità (come 0.5 circa)
+    3. Aumentare il numero massimo di restituzioni
+
+#### Collaborazione con Altri Nodi
+1. **In Combinazione con Nodo Chiamata Modello Grande**：
+    1. Fornire i risultati di ricerca come contesto al modello grande
+    2. Permettere al modello grande di generare risposte più accurate basate sulla conoscenza recuperata
+2. **In Combinazione con Nodo Ramo Condizionale**：
+    1. Verificare se sono stati trovati contenuti rilevanti (lunghezza fragments > 0)
+    2. Se ci sono risultati, fornire risposta professionale
+    3. Se non ci sono risultati, passare a risposta generica o servizio umano
+3. **In Combinazione con Nodo Salvataggio Variabili**：
+    1. Salvare i risultati di ricerca per l'utilizzo in molteplici nodi successivi
+    2. Evitare ricerche ripetute dello stesso contenuto, migliorare l'efficienza
+
+## ⚠️ Note di Attenzione
+### Qualità Knowledge Base
+L'effetto del recupero conoscenza dipende in larga misura dalla qualità della knowledge base:
+- Assicurarsi che i contenuti della knowledge base siano accurati, completi e aggiornati
+- Aggiornare regolarmente la knowledge base, eliminare informazioni obsolete
+- Classificare e taggare appropriatamente i contenuti di conoscenza, migliorare la precisione di ricerca
+
+### Efficienza Ricerca
+La ricerca in knowledge base di grandi dimensioni potrebbe influenzare le performance:
+- Cercare di selezionare la knowledge base più correlata alla domanda, piuttosto che ricercare in tutte le knowledge base
+- Impostare ragionevolmente il numero massimo, evitare di restituire troppi risultati non necessari
+- Considerare di mettere in cache i risultati di ricerca per domande comuni, migliorare la velocità di risposta
+
+### Privacy e Sicurezza
+La knowledge base potrebbe contenere informazioni sensibili:
+- Assicurarsi che le impostazioni dei permessi di accesso alla knowledge base siano corrette
+- Evitare di esporre contenuti di conoscenza sensibili in scenari pubblici
+- Applicare filtri di contenuto necessari ai risultati di ricerca
+
+## ❓ Domande Frequenti
+### Domanda 1: Cosa fare se non si riescono a recuperare contenuti rilevanti?
+**Soluzioni**：
+- Provare ad abbassare la soglia di similarità, ad esempio da 0.7 a 0.5
+- Riorganizzare la domanda di ricerca, utilizzare più parole chiave o espressioni più concise
+- Verificare se la knowledge base contiene contenuti correlati, aggiornare la knowledge base se necessario
+- Considerare di selezionare più knowledge base correlate per la ricerca
+
+### Domanda 2: Cosa fare se i risultati di ricerca includono troppi contenuti non rilevanti?
+**Soluzioni**：
+- Aumentare la soglia di similarità, ad esempio da 0.5 a 0.7 o superiore
+- Utilizzare descrizioni di domanda più precise
+- Restringere l'ambito della knowledge base, selezionare knowledge base più focalizzate su temi specifici
+- Ridurre il numero massimo di restituzioni
+
+### Domanda 3: Come gestire domande diversificate degli utenti?
+**Soluzioni**：
+- Utilizzare il nodo riconoscimento intento per analizzare prima il tipo di domanda dell'utente
+- Selezionare knowledge base diverse in base a tipi di domanda differenti
+- Configurare soglie di similarità e numeri massimi diversi
+- Combinare con il modello grande per integrare e ottimizzare i risultati di ricerca
+
+## 🌟 Migliori Pratiche
+### Nodi di Combinazione Comuni
+|Tipo di Nodo|Motivo di Combinazione|
+|---|---|
+|Nodo Chiamata Modello Grande|Fornire i risultati di ricerca come contesto al modello grande, generare risposte basate sulla conoscenza|
+|Nodo Ramo Condizionale|Decidere il flusso di elaborazione successivo in base ai risultati di ricerca|
+|Nodo Risposta Messaggio|Rispondere i contenuti di conoscenza elaborati all'utente|
+|Nodo Segmentazione Testo|Elaborare risultati di ricerca troppo lunghi, assicurarsi che siano adatti per l'elaborazione successiva|
+|Nodo Salvataggio Variabili|Salvare i risultati di ricerca per l'utilizzo in molteplici nodi|
+
+---
+
 # 知识检索节点
 
 ## 什么是知识检索节点？

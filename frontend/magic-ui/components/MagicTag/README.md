@@ -1,3 +1,56 @@
+# MagicTag Componente Etichetta Magica ✨
+
+`MagicTag` è una versione migliorata del componente Tag di Ant Design, che offre stili più belli e una migliore esperienza utente.
+
+## Proprietà
+
+| Nome Proprietà | Tipo | Valore Predefinito | Descrizione                          |
+| -------------- | ---- | ------------------ | ------------------------------------ |
+| ...TagProps    | -    | -                  | Supporta tutte le proprietà di Ant Design Tag |
+
+## Uso Base
+
+```tsx
+import { MagicTag } from '@/components/base/MagicTag';
+
+// Etichetta base
+<MagicTag>Contenuto Etichetta</MagicTag>
+
+// Etichetta chiudibile
+<MagicTag closable>Etichetta Chiudibile</MagicTag>
+
+// Etichetta con colore
+<MagicTag color="blue">Etichetta Blu</MagicTag>
+<MagicTag color="red">Etichetta Rossa</MagicTag>
+<MagicTag color="green">Etichetta Verde</MagicTag>
+<MagicTag color="orange">Etichetta Arancione</MagicTag>
+
+// Etichetta con icona
+<MagicTag icon={<IconStar />}>Etichetta con Icona</MagicTag>
+
+// Gestire evento di chiusura
+<MagicTag closable onClose={() => console.log('Etichetta chiusa')}>
+  Clicca per Chiudere
+</MagicTag>
+```
+
+## Caratteristiche
+
+1. **Stili Ottimizzati** ✨: Angoli più arrotondati, colori di riempimento più morbidi, aspetto generale più bello
+2. **Icona di Chiusura Personalizzata** 🔄: Utilizza il componente MagicIcon come icona di chiusura, per un effetto visivo più uniforme
+3. **Layout Flessibile** 📐: Utilizza layout flex interno, assicurando l'allineamento centrato del contenuto
+4. **Design Senza Bordi** 🎨: Utilizza bordi trasparenti per default, rendendo le etichette più moderne
+
+## Quando Usare
+
+- Quando devi mostrare dati etichettati 📋
+- Quando devi classificare dati 🏷️
+- Quando devi mostrare stati o attributi 📊
+- Quando gli utenti devono aggiungere o rimuovere etichette ✏️
+
+Il componente MagicTag rende la presentazione delle tue etichette più bella e uniforme, mantenendo tutte le funzionalità di Ant Design Tag.
+
+## Testo Originale
 # MagicTag 魔法标签组件
 
 `MagicTag` 是一个基于 Ant Design Tag 组件的增强版标签，提供了更美观的样式和更好的用户体验。

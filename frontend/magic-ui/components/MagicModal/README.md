@@ -1,3 +1,114 @@
+# MagicModal 🪄 Componente Modale Magico
+
+`MagicModal` è una versione migliorata del componente Modal di Ant Design, che offre stili più belli e supporto per l'internazionalizzazione.
+
+## Proprietà
+
+| Nome Proprietà | Tipo | Valore Predefinito | Descrizione                          |
+| -------------- | ---- | ------------------ | ------------------------------------ |
+| ...ModalProps  | -    | -                  | Supporta tutte le proprietà del Modal di Ant Design |
+
+## Metodi Statici
+
+MagicModal fornisce gli stessi metodi statici del Modal di Ant Design, ma con supporto per l'internazionalizzazione e ottimizzazioni di stile:
+
+-   `MagicModal.confirm(config)` - Dialogo di conferma ✅
+-   `MagicModal.info(config)` - Dialogo informativo ℹ️
+-   `MagicModal.success(config)` - Dialogo di successo 🎉
+-   `MagicModal.error(config)` - Dialogo di errore ❌
+-   `MagicModal.warning(config)` - Dialogo di avviso ⚠️
+
+## Uso Base
+
+```tsx
+import { MagicModal } from "@/components/base/MagicModal"
+import { useState } from "react"
+
+// Dialogo base
+const MyComponent = () => {
+	const [isModalOpen, setIsModalOpen] = useState(false)
+
+	return (
+		<>
+			<button onClick={() => setIsModalOpen(true)}>Apri Dialogo</button>
+			<MagicModal
+				title="Titolo del Dialogo"
+				open={isModalOpen}
+				onOk={() => setIsModalOpen(false)}
+				onCancel={() => setIsModalOpen(false)}
+			>
+				<p>Questo è il contenuto del dialogo</p>
+			</MagicModal>
+		</>
+	)
+}
+
+// Usando metodi statici
+const showConfirm = () => {
+	MagicModal.confirm({
+		title: "Conferma Operazione",
+		content: "Sei sicuro di voler eseguire questa operazione?",
+		onOk() {
+			console.log("L'utente ha cliccato conferma")
+		},
+		onCancel() {
+			console.log("L'utente ha cliccato annulla")
+		},
+	})
+}
+
+// Suggerimento informativo
+const showInfo = () => {
+	MagicModal.info({
+		title: "Suggerimento Informativo",
+		content: "Questa è un'informazione importante",
+	})
+}
+
+// Suggerimento di successo
+const showSuccess = () => {
+	MagicModal.success({
+		title: "Operazione Riuscita",
+		content: "I dati sono stati salvati con successo",
+	})
+}
+
+// Suggerimento di errore
+const showError = () => {
+	MagicModal.error({
+		title: "Operazione Fallita",
+		content: "Errore durante il salvataggio dei dati",
+	})
+}
+
+// Suggerimento di avviso
+const showWarning = () => {
+	MagicModal.warning({
+		title: "Avviso",
+		content: "Questa operazione potrebbe causare perdita di dati",
+	})
+}
+```
+
+## Caratteristiche
+
+1. **Stili Ottimizzati** 🎨: Testata, area contenuto e piè di pagina hanno ottimizzazioni di stile specifiche
+2. **Icone Personalizzate** 🖼️: Fornisce icone personalizzate per dialoghi di tipo info, ecc.
+3. **Ottimizzazioni Stile Pulsanti** 🔘: I pulsanti del dialogo hanno stili e esperienze interattive migliori
+
+## Quando Usare
+
+-   Quando hai bisogno che l'utente gestisca transazioni senza interrompere il flusso di lavoro con un reindirizzamento pagina 📄
+-   Quando devi mostrare suggerimenti di sistema 💬
+-   Quando devi mostrare feedback in forma di dialogo 📢
+-   Quando devi eseguire conferme utente ✅
+
+Il componente MagicModal rende i tuoi dialoghi più belli e user-friendly, fornendo al contempo supporto completo per l'internazionalizzazione.
+
+---
+
+## Testo Originale (Cinese e Inglese)
+
 # MagicModal 魔法对话框组件
 
 `MagicModal` 是一个基于 Ant Design Modal 组件的增强版对话框，提供了更美观的样式和国际化支持。

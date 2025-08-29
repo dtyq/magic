@@ -1,3 +1,157 @@
+# 💾 Nodo Salvataggio Variabili
+
+## ❓ Che Cos'è il Nodo Salvataggio Variabili?
+
+Il nodo Salvataggio Variabili è un nodo di elaborazione dati di base in Magic Flow, utilizzato per creare, impostare o aggiornare variabili nel flusso di lavoro. Questo nodo aiuta a memorizzare dati temporanei nel flusso, per l'utilizzo nei nodi successivi, realizzando passaggio e condivisione dati tra nodi diversi.
+
+**Spiegazione Interfaccia:**
+
+L'interfaccia del nodo Salvataggio Variabili è composta da area impostazioni informazioni base variabile a sinistra e area configurazione valore variabile a destra. Qui puoi impostare nome variabile, nome visualizzato, selezionare tipo variabile e assegnare valori specifici alla variabile.
+![Nodo Salvataggio Variabili](https://cdn.letsmagic.cn/static/img/Variable-saving.png)
+
+## 🤔 Perché Serve il Nodo Salvataggio Variabili?
+
+Nella costruzione di flussi di lavoro, spesso necessitiamo di memorizzare temporaneamente alcuni dati, come input utente, risultati di calcolo o stati intermedi, per utilizzarli in diverse fasi del flusso di lavoro. Il nodo Salvataggio Variabili è progettato proprio per soddisfare questa esigenza. Può:
+- Creare nuove variabili o aggiornare valori di variabili esistenti
+- Supportare molteplici tipi di dati, soddisfacendo diverse esigenze di memorizzazione
+- Fornire supporto dati per altri nodi nel flusso di lavoro
+- Realizzare passaggio e condivisione dati all'interno del flusso di lavoro
+
+## 🎯 Scenari Applicabili
+
+### Scenario 1: Memorizzazione Input Utente
+Quando necessiti di registrare informazioni fornite dall'utente nella conversazione (come nome, età, preferenze, ecc.), puoi utilizzare il nodo Salvataggio Variabili per salvare queste informazioni, per l'utilizzo nei nodi successivi.
+
+### Scenario 2: Salvataggio Risultati di Calcolo Intermedi
+In flussi di lavoro complessi, potresti necessitare di elaborazioni dati multi-step. Il nodo Salvataggio Variabili può aiutarti a memorizzare i risultati di calcolo di ogni step, evitando calcoli ripetuti.
+
+### Scenario 3: Controllo Dinamico Direzione Flusso di Lavoro
+Puoi utilizzare il nodo Salvataggio Variabili per memorizzare flag o valori di stato, poi utilizzare questi valori variabili nel nodo ramificazione condizionale per decidere il percorso di esecuzione del flusso di lavoro.
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+I parametri del nodo Salvataggio Variabili si dividono principalmente in due parti: informazioni base variabile e impostazioni valore variabile.
+
+### Informazioni Base Variabile
+|Nome Parametro|Descrizione|Obbligatorio|Valore Esempio|
+|---|---|---|---|
+|Nome Variabile|Identificatore univoco della variabile, può contenere solo lettere, numeri e trattini bassi, utilizzato per riferimento della variabile in codice o altri nodi|Sì|user_name|
+|Nome Visualizzato|Nome della variabile leggibile dall'uomo, rende più facile il riconoscimento nel flusso di lavoro|No|Nome Utente|
+|Tipo Variabile|Tipo di dati della variabile, determina che tipo di dati può memorizzare la variabile|Sì|Stringa|
+|Valore Variabile|Imposta il valore della variabile, può essere valore fisso o ottenuto da output di altri nodi|Sì|Valore Fisso|
+
+### Opzioni Tipo Variabile
+**Il nodo Salvataggio Variabili supporta i seguenti tipi di variabile comuni:**
+1. **Stringa** - Utilizzata per memorizzare contenuto testuale
+2. **Numero** - Utilizzata per memorizzare interi o decimali
+3. **Valore Booleano** - Utilizzata per memorizzare valori binari sì/no, vero/falso
+4. **Array** - Utilizzata per memorizzare collezione di molteplici valori
+5. **Oggetto** - Utilizzata per memorizzare strutture dati complesse con molteplici coppie chiave-valore
+
+### Impostazioni Valore Variabile
+**Le modalità di impostazione del valore variabile differiscono secondo il tipo di variabile selezionato:**
+- **Stringa**: Puoi input diretto testo o riferimento altre variabili
+- **Numero**: Input valore numerico o espressione matematica
+- **Valore Booleano**: Seleziona "Vero" o "Falso"
+- **Array**: Aggiungi molteplici elementi, ogni elemento può essere di tipo diverso
+- **Oggetto**: Aggiungi molteplici coppie chiave-valore, specifica nome chiave e valore per ogni proprietà
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Aggiungi Nodo**: Nell'editor del flusso di lavoro, trova il nodo "Salvataggio Variabili" dal pannello nodi a sinistra, trascinalo nella posizione appropriata del canvas del flusso di lavoro.
+2. **Imposta Nome Variabile**: Nel pannello proprietà a destra, specifica un nome significativo per la variabile, si consiglia utilizzo lettere minuscole con trattini bassi, come `user_age`.
+3. **Aggiungi Nome Visualizzato (Opzionale)**: Input nome facilmente comprensibile in italiano, come "Età Utente".
+4. **Seleziona Tipo Variabile**: Secondo il tipo di dati da memorizzare, seleziona il tipo di variabile appropriato.
+5. **Imposta Valore Variabile**: Secondo il tipo di variabile selezionato, imposta il valore specifico della variabile.
+6. **Connetti Nodi**: Connetti il nodo Salvataggio Variabili con altri nodi nel flusso di lavoro, formando un flusso di elaborazione completo.
+
+### Tecniche Avanzate
+#### Utilizzo Espressioni per Impostare Valori Variabile
+Puoi utilizzare espressioni per calcolare dinamicamente valori variabile:
+1. Seleziona "Espressione" come tipo valore
+2. Utilizza `${nome_variabile}` per riferimento variabili esistenti
+3. Combina molteplici variabili o applica calcoli semplici, come `${price} * ${quantity}`
+
+#### Creazione Strutture Dati Annidate
+Per dati complessi:
+1. Utilizza tipo oggetto per creare strutture con molteplici proprietà
+2. All'interno dell'oggetto puoi annidare array o altri oggetti
+3. Ad esempio creazione profilo utente:
+```javascript
+{
+  "informazioni_base": {
+    "nome": "${user_name}",
+    "età": ${user_age}
+  },
+  "preferenze": ["${preference1}", "${preference2}"]
+}
+```
+
+#### Impostazione Variabile Condizionale
+In combinazione con nodi ramificazione condizionale e nodi salvataggio variabili:
+1. Utilizza diversi nodi salvataggio variabili in rami condizionali diversi
+2. Secondo le condizioni imposta valori diversi per la stessa variabile
+3. Nel flusso successivo utilizza questa variabile per prendere decisioni
+
+## ⚠️ Note Importanti
+
+### Norme Denominazione Variabili
+1. **Utilizza Nomi Significativi**: I nomi variabile dovrebbero esprimere chiaramente il loro scopo, come `total_price` invece di semplice `tp`
+2. **Evita Caratteri Speciali**: Utilizza solo lettere, numeri e trattini bassi
+3. **Evita Parole Riservate**: Non utilizzare parole riservate JavaScript come nomi variabile
+4. **Mantieni Stile Consistente**: O tutto camelCase (come `userName`), o tutto trattini bassi (come `user_name`)
+
+### Ambito Variabili
+1. **Variabili Globali**: Le variabili create nel flusso di lavoro sono disponibili in tutto il flusso di lavoro
+2. **Sovrascrittura Variabili**: Variabili omonime verranno sovrascritte dai nuovi valori, presta attenzione ad evitare sovrascritture involontarie
+3. **Variabili Sottoprocesso**: Le variabili del flusso principale non vengono automaticamente passate ai sottoprocessi, necessitano passaggio parametri esplicito
+
+### Considerazioni Performance
+1. **Evita Memorizzazione Grandi Quantità Dati**: Le variabili non sono adatte per memorizzare grandi dataset, questo potrebbe influenzare le prestazioni del flusso di lavoro
+2. **Pulizia Variabili Temporanee**: Variabili temporanee non più necessarie possono essere impostate a null, liberando memoria
+3. **Semplificazione Struttura Variabili**: Oggetti annidati troppo complessi potrebbero influenzare leggibilità e manutenibilità
+
+## ❓ Problemi Comuni
+
+### Problema 1: Perché la Mia Variabile Non È Accessibile in Altri Nodi?
+**Soluzioni**:
+1. Conferma che il nome variabile sia scritto correttamente, presta attenzione a maiuscole/minuscole
+2. Verifica l'ordine di esecuzione del flusso di lavoro, assicurati che il nodo salvataggio variabili sia eseguito prima del riferimento alla variabile
+3. Verifica che la sintassi di riferimento variabile sia corretta, come `${nome_variabile}`
+4. Conferma che non ci siano variabili omonime sovrascritte involontariamente
+
+### Problema 2: Come Memorizzare Strutture Dati Complesse in una Variabile?
+**Soluzioni**:
+1. Utilizza tipo oggetto per creare strutture chiave-valore
+2. Utilizza tipo array per memorizzare dati lista
+3. All'interno dell'oggetto puoi annidare oggetti o array, creando strutture multilivello
+4. Per dati molto complessi, considera l'utilizzo del nodo esecuzione codice per l'elaborazione
+
+### Problema 3: Come Aggiornare Elementi Specifici in una Variabile di Tipo Array?
+**Soluzioni**:
+1. Utilizza il nodo esecuzione codice per ottenere la variabile array
+2. Modifica il valore nella posizione indice specifica
+3. Utilizza il nodo salvataggio variabili per salvare l'array aggiornato
+```javascript
+// Nel nodo esecuzione codice
+let myArray = context.variableGet("my_array", []);
+myArray[2] = "nuovo_valore";  // Aggiorna elemento con indice 2
+context.variableSave("my_array", myArray);
+```
+
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Esecuzione Codice|Effettua calcoli complessi e elaborazioni variabili|
+|Nodo Ramificazione Condizionale|Prende decisioni basate sui valori delle variabili|
+|Nodo Attesa|Memorizza informazioni di input utente|
+|Nodo Chiamata Modello Grande|Salva risultati di elaborazione del modello grande|
+|Nodo Richiesta HTTP|Memorizza dati di risposta API|
+
+---
+
 # 变量保存节点
 
 ## 什么是变量保存节点？

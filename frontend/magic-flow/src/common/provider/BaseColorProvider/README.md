@@ -1,3 +1,44 @@
+# Gestione dei Colori di Base del Progetto 🌈
+
+## Distinguere scales e usages
+
+Gli usages sono variabili di livello business basate su scales di livello business. 🎨
+
+## Tipi
+
+Per i dettagli, consulta il file `src/utils/palettes.ts`. 📁
+
+## Come Ottenere le Variabili di Colore di Base Globali
+
+### Ottenere in createStyles
+
+```tsx
+const useStyles = createStyles(({ token }) => {
+	return {
+		main: {
+			color: token.magicColorUsages.white,
+		},
+	}
+})
+```
+
+### Ottenere tramite Hook
+
+```tsx
+import { useBaseColor } from "@/components/providers/BaseColorProvider/hooks"
+
+export default function Comp() {
+	// ...
+
+	const { colorScales, colorUsages } = useBaseColor()
+
+	// ...
+}
+```
+
+---
+
+## Testo Originale (Cinese e Inglese)
 # 项目基础颜色管理
 
 ## 区分 scales 和 usages

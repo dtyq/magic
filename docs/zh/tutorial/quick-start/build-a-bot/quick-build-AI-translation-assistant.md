@@ -1,3 +1,73 @@
+# ⚡ Costruzione Rapida Assistente AI Traduzione
+
+Con il continuo sviluppo delle tecnologie di intelligenza artificiale, i modelli linguistici di grandi dimensioni hanno mostrato prestazioni eccellenti in termini di qualità traduzione, efficienza, comprensione contesto e supporto multilingue. Pertanto, sempre più persone iniziano a utilizzare modelli grandi per costruire rapidamente i propri assistenti traduzione, utilizzati per traduzione testi, migliorando l'efficienza e riducendo i costi.
+
+Questo tutorial introdurrà in dettaglio come costruire rapidamente un assistente AI sulla piattaforma Magic.
+
+# 🤖 Introduzione Assistente Traduzione AI
+Hai solo bisogno di impostare la lingua traduzione target nelle impostazioni assistente AI, poi puoi fornire direttamente il testo da tradurre all'assistente AI attraverso la conversazione. L'assistente AI restituirà direttamente la lingua tradotta dal modello grande, efficiente e veloce.
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-1.png)
+
+## 1. 🎯 Progettazione Effetto Previsto
+La funzionalità core di questa applicazione traduzione AI è soddisfare le esigenze di traduzione testi degli utenti. Non necessita introduzioni testo aggiuntive, l'utente inserisce il contenuto da tradurre, restituisce direttamente il testo traduzione corrispondente. La funzionalità traduzione può essere realizzata creando workflow, includendo nodi modello grande.
+
+Basandosi sugli obiettivi scenario sopra, il workflow che progettiamo includerà i seguenti nodi:
+1. Nodo input utente
+2. Impostazione messaggio benvenuto assistente AI
+3. Nodo che riceve input utente e traduce attraverso modello grande
+4. Nodo che output contenuto traduzione
+
+## 2. 🛠️ Creazione Assistente Traduzione AI
+1. Accedi alla piattaforma [Magic](https://www.letsmagic.cn/login). (Se utilizzi deployment privato, accedi alla corrispondente piattaforma deployment privato)
+2. Clicca sul menu laterale sinistro "Assistente AI", poi clicca su "Crea Assistente AI" a destra
+3. Carica immagine assistente, compila nome e introduzione assistente
+4. Clicca "Crea", entra con successo nell'interfaccia orchestrazione workflow assistente AI
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-2.png)
+
+## 3. 🔄 Orchestrazione Workflow
+### 1. Clicca crea "Nodo Iniziale"
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-3.png)
+
+### 2. Nell'area "Quando aggiungi come amico", clicca "cerchietto piccolo" aggiungi nodo risposta messaggio, aggiungi messaggio benvenuto corrispondente
+> Ciao <font color="#2045D4">@Nodo Iniziale/Nickname Utente</font>,
+Sono il tuo assistente traduzione inglese dedicato. Puoi dirmi direttamente qualsiasi testo necessiti traduzione, ti fornirò la traduzione localizzata più autentica il più velocemente possibile.
+
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-4.png)
+
+### 3. Quando ricevi nuovo messaggio aggiungi "Nodo Chiamata Modello Grande"
+3.1. Nell'area modello, seleziona nodo modello grande supportato, altri parametri rimangono invariati, contemporaneamente attiva capacità comprensione visiva (selezione predefinita GPT-4)
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-5.png)
+
+3.2. Nell'area input, nel campo System compila il prompt del modello grande, nell'area User attraverso @ cita il contenuto utente del nodo precedente
+```
+#Ruolo
+Sei un traduttore inglese professionale, capace di tradurre accuratamente qualsiasi contenuto inserito dall'utente in inglese, senza espansioni arbitrarie.
+##Abilità
+###Abilità 1: Traduzione Testo
+- Quando l'utente fornisce un testo, traducilo rapidamente in inglese.
+- Garantisci accuratezza e fluidità della traduzione. Rendi la traduzione più localizzata possibile.
+- Qualsiasi lingua va bene, sia cinese, giapponese, malese, thailandese ecc., necessitano traduzione in inglese secondo la semantica.
+##Limitazioni:
+- Esegui solo lavoro traduzione, non rispondere a domande non correlate alla traduzione.
+- Segui rigorosamente la lingua target richiesta dall'utente, non modificare arbitrariamente.
+```
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-6.png)
+
+### 4. Aggiungi Nodo Risposta Messaggio
+4.1 Seleziona tipo messaggio come "Testo", nel contenuto messaggio attraverso @ cita il contenuto risposta modello grande restituito all'utente
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-7.png)
+
+### 5. Pubblica Assistente
+La pubblicazione è divisa in "Uso Personale" e "Interno Aziendale". La differenza sta nel fatto che uso personale è visibile utilizzabile solo da sé, mentre pubblicazione interno aziendale supporta più gestione permessi, come record numero versione, impostazione ambito visibilità, pubblicazione su piattaforme terze ecc. Questa volta pubblica selezionando direttamente "Uso Personale".
+5.1 Puoi conversare direttamente con l'assistente AI, ti aiuta rapidamente a tradurre diverse lingue in inglese
+![Screenshot Traduzione](https://cdn.letsmagic.cn/static/img/Translation-assistant-8.png)
+
+## 4. 📋 Importanti Spiegazioni
+### 1. Cosa sono i Prompt Sistema?
+I prompt sistema sono una serie di istruzioni che guidano il comportamento e l'ambito funzionale del modello. Possono includere come porre domande, come fornire informazioni, come richiedere funzionalità specifiche ecc. I prompt sistema sono anche utilizzati per impostare i confini della conversazione, come informare l'utente su quali tipi di domande o richieste non vengono accettate.
+
+---
+
 # 快速构建 AI 翻译助手
 
 随着人工智能技术的不断发展，大语言模型在翻译质量、效率、上下文理解以及多语言支持方面都展现出了出色的表现。因此，越来越多的人开始使用大模型快速构建自己的翻译助手，用于文本翻译，提高效率，降低成本。

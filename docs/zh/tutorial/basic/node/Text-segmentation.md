@@ -1,3 +1,99 @@
+# ✂️ Nodo ## 🤔 Perché Serve il Nodo Segmentazione Testo?
+
+Nell'elaborazione di grandi quantità di testo, il blocco di testo intero spesso è troppo grande, non conveniente per analisi precise e elaborazione. Il nodo Segmentazione Testo risolve questo problema:
+1. **Limitazioni Elaborazione Modello Grande**: I modelli di linguaggio di grandi dimensioni solitamente hanno limiti sulla quantità di caratteri in input, dopo la segmentazione possono essere elaborati in batch
+2. **Elaborazione Raffinata**: Dividere testi lunghi in piccoli frammenti, conveniente per elaborazioni raffinate su contenuti specifici
+3. **Migliorare l'Efficienza di Elaborazione**: Effettuare segmentazioni ragionevoli del testo, può migliorare l'efficienza di analisi ed elaborazione successive
+4. **Facilitare Archiviazione e Ricerca**: I frammenti di testo dopo la segmentazione sono più adatti all'archiviazione in sistemi come database vettoriali, migliorando la precisione di ricercatazione Testo
+## ❓ Che Cos'è il Nodo Segmentazione Testo?
+
+Il nodo Segmentazione Testo è un nodo di elaborazione dati speciale nel flusso di lavoro Magic, utilizzato principalmente per dividere testi lunghi secondo strategie specifiche in frammenti di testo più piccoli. Questo nodo è particolarmente utile nell'elaborazione di grandi quantità di dati testuali, potendo dividere contenuti testuali troppo lunghi in blocchi adatti all'elaborazione dei modelli grandi, migliorando efficienza e accuratezza dell'elaborazione.
+
+**Spiegazione Immagine:**
+
+L'interfaccia del nodo Segmentazione Testo è composta principalmente da aree di input e output. Nell'area di input, puoi specificare il contenuto testuale da segmentare o fare riferimento a variabili; nell'area di output, puoi scegliere il formato di output e impostare il nome della variabile risultato.
+![Nodo Segmentazione Testo](https://cdn.letsmagic.cn/static/img/Text-segmentation.png)
+
+## 为什么需要文本切割节点？
+在处理大量文本时，整块文本往往过于庞大，不便于精确分析和处理。文本切割节点解决了这个问题：
+1. **大模型处理限制**：大语言模型通常有输入字符数量限制，切割后可分批处理
+2. **精细化处理**：将长文本切割成小片段，便于针对特定内容进行精细处理
+3. **提高处理效率**：对文本进行合理切分，可以提高后续分析和处理的效率
+4. **便于存储和检索**：切割后的文本片段更适合存入向量数据库等系统，提高检索精度
+## 🎯 Scenari Applicabili
+
+### Scenario 1: Costruzione Knowledge Base Documenti Lunghi
+Quando necessiti di importare documenti lunghi (come manuali prodotto, report di ricerca) nella knowledge base, puoi prima utilizzare il nodo Segmentazione Testo per dividere il documento in frammenti di dimensione appropriata, poi importarli nel database vettoriale, questo può migliorare la precisione di ricerca successiva.
+
+### Scenario 2: Elaborazione Testi di Grande Scala
+Nell'elaborazione di report giornalistici, feedback clienti e altri testi di grande scala, puoi prima segmentare in paragrafi o frasi, poi analizzare uno per uno, estraendo informazioni chiave o tendenze sentimentali.
+
+### Scenario 3: Elaborazione Messaggi Storici Conversazione
+Nell'elaborazione di registrazioni storiche di conversazioni lunghe, puoi utilizzare il nodo Segmentazione Testo per segmentare i messaggi storici secondo tempo o tema, conveniente per analizzare il filo della conversazione o estrarre informazioni chiave.
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Parametri di Input
+|Nome Parametro|Descrizione|Obbligatorio|Tipo Parametro|Valore Esempio|
+|---|---|---|---|---|
+|Testo Lungo|Contenuto testuale da segmentare, può essere input diretto o riferimento variabile|Sì|Testo/Riferimento Variabile|"Questo è un contenuto testuale molto lungo..." oppure |
+
+### Parametri di Output
+|Nome Parametro|Descrizione|Tipo Parametro|Valore Esempio|
+|---|---|---|---|
+|Tipo Output|Formato di output del testo dopo segmentazione, può scegliere "Frammenti Testo" o "Array Stringhe"|Selezione|Frammenti Testo|
+|Nome Variabile Output|Imposta il nome della variabile del risultato di output, per utilizzo nei nodi successivi|Testo|split_texts|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Aggiungi Nodo Segmentazione Testo**: Nell'editor del flusso di lavoro, trascina il nodo Segmentazione Testo nel canvas
+2. **Configura Testo di Input**:
+    1. Input diretto del contenuto testuale nel box di input, oppure
+    2. Clicca il pulsante "@" per selezionare dalla lista dropdown la variabile contenente testo (come output del nodo precedente)
+3. **Imposta Formato di Output**:
+    1. Scegli "Frammenti Testo": formato di output è il formato standard utilizzato internamente dal sistema, adatto per operazioni successive come ricerca vettoriale
+    2. Scegli "Array Stringhe": output è array di testo ordinario, adatto per elaborazioni e visualizzazioni generali
+4. **Imposta Nome Variabile Output**: Input un nome di variabile significativo, come "split_texts", conveniente per riferimento nei nodi successivi
+5. **Connetti Nodi Successivi**: Connetti il nodo Segmentazione Testo con nodi di elaborazione successivi, formando un flusso di lavoro completo
+
+### Tecniche Avanzate
+1. **Input Combinazione Variabili**: Puoi combinare molteplici variabili in un testo lungo per poi segmentarlo, ad esempio: `@input_utente + "\n\n" + @storico`
+2. **Combinazione con Giudizio Condizionale**: Puoi impostare nodi condizionali, effettuando segmentazione solo quando la lunghezza del testo supera un certo valore
+3. **Elaborazione Batch**: In combinazione con nodi ciclo, puoi elaborare in batch molteplici input testuali
+## ⚠️ Note Importanti
+
+### Limitazioni Lunghezza Testo
+Quando il testo di input è troppo lungo, potrebbe influenzare le prestazioni del sistema. Si consiglia di effettuare pre-elaborazione o importazione a frammenti per testi particolarmente lunghi (come documenti superiori a 10MB).
+
+### Impatto Qualità Segmentazione
+La qualità della segmentazione testo influenza direttamente l'effetto di elaborazione successiva. Il sistema attualmente adotta strategia di segmentazione fissa, in futuro verranno aperti più scelte di strategia di segmentazione.
+
+### Norme Denominazione Variabili
+Imposta nomi significativi per le variabili di output, evita l'utilizzo di nomi generici come "result", per evitare confusione nell'output di nodi diversi in flussi di lavoro complessi.
+## ❓ Problemi Comuni
+
+### Problema 1: Dopo la Segmentazione Testo i Frammenti Sono Troppi, Come Gestirli?
+**Soluzioni**:
+1. Considera di filtrare i frammenti dopo segmentazione, mantenendo solo contenuti importanti
+2. In combinazione con nodi ciclo elabora questi frammenti in batch
+3. Nei nodi successivi imposta limiti di elaborazione, come elaborare solo i primi N frammenti
+
+### Problema 2: Dopo la Segmentazione i Frammenti di Testo Perdono Correlazione Contestuale, Come Mantenere Coerenza Semantica?
+**Soluzioni**:
+1. Assicurati che la granularità di segmentazione sia appropriata, non segmentare troppo finemente
+2. Nell'elaborazione successiva, puoi considerare di introdurre contenuti di frammenti adiacenti come contesto
+3. Nell'utilizzo di modelli grandi per l'elaborazione, puoi specificare chiaramente nella parola chiave che questi frammenti di testo sono correlati
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Parsing Documenti|Prima analizza documenti, poi effettua segmentazione testo|
+|Nodo Archiviazione Vettoriale|Archivia i frammenti di testo dopo segmentazione nel database vettoriale|
+|Nodo Chiamata Modello Grande|Analizza ed elabora i frammenti di testo dopo segmentazione|
+|Nodo Ciclo|Elabora in batch i molteplici frammenti di testo dopo segmentazione|
+
+---
+
 # 文本切割节点
 ## 什么是文本切割节点？
 文本分割节点是Magic工作流中的一个特殊数据处理节点，主要用于将长文本按照特定策略分割成更小的文本片段。这个节点在处理大量文本数据时特别有用，能够将过长的文本内容切分成适合大模型处理的小块，提高处理效率和准确性。
@@ -10,7 +106,7 @@
 ## 为什么需要文本切割节点？
 在处理大量文本时，整块文本往往过于庞大，不便于精确分析和处理。文本切割节点解决了这个问题：
 1. **大模型处理限制**：大语言模型通常有输入字符数量限制，切割后可分批处理
-2. **精细化处理**：将长文本切割成小片段，便于针对特定内容进行精细处理
+2. **精细化处理**：将长文本切割成小段，便于针对特定内容进行精细处理
 3. **提高处理效率**：对文本进行合理切分，可以提高后续分析和处理的效率
 4. **便于存储和检索**：切割后的文本片段更适合存入向量数据库等系统，提高检索精度
 ## 适用场景

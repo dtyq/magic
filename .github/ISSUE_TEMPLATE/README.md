@@ -1,3 +1,101 @@
+# Template Issue di Magic
+
+Questa directory contiene template per le issue del progetto Magic per aiutarti a segnalare problemi e richiedere funzionalità in modo efficace.
+
+**🇮🇹 Utenti Italiani**: Utilizza i template qui sotto senza il suffisso `-zh`.
+
+## Template Disponibili
+
+### 🐛 Segnalazione Bug (`01-bug-report.yml`)
+Utilizza questo template per segnalare bug o comportamenti inattesi in Magic.
+
+**Quando utilizzare:**
+- Magic non funziona come previsto
+- Incontri errori o crash
+- Le funzionalità si comportano in modo incorretto
+
+### ✨ Richiesta Funzionalità (`02-feature-request.yml`)
+Utilizza questo template per suggerire nuove funzionalità o miglioramenti.
+
+**Quando utilizzare:**
+- Hai un'idea per migliorare Magic
+- Hai bisogno di funzionalità che non esistono
+- Vuoi suggerire miglioramenti alle funzionalità esistenti
+
+### 📚 Documentazione (`03-documentation.yml`)
+Utilizza questo template per segnalare problemi di documentazione o suggerire miglioramenti.
+
+**Quando utilizzare:**
+- La documentazione è mancante, poco chiara o incorretta
+- Hai bisogno di esempi o tutorial migliori
+- La documentazione API necessita aggiornamenti
+
+### ⚡ Problema di Performance (`04-performance.yml`)
+Utilizza questo template per segnalare problemi di performance o suggerire ottimizzazioni.
+
+**Quando utilizzare:**
+- Magic funziona lentamente
+- Uso elevato delle risorse (CPU, memoria)
+- Gli endpoint API impiegano troppo tempo a rispondere
+
+### 🔒 Problema di Sicurezza (`05-security.yml`)
+Utilizza questo template per segnalare problemi di sicurezza non critici.
+
+**⚠️ IMPORTANTE:** Per vulnerabilità di sicurezza critiche, invia un'email direttamente a team@dtyq.com invece di creare un issue pubblico.
+
+**Quando utilizzare:**
+- Header di sicurezza mancanti
+- Dipendenze obsolete
+- Miglioramenti delle best practice di sicurezza
+
+### 🔌 Problema API / Integrazione (`06-api-integration.yml`)
+Utilizza questo template per segnalare problemi con API, SDK o integrazioni di terze parti.
+
+**Quando utilizzare:**
+- Gli endpoint API non funzionano correttamente
+- L'integrazione con servizi esterni fallisce
+- Problemi con SDK o librerie
+
+### 🚀 Problema di Deployment / Installazione (`07-deployment.yml`)
+Utilizza questo template per segnalare problemi con l'installazione o il deployment di Magic.
+
+**Quando utilizzare:**
+- Il processo di installazione fallisce
+- I container Docker non si avviano
+- Problemi di configurazione durante l'installazione
+
+## Come Scegliere il Template Giusto
+
+1. **Inizia con il tipo di issue** - Che tipo di problema stai riscontrando?
+2. **Considera il componente** - Quale parte di Magic è interessata?
+3. **Verifica la gravità** - Quanto è critico il problema?
+
+## Prima di Creare un'Issue
+
+1. **Cerca issue esistenti** - Verifica se il tuo problema è già stato segnalato
+2. **Leggi la documentazione** - Visita [docs.letsmagic.cn](https://docs.letsmagic.cn/en)
+3. **Prova l'ultima versione** - Assicurati di utilizzare la release più recente
+4. **Raccogli informazioni** - Raccogli log, messaggi di errore e dettagli dell'ambiente
+
+## Hai Bisogno di Aiuto?
+
+Se non sei sicuro di quale template utilizzare o hai bisogno di aiuto con Magic:
+
+- 💬 **Discussioni**: [GitHub Discussions](https://github.com/dtyq/magic/discussions)
+- 📖 **Documentazione**: [docs.letsmagic.cn](https://docs.letsmagic.cn/en) | [中文文档](https://docs.letsmagic.cn/zh)
+- 🌐 **Sito Web Ufficiale**: [letsmagic.ai](https://www.letsmagic.ai)
+- 📧 **Supporto Enterprise**: bd@dtyq.com
+
+## Contributi
+
+Accogliamo con favore i contributi! Consulta la nostra [Guida ai Contributi](../../CONTRIBUTING.md) per ulteriori informazioni su come contribuire a Magic.
+
+---
+
+Grazie per aiutare a migliorare Magic! 🔮
+
+---
+
 # Magic Issue Templates
 
 This directory contains issue templates for the Magic project to help you report issues and request features effectively.
@@ -92,4 +190,4 @@ We welcome contributions! Please see our [Contributing Guide](../../CONTRIBUTING
 
 ---
 
-Thank you for helping improve Magic! 🔮 
+Thank you for helping improve Magic! 🔮

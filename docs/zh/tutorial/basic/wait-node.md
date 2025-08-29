@@ -1,3 +1,105 @@
+# ⏳ Nodo Attesa
+
+Il nodo attesa è utilizzato per sospendere l'esecuzione del flusso fino al termine della durata specificata o al soddisfacimento di condizioni particolari.
+
+## 📋 Panoramica
+
+Il nodo attesa permette di controllare il tempo di esecuzione del flusso, utile per limitazione velocità, polling o coordinamento con sistemi esterni.
+
+## ⚙️ Configurazione
+
+### Impostazioni Base
+
+- **Nome**: Identificatore univoco del nodo
+- **Descrizione**: Descrizione opzionale dello scopo del nodo
+- **Tipo**: Impostato su "attesa" (sola lettura)
+
+### Impostazioni Attesa
+
+1. **Tipo Attesa**
+   - Durata fissa
+   - Fino al soddisfacimento condizione
+   - Fino all'ora specificata
+   - Fino all'occorrenza evento
+
+2. **Impostazioni Durata**
+   - Valore tempo
+   - Unità tempo (secondi, minuti, ore)
+   - Intervallo casuale (opzionale)
+
+3. **Impostazioni Condizione**
+   - Espressione
+   - Tempo timeout
+   - Opzioni retry
+
+## 💡 Esempi di Utilizzo
+
+### Attesa Durata Fissa
+
+```javascript
+// Esempio configurazione nodo attesa per durata fissa
+{
+  "type": "wait",
+  "config": {
+    "waitType": "duration",
+    "duration": 30,
+    "unit": "seconds"
+  }
+}
+```
+
+### Attesa Condizione
+
+```javascript
+// Esempio configurazione nodo attesa per condizione
+{
+  "type": "wait",
+  "config": {
+    "waitType": "condition",
+    "condition": "${context.data.status} === 'ready'",
+    "timeout": 300,
+    "retryInterval": 10
+  }
+}
+```
+
+## 🌟 Migliori Pratiche
+
+1. **Gestione Timeout**
+   - Impostare tempo timeout appropriato
+   - Gestire scenari timeout
+   - Registrare eventi timeout
+
+2. **Gestione Risorse**
+   - Evitare tempi attesa troppo lunghi
+   - Utilizzare intervalli appropriati
+   - Monitorare risorse sistema
+
+3. **Gestione Errori**
+   - Gestire errori valutazione condizione
+   - Registrare eventi attesa
+   - Fornire comportamento di fallback
+
+## ❓ Problemi Comuni
+
+1. **Problemi Timeout**
+   - Controllare sintassi condizione
+   - Validare valori timeout
+   - Monitorare carico sistema
+
+2. **Esaurimento Risorse**
+   - Limitare attese concorrenti
+   - Utilizzare intervalli appropriati
+   - Monitorare risorse sistema
+
+## 🔗 Nodi Correlati
+
+- [Nodo Iniziale](./start-node.md)
+- [Nodo Risposta](./reply-node.md)
+- [Nodo Finale](./end-node.md)
+
+---
+
 # 等待节点
 
 等待节点用于暂停流程的执行，直到指定的持续时间结束或满足特定条件。

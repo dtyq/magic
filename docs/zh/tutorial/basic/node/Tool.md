@@ -1,3 +1,143 @@
+# 🔧 Nodo Strumento
+
+## ❓ Che Cos'è il Nodo Strumento?
+
+Il nodo Strumento è un nodo potente in Magic Flow che permette di richiamare e utilizzare vari strumenti preimpostati nel flusso di lavoro. Come un coltellino svizzero multifunzione, il nodo Strumento aiuta a eseguire compiti specifici, come elaborazione dati, ricerca informazioni o operazioni automatizzate. Puoi utilizzare questi strumenti in due modi: attraverso descrizione in linguaggio naturale (chiamata modello grande) o impostazione diretta parametri (chiamata parametri), soddisfacendo diverse esigenze di scenario.
+
+**Spiegazione Interfaccia:**
+
+L'interfaccia del nodo Strumento è composta principalmente da area di selezione modalità chiamata e area configurazione parametri. Nella parte superiore puoi scegliere modalità "Chiamata Modello Grande" o "Chiamata Parametri", sotto c'è l'area configurazione parametri di input personalizzata dal sistema, supporta aggiunta di molteplici parametri e relative espressioni.
+![Nodo Strumento](https://cdn.letsmagic.cn/static/img/Tool.png)
+
+## 🤔 Perché Serve il Nodo Strumento?
+
+Nella costruzione di flussi di lavoro intelligenti, spesso necessiti di eseguire compiti standardizzati o richiamare funzionalità specifiche. Il nodo Strumento esiste proprio per risolvere questo problema:
+1. **Estensione Funzionale**: Estende le capacità di Magic Flow, facendo sì che il flusso di lavoro possa eseguire compiti più professionali
+2. **Operazioni Standardizzate**: Fornisce interfaccia unificata per richiamare vari strumenti, semplificando la progettazione del flusso di lavoro
+3. **Chiamata Flessibile**: Supporta molteplici modalità di chiamata, facile da utilizzare anche senza background tecnico
+4. **Automazione Flusso**: Trasforma operazioni manuali in flussi automatizzati, migliorando efficienza e consistenza
+
+## 🎯 Scenari Applicabili
+
+Il nodo Strumento è applicabile a vari scenari, inclusi ma non limitati a:
+1. **Ricerca Informazioni**: Richiama strumenti di ricerca per ottenere informazioni in tempo reale o conoscenze professionali
+2. **Elaborazione Dati**: Utilizza strumenti di conversione dati per elaborare e formattare dati del flusso di lavoro
+3. **Operazioni Automatizzate**: Attiva compiti automatizzati, come invio notifiche o creazione calendario
+4. **Miglioramento Assistente Intelligente**: Aggiunge capacità di strumenti pratici ai chatbot, come ricerca meteo o traduzione testo
+
+## ⚙️ Spiegazione Parametri del Nodo
+
+### Spiegazione Parametri di Input
+I parametri di input del nodo Strumento si dividono principalmente in due categorie: impostazioni modalità chiamata e configurazione parametri strumento.
+|Nome Parametro|Descrizione|Obbligatorio|Valore Predefinito|
+|---|---|---|---|
+|Modalità Chiamata|Scegli modalità chiamata strumento, include [Chiamata Modello Grande] e [Chiamata Parametri]|Sì|Chiamata Modello Grande|
+|Selezione Strumento|Scegli nome strumento da utilizzare|Sì|Nessuno|
+|Modello|Utilizzando [Chiamata Modello Grande], seleziona modello da utilizzare|Sì|GPT-4o|
+|Parola Chiave|Utilizza parola chiave per guidare modello grande, assicurando utilizzo accurato, supporta utilizzo @ per riferimento variabili|No|Nessuno|
+
+### Spiegazione Output
+Dopo l'esecuzione del nodo Strumento, verranno restituiti i seguenti contenuti:
+|Nome Output|Descrizione|Esempio|
+|---|---|---|
+|Testo Output|Testo risultato esecuzione strumento|"Meteo attuale Pechino: Sereno, 25°C"|
+|Stato Esecuzione|Stato esecuzione strumento, successo o fallimento|"success"|
+|Informazioni Errore|In caso di fallimento esecuzione, contiene dettagli errore|"Timeout chiamata API"|
+
+## 📋 Istruzioni per l'Uso
+
+### Passi di Configurazione Base
+1. **Aggiungi Nodo Strumento**
+    1. Trascina il nodo "Strumento" dal pannello nodi al canvas del flusso di lavoro
+    2. Connetti il nodo con altri nodi nel flusso di lavoro
+2. **Seleziona Modalità Chiamata**
+    1. Nel pannello configurazione nodo seleziona "Chiamata Modello Grande" o "Chiamata Parametri"
+    2. Chiamata Modello Grande: Adatta per utilizzare strumento attraverso descrizione in linguaggio naturale
+    3. Chiamata Parametri: Adatta per utilizzare strumento attraverso configurazione diretta parametri
+3. **Configura Parametri**
+    1. Clicca pulsante "Aggiungi" per aggiungere parametri necessari allo strumento
+    2. Compila nome parametro, imposta se obbligatorio
+    3. Seleziona tipo espressione appropriato (come testo, numero, ecc.)
+    4. Compila valore parametro o espressione
+4. **Imposta Parametri Annidati (se necessario)**
+    1. Per strumenti complessi, clicca pulsante "+" accanto al parametro per aggiungere sottoparametri
+    2. Configura sottoparametri nello stesso modo
+5. **Configura Output**
+    1. Nella sezione "Output" seleziona formato output (predefinito testo)
+    2. Abilita o disabilita voci output specifiche secondo necessità
+
+### Tecniche Avanzate
+1. **Utilizzo Riferimento Variabili**
+    1. Seleziona opzione "Utilizza @variabili flusso" per utilizzare simbolo @ per riferimento variabili nel flusso di lavoro
+    2. Ad esempio: Nell valore parametro input "@domanda_utente" utilizza valore variabile "domanda_utente" nel flusso di lavoro
+2. **Calcolo Dinamico Parametri**
+    1. Puoi utilizzare formule di calcolo semplici nelle espressioni
+    2. Ad esempio: "{{count + 1}}" calcolerà automaticamente risultato di valore variabile count + 1
+3. **Utilizzo Risultati Strumento in Giudizi Condizionali**
+    1. L'output del nodo Strumento può essere utilizzato come input del nodo ramificazione condizionale
+    2. Puoi scegliere diversi rami di elaborazione in base al risultato di esecuzione dello strumento
+
+## ⚠️ Note Importanti
+
+### Attenzione Configurazione Parametri
+1. **Norme Denominazione Parametri**
+    1. I nomi parametri dovrebbero essere concisi e chiari, riflettere lo scopo del parametro
+    2. Evita spazi e caratteri speciali, si consiglia utilizzo lettere inglesi, numeri e trattini bassi
+    3. Utilizza nomi descrittivi, come "search_query" invece di semplice "q"
+
+2. **Tipo Valori Parametri**
+    1. Assicurati che il tipo di valore parametro sia consistente con quanto atteso dallo strumento (come numero, valore booleano, testo, ecc.)
+    2. Per tipi array o oggetto, presta attenzione alla correttezza formato JSON
+    3. Per tipi data e ora presta attenzione ai requisiti di formato (come ISO8601)
+
+3. **Gestione Parametri Obbligatori**
+    1. Assicurati che tutti i parametri obbligatori abbiano valori appropriati
+    2. Nell'utilizzo di riferimenti variabili, assicurati che le variabili abbiano certamente valori al momento dell'esecuzione
+    3. Considera di aggiungere valori predefiniti o opzioni di fallback per parametri critici
+
+### Gestione Errori
+1. **Tipi Errori Comuni**
+    1. Errori Parametri: Formato parametro non corretto o parametri obbligatori mancanti
+    2. Limitazioni Chiamata: Frequenza chiamata API supera limiti
+    3. Errori Connessione: Problemi di rete causano fallimento chiamata
+
+2. **Soluzioni**
+    1. Utilizza nodi ramificazione condizionale per verificare stato esecuzione strumento
+    2. Progetta schemi di fallback per operazioni critiche
+    3. Aggiungi logica di retry per gestire errori temporanei
+
+## ❓ Problemi Comuni
+
+### Problema 1: Come Scegliere la Modalità di Chiamata Appropriata?
+**Soluzioni**: La scelta dipende dalle tue esigenze e background:
+- Chiamata Modello Grande: Adatta per utenti non familiari con dettagli tecnici, può descrivere compiti attraverso linguaggio naturale
+- Chiamata Parametri: Adatta per scenari che necessitano controllo preciso, impostazione parametri più diretta e controllabile
+
+### Problema 2: Cosa Fare se il Risultato di Esecuzione Strumento Non Corrisponde alle Attese?
+**Soluzioni**: Verifica i seguenti punti:
+- I valori dei parametri sono compilati correttamente, specialmente formato e tipo dati
+- Nella chiamata modello grande, la parola chiave è sufficientemente chiara e specifica
+- Lo strumento stesso ha limitazioni funzionali o requisiti speciali
+- Nell'utilizzo di riferimenti variabili, i valori delle variabili corrispondono alle attese
+
+### Problema 3: Come Gestire Strumenti che Necessitano Autenticazione?
+**Soluzioni**: Secondo i requisiti di autenticazione dello strumento:
+- Utilizza campi parametri di autenticazione dedicati (come api_key, token, ecc.)
+- Per autenticazione OAuth, potrebbe essere necessario ottenere prima token di accesso poi utilizzare
+- Presta attenzione a proteggere informazioni di autenticazione sensibili, evita codifica diretta nel flusso di lavoro
+
+## 🔗 Nodi Comuni da Abbinare
+
+|Tipo Nodo|Motivo Abbinamento|
+|---|---|
+|Nodo Ramificazione Condizionale|Giudica flusso successivo in base al risultato di esecuzione strumento|
+|Nodo Chiamata Modello Grande|Utilizza risultato strumento come contesto per rispondere|
+|Nodo Risposta Messaggio|Mostra direttamente all'utente il risultato della ricerca strumento|
+|Nodo Salvataggio Variabili|Salva informazioni importanti restituite dallo strumento per utilizzo nodi successivi|
+|Nodo Esecuzione Codice|Elabora ulteriormente e converte dati restituiti dallo strumento|
+
+---
+
 # 工具节点
 
 ## 什么是工具节点？
