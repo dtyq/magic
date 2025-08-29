@@ -11,5 +11,6 @@ return [
             'prompt' => 'Lời nhắc',
         ],
         'limit_exceeded' => 'Đã đạt giới hạn Agent (:limit), không thể tạo thêm',
+        'builtin_not_allowed' => 'Thao tác này không được hỗ trợ cho Agent có sẵn',
     ],
 ];

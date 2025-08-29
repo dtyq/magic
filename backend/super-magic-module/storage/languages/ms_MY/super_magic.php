@@ -11,5 +11,6 @@ return [
             'prompt' => 'Prompt',
         ],
         'limit_exceeded' => 'Had ejen telah dicapai (:limit), tidak dapat mencipta lagi',
+        'builtin_not_allowed' => 'Operasi ini tidak disokong untuk ejen terbina dalam',
     ],
 ];

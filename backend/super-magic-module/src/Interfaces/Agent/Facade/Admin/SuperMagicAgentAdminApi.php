@@ -7,11 +7,14 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Admin;
 
+use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
-use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentOrderFormRequest;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentQueryFormRequest;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentSaveFormRequest;
 use Hyperf\Di\Annotation\Inject;
 
 #[ApiResponse(version: 'low_code')]
@@ -20,35 +23,35 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     #[Inject]
     protected SuperMagicAgentAppService $superMagicAgentAppService;
 
-    public function save()
+    public function save(SuperMagicAgentSaveFormRequest $request)
     {
         $authorization = $this->getAuthorization();
 
-        $requestData = $this->request->all();
+        $requestData = $request->validated();
         $DTO = new SuperMagicAgentDTO($requestData);
 
         $DO = SuperMagicAgentAssembler::createDO($DTO);
 
         $entity = $this->superMagicAgentAppService->save($authorization, $DO);
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        
+
         return SuperMagicAgentAssembler::createDTO($entity, $users);
     }
 
-    public function queries()
+    public function queries(SuperMagicAgentQueryFormRequest $request)
     {
         $authorization = $this->getAuthorization();
 
-        $query = new SuperMagicAgentQuery($this->request->all());
-        $query->setSelect(['id', 'code', 'name', 'description']); // Only select necessary fields for list
+        $requestData = $request->validated();
+        $query = new SuperMagicAgentQuery($requestData);
         $page = $this->createPage();
 
         $result = $this->superMagicAgentAppService->queries($authorization, $query, $page);
 
-        return SuperMagicAgentAssembler::createPageListDTO(
-            total: $result['total'],
-            list: $result['list'],
-            page: ['page' => $page->getPage(), 'page_size' => $page->getPageNum()],
+        return SuperMagicAgentAssembler::createCategorizedListDTO(
+            frequent: $result['frequent'],
+            all: $result['all'],
+            total: $result['total']
         );
     }
 
@@ -56,11 +59,11 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     {
         $authorization = $this->getAuthorization();
         $entity = $this->superMagicAgentAppService->show($authorization, $code);
-        
+
         $withPromptString = (bool) $this->request->input('with_prompt_string', false);
-        
+
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        
+
         return SuperMagicAgentAssembler::createDTO($entity, $users, $withPromptString);
     }
 
@@ -68,7 +71,7 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     {
         $authorization = $this->getAuthorization();
         $result = $this->superMagicAgentAppService->delete($authorization, $code);
-        
+
         return ['success' => $result];
     }
 
@@ -76,9 +79,9 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     {
         $authorization = $this->getAuthorization();
         $entity = $this->superMagicAgentAppService->enable($authorization, $code);
-        
+
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        
+
         return SuperMagicAgentAssembler::createDTO($entity, $users);
     }
 
@@ -86,9 +89,27 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     {
         $authorization = $this->getAuthorization();
         $entity = $this->superMagicAgentAppService->disable($authorization, $code);
-        
+
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
-        
+
         return SuperMagicAgentAssembler::createDTO($entity, $users);
+    }
+
+    /**
+     * 保存智能体排列顺序.
+     */
+    public function saveOrder(SuperMagicAgentOrderFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+
+        $requestData = $request->validated();
+        $orderConfig = [
+            'frequent' => $requestData['frequent'] ?? [],
+            'all' => $requestData['all'],
+        ];
+
+        $this->superMagicAgentAppService->saveOrderConfig($authorization, $orderConfig);
+
+        return ['message' => 'Agent order saved successfully'];
     }
 }

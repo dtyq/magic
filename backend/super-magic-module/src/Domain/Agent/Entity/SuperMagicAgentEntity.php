@@ -12,8 +12,9 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Code;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentTool;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
-use Dtyq\SuperMagic\Interfaces\Agent\Util\EditorJsUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\EditorJsUtil;
 
 class SuperMagicAgentEntity extends AbstractEntity
 {
@@ -48,9 +49,14 @@ class SuperMagicAgentEntity extends AbstractEntity
 
     /**
      * 系统提示词.
-     * https://editorjs.io/saving-data/
+     * https://editorjs.io/saving-data/.
      */
     protected array $prompt = [];
+
+    /**
+     * 智能体类型.
+     */
+    protected SuperMagicAgentType $type = SuperMagicAgentType::Custom;
 
     /**
      * 是否启用.
@@ -92,6 +98,8 @@ class SuperMagicAgentEntity extends AbstractEntity
         $this->updatedAt = $this->createdAt;
         $this->code = Code::SuperMagicAgent->gen();
         $this->enabled = $this->enabled ?? true;
+        // 强制设置为自定义类型，用户创建的智能体只能是自定义类型
+        $this->type = SuperMagicAgentType::Custom;
         $this->id = null;
     }
 
@@ -113,6 +121,7 @@ class SuperMagicAgentEntity extends AbstractEntity
         $originalEntity->setIcon($this->icon);
         $originalEntity->setTools($this->tools);
         $originalEntity->setPrompt($this->prompt);
+        $originalEntity->setType($this->type);
         $originalEntity->setModifier($this->creator);
 
         if (isset($this->enabled)) {
@@ -216,8 +225,8 @@ class SuperMagicAgentEntity extends AbstractEntity
 
     /**
      * Get prompt as plain text string
-     * Converts Editor.js format to readable text
-     * 
+     * Converts Editor.js format to readable text.
+     *
      * @return string Plain text representation of the prompt
      */
     public function getPromptString(): string
@@ -230,8 +239,8 @@ class SuperMagicAgentEntity extends AbstractEntity
     }
 
     /**
-     * Get prompt summary (first N characters)
-     * 
+     * Get prompt summary (first N characters).
+     *
      * @param int $maxLength Maximum length of summary
      * @return string Truncated prompt text
      */
@@ -242,6 +251,16 @@ class SuperMagicAgentEntity extends AbstractEntity
         }
 
         return EditorJsUtil::getSummary($this->prompt, $maxLength);
+    }
+
+    public function getType(): SuperMagicAgentType
+    {
+        return $this->type;
+    }
+
+    public function setType(SuperMagicAgentType $type): void
+    {
+        $this->type = $type;
     }
 
     public function getEnabled(): ?bool
