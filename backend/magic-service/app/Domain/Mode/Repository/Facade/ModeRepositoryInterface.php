@@ -9,6 +9,7 @@ namespace App\Domain\Mode\Repository\Facade;
 
 use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 
 interface ModeRepositoryInterface
@@ -31,7 +32,7 @@ interface ModeRepositoryInterface
     /**
      * @return array{total: int, list: ModeEntity[]}
      */
-    public function queries(ModeDataIsolation $dataIsolation, Page $page): array;
+    public function queries(ModeDataIsolation $dataIsolation, ModeQuery $query, Page $page): array;
 
     /**
      * 保存模式.
