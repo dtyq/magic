@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberSettingEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Hyperf\DbConnection\Db;
 
 /**
@@ -20,14 +22,13 @@ class ProjectMemberDomainService
 {
     public function __construct(
         private readonly ProjectMemberRepositoryInterface $projectMemberRepository,
+        private readonly ProjectMemberSettingRepositoryInterface $projectMemberSettingRepository,
     ) {
     }
 
     /**
      * 更新项目成员 - 主业务方法.
      *
-     * @param string $organizationCode 组织编码
-     * @param int $projectId 项目ID
      * @param ProjectMemberEntity[] $memberEntities 成员实体数组
      */
     public function updateProjectMembers(
@@ -72,7 +73,6 @@ class ProjectMemberDomainService
     /**
      * 根据项目ID获取项目成员列表.
      *
-     * @param int $projectId 项目ID
      * @return ProjectMemberEntity[] 项目成员实体数组
      */
     public function getProjectMembers(int $projectId): array
@@ -91,20 +91,29 @@ class ProjectMemberDomainService
     /**
      * 根据用户和部门获取项目ID列表及总数.
      *
-     * @param string $userId 用户ID
-     * @param array $departmentIds 部门ID数组
-     * @param null|string $name 项目名称模糊搜索关键词
-     * @return array ['total' => int, 'project_ids' => array]
+     * @return array ['total' => int, 'list' => array]
      */
-    public function getProjectIdsByUserAndDepartmentsWithTotal(string $userId, array $departmentIds = [], ?string $name = null): array
-    {
-        return $this->projectMemberRepository->getProjectIdsByUserAndDepartments($userId, $departmentIds, $name);
+    public function getProjectIdsByUserAndDepartmentsWithTotal(
+        string $userId,
+        array $departmentIds = [],
+        ?string $name = null,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array {
+        return $this->projectMemberRepository->getProjectIdsByUserAndDepartments(
+            $userId,
+            $departmentIds,
+            $name,
+            $sortField,
+            $sortDirection,
+            $creatorUserIds
+        );
     }
 
     /**
      * 批量获取项目成员总数.
      *
-     * @param array $projectIds 项目ID数组
      * @return array [project_id => total_count]
      */
     public function getProjectMembersCounts(array $projectIds): array
@@ -115,8 +124,6 @@ class ProjectMemberDomainService
     /**
      * 批量获取项目前N个成员预览.
      *
-     * @param array $projectIds 项目ID数组
-     * @param int $limit 限制数量，默认4个
      * @return ProjectMemberEntity[][]
      */
     public function getProjectMembersPreview(array $projectIds, int $limit = 4): array
@@ -127,10 +134,85 @@ class ProjectMemberDomainService
     /**
      * 获取用户创建的且有成员的项目ID列表及总数.
      *
-     * @return array ['total' => int, 'project_ids' => array]
+     * @return array ['total' => int, 'list' => array]
      */
-    public function getSharedProjectIdsByUserWithTotal(string $userId, string $organizationCode, ?string $name = null, int $page = 1, int $pageSize = 10): array
+    public function getSharedProjectIdsByUserWithTotal(
+        string $userId,
+        string $organizationCode,
+        ?string $name = null,
+        int $page = 1,
+        int $pageSize = 10,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array {
+        return $this->projectMemberRepository->getSharedProjectIdsByUser(
+            $userId,
+            $organizationCode,
+            $name,
+            $page,
+            $pageSize,
+            $sortField,
+            $sortDirection,
+            $creatorUserIds
+        );
+    }
+
+    /**
+     * 更新项目置顶状态.
+     */
+    public function updateProjectPinStatus(string $userId, int $projectId, string $organizationCode, bool $isPinned): bool
     {
-        return $this->projectMemberRepository->getSharedProjectIdsByUser($userId, $organizationCode, $name, $page, $pageSize);
+        // 1. 检查数据是否存在，如果不存在先创建默认数据
+        $setting = $this->projectMemberSettingRepository->findByUserAndProject($userId, $projectId);
+        if ($setting === null) {
+            $this->projectMemberSettingRepository->create($userId, $projectId, $organizationCode);
+        }
+
+        // 2. 更新置顶状态
+        return $this->projectMemberSettingRepository->updatePinStatus($userId, $projectId, $isPinned);
+    }
+
+    /**
+     * 获取用户的置顶项目ID列表.
+     *
+     * @return array 置顶的项目ID数组
+     */
+    public function getUserPinnedProjectIds(string $userId, string $organizationCode): array
+    {
+        return $this->projectMemberSettingRepository->getPinnedProjectIds($userId, $organizationCode);
+    }
+
+    /**
+     * 批量获取用户在多个项目的设置.
+     *
+     * @return array [project_id => ProjectMemberSettingEntity, ...]
+     */
+    public function getUserProjectSettings(string $userId, array $projectIds): array
+    {
+        return $this->projectMemberSettingRepository->findByUserAndProjects($userId, $projectIds);
+    }
+
+    /**
+     * 更新用户在项目中的最后活跃时间.
+     */
+    public function updateUserLastActiveTime(string $userId, int $projectId, string $organizationCode): bool
+    {
+        // 1. 检查数据是否存在，如果不存在先创建默认数据
+        $setting = $this->projectMemberSettingRepository->findByUserAndProject($userId, $projectId);
+        if ($setting === null) {
+            $this->projectMemberSettingRepository->create($userId, $projectId, $organizationCode);
+        }
+
+        return $this->projectMemberSettingRepository->updateLastActiveTime($userId, $projectId);
+    }
+
+    /**
+     * 删除项目时清理相关的成员设置.
+     */
+    public function cleanupProjectSettings(int $projectId): bool
+    {
+        $this->projectMemberSettingRepository->deleteByProjectId($projectId);
+        return true;
     }
 }

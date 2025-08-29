@@ -15,7 +15,7 @@ use Mockery;
  */
 class ProjectMemberApiTest extends AbstractApiTest
 {
-    private const string BASE_URI = '/api/v1/super-agent/projects';
+    private const BASE_URI = '/api/v1/super-agent/projects';
 
     private string $authorization = '';
 
@@ -78,6 +78,69 @@ class ProjectMemberApiTest extends AbstractApiTest
         $this->fileEditingStatusManagement($fileId);
 
         $this->fileEditingEdgeCases($fileId);
+    }
+
+    /**
+     * 测试项目置顶权限控制.
+     */
+    public function testProjectPinPermission(): void
+    {
+        $projectId = $this->projectId;
+
+        // 1. 先设置项目成员，确保测试2用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+
+        // 2. 切换到有权限的用户测试置顶成功
+        $this->switchUserTest2();
+        $this->pinProject($projectId, true);
+
+        // 3. 验证置顶成功
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 4. 清空项目成员，使当前用户没有权限
+        $this->switchUserTest1();
+        $this->updateEmptyMembers($projectId);
+
+        // 5. 切换到没有权限的用户测试权限控制
+        $this->switchUserTest2();
+        // 测试非项目成员不能置顶 - 应该返回权限错误
+        $this->pinProject($projectId, true, 51202); // 假设51202是权限错误码
+    }
+
+    /**
+     * 测试置顶功能边界情况.
+     */
+    public function testProjectPinEdgeCases(): void
+    {
+        $projectId = $this->projectId;
+
+        // 确保用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+        $this->switchUserTest2();
+
+        // 1. 重复置顶同一个项目 - 应该正常处理
+        $this->pinProject($projectId, true);
+        $this->pinProject($projectId, true); // 重复置顶
+
+        // 验证项目仍然是置顶状态
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 2. 重复取消置顶 - 应该正常处理
+        $this->pinProject($projectId, false);
+        $this->pinProject($projectId, false); // 重复取消置顶
+
+        // 验证项目不是置顶状态
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, false);
+
+        // 3. 测试无效参数
+        $invalidRequestData = ['is_pin' => 2]; // 无效值
+        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}", $invalidRequestData, $this->getCommonHeaders());
+        $this->assertNotEquals(1000, $response['code'], '无效参数应该返回错误');
     }
 
     /**
@@ -178,7 +241,10 @@ class ProjectMemberApiTest extends AbstractApiTest
         // 删除话题
         $this->deleteTopic($workspaceId, $projectId, $topicId);
 
-        // 9. 清空空成员
+        // 9. 测试项目置顶功能
+        $this->projectPinFeature($projectId);
+
+        // 10. 清空空成员
         $requestData = ['members' => []];
 
         // 发送PUT请求
@@ -588,5 +654,127 @@ class ProjectMemberApiTest extends AbstractApiTest
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
 
         $this->assertEquals('test', $response['data']['project_name']);
+    }
+
+    /**
+     * 测试项目置顶功能 - 完整流程测试.
+     */
+    public function projectPinFeature(string $projectId): void
+    {
+        // 确保当前用户是项目成员
+        $this->switchUserTest2();
+
+        // 1. 测试置顶项目
+        $this->pinProject($projectId, true);
+
+        // 2. 验证协作项目列表中项目被置顶
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 3. 测试取消置顶
+        $this->pinProject($projectId, false);
+
+        // 4. 验证协作项目列表中项目不再置顶
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, false);
+
+        // 5. 重新置顶项目以测试排序
+        $this->pinProject($projectId, true);
+
+        // 6. 验证置顶项目排在前面
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyPinnedProjectsAtTop($response);
+    }
+
+    /**
+     * 置顶或取消置顶项目.
+     */
+    public function pinProject(string $projectId, bool $isPinned, int $expectedCode = 1000): array
+    {
+        $requestData = [
+            'is_pin' => $isPinned ? 1 : 0,
+        ];
+
+        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}", $requestData, $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
+
+        if ($expectedCode === 1000) {
+            $this->assertEquals('ok', $response['message']);
+            $this->assertIsArray($response['data']);
+            $this->assertEmpty($response['data']); // 置顶操作返回空数组
+        }
+
+        return $response;
+    }
+
+    /**
+     * 获取协作项目列表并返回完整响应用于置顶验证.
+     */
+    public function collaborationProjectsWithPinCheck(): array
+    {
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects', [], $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data']);
+
+        // 验证响应结构包含置顶相关字段
+        $this->assertArrayHasKey('list', $response['data'], '响应应包含list字段');
+        $this->assertArrayHasKey('total', $response['data'], '响应应包含total字段');
+
+        if (! empty($response['data']['list'])) {
+            $project = $response['data']['list'][0];
+            $this->assertArrayHasKey('is_pinned', $project, '项目应包含is_pinned字段');
+            $this->assertIsBool($project['is_pinned'], 'is_pinned应该是布尔值');
+        }
+
+        return $response;
+    }
+
+    /**
+     * 验证项目的置顶状态.
+     */
+    public function verifyProjectPinStatus(array $response, string $projectId, bool $expectedPinned): void
+    {
+        $projects = $response['data']['list'];
+        $targetProject = null;
+
+        foreach ($projects as $project) {
+            if ($project['id'] === $projectId) {
+                $targetProject = $project;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetProject, "项目 {$projectId} 应该在协作项目列表中");
+        $this->assertEquals(
+            $expectedPinned,
+            $targetProject['is_pinned'],
+            "项目 {$projectId} 的置顶状态应该为 " . ($expectedPinned ? 'true' : 'false')
+        );
+    }
+
+    /**
+     * 验证置顶项目排在列表前面.
+     */
+    public function verifyPinnedProjectsAtTop(array $response): void
+    {
+        $projects = $response['data']['list'];
+        $pinnedProjectsEnded = false;
+
+        foreach ($projects as $project) {
+            var_dump($project['is_pinned']);
+        }
+
+        foreach ($projects as $project) {
+            if ($project['is_pinned']) {
+                $this->assertFalse($pinnedProjectsEnded, '置顶项目应该排在非置顶项目前面');
+            } else {
+                $pinnedProjectsEnded = true;
+            }
+        }
     }
 }

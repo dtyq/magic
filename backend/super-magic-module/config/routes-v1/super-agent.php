@@ -65,6 +65,8 @@ Router::addGroup(
         });
         // 获取协作项目列表
         Router::get('/collaboration-projects', [ProjectMemberApi::class, 'getCollaborationProjects']);
+        // 更新协作项目配置
+        Router::put('/collaboration-projects/{id}', [ProjectMemberApi::class, 'updateProjectPin']);
 
         // 话题相关
         Router::addGroup('/topics', static function () {

@@ -25,7 +25,6 @@ use Hyperf\Amqp\Result;
 use Hyperf\Logger\LoggerFactory;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -80,7 +79,6 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileBatchOperationStatusManager $statusManager,
         private readonly LockerInterface $locker,
-        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('FileBatchMove');

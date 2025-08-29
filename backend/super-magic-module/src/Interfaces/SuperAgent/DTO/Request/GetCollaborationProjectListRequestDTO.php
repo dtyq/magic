@@ -37,6 +37,21 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
     public string $type = '';
 
     /**
+     * 排序字段：updated_at(项目更新时间), created_at(项目创建时间), last_active_at(用户最后活跃时间).
+     */
+    public string $sortField = '';
+
+    /**
+     * 排序方向：asc(升序), desc(降序).
+     */
+    public string $sortDirection = 'desc';
+
+    /**
+     * 创建者用户IDs数组，用于筛选特定创建者的项目.
+     */
+    public array $creatorUserIds = [];
+
+    /**
      * Get page number.
      */
     public function getPage(): int
@@ -88,6 +103,36 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
         $this->type = $type;
     }
 
+    public function getSortField(): string
+    {
+        return $this->sortField;
+    }
+
+    public function setSortField(string $sortField): void
+    {
+        $this->sortField = $sortField;
+    }
+
+    public function getSortDirection(): string
+    {
+        return $this->sortDirection;
+    }
+
+    public function setSortDirection(string $sortDirection): void
+    {
+        $this->sortDirection = $sortDirection;
+    }
+
+    public function getCreatorUserIds(): array
+    {
+        return $this->creatorUserIds;
+    }
+
+    public function setCreatorUserIds(array $creatorUserIds): void
+    {
+        $this->creatorUserIds = $creatorUserIds;
+    }
+
     /**
      * Get validation rules.
      */
@@ -97,6 +142,10 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
             'page' => 'integer|min:1',
             'page_size' => 'integer|min:1|max:100',
             'type' => 'nullable|string|in:received,shared',
+            'sort_field' => 'nullable|string|in:updated_at,created_at,last_active_at',
+            'sort_direction' => 'nullable|string|in:asc,desc',
+            'creator_user_ids' => 'nullable|array',
+            'creator_user_ids.*' => 'string',
         ];
     }
 
@@ -113,6 +162,12 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
             'page_size.max' => 'Page size cannot exceed 100',
             'type.string' => 'Type must be a string',
             'type.in' => 'Type must be either received or shared',
+            'sort_field.string' => 'Sort field must be a string',
+            'sort_field.in' => 'Sort field must be one of: updated_at, created_at, last_active_at',
+            'sort_direction.string' => 'Sort direction must be a string',
+            'sort_direction.in' => 'Sort direction must be either asc or desc',
+            'creator_user_ids.array' => 'Creator user IDs must be an array',
+            'creator_user_ids.*.string' => 'Each creator user ID must be a string',
         ];
     }
 }

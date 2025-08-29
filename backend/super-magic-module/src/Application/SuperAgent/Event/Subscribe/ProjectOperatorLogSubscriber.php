@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicUpdatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\IpUtil;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -37,12 +38,13 @@ use Throwable;
 /**
  * 项目审计日志事件监听器.
  */
-class ProjectAuditLogSubscriber implements ListenerInterface
+class ProjectOperatorLogSubscriber implements ListenerInterface
 {
     private LoggerInterface $logger;
 
     public function __construct(
         private readonly ProjectOperationLogDomainService $projectOperationLogDomainService,
+        private readonly ProjectMemberDomainService $projectMemberDomainService,
         private readonly RequestInterface $request,
         LoggerFactory $loggerFactory
     ) {
@@ -97,12 +99,52 @@ class ProjectAuditLogSubscriber implements ListenerInterface
                     'action' => $operationLogEntity->getOperationAction(),
                 ]);
             }
+
+            // 更新项目成员的活跃时间
+            $this->updateUserLastActiveTime($event);
         } catch (Throwable $e) {
             $this->logger->error('保存项目操作日志失败', [
                 'event_class' => get_class($event),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+        }
+    }
+
+    private function updateUserLastActiveTime(object $event): void
+    {
+        // 更新项目成员的活跃时间
+        switch (true) {
+            case $event instanceof ProjectUpdatedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getProjectEntity()->getId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileUploadedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getFileEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileDeletedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getFileEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileRenamedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getFileEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileMovedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getFileEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileContentSavedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getFileEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof DirectoryDeletedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getDirectoryEntity()->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof FileBatchMoveEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserId(), $event->getProjectId(), $event->getOrganizationCode());
+                break;
+            case $event instanceof FilesBatchDeletedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getProjectId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
+            case $event instanceof ProjectMembersUpdatedEvent:
+                $this->projectMemberDomainService->updateUserLastActiveTime($event->getUserAuthorization()->getId(), $event->getProjectEntity()->getId(), $event->getUserAuthorization()->getOrganizationCode());
+                break;
         }
     }
 

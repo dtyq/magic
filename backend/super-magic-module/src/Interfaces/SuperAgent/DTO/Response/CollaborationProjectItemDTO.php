@@ -35,6 +35,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         public readonly ?CreatorInfoDTO $creator,
         public readonly array $members,
         public readonly int $memberCount,
+        public readonly bool $isPinned = false,
+        public readonly ?string $lastActiveAt = null,
     ) {
         parent::__construct(
             $id,
@@ -63,7 +65,9 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         array $members = [],
         int $memberCount = 0,
         ?string $projectStatus = null,
-        ?string $workspaceName = null
+        ?string $workspaceName = null,
+        bool $isPinned = false,
+        ?string $lastActiveAt = null
     ): self {
         return new self(
             id: (string) $project->getId(),
@@ -81,6 +85,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             creator: $creator,
             members: $members,
             memberCount: $memberCount,
+            isPinned: $isPinned,
+            lastActiveAt: $lastActiveAt,
             tag: 'collaboration',
             userId: $project->getUserId(),
         );
@@ -96,6 +102,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             'creator' => $this->creator?->toArray(),
             'members' => array_map(fn ($member) => $member->toArray(), $this->members),
             'member_count' => $this->memberCount,
+            'is_pinned' => $this->isPinned,
+            'last_active_at' => $this->lastActiveAt,
         ]);
     }
 }

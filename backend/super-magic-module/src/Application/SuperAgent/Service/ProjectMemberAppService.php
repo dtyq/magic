@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreatorInfoDTO;
@@ -203,16 +204,16 @@ class ProjectMemberAppService extends AbstractAppService
         $type = $requestDTO->getType() ?: 'received';
 
         // 根据类型获取项目ID列表
-        $collaborationResult = match ($type) {
+        $collaborationProjects = match ($type) {
             'shared' => $this->getSharedProjectIds($userId, $dataIsolation->getCurrentOrganizationCode(), $requestDTO),
             default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO),
         };
 
-        $projectIds = $collaborationResult['project_ids'] ?? [];
-        $totalCount = $collaborationResult['total'] ?? 0;
+        $projectIds = array_column($collaborationProjects['list'], 'project_id');
+        $totalCount = $collaborationProjects['total'] ?? 0;
 
         if (empty($projectIds)) {
-            return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], $totalCount)->toArray();
+            return CollaborationProjectListResponseDTO::fromProjectData([], [], [], [], [], $totalCount)->toArray();
         }
 
         $result = $this->projectDomainService->getProjectsByConditions(
@@ -221,7 +222,33 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getPageSize()
         );
 
-        return $this->buildCollaborationProjectResponse($dataIsolation, $result['list'], $totalCount);
+        return $this->buildCollaborationProjectResponse($dataIsolation, $result['list'], $collaborationProjects['list'], $totalCount);
+    }
+
+    /**
+     * 更新项目置顶状态.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param int $projectId 项目ID
+     * @param UpdateProjectPinRequestDTO $requestDTO 请求DTO
+     */
+    public function updateProjectPin(
+        RequestContext $requestContext,
+        int $projectId,
+        UpdateProjectPinRequestDTO $requestDTO
+    ): void {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 1. 验证并获取可访问的项目
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 2. 委托给Domain层处理业务逻辑
+        $this->projectMemberDomainService->updateProjectPinStatus(
+            $userAuthorization->getId(),
+            $projectId,
+            $userAuthorization->getOrganizationCode(),
+            $requestDTO->isPinOperation()
+        );
     }
 
     /**
@@ -241,7 +268,10 @@ class ProjectMemberAppService extends AbstractAppService
         return $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal(
             $userId,
             $departmentIds,
-            $requestDTO->getName()
+            $requestDTO->getName(),
+            $requestDTO->getSortField(),
+            $requestDTO->getSortDirection(),
+            $requestDTO->getCreatorUserIds()
         );
     }
 
@@ -256,15 +286,17 @@ class ProjectMemberAppService extends AbstractAppService
             $organizationCode,
             $requestDTO->getName(),
             $requestDTO->getPage(),
-            $requestDTO->getPageSize()
+            $requestDTO->getPageSize(),
+            $requestDTO->getSortField(),
+            $requestDTO->getSortDirection(),
+            $requestDTO->getCreatorUserIds()
         );
     }
 
     /**
      * 构建协作项目响应数据.
-     * @param mixed $dataIsolation
      */
-    private function buildCollaborationProjectResponse($dataIsolation, array $projects, int $totalCount): array
+    private function buildCollaborationProjectResponse(DataIsolation $dataIsolation, array $projects, array $collaborationProjects, int $totalCount): array
     {
         // 1. 获取创建人信息
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
@@ -330,6 +362,7 @@ class ProjectMemberAppService extends AbstractAppService
         // 4. 创建协作项目列表响应DTO
         $collaborationListResponseDTO = CollaborationProjectListResponseDTO::fromProjectData(
             $projects,
+            $collaborationProjects,
             $creatorInfoMap,
             $collaboratorsInfoMap,
             $workspaceNameMap,
