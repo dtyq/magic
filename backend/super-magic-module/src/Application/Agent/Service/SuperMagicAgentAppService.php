@@ -189,41 +189,4 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'all' => $all,
         ];
     }
-
-    /**
-     * 根据排列配置对智能体列表进行排序.
-     * @param array<SuperMagicAgentEntity> $entities
-     * @param array<string> $order
-     * @return array<SuperMagicAgentEntity>
-     */
-    private function applyOrder(array $entities, array $order): array
-    {
-        if (empty($order) || empty($entities)) {
-            return $entities;
-        }
-
-        // 创建code到实体的映射
-        $entityMap = [];
-        foreach ($entities as $entity) {
-            $entityMap[$entity->getCode()] = $entity;
-        }
-
-        // 按照排列配置重新排列
-        $orderedEntities = [];
-
-        // 先添加排列配置中指定的实体
-        foreach ($order as $code) {
-            if (isset($entityMap[$code])) {
-                $orderedEntities[] = $entityMap[$code];
-                unset($entityMap[$code]); // 从映射中移除已处理的实体
-            }
-        }
-
-        // 将剩余的实体添加到末尾（新创建的或未在排列配置中的实体）
-        foreach ($entityMap as $entity) {
-            $orderedEntities[] = $entity;
-        }
-
-        return $orderedEntities;
-    }
 }
