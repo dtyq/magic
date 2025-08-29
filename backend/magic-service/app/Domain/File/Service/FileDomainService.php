@@ -168,4 +168,14 @@ readonly class FileDomainService
         $workDir = $this->generateWorkDir($userId, $projectId, $code, $lastPath);
         return $prefix . $workDir;
     }
+
+    public function setHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        array $metadata,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void {
+        $this->cloudFileRepository->setHeadObjectByCredential($organizationCode, $objectKey, $metadata, $bucketType, $options);
+    }
 }

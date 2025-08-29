@@ -12,8 +12,10 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\FontProviderInterface;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Di\Annotation\Inject;
 use Psr\Log\LoggerInterface;
 
@@ -34,7 +36,7 @@ class ImageWatermarkProcessor
     /**
      * 为base64格式图片添加水印.
      */
-    public function addWatermarkToBase64(string $base64Image, WatermarkConfig $config): string
+    public function addWatermarkToBase64(string $base64Image, ImageGenerateRequest $imageGenerateRequest): string
     {
         // 检测原始格式
         $originalFormat = $this->extractBase64Format($base64Image);
@@ -51,8 +53,9 @@ class ImageWatermarkProcessor
             throw new Exception('无法解析base64图片数据');
         }
 
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
         // 添加水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $config);
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
         ob_start();
@@ -66,14 +69,14 @@ class ImageWatermarkProcessor
 
         // 根据实际输出格式更新前缀
         $outputPrefix = $this->generateBase64Prefix($targetFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData));
+        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
     }
 
     /**
      * 为URL格式图片添加水印
      * 可选择返回格式：URL 或 base64.
      */
-    public function addWatermarkToUrl(string $imageUrl, WatermarkConfig $config, bool $returnAsUrl = true): string
+    public function addWatermarkToUrl(string $imageUrl, ImageGenerateRequest $imageGenerateRequest): string
     {
         // 下载图片
         $imageData = $this->downloadImage($imageUrl);
@@ -85,9 +88,9 @@ class ImageWatermarkProcessor
         if ($image === false) {
             throw new Exception('无法解析URL图片数据: ' . $imageUrl);
         }
-
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
         // 添加水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $config);
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
         ob_start();
@@ -101,7 +104,7 @@ class ImageWatermarkProcessor
 
         // 根据实际输出格式生成正确的base64前缀
         $outputPrefix = $this->generateBase64Prefix($detectedFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData));
+        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
     }
 
     /**
@@ -380,7 +383,7 @@ class ImageWatermarkProcessor
         };
     }
 
-    private function processBase64Images(string $base64Image): string
+    private function processBase64Images(string $base64Image, ImageGenerateRequest $imageGenerateRequest): string
     {
         $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
         $fileDomainService = di(FileDomainService::class);
@@ -392,6 +395,17 @@ class ImageWatermarkProcessor
             $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
 
             $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
+
+            $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+            $validityPeriod = $imageGenerateRequest->getValidityPeriod();
+
+            $metadataContent = ['AIGC' => $implicitWatermark->toArray()];
+            if ($validityPeriod !== null) {
+                $metadataContent['validityPeriod'] = $validityPeriod;
+            }
+            $metadata = ['metadata' => Json::encode($metadataContent)];
+
+            $fileDomainService->setHeadObjectByCredential($organizationCode, $uploadFile->getKey(), $metadata, StorageBucketType::Public);
 
             return $fileLink->getUrl();
         } catch (Exception $e) {

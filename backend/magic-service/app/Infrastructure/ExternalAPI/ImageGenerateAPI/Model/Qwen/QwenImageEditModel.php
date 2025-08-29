@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -64,7 +63,7 @@ class QwenImageEditModel extends AbstractImageGenerate
             return $rawData;
         }
 
-        return $this->processQwenEditRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processQwenEditRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -189,7 +188,7 @@ class QwenImageEditModel extends AbstractImageGenerate
     /**
      * 为通义千问编辑模式原始数据添加水印 - 适配新的choices格式.
      */
-    private function processQwenEditRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processQwenEditRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         foreach ($rawData as $index => &$result) {
             if (! isset($result['output']['choices']) || ! is_array($result['output']['choices'])) {
@@ -208,7 +207,7 @@ class QwenImageEditModel extends AbstractImageGenerate
 
                     try {
                         // 处理URL格式的图片
-                        $content['image'] = $this->watermarkProcessor->addWatermarkToUrl($content['image'], $watermarkConfig);
+                        $content['image'] = $this->watermarkProcessor->addWatermarkToUrl($content['image'], $imageGenerateRequest);
                     } catch (Exception $e) {
                         // 水印处理失败时，记录错误但不影响图片返回
                         $this->logger->error('通义千问图像编辑水印处理失败', [

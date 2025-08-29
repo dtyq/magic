@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -61,7 +60,7 @@ class MidjourneyModel extends AbstractImageGenerate
             return $rawData;
         }
 
-        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -300,7 +299,7 @@ class MidjourneyModel extends AbstractImageGenerate
     /**
      * 为Midjourney原始数据添加水印.
      */
-    private function processMidjourneyRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processMidjourneyRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! isset($rawData['data'])) {
             return $rawData;
@@ -310,14 +309,14 @@ class MidjourneyModel extends AbstractImageGenerate
             // 处理 images 数组
             if (! empty($rawData['data']['images']) && is_array($rawData['data']['images'])) {
                 foreach ($rawData['data']['images'] as $index => &$imageUrl) {
-                    $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $watermarkConfig);
+                    $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
                 }
                 unset($imageUrl);
             }
 
             // 处理单个 cdnImage
             if (! empty($rawData['data']['cdnImage'])) {
-                $rawData['data']['cdnImage'] = $this->watermarkProcessor->addWatermarkToUrl($rawData['data']['cdnImage'], $watermarkConfig);
+                $rawData['data']['cdnImage'] = $this->watermarkProcessor->addWatermarkToUrl($rawData['data']['cdnImage'], $imageGenerateRequest);
             }
         } catch (Exception $e) {
             // 水印处理失败时，记录错误但不影响图片返回

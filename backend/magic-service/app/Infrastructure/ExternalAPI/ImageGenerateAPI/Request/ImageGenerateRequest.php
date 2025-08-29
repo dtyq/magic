@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
+use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 
 class ImageGenerateRequest
@@ -26,7 +27,14 @@ class ImageGenerateRequest
 
     protected string $model;
 
+    // 显示水印
     protected ?WatermarkConfig $watermarkConfig = null;
+
+    // 隐式水印
+    protected ?ImplicitWatermark $implicitWatermark = null;
+
+    // 有效期
+    protected ?int $validityPeriod = null;
 
     public function __construct(
         string $width = '',
@@ -115,5 +123,25 @@ class ImageGenerateRequest
     public function setWatermarkConfig(?WatermarkConfig $watermarkConfig): void
     {
         $this->watermarkConfig = $watermarkConfig;
+    }
+
+    public function getImplicitWatermark(): ?ImplicitWatermark
+    {
+        return $this->implicitWatermark;
+    }
+
+    public function setImplicitWatermark(?ImplicitWatermark $implicitWatermark): void
+    {
+        $this->implicitWatermark = $implicitWatermark;
+    }
+
+    public function getValidityPeriod(): ?int
+    {
+        return $this->validityPeriod;
+    }
+
+    public function setValidityPeriod(?int $validityPeriod): void
+    {
+        $this->validityPeriod = $validityPeriod;
     }
 }

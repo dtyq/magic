@@ -10,6 +10,7 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
@@ -204,6 +205,11 @@ class LLMAppService extends AbstractLLMAppService
         $watermarkConfig = new WatermarkConfig(ImageWatermarkProcessor::WATERMARK_TEXT, 9, 0.3);
         $imageGenerateRequest->setWatermarkConfig($watermarkConfig);
 
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($authorization->getOrganizationCode())
+            ->setUserId($authorization->getId())
+            ->setAgentId($data['agent_id'] ?? '');
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
@@ -303,6 +309,14 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
 
         $imageGenerateRequest->setWatermarkConfig($textGenerateImageDTO->getWatermark());
+
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($textGenerateImageDTO->getTopicId());
+
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setValidityPeriod(1);
 
         $errorMessage = '';
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {

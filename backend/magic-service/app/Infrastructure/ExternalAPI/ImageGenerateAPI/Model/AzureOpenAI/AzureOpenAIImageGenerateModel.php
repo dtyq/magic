@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -105,7 +104,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             return $rawData;
         }
 
-        return $this->processAzureOpenAIRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processAzureOpenAIRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -232,7 +231,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     /**
      * 为Azure OpenAI原始数据添加水印.
      */
-    private function processAzureOpenAIRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processAzureOpenAIRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! isset($rawData['data']) || ! is_array($rawData['data'])) {
             return $rawData;
@@ -245,7 +244,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
             try {
                 // 处理base64格式的图片
-                $item['b64_json'] = $this->watermarkProcessor->addWatermarkToBase64($item['b64_json'], $watermarkConfig);
+                $item['b64_json'] = $this->watermarkProcessor->addWatermarkToBase64($item['b64_json'], $imageGenerateRequest);
             } catch (Exception $e) {
                 // 水印处理失败时，记录错误但不影响图片返回
                 $this->logger->error('Azure OpenAI图片水印处理失败', [

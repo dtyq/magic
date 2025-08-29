@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -56,14 +55,11 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
     {
-        // 1. 获取原始数据
         $rawData = $this->generateImageRaw($imageGenerateRequest);
-
-        // 2. 获取水印配置
-        $watermarkConfig = $this->watermarkConfig->getWatermarkConfig();
-
-        // 3. 处理原始数据中的图片，添加水印
-        return $this->processVolcengineV3RawDataWithWatermark($rawData, $watermarkConfig);
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+        return $this->processVolcengineV3RawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -325,7 +321,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
     /**
      * 为火山引擎V3原始数据添加水印.
      */
-    private function processVolcengineV3RawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processVolcengineV3RawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         foreach ($rawData as $index => &$result) {
             if (! isset($result['data'])) {
@@ -338,7 +334,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
                 // 处理 base64 格式图片
                 if (! empty($data['binary_data_base64'])) {
                     foreach ($data['binary_data_base64'] as $i => &$base64Image) {
-                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $watermarkConfig);
+                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $imageGenerateRequest);
                     }
                     unset($base64Image);
                 }
@@ -346,7 +342,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
                 // 处理 URL 格式图片
                 if (! empty($data['image_urls'])) {
                     foreach ($data['image_urls'] as $i => &$imageUrl) {
-                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $watermarkConfig);
+                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
                     }
                     unset($imageUrl);
                 }
