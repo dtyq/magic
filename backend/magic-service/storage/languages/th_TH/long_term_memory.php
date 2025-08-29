@@ -33,7 +33,7 @@ return [
         'memory_reinforced_successfully' => 'เสริมสร้างหน่วยความจำสำเร็จ',
         'memories_batch_reinforced_successfully' => 'เสริมสร้างหน่วยความจำแบบกลุ่มสำเร็จ',
         'memories_accepted_successfully' => 'รับข้อเสนอแนะหน่วยความจำ :count รายการสำเร็จ',
-        'memories_rejected_successfully' => 'ปฏิเสธและลบข้อเสนอแนะหน่วยความจำ :count รายการสำเร็จ',
+        'memories_rejected_successfully' => 'ปฏิเสธข้อเสนอแนะหน่วยความจำ :count รายการสำเร็จ',
         'batch_process_memories_failed' => 'การประมวลผลข้อเสนอแนะหน่วยความจำแบบกลุ่มล้มเหลว',
         'batch_action_memories_failed' => 'การ:actionข้อเสนอแนะหน่วยความจำแบบกลุ่มล้มเหลว: :error',
         'user_manual_edit_explanation' => 'ผู้ใช้แก้ไขเนื้อหาหน่วยความจำด้วยตนเอง',

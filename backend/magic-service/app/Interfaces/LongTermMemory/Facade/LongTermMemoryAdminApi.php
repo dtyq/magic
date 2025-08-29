@@ -410,7 +410,7 @@ class LongTermMemoryAdminApi extends AbstractApi
                     'scenario' => $scenario->value,
                 ];
             }
-            // 批量拒绝记忆建议：删除记忆
+            // 删除记忆或者拒绝更新记忆
             $this->longTermMemoryAppService->batchProcessMemorySuggestions($memoryIds, MemoryOperationAction::REJECT, $scenario, $validatedParams['magic_message_id'] ?? null);
 
             return [
