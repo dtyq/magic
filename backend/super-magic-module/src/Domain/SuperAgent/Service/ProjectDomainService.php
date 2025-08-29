@@ -170,4 +170,12 @@ class ProjectDomainService
         $this->projectRepository->save($projectEntity);
         return true;
     }
+
+    /**
+     * 更新项目的updated_at时间
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool
+    {
+        return $this->projectRepository->updateUpdatedAtToNow($projectId);
+    }
 }
