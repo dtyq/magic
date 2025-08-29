@@ -21,14 +21,8 @@ return new class extends Migration {
             $table->timestamp('last_active_at')->useCurrent()->comment('最后活跃时间');
             $table->timestamps();
 
-            // 唯一约束：一个用户在一个项目只能有一条设置记录
-            $table->unique(['user_id', 'project_id'], 'uk_user_project');
-
-            // 索引优化
+            $table->index(['user_id', 'project_id'], 'idx_user_project');
             $table->index('project_id', 'idx_project_id');
-            $table->index(['user_id', 'is_pinned', 'pinned_at'], 'idx_user_pinned');
-            $table->index(['user_id', 'last_active_at'], 'idx_user_active');
-            $table->index('organization_code', 'idx_organization_code');
         });
     }
 
