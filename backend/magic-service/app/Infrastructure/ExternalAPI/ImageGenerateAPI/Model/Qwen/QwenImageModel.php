@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -72,7 +71,7 @@ class QwenImageModel extends AbstractImageGenerate
             return $rawData;
         }
 
-        return $this->processQwenRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processQwenRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -409,7 +408,7 @@ class QwenImageModel extends AbstractImageGenerate
     /**
      * 为通义千问原始数据添加水印.
      */
-    private function processQwenRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processQwenRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         foreach ($rawData as $index => &$result) {
             if (! isset($result['output']['results'])) {
@@ -420,7 +419,7 @@ class QwenImageModel extends AbstractImageGenerate
                 // 处理 results 数组中的图片URL
                 foreach ($result['output']['results'] as $i => &$resultItem) {
                     if (! empty($resultItem['url'])) {
-                        $resultItem['url'] = $this->watermarkProcessor->addWatermarkToUrl($resultItem['url'], $watermarkConfig);
+                        $resultItem['url'] = $this->watermarkProcessor->addWatermarkToUrl($resultItem['url'], $imageGenerateRequest);
                     }
                 }
                 unset($resultItem);
