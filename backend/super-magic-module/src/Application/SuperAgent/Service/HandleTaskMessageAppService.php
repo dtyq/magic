@@ -235,7 +235,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
 
         if (empty($uid)) {
-            if ($accessToken->getType()->value === AccessTokenType::Application->value) {
+            if ($accessToken->getType() === AccessTokenType::Application->value) {
                 $uid = $accessToken->getCreator();
             } else {
                 $uid = $accessToken->getRelationId();
