@@ -35,7 +35,7 @@ return [
         'memory_reinforced_successfully' => '记忆强化成功',
         'memories_batch_reinforced_successfully' => '记忆批量强化成功',
         'memories_accepted_successfully' => '成功接受 :count 条记忆建议',
-        'memories_rejected_successfully' => '成功拒绝并删除 :count 条记忆建议',
+        'memories_rejected_successfully' => '成功拒绝 :count 条记忆建议',
         'batch_process_memories_failed' => '批量处理记忆建议失败',
         'batch_action_memories_failed' => '批量:action记忆建议失败：:error',
         'user_manual_edit_explanation' => '用户手动修改记忆内容',

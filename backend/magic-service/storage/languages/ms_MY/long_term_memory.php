@@ -33,7 +33,7 @@ return [
         'memory_reinforced_successfully' => 'Memori berjaya diperkuat',
         'memories_batch_reinforced_successfully' => 'Memori berjaya diperkuat secara berkelompok',
         'memories_accepted_successfully' => 'Berjaya menerima :count cadangan memori',
-        'memories_rejected_successfully' => 'Berjaya menolak dan menghapus :count cadangan memori',
+        'memories_rejected_successfully' => 'Berjaya menolak :count cadangan memori',
         'batch_process_memories_failed' => 'Gagal memproses cadangan memori secara berkelompok',
         'batch_action_memories_failed' => 'Berkelompok :action cadangan memori gagal: :error',
         'user_manual_edit_explanation' => 'Pengguna mengubah suai kandungan memori secara manual',

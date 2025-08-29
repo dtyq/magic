@@ -33,7 +33,7 @@ return [
         'memory_reinforced_successfully' => 'Tăng cường bộ nhớ thành công',
         'memories_batch_reinforced_successfully' => 'Tăng cường bộ nhớ hàng loạt thành công',
         'memories_accepted_successfully' => 'Chấp nhận thành công :count đề xuất bộ nhớ',
-        'memories_rejected_successfully' => 'Từ chối và xóa thành công :count đề xuất bộ nhớ',
+        'memories_rejected_successfully' => 'Từ chối thành công :count đề xuất bộ nhớ',
         'batch_process_memories_failed' => 'Xử lý hàng loạt đề xuất bộ nhớ thất bại',
         'batch_action_memories_failed' => 'Hàng loạt :action đề xuất bộ nhớ thất bại: :error',
         'user_manual_edit_explanation' => 'Người dùng chỉnh sửa nội dung bộ nhớ thủ công',
