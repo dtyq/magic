@@ -26,6 +26,7 @@ class ModeFactory
         $entity->setIdentifier($model->identifier);
         $entity->setIcon($model->icon);
         $entity->setColor($model->color);
+        $entity->setSort($model->sort);
         $entity->setDescription($model->description);
         $entity->setIsDefault($model->is_default);
         $entity->setStatus($model->status);

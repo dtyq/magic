@@ -9,6 +9,7 @@ namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 
@@ -18,7 +19,10 @@ class ModeAppService extends AbstractModeAppService
     {
         $modeDataIsolation = $this->getModeDataIsolation($authorization);
         $modeDataIsolation->disabled();
-        $modes = $this->modeDomainService->getModes($modeDataIsolation, new Page(1, 100));
+
+        // 创建查询对象：sort降序，过滤默认模式
+        $query = new ModeQuery('desc', true);
+        $modes = $this->modeDomainService->getModes($modeDataIsolation, $query, new Page(1, 100));
 
         $modeDTOs = [];
         foreach ($modes['list'] as $mode) {
