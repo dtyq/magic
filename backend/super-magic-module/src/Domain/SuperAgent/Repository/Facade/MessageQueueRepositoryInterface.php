@@ -61,7 +61,9 @@ interface MessageQueueRepositoryInterface
         array $statuses = [],
         bool $needPagination = true,
         int $pageSize = 10,
-        int $page = 1
+        int $page = 1,
+        string $orderBy = 'id',
+        string $order = 'asc'
     ): array;
 
     /**
