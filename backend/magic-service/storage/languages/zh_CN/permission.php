@@ -33,5 +33,6 @@ return [
         'organization_creator_cannot_be_revoked' => '组织创建人不可撤销',
         'organization_creator_cannot_be_disabled' => '组织创建人不可禁用',
         'current_user_not_organization_creator' => '当前用户不是组织创建人',
+        'personal_organization_cannot_grant_admin' => '个人组织不可设置组织管理员',
     ],
 ];
