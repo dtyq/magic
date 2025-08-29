@@ -138,7 +138,7 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
     public function queryToolSets()
     {
         $result = $this->magicFlowAppService->queryToolSets($this->getAuthorization());
-        return MagicFlowToolSetAssembler::createPageListDTO($result['total'], $result['list'], Page::createNoPage(), $result['users'], $result['icons']);
+        return MagicFlowToolSetAssembler::createPageListDTO($result['total'], $result['list'], Page::createNoPage(), $result['users'] ?? [], $result['icons']);
     }
 
     public function queryMCPList()

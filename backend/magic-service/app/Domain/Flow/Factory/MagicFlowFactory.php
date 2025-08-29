@@ -33,7 +33,7 @@ class MagicFlowFactory
         $magicFlowEntity->setVersionCode($magicFlowArray['version_code']);
         $magicFlowEntity->setName($magicFlowArray['name']);
         $magicFlowEntity->setDescription($magicFlowArray['description']);
-        $magicFlowEntity->setIcon($magicFlowArray['icon']);
+        $magicFlowEntity->setIcon($magicFlowArray['icon'] ?? '');
         $magicFlowEntity->setToolSetId($magicFlowArray['tool_set_id'] ?? ConstValue::TOOL_SET_DEFAULT_CODE);
         $magicFlowEntity->setType(Type::from($magicFlowArray['type']));
         $magicFlowEntity->setEnabled($magicFlowArray['enabled']);
