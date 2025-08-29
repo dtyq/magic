@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkProjectResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkStatusResponseDTO;
@@ -198,7 +199,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 获取项目信息
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
         $projectEntity->setProjectName($requestDTO->getProjectName());
         $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
         $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
@@ -657,6 +658,54 @@ class ProjectAppService extends AbstractAppService
             ));
             throw $e;
         }
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(RequestContext $requestContext, MoveProjectRequestDTO $requestDTO): array
+    {
+        $this->logger->info('Starting project move process');
+
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // Validate target workspace exists and belongs to user
+        $targetWorkspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getTargetWorkspaceId());
+        if (empty($targetWorkspaceEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
+        }
+
+        if ($targetWorkspaceEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, trans('workspace.workspace_access_denied'));
+        }
+
+        // Validate source project exists and belongs to user (only project owner can move)
+        $sourceProjectEntity = $this->projectDomainService->getProject(
+            $requestDTO->getSourceProjectId(),
+            $dataIsolation->getCurrentUserId()
+        );
+
+        // Call domain service to handle the move
+        $movedProjectEntity = $this->projectDomainService->moveProject(
+            $requestDTO->getSourceProjectId(),
+            $requestDTO->getTargetWorkspaceId(),
+            $userAuthorization->getId()
+        );
+
+        $this->logger->info(sprintf(
+            'Project moved successfully, project ID: %d, from workspace: %d to workspace: %d',
+            $movedProjectEntity->getId(),
+            $sourceProjectEntity->getWorkspaceId(),
+            $requestDTO->getTargetWorkspaceId()
+        ));
+
+        return [
+            'project_id' => (string) $movedProjectEntity->getId(),
+        ];
     }
 
     /**

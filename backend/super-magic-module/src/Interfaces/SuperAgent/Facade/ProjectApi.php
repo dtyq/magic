@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -180,5 +181,18 @@ class ProjectApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         return $this->projectAppService->checkForkProjectStatus($requestContext, (int) $id);
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->moveProject($requestContext, $requestDTO);
     }
 }

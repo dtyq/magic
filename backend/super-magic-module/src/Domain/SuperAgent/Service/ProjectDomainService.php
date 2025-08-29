@@ -18,7 +18,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Hyperf\DbConnection\Db;
 
 use function Hyperf\Translation\trans;
 
@@ -31,6 +34,8 @@ class ProjectDomainService
         private readonly ProjectRepositoryInterface $projectRepository,
         private readonly ProjectForkRepositoryInterface $projectForkRepository,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
+        private readonly TopicRepositoryInterface $topicRepository,
+        private readonly TaskRepositoryInterface $taskRepository,
     ) {
     }
 
@@ -252,6 +257,79 @@ class ProjectDomainService
     public function getForkProjectRecordById(int $forkId): ?ProjectForkEntity
     {
         return $this->projectForkRepository->findById($forkId);
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(int $sourceProjectId, int $targetWorkspaceId, string $userId): ProjectEntity
+    {
+        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId) {
+            $currentTime = date('Y-m-d H:i:s');
+
+            // Get the source project first to return updated entity
+            $sourceProject = $this->projectRepository->findById($sourceProjectId);
+            if (! $sourceProject) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+            }
+
+            // Get original workspace ID for topic and task updates
+            $originalWorkspaceId = $sourceProject->getWorkspaceId();
+
+            // Check if project is already in target workspace
+            if ($originalWorkspaceId === $targetWorkspaceId) {
+                // Project is already in the target workspace, no need to move
+                return $sourceProject;
+            }
+
+            // Update project workspace_id
+            $projectUpdateResult = $this->projectRepository->updateProjectByCondition(
+                ['id' => $sourceProjectId],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_uid' => $userId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            if (! $projectUpdateResult) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::UPDATE_PROJECT_FAILED, trans('project.project_update_failed'));
+            }
+
+            // Update topics workspace_id
+            $topicUpdateResult = $this->topicRepository->updateTopicByCondition(
+                [
+                    'project_id' => $sourceProjectId,
+                    'workspace_id' => $originalWorkspaceId,
+                ],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            // Update tasks workspace_id
+            $taskUpdateResult = $this->taskRepository->updateTaskByCondition(
+                [
+                    'project_id' => $sourceProjectId,
+                    'workspace_id' => $originalWorkspaceId,
+                ],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            // Return updated project entity
+            $updatedProject = $this->projectRepository->findById($sourceProjectId);
+            if (! $updatedProject) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+            }
+
+            // todo 记录操作日志
+
+            return $updatedProject;
+        });
     }
 
     /**
