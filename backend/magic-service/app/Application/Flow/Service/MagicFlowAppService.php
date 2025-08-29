@@ -370,6 +370,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         //            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
         //            $userIds
         //        );
+        $toolSetData['users'] = [];
 
         return $toolSetData;
     }
