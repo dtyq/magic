@@ -43,15 +43,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
      */
     public function isPinOperation(): bool
     {
-        return $this->isPin === true;
-    }
-
-    /**
-     * 检查是否为取消置顶操作.
-     */
-    public function isUnpinOperation(): bool
-    {
-        return $this->isPin === false;
+        return $this->isPin;
     }
 
     /**
