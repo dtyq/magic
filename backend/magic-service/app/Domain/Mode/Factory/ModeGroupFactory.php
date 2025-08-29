@@ -21,9 +21,8 @@ class ModeGroupFactory
 
         $entity->setId((string) $model->id);
         $entity->setModeId((string) $model->mode_id);
-        $entity->setName($model->name);
+        $entity->setNameI18n($model->name_i18n);
         $entity->setIcon($model->icon);
-        $entity->setColor($model->color);
         $entity->setDescription($model->description);
         $entity->setSort($model->sort);
         $entity->setStatus((bool) $model->status);
@@ -43,30 +42,5 @@ class ModeGroupFactory
         }
 
         return $entity;
-    }
-
-    /**
-     * 将实体转换为模型属性数组.
-     */
-    public static function entityToAttributes(ModeGroupEntity $entity): array
-    {
-        $attributes = [
-            'mode_id' => (int) $entity->getModeId(),
-            'name' => $entity->getName(),
-            'icon' => $entity->getIcon(),
-            'color' => $entity->getColor(),
-            'description' => $entity->getDescription(),
-            'sort' => $entity->getSort(),
-            'status' => $entity->getStatus(),
-            'organization_code' => $entity->getOrganizationCode(),
-            'creator_id' => $entity->getCreatorId(),
-        ];
-
-        // 如果实体有ID，则包含ID（用于更新场景）
-        if ($entity->getId()) {
-            $attributes['id'] = (int) $entity->getId();
-        }
-
-        return $attributes;
     }
 }

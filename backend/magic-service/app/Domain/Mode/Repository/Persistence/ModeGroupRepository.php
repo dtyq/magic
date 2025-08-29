@@ -14,6 +14,7 @@ use App\Domain\Mode\Repository\Facade\ModeGroupRepositoryInterface;
 use App\Domain\Mode\Repository\Persistence\Model\ModeGroupModel;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Codec\Json;
 use InvalidArgumentException;
 
 class ModeGroupRepository extends AbstractRepository implements ModeGroupRepositoryInterface
@@ -82,19 +83,6 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         return $groupEntity;
     }
 
-    public function isNameUniqueInMode(ModeDataIsolation $dataIsolation, int|string $modeId, string $name, null|int|string $excludeId = null): bool
-    {
-        $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
-        $query = $builder->where('mode_id', $modeId)
-            ->where('name', $name);
-
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        return ! $query->exists();
-    }
-
     /**
      * @return ModeGroupEntity[]
      */
@@ -142,7 +130,9 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
         $data = [];
         foreach ($groupEntities as $groupEntity) {
-            $data[] = $groupEntity->toArray();
+            $array = $groupEntity->toArray();
+            $array['name_i18n'] = Json::encode($array['name_i18n']);
+            $data[] = $array;
         }
         $builder->insert($data);
     }

@@ -13,7 +13,7 @@ class ModeEntity extends AbstractEntity
 {
     protected ?int $id = null;
 
-    protected string $name = '';
+    protected array $nameI18n = [];
 
     protected string $identifier = '';
 
@@ -22,6 +22,8 @@ class ModeEntity extends AbstractEntity
     protected string $color = '';
 
     protected string $description = '';
+
+    protected int $sort = 0;
 
     protected int $isDefault = 0;
 
@@ -54,14 +56,24 @@ class ModeEntity extends AbstractEntity
         return $this;
     }
 
-    public function getName(): string
+    public function getNameI18n(): array
     {
-        return $this->name;
+        return $this->nameI18n;
     }
 
-    public function setName(string $name): void
+    public function setNameI18n(array $nameI18n): void
     {
-        $this->name = $name;
+        $this->nameI18n = $nameI18n;
+    }
+
+    public function getZHName(): string
+    {
+        return $this->nameI18n['zh_CN'] ?? '';
+    }
+
+    public function getENName(): string
+    {
+        return $this->nameI18n['en_US'] ?? '';
     }
 
     public function getIdentifier(): string
@@ -151,7 +163,7 @@ class ModeEntity extends AbstractEntity
 
     public function isInheritedConfiguration(): bool
     {
-        return $this->distributionType === DistributionTypeEnum::INHERITED->value;
+        return $this->distributionType === DistributionTypeEnum::INHERITED;
     }
 
     public function getFollowModeId(): int
@@ -236,5 +248,15 @@ class ModeEntity extends AbstractEntity
     public function canBeDeleted(): bool
     {
         return ! $this->isDefaultMode();
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
     }
 }

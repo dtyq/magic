@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\Application\Mode\Service\ModeAppService;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -25,7 +25,6 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelReque
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
-use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
@@ -227,9 +226,9 @@ class ImageGenerateTest extends BaseTest
 
     public function testWatermark()
     {
-        $di = di(ImageWatermarkProcessor::class);
-        $watermarkConfig = new WatermarkConfig('麦吉 AI ', 3, 1.0);
-        $addWatermarkToUrl = $di->addWatermarkToUrl('https://cdn.pixabay.com/photo/2025/08/04/14/58/tools-9754352_1280.jpg', $watermarkConfig);
-        var_dump($addWatermarkToUrl);
+        $di = di(ModeAppService::class);
+        $magicUserAuthorization = new MagicUserAuthorization();
+        $modeByIdentifier = $di->getModeByIdentifier($magicUserAuthorization, '94');
+        var_dump($modeByIdentifier);
     }
 }

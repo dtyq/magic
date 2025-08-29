@@ -84,7 +84,8 @@ class SuperAgentMemoryApi extends AbstractApi
             'tags' => $validatedParams['tags'] ?? [],
             'orgId' => $metadata->getOrganizationCode(),
             'appId' => AgentConstant::SUPER_MAGIC_CODE,
-            'projectId' => isset($validatedParams['project_id']) ? (string) $validatedParams['project_id'] : ($metadata->getProjectId() ?: null),
+            // 项目 id 不能从 $metadata 获取，因为这个参数是用来区分记忆是项目还是全局的。
+            'projectId' => isset($validatedParams['project_id']) ? (string) $validatedParams['project_id'] : null,
             'userId' => $metadata->getUserId(),
             'expiresAt' => null,
         ]);

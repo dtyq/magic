@@ -14,9 +14,8 @@ use Hyperf\Database\Model\SoftDeletes;
 /**
  * @property int $id
  * @property int $mode_id
- * @property string $name
+ * @property array $name_i18n
  * @property string $icon
- * @property string $color
  * @property string $description
  * @property int $sort
  * @property int $status
@@ -30,14 +29,13 @@ class ModeGroupModel extends AbstractModel
 {
     use SoftDeletes;
 
-    protected ?string $table = 'magic_model_groups';
+    protected ?string $table = 'magic_mode_groups';
 
     protected array $fillable = [
         'id',
         'mode_id',
-        'name',
+        'name_i18n',
         'icon',
-        'color',
         'description',
         'sort',
         'status',
@@ -50,6 +48,7 @@ class ModeGroupModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'mode_id' => 'integer',
+        'name_i18n' => 'array',
         'sort' => 'integer',
         'status' => 'boolean',
         'created_at' => 'datetime',

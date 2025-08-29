@@ -22,10 +22,11 @@ class ModeFactory
         $entity = new ModeEntity();
 
         $entity->setId((string) $model->id);
-        $entity->setName($model->name);
+        $entity->setNameI18n($model->name_i18n);
         $entity->setIdentifier($model->identifier);
         $entity->setIcon($model->icon);
         $entity->setColor($model->color);
+        $entity->setSort($model->sort);
         $entity->setDescription($model->description);
         $entity->setIsDefault($model->is_default);
         $entity->setStatus($model->status);

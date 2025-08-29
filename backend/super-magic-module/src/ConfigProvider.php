@@ -17,9 +17,13 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
@@ -30,6 +34,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordReposito
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectForkRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
@@ -107,6 +112,8 @@ class ConfigProvider
                 FileProcessAppService::class => FileProcessAppService::class,
                 // 添加HandleAgentMessageAppService的依赖注入
                 HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
+                // 添加MessageQueueAppService的依赖注入
+                MessageQueueAppService::class => MessageQueueAppService::class,
                 // 添加SandboxFileEditAppService的依赖注入
                 FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
@@ -117,6 +124,10 @@ class ConfigProvider
                 TokenUsageRecordRepositoryInterface::class => TokenUsageRecordRepository::class,
                 WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
                 ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
+                MessageQueueRepositoryInterface::class => MessageQueueRepository::class,
+
+                // agent 管理
+                SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,

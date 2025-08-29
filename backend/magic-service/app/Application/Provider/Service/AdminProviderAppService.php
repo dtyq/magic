@@ -16,11 +16,11 @@ use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ProviderEntity;
-use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
@@ -331,15 +331,72 @@ readonly class AdminProviderAppService
 
     /**
      * 获取官方组织下的所有可用模型.
-     * @return ProviderModelEntity[]
+     * @return ProviderModelDetailDTO[]
      */
-    public function getModelsForOrganization(MagicUserAuthorization $authorization, Category $category, ?Status $status = Status::Enabled): array
+    public function queriesModels(MagicUserAuthorization $authorization, ProviderModelQuery $providerModelQuery): array
     {
         $dataIsolation = ProviderDataIsolation::create(
             $authorization->getOrganizationCode(),
             $authorization->getId(),
         );
-        return $this->adminProviderDomainService->getModelsForOrganization($dataIsolation, $category, $status);
+        $queriesModels = $this->adminProviderDomainService->queriesModels($dataIsolation, $providerModelQuery);
+        $providerConfigModelsDTOs = [];
+        foreach ($queriesModels as $model) {
+            $providerConfigModelsDTOs[] = new ProviderModelDetailDTO($model->toArray());
+        }
+        $this->processModelIcons($providerConfigModelsDTOs);
+        return $providerConfigModelsDTOs;
+    }
+
+    /**
+     * @param $providerModelDetailDTOs ProviderModelDetailDTO[]
+     */
+    private function processModelIcons(array $providerModelDetailDTOs): void
+    {
+        if (empty($providerModelDetailDTOs)) {
+            return;
+        }
+
+        // 收集所有图标路径按组织编码分组
+        $iconsByOrg = [];
+        $iconToModelMap = [];
+
+        foreach ($providerModelDetailDTOs as $model) {
+            $icon = $model->getIcon();
+            if (empty($icon)) {
+                continue;
+            }
+
+            $icon = FileAssembler::formatPath($icon);
+            $organizationCode = substr($icon, 0, strpos($icon, '/'));
+
+            if (! isset($iconsByOrg[$organizationCode])) {
+                $iconsByOrg[$organizationCode] = [];
+            }
+            $iconsByOrg[$organizationCode][] = $icon;
+
+            if (! isset($iconToModelMap[$icon])) {
+                $iconToModelMap[$icon] = [];
+            }
+            $iconToModelMap[$icon][] = $model;
+        }
+
+        // 批量获取图标URL
+        $iconUrlMap = [];
+        foreach ($iconsByOrg as $organizationCode => $icons) {
+            $links = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
+            $iconUrlMap = array_merge($iconUrlMap, $links);
+        }
+
+        // 设置图标URL
+        foreach ($iconUrlMap as $icon => $fileLink) {
+            if (isset($iconToModelMap[$icon])) {
+                $url = $fileLink ? $fileLink->getUrl() : '';
+                foreach ($iconToModelMap[$icon] as $model) {
+                    $model->setIcon($url);
+                }
+            }
+        }
     }
 
     /**

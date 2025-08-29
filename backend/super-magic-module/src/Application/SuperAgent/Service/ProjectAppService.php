@@ -8,18 +8,23 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ForkProjectStartEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectForkEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -38,6 +43,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkProjectResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkStatusResponseDTO;
@@ -46,6 +52,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\Amqp\Producer;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -69,6 +76,7 @@ class ProjectAppService extends AbstractAppService
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -192,7 +200,7 @@ class ProjectAppService extends AbstractAppService
         }
 
         // 获取项目信息
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
         $projectEntity->setProjectName($requestDTO->getProjectName());
         $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
         $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
@@ -205,6 +213,7 @@ class ProjectAppService extends AbstractAppService
     /**
      * 删除项目.
      */
+    #[Transactional]
     public function deleteProject(RequestContext $requestContext, int $projectId): bool
     {
         // Get user authorization information
@@ -214,7 +223,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         $result = Db::transaction(function () use ($projectId, $dataIsolation) {
-            // 删除话题
+            // 删除项目
             $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
 
             // 删除项目协作关系
@@ -223,6 +232,14 @@ class ProjectAppService extends AbstractAppService
         });
 
         if ($result) {
+            // 删除项目相关的长期记忆
+            $this->longTermMemoryDomainService->deleteMemoriesByProjectId(
+                $dataIsolation->getCurrentOrganizationCode(),
+                AgentConstant::SUPER_MAGIC_CODE, // app_id 固定为 super-magic
+                $dataIsolation->getCurrentUserId(),
+                (string) $projectId
+            );
+
             $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);
             $event = new StopRunningTaskEvent(
                 DeleteDataType::PROJECT,
@@ -499,6 +516,17 @@ class ProjectAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
+            // Trigger fork start check event
+            AsyncEventUtil::dispatch(new ForkProjectStartEvent(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            ));
+            $this->logger->info(sprintf(
+                'Dispatched fork project start event, organization: %s, user: %s',
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId()
+            ));
+
             // Create fork record and project
             /**
              * @var ProjectEntity $forkProjectEntity
@@ -568,6 +596,9 @@ class ProjectAppService extends AbstractAppService
             Db::commit();
 
             return ForkProjectResponseDTO::fromEntity($forkProjectRecordEntity)->toArray();
+        } catch (EventException $e) {
+            Db::rollBack();
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_FORK_ACCESS_DENIED, $e->getMessage());
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Fork project failed, error: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
@@ -631,6 +662,54 @@ class ProjectAppService extends AbstractAppService
             ));
             throw $e;
         }
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(RequestContext $requestContext, MoveProjectRequestDTO $requestDTO): array
+    {
+        $this->logger->info('Starting project move process');
+
+        // Get user authorization information
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // Create data isolation object
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // Validate target workspace exists and belongs to user
+        $targetWorkspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getTargetWorkspaceId());
+        if (empty($targetWorkspaceEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
+        }
+
+        if ($targetWorkspaceEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, trans('workspace.workspace_access_denied'));
+        }
+
+        // Validate source project exists and belongs to user (only project owner can move)
+        $sourceProjectEntity = $this->projectDomainService->getProject(
+            $requestDTO->getSourceProjectId(),
+            $dataIsolation->getCurrentUserId()
+        );
+
+        // Call domain service to handle the move
+        $movedProjectEntity = $this->projectDomainService->moveProject(
+            $requestDTO->getSourceProjectId(),
+            $requestDTO->getTargetWorkspaceId(),
+            $userAuthorization->getId()
+        );
+
+        $this->logger->info(sprintf(
+            'Project moved successfully, project ID: %d, from workspace: %d to workspace: %d',
+            $movedProjectEntity->getId(),
+            $sourceProjectEntity->getWorkspaceId(),
+            $requestDTO->getTargetWorkspaceId()
+        ));
+
+        return [
+            'project_id' => (string) $movedProjectEntity->getId(),
+        ];
     }
 
     /**

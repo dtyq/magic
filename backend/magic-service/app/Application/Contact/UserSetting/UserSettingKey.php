@@ -26,6 +26,9 @@ enum UserSettingKey: string
     // 全局配置
     case GlobalConfig = 'GlobalConfig';
 
+    // 智能体排序配置
+    case SuperMagicAgentSort = 'SuperMagicAgentSort';
+
     public static function genSuperMagicProjectMCPServers(string $projectId): string
     {
         return self::SuperMagicProjectMCPServers->value . '_' . $projectId;

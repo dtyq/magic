@@ -75,14 +75,16 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
         // 构建基础查询
         $query = $this->model::query()
-            ->where('topic_id', $topicId);
+            ->leftJoin('magic_chat_sequences', 'magic_super_agent_message.im_seq_id', '=', 'magic_chat_sequences.id')
+            ->select('magic_super_agent_message.*', 'magic_chat_sequences.status as im_status')
+            ->where('magic_super_agent_message.topic_id', $topicId);
 
         // 如果 $showInUi 为 true，则添加条件过滤
         if ($showInUi) {
-            $query->where('show_in_ui', true);
+            $query->where('magic_super_agent_message.show_in_ui', true);
         }
 
-        $query->orderBy('id', $sortDirection);
+        $query->orderBy('magic_super_agent_message.id', $sortDirection);
 
         // 获取总记录数
         $total = $query->count();

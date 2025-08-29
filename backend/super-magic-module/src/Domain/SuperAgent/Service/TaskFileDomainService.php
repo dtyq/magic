@@ -115,6 +115,14 @@ class TaskFileDomainService
     /**
      * @return TaskFileEntity[] User file list
      */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array
+    {
+        return $this->taskFileRepository->findFilesByProjectIdAndIds($projectId, $fileIds);
+    }
+
+    /**
+     * @return TaskFileEntity[] User file list
+     */
     public function findUserFilesByTopicId(string $topicId): array
     {
         return $this->taskFileRepository->findUserFilesByTopicId($topicId);
@@ -1597,14 +1605,6 @@ class TaskFileDomainService
      */
     private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode): int
     {
-        // Cache to avoid duplicate database queries in single request
-        static $pathCache = [];
-        $cacheKey = "{$projectId}:{$dirPath}";
-
-        if (isset($pathCache[$cacheKey])) {
-            return $pathCache[$cacheKey];
-        }
-
         // Split path into parts and process each level
         $pathParts = array_filter(explode('/', trim($dirPath, '/')));
         $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
@@ -1612,13 +1612,6 @@ class TaskFileDomainService
 
         foreach ($pathParts as $dirName) {
             $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-            $currentCacheKey = "{$projectId}:{$currentPath}";
-
-            // Check cache first
-            if (isset($pathCache[$currentCacheKey])) {
-                $currentParentId = $pathCache[$currentCacheKey];
-                continue;
-            }
 
             // Look for existing directory
             $existingDir = $this->findDirectoryByParentIdAndName($currentParentId, $dirName, $projectId);
@@ -1630,12 +1623,8 @@ class TaskFileDomainService
                 $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode);
                 $currentParentId = $newDirId;
             }
-
-            // Cache the result
-            $pathCache[$currentCacheKey] = $currentParentId;
         }
 
-        $pathCache[$cacheKey] = $currentParentId;
         return $currentParentId;
     }
 
@@ -1965,6 +1954,39 @@ class TaskFileDomainService
     }
 
     /**
+     * Batch fix parent_id for files that couldn't be resolved during initial processing.
+     *
+     * @param array $needFixFileIds Array of files needing parent_id fixes
+     * @param array $sourceToNewIdMap Mapping from source file ID to new file ID
+     * @param string $userId User performing the update
+     */
+    private function batchFixParentIds(array $needFixFileIds, array $sourceToNewIdMap, string $userId): void
+    {
+        // Group files by their old parent_id for batch processing
+        $parentGroups = [];
+        foreach ($needFixFileIds as $fixInfo) {
+            $oldParentId = $fixInfo['old_parent_id'];
+            $newFileId = $fixInfo['new_id'];
+
+            if (isset($sourceToNewIdMap[$oldParentId])) {
+                $newParentId = $sourceToNewIdMap[$oldParentId];
+                $parentGroups[$newParentId][] = $newFileId;
+            }
+        }
+
+        // Batch update files by parent_id groups using repository
+        foreach ($parentGroups as $newParentId => $fileIds) {
+            $updatedCount = $this->taskFileRepository->batchUpdateParentId($fileIds, $newParentId, $userId);
+            $this->logger->debug(sprintf(
+                'Updated parent_id to %d for %d files (affected: %d)',
+                $newParentId,
+                count($fileIds),
+                $updatedCount
+            ));
+        }
+    }
+
+    /**
      * Acquire project-level move lock.
      */
     private function acquireProjectMoveLock(int $projectId): array
@@ -2108,38 +2130,5 @@ class TaskFileDomainService
         $newTaskFile->setUpdatedAt(date('Y-m-d H:i:s'));
 
         return $newTaskFile;
-    }
-
-    /**
-     * Batch fix parent_id for files that couldn't be resolved during initial processing.
-     *
-     * @param array $needFixFileIds Array of files needing parent_id fixes
-     * @param array $sourceToNewIdMap Mapping from source file ID to new file ID
-     * @param string $userId User performing the update
-     */
-    private function batchFixParentIds(array $needFixFileIds, array $sourceToNewIdMap, string $userId): void
-    {
-        // Group files by their old parent_id for batch processing
-        $parentGroups = [];
-        foreach ($needFixFileIds as $fixInfo) {
-            $oldParentId = $fixInfo['old_parent_id'];
-            $newFileId = $fixInfo['new_id'];
-
-            if (isset($sourceToNewIdMap[$oldParentId])) {
-                $newParentId = $sourceToNewIdMap[$oldParentId];
-                $parentGroups[$newParentId][] = $newFileId;
-            }
-        }
-
-        // Batch update files by parent_id groups using repository
-        foreach ($parentGroups as $newParentId => $fileIds) {
-            $updatedCount = $this->taskFileRepository->batchUpdateParentId($fileIds, $newParentId, $userId);
-            $this->logger->debug(sprintf(
-                'Updated parent_id to %d for %d files (affected: %d)',
-                $newParentId,
-                count($fileIds),
-                $updatedCount
-            ));
-        }
     }
 }

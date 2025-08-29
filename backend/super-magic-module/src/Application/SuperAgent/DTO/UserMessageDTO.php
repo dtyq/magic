@@ -33,6 +33,7 @@ class UserMessageDTO
         private string $language = '',
         private readonly string $messageId = '',
         private readonly string $messageSeqId = '',
+        private readonly string $queueId = '',
     ) {
     }
 
@@ -126,6 +127,11 @@ class UserMessageDTO
         return $this->messageSeqId;
     }
 
+    public function getQueueId(): string
+    {
+        return $this->queueId;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -152,6 +158,7 @@ class UserMessageDTO
             language: $data['language'] ?? 'zh_CN',
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
+            queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
         );
     }
 
@@ -177,6 +184,7 @@ class UserMessageDTO
             'language' => $this->language,
             'message_id' => $this->messageId,
             'message_seq_id' => $this->messageSeqId,
+            'queue_id' => $this->queueId,
         ];
     }
 }

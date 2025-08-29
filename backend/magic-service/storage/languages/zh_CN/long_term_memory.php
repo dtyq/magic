@@ -11,6 +11,8 @@ return [
     'creation_failed' => '记忆创建失败',
     'update_failed' => '记忆更新失败',
     'deletion_failed' => '记忆删除失败',
+    'enabled_memory_limit_exceeded' => '启用记忆数量超过限制',
+    'memory_category_limit_exceeded' => ':category最多只能启用 :limit 个',
     'evaluation' => [
         'llm_request_failed' => '记忆评估请求失败',
         'llm_response_parse_failed' => '记忆评估响应解析失败',
@@ -33,7 +35,7 @@ return [
         'memory_reinforced_successfully' => '记忆强化成功',
         'memories_batch_reinforced_successfully' => '记忆批量强化成功',
         'memories_accepted_successfully' => '成功接受 :count 条记忆建议',
-        'memories_rejected_successfully' => '成功拒绝并删除 :count 条记忆建议',
+        'memories_rejected_successfully' => '成功拒绝 :count 条记忆建议',
         'batch_process_memories_failed' => '批量处理记忆建议失败',
         'batch_action_memories_failed' => '批量:action记忆建议失败：:error',
         'user_manual_edit_explanation' => '用户手动修改记忆内容',

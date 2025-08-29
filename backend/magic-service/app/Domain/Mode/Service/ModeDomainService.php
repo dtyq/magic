@@ -13,12 +13,14 @@ use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Repository\Facade\ModeGroupRelationRepositoryInterface;
 use App\Domain\Mode\Repository\Facade\ModeGroupRepositoryInterface;
 use App\Domain\Mode\Repository\Facade\ModeRepositoryInterface;
 use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
 class ModeDomainService
 {
@@ -32,9 +34,9 @@ class ModeDomainService
     /**
      * @return array{total: int, list: ModeEntity[]}
      */
-    public function getModes(ModeDataIsolation $dataIsolation, Page $page): array
+    public function getModes(ModeDataIsolation $dataIsolation, ModeQuery $query, Page $page): array
     {
-        return $this->modeRepository->queries($dataIsolation, $page);
+        return $this->modeRepository->queries($dataIsolation, $query, $page);
     }
 
     /**
@@ -67,9 +69,20 @@ class ModeDomainService
     /**
      * 根据标识符获取模式.
      */
-    public function getModeByIdentifier(ModeDataIsolation $dataIsolation, string $identifier): ?ModeEntity
+    public function getModeDetailByIdentifier(ModeDataIsolation $dataIsolation, string $identifier): ?ModeAggregate
     {
-        return $this->modeRepository->findByIdentifier($dataIsolation, $identifier);
+        $mode = $this->modeRepository->findByIdentifier($dataIsolation, $identifier);
+        if (! $mode) {
+            return null;
+        }
+
+        // 如果是跟随模式，递归获取被跟随模式的配置
+        if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
+            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+        }
+
+        // 构建聚合根
+        return $this->buildModeAggregate($dataIsolation, $mode);
     }
 
     /**
@@ -157,19 +170,51 @@ class ModeDomainService
         // 直接删除该模式的所有现有配置
         $this->relationRepository->deleteByModeId($dataIsolation, $id);
 
+        // 删除该模式的所有现有分组
+        $this->groupRepository->deleteByModeId($dataIsolation, $id);
+
         // 保存模式基本信息
         $this->modeRepository->save($dataIsolation, $mode);
+
+        // 批量创建分组副本
+        $newGroupEntities = [];
+        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
+            $group = $groupAggregate->getGroup();
+
+            // 创建新分组实体（提前生成ID）
+            $newGroup = new ModeGroupEntity();
+            $newGroup->setId(IdGenerator::getSnowId());
+            $newGroup->setModeId((int) $id);
+            $newGroup->setNameI18n($group->getNameI18n());
+            $newGroup->setIcon($group->getIcon());
+            $newGroup->setDescription($group->getDescription());
+            $newGroup->setSort($group->getSort());
+            $newGroup->setStatus($group->getStatus());
+            $newGroup->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $newGroup->setCreatorId($dataIsolation->getCurrentUserId());
+
+            $newGroupEntities[] = $newGroup;
+
+            // 更新聚合中的分组引用
+            $groupAggregate->setGroup($newGroup);
+        }
+
+        // 批量保存分组
+        if (! empty($newGroupEntities)) {
+            $this->groupRepository->batchSave($dataIsolation, $newGroupEntities);
+        }
 
         // 批量构建分组实体和关系实体
         $relationEntities = [];
 
         foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
-            $group = $groupAggregate->getGroup();
-
-            // 直接使用已有的关联关系，更新模式ID和组织代码
             foreach ($groupAggregate->getRelations() as $relation) {
                 $relation->setModeId((string) $id);
                 $relation->setOrganizationCode($mode->getOrganizationCode());
+
+                // 设置为新创建的分组ID
+                $relation->setGroupId($groupAggregate->getGroup()->getId());
+
                 $relationEntities[] = $relation;
             }
         }
@@ -189,7 +234,7 @@ class ModeDomainService
     private function buildModeAggregate(ModeDataIsolation $dataIsolation, ModeEntity $mode): ModeAggregate
     {
         // 获取分组和关联关系
-        $groups = $this->groupRepository->findEnabledByModeId($dataIsolation, $mode->getId());
+        $groups = $this->groupRepository->findByModeId($dataIsolation, $mode->getId());
         $relations = $this->relationRepository->findByModeId($dataIsolation, $mode->getId());
 
         // 构建分组聚合根数组

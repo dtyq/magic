@@ -38,6 +38,11 @@ class SuperAgentExtra extends AbstractDTO
     protected ?array $model = null;
 
     /**
+     * Queue ID for message processing.
+     */
+    protected ?string $queueId;
+
+    /**
      * 获取 mentions 的 JSON 结构数组.
      */
     public function getMentionsJsonStruct(): ?array
@@ -133,5 +138,15 @@ class SuperAgentExtra extends AbstractDTO
     public function setModel(?array $model): void
     {
         $this->model = $model;
+    }
+
+    public function getQueueId(): ?string
+    {
+        return $this->queueId ?? null;
+    }
+
+    public function setQueueId(?string $queueId): void
+    {
+        $this->queueId = $queueId;
     }
 }

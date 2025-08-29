@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\DTO;
 
-use App\Domain\Mode\Entity\DistributionTypeEnum;
 use App\Infrastructure\Core\AbstractDTO;
 
 class ModeDTO extends AbstractDTO
@@ -22,19 +21,7 @@ class ModeDTO extends AbstractDTO
 
     protected ?string $color = null;
 
-    protected ?string $description = null;
-
-    protected DistributionTypeEnum $distributionType = DistributionTypeEnum::INDEPENDENT;
-
-    protected ?string $followModeId = null;
-
-    protected int $isDefault;
-
-    protected bool $status;
-
     protected int $sort;
-
-    protected ?string $createdAt = null;
 
     public function getId(): string
     {
@@ -86,59 +73,6 @@ class ModeDTO extends AbstractDTO
         $this->color = $color;
     }
 
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    public function setDescription(?string $description): void
-    {
-        $this->description = $description;
-    }
-
-    public function getDistributionType(): DistributionTypeEnum
-    {
-        return $this->distributionType;
-    }
-
-    public function setDistributionType(DistributionTypeEnum|int $distributionType): void
-    {
-        $this->distributionType = $distributionType instanceof DistributionTypeEnum ? $distributionType : DistributionTypeEnum::from($distributionType);
-    }
-
-    public function getFollowModeId(): ?string
-    {
-        return $this->followModeId;
-    }
-
-    public function setFollowModeId(null|int|string $followModeId): void
-    {
-        if (is_int($followModeId)) {
-            $followModeId = (string) $followModeId;
-        }
-        $this->followModeId = $followModeId;
-    }
-
-    public function getIsDefault(): int
-    {
-        return $this->isDefault;
-    }
-
-    public function setIsDefault(int $isDefault): void
-    {
-        $this->isDefault = $isDefault;
-    }
-
-    public function getStatus(): bool
-    {
-        return $this->status;
-    }
-
-    public function setStatus(bool $status): void
-    {
-        $this->status = $status;
-    }
-
     public function getSort(): int
     {
         return $this->sort;
@@ -147,20 +81,5 @@ class ModeDTO extends AbstractDTO
     public function setSort(int $sort): void
     {
         $this->sort = $sort;
-    }
-
-    public function getCreatedAt(): ?string
-    {
-        return $this->createdAt;
-    }
-
-    public function setCreatedAt(?string $createdAt): void
-    {
-        $this->createdAt = $createdAt;
-    }
-
-    public function isEnabled(): bool
-    {
-        return $this->status;
     }
 }

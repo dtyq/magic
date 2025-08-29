@@ -11,6 +11,8 @@ return [
     'creation_failed' => 'Failed to create memory',
     'update_failed' => 'Failed to update memory',
     'deletion_failed' => 'Failed to delete memory',
+    'enabled_memory_limit_exceeded' => 'Enabled memory limit exceeded',
+    'memory_category_limit_exceeded' => 'Maximum :limit :category can be enabled',
     'evaluation' => [
         'llm_request_failed' => 'Memory evaluation request failed',
         'llm_response_parse_failed' => 'Failed to parse memory evaluation response',
@@ -33,7 +35,7 @@ return [
         'memory_reinforced_successfully' => 'Memory reinforced successfully',
         'memories_batch_reinforced_successfully' => 'Memories batch reinforced successfully',
         'memories_accepted_successfully' => 'Successfully accepted :count memory suggestions',
-        'memories_rejected_successfully' => 'Successfully rejected and deleted :count memory suggestions',
+        'memories_rejected_successfully' => 'Successfully rejected :count memory suggestions',
         'batch_process_memories_failed' => 'Failed to batch process memory suggestions',
         'batch_action_memories_failed' => 'Batch :action memory suggestions failed: :error',
         'user_manual_edit_explanation' => 'User manually modified memory content',

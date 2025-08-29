@@ -58,8 +58,8 @@ class FileManagementAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
-        private readonly LockerInterface $locker,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
+        private readonly LockerInterface $locker,
         private readonly Producer $producer,
         LoggerFactory $loggerFactory
     ) {
@@ -237,9 +237,6 @@ class FileManagementAppService extends AbstractAppService
             /*if ($requestDTO->getFileSize() <= 0) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_size_required'));
             }*/
-
-            // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if (empty($requestDTO->getParentId())) {
                 $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
@@ -1032,5 +1029,20 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
         }
+    }
+
+    public function getProjectIdByFileId(int $fileId): string
+    {
+        if (time() > strtotime('2025-08-30')) {
+            return '';
+        }
+        if (empty($fileId)) {
+            return '';
+        }
+        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        if ($fileEntity) {
+            return (string) $fileEntity->getProjectId();
+        }
+        return '';
     }
 }

@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\Chat\Service;
 
-use App\Domain\Chat\DTO\Message\StreamMessageInterface;
+use App\Domain\Chat\DTO\MagicMessageDTO;
+use App\Domain\Chat\DTO\Message\ChatMessage\RawMessage;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
+use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -24,6 +26,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
+use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Throwable;
 
 /**
@@ -58,24 +61,8 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         $this->checkSendMessageAuth($conversationEntity, $dataIsolation);
 
         $messageContent = $messageDTO->getContent();
-        if ($messageContent instanceof StreamMessageInterface) {
-            $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
-
-            // 构建消息。仅推送 text 文本
-            $seqEntity = new MagicSeqEntity();
-            $seqEntity->setSeqType(ChatMessageType::Text);
-            $seqEntity->setContent($messageDTO->getContent());
-            $seqEntity->setConversationId($chatRequest->getData()->getConversationId());
-            $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
-            $seqEntity->setExtra(new SeqExtra([
-                'topic_id' => $messageDTO->getTopicId(),
-                'language' => $chatRequest->getContext()->getLanguage(),
-            ]));
-            $seqEntity->setOrganizationCode($chatRequest->getContext()->getOrganizationCode());
-            $seqEntity->setCreatedAt($messageDTO->getCreatedAt());
-            $pushData = $seqEntity->toArray();
-            $pushData = array_filter($pushData);
-            SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
+        if ($messageContent instanceof RawMessage) {
+            $this->handleRawMessage($messageDTO, $conversationEntity, $chatRequest);
             return null;
         }
 
@@ -100,5 +87,23 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         if ($conversationEntity->getStatus() === ConversationStatus::Delete) {
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_DELETED);
         }
+    }
+
+    private function handleRawMessage(MagicMessageDTO $messageDTO, MagicConversationEntity $conversationEntity, ChatRequest $chatRequest): void
+    {
+        $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
+
+        $messageEntity = new MagicMessageEntity();
+        $messageEntity->setMessageType(ChatMessageType::Raw);
+        $messageEntity->setContent($messageDTO->getContent());
+        $seqEntity = new MagicSeqEntity();
+        $seqEntity->setSeqType(ChatMessageType::Raw);
+        $seqEntity->setContent($messageDTO->getContent());
+        $seqEntity->setConversationId($chatRequest->getData()->getConversationId());
+        $seqEntity->setExtra(new SeqExtra(['topic_id' => $messageDTO->getTopicId()]));
+        $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
+        $clientSeqStruct = SeqAssembler::getClientSeqStruct($seqEntity, $messageEntity);
+        $pushData = $clientSeqStruct->toArray();
+        SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
     }
 }

@@ -29,11 +29,6 @@ class ModeGroupDTO extends AbstractDTO
 
     protected ?string $createdAt = null;
 
-    /**
-     * 分组下的模型关联（可选）.
-     */
-    protected array $models = [];
-
     public function getId(): string
     {
         return $this->id;
@@ -122,15 +117,5 @@ class ModeGroupDTO extends AbstractDTO
     public function setCreatedAt(?string $createdAt): void
     {
         $this->createdAt = $createdAt;
-    }
-
-    public function getModels(): array
-    {
-        return $this->models;
-    }
-
-    public function setModels(array $models): void
-    {
-        $this->models = $models;
     }
 }
