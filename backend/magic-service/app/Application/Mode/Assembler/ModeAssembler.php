@@ -103,6 +103,15 @@ class ModeAssembler
                     $providerModel = $providerModels[$providerModelId];
                     $modelDTO->setModelName($providerModel->getName());
                     $modelDTO->setModelIcon($providerModel->getIcon());
+
+                    $description = '';
+                    $translate = $providerModel->getTranslate();
+                    if (is_array($translate) && isset($translate['description'][$locale])) {
+                        $description = $translate['description'][$locale];
+                    } else {
+                        $description = $providerModel->getDescription();
+                    }
+                    $modelDTO->setModelDescription($description);
                 }
 
                 $models[] = $modelDTO;
