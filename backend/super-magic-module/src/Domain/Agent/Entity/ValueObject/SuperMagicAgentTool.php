@@ -11,6 +11,8 @@ use App\Infrastructure\Core\AbstractValueObject;
 
 class SuperMagicAgentTool extends AbstractValueObject
 {
+    protected string $code;
+
     protected string $name;
 
     protected string $description;

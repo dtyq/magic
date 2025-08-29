@@ -20,18 +20,20 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $description Agent描述
  * @property string $icon Agent图标
  * @property array $prompt 系统提示词
+ * @property int $type 智能体类型
  * @property bool $enabled 是否启用
  * @property string $creator 创建者
  * @property DateTime $created_at 创建时间
  * @property string $modifier 修改者
  * @property DateTime $updated_at 更新时间
+ * @property DateTime|null $deleted_at 删除时间
  */
 class SuperMagicAgentModel extends AbstractModel
 {
     use Snowflake;
     use SoftDeletes;
 
-    protected ?string $table = 'super_magic_agents';
+    protected ?string $table = 'magic_super_magic_agents';
 
     protected array $fillable = [
         'id',
@@ -41,6 +43,7 @@ class SuperMagicAgentModel extends AbstractModel
         'description',
         'icon',
         'prompt',
+        'type',
         'enabled',
         'creator',
         'created_at',
@@ -56,10 +59,12 @@ class SuperMagicAgentModel extends AbstractModel
         'description' => 'string',
         'icon' => 'string',
         'prompt' => 'array',
+        'type' => 'integer',
         'enabled' => 'boolean',
         'creator' => 'string',
         'modifier' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 }

@@ -37,6 +37,11 @@ class SuperMagicAgentDTO extends AbstractDTO
     public array $prompt = [];
 
     /**
+     * 智能体类型：1-内置，2-自定义.
+     */
+    public int $type = 2;
+
+    /**
      * 是否启用.
      */
     public ?bool $enabled = null;
@@ -99,6 +104,16 @@ class SuperMagicAgentDTO extends AbstractDTO
     public function setEnabled(?bool $enabled): void
     {
         $this->enabled = $enabled;
+    }
+
+    public function getType(): int
+    {
+        return $this->type;
+    }
+
+    public function setType(int $type): void
+    {
+        $this->type = $type;
     }
 
     public function getTools(): array

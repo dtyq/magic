@@ -17,4 +17,21 @@ enum SuperMagicAgentToolType: int
 
     // 3: 自定义
     case Custom = 3;
+
+    /**
+     * 获取所有可用的枚举值.
+     * @return array<int>
+     */
+    public static function getAvailableValues(): array
+    {
+        return array_map(fn($case) => $case->value, self::cases());
+    }
+
+    /**
+     * 获取所有可用的枚举值字符串（用于验证规则）.
+     */
+    public static function getValidationRule(): string
+    {
+        return implode(',', self::getAvailableValues());
+    }
 }

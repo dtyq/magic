@@ -26,6 +26,16 @@ class SuperMagicAgentListDTO extends AbstractDTO
      */
     public string $description = '';
 
+    /**
+     * Agent图标.
+     */
+    public string $icon = '';
+
+    /**
+     * 智能体类型：1-内置，2-自定义.
+     */
+    public int $type = 2;
+
     public function getId(): string
     {
         return $this->id;
@@ -54,5 +64,25 @@ class SuperMagicAgentListDTO extends AbstractDTO
     public function setDescription(?string $description): void
     {
         $this->description = $description ?? '';
+    }
+
+    public function getIcon(): string
+    {
+        return $this->icon;
+    }
+
+    public function setIcon(?string $icon): void
+    {
+        $this->icon = $icon ?? '';
+    }
+
+    public function getType(): int
+    {
+        return $this->type;
+    }
+
+    public function setType(int $type): void
+    {
+        $this->type = $type;
     }
 }

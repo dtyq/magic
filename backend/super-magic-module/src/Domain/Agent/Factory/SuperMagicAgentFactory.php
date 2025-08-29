@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\Agent\Factory;
 
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentModel;
 
 class SuperMagicAgentFactory
@@ -22,6 +23,7 @@ class SuperMagicAgentFactory
         $entity->setDescription($model->description);
         $entity->setIcon($model->icon);
         $entity->setPrompt($model->prompt);
+        $entity->setType(SuperMagicAgentType::from($model->type));
         $entity->setEnabled($model->enabled);
         $entity->setCreator($model->creator);
         $entity->setCreatedAt($model->created_at);

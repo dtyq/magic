@@ -11,5 +11,6 @@ return [
             'prompt' => 'Prompt',
         ],
         'limit_exceeded' => 'ถึงขีดจำกัด Agent แล้ว (:limit), ไม่สามารถสร้างเพิ่มได้',
+        'builtin_not_allowed' => 'การดำเนินการนี้ไม่รองรับสำหรับ Agent ที่สร้างไว้แล้ว',
     ],
 ];

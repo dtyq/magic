@@ -28,4 +28,7 @@ enum SuperMagicErrorCode: int
 
     #[ErrorMessage(message: 'super_magic.agent.limit_exceeded')]
     case AgentLimitExceeded = 60006;
+
+    #[ErrorMessage(message: 'super_magic.agent.builtin_not_allowed')]
+    case BuiltinAgentNotAllowed = 60007;
 }

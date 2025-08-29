@@ -57,16 +57,15 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
         $result = $this->getByPage($builder, $page, $query);
 
         $list = [];
+
         /** @var SuperMagicAgentModel $model */
         foreach ($result['list'] as $model) {
             $entity = SuperMagicAgentFactory::createEntity($model);
             $list[] = $entity;
         }
+        $result['list'] = $list;
 
-        return [
-            'total' => $result['total'],
-            'list' => $list,
-        ];
+        return $result;
     }
 
     public function save(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $entity): SuperMagicAgentEntity

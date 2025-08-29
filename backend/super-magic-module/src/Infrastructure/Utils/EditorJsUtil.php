@@ -5,17 +5,17 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace Dtyq\SuperMagic\Interfaces\Agent\Util;
+namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
 /**
- * Editor.js data conversion utility
+ * Editor.js data conversion utility.
  * @see https://editorjs.io/saving-data/
  */
 class EditorJsUtil
 {
     /**
-     * Convert Editor.js data format to plain text string
-     * 
+     * Convert Editor.js data format to plain text string.
+     *
      * @param array $editorData Editor.js data format
      * @return string Plain text representation
      */
@@ -29,7 +29,7 @@ class EditorJsUtil
 
         foreach ($editorData['blocks'] as $block) {
             $blockText = self::convertBlockToString($block);
-            if (!empty($blockText)) {
+            if (! empty($blockText)) {
                 $textParts[] = $blockText;
             }
         }
@@ -38,8 +38,42 @@ class EditorJsUtil
     }
 
     /**
-     * Convert a single block to string
-     * 
+     * Validate Editor.js data format.
+     */
+    public static function isValidEditorJsData(array $data): bool
+    {
+        // Basic validation: should have blocks array
+        if (! isset($data['blocks']) || ! is_array($data['blocks'])) {
+            return false;
+        }
+
+        // Validate each block has required structure
+        foreach ($data['blocks'] as $block) {
+            if (! is_array($block) || ! isset($block['type']) || ! isset($block['data'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get plain text summary (first N characters).
+     */
+    public static function getSummary(array $editorData, int $maxLength = 200): string
+    {
+        $fullText = self::convertToString($editorData);
+
+        if (mb_strlen($fullText) <= $maxLength) {
+            return $fullText;
+        }
+
+        return mb_substr($fullText, 0, $maxLength) . '...';
+    }
+
+    /**
+     * Convert a single block to string.
+     *
      * @param array $block Single block data
      * @return string Block text representation
      */
@@ -51,46 +85,35 @@ class EditorJsUtil
         switch ($type) {
             case 'paragraph':
                 return self::stripHtmlTags($data['text'] ?? '');
-
             case 'header':
             case 'heading':
                 $level = $data['level'] ?? 1;
                 $text = self::stripHtmlTags($data['text'] ?? '');
                 $prefix = str_repeat('#', $level);
                 return "{$prefix} {$text}";
-
             case 'list':
                 return self::convertListToString($data);
-
             case 'quote':
                 $text = self::stripHtmlTags($data['text'] ?? '');
-                $caption = !empty($data['caption']) ? ' - ' . self::stripHtmlTags($data['caption']) : '';
+                $caption = ! empty($data['caption']) ? ' - ' . self::stripHtmlTags($data['caption']) : '';
                 return "> {$text}{$caption}";
-
             case 'code':
                 return "```\n" . ($data['code'] ?? '') . "\n```";
-
             case 'delimiter':
                 return '* * *';
-
             case 'table':
                 return self::convertTableToString($data);
-
             case 'checklist':
                 return self::convertChecklistToString($data);
-
             case 'embed':
                 $service = $data['service'] ?? '';
                 $source = $data['source'] ?? '';
                 return "[{$service}]: {$source}";
-
             case 'image':
-                $caption = !empty($data['caption']) ? $data['caption'] : 'Image';
+                $caption = ! empty($data['caption']) ? $data['caption'] : 'Image';
                 return "[Image: {$caption}]";
-
             case 'raw':
                 return $data['html'] ?? '';
-
             default:
                 // For unknown block types, try to extract any text content
                 return self::extractTextFromUnknownBlock($data);
@@ -98,13 +121,13 @@ class EditorJsUtil
     }
 
     /**
-     * Convert list block to string
+     * Convert list block to string.
      */
     private static function convertListToString(array $data): string
     {
         $items = $data['items'] ?? [];
         $style = $data['style'] ?? 'unordered';
-        
+
         if (empty($items)) {
             return '';
         }
@@ -123,7 +146,7 @@ class EditorJsUtil
     }
 
     /**
-     * Convert table block to string
+     * Convert table block to string.
      */
     private static function convertTableToString(array $data): string
     {
@@ -135,7 +158,7 @@ class EditorJsUtil
         $tableText = [];
         foreach ($content as $row) {
             if (is_array($row)) {
-                $rowText = array_map(function($cell) {
+                $rowText = array_map(function ($cell) {
                     return self::stripHtmlTags($cell);
                 }, $row);
                 $tableText[] = '| ' . implode(' | ', $rowText) . ' |';
@@ -146,7 +169,7 @@ class EditorJsUtil
     }
 
     /**
-     * Convert checklist block to string
+     * Convert checklist block to string.
      */
     private static function convertChecklistToString(array $data): string
     {
@@ -166,15 +189,15 @@ class EditorJsUtil
     }
 
     /**
-     * Extract text from unknown block types
+     * Extract text from unknown block types.
      */
     private static function extractTextFromUnknownBlock(array $data): string
     {
         // Try to find text in common field names
         $textFields = ['text', 'content', 'caption', 'title', 'description'];
-        
+
         foreach ($textFields as $field) {
-            if (!empty($data[$field])) {
+            if (! empty($data[$field])) {
                 return self::stripHtmlTags($data[$field]);
             }
         }
@@ -184,51 +207,17 @@ class EditorJsUtil
     }
 
     /**
-     * Strip HTML tags and decode entities
+     * Strip HTML tags and decode entities.
      */
     private static function stripHtmlTags(string $text): string
     {
         // Remove HTML tags but preserve content
         $text = strip_tags($text);
-        
+
         // Decode HTML entities
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        
+
         // Clean up whitespace
         return trim($text);
-    }
-
-    /**
-     * Validate Editor.js data format
-     */
-    public static function isValidEditorJsData(array $data): bool
-    {
-        // Basic validation: should have blocks array
-        if (!isset($data['blocks']) || !is_array($data['blocks'])) {
-            return false;
-        }
-
-        // Validate each block has required structure
-        foreach ($data['blocks'] as $block) {
-            if (!is_array($block) || !isset($block['type']) || !isset($block['data'])) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Get plain text summary (first N characters)
-     */
-    public static function getSummary(array $editorData, int $maxLength = 200): string
-    {
-        $fullText = self::convertToString($editorData);
-        
-        if (mb_strlen($fullText) <= $maxLength) {
-            return $fullText;
-        }
-
-        return mb_substr($fullText, 0, $maxLength) . '...';
     }
 }

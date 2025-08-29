@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
+use App\Interfaces\Kernel\DTO\PageDTO;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentCategorizedListDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentListDTO;
 
@@ -22,6 +26,7 @@ class SuperMagicAgentAssembler
         $DTO->setDescription($superMagicAgentEntity->getDescription());
         $DTO->setIcon($superMagicAgentEntity->getIcon());
         $DTO->setPrompt($superMagicAgentEntity->getPrompt());
+        $DTO->setType($superMagicAgentEntity->getType()->value);
         $DTO->setEnabled($superMagicAgentEntity->isEnabled());
         $DTO->setTools($superMagicAgentEntity->getTools());
 
@@ -48,6 +53,7 @@ class SuperMagicAgentAssembler
         $superMagicAgentEntity->setDescription($superMagicAgentDTO->getDescription());
         $superMagicAgentEntity->setIcon($superMagicAgentDTO->getIcon());
         $superMagicAgentEntity->setPrompt($superMagicAgentDTO->getPrompt());
+        $superMagicAgentEntity->setType(SuperMagicAgentType::from($superMagicAgentDTO->getType()));
         $superMagicAgentEntity->setTools($superMagicAgentDTO->getTools());
 
         if ($superMagicAgentDTO->getEnabled() !== null) {
@@ -63,6 +69,8 @@ class SuperMagicAgentAssembler
         $DTO->setId($superMagicAgentEntity->getCode());
         $DTO->setName($superMagicAgentEntity->getName());
         $DTO->setDescription($superMagicAgentEntity->getDescription());
+        $DTO->setIcon($superMagicAgentEntity->getIcon());
+        $DTO->setType($superMagicAgentEntity->getType()->value);
 
         return $DTO;
     }
@@ -70,20 +78,35 @@ class SuperMagicAgentAssembler
     /**
      * @param array<SuperMagicAgentEntity> $list
      */
-    public static function createPageListDTO(
-        int $total,
-        array $list,
-        array $page
-    ): array {
+    public static function createPageListDTO(array $list, int $total, Page $page): PageDTO
+    {
         $dtoList = [];
         foreach ($list as $entity) {
             $dtoList[] = self::createListDTO($entity);
         }
 
-        return [
+        return new PageDTO($page->getPage(), $total, $dtoList);
+    }
+
+    /**
+     * 创建分类列表DTO.
+     */
+    public static function createCategorizedListDTO(array $frequent, array $all, int $total): SuperMagicAgentCategorizedListDTO
+    {
+        $frequentDTOs = [];
+        foreach ($frequent as $entity) {
+            $frequentDTOs[] = self::createListDTO($entity);
+        }
+
+        $allDTOs = [];
+        foreach ($all as $entity) {
+            $allDTOs[] = self::createListDTO($entity);
+        }
+
+        return new SuperMagicAgentCategorizedListDTO([
+            'frequent' => $frequentDTOs,
+            'all' => $allDTOs,
             'total' => $total,
-            'list' => $dtoList,
-            'page' => $page,
-        ];
+        ]);
     }
 }
