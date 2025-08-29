@@ -626,9 +626,7 @@ readonly class LongTermMemoryDomainService
             return null;
         }
 
-        $project = $this->projectRepository->findById((int) $projectId);
-
-        return $project?->getProjectName();
+        return $this->projectRepository->findById((int) $projectId)?->getProjectName();
     }
 
     /**
