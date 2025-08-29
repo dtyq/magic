@@ -62,6 +62,8 @@ Router::addGroup(
             Router::post('/fork', [ProjectApi::class, 'fork']);
             // 查询复制状态
             Router::get('/{id}/fork-status', [ProjectApi::class, 'forkStatus']);
+            // 移动项目到另一个工作区
+            Router::post('/move', [ProjectApi::class, 'moveProject']);
             // 获取项目协作成员
             Router::get('/{id}/members', [ProjectMemberApi::class, 'getMembers']);
             // 更新项目协作成员
