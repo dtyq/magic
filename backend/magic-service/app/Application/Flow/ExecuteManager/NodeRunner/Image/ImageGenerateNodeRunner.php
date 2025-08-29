@@ -69,6 +69,9 @@ class ImageGenerateNodeRunner extends NodeRunner
             'reference_images' => $referenceImages,
             'generate_num' => 1,
         ];
+
+        $agentId = $executionData->getAgentId();
+        $data['agent_id'] = $agentId;
         $flowDataIsolation = $executionData->getDataIsolation();
         $magicUserAuthorization = new MagicUserAuthorization();
         $magicUserAuthorization->setOrganizationCode($flowDataIsolation->getCurrentOrganizationCode());

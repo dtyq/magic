@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -64,7 +63,7 @@ class FluxModel extends AbstractImageGenerate
         if ($this->isWatermark($imageGenerateRequest)) {
             return $rawData;
         }
-        return $this->processFluxRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processFluxRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -295,7 +294,7 @@ class FluxModel extends AbstractImageGenerate
     /**
      * 为Flux原始数据添加水印.
      */
-    private function processFluxRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processFluxRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         foreach ($rawData as $index => &$result) {
             if (! isset($result['data']['imageUrl'])) {
@@ -304,7 +303,7 @@ class FluxModel extends AbstractImageGenerate
 
             try {
                 // 处理图片URL
-                $result['data']['imageUrl'] = $this->watermarkProcessor->addWatermarkToUrl($result['data']['imageUrl'], $watermarkConfig);
+                $result['data']['imageUrl'] = $this->watermarkProcessor->addWatermarkToUrl($result['data']['imageUrl'], $imageGenerateRequest);
             } catch (Exception $e) {
                 // 水印处理失败时，记录错误但不影响图片返回
                 $this->logger->error('Flux图片水印处理失败', [

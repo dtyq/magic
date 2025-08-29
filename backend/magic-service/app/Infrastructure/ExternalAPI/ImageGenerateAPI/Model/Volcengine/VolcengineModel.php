@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -80,7 +79,7 @@ class VolcengineModel extends AbstractImageGenerate
             return $rawData;
         }
 
-        return $this->processVolcengineRawDataWithWatermark($rawData, $imageGenerateRequest->getWatermarkConfig());
+        return $this->processVolcengineRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
     /**
@@ -550,7 +549,7 @@ class VolcengineModel extends AbstractImageGenerate
     /**
      * 为火山引擎原始数据添加水印.
      */
-    private function processVolcengineRawDataWithWatermark(array $rawData, WatermarkConfig $watermarkConfig): array
+    private function processVolcengineRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
     {
         foreach ($rawData as $index => &$result) {
             if (! isset($result['data'])) {
@@ -563,7 +562,7 @@ class VolcengineModel extends AbstractImageGenerate
                 // 处理 base64 格式图片
                 if (! empty($data['binary_data_base64'])) {
                     foreach ($data['binary_data_base64'] as $i => &$base64Image) {
-                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $watermarkConfig);
+                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $imageGenerateRequest);
                     }
                     unset($base64Image);
                 }
@@ -571,7 +570,7 @@ class VolcengineModel extends AbstractImageGenerate
                 // 处理 URL 格式图片
                 if (! empty($data['image_urls'])) {
                     foreach ($data['image_urls'] as $i => &$imageUrl) {
-                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $watermarkConfig);
+                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
                     }
                     unset($imageUrl);
                 }

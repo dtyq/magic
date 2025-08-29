@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
-use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
@@ -44,8 +43,6 @@ abstract class AbstractImageGenerate implements ImageGenerate
         $originalResponse = $this->generateImageInternal($imageGenerateRequest);
 
         // 2. 获取水印配置（所有图片都必须加水印）
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-
         if ($this->isWatermark($imageGenerateRequest)) {
             return $originalResponse;
         }
@@ -56,7 +53,7 @@ abstract class AbstractImageGenerate implements ImageGenerate
             'imageType' => $originalResponse->getImageGenerateType()->value,
         ]);
 
-        return $this->applyWatermark($originalResponse, $watermarkConfig);
+        return $this->applyWatermark($originalResponse, $imageGenerateRequest);
     }
 
     /**
@@ -80,7 +77,7 @@ abstract class AbstractImageGenerate implements ImageGenerate
      * 统一的水印处理逻辑
      * 支持URL和base64两种格式的图片水印处理.
      */
-    private function applyWatermark(ImageGenerateResponse $response, WatermarkConfig $watermarkConfig): ImageGenerateResponse
+    private function applyWatermark(ImageGenerateResponse $response, ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         $data = $response->getData();
         $processedData = [];
@@ -89,10 +86,10 @@ abstract class AbstractImageGenerate implements ImageGenerate
             try {
                 if ($response->getImageGenerateType()->isBase64()) {
                     // 处理base64格式图片
-                    $processedData[$index] = $this->watermarkProcessor->addWatermarkToBase64($imageData, $watermarkConfig);
+                    $processedData[$index] = $this->watermarkProcessor->addWatermarkToBase64($imageData, $imageGenerateRequest);
                 } else {
                     // 处理URL格式图片
-                    $processedData[$index] = $this->watermarkProcessor->addWatermarkToUrl($imageData, $watermarkConfig);
+                    $processedData[$index] = $this->watermarkProcessor->addWatermarkToUrl($imageData, $imageGenerateRequest);
                 }
             } catch (Exception $e) {
                 // 水印处理失败时，记录错误但不影响图片返回
