@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
@@ -386,6 +387,11 @@ class FileBatchMoveSubscriber extends ConsumerMessage
 
         // Finalizing (95% - 100%)
         $this->updateProgress(95, 'Finalizing batch file move operation');
+
+        // 发布文件批量移动完成事件
+        $userAuthorization = new MagicUserAuthorization();
+        $userAuthorization->setId($userId);
+        $userAuthorization->setOrganizationCode($organizationCode);
 
         // Mark as completed
         $this->statusManager->setTaskCompleted($batchKey, [

@@ -12,6 +12,7 @@ use App\Domain\Chat\Event\Agent\AgentExecuteInterface;
 use Dtyq\SuperMagic\Application\Share\Adapter\TopicShareableResource;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ProjectOperatorLogSubscriber;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
@@ -27,6 +28,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryIn
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectOperationLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -38,6 +41,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueReposit
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectForkRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettingRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectOperationLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
@@ -45,6 +50,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
@@ -101,8 +107,11 @@ class ConfigProvider
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 ProjectRepositoryInterface::class => ProjectRepository::class,
+                ProjectOperationLogRepositoryInterface::class => ProjectOperationLogRepository::class,
+                ProjectOperationLogDomainService::class => ProjectOperationLogDomainService::class,
                 SandboxInterface::class => SandboxService::class,
                 ProjectMemberRepositoryInterface::class => ProjectMemberRepository::class,
+                ProjectMemberSettingRepositoryInterface::class => ProjectMemberSettingRepository::class,
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
@@ -132,6 +141,7 @@ class ConfigProvider
             'listeners' => [
                 AddRouteListener::class,
                 I18nLoadListener::class,
+                ProjectOperatorLogSubscriber::class,
             ],
             'error_message' => [
                 'error_code_mapper' => [

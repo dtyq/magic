@@ -49,4 +49,9 @@ interface ProjectRepositoryInterface
     ): array;
 
     public function updateProjectByCondition(array $condition, array $data): bool;
+
+    /**
+     * 更新项目的updated_at为当前时间.
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool;
 }

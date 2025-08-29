@@ -20,7 +20,14 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -44,6 +51,7 @@ use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -61,6 +69,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly LockerInterface $locker,
         private readonly Producer $producer,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -275,6 +284,10 @@ class FileManagementAppService extends AbstractAppService
 
             Db::commit();
 
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
+
             // 返回保存结果
             return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
@@ -469,6 +482,11 @@ class FileManagementAppService extends AbstractAppService
             );
 
             Db::commit();
+
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
+
             // 返回创建结果
             return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
@@ -505,9 +523,15 @@ class FileManagementAppService extends AbstractAppService
             $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
+                // 发布目录已删除事件
+                $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($directoryDeletedEvent);
             } else {
                 $deletedCount = 1;
                 $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
+                // 发布文件已删除事件
+                $fileDeletedEvent = new FileDeletedEvent($fileEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($fileDeletedEvent);
             }
             return ['file_id' => $fileId, 'count' => $deletedCount];
         } catch (BusinessException $e) {
@@ -559,6 +583,10 @@ class FileManagementAppService extends AbstractAppService
 
             // 4. 调用领域服务执行批量删除
             $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath);
+
+            // 发布目录已删除事件
+            $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($directoryDeletedEvent);
 
             $this->logger->info(sprintf(
                 'Successfully deleted directory: Project ID: %s, Path: %s, Deleted files: %d',
@@ -621,6 +649,10 @@ class FileManagementAppService extends AbstractAppService
                 count($fileIds)
             ));
 
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FilesBatchDeletedEvent((int) $requestDTO->getProjectId(), $requestDTO->getFileIds(), $userAuthorization);
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
+
             return $result;
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
@@ -667,6 +699,10 @@ class FileManagementAppService extends AbstractAppService
                 // Single file rename: use existing method
                 $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
             }
+
+            // 发布文件已重命名事件
+            $fileRenamedEvent = new FileRenamedEvent($newFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileRenamedEvent);
 
             return TaskFileItemDTO::fromEntity($newFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
@@ -757,6 +793,11 @@ class FileManagementAppService extends AbstractAppService
 
             // 5. re get file
             $newFileEntity = $this->taskFileDomainService->getById($fileId);
+
+            // 发布文件已移动事件
+            $fileMovedEvent = new FileMovedEvent($newFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileMovedEvent);
+
             $result = TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
             return FileBatchOperationResponseDTO::createSyncSuccess($result)->toArray();
         } catch (BusinessException $e) {
@@ -947,6 +988,7 @@ class FileManagementAppService extends AbstractAppService
             );
             $publisher = new FileBatchMovePublisher($event);
             $this->producer->produce($publisher);
+            $this->eventDispatcher->dispatch($event);
 
             // Return asynchronous response
             return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
