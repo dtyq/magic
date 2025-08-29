@@ -50,7 +50,7 @@ class FileDefaultInitCommand extends Command
 
         // 获取公有桶配置
         $publicBucketConfig = config('cloudfile.storages.' . StorageBucketType::Public->value);
-        //        $this->line('公有桶配置：' . json_encode($publicBucketConfig, JSON_UNESCAPED_UNICODE));
+        $this->line('公有桶配置：' . json_encode($publicBucketConfig, JSON_UNESCAPED_UNICODE));
 
         // 如果是 local 驱动，不需要初始化
         if ($publicBucketConfig['adapter'] === 'local') {
@@ -61,7 +61,7 @@ class FileDefaultInitCommand extends Command
         // 执行文件初始化
         $this->initFiles();
 
-        //        $this->info('文件系统初始化完成');
+        $this->info('文件系统初始化完成');
     }
 
     /**
@@ -69,7 +69,7 @@ class FileDefaultInitCommand extends Command
      */
     protected function initFiles(): void
     {
-        //        $this->line('开始初始化文件...');
+        $this->line('开始初始化文件...');
 
         // 基础文件目录 - 使用新的路径结构
         $baseFileDir = BASE_PATH . '/storage/files';
@@ -93,7 +93,7 @@ class FileDefaultInitCommand extends Command
             return;
         }
 
-        //        $this->line('处理模块文件:');
+        $this->line('处理模块文件:');
 
         // 遍历每个模块目录
         foreach ($moduleDirs as $moduleDir) {
@@ -104,17 +104,17 @@ class FileDefaultInitCommand extends Command
                 $businessType = $this->mapModuleToBusinessType($moduleName);
 
                 if ($businessType === null) {
-                    //                    $this->warn("  - 跳过未知模块: {$moduleName}");
+                    $this->warn("  - 跳过未知模块: {$moduleName}");
                     continue;
                 }
 
-                //                $this->line("  - 处理模块: {$moduleName} (业务类型: {$businessType->value})");
+                $this->line("  - 处理模块: {$moduleName} (业务类型: {$businessType->value})");
 
                 // 获取该模块目录下的所有文件
                 $files = array_filter(glob($moduleDir . '/*'), 'is_file');
 
                 if (empty($files)) {
-                    //                    $this->line('    - 没有找到任何文件');
+                    $this->line('    - 没有找到任何文件');
                     continue;
                 }
 
@@ -141,12 +141,12 @@ class FileDefaultInitCommand extends Command
                     }
 
                     if ($isDuplicate) {
-                        //                        $this->line("    - 跳过重复文件: {$fileName}");
+                        $this->line("    - 跳过重复文件: {$fileName}");
                         ++$skippedFiles;
                         continue;
                     }
 
-                    //                    $this->line("    - 处理文件: {$fileName}");
+                    $this->line("    - 处理文件: {$fileName}");
 
                     try {
                         // 读取文件内容并转为 base64 格式
@@ -191,7 +191,7 @@ class FileDefaultInitCommand extends Command
                     }
                 }
 
-                //                $this->line("    - 成功处理 {$fileCount} 个文件");
+                $this->line("    - 成功处理 {$fileCount} 个文件");
                 $totalFiles += $fileCount;
             } catch (Exception $e) {
                 $this->error("  - 处理模块 {$moduleName} 时出错: {$e->getMessage()}");

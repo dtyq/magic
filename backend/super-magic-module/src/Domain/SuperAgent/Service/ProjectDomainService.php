@@ -333,6 +333,14 @@ class ProjectDomainService
     }
 
     /**
+     * 更新项目的updated_at时间.
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool
+    {
+        return $this->projectRepository->updateUpdatedAtToNow($projectId);
+    }
+
+    /**
      * Create forked project from source project.
      */
     private function createForkedProjectFromSource(

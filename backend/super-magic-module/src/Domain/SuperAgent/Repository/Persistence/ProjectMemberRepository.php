@@ -122,15 +122,16 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 根据用户和部门获取项目ID列表及总数.
-     *
-     * @param string $userId 用户ID
-     * @param array $departmentIds 部门ID数组
-     * @param null|string $name 项目名称模糊搜索关键词
-     * @return array ['total' => int, 'project_ids' => array]
+     * 根据用户和部门获取项目ID列表及总数（支持置顶排序）.
      */
-    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = [], ?string $name = null): array
-    {
+    public function getProjectIdsByUserAndDepartments(
+        string $userId,
+        array $departmentIds = [],
+        ?string $name = null,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array {
         $query = $this->projectMemberModel::query()
             ->where(function ($query) use ($userId, $departmentIds) {
                 $query->where(function ($subQuery) use ($userId) {
@@ -147,6 +148,10 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             });
 
         $query->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+            ->leftJoin('magic_super_agent_project_member_settings', function ($join) use ($userId) {
+                $join->on('magic_super_agent_project_member_settings.project_id', '=', 'magic_super_agent_project.id')
+                    ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
+            })
             ->where('magic_super_agent_project.user_id', '!=', $userId)
             ->whereNull('magic_super_agent_project.deleted_at');
 
@@ -155,16 +160,45 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             $query->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%');
         }
 
-        $query->select('magic_super_agent_project_members.project_id')
-            ->distinct();
+        if (! empty($creatorUserIds)) {
+            // 如果有创建者用户ID搜索条件
+            $query->whereIn('magic_super_agent_project.user_id', $creatorUserIds);
+        }
+
+        $query->select(
+            'magic_super_agent_project_members.project_id',
+            'magic_super_agent_project.updated_at',
+            'magic_super_agent_project.created_at',
+            'magic_super_agent_project_member_settings.is_pinned',
+            'magic_super_agent_project_member_settings.last_active_at'
+        )
+            ->distinct()
+            ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
+
+        // 根据排序字段进行排序（默认按 updated_at 排序）
+        $effectiveSortField = $sortField ?: 'updated_at';
+        $effectiveSortDirection = $sortDirection ?: 'desc';
+
+        switch ($effectiveSortField) {
+            case 'updated_at':
+                $query->orderBy('magic_super_agent_project.updated_at', $effectiveSortDirection);
+                break;
+            case 'created_at':
+                $query->orderBy('magic_super_agent_project.created_at', $effectiveSortDirection);
+                break;
+            case 'last_active_at':
+                $query->orderBy('magic_super_agent_project_member_settings.last_active_at', $effectiveSortDirection);
+                break;
+            default:
+                $query->orderBy('magic_super_agent_project.updated_at', 'desc');
+                break;
+        }
 
         $results = $query->get()->toArray();
 
-        $projectIds = array_map(fn ($row) => (int) $row['project_id'], $results);
-
         return [
-            'total' => count($projectIds),
-            'project_ids' => $projectIds,
+            'total' => count($results),
+            'list' => $results,
         ];
     }
 
@@ -245,15 +279,25 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 获取用户创建的且有成员的项目ID列表及总数.
-     *
-     * @return array ['total' => int, 'project_ids' => array]
+     * 获取用户创建的且有成员的项目ID列表及总数（支持置顶排序）.
      */
-    public function getSharedProjectIdsByUser(string $userId, string $organizationCode, ?string $name = null, int $page = 1, int $pageSize = 10): array
-    {
+    public function getSharedProjectIdsByUser(
+        string $userId,
+        string $organizationCode,
+        ?string $name = null,
+        int $page = 1,
+        int $pageSize = 10,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array {
         // 构建基础查询：查找用户创建的且有成员的项目
         $query = $this->projectMemberModel::query()
             ->join('magic_super_agent_project', 'magic_super_agent_project_members.project_id', '=', 'magic_super_agent_project.id')
+            ->leftJoin('magic_super_agent_project_member_settings', function ($join) use ($userId) {
+                $join->on('magic_super_agent_project_member_settings.project_id', '=', 'magic_super_agent_project.id')
+                    ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
+            })
             ->where('magic_super_agent_project.user_id', '=', $userId)
             ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
             ->whereNull('magic_super_agent_project.deleted_at');
@@ -263,24 +307,53 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             $query->where('magic_super_agent_project.project_name', 'like', '%' . $name . '%');
         }
 
+        // 如果有创建者用户ID搜索条件（对于shared类型，通常是当前用户创建的项目，这里主要是为了接口一致性）
+        if (! empty($creatorUserIds)) {
+            $query->whereIn('magic_super_agent_project.user_id', $creatorUserIds);
+        }
+
         // 获取总数
         $totalQuery = clone $query;
         $total = $totalQuery->select('magic_super_agent_project_members.project_id')->distinct()->count();
 
         // 分页查询项目ID（包含排序字段以兼容DISTINCT）
-        $projectIds = $query->select('magic_super_agent_project_members.project_id', 'magic_super_agent_project.updated_at')
+        $projects = $query->select(
+            'magic_super_agent_project_members.project_id',
+            'magic_super_agent_project.updated_at',
+            'magic_super_agent_project.created_at',
+            'magic_super_agent_project_member_settings.is_pinned',
+            'magic_super_agent_project_member_settings.last_active_at'
+        )
             ->distinct()
-            ->orderBy('magic_super_agent_project.updated_at', 'desc')
-            ->offset(($page - 1) * $pageSize)
+            ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
+
+        // 根据排序字段进行排序（默认按 updated_at 排序）
+        $effectiveSortField = $sortField ?: 'updated_at';
+        $effectiveSortDirection = $sortDirection ?: 'desc';
+
+        switch ($effectiveSortField) {
+            case 'updated_at':
+                $projects->orderBy('magic_super_agent_project.updated_at', $effectiveSortDirection);
+                break;
+            case 'created_at':
+                $projects->orderBy('magic_super_agent_project.created_at', $effectiveSortDirection);
+                break;
+            case 'last_active_at':
+                $projects->orderBy('magic_super_agent_project_member_settings.last_active_at', $effectiveSortDirection);
+                break;
+            default:
+                $projects->orderBy('magic_super_agent_project.updated_at', 'desc');
+                break;
+        }
+
+        $projects = $projects->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
             ->get()
-            ->pluck('project_id')
-            ->map(fn ($id) => (int) $id)
             ->toArray();
 
         return [
             'total' => $total,
-            'project_ids' => $projectIds,
+            'list' => $projects,
         ];
     }
 

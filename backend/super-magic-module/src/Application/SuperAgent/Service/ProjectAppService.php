@@ -25,7 +25,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ForkProjectStartEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectCreatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectForkEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -55,6 +58,7 @@ use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -78,6 +82,7 @@ class ProjectAppService extends AbstractAppService
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Producer $producer,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -174,6 +179,12 @@ class ProjectAppService extends AbstractAppService
             }
 
             Db::commit();
+
+            // 发布项目已创建事件
+            $userAuthorization = $requestContext->getUserAuthorization();
+            $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($projectCreatedEvent);
+
             return ['project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(), 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray()];
         } catch (Throwable $e) {
             Db::rollBack();
@@ -207,6 +218,11 @@ class ProjectAppService extends AbstractAppService
 
         $this->projectDomainService->saveProjectEntity($projectEntity);
 
+        // 发布项目已更新事件
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $projectUpdatedEvent = new ProjectUpdatedEvent($projectEntity, $userAuthorization);
+        $this->eventDispatcher->dispatch($projectUpdatedEvent);
+
         return ProjectItemDTO::fromEntity($projectEntity)->toArray();
     }
 
@@ -221,6 +237,9 @@ class ProjectAppService extends AbstractAppService
 
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 先获取项目实体用于事件发布
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         $result = Db::transaction(function () use ($projectId, $dataIsolation) {
             // 删除项目
@@ -239,6 +258,10 @@ class ProjectAppService extends AbstractAppService
                 $dataIsolation->getCurrentUserId(),
                 (string) $projectId
             );
+
+            // 发布项目已删除事件
+            $projectDeletedEvent = new ProjectDeletedEvent($projectEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($projectDeletedEvent);
 
             $this->topicDomainService->deleteTopicsByProjectId($dataIsolation, $projectId);
             $event = new StopRunningTaskEvent(
