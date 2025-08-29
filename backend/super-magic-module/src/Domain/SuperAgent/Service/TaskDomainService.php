@@ -78,7 +78,7 @@ class TaskDomainService
         $taskEntity = $this->taskRepository->createTask($taskEntity);
         // Update topic's current task ID and status
         $topicEntity->setCurrentTaskId($taskEntity->getId());
-        $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING);
+        $topicEntity->setCurrentTaskStatus(TaskStatus::RUNNING);
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $topicEntity->setUpdatedUid($userId);
         $topicEntity->setTaskMode($taskEntity->getTaskMode());
