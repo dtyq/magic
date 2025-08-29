@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\IpUtil;
+use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -90,26 +91,29 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
      */
     public function process(object $event): void
     {
-        try {
-            $ip = IpUtil::getClientIpAddress($this->request);
-            $operationLogEntity = $this->convertEventToEntity($event, $ip);
-            if ($operationLogEntity !== null) {
-                $this->projectOperationLogDomainService->saveOperationLog($operationLogEntity);
-                $this->logger->info('项目操作日志已保存', [
+        // 使用 defer 延迟处理，避免阻塞主业务流程
+        Coroutine::defer(function () use ($event) {
+            try {
+                $ip = IpUtil::getClientIpAddress($this->request);
+                $operationLogEntity = $this->convertEventToEntity($event, $ip);
+                if ($operationLogEntity !== null) {
+                    $this->projectOperationLogDomainService->saveOperationLog($operationLogEntity);
+                    $this->logger->info('项目操作日志已保存', [
+                        'event_class' => get_class($event),
+                        'project_id' => $operationLogEntity->getProjectId(),
+                        'action' => $operationLogEntity->getOperationAction(),
+                    ]);
+                }
+                // 更新项目成员的活跃时间
+                $this->updateUserLastActiveTime($event);
+            } catch (Throwable $e) {
+                $this->logger->error('保存项目操作日志失败', [
                     'event_class' => get_class($event),
-                    'project_id' => $operationLogEntity->getProjectId(),
-                    'action' => $operationLogEntity->getOperationAction(),
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
-            // 更新项目成员的活跃时间
-            $this->updateUserLastActiveTime($event);
-        } catch (Throwable $e) {
-            $this->logger->error('保存项目操作日志失败', [
-                'event_class' => get_class($event),
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-        }
+        });
     }
 
     private function updateUserLastActiveTime(object $event): void
@@ -172,7 +176,6 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 break;
         }
 
-        // 如果有项目ID，同时更新项目的updated_at时间
         if ($projectId !== null) {
             $this->projectMemberDomainService->updateUserLastActiveTime($userId, $projectId, $organizationCode);
             $this->projectDomainService->updateUpdatedAtToNow($projectId);

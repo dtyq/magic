@@ -172,7 +172,7 @@ class ProjectDomainService
     }
 
     /**
-     * 更新项目的updated_at时间
+     * 更新项目的updated_at时间.
      */
     public function updateUpdatedAtToNow(int $projectId): bool
     {

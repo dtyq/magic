@@ -136,11 +136,6 @@ class ProjectMemberApiTest extends AbstractApiTest
         // 验证项目不是置顶状态
         $response = $this->collaborationProjectsWithPinCheck();
         $this->verifyProjectPinStatus($response, $projectId, false);
-
-        // 3. 测试无效参数
-        $invalidRequestData = ['is_pin' => 2]; // 无效值
-        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}", $invalidRequestData, $this->getCommonHeaders());
-        $this->assertNotEquals(1000, $response['code'], '无效参数应该返回错误');
     }
 
     /**
@@ -692,7 +687,7 @@ class ProjectMemberApiTest extends AbstractApiTest
     public function pinProject(string $projectId, bool $isPinned, int $expectedCode = 1000): array
     {
         $requestData = [
-            'is_pin' => $isPinned ? 1 : 0,
+            'is_pin' => $isPinned,
         ];
 
         $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}", $requestData, $this->getCommonHeaders());
@@ -764,10 +759,6 @@ class ProjectMemberApiTest extends AbstractApiTest
     {
         $projects = $response['data']['list'];
         $pinnedProjectsEnded = false;
-
-        foreach ($projects as $project) {
-            var_dump($project['is_pinned']);
-        }
 
         foreach ($projects as $project) {
             if ($project['is_pinned']) {

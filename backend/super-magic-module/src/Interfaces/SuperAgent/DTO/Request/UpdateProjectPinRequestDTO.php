@@ -18,14 +18,14 @@ use function Hyperf\Translation\__;
 class UpdateProjectPinRequestDTO extends AbstractRequestDTO
 {
     /**
-     * 是否置顶：0-取消置顶，1-置顶.
+     * 是否置顶：false-取消置顶，true-置顶.
      */
-    public int $isPin = 0;
+    public bool $isPin = false;
 
     /**
      * 获取是否置顶.
      */
-    public function getIsPin(): int
+    public function getIsPin(): bool
     {
         return $this->isPin;
     }
@@ -33,7 +33,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
     /**
      * 设置是否置顶.
      */
-    public function setIsPin(int $isPin): void
+    public function setIsPin(bool $isPin): void
     {
         $this->isPin = $isPin;
     }
@@ -43,7 +43,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
      */
     public function isPinOperation(): bool
     {
-        return $this->isPin === 1;
+        return $this->isPin === true;
     }
 
     /**
@@ -51,7 +51,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
      */
     public function isUnpinOperation(): bool
     {
-        return $this->isPin === 0;
+        return $this->isPin === false;
     }
 
     /**
@@ -60,7 +60,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'is_pin' => 'required|integer|in:0,1',
+            'is_pin' => 'required|boolean',
         ];
     }
 
@@ -71,8 +71,7 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
     {
         return [
             'is_pin.required' => __('project.pin.is_pin_required'),
-            'is_pin.integer' => __('project.pin.is_pin_must_be_integer'),
-            'is_pin.in' => __('project.pin.is_pin_invalid_value'),
+            'is_pin.boolean' => __('project.pin.is_pin_must_be_boolean'),
         ];
     }
 }
