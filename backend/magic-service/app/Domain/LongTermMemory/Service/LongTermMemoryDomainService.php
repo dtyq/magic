@@ -164,6 +164,7 @@ readonly class LongTermMemoryDomainService
                     // 如果content和PendingContent都不为空，则清空PendingContent即可，不要删除记忆
                     elseif (! empty($content) && ! empty($pendingContent)) {
                         $memory->setPendingContent(null);
+                        $memory->setStatus(MemoryStatus::ACTIVE);
                         $memoriesToUpdate[] = $memory;
                     }
                     // 如果content不为空但PendingContent为空，也直接删除记忆（原有逻辑保持）
@@ -625,9 +626,7 @@ readonly class LongTermMemoryDomainService
             return null;
         }
 
-        $project = $this->projectRepository->findById((int) $projectId);
-
-        return $project?->getProjectName();
+        return $this->projectRepository->findById((int) $projectId)?->getProjectName();
     }
 
     /**
