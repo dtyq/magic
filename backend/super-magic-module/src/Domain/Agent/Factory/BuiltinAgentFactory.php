@@ -20,7 +20,7 @@ class BuiltinAgentFactory
     public static function createEntity(BuiltinAgent $builtinAgent, string $organizationCode): SuperMagicAgentEntity
     {
         $entity = new SuperMagicAgentEntity();
-        
+
         // 设置基本信息
         $entity->setOrganizationCode($organizationCode);
         $entity->setCode($builtinAgent->value);
@@ -31,13 +31,13 @@ class BuiltinAgentFactory
         $entity->setEnabled(true);
         $entity->setPrompt($builtinAgent->getPrompt());
         $entity->setTools([]);
-        
+
         // 设置系统创建信息
         $entity->setCreator('system');
         $entity->setCreatedAt(new DateTime());
         $entity->setModifier('system');
         $entity->setUpdatedAt(new DateTime());
-        
+
         return $entity;
     }
 
@@ -48,11 +48,11 @@ class BuiltinAgentFactory
     public static function createAllBuiltinEntities(string $organizationCode): array
     {
         $entities = [];
-        
+
         foreach (BuiltinAgent::getAllBuiltinAgents() as $builtinAgent) {
             $entities[] = self::createEntity($builtinAgent, $organizationCode);
         }
-        
+
         return $entities;
     }
 }

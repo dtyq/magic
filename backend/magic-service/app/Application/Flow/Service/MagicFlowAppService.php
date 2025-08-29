@@ -365,10 +365,10 @@ class MagicFlowAppService extends AbstractFlowAppService
         $toolSetData['total'] = count($toolSetData['list']);
 
         $toolSetData['icons'] = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths);
-        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
-            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
-            $userIds
-        );
+        //        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
+        //            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
+        //            $userIds
+        //        );
 
         return $toolSetData;
     }

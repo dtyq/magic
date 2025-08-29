@@ -22,7 +22,7 @@ class SuperMagicAgentQueryFormRequest extends FormRequest
             // 分页参数
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:1000',
-            
+
             // 搜索条件 - 只保留SuperMagicAgentQuery中实际存在的字段
             'name' => 'nullable|string|max:80',
             'enabled' => 'nullable|boolean',

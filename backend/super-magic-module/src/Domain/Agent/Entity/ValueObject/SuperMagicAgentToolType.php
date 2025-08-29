@@ -24,7 +24,7 @@ enum SuperMagicAgentToolType: int
      */
     public static function getAvailableValues(): array
     {
-        return array_map(fn($case) => $case->value, self::cases());
+        return array_map(fn ($case) => $case->value, self::cases());
     }
 
     /**

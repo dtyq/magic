@@ -22,7 +22,7 @@ class SuperMagicAgentOrderFormRequest extends FormRequest
             // 常用智能体排序列表
             'frequent' => 'nullable|array',
             'frequent.*' => 'string|max:50', // 智能体code
-            
+
             // 全部智能体排序列表
             'all' => 'required|array',
             'all.*' => 'string|max:50', // 智能体code

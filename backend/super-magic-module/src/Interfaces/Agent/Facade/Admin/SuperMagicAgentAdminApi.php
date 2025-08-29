@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Admin;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinToolAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentOrderFormRequest;
@@ -111,5 +112,13 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
         $this->superMagicAgentAppService->saveOrderConfig($authorization, $orderConfig);
 
         return ['message' => 'Agent order saved successfully'];
+    }
+
+    /**
+     * 获取内置工具列表.
+     */
+    public function tools()
+    {
+        return BuiltinToolAssembler::createToolCategoryListDTO();
     }
 }

@@ -26,7 +26,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property DateTime $created_at 创建时间
  * @property string $modifier 修改者
  * @property DateTime $updated_at 更新时间
- * @property DateTime|null $deleted_at 删除时间
+ * @property null|DateTime $deleted_at 删除时间
  */
 class SuperMagicAgentModel extends AbstractModel
 {
