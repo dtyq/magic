@@ -19,6 +19,8 @@ class ModeGroupModelDTO extends AbstractDTO
 
     protected string $modelName = '';
 
+    protected string $providerModelId = '';
+
     protected string $modelIcon = '';
 
     protected int $sort = 0;
@@ -81,5 +83,15 @@ class ModeGroupModelDTO extends AbstractDTO
     public function setSort(int $sort): void
     {
         $this->sort = $sort;
+    }
+
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(int|string $providerModelId): void
+    {
+        $this->providerModelId = (string) $providerModelId;
     }
 }
