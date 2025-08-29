@@ -207,7 +207,7 @@ class SuperMagicAgentEntity extends AbstractEntity
         foreach ($tools as $tool) {
             if ($tool instanceof SuperMagicAgentTool) {
                 $this->tools[] = $tool;
-            } else {
+            } elseif (is_array($tool)) {
                 $this->tools[] = new SuperMagicAgentTool($tool);
             }
         }
@@ -258,8 +258,14 @@ class SuperMagicAgentEntity extends AbstractEntity
         return $this->type;
     }
 
-    public function setType(SuperMagicAgentType $type): void
+    public function setType(int|SuperMagicAgentType $type): void
     {
+        if (is_int($type)) {
+            $type = SuperMagicAgentType::tryFrom($type);
+            if ($type === null) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.invalid', ['label' => 'super_magic.agent.fields.type']);
+            }
+        }
         $this->type = $type;
     }
 
