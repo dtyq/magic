@@ -87,7 +87,7 @@ class TaskDomainService
         ];
         $data = [
             'current_task_id' => $taskEntity->getId(),
-            'current_task_status' => TaskStatus::WAITING,
+            'current_task_status' => TaskStatus::RUNNING->value,
             'updated_uid' => $userId,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
