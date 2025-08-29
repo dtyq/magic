@@ -117,7 +117,9 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         array $statuses = [],
         bool $needPagination = true,
         int $pageSize = 10,
-        int $page = 1
+        int $page = 1,
+        string $orderBy = 'id',
+        string $order = 'asc'
     ): array {
         $query = $this->model::query()->whereNull('deleted_at');
 
@@ -140,7 +142,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         $total = $query->count();
 
         // Apply ordering and pagination
-        $query->orderBy('created_at', 'desc');
+        $query->orderBy($orderBy, $order);
 
         if ($needPagination) {
             $offset = ($page - 1) * $pageSize;
