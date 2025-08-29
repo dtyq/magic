@@ -9,6 +9,8 @@ use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/super-magic', function () {
     Router::addGroup('/agents', function () {
+        Router::get('/builtin-tools', [SuperMagicAgentAdminApi::class, 'tools']);
+
         Router::post('', [SuperMagicAgentAdminApi::class, 'save']);
         Router::post('/queries', [SuperMagicAgentAdminApi::class, 'queries']);
         Router::get('/{code}', [SuperMagicAgentAdminApi::class, 'show']);
