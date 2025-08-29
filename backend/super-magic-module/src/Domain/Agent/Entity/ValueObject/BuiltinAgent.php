@@ -64,11 +64,11 @@ enum BuiltinAgent: string
     {
         return match ($this) {
             self::General => 'general',
-            self::Chat => 'chat',
-            self::DataAnalysis => 'data_analysis',
-            self::PPT => 'ppt',
+            self::Chat => 'IconMessages',
+            self::DataAnalysis => 'IconChartBarPopular',
+            self::PPT => 'IconPresentation',
             self::Report => 'report',
-            self::Summary => 'summary',
+            self::Summary => 'IconFileDescription',
         };
     }
 
@@ -86,6 +86,12 @@ enum BuiltinAgent: string
      */
     public static function getAllBuiltinAgents(): array
     {
-        return self::cases();
+        return [
+            self::General,
+            self::Chat,
+            self::DataAnalysis,
+            self::PPT,
+            self::Summary,
+        ];
     }
 }
