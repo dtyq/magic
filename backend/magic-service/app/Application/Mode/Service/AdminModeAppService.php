@@ -10,6 +10,7 @@ namespace App\Application\Mode\Service;
 use App\Application\Mode\Assembler\AdminModeAssembler;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeDTO;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
@@ -26,7 +27,9 @@ class AdminModeAppService extends AbstractModeAppService
     public function getModes(MagicUserAuthorization $authorization, Page $page): array
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
-        $result = $this->modeDomainService->getModes($dataIsolation, $page);
+        // 管理后台查询：sort降序，不过滤默认模式
+        $query = new ModeQuery('desc', false);
+        $result = $this->modeDomainService->getModes($dataIsolation, $query, $page);
 
         return [
             'total' => $result['total'],
@@ -132,7 +135,10 @@ class AdminModeAppService extends AbstractModeAppService
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
 
-        return $defaultModeAggregate ? AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate) : null;
+        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate);
+        $this->processModeAggregateIcons($authorization, $adminModeAggregateDTO);
+
+        return $adminModeAggregateDTO;
     }
 
     /**

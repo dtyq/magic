@@ -14,6 +14,7 @@ use App\Domain\Mode\Repository\Facade\ModeGroupRepositoryInterface;
 use App\Domain\Mode\Repository\Persistence\Model\ModeGroupModel;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Codec\Json;
 use InvalidArgumentException;
 
 class ModeGroupRepository extends AbstractRepository implements ModeGroupRepositoryInterface
@@ -129,7 +130,9 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
         $data = [];
         foreach ($groupEntities as $groupEntity) {
-            $data[] = $groupEntity->toArray();
+            $array = $groupEntity->toArray();
+            $array['name_i18n'] = Json::encode($array['name_i18n']);
+            $data[] = $array;
         }
         $builder->insert($data);
     }

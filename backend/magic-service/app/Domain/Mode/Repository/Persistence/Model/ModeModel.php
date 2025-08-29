@@ -19,6 +19,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $color
  * @property string $description
  * @property int $is_default
+ * @property int $sort
  * @property bool $status
  * @property int $distribution_type
  * @property int $follow_mode_id
@@ -41,6 +42,7 @@ class ModeModel extends AbstractModel
         'identifier',
         'icon',
         'color',
+        'sort',
         'description',
         'is_default',
         'status',

@@ -9,6 +9,7 @@ namespace App\Domain\Mode\Repository\Persistence;
 
 use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Factory\ModeFactory;
 use App\Domain\Mode\Repository\Facade\ModeRepositoryInterface;
 use App\Domain\Mode\Repository\Persistence\Model\ModeModel;
@@ -49,11 +50,19 @@ class ModeRepository extends AbstractRepository implements ModeRepositoryInterfa
     /**
      * @return array{total: int, list: ModeEntity[]}
      */
-    public function queries(ModeDataIsolation $dataIsolation, Page $page): array
+    public function queries(ModeDataIsolation $dataIsolation, ModeQuery $query, Page $page): array
     {
         $dataIsolation->disabled();
         $builder = $this->createBuilder($dataIsolation, ModeModel::query());
-        $builder->orderBy('is_default', 'desc')
+
+        // 是否过滤默认模式
+        if ($query->isExcludeDefault()) {
+            $builder->where('is_default', 0);
+        }
+
+        // 排序：sort字段优先，然后is_default，最后created_at
+        $builder->orderBy('sort', $query->getSortDirection())
+            ->orderBy('is_default', 'desc')
             ->orderBy('created_at', 'desc');
 
         $data = $this->getByPage($builder, $page);

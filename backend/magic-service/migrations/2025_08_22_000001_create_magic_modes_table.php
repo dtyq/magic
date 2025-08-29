@@ -28,6 +28,7 @@ return new class extends Migration {
             $table->string('identifier', 50)->default('')->comment('模式标识，唯一');
             $table->string('icon', 255)->default('')->comment('模式图标');
             $table->string('color', 10)->default('')->comment('模式颜色');
+            $table->bigInteger('sort', 10)->default(0)->comment('排序');
             $table->text('description')->comment('模式描述');
             $table->tinyInteger('is_default')->default(0)->comment('是否默认模式 0:否 1:是');
             $table->tinyInteger('status')->default(1)->comment('状态 0:禁用 1:启用');

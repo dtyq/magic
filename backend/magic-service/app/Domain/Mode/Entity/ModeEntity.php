@@ -23,6 +23,8 @@ class ModeEntity extends AbstractEntity
 
     protected string $description = '';
 
+    protected int $sort = 0;
+
     protected int $isDefault = 0;
 
     protected bool $status = true;
@@ -161,7 +163,7 @@ class ModeEntity extends AbstractEntity
 
     public function isInheritedConfiguration(): bool
     {
-        return $this->distributionType === DistributionTypeEnum::INHERITED->value;
+        return $this->distributionType === DistributionTypeEnum::INHERITED;
     }
 
     public function getFollowModeId(): int
@@ -246,5 +248,15 @@ class ModeEntity extends AbstractEntity
     public function canBeDeleted(): bool
     {
         return ! $this->isDefaultMode();
+    }
+
+    public function getSort(): int
+    {
+        return $this->sort;
+    }
+
+    public function setSort(int $sort): void
+    {
+        $this->sort = $sort;
     }
 }

@@ -13,12 +13,14 @@ use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Repository\Facade\ModeGroupRelationRepositoryInterface;
 use App\Domain\Mode\Repository\Facade\ModeGroupRepositoryInterface;
 use App\Domain\Mode\Repository\Facade\ModeRepositoryInterface;
 use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
 class ModeDomainService
 {
@@ -32,9 +34,9 @@ class ModeDomainService
     /**
      * @return array{total: int, list: ModeEntity[]}
      */
-    public function getModes(ModeDataIsolation $dataIsolation, Page $page): array
+    public function getModes(ModeDataIsolation $dataIsolation, ModeQuery $query, Page $page): array
     {
-        return $this->modeRepository->queries($dataIsolation, $page);
+        return $this->modeRepository->queries($dataIsolation, $query, $page);
     }
 
     /**
@@ -168,8 +170,39 @@ class ModeDomainService
         // 直接删除该模式的所有现有配置
         $this->relationRepository->deleteByModeId($dataIsolation, $id);
 
+        // 删除该模式的所有现有分组
+        $this->groupRepository->deleteByModeId($dataIsolation, $id);
+
         // 保存模式基本信息
         $this->modeRepository->save($dataIsolation, $mode);
+
+        // 批量创建分组副本
+        $newGroupEntities = [];
+        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
+            $group = $groupAggregate->getGroup();
+
+            // 创建新分组实体（提前生成ID）
+            $newGroup = new ModeGroupEntity();
+            $newGroup->setId(IdGenerator::getSnowId());
+            $newGroup->setModeId((int) $id);
+            $newGroup->setNameI18n($group->getNameI18n());
+            $newGroup->setIcon($group->getIcon());
+            $newGroup->setDescription($group->getDescription());
+            $newGroup->setSort($group->getSort());
+            $newGroup->setStatus($group->getStatus());
+            $newGroup->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $newGroup->setCreatorId($dataIsolation->getCurrentUserId());
+
+            $newGroupEntities[] = $newGroup;
+
+            // 更新聚合中的分组引用
+            $groupAggregate->setGroup($newGroup);
+        }
+
+        // 批量保存分组
+        if (! empty($newGroupEntities)) {
+            $this->groupRepository->batchSave($dataIsolation, $newGroupEntities);
+        }
 
         // 批量构建分组实体和关系实体
         $relationEntities = [];
@@ -178,6 +211,10 @@ class ModeDomainService
             foreach ($groupAggregate->getRelations() as $relation) {
                 $relation->setModeId((string) $id);
                 $relation->setOrganizationCode($mode->getOrganizationCode());
+
+                // 设置为新创建的分组ID
+                $relation->setGroupId($groupAggregate->getGroup()->getId());
+
                 $relationEntities[] = $relation;
             }
         }
