@@ -27,7 +27,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
