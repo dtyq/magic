@@ -19,6 +19,10 @@ use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublishe
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -32,6 +36,7 @@ use Exception;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -46,6 +51,7 @@ class TopicAppService extends AbstractAppService
         protected MagicChatMessageAppService $magicChatMessageAppService,
         protected ChatAppService $chatAppService,
         protected Producer $producer,
+        protected EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -118,6 +124,11 @@ class TopicAppService extends AbstractAppService
             }
             // 提交事务
             Db::commit();
+
+            // 发布话题已创建事件
+            $topicCreatedEvent = new TopicCreatedEvent($topicEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($topicCreatedEvent);
+
             // 返回结果
             return TopicItemDTO::fromEntity($topicEntity);
         } catch (Throwable $e) {
@@ -138,6 +149,15 @@ class TopicAppService extends AbstractAppService
 
         $this->topicDomainService->updateTopic($dataIsolation, (int) $requestDTO->getId(), $requestDTO->getTopicName());
 
+        // 获取更新后的话题实体用于事件发布
+        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDTO->getId());
+
+        // 发布话题已更新事件
+        if ($topicEntity) {
+            $topicUpdatedEvent = new TopicUpdatedEvent($topicEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($topicUpdatedEvent);
+        }
+
         return SaveTopicResultDTO::fromId((int) $requestDTO->getId());
     }
 
@@ -155,6 +175,13 @@ class TopicAppService extends AbstractAppService
             // 更新话题名称
             $dataIsolation = $this->createDataIsolation($authorization);
             $this->topicDomainService->updateTopicName($dataIsolation, $topicId, $text);
+
+            // 获取更新后的话题实体并发布重命名事件
+            $updatedTopicEntity = $this->topicDomainService->getTopicById($topicId);
+            if ($updatedTopicEntity) {
+                $topicRenamedEvent = new TopicRenamedEvent($updatedTopicEntity, $authorization);
+                $this->eventDispatcher->dispatch($topicRenamedEvent);
+            }
         } catch (Exception $e) {
             $this->logger->error('rename topic error: ' . $e->getMessage());
             $text = $topicEntity->getTopicName();
@@ -182,11 +209,20 @@ class TopicAppService extends AbstractAppService
         // 获取话题ID
         $topicId = $requestDTO->getId();
 
+        // 先获取话题实体用于事件发布
+        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
+
         // 调用领域服务执行删除
         $result = $this->topicDomainService->deleteTopic($dataIsolation, (int) $topicId);
 
         // 投递事件，停止服务
         if ($result) {
+            // 发布话题已删除事件
+            if ($topicEntity) {
+                $topicDeletedEvent = new TopicDeletedEvent($topicEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($topicDeletedEvent);
+            }
+
             $event = new StopRunningTaskEvent(
                 DeleteDataType::TOPIC,
                 (int) $topicId,

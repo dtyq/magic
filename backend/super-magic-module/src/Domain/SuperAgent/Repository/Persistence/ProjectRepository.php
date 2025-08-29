@@ -178,6 +178,16 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
+     * 更新项目的updated_at为当前时间.
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool
+    {
+        $conditions = ['id' => $projectId];
+        $data = ['updated_at' => date('Y-m-d H:i:s')];
+        return $this->updateProjectByCondition($conditions, $data);
+    }
+
+    /**
      * 模型转实体.
      */
     protected function modelToEntity(ProjectModel $model): ProjectEntity

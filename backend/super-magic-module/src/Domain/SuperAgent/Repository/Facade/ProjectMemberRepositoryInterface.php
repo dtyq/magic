@@ -71,9 +71,16 @@ interface ProjectMemberRepositoryInterface
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
      * @param null|string $name 项目名称模糊搜索关键词
-     * @return array ['total' => int, 'project_ids' => array]
+     * @return array ['total' => int, 'list' => array]
      */
-    public function getProjectIdsByUserAndDepartments(string $userId, array $departmentIds = [], ?string $name = null): array;
+    public function getProjectIdsByUserAndDepartments(
+        string $userId,
+        array $departmentIds = [],
+        ?string $name = null,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array;
 
     /**
      * 批量获取项目成员总数.
@@ -95,7 +102,16 @@ interface ProjectMemberRepositoryInterface
     /**
      * 获取用户创建的且有成员的项目ID列表及总数.
      *
-     * @return array ['total' => int, 'project_ids' => array]
+     * @return array ['total' => int, 'list' => array]
      */
-    public function getSharedProjectIdsByUser(string $userId, string $organizationCode, ?string $name = null, int $page = 1, int $pageSize = 10): array;
+    public function getSharedProjectIdsByUser(
+        string $userId,
+        string $organizationCode,
+        ?string $name = null,
+        int $page = 1,
+        int $pageSize = 10,
+        ?string $sortField = null,
+        string $sortDirection = 'desc',
+        array $creatorUserIds = []
+    ): array;
 }
