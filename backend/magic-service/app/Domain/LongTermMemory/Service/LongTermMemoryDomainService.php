@@ -117,13 +117,6 @@ readonly class LongTermMemoryDomainService
 
         // 获取互斥锁
         if (! $this->locker->mutexLock($lockName, $lockOwner, 60)) {
-            $this->logger->error('Failed to acquire lock for batch memory suggestions processing', [
-                'lock_name' => $lockName,
-                'action' => $action->value,
-                'scenario' => $scenario->value,
-                'memory_ids' => $memoryIds,
-                'magic_message_id' => $magicMessageId,
-            ]);
             ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
         }
 
@@ -151,34 +144,51 @@ readonly class LongTermMemoryDomainService
 
                 // 批量保存更新
                 if (! $this->repository->updateBatch($memories)) {
-                    $this->logger->error('Failed to batch accept memory suggestions', [
-                        'memory_ids' => $memoryIds,
-                        'scenario' => $scenario->value,
-                    ]);
                     ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
                 }
-
-                $this->logger->info('Batch accepted memory suggestions successfully', [
-                    'count' => count($memories),
-                    'scenario' => $scenario->value,
-                    'magic_message_id' => $magicMessageId,
-                ]);
             } elseif ($action === MemoryOperationAction::REJECT) {
-                // 批量拒绝记忆建议：直接删除记忆
-                if (! $this->repository->deleteBatch($memoryIds)) {
-                    $this->logger->error('Failed to batch reject memory suggestions', [
-                        'memory_ids' => $memoryIds,
-                        'scenario' => $scenario->value,
-                        'magic_message_id' => $magicMessageId,
-                    ]);
-                    ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
+                // 批量拒绝记忆建议：根据记忆状态决定删除还是清空pending_content
+                $memories = $this->repository->findByIds($memoryIds);
+
+                $memoriesToDelete = [];
+                $memoriesToUpdate = [];
+
+                foreach ($memories as $memory) {
+                    $content = $memory->getContent();
+                    $pendingContent = $memory->getPendingContent();
+
+                    // 如果content为空且PendingContent不为空，直接删除记忆
+                    if (empty($content) && ! empty($pendingContent)) {
+                        $memoriesToDelete[] = $memory->getId();
+                    }
+                    // 如果content和PendingContent都不为空，则清空PendingContent即可，不要删除记忆
+                    elseif (! empty($content) && ! empty($pendingContent)) {
+                        $memory->setPendingContent(null);
+                        $memoriesToUpdate[] = $memory;
+                    }
+                    // 如果content不为空但PendingContent为空，也直接删除记忆（原有逻辑保持）
+                    elseif (! empty($content) && empty($pendingContent)) {
+                        $memoriesToDelete[] = $memory->getId();
+                    }
+                    // 如果content为空且PendingContent也为空，直接删除记忆（原有逻辑保持）
+                    elseif (empty($content) && empty($pendingContent)) {
+                        $memoriesToDelete[] = $memory->getId();
+                    }
                 }
 
-                $this->logger->info('Batch rejected and deleted memory suggestions successfully', [
-                    'count' => count($memoryIds),
-                    'scenario' => $scenario->value,
-                    'magic_message_id' => $magicMessageId,
-                ]);
+                // 批量删除需要删除的记忆
+                if (! empty($memoriesToDelete)) {
+                    if (! $this->repository->deleteBatch($memoriesToDelete)) {
+                        ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
+                    }
+                }
+
+                // 批量更新需要清空pending_content的记忆
+                if (! empty($memoriesToUpdate)) {
+                    if (! $this->repository->updateBatch($memoriesToUpdate)) {
+                        ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
+                    }
+                }
             }
 
             // 如果是 memory_card_quick 场景，需要更新对应的消息内容
