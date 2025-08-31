@@ -245,7 +245,7 @@ class TaskContext
         if (! empty($this->modelId) && empty($this->dynamicConfig['models'][$this->getModelId()])) {
             $modelName = $this->getModelId();
             // 当 max 模型是 claude 系列的时候，并且是 slider 模式的时候，切换为 claude3.7
-            if ($modelName === 'max' && $this->getAgentMode() === 'slider') {
+            if ($modelName === 'max' && $this->getAgentMode() === 'ppt') {
                 $modelName = 'claude-3.7';
             }
             $this->dynamicConfig['models'][$this->getModelId()] = [
