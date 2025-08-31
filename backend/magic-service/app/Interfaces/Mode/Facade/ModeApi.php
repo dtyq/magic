@@ -24,10 +24,4 @@ class ModeApi extends AbstractApi
     {
         return $this->modeAppService->getModes($this->getAuthorization());
     }
-
-    public function getModeByIdentifier(RequestInterface $request, string $identifier)
-    {
-        $authenticatable = $this->getAuthorization();
-        return $this->modeAppService->getModeByIdentifier($authenticatable, $identifier);
-    }
 }
