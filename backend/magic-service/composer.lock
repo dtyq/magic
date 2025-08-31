@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.7",
+            "version": "3.356.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "6b44237a218485bf43a0015600aebf43cb726d4e"
+                "reference": "3efa8c62c11fedb17b90f60b2d3a9f815b406e63"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6b44237a218485bf43a0015600aebf43cb726d4e",
-                "reference": "6b44237a218485bf43a0015600aebf43cb726d4e",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/3efa8c62c11fedb17b90f60b2d3a9f815b406e63",
+                "reference": "3efa8c62c11fedb17b90f60b2d3a9f815b406e63",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.7"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.8"
             },
-            "time": "2025-08-28T18:14:39+00:00"
+            "time": "2025-08-29T18:06:18+00:00"
         },
         {
             "name": "brick/math",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "e46bb05408f4cb9804e4bce9c2ebfcd19b481e66"
+                "reference": "91417b89e8ee5f2683c22abf9a1164dafe737e2d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e46bb05408f4cb9804e4bce9c2ebfcd19b481e66",
-                "reference": "e46bb05408f4cb9804e4bce9c2ebfcd19b481e66",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=91417b89e8ee5f2683c22abf9a1164dafe737e2d",
+                "reference": "91417b89e8ee5f2683c22abf9a1164dafe737e2d",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-29T17:26:42+08:00"
+            "time": "2025-08-30T16:10:15+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "be674427d43ebc95b3c98129ddcc6af31fccd402"
+                "reference": "e529587ecf8f3128c4d3d6878c4af51e583d8270"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=be674427d43ebc95b3c98129ddcc6af31fccd402",
-                "reference": "be674427d43ebc95b3c98129ddcc6af31fccd402",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=e529587ecf8f3128c4d3d6878c4af51e583d8270",
+                "reference": "e529587ecf8f3128c4d3d6878c4af51e583d8270",
                 "shasum": ""
             },
             "require": {
@@ -2674,7 +2674,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-29T18:06:38+08:00"
+            "time": "2025-08-29T18:58:01+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8149,16 +8149,16 @@
         },
         {
             "name": "justinrainbow/json-schema",
-            "version": "6.5.0",
+            "version": "6.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/jsonrainbow/json-schema.git",
-                "reference": "3916d662058b47fddb07c0c2ec57eb027b9ba21d"
+                "reference": "b5ab21e431594897e5bb86343c01f140ba862c26"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/3916d662058b47fddb07c0c2ec57eb027b9ba21d",
-                "reference": "3916d662058b47fddb07c0c2ec57eb027b9ba21d",
+                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/b5ab21e431594897e5bb86343c01f140ba862c26",
+                "reference": "b5ab21e431594897e5bb86343c01f140ba862c26",
                 "shasum": ""
             },
             "require": {
@@ -8218,9 +8218,9 @@
             ],
             "support": {
                 "issues": "https://github.com/jsonrainbow/json-schema/issues",
-                "source": "https://github.com/jsonrainbow/json-schema/tree/6.5.0"
+                "source": "https://github.com/jsonrainbow/json-schema/tree/6.5.1"
             },
-            "time": "2025-08-29T08:51:57+00:00"
+            "time": "2025-08-29T10:58:11+00:00"
         },
         {
             "name": "kk-erp-service/service-sdk",
@@ -17277,12 +17277,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "1e6dd833087765a9aa80c5c0a6444f4521a63a79"
+                "reference": "e7589e01dc8452bfecb4c8df977346cd3132650f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1e6dd833087765a9aa80c5c0a6444f4521a63a79",
-                "reference": "1e6dd833087765a9aa80c5c0a6444f4521a63a79",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/e7589e01dc8452bfecb4c8df977346cd3132650f",
+                "reference": "e7589e01dc8452bfecb4c8df977346cd3132650f",
                 "shasum": ""
             },
             "conflict": {
@@ -17313,8 +17313,8 @@
                 "aoe/restler": "<1.7.1",
                 "apache-solr-for-typo3/solr": "<2.8.3",
                 "apereo/phpcas": "<1.6",
-                "api-platform/core": "<3.4.17|>=4.0.0.0-alpha1,<4.0.22",
-                "api-platform/graphql": "<3.4.17|>=4.0.0.0-alpha1,<4.0.22",
+                "api-platform/core": "<3.4.17|>=4,<4.0.22|>=4.1,<4.1.5",
+                "api-platform/graphql": "<3.4.17|>=4,<4.0.22|>=4.1,<4.1.5",
                 "appwrite/server-ce": "<=1.2.1",
                 "arc/web": "<3",
                 "area17/twill": "<1.2.5|>=2,<2.5.3",
@@ -18234,7 +18234,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-28T15:05:43+00:00"
+            "time": "2025-08-29T15:04:47+00:00"
         },
         {
             "name": "sebastian/cli-parser",
