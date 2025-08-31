@@ -41,7 +41,22 @@ class ModeAppService extends AbstractModeAppService
         if (! empty($allModelIds)) {
             $providerDataIsolation = new ProviderDataIsolation();
             $providerDataIsolation->disabled();
-            $providerModels = $this->providerModelDomainService->getModelsByIds($providerDataIsolation, array_unique($allModelIds));
+            $allProviderModels = $this->providerModelDomainService->getModelsByIds($providerDataIsolation, array_unique($allModelIds));
+
+            // 根据套餐过滤模型
+            $currentPackage = $this->packageFilter->getCurrentPackage($authorization->getOrganizationCode());
+            foreach ($allProviderModels as $modelId => $model) {
+                $visiblePackages = $model->getVisiblePackages();
+                // 过滤规则：如果没有配置可见套餐，则对所有套餐可见
+                if (empty($visiblePackages)) {
+                    $providerModels[$modelId] = $model;
+                    continue;
+                }
+                // 如果配置了可见套餐，检查当前套餐是否在其中
+                if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
+                    $providerModels[$modelId] = $model;
+                }
+            }
         }
 
         // 转换为DTO数组
