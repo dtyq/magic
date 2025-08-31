@@ -18,6 +18,7 @@ use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Mode\Service\ModeGroupDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -30,7 +31,8 @@ abstract class AbstractModeAppService
         protected ProviderModelDomainService $providerModelDomainService,
         protected ModeGroupDomainService $groupDomainService,
         protected FileDomainService $fileDomainService,
-        protected LoggerInterface $logger
+        protected LoggerInterface $logger,
+        protected PackageFilterInterface $packageFilter
     ) {
     }
 
