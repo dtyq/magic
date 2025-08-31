@@ -139,6 +139,9 @@ class ModeAssembler
 
     private static function groupEntityToDTO(ModeGroupEntity $getGroup)
     {
-        return new ModeGroupDTO($getGroup->toArray());
+        $dto = new ModeGroupDTO($getGroup->toArray());
+        $locale = di(TranslatorInterface::class)->getLocale();
+        $dto->setName($getGroup->getNameI18n()[$locale]);
+        return $dto;
     }
 }
