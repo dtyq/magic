@@ -99,4 +99,28 @@ class ModeGroupRelationRepository extends AbstractRepository implements ModeGrou
         }
         $builder->insert($data);
     }
+
+    /**
+     * 根据多个模式ID批量获取关联关系.
+     * @param int[]|string[] $modeIds
+     * @return ModeGroupRelationEntity[]
+     */
+    public function findByModeIds(ModeDataIsolation $dataIsolation, array $modeIds): array
+    {
+        if (empty($modeIds)) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ModeGroupRelationModel::query());
+        $models = $builder->whereIn('mode_id', $modeIds)
+            ->orderBy('mode_id', 'asc')
+            ->orderBy('sort', 'desc')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = ModeGroupRelationFactory::modelToEntity($model);
+        }
+        return $entities;
+    }
 }

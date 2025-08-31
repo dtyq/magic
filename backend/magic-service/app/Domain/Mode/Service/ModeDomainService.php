@@ -229,6 +229,58 @@ class ModeDomainService
     }
 
     /**
+     * 批量构建模式聚合根（优化版本，避免N+1查询）.
+     * @param ModeEntity[] $modes
+     * @return ModeAggregate[]
+     */
+    public function batchBuildModeAggregates(ModeDataIsolation $dataIsolation, array $modes): array
+    {
+        if (empty($modes)) {
+            return [];
+        }
+
+        // 提取所有模式ID
+        $modeIds = array_map(fn ($mode) => $mode->getId(), $modes);
+
+        // 批量获取所有分组和关系
+        $allGroups = $this->groupRepository->findByModeIds($dataIsolation, $modeIds);
+        $allRelations = $this->relationRepository->findByModeIds($dataIsolation, $modeIds);
+
+        // 按模式ID分组数据
+        $groupsByModeId = [];
+        foreach ($allGroups as $group) {
+            $groupsByModeId[$group->getModeId()][] = $group;
+        }
+
+        $relationsByModeId = [];
+        foreach ($allRelations as $relation) {
+            $relationsByModeId[$relation->getModeId()][] = $relation;
+        }
+
+        // 构建聚合根数组
+        $aggregates = [];
+        foreach ($modes as $mode) {
+            $modeId = $mode->getId();
+            $groups = $groupsByModeId[$modeId] ?? [];
+            $relations = $relationsByModeId[$modeId] ?? [];
+
+            // 构建分组聚合根数组
+            $groupAggregates = [];
+            foreach ($groups as $group) {
+                // 获取该分组下的所有关联关系
+                $groupRelations = array_filter($relations, fn ($relation) => $relation->getGroupId() === $group->getId());
+                usort($groupRelations, fn ($a, $b) => $a->getSort() <=> $b->getSort());
+
+                $groupAggregates[] = new ModeGroupAggregate($group, $groupRelations);
+            }
+
+            $aggregates[] = new ModeAggregate($mode, $groupAggregates);
+        }
+
+        return $aggregates;
+    }
+
+    /**
      * 构建模式聚合根.
      */
     private function buildModeAggregate(ModeDataIsolation $dataIsolation, ModeEntity $mode): ModeAggregate

@@ -48,4 +48,11 @@ interface ModeGroupRelationRepositoryInterface
      * @param $relationEntities ModeGroupRelationEntity[]
      */
     public function batchSave(ModeDataIsolation $dataIsolation, array $relationEntities);
+
+    /**
+     * 根据多个模式ID批量获取关联关系.
+     * @param int[]|string[] $modeIds
+     * @return ModeGroupRelationEntity[]
+     */
+    public function findByModeIds(ModeDataIsolation $dataIsolation, array $modeIds): array;
 }

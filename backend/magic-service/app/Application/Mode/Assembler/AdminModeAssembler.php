@@ -22,6 +22,7 @@ use App\Interfaces\Mode\DTO\Request\CreateModeGroupRequest;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeGroupRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
+use Hyperf\Contract\TranslatorInterface;
 
 class AdminModeAssembler
 {
@@ -78,6 +79,7 @@ class AdminModeAssembler
     {
         $dto = new AdminModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToAdminDTO($groupAggregate->getGroup()));
+        $locale = di(TranslatorInterface::class)->getLocale();
 
         $models = [];
         foreach ($groupAggregate->getRelations() as $relation) {
@@ -89,6 +91,14 @@ class AdminModeAssembler
                 $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getName());
                 $modelDTO->setModelIcon($providerModel->getIcon());
+                $description = '';
+                $translate = $providerModel->getTranslate();
+                if (is_array($translate) && isset($translate['description'][$locale])) {
+                    $description = $translate['description'][$locale];
+                } else {
+                    $description = $providerModel->getDescription();
+                }
+                $modelDTO->setModelDescription($description);
             }
 
             $models[] = $modelDTO;
