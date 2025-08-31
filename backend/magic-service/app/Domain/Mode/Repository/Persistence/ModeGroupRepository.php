@@ -136,4 +136,29 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         }
         $builder->insert($data);
     }
+
+    /**
+     * 根据多个模式ID批量获取分组列表.
+     * @param int[]|string[] $modeIds
+     * @return ModeGroupEntity[]
+     */
+    public function findByModeIds(ModeDataIsolation $dataIsolation, array $modeIds): array
+    {
+        if (empty($modeIds)) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
+        $models = $builder->whereIn('mode_id', $modeIds)
+            ->orderBy('mode_id', 'asc')
+            ->orderBy('sort', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $data = [];
+        foreach ($models as $model) {
+            $data[] = ModeGroupFactory::modelToEntity($model);
+        }
+        return $data;
+    }
 }

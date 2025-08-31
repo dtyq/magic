@@ -134,8 +134,10 @@ class AdminModeAppService extends AbstractModeAppService
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
+        $providerModels = $this->getModels($defaultModeAggregate);
 
-        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate);
+        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate, $providerModels);
+
         $this->processModeAggregateIcons($authorization, $adminModeAggregateDTO);
 
         return $adminModeAggregateDTO;
