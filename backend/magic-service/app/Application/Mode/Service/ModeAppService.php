@@ -10,6 +10,7 @@ namespace App\Application\Mode\Service;
 use App\Application\Mode\Assembler\ModeAssembler;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 
@@ -22,14 +23,42 @@ class ModeAppService extends AbstractModeAppService
 
         // 创建查询对象：sort降序，过滤默认模式
         $query = new ModeQuery('desc', true);
-        $modes = $this->modeDomainService->getModes($modeDataIsolation, $query, new Page(1, 100));
+        $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, new Page(1, 100));
 
-        $modeDTOs = [];
-        foreach ($modes['list'] as $mode) {
-            $modeDTOs[] = ModeAssembler::modeToDTO($mode);
+        if (empty($modesResult['list'])) {
+            return $modesResult;
         }
-        $modes['list'] = $modeDTOs;
-        return $modes;
+
+        // 批量构建模式聚合根
+        $modeAggregates = $this->modeDomainService->batchBuildModeAggregates($modeDataIsolation, $modesResult['list']);
+
+        // 获取所有相关的模型信息
+        $allModelIds = [];
+        foreach ($modeAggregates as $aggregate) {
+            $allModelIds = array_merge($allModelIds, $aggregate->getAllModelIds());
+        }
+        $providerModels = [];
+        if (! empty($allModelIds)) {
+            $providerDataIsolation = new ProviderDataIsolation();
+            $providerDataIsolation->disabled();
+            $providerModels = $this->providerModelDomainService->getModelsByIds($providerDataIsolation, array_unique($allModelIds));
+        }
+
+        // 转换为DTO数组
+        $modeAggregateDTOs = [];
+        foreach ($modeAggregates as $aggregate) {
+            $modeAggregateDTOs[] = ModeAssembler::aggregateToDTO($aggregate, $providerModels);
+        }
+
+        // 处理图标URL转换
+        foreach ($modeAggregateDTOs as $aggregateDTO) {
+            $this->processModeAggregateIcons($authorization, $aggregateDTO);
+        }
+
+        return [
+            'total' => $modesResult['total'],
+            'list' => $modeAggregateDTOs,
+        ];
     }
 
     /**

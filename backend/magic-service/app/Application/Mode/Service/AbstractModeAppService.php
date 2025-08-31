@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Mode\Service;
 
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
+use App\Application\Mode\DTO\ModeAggregateDTO;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Application\Mode\DTO\ModeGroupDTO;
 use App\Domain\File\Service\FileDomainService;
@@ -58,12 +59,25 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 批量获取icon的URL
-        $iconUrls = $this->fileDomainService->getLinks(
-            $authorization->getOrganizationCode(),
-            $iconPaths,
-            StorageBucketType::Public
-        );
+        // 按组织代码分组图标路径
+        $iconPathsByOrg = [];
+        foreach ($iconPaths as $iconPath) {
+            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $iconPathsByOrg[$orgCode][] = $iconPath;
+            }
+        }
+
+        // 批量获取icon的URL（按组织代码分组处理）
+        $iconUrls = [];
+        foreach ($iconPathsByOrg as $orgCode => $paths) {
+            $orgIconUrls = $this->fileDomainService->getLinks(
+                $orgCode,
+                $paths,
+                StorageBucketType::Public
+            );
+            $iconUrls = array_merge($iconUrls, $orgIconUrls);
+        }
 
         // 替换DTO中的icon路径为完整URL
         foreach ($groups as $group) {
@@ -77,7 +91,7 @@ abstract class AbstractModeAppService
     /**
      * 处理模式聚合根中的图标，将路径转换为完整的URL.
      */
-    protected function processModeAggregateIcons(MagicUserAuthorization $authorization, AdminModeAggregateDTO|ModeAggregate $modeAggregateDTO): void
+    protected function processModeAggregateIcons(MagicUserAuthorization $authorization, AdminModeAggregateDTO|ModeAggregate|ModeAggregateDTO $modeAggregateDTO): void
     {
         // 收集所有需要处理的icon路径
         $iconPaths = [];
@@ -106,12 +120,25 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 批量获取icon的URL
-        $iconUrls = $this->fileDomainService->getLinks(
-            $authorization->getOrganizationCode(),
-            $iconPaths,
-            StorageBucketType::Public
-        );
+        // 按组织代码分组图标路径
+        $iconPathsByOrg = [];
+        foreach ($iconPaths as $iconPath) {
+            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $iconPathsByOrg[$orgCode][] = $iconPath;
+            }
+        }
+
+        // 批量获取icon的URL（按组织代码分组处理）
+        $iconUrls = [];
+        foreach ($iconPathsByOrg as $orgCode => $paths) {
+            $orgIconUrls = $this->fileDomainService->getLinks(
+                $orgCode,
+                $paths,
+                StorageBucketType::Public
+            );
+            $iconUrls = array_merge($iconUrls, $orgIconUrls);
+        }
 
         // 替换DTO中的icon路径为完整URL
         foreach ($modeAggregateDTO->getGroups() as $groupAggregate) {
@@ -173,12 +200,25 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 批量获取icon的URL
-        $iconUrls = $this->fileDomainService->getLinks(
-            $authorization->getOrganizationCode(),
-            $iconPaths,
-            StorageBucketType::Public
-        );
+        // 按组织代码分组图标路径
+        $iconPathsByOrg = [];
+        foreach ($iconPaths as $iconPath) {
+            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $iconPathsByOrg[$orgCode][] = $iconPath;
+            }
+        }
+
+        // 批量获取icon的URL（按组织代码分组处理）
+        $iconUrls = [];
+        foreach ($iconPathsByOrg as $orgCode => $paths) {
+            $orgIconUrls = $this->fileDomainService->getLinks(
+                $orgCode,
+                $paths,
+                StorageBucketType::Public
+            );
+            $iconUrls = array_merge($iconUrls, $orgIconUrls);
+        }
 
         // 替换DTO中的icon路径为完整URL
         foreach ($modeGroupDetails as $groupDetail) {

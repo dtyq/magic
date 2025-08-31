@@ -41,21 +41,27 @@ class ModeAssembler
     {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));
+        $locale = di(TranslatorInterface::class)->getLocale();
 
         $models = [];
         foreach ($groupAggregate->getRelations() as $relation) {
-            $modelDTO = new ModeGroupModelDTO();
-            $modelDTO->setId($relation->getId());
-            $modelDTO->setGroupId($relation->getGroupId());
-            $modelDTO->setModelId((string) $relation->getModelId());
-            $modelDTO->setSort($relation->getSort());
+            $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
             // 如果提供了模型信息，则填充模型名称和图标
-            $modelId = (string) $relation->getModelId();
-            if (isset($providerModels[$modelId])) {
-                $providerModel = $providerModels[$modelId];
+            $providerModelId = $relation->getProviderModelId();
+            if (isset($providerModels[$providerModelId])) {
+                $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getName());
                 $modelDTO->setModelIcon($providerModel->getIcon());
+
+                $description = '';
+                $translate = $providerModel->getTranslate();
+                if (is_array($translate) && isset($translate['description'][$locale])) {
+                    $description = $translate['description'][$locale];
+                } else {
+                    $description = $providerModel->getDescription();
+                }
+                $modelDTO->setModelDescription($description);
             }
 
             $models[] = $modelDTO;
