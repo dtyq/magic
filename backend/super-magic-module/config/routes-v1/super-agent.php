@@ -63,10 +63,15 @@ Router::addGroup(
             // 更新项目协作成员
             Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
         });
-        // 获取协作项目列表
-        Router::get('/collaboration-projects', [ProjectMemberApi::class, 'getCollaborationProjects']);
-        // 更新协作项目配置
-        Router::put('/collaboration-projects/{id}', [ProjectMemberApi::class, 'updateProjectPin']);
+        // 协作项目相关路由分组
+        Router::addGroup('/collaboration-projects', static function () {
+            // 获取协作项目列表
+            Router::get('', [ProjectMemberApi::class, 'getCollaborationProjects']);
+            // 获取协作项目创建者列表
+            Router::get('/creators', [ProjectMemberApi::class, 'getCollaborationProjectCreators']);
+            // 更新项目置顶状态
+            Router::put('/{id}/pin', [ProjectMemberApi::class, 'updateProjectPin']);
+        });
 
         // 话题相关
         Router::addGroup('/topics', static function () {

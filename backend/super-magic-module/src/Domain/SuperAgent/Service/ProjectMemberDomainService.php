@@ -215,4 +215,24 @@ class ProjectMemberDomainService
         $this->projectMemberSettingRepository->deleteByProjectId($projectId);
         return true;
     }
+
+    /**
+     * 获取协作项目的创建者用户ID列表.
+     *
+     * @param string $userId 当前用户ID
+     * @param array $departmentIds 用户所在部门ID数组
+     * @param string $organizationCode 组织代码
+     * @return array 创建者用户ID数组
+     */
+    public function getCollaborationProjectCreatorIds(
+        string $userId,
+        array $departmentIds,
+        string $organizationCode
+    ): array {
+        return $this->projectMemberRepository->getCollaborationProjectCreatorIds(
+            $userId,
+            $departmentIds,
+            $organizationCode
+        );
+    }
 }

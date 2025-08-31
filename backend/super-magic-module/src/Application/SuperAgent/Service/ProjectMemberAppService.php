@@ -22,6 +22,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationCreatorListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreatorInfoDTO;
@@ -249,6 +250,42 @@ class ProjectMemberAppService extends AbstractAppService
             $userAuthorization->getOrganizationCode(),
             $requestDTO->isPinOperation()
         );
+    }
+
+    /**
+     * 获取协作项目创建者列表.
+     */
+    public function getCollaborationProjectCreators(RequestContext $requestContext): CollaborationCreatorListResponseDTO
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $requestContext->getDataIsolation();
+
+        // 1. 获取用户所在部门ID列表
+        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds(
+            [$userAuthorization->getId()],
+            $dataIsolation
+        );
+        $departmentIds = array_column($departmentUsers, 'department_id');
+
+        // 2. 获取协作项目的创建者用户ID列表
+        $creatorUserIds = $this->projectMemberDomainService->getCollaborationProjectCreatorIds(
+            $userAuthorization->getId(),
+            $departmentIds,
+            $userAuthorization->getOrganizationCode()
+        );
+
+        if (empty($creatorUserIds)) {
+            return CollaborationCreatorListResponseDTO::fromEmpty();
+        }
+
+        // 3. 批量获取创建者用户详细信息
+        $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
+
+        // 4. 更新头像URL
+        $this->updateUserAvatarUrl($dataIsolation, $userEntities);
+
+        // 5. 创建响应DTO并返回
+        return CollaborationCreatorListResponseDTO::fromUserEntities($userEntities);
     }
 
     /**

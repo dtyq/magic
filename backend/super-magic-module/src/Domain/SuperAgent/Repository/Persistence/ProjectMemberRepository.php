@@ -358,6 +358,46 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
+     * 获取协作项目的创建者用户ID列表.
+     */
+    public function getCollaborationProjectCreatorIds(
+        string $userId,
+        array $departmentIds,
+        string $organizationCode
+    ): array {
+        $query = $this->projectMemberModel::query()
+            ->leftJoin('magic_super_agent_project as projects', 'magic_super_agent_project_members.project_id', '=', 'projects.id')
+            ->where('magic_super_agent_project_members.organization_code', $organizationCode);
+
+        // 构建用户权限查询条件 - 用户是项目成员或部门成员
+        $query->where(function ($q) use ($userId, $departmentIds) {
+            $q->where(function ($userQuery) use ($userId) {
+                $userQuery->where('magic_super_agent_project_members.target_type', 'User')
+                    ->where('magic_super_agent_project_members.target_id', $userId);
+            });
+
+            if (! empty($departmentIds)) {
+                $q->orWhere(function ($deptQuery) use ($departmentIds) {
+                    $deptQuery->where('magic_super_agent_project_members.target_type', 'Department')
+                        ->whereIn('magic_super_agent_project_members.target_id', $departmentIds);
+                });
+            }
+        });
+
+        // 只获取状态正常的项目成员
+        $query->where('magic_super_agent_project_members.status', '1');
+
+        // 按创建者ID分组去重，获取不重复的创建者ID列表
+        $creatorIds = $query->select('projects.user_id')
+            ->whereNotNull('projects.user_id')
+            ->groupBy('projects.user_id')
+            ->pluck('projects.user_id')
+            ->toArray();
+
+        return array_filter($creatorIds); // 过滤空值
+    }
+
+    /**
      * 准备批量插入的属性数组.
      */
     private function prepareBatchInsertAttributes(array $projectMemberEntities): array

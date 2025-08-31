@@ -106,4 +106,29 @@ class ProjectMemberApi extends AbstractApi
 
         return [];
     }
+
+    /**
+     * 获取协作项目创建者列表.
+     */
+    public function getCollaborationProjectCreators(RequestContext $requestContext): array
+    {
+        // Set user authorization and context data
+        $userAuthorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($userAuthorization);
+        $requestContext->setUserId($userAuthorization->getId());
+        $requestContext->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        // Create and set DataIsolation
+        $dataIsolation = DataIsolation::create(
+            $userAuthorization->getOrganizationCode(),
+            $userAuthorization->getId()
+        );
+        $requestContext->setDataIsolation($dataIsolation);
+
+        // 委托给Application层处理
+        $responseDTO = $this->projectMemberAppService->getCollaborationProjectCreators($requestContext);
+
+        // 返回DTO转换后的数组格式
+        return $responseDTO->toArray();
+    }
 }
