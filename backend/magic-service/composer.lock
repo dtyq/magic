@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "71701737552b08afcbbea0761e3150f3dce1df93"
+                "reference": "6b7b65c2f7d93e87bb0895a8a3e78bd249c80959"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=71701737552b08afcbbea0761e3150f3dce1df93",
-                "reference": "71701737552b08afcbbea0761e3150f3dce1df93",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=6b7b65c2f7d93e87bb0895a8a3e78bd249c80959",
+                "reference": "6b7b65c2f7d93e87bb0895a8a3e78bd249c80959",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-01T09:28:31+00:00"
+            "time": "2025-09-01T12:15:40+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "29fbceb6e53ad9bd9673aecf780a9836684685d1"
+                "reference": "c9daf531ed7e4c2ee876d67dac04c68293087f60"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=29fbceb6e53ad9bd9673aecf780a9836684685d1",
-                "reference": "29fbceb6e53ad9bd9673aecf780a9836684685d1",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c9daf531ed7e4c2ee876d67dac04c68293087f60",
+                "reference": "c9daf531ed7e4c2ee876d67dac04c68293087f60",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-01T18:54:30+08:00"
+            "time": "2025-09-01T13:30:50+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "07ac25ee53c5ff287929ffcda54314106f5ab051"
+                "reference": "c57b9f3a01afb49afeff4ea7f3a2deab9bc319f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=07ac25ee53c5ff287929ffcda54314106f5ab051",
-                "reference": "07ac25ee53c5ff287929ffcda54314106f5ab051",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=c57b9f3a01afb49afeff4ea7f3a2deab9bc319f3",
+                "reference": "c57b9f3a01afb49afeff4ea7f3a2deab9bc319f3",
                 "shasum": ""
             },
             "require": {
@@ -2679,7 +2679,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-01T19:57:24+08:00"
+            "time": "2025-09-01T21:47:41+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
