@@ -139,6 +139,51 @@ class TopicAppService extends AbstractAppService
         }
     }
 
+    public function createTopicNotValidateAccessibleProject(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): ?TopicItemDTO
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+
+        // 创建新话题，使用事务确保原子性
+        Db::beginTransaction();
+        try {
+            // 1. 初始化 chat 的会话和话题
+            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+
+            // 2. 创建话题
+            $topicEntity = $this->topicDomainService->createTopic(
+                $dataIsolation,
+                (int) $requestDTO->getWorkspaceId(),
+                (int) $requestDTO->getProjectId(),
+                $chatConversationId,
+                $chatConversationTopicId, // 会话的话题ID
+                $requestDTO->getTopicName(),
+                $projectEntity->getWorkDir(),
+            );
+
+            // 3. 如果传入了 project_mode，更新项目的模式
+            if (! empty($requestDTO->getProjectMode())) {
+                $projectEntity->setProjectMode($requestDTO->getProjectMode());
+                $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+            }
+            // 提交事务
+            Db::commit();
+            // 返回结果
+            return TopicItemDTO::fromEntity($topicEntity);
+        } catch (Throwable $e) {
+            // 回滚事务
+            Db::rollBack();
+            $this->logger->error(sprintf("Error creating new topic: %s\n%s", $e->getMessage(), $e->getTraceAsString()));
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_TOPIC_FAILED, 'topic.create_topic_failed');
+        }
+    }
+
     public function updateTopic(RequestContext $requestContext, SaveTopicRequestDTO $requestDTO): SaveTopicResultDTO
     {
         // 获取用户授权信息

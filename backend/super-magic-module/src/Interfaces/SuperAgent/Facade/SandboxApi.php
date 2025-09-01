@@ -241,7 +241,7 @@ class SandboxApi extends AbstractApi
             $saveTopicRequestDTO->setTopicName('默认话题');
             $saveTopicRequestDTO->setProjectId((string) $requestDTO->getProjectId());
             $saveTopicRequestDTO->setWorkspaceId((string) $requestDTO->getWorkspaceId());
-            $topic = $this->topicAppService->createTopic($requestContext, $saveTopicRequestDTO);
+            $topic = $this->topicAppService->createTopicNotValidateAccessibleProject($requestContext, $saveTopicRequestDTO);
             if (! empty($topic->getId())) {
                 $topicId = $topic->getId();
             } else {
