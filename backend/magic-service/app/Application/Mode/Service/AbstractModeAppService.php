@@ -20,7 +20,6 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Provider\Service\ProviderModelDomainService;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Psr\Log\LoggerInterface;
 
@@ -41,7 +40,7 @@ abstract class AbstractModeAppService
      *
      * @param ModeGroupDTO[] $groups
      */
-    protected function processGroupIcons(MagicUserAuthorization $authorization, array $groups): void
+    protected function processGroupIcons(array $groups): void
     {
         // 收集所有需要处理的icon路径
         $iconPaths = [];
@@ -61,25 +60,8 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 按组织代码分组图标路径
-        $iconPathsByOrg = [];
-        foreach ($iconPaths as $iconPath) {
-            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
-            if (! empty($orgCode)) {
-                $iconPathsByOrg[$orgCode][] = $iconPath;
-            }
-        }
-
-        // 批量获取icon的URL（按组织代码分组处理）
-        $iconUrls = [];
-        foreach ($iconPathsByOrg as $orgCode => $paths) {
-            $orgIconUrls = $this->fileDomainService->getLinks(
-                $orgCode,
-                $paths,
-                StorageBucketType::Public
-            );
-            $iconUrls = array_merge($iconUrls, $orgIconUrls);
-        }
+        // 批量获取icon的URL（自动按组织代码分组处理）
+        $iconUrls = $this->fileDomainService->getBatchLinksByOrgPaths($iconPaths);
 
         // 替换DTO中的icon路径为完整URL
         foreach ($groups as $group) {
@@ -93,7 +75,7 @@ abstract class AbstractModeAppService
     /**
      * 处理模式聚合根中的图标，将路径转换为完整的URL.
      */
-    protected function processModeAggregateIcons(MagicUserAuthorization $authorization, AdminModeAggregateDTO|ModeAggregate|ModeAggregateDTO $modeAggregateDTO): void
+    protected function processModeAggregateIcons(AdminModeAggregateDTO|ModeAggregate|ModeAggregateDTO $modeAggregateDTO): void
     {
         // 收集所有需要处理的icon路径
         $iconPaths = [];
@@ -122,25 +104,8 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 按组织代码分组图标路径
-        $iconPathsByOrg = [];
-        foreach ($iconPaths as $iconPath) {
-            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
-            if (! empty($orgCode)) {
-                $iconPathsByOrg[$orgCode][] = $iconPath;
-            }
-        }
-
-        // 批量获取icon的URL（按组织代码分组处理）
-        $iconUrls = [];
-        foreach ($iconPathsByOrg as $orgCode => $paths) {
-            $orgIconUrls = $this->fileDomainService->getLinks(
-                $orgCode,
-                $paths,
-                StorageBucketType::Public
-            );
-            $iconUrls = array_merge($iconUrls, $orgIconUrls);
-        }
+        // 批量获取icon的URL（自动按组织代码分组处理）
+        $iconUrls = $this->fileDomainService->getBatchLinksByOrgPaths($iconPaths);
 
         // 替换DTO中的icon路径为完整URL
         foreach ($modeAggregateDTO->getGroups() as $groupAggregate) {
@@ -202,25 +167,8 @@ abstract class AbstractModeAppService
         // 去重
         $iconPaths = array_unique($iconPaths);
 
-        // 按组织代码分组图标路径
-        $iconPathsByOrg = [];
-        foreach ($iconPaths as $iconPath) {
-            $orgCode = explode('/', $iconPath, 2)[0] ?? '';
-            if (! empty($orgCode)) {
-                $iconPathsByOrg[$orgCode][] = $iconPath;
-            }
-        }
-
-        // 批量获取icon的URL（按组织代码分组处理）
-        $iconUrls = [];
-        foreach ($iconPathsByOrg as $orgCode => $paths) {
-            $orgIconUrls = $this->fileDomainService->getLinks(
-                $orgCode,
-                $paths,
-                StorageBucketType::Public
-            );
-            $iconUrls = array_merge($iconUrls, $orgIconUrls);
-        }
+        // 批量获取icon的URL（自动按组织代码分组处理）
+        $iconUrls = $this->fileDomainService->getBatchLinksByOrgPaths($iconPaths);
 
         // 替换DTO中的icon路径为完整URL
         foreach ($modeGroupDetails as $groupDetail) {
