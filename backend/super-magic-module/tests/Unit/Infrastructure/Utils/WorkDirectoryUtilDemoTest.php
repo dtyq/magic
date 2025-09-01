@@ -101,7 +101,7 @@ class WorkDirectoryUtilDemoTest extends TestCase
         echo str_repeat('-', 80) . "\n";
 
         foreach ($testCases as $path => $expectedId) {
-            $actualId = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($path, $userId);
+            $actualId = WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($path, $userId);
             $status = $actualId === $expectedId ? '✅ PASS' : '❌ FAIL';
 
             echo sprintf(
@@ -138,8 +138,8 @@ class WorkDirectoryUtilDemoTest extends TestCase
 
         $testData = [
             ['路径类型', '路径', '验证结果', '提取ID', '状态'],
-            ['Legacy', $legacyPath, WorkDirectoryUtil::isValidWorkDirectory($legacyPath, $userId), WorkDirectoryUtil::extractProjectIdFromAbsolutePath($legacyPath, $userId), ''],
-            ['新格式', $newPath, WorkDirectoryUtil::isValidWorkDirectory($newPath, $userId), WorkDirectoryUtil::extractProjectIdFromAbsolutePath($newPath, $userId), ''],
+            ['Legacy', $legacyPath, WorkDirectoryUtil::isValidWorkDirectory($legacyPath, $userId), WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($legacyPath, $userId), ''],
+            ['新格式', $newPath, WorkDirectoryUtil::isValidWorkDirectory($newPath, $userId), WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($newPath, $userId), ''],
         ];
 
         foreach ($testData as $index => $row) {
