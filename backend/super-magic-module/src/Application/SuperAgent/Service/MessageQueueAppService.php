@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -68,12 +70,22 @@ class MessageQueueAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId()
         );
 
+        // Validate message type against ChatMessageType enum
+        $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+        if ($chatMessageType === null) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::VALIDATE_FAILED,
+                trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+            );
+        }
+
         // Create message queue
         $messageEntity = $this->messageQueueDomainService->createMessage(
             $dataIsolation,
             $projectId,
             $topicId,
-            $requestDTO->getMessageContent()
+            $requestDTO->getMessageContent(),
+            $requestDTO->getMessageType()
         );
 
         $this->logger->info('Message queue created successfully', [
@@ -113,13 +125,23 @@ class MessageQueueAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId()
         );
 
+        // Validate message type against ChatMessageType enum
+        $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+        if ($chatMessageType === null) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::VALIDATE_FAILED,
+                trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+            );
+        }
+
         // Update message queue
         $messageEntity = $this->messageQueueDomainService->updateMessage(
             $dataIsolation,
             $messageId,
             $projectId,
             $topicId,
-            $requestDTO->getMessageContent()
+            $requestDTO->getMessageContent(),
+            $requestDTO->getMessageType()
         );
 
         $this->logger->info('Message queue updated successfully', [
@@ -214,6 +236,18 @@ class MessageQueueAppService extends AbstractAppService
             $conditions['topic_id'] = (int) $requestDTO->getTopicId();
         }
 
+        if ($requestDTO->hasMessageTypeFilter()) {
+            // Validate message type against ChatMessageType enum
+            $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+            if ($chatMessageType === null) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::VALIDATE_FAILED,
+                    trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+                );
+            }
+            $conditions['message_type'] = $requestDTO->getMessageType();
+        }
+
         // Query messages
         $result = $this->messageQueueDomainService->queryMessages(
             $dataIsolation,
@@ -225,9 +259,11 @@ class MessageQueueAppService extends AbstractAppService
         // Format response
         $list = [];
         foreach ($result['list'] as $messageEntity) {
+            /* @var MessageQueueEntity $messageEntity */
             $list[] = [
                 'queue_id' => (string) $messageEntity->getId(),
-                'message_content' => $messageEntity->getMessageContent(),
+                'message_content' => $messageEntity->getMessageContentAsArray(),
+                'message_type' => $messageEntity->getMessageType(),
                 'status' => $messageEntity->getStatus()->value,
                 'execute_time' => $messageEntity->getExecuteTime(),
                 'err_message' => $messageEntity->getErrMessage(),

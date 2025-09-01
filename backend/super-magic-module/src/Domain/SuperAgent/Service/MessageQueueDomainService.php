@@ -40,11 +40,18 @@ class MessageQueueDomainService
         DataIsolation $dataIsolation,
         int $projectId,
         int $topicId,
-        string $messageContent
+        array $messageContent,
+        string $messageType
     ): MessageQueueEntity {
         $lockKey = $this->getLockKey('create', $topicId, $dataIsolation->getCurrentUserId());
 
-        return $this->executeWithLock($lockKey, function () use ($dataIsolation, $projectId, $topicId, $messageContent) {
+        return $this->executeWithLock($lockKey, function () use ($dataIsolation, $projectId, $topicId, $messageContent, $messageType) {
+            // Convert array message content to JSON string with Chinese support
+            $messageContentJson = json_encode($messageContent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            // Calculate expected execute time (current time + 5 minutes)
+            $exceptExecuteTime = date('Y-m-d H:i:s', time() + 300); // 300 seconds = 5 minutes
+
             // Create message entity
             $entity = new MessageQueueEntity();
             $entity->setId(IdGenerator::getSnowId())
@@ -52,8 +59,10 @@ class MessageQueueDomainService
                 ->setOrganizationCode($dataIsolation->getCurrentOrganizationCode())
                 ->setProjectId($projectId)
                 ->setTopicId($topicId)
-                ->setMessageContent($messageContent)
+                ->setMessageContent($messageContentJson)
+                ->setMessageType($messageType)
                 ->setStatus(MessageQueueStatus::PENDING)
+                ->setExceptExecuteTime($exceptExecuteTime)
                 ->setCreatedAt(date('Y-m-d H:i:s'))
                 ->setUpdatedAt(date('Y-m-d H:i:s'));
 
@@ -69,11 +78,12 @@ class MessageQueueDomainService
         int $messageId,
         int $projectId,
         int $topicId,
-        string $messageContent
+        array $messageContent,
+        string $messageType
     ): MessageQueueEntity {
         $lockKey = $this->getLockKey('update', $topicId, $dataIsolation->getCurrentUserId());
 
-        return $this->executeWithLock($lockKey, function () use ($dataIsolation, $messageId, $projectId, $topicId, $messageContent) {
+        return $this->executeWithLock($lockKey, function () use ($dataIsolation, $messageId, $projectId, $topicId, $messageContent, $messageType) {
             // Get existing message
             $entity = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
 
@@ -85,10 +95,14 @@ class MessageQueueDomainService
                 );
             }
 
-            // Update message content
+            // Convert array message content to JSON string with Chinese support
+            $messageContentJson = json_encode($messageContent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            // Update message content (do not modify except_execute_time during update)
             $entity->setProjectId($projectId)
                 ->setTopicId($topicId)
-                ->setMessageContent($messageContent)
+                ->setMessageContent($messageContentJson)
+                ->setMessageType($messageType)
                 ->setUpdatedAt(date('Y-m-d H:i:s'));
 
             if (! $this->messageQueueRepository->update($entity)) {

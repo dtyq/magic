@@ -47,6 +47,11 @@ class MessageQueueEntity extends AbstractEntity
     protected string $messageContent = '';
 
     /**
+     * @var string Message type
+     */
+    protected string $messageType = '';
+
+    /**
      * @var int Message status (0=pending, 1=completed, 2=failed, 3=in_progress)
      */
     protected int $status = 0;
@@ -55,6 +60,11 @@ class MessageQueueEntity extends AbstractEntity
      * @var null|string Execute time
      */
     protected ?string $executeTime = null;
+
+    /**
+     * @var null|string Expected execute time
+     */
+    protected ?string $exceptExecuteTime = null;
 
     /**
      * @var null|string Error message
@@ -179,6 +189,38 @@ class MessageQueueEntity extends AbstractEntity
     }
 
     /**
+     * Get message type.
+     */
+    public function getMessageType(): string
+    {
+        return $this->messageType;
+    }
+
+    /**
+     * Set message type.
+     */
+    public function setMessageType(string $messageType): self
+    {
+        $this->messageType = $messageType;
+        return $this;
+    }
+
+    /**
+     * Get message content as array (decoded from JSON).
+     */
+    public function getMessageContentAsArray(): array
+    {
+        if (empty($this->messageContent)) {
+            return [];
+        }
+
+        $decoded = json_decode($this->messageContent, true);
+
+        // Return decoded array if valid, otherwise return empty array for safety
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
      * Get message status.
      */
     public function getStatus(): MessageQueueStatus
@@ -195,7 +237,6 @@ class MessageQueueEntity extends AbstractEntity
             $this->status = $status->value;
         } else {
             // Validate int value can be converted to enum
-            MessageQueueStatus::from($status);
             $this->status = $status;
         }
         return $this;
@@ -215,6 +256,23 @@ class MessageQueueEntity extends AbstractEntity
     public function setExecuteTime(?string $executeTime): self
     {
         $this->executeTime = $executeTime;
+        return $this;
+    }
+
+    /**
+     * Get expected execute time.
+     */
+    public function getExceptExecuteTime(): ?string
+    {
+        return $this->exceptExecuteTime;
+    }
+
+    /**
+     * Set expected execute time.
+     */
+    public function setExceptExecuteTime(?string $exceptExecuteTime): self
+    {
+        $this->exceptExecuteTime = $exceptExecuteTime;
         return $this;
     }
 

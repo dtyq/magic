@@ -44,8 +44,10 @@ class MessageQueueModel extends AbstractModel
         'project_id',
         'topic_id',
         'message_content',
+        'message_type',
         'status',
         'execute_time',
+        'except_execute_time',
         'err_message',
         'deleted_at',
         'created_at',
@@ -57,6 +59,7 @@ class MessageQueueModel extends AbstractModel
      */
     protected array $dates = [
         'execute_time',
+        'except_execute_time',
         'deleted_at',
         'created_at',
         'updated_at',
@@ -71,6 +74,7 @@ class MessageQueueModel extends AbstractModel
         'topic_id' => 'integer',
         'status' => 'integer',
         'execute_time' => 'datetime',
+        'except_execute_time' => 'datetime',
         'deleted_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

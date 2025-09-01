@@ -28,7 +28,12 @@ class UpdateMessageQueueRequestDTO extends AbstractRequestDTO
     /**
      * Message content.
      */
-    public string $messageContent = '';
+    public array $messageContent = [];
+
+    /**
+     * Message type.
+     */
+    public string $messageType = '';
 
     /**
      * Get project ID.
@@ -49,9 +54,17 @@ class UpdateMessageQueueRequestDTO extends AbstractRequestDTO
     /**
      * Get message content.
      */
-    public function getMessageContent(): string
+    public function getMessageContent(): array
     {
         return $this->messageContent;
+    }
+
+    /**
+     * Get message type.
+     */
+    public function getMessageType(): string
+    {
+        return $this->messageType;
     }
 
     /**
@@ -62,7 +75,8 @@ class UpdateMessageQueueRequestDTO extends AbstractRequestDTO
         return [
             'project_id' => 'required|string',
             'topic_id' => 'required|string',
-            'message_content' => 'required|string|max:65535',
+            'message_content' => 'required|array',
+            'message_type' => 'required|string',
         ];
     }
 
@@ -77,8 +91,9 @@ class UpdateMessageQueueRequestDTO extends AbstractRequestDTO
             'topic_id.required' => 'Topic ID cannot be empty',
             'topic_id.string' => 'Topic ID must be a string',
             'message_content.required' => 'Message content cannot be empty',
-            'message_content.string' => 'Message content must be a string',
-            'message_content.max' => 'Message content cannot exceed 65535 characters',
+            'message_content.array' => 'Message content must be an array',
+            'message_type.required' => 'Message type cannot be empty',
+            'message_type.string' => 'Message type must be a string',
         ];
     }
 }
