@@ -73,7 +73,13 @@ class AdminModeGroupAppService extends AbstractModeAppService
 
             Db::commit();
 
-            return AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
+            $adminModeGroupDTO = AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
+
+            $fileLinks = $this->fileDomainService->getBatchLinksByOrgPaths([$adminModeGroupDTO->getIcon()]);
+            if (isset($fileLinks[$adminModeGroupDTO->getIcon()])){
+                $adminModeGroupDTO->setIcon($fileLinks[$adminModeGroupDTO->getIcon()]->getUrl());
+            }
+            return $adminModeGroupDTO;
         } catch (Exception $exception) {
             $this->logger->warning('Create mode group failed: ' . $exception->getMessage());
             Db::rollBack();
