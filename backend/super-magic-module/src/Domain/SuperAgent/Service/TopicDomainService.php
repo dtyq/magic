@@ -424,11 +424,6 @@ class TopicDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
         }
 
-        // Check topic status - only running topics can perform message queue operations
-        if ($topicEntity->getCurrentTaskStatus() !== TaskStatus::RUNNING) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_RUNNING, 'topic.topic_not_running');
-        }
-
         return $topicEntity;
     }
 
