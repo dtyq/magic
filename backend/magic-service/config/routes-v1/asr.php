@@ -13,4 +13,7 @@ Router::addGroup('/api/v1/asr', function () {
     // JWT Token 资源管理
     Router::get('/tokens', [AsrTokenApi::class, 'show']);        // 获取当前用户的JWT Token
     Router::delete('/tokens', [AsrTokenApi::class, 'destroy']);  // 清除当前用户的JWT Token缓存
+
+    // 录音文件上传 Token 管理
+    Router::get('/upload-tokens', [AsrTokenApi::class, 'getUploadToken']);  // 获取录音文件上传STS Token
 }, ['middleware' => [RequestContextMiddleware::class]]);
