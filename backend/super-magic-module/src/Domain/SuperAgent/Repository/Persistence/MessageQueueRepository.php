@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\MessageQueueModel;
+use Hyperf\DbConnection\Db;
 
 class MessageQueueRepository implements MessageQueueRepositoryInterface
 {
@@ -201,6 +202,64 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
     }
 
     /**
+     * Get topic IDs that have pending messages for compensation.
+     */
+    public function getCompensationTopics(int $limit, array $organizationCodes = []): array
+    {
+        // High-performance query: Get distinct topic IDs with pending messages that are ready to execute
+        $query = $this->model::query()
+            ->select('topic_id')
+            ->distinct()
+            ->where('status', MessageQueueStatus::PENDING->value)
+            ->where('except_execute_time', '<=', date('Y-m-d H:i:s'))
+            ->whereNull('deleted_at');
+
+        // Apply organization code filter if provided
+        if (! empty($organizationCodes)) {
+            $query->whereIn('organization_code', $organizationCodes);
+        }
+
+        return $query->orderBy('topic_id')
+            ->limit($limit)
+            ->pluck('topic_id')
+            ->toArray();
+    }
+
+    /**
+     * Get earliest pending message for specific topic.
+     */
+    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity
+    {
+        // Get the earliest pending message for the specified topic
+        $model = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('status', MessageQueueStatus::PENDING->value)
+            ->where('except_execute_time', '<=', date('Y-m-d H:i:s'))
+            ->whereNull('deleted_at')
+            ->orderBy('except_execute_time', 'asc')
+            ->orderBy('id', 'asc')
+            ->first();
+
+        return $model ? $this->convertToEntity($model) : null;
+    }
+
+    /**
+     * Delay execution time for all pending messages in a topic.
+     */
+    public function delayTopicMessages(int $topicId, int $delayMinutes): bool
+    {
+        // Batch update all pending messages in the topic to delay their execution time
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('status', MessageQueueStatus::PENDING->value)
+            ->whereNull('deleted_at')
+            ->update([
+                'except_execute_time' => Db::raw("DATE_ADD(except_execute_time, INTERVAL {$delayMinutes} MINUTE)"),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    /**
      * Convert model data to entity data.
      */
     private function convertModelToEntityData(array $modelData): array
@@ -242,5 +301,15 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
     private function snakeToCamel(string $snake): string
     {
         return lcfirst(str_replace(' ', '', ucwords(str_replace(['_', '-'], ' ', $snake))));
+    }
+
+    /**
+     * Convert model to entity.
+     * @param mixed $model
+     */
+    private function convertToEntity($model): MessageQueueEntity
+    {
+        $data = $this->convertModelToEntityData($model->toArray());
+        return new MessageQueueEntity($data);
     }
 }
