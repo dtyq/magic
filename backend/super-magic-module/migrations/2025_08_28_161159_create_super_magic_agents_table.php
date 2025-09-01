@@ -24,7 +24,8 @@ class CreateSuperMagicAgentsTable extends Migration
             $table->string('icon', 100)->nullable()->default('')->comment('Agent图标');
             $table->tinyInteger('type')->default(2)->comment('智能体类型：1-内置，2-自定义');
             $table->boolean('enabled')->default(true)->comment('是否启用');
-            $table->json('prompt')->comment('系统提示词');
+            $table->json('prompt')->nullable()->comment('系统提示词');
+            $table->json('tools')->nullable()->comment('工具列表');
             $table->string('creator', 40)->comment('创建者');
             $table->string('modifier', 40)->comment('修改者');
             $table->timestamps();
