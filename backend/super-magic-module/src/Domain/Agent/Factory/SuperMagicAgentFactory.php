@@ -47,6 +47,10 @@ class SuperMagicAgentFactory
             $entity->setPrompt($model->prompt);
         }
 
+        if ($model->tools !== null) {
+            $entity->setTools($model->tools);
+        }
+
         if ($model->type !== null) {
             $entity->setType(SuperMagicAgentType::from($model->type));
         }
