@@ -49,9 +49,13 @@ class ModeDomainService
             return null;
         }
 
-        // 如果是跟随模式，递归获取被跟随模式的配置
+        // 如果是跟随模式，获取被跟随模式的分组配置
         if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
-            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            $followModeAggregate = $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            if ($followModeAggregate) {
+                // 使用当前模式的基本信息 + 被跟随模式的分组配置
+                return new ModeAggregate($mode, $followModeAggregate->getGroupAggregates());
+            }
         }
 
         // 构建聚合根
@@ -76,9 +80,13 @@ class ModeDomainService
             return null;
         }
 
-        // 如果是跟随模式，递归获取被跟随模式的配置
+        // 如果是跟随模式，获取被跟随模式的分组配置
         if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
-            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            $followModeAggregate = $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            if ($followModeAggregate) {
+                // 使用当前模式的基本信息 + 被跟随模式的分组配置
+                return new ModeAggregate($mode, $followModeAggregate->getGroupAggregates());
+            }
         }
 
         // 构建聚合根
@@ -239,8 +247,16 @@ class ModeDomainService
             return [];
         }
 
-        // 提取所有模式ID
-        $modeIds = array_map(fn ($mode) => $mode->getId(), $modes);
+        // 收集所有需要的模式ID（包括跟随目标模式ID）
+        $modeIds = [];
+        foreach ($modes as $mode) {
+            $modeIds[] = $mode->getId();
+            // 如果是跟随模式，也要获取被跟随模式的数据
+            if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
+                $modeIds[] = $mode->getFollowModeId();
+            }
+        }
+        $modeIds = array_unique($modeIds);
 
         // 批量获取所有分组和关系
         $allGroups = $this->groupRepository->findByModeIds($dataIsolation, $modeIds);
@@ -261,8 +277,16 @@ class ModeDomainService
         $aggregates = [];
         foreach ($modes as $mode) {
             $modeId = $mode->getId();
-            $groups = $groupsByModeId[$modeId] ?? [];
-            $relations = $relationsByModeId[$modeId] ?? [];
+
+            // 如果是跟随模式，使用被跟随模式的分组配置
+            if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
+                $targetModeId = $mode->getFollowModeId();
+                $groups = $groupsByModeId[$targetModeId] ?? [];
+                $relations = $relationsByModeId[$targetModeId] ?? [];
+            } else {
+                $groups = $groupsByModeId[$modeId] ?? [];
+                $relations = $relationsByModeId[$modeId] ?? [];
+            }
 
             // 构建分组聚合根数组
             $groupAggregates = [];

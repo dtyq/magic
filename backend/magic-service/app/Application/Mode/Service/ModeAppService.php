@@ -67,7 +67,7 @@ class ModeAppService extends AbstractModeAppService
 
         // 处理图标URL转换
         foreach ($modeAggregateDTOs as $aggregateDTO) {
-            $this->processModeAggregateIcons($authorization, $aggregateDTO);
+            $this->processModeAggregateIcons($aggregateDTO);
         }
 
         return [
