@@ -138,7 +138,7 @@ class FileAppService extends AbstractAppService
         // 批量获取各组织的文件链接
         $allFileLinks = [];
         foreach ($keysByOrg as $orgCode => $orgKeys) {
-            $links = $this->fileDomainService->getLinks($orgCode, $orgKeys, StorageBucketType::Public);
+            $links = $this->fileDomainService->getLinks($orgCode, $orgKeys);
             $allFileLinks = array_merge($allFileLinks, $links);
         }
 
