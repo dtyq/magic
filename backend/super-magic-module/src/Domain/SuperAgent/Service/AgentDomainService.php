@@ -665,6 +665,55 @@ class AgentDomainService
     }
 
     /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，默认为continue
+     * @return AgentResponse 升级响应结果
+     * @throws SandboxOperationException 当升级失败时抛出异常
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Upgrading sandbox image', [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+        ]);
+
+        try {
+            // 调用网关服务进行升级
+            $result = $this->gateway->upgradeSandbox($messageId, $contextType);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Domain] Failed to upgrade sandbox', [
+                    'message_id' => $messageId,
+                    'context_type' => $contextType,
+                    'error' => $result->getMessage(),
+                    'code' => $result->getCode(),
+                ]);
+                throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
+            }
+
+            $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+            ]);
+
+            // 将GatewayResult转换为AgentResponse
+            return AgentResponse::fromGatewayResult($result);
+        } catch (SandboxOperationException $e) {
+            // 重新抛出沙箱操作异常
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during sandbox upgrade', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Upgrade sandbox', 'Sandbox upgrade failed: ' . $e->getMessage(), 3009);
+        }
+    }
+
+    /**
      * 构建初始化消息.
      */
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array

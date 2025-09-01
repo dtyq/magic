@@ -93,4 +93,13 @@ interface SandboxGatewayInterface
     public function getFileVersionContent(string $sandboxId, string $fileKey, string $commitHash, string $gitDir): GatewayResult;
 
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
+
+    /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，通常为"continue"
+     * @return GatewayResult 升级结果
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult;
 }
