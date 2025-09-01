@@ -308,4 +308,9 @@ class MessageQueueAppService extends AbstractAppService
             'status' => $messageEntity->getStatus()->value,
         ];
     }
+
+    public function getMessageQueueEntity(int $queueId, string $userId): ?MessageQueueEntity
+    {
+        return $this->messageQueueDomainService->getMessageForUser($queueId, $userId);
+    }
 }
