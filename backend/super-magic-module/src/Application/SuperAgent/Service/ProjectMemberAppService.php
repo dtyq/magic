@@ -261,11 +261,7 @@ class ProjectMemberAppService extends AbstractAppService
         $dataIsolation = $requestContext->getDataIsolation();
 
         // 1. 获取用户所在部门ID列表
-        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds(
-            [$userAuthorization->getId()],
-            $dataIsolation
-        );
-        $departmentIds = array_column($departmentUsers, 'department_id');
+        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userAuthorization->getId(), true);
 
         // 2. 获取协作项目的创建者用户ID列表
         $creatorUserIds = $this->projectMemberDomainService->getCollaborationProjectCreatorIds(
