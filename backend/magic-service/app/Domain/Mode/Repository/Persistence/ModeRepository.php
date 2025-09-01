@@ -60,9 +60,9 @@ class ModeRepository extends AbstractRepository implements ModeRepositoryInterfa
             $builder->where('is_default', 0);
         }
 
-        // 排序：sort字段优先，然后is_default，最后created_at
-        $builder->orderBy('sort', $query->getSortDirection())
-            ->orderBy('is_default', 'desc')
+        // 排序：is_default优先（默认模式在开头），然后sort字段，最后created_at
+        $builder->orderBy('is_default', 'desc')
+            ->orderBy('sort', $query->getSortDirection())
             ->orderBy('created_at', 'desc');
 
         $data = $this->getByPage($builder, $page);
