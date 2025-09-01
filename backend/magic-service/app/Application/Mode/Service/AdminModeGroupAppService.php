@@ -76,7 +76,7 @@ class AdminModeGroupAppService extends AbstractModeAppService
             $adminModeGroupDTO = AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
 
             $fileLinks = $this->fileDomainService->getBatchLinksByOrgPaths([$adminModeGroupDTO->getIcon()]);
-            if (isset($fileLinks[$adminModeGroupDTO->getIcon()])){
+            if (isset($fileLinks[$adminModeGroupDTO->getIcon()])) {
                 $adminModeGroupDTO->setIcon($fileLinks[$adminModeGroupDTO->getIcon()]->getUrl());
             }
             return $adminModeGroupDTO;
