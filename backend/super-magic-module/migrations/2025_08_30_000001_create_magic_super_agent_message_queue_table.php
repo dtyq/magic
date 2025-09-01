@@ -34,6 +34,12 @@ return new class extends Migration {
 
             // 索引优化
             $table->index(['user_id', 'project_id', 'topic_id'], 'idx_user_project_topic');
+
+            // 补偿查询专用索引 - 优化 getCompensationTopics 性能
+            $table->index(['status', 'except_execute_time', 'deleted_at', 'organization_code'], 'idx_compensation');
+
+            // 话题处理索引 - 优化 getEarliestMessageByTopic 和 delayTopicMessages 性能
+            $table->index(['topic_id', 'status', 'deleted_at', 'except_execute_time'], 'idx_topic_processing');
         });
     }
 
