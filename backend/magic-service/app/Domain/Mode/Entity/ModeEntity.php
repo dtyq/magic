@@ -15,6 +15,8 @@ class ModeEntity extends AbstractEntity
 
     protected array $nameI18n = [];
 
+    protected array $placeholderI18n = [];
+
     protected string $identifier = '';
 
     protected string $icon = '';
@@ -74,6 +76,26 @@ class ModeEntity extends AbstractEntity
     public function getENName(): string
     {
         return $this->nameI18n['en_US'] ?? '';
+    }
+
+    public function getPlaceholderI18n(): array
+    {
+        return $this->placeholderI18n;
+    }
+
+    public function setPlaceholderI18n(array $placeholderI18n): void
+    {
+        $this->placeholderI18n = $placeholderI18n;
+    }
+
+    public function getZHPlaceholder(): string
+    {
+        return $this->placeholderI18n['zh_CN'] ?? '';
+    }
+
+    public function getENPlaceholder(): string
+    {
+        return $this->placeholderI18n['en_US'] ?? '';
     }
 
     public function getIdentifier(): string

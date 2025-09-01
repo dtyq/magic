@@ -14,6 +14,7 @@ use Hyperf\Database\Model\SoftDeletes;
 /**
  * @property int $id
  * @property array $name_i18n
+ * @property array $placeholder_i18n
  * @property string $identifier
  * @property string $icon
  * @property string $color
@@ -39,6 +40,7 @@ class ModeModel extends AbstractModel
     protected array $fillable = [
         'id',
         'name_i18n',
+        'placeholder_i18n',
         'identifier',
         'icon',
         'color',
@@ -56,6 +58,7 @@ class ModeModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'name_i18n' => 'array',
+        'placeholder_i18n' => 'array',
         'is_default' => 'integer',
         'status' => 'boolean',
         'distribution_type' => 'integer',
