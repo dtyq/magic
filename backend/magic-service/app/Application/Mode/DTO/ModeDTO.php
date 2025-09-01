@@ -15,6 +15,8 @@ class ModeDTO extends AbstractDTO
 
     protected string $name;
 
+    protected string $placeholder = '';
+
     protected string $identifier;
 
     protected string $icon = '';
@@ -41,6 +43,16 @@ class ModeDTO extends AbstractDTO
     public function setName(string $name): void
     {
         $this->name = $name;
+    }
+
+    public function getPlaceholder(): string
+    {
+        return $this->placeholder;
+    }
+
+    public function setPlaceholder(string $placeholder): void
+    {
+        $this->placeholder = $placeholder;
     }
 
     public function getIdentifier(): string

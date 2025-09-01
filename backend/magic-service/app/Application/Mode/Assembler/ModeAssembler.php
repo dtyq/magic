@@ -78,9 +78,10 @@ class ModeAssembler
         $locale = $translator->getLocale();
 
         $array = $modeEntity->toArray();
-        unset($array['name_i18n']);
+        unset($array['name_i18n'], $array['placeholder_i18n']);
         $modeDTO = new ModeDTO($array);
         $modeDTO->setName($modeEntity->getNameI18n()[$locale]);
+        $modeDTO->setPlaceholder($modeEntity->getPlaceholderI18n()[$locale] ?? '');
         return $modeDTO;
     }
 
