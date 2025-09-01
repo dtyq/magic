@@ -92,6 +92,40 @@ readonly class FileDomainService
     }
 
     /**
+     * 批量获取文件链接（自动从路径提取组织编码并分组处理）.
+     * @param string[] $filePaths 包含组织编码的文件路径数组，格式：orgCode/path/file.ext
+     * @param null|StorageBucketType $bucketType 存储桶类型，默认为Public
+     * @return array<string,FileLink> 文件路径到FileLink的映射
+     */
+    public function getBatchLinksByOrgPaths(array $filePaths, ?StorageBucketType $bucketType = null): array
+    {
+        // 过滤空路径和已经是URL的路径
+        $validPaths = array_filter($filePaths, static fn ($path) => ! empty($path) && ! is_url($path));
+
+        if (empty($validPaths)) {
+            return [];
+        }
+
+        // 按组织代码分组文件路径
+        $pathsByOrg = [];
+        foreach ($validPaths as $filePath) {
+            $orgCode = explode('/', $filePath, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $pathsByOrg[$orgCode][] = $filePath;
+            }
+        }
+
+        // 批量获取文件链接
+        $allLinks = [];
+        foreach ($pathsByOrg as $orgCode => $paths) {
+            $orgLinks = $this->getLinks($orgCode, $paths, $bucketType);
+            $allLinks = array_merge($allLinks, $orgLinks);
+        }
+
+        return $allLinks;
+    }
+
+    /**
      * Download file using chunk download.
      *
      * @param string $organizationCode Organization code

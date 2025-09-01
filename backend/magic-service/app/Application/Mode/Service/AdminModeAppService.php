@@ -55,7 +55,7 @@ class AdminModeAppService extends AbstractModeAppService
         $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
 
         // 处理icon
-        $this->processModeAggregateIcons($authorization, $modeAggregateDTO);
+        $this->processModeAggregateIcons($modeAggregateDTO);
 
         return $modeAggregateDTO;
     }
@@ -138,7 +138,7 @@ class AdminModeAppService extends AbstractModeAppService
 
         $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate, $providerModels);
 
-        $this->processModeAggregateIcons($authorization, $adminModeAggregateDTO);
+        $this->processModeAggregateIcons($adminModeAggregateDTO);
 
         return $adminModeAggregateDTO;
     }
