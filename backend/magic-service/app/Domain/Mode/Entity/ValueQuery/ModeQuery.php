@@ -13,10 +13,13 @@ class ModeQuery
 
     protected bool $excludeDefault = false;
 
-    public function __construct(string $sortDirection = 'desc', bool $excludeDefault = false)
+    protected ?bool $status = null;
+
+    public function __construct(string $sortDirection = 'desc', bool $excludeDefault = false, $status = null)
     {
         $this->sortDirection = $sortDirection;
         $this->excludeDefault = $excludeDefault;
+        $this->status = $status;
     }
 
     public function getSortDirection(): string
@@ -39,5 +42,15 @@ class ModeQuery
     {
         $this->excludeDefault = $excludeDefault;
         return $this;
+    }
+
+    public function getStatus(): ?bool
+    {
+        return $this->status;
+    }
+
+    public function setStatus(?bool $status): void
+    {
+        $this->status = $status;
     }
 }
