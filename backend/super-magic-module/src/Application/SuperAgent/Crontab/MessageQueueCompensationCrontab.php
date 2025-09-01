@@ -51,12 +51,7 @@ readonly class MessageQueueCompensationCrontab
         try {
             // Execute compensation through application service
             $stats = $this->messageQueueCompensationAppService->executeCompensation();
-
-            $executionTime = round((microtime(true) - $startTime) * 1000, 2);
-            $this->logger->info('Message queue compensation task completed', [
-                'stats' => $stats,
-                'execution_time_ms' => $executionTime,
-            ]);
+            $this->logger->info('Message queue compensation task completed', $stats);
         } catch (Throwable $e) {
             $this->logger->error('Message queue compensation task failed', [
                 'error' => $e->getMessage(),

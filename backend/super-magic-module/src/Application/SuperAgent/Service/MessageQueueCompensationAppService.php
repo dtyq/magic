@@ -109,7 +109,7 @@ class MessageQueueCompensationAppService extends AbstractAppService
     private function getTopicIds(): array
     {
         // Application layer → Domain layer → Repository layer (only get topic IDs)
-        $whitelist = config('super-magic.user_message_queue.whitelist', []);
+        $whitelist = parse_json_config(config('super-magic.user_message_queue.whitelist', '[]'));
 
         // Apply organization code filter based on whitelist
         $topicIds = $this->messageQueueDomainService->getCompensationTopics(self::BATCH_SIZE, $whitelist);
