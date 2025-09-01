@@ -36,6 +36,11 @@ class QueryMessageQueueRequestDTO extends AbstractRequestDTO
     public int $pageSize = 10;
 
     /**
+     * Message type (optional filter).
+     */
+    public string $messageType = '';
+
+    /**
      * Get project ID.
      */
     public function getProjectId(): string
@@ -68,6 +73,14 @@ class QueryMessageQueueRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get message type.
+     */
+    public function getMessageType(): string
+    {
+        return $this->messageType;
+    }
+
+    /**
      * Check if project ID filter is applied.
      */
     public function hasProjectFilter(): bool
@@ -84,6 +97,14 @@ class QueryMessageQueueRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Check if message type filter is applied.
+     */
+    public function hasMessageTypeFilter(): bool
+    {
+        return ! empty($this->messageType);
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -93,6 +114,7 @@ class QueryMessageQueueRequestDTO extends AbstractRequestDTO
             'topic_id' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:100',
+            'message_type' => 'nullable|string',
         ];
     }
 
@@ -109,6 +131,7 @@ class QueryMessageQueueRequestDTO extends AbstractRequestDTO
             'page_size.integer' => 'Page size must be an integer',
             'page_size.min' => 'Page size must be greater than 0',
             'page_size.max' => 'Page size cannot exceed 100',
+            'message_type.string' => 'Message type must be a string',
         ];
     }
 }

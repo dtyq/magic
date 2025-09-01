@@ -194,6 +194,8 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+            // 升级沙箱镜像
+            Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]

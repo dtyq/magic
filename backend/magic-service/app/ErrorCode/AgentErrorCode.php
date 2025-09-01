@@ -37,4 +37,7 @@ enum AgentErrorCode: int
 
     #[ErrorMessage('agent.sandbox_not_found')]
     case SANDBOX_NOT_FOUND = 32007;
+
+    #[ErrorMessage('agent.sandbox_upgrade_failed')]
+    case SANDBOX_UPGRADE_FAILED = 32008;
 }

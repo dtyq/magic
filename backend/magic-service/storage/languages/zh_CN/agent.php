@@ -99,4 +99,5 @@ return [
     'instruct_display_type_normal' => '普通',
     'instruct_display_type_system' => '系统',
     'no_version' => '暂无版本',
+    'sandbox_upgrade_failed' => '沙箱镜像升级失败',
 ];
