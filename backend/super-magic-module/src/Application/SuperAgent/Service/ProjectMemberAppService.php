@@ -270,6 +270,10 @@ class ProjectMemberAppService extends AbstractAppService
             $userAuthorization->getOrganizationCode()
         );
 
+        $creatorUserIds = array_filter($creatorUserIds, function ($creatorUserId) use ($dataIsolation) {
+            return ((string) $creatorUserId) !== $dataIsolation->getCurrentUserId();
+        });
+
         if (empty($creatorUserIds)) {
             return CollaborationCreatorListResponseDTO::fromEmpty();
         }

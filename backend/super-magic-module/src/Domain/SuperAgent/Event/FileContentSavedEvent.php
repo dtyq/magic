@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 
 /**
@@ -17,7 +16,8 @@ class FileContentSavedEvent extends AbstractEvent
 {
     public function __construct(
         private readonly TaskFileEntity $fileEntity,
-        private readonly MagicUserAuthorization $userAuthorization
+        private readonly string $userId,
+        private readonly string $organizationCode,
     ) {
         parent::__construct();
     }
@@ -27,8 +27,13 @@ class FileContentSavedEvent extends AbstractEvent
         return $this->fileEntity;
     }
 
-    public function getUserAuthorization(): MagicUserAuthorization
+    public function getUserId(): string
     {
-        return $this->userAuthorization;
+        return $this->userId;
+    }
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
     }
 }

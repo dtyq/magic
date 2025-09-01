@@ -132,13 +132,13 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 break;
             case $event instanceof FileUploadedEvent:
                 $projectId = $event->getFileEntity()->getProjectId();
-                $userId = $event->getUserAuthorization()->getId();
-                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
+                $userId = $event->getUserId();
+                $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FileDeletedEvent:
                 $projectId = $event->getFileEntity()->getProjectId();
-                $userId = $event->getUserAuthorization()->getId();
-                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
+                $userId = $event->getUserId();
+                $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FileRenamedEvent:
                 $projectId = $event->getFileEntity()->getProjectId();
@@ -152,8 +152,8 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 break;
             case $event instanceof FileContentSavedEvent:
                 $projectId = $event->getFileEntity()->getProjectId();
-                $userId = $event->getUserAuthorization()->getId();
-                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
+                $userId = $event->getUserId();
+                $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof DirectoryDeletedEvent:
                 $projectId = $event->getDirectoryEntity()->getProjectId();
@@ -303,9 +303,8 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
             case $event instanceof FileUploadedEvent:
                 $file = $event->getFileEntity();
                 // 获取用户授权信息
-                $userAuthorization = $event->getUserAuthorization();
-                $entity->setUserId($userAuthorization->getId());
-                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setUserId($event->getUserId());
+                $entity->setOrganizationCode($event->getOrganizationCode());
                 $entity->setOperationStatus('success');
                 $entity->setIpAddress($ip);
                 $entity->setProjectId($file->getProjectId());
@@ -321,9 +320,8 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
             case $event instanceof FileDeletedEvent:
                 $file = $event->getFileEntity();
                 // 获取用户授权信息
-                $userAuthorization = $event->getUserAuthorization();
-                $entity->setUserId($userAuthorization->getId());
-                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setUserId($event->getUserId());
+                $entity->setOrganizationCode($event->getOrganizationCode());
                 $entity->setOperationStatus('success');
                 $entity->setIpAddress($ip);
                 $entity->setProjectId($file->getProjectId());
@@ -370,9 +368,8 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
             case $event instanceof FileContentSavedEvent:
                 $file = $event->getFileEntity();
                 // 获取用户授权信息
-                $userAuthorization = $event->getUserAuthorization();
-                $entity->setUserId($userAuthorization->getId());
-                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setUserId($event->getUserId());
+                $entity->setOrganizationCode($event->getOrganizationCode());
                 $entity->setOperationStatus('success');
                 $entity->setIpAddress($ip);
                 $entity->setProjectId($file->getProjectId());

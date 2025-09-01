@@ -92,7 +92,7 @@ class FileSaveContentAppService extends AbstractAppService
                 // 获取文件实体以发布事件
                 $fileEntity = $this->taskFileDomainService->getById((int) $fileDto->getFileId());
                 if ($fileEntity) {
-                    $fileContentSavedEvent = new FileContentSavedEvent($fileEntity, $userAuth);
+                    $fileContentSavedEvent = new FileContentSavedEvent($fileEntity, $userAuth->getId(), $userAuth->getOrganizationCode());
                     $this->eventDispatcher->dispatch($fileContentSavedEvent);
                 }
             }

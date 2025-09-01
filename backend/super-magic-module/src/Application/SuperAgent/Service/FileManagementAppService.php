@@ -259,7 +259,7 @@ class FileManagementAppService extends AbstractAppService
             Db::commit();
 
             // 发布文件已上传事件
-            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization);
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             $this->eventDispatcher->dispatch($fileUploadedEvent);
 
             // 返回保存结果
@@ -338,7 +338,7 @@ class FileManagementAppService extends AbstractAppService
             Db::commit();
 
             // 发布文件已上传事件
-            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization);
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             $this->eventDispatcher->dispatch($fileUploadedEvent);
 
             // 返回创建结果
@@ -384,7 +384,7 @@ class FileManagementAppService extends AbstractAppService
                 $deletedCount = 1;
                 $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
                 // 发布文件已删除事件
-                $fileDeletedEvent = new FileDeletedEvent($fileEntity, $userAuthorization);
+                $fileDeletedEvent = new FileDeletedEvent($fileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
                 $this->eventDispatcher->dispatch($fileDeletedEvent);
             }
             return ['file_id' => $fileId, 'count' => $deletedCount];
