@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
-use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -335,7 +334,7 @@ class ProjectAppService extends AbstractAppService
         );
 
         // 提取所有项目ID
-        // $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
+        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
 
         // 提取所有工作区ID
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $result['list'] ?? []));
