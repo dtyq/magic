@@ -25,7 +25,7 @@ class SuperMagicAgentSaveFormRequest extends FormRequest
             'id' => 'nullable|string|max:50',
             'name' => 'required|string|max:80',
             'description' => 'nullable|string|max:512',
-            'icon' => 'nullable|string|max:100',
+            'icon' => 'nullable|array',
 
             // 智能体类型（动态获取枚举值）
             'type' => 'nullable|integer|in:' . SuperMagicAgentType::getValidationRule(),
@@ -78,8 +78,7 @@ class SuperMagicAgentSaveFormRequest extends FormRequest
             'name.max' => trans('super_magic.agent.validation.name_max'),
             'description.string' => trans('super_magic.agent.validation.description_string'),
             'description.max' => trans('super_magic.agent.validation.description_max'),
-            'icon.string' => trans('super_magic.agent.validation.icon_string'),
-            'icon.max' => trans('super_magic.agent.validation.icon_max'),
+            'icon.array' => trans('super_magic.agent.validation.icon_array'),
             'type.integer' => trans('super_magic.agent.validation.type_integer'),
             'type.in' => trans('super_magic.agent.validation.type_invalid'),
             'enabled.boolean' => trans('super_magic.agent.validation.enabled_boolean'),

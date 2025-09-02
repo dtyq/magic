@@ -40,7 +40,7 @@ class SuperMagicAgentEntity extends AbstractEntity
     /**
      * Agent图标.
      */
-    protected string $icon = '';
+    protected array $icon = [];
 
     /**
      * @var array<SuperMagicAgentTool>
@@ -186,12 +186,12 @@ class SuperMagicAgentEntity extends AbstractEntity
         $this->description = $description;
     }
 
-    public function getIcon(): string
+    public function getIcon(): array
     {
         return $this->icon;
     }
 
-    public function setIcon(string $icon): void
+    public function setIcon(array $icon): void
     {
         $this->icon = $icon;
     }
