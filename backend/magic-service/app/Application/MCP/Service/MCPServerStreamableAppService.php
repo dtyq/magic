@@ -88,7 +88,7 @@ class MCPServerStreamableAppService extends AbstractMCPAppService
                 $apiChatDTO->setFlowCode($MCPServerToolEntity->getRelCode());
                 $apiChatDTO->setFlowVersionCode($MCPServerToolEntity->getRelVersionCode());
                 $apiChatDTO->setMessage('mcp_tool_call');
-                return di(MagicFlowExecuteAppService::class)->apiParamCallByMCPTool($flowDataIsolation, $apiChatDTO);
+                return di(MagicFlowExecuteAppService::class)->apiParamCallByRemoteTool($flowDataIsolation, $apiChatDTO, 'mcp_tool');
             },
             default => null,
         };
