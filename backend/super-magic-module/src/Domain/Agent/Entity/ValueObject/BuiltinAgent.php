@@ -60,15 +60,15 @@ enum BuiltinAgent: string
     /**
      * 获取内置智能体图标.
      */
-    public function getIcon(): string
+    public function getIcon(): array
     {
         return match ($this) {
-            self::General => 'general',
-            self::Chat => 'IconMessages',
-            self::DataAnalysis => 'IconChartBarPopular',
-            self::PPT => 'IconPresentation',
-            self::Report => 'report',
-            self::Summary => 'IconFileDescription',
+            self::General => ['type' => 'general', 'color' => ''],
+            self::Chat => ['type' => 'IconMessages', 'color' => ''],
+            self::DataAnalysis => ['type' => 'IconChartBarPopular', 'color' => ''],
+            self::PPT => ['type' => 'IconPresentation', 'color' => ''],
+            self::Report => ['type' => 'report', 'color' => ''],
+            self::Summary => ['type' => 'IconFileDescription', 'color' => ''],
         };
     }
 
