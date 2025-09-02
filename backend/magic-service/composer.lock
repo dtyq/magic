@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "d2201f1a826ebe166242ebf54f396f20947fbfca"
+                "reference": "f5163f6d4d7380013278dda992137e771f418af1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=d2201f1a826ebe166242ebf54f396f20947fbfca",
-                "reference": "d2201f1a826ebe166242ebf54f396f20947fbfca",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=f5163f6d4d7380013278dda992137e771f418af1",
+                "reference": "f5163f6d4d7380013278dda992137e771f418af1",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-01T08:32:29+00:00"
+            "time": "2025-09-02T17:29:34+08:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "e23b3de32c31a5af40b83afcdf11a24b1fd2f340"
+                "reference": "9b62e79a355bae71da3240c2c25a426ae4f9b93d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e23b3de32c31a5af40b83afcdf11a24b1fd2f340",
-                "reference": "e23b3de32c31a5af40b83afcdf11a24b1fd2f340",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=9b62e79a355bae71da3240c2c25a426ae4f9b93d",
+                "reference": "9b62e79a355bae71da3240c2c25a426ae4f9b93d",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-01T15:53:12+08:00"
+            "time": "2025-09-02T16:04:31+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "f7321145014edbdac137f2394d686597a56b3233"
+                "reference": "b9b1d7986c841b109428208404b4201332146a05"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=f7321145014edbdac137f2394d686597a56b3233",
-                "reference": "f7321145014edbdac137f2394d686597a56b3233",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=b9b1d7986c841b109428208404b4201332146a05",
+                "reference": "b9b1d7986c841b109428208404b4201332146a05",
                 "shasum": ""
             },
             "require": {
@@ -2633,6 +2633,11 @@
                     "Dtyq\\SuperMagic\\": "src/"
                 }
             },
+            "autoload-dev": {
+                "psr-4": {
+                    "Dtyq\\SuperMagic\\Tests\\": "tests/"
+                }
+            },
             "scripts": {
                 "post-root-package-install": [
                     "php -r \"file_exists('.env') || copy('.env.example', '.env');\""
@@ -2674,7 +2679,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-01T14:29:27+08:00"
+            "time": "2025-09-02T16:43:53+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
