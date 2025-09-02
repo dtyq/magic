@@ -223,7 +223,7 @@ class ProjectEntity extends AbstractEntity
         return $this->currentTopicId;
     }
 
-    public function setCurrentTopicId(null|int|string $currentTopicId): self
+    public function setCurrentTopicId(int|string|null $currentTopicId): self
     {
         $this->currentTopicId = $currentTopicId ? (int) $currentTopicId : null;
         return $this;
