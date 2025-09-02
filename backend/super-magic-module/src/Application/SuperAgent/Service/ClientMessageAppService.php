@@ -70,6 +70,7 @@ class ClientMessageAppService extends AbstractAppService
     public function sendMessageToClient(
         int $topicId,
         string $taskId,
+        string $messageId,
         string $chatTopicId,
         string $chatConversationId,
         string $content,
@@ -85,6 +86,7 @@ class ClientMessageAppService extends AbstractAppService
             $message = $this->createSuperAgentMessage(
                 $topicId,
                 $taskId,
+                $messageId,
                 $content,
                 $messageType,
                 $status,
@@ -124,9 +126,11 @@ class ClientMessageAppService extends AbstractAppService
         string $errorMessage
     ): void {
         try {
+            $messageId = (string) IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
                 $topicId,
                 $taskId,
+                $messageId,
                 $errorMessage,
                 MessageType::Error->value,
                 TaskStatus::ERROR->value,
@@ -164,9 +168,11 @@ class ClientMessageAppService extends AbstractAppService
         string $interruptReason = 'Task terminated'
     ): void {
         try {
+            $messageId = (string) IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
                 $topicId,
                 $taskId,
+                $messageId,
                 $interruptReason,
                 MessageType::Finished->value,
                 TaskStatus::Suspended->value,
@@ -201,9 +207,11 @@ class ClientMessageAppService extends AbstractAppService
         string $remindEvent = ''
     ): void {
         try {
+            $messageId = (string) IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
                 $topicId,
                 $taskId,
+                $messageId,
                 $remind,
                 MessageType::Reminder->value,
                 TaskStatus::Suspended->value,
@@ -263,6 +271,7 @@ class ClientMessageAppService extends AbstractAppService
     private function createSuperAgentMessage(
         int $topicId,
         string $taskId,
+        string $messageId,
         ?string $content,
         string $messageType,
         string $status,
@@ -273,7 +282,7 @@ class ClientMessageAppService extends AbstractAppService
         ?string $correlationId = null,
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
-        $message->setMessageId((string) IdGenerator::getSnowId());
+        $message->setMessageId($messageId);
         $message->setTopicId((string) $topicId);
         $message->setTaskId($taskId);
         $message->setType($messageType);
