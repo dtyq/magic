@@ -21,6 +21,7 @@ use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Agent\Assembler\FileAssembler;
 
 class ModeDomainService
 {
@@ -194,7 +195,7 @@ class ModeDomainService
             $newGroup->setId(IdGenerator::getSnowId());
             $newGroup->setModeId((int) $id);
             $newGroup->setNameI18n($group->getNameI18n());
-            $newGroup->setIcon($group->getIcon());
+            $newGroup->setIcon(FileAssembler::formatPath($group->getIcon()));
             $newGroup->setDescription($group->getDescription());
             $newGroup->setSort($group->getSort());
             $newGroup->setStatus($group->getStatus());
