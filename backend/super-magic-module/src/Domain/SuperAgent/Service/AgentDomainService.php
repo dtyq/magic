@@ -195,6 +195,14 @@ class AgentDomainService
     {
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'prompt' => $taskContext->getTask()->getPrompt(),
+            'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
+            'mentions' => $taskContext->getTask()->getMentions(),
+            'mcp_config' => $taskContext->getMcpConfig(),
+            'model_id' => $taskContext->getModelId(),
+            'dynamic_config' => $taskContext->getDynamicConfig(),
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 

@@ -165,7 +165,8 @@ class SandboxApi extends AbstractApi
             'attachments' => null,
             'mentions' => null,
             'agent_user_id' => (string) $magicUserAuthorization->getId(),
-            'agent_mode' => $requestDTO->getProjectMode(),
+            'project_mode' => $requestDTO->getProjectMode(),
+            'topic_mode' => $requestDTO->getTopicMode(),
             'task_mode' => '',
             'model_id' => $requestDTO->getModelId(),
         ];
