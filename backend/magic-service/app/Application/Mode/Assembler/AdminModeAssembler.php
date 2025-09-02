@@ -205,10 +205,6 @@ class AdminModeAssembler
             $existingEntity->setColor($request->getColor());
         }
 
-        if ($request->getDescription() !== null) {
-            $existingEntity->setDescription($request->getDescription());
-        }
-
         $existingEntity->setDistributionType($request->getDistributionType());
         $existingEntity->setFollowModeId($request->getFollowModeId());
         $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
