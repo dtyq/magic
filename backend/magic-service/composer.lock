@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5369eeebc366aa1c7fe7f553b0be8e2d",
+    "content-hash": "fba48e282149b8e659e99a1681d7efc6",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "9b62e79a355bae71da3240c2c25a426ae4f9b93d"
+                "reference": "f2e48d83431fe50599b53befa8bae361103400fa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=9b62e79a355bae71da3240c2c25a426ae4f9b93d",
-                "reference": "9b62e79a355bae71da3240c2c25a426ae4f9b93d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f2e48d83431fe50599b53befa8bae361103400fa",
+                "reference": "f2e48d83431fe50599b53befa8bae361103400fa",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-02T16:04:31+08:00"
+            "time": "2025-09-02T11:38:04+00:00"
         },
         {
             "name": "dtyq/php-mcp",
