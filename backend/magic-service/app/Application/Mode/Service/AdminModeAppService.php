@@ -97,7 +97,7 @@ class AdminModeAppService extends AbstractModeAppService
         // 先获取现有的完整实体
         $existingMode = $this->modeDomainService->getModeById($dataIsolation, $modeId);
         if (! $existingMode) {
-           ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
         }
 
         Db::beginTransaction();

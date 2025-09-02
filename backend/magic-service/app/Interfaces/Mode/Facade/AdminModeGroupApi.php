@@ -61,7 +61,7 @@ class AdminModeGroupApi extends AbstractApi
     /**
      * 更新分组.
      */
-    public function updateGroup(UpdateModeGroupRequest $request, string $groupId): array
+    public function updateGroup(UpdateModeGroupRequest $request, string $groupId)
     {
         $authorization = $this->getAuthorization();
         $request->validated();
