@@ -8,11 +8,16 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Application\Contact\UserSetting\UserSettingKey;
+use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
+use App\Application\Flow\Service\MagicFlowExecuteAppService;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Flow\DTO\MagicFlowApiChatDTO;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -21,11 +26,29 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     #[Inject]
     protected MagicUserSettingDomainService $magicUserSettingDomainService;
 
-    public function show(Authenticatable $authorization, string $code): SuperMagicAgentEntity
+    public function show(Authenticatable $authorization, string $code, bool $withToolScheme = false): SuperMagicAgentEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        return $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+        if ($withToolScheme) {
+            $remoteToolCodes = [];
+            foreach ($agent->getTools() as $tool) {
+                if ($tool->getType()->isRemote()) {
+                    $remoteToolCodes[] = $tool->getCode();
+                }
+            }
+            // 获取工具定义
+            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
+            foreach ($agent->getTools() as $tool) {
+                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
+                if ($remoteTool) {
+                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema() ?? []);
+                }
+            }
+        }
+        return $agent;
     }
 
     public function queries(Authenticatable $authorization, SuperMagicAgentQuery $query, Page $page): array
@@ -97,6 +120,33 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $setting = $this->magicUserSettingDomainService->get($dataIsolation, UserSettingKey::SuperMagicAgentSort->value);
 
         return $setting?->getValue();
+    }
+
+    public function executeTool(Authenticatable $authorization, array $params): array
+    {
+        $toolCode = $params['code'] ?? '';
+        $arguments = $params['arguments'] ?? [];
+        if (empty($toolCode)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'code']);
+        }
+
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
+
+        $toolFlow = ToolsExecutor::getToolFlows($flowDataIsolation, [$toolCode])[0] ?? null;
+        if (! $toolFlow || ! $toolFlow->isEnabled()) {
+            $label = $toolFlow ? $toolFlow->getName() : $toolCode;
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.disabled', ['label' => $label]);
+        }
+        $apiChatDTO = new MagicFlowApiChatDTO();
+        $apiChatDTO->setParams($arguments);
+        $apiChatDTO->setFlowCode($toolFlow->getCode());
+        $apiChatDTO->setFlowVersionCode($toolFlow->getVersionCode());
+        $apiChatDTO->setMessage('super_magic_tool_call');
+        return di(MagicFlowExecuteAppService::class)->apiParamCallByRemoteTool(
+            $flowDataIsolation,
+            $apiChatDTO,
+            'super_magic_tool_call'
+        );
     }
 
     /**
