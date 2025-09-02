@@ -24,7 +24,7 @@ class SuperMagicAgentOrderFormRequest extends FormRequest
             'frequent.*' => 'string|max:50', // 智能体code
 
             // 全部智能体排序列表
-            'all' => 'required|array',
+            'all' => 'nullable|array',
             'all.*' => 'string|max:50', // 智能体code
         ];
     }
