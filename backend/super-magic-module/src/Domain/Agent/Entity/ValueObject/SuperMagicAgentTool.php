@@ -23,6 +23,8 @@ class SuperMagicAgentTool extends AbstractValueObject
 
     protected SuperMagicAgentToolType $type;
 
+    protected array $schema;
+
     public function getCode(): string
     {
         return $this->code;
@@ -77,5 +79,15 @@ class SuperMagicAgentTool extends AbstractValueObject
             }
         }
         $this->type = $type;
+    }
+
+    public function getSchema(): array
+    {
+        return $this->schema;
+    }
+
+    public function setSchema(array $schema): void
+    {
+        $this->schema = $schema;
     }
 }

@@ -34,4 +34,9 @@ enum SuperMagicAgentToolType: int
     {
         return implode(',', self::getAvailableValues());
     }
+
+    public function isRemote(): bool
+    {
+        return in_array($this, [self::Official, self::Custom], true);
+    }
 }
