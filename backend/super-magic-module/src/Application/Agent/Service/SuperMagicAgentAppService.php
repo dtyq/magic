@@ -26,13 +26,13 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     #[Inject]
     protected MagicUserSettingDomainService $magicUserSettingDomainService;
 
-    public function show(Authenticatable $authorization, string $code, bool $withToolScheme = false): SuperMagicAgentEntity
+    public function show(Authenticatable $authorization, string $code, bool $withToolSchema = false): SuperMagicAgentEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
-        if ($withToolScheme) {
+        if ($withToolSchema) {
             $remoteToolCodes = [];
             foreach ($agent->getTools() as $tool) {
                 if ($tool->getType()->isRemote()) {
