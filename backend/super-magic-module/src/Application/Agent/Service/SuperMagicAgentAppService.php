@@ -44,7 +44,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             foreach ($agent->getTools() as $tool) {
                 $remoteTool = $remoteTools[$tool->getCode()] ?? null;
                 if ($remoteTool) {
-                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema() ?? []);
+                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
                 }
             }
         }

@@ -43,6 +43,7 @@ class BuiltinToolAssembler
                 'name' => $toolEnum->getToolName(),
                 'description' => $toolEnum->getToolDescription(),
                 'icon' => $toolEnum->getToolIcon(),
+                'required' => $toolEnum->isRequired(),
             ]));
         }
 
