@@ -16,4 +16,7 @@ Router::addGroup('/api/v1/asr', function () {
 
     // 录音文件上传 Token 管理
     Router::get('/upload-tokens', [AsrTokenApi::class, 'getUploadToken']);  // 获取录音文件上传STS Token
+
+    // 录音总结服务
+    Router::get('/summary', [AsrTokenApi::class, 'querySummaryStatus']); // 查询录音总结状态
 }, ['middleware' => [RequestContextMiddleware::class]]);
