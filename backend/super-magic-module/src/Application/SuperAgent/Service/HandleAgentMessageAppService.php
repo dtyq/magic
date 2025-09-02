@@ -594,9 +594,12 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         $task = $taskContext->getTask();
 
+        $messageId = $messageData['messageId'] ?? (string) IdGenerator::getSnowId();
+
         $this->clientMessageAppService->sendMessageToClient(
             topicId: $task->getTopicId(),
             taskId: (string) $task->getId(),
+            messageId: $messageId,
             chatTopicId: $taskContext->getChatTopicId(),
             chatConversationId: $taskContext->getChatConversationId(),
             content: $messageData['content'],
