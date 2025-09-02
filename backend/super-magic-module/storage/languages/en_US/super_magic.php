@@ -19,6 +19,10 @@ return [
             'tool_code' => 'Tool Code',
             'tool_name' => 'Tool Name',
             'tool_type' => 'Tool Type',
+            // Common fields
+            'page' => 'Page',
+            'page_size' => 'Page Size',
+            'creator_id' => 'Creator ID',
         ],
         'validation' => [
             // Basic field validation
@@ -27,8 +31,7 @@ return [
             'name_max' => 'Agent name cannot exceed 80 characters',
             'description_string' => 'Agent description must be a string',
             'description_max' => 'Agent description cannot exceed 512 characters',
-            'icon_string' => 'Agent icon must be a string',
-            'icon_max' => 'Agent icon cannot exceed 100 characters',
+            'icon_array' => 'Agent icon must be in array format',
             'type_integer' => 'Agent type must be an integer',
             'type_invalid' => 'Invalid agent type',
             'enabled_boolean' => 'Enabled status must be a boolean value',
@@ -50,6 +53,28 @@ return [
             'tool_type_required' => 'Tool type is required',
             'tool_type_integer' => 'Tool type must be an integer',
             'tool_type_invalid' => 'Invalid tool type',
+
+            // Pagination validation
+            'page_integer' => 'Page must be an integer',
+            'page_min' => 'Page cannot be less than 1',
+            'page_size_integer' => 'Page size must be an integer',
+            'page_size_min' => 'Page size cannot be less than 1',
+            'page_size_max' => 'Page size cannot exceed 1000',
+
+            // Search condition validation
+            'codes_array' => 'Code list must be in array format',
+            'code_string' => 'Code must be a string',
+            'code_max' => 'Code cannot exceed 50 characters',
+            'creator_id_string' => 'Creator ID must be a string',
+            'creator_id_max' => 'Creator ID cannot exceed 40 characters',
+
+            // Order validation
+            'frequent_array' => 'Frequent agents order must be in array format',
+            'frequent_code_string' => 'Frequent agent code must be a string',
+            'frequent_code_max' => 'Frequent agent code cannot exceed 50 characters',
+            'all_array' => 'All agents order must be in array format',
+            'all_code_string' => 'All agent code must be a string',
+            'all_code_max' => 'All agent code cannot exceed 50 characters',
         ],
         'order' => [
             'frequent' => 'Frequent Agents',
