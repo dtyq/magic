@@ -83,25 +83,25 @@ enum BuiltinTool: string
      */
     public function getToolCategory(): BuiltinToolCategory
     {
-        return match ($this->value) {
+        return match ($this) {
             // 文件操作
-            'list_dir', 'read_files', 'write_file', 'edit_file', 'multi_edit_file',
-            'delete_file', 'file_search', 'grep_search' => BuiltinToolCategory::FileOperations,
+            self::ListDir, self::ReadFiles, self::WriteFile, self::EditFile, self::MultiEditFile,
+            self::DeleteFile, self::FileSearch, self::GrepSearch => BuiltinToolCategory::FileOperations,
 
             // 搜索提取
-            'web_search', 'image_search', 'read_webpages_as_markdown', 'use_browser',
-            'download_from_urls', 'download_from_markdown' => BuiltinToolCategory::SearchExtraction,
+            self::WebSearch, self::ImageSearch, self::ReadWebpagesAsMarkdown, self::UseBrowser,
+            self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
-            'visual_understanding', 'convert_pdf', 'voice_understanding', 'summarize',
-            'text_to_image', 'image_edit', 'create_slide', 'create_slide_project',
-            'create_dashboard_project', 'update_dashboard_template', 'backup_dashboard_template', 'finish_dashboard_task' => BuiltinToolCategory::ContentProcessing,
+            self::VisualUnderstanding, self::ConvertPdf, self::VoiceUnderstanding, self::Summarize,
+            self::TextToImage, self::ImageEdit, self::CreateSlide, self::CreateSlideProject,
+            self::CreateDashboardProject, self::UpdateDashboardTemplate, self::BackupDashboardTemplate, self::FinishDashboardTask => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
-            'shell_exec', 'python_execute' => BuiltinToolCategory::SystemExecution,
+            self::ShellExec, self::PythonExecute => BuiltinToolCategory::SystemExecution,
 
             // AI协作
-            'create_memory', 'update_memory', 'delete_memory', 'finish_task' => BuiltinToolCategory::AIAssistance,
+            self::CreateMemory, self::UpdateMemory, self::DeleteMemory, self::FinishTask => BuiltinToolCategory::AIAssistance,
         };
     }
 
@@ -111,5 +111,44 @@ enum BuiltinTool: string
     public static function getToolType(): SuperMagicAgentToolType
     {
         return SuperMagicAgentToolType::BuiltIn;
+    }
+
+    /**
+     * 获取所有必须的工具.
+     * @return array<BuiltinTool>
+     */
+    public static function getRequiredTools(): array
+    {
+        return [
+            // 文件操作
+            self::ListDir,
+            self::ReadFiles,
+            self::GrepSearch,
+            self::WriteFile,
+            self::EditFile,
+            self::MultiEditFile,
+            self::DeleteFile,
+            // 搜索提取
+            self::WebSearch,
+            self::ReadWebpagesAsMarkdown,
+            self::DownloadFromUrls,
+            // 内容处理
+            self::VisualUnderstanding,
+            // 系统执行
+            self::ShellExec,
+            // AI协作
+            self::CreateMemory,
+            self::UpdateMemory,
+            self::DeleteMemory,
+            self::FinishTask,
+        ];
+    }
+
+    /**
+     * 判断工具是否为必须工具.
+     */
+    public function isRequired(): bool
+    {
+        return in_array($this, self::getRequiredTools(), true);
     }
 }

@@ -10,8 +10,10 @@ namespace Dtyq\SuperMagic\Domain\Agent\Entity;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use DateTime;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinTool;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Code;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentTool;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentToolType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\EditorJsUtil;
@@ -137,7 +139,7 @@ class SuperMagicAgentEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         if (is_string($id)) {
             $this->id = (int) $id;
@@ -197,6 +199,40 @@ class SuperMagicAgentEntity extends AbstractEntity
     }
 
     public function getTools(): array
+    {
+        $result = [];
+
+        // 获取必填工具列表，按照 getRequiredTools 的顺序
+        $requiredTools = BuiltinTool::getRequiredTools();
+
+        // 1. 先添加必填工具（按照 getRequiredTools 的顺序）
+        foreach ($requiredTools as $requiredTool) {
+            $tool = new SuperMagicAgentTool();
+            $tool->setCode($requiredTool->value);
+            $tool->setName($requiredTool->getToolName());
+            $tool->setDescription($requiredTool->getToolDescription());
+            $tool->setIcon($requiredTool->getToolIcon());
+            $tool->setType(SuperMagicAgentToolType::BuiltIn);
+            $tool->setSchema(null);
+
+            $result[$tool->getCode()] = $tool;
+        }
+
+        // 2. 再添加原始工具列表中的其他工具（跳过已存在的必填工具）
+        foreach ($this->tools as $tool) {
+            if (! isset($result[$tool->getCode()])) {
+                $result[$tool->getCode()] = $tool;
+            }
+        }
+
+        return array_values($result);
+    }
+
+    /**
+     * 获取原始工具列表（不包含自动添加的必填工具）.
+     * @return array<SuperMagicAgentTool>
+     */
+    public function getOriginalTools(): array
     {
         return $this->tools;
     }

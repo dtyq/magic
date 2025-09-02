@@ -17,6 +17,8 @@ class BuiltinToolDTO
 
     public string $icon = '';
 
+    public bool $required = false;
+
     public function __construct(array $data = [])
     {
         if (isset($data['code'])) {
@@ -30,6 +32,9 @@ class BuiltinToolDTO
         }
         if (isset($data['icon'])) {
             $this->setIcon($data['icon']);
+        }
+        if (isset($data['required'])) {
+            $this->setRequired($data['required']);
         }
     }
 
@@ -75,5 +80,21 @@ class BuiltinToolDTO
     public function getIcon(): string
     {
         return $this->icon;
+    }
+
+    public function setRequired(bool $required): self
+    {
+        $this->required = $required;
+        return $this;
+    }
+
+    public function getRequired(): bool
+    {
+        return $this->required;
+    }
+
+    public function isRequired(): bool
+    {
+        return $this->required;
     }
 }
