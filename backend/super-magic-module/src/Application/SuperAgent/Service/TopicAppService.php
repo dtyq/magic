@@ -164,6 +164,7 @@ class TopicAppService extends AbstractAppService
                 $chatConversationTopicId, // 会话的话题ID
                 $requestDTO->getTopicName(),
                 $projectEntity->getWorkDir(),
+                $requestDTO->getTopicMode(),
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
