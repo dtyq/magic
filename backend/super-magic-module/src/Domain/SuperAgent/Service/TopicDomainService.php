@@ -184,6 +184,7 @@ class TopicDomainService
         string $chatTopicId,
         string $topicName = '',
         string $workDir = '',
+        string $topicMode = ''
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -211,7 +212,9 @@ class TopicDomainService
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
-
+        if (! empty($topicMode)) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         return $this->topicRepository->createTopic($topicEntity);
     }
 
