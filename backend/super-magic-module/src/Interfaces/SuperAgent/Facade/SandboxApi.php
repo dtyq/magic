@@ -125,6 +125,7 @@ class SandboxApi extends AbstractApi
         $requestDTO->setWorkspaceId($workspaceId);
         $requestDTO->setProjectId($projectId);
         $requestDTO->setTopicId($topicId);
+        $requestDTO->setTopicMode($topic->getTopicMode());
 
         return $this->initSandbox($requestContext, $requestDTO, $this->getAuthorization());
     }
@@ -140,7 +141,7 @@ class SandboxApi extends AbstractApi
         // 判断话题是否存在，不存在则初始化话题
         $this->initTopic($requestContext, $requestDTO);
 
-        $requestDTO->setConversationId($requestDTO->getTopicId());
+        // $requestDTO->setConversationId($requestDTO->getTopicId());
 
         $initSandboxResponseDTO = new InitSandboxResponseDTO();
 
@@ -148,7 +149,7 @@ class SandboxApi extends AbstractApi
         $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
         $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
         $initSandboxResponseDTO->setTopicId($requestDTO->getTopicId());
-        $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
+        // $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId((string) $magicUserAuthorization->getId());
         $dataIsolation->setThirdPartyOrganizationCode($magicUserAuthorization->getOrganizationCode());
@@ -159,7 +160,7 @@ class SandboxApi extends AbstractApi
         $userMessage = [
             'chat_topic_id' => $requestDTO->getTopicId(),
             'topic_id' => (int) $requestDTO->getTopicId(),
-            'chat_conversation_id' => $requestDTO->getConversationId(),
+            // 'chat_conversation_id' => $requestDTO->getConversationId(),
             'prompt' => $requestDTO->getPrompt(),
             'attachments' => null,
             'mentions' => null,
@@ -241,6 +242,8 @@ class SandboxApi extends AbstractApi
             $saveTopicRequestDTO->setTopicName('默认话题');
             $saveTopicRequestDTO->setProjectId((string) $requestDTO->getProjectId());
             $saveTopicRequestDTO->setWorkspaceId((string) $requestDTO->getWorkspaceId());
+            $saveTopicRequestDTO->setProjectMode($requestDTO->getProjectMode());
+            $saveTopicRequestDTO->setTopicMode($requestDTO->getTopicMode());
             $topic = $this->topicAppService->createTopicNotValidateAccessibleProject($requestContext, $saveTopicRequestDTO);
             if (! empty($topic->getId())) {
                 $topicId = $topic->getId();
