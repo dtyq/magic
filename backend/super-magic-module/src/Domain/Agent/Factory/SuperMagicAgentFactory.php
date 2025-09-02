@@ -39,7 +39,7 @@ class SuperMagicAgentFactory
             $entity->setDescription($model->description);
         }
 
-        if ($model->icon !== null && $model->icon !== '') {
+        if ($model->icon !== null && !empty($model->icon)) {
             $entity->setIcon($model->icon);
         }
 
