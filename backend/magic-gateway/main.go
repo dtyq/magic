@@ -704,6 +704,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 从请求头中获取magic-task-id 和magic-topic-id
 		magicTaskID := r.Header.Get("magic-task-id")
 		magicTopicID := r.Header.Get("magic-topic-id")
+		magicLanguage := r.Header.Get("magic-language")
 		var magicUserID, magicOrganizationCode string
 
 		// 从请求上下文中获取JWT claims
@@ -717,7 +718,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			userID = magicUserID
 		}
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID)
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicLanguage)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -1004,6 +1005,13 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			proxyReq.Header.Set("magic-topic-id", magicTopicID)
 			if debugMode {
 				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+			}
+		}
+
+		if magicLanguage != "" {
+			proxyReq.Header.Set("magic-language", magicLanguage)
+			if debugMode {
+				logger.Printf("透传magic-language: %s", magicLanguage)
 			}
 		}
 
