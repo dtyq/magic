@@ -6,6 +6,8 @@ declare(strict_types=1);
  */
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\Chat\Service\SessionAppService;
+use App\Application\Flow\ExecuteManager\NodeRunner\Cache\StringCache\MysqlStringCache;
+use App\Application\Flow\ExecuteManager\NodeRunner\Cache\StringCache\StringCacheInterface;
 use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PHPExecutor;
 use App\Application\Flow\ExecuteManager\NodeRunner\Code\CodeExecutor\PythonExecutor;
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\BaseMessageAttachmentHandler;
@@ -85,6 +87,7 @@ use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowApiKeyRepositoryInterface;
+use App\Domain\Flow\Repository\Facade\MagicFlowCacheRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowDraftRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowExecuteLogRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowMemoryHistoryRepositoryInterface;
@@ -97,6 +100,7 @@ use App\Domain\Flow\Repository\Facade\MagicFlowVersionRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowWaitMessageRepositoryInterface;
 use App\Domain\Flow\Repository\Persistence\MagicFlowAIModelRepository;
 use App\Domain\Flow\Repository\Persistence\MagicFlowApiKeyRepository;
+use App\Domain\Flow\Repository\Persistence\MagicFlowCacheRepository;
 use App\Domain\Flow\Repository\Persistence\MagicFlowDraftRepository;
 use App\Domain\Flow\Repository\Persistence\MagicFlowExecuteLogRepository;
 use App\Domain\Flow\Repository\Persistence\MagicFlowMemoryHistoryRepository;
@@ -276,6 +280,8 @@ $dependencies = [
     MagicFlowToolSetRepositoryInterface::class => MagicFlowToolSetRepository::class,
     MagicFlowWaitMessageRepositoryInterface::class => MagicFlowWaitMessageRepository::class,
     MagicFlowMultiModalLogRepositoryInterface::class => MagicFlowMultiModalLogRepository::class,
+    MagicFlowCacheRepositoryInterface::class => MagicFlowCacheRepository::class,
+    StringCacheInterface::class => MysqlStringCache::class,
 
     // knowledge-base
     KnowledgeBaseRepositoryInterface::class => KnowledgeBaseBaseRepository::class,

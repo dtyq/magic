@@ -9,7 +9,7 @@ namespace App\Application\Flow\ExecuteManager\NodeRunner\Cache\V1;
 
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\NodeRunner\Cache\AbstractCacheNodeRunner;
-use App\Application\Flow\ExecuteManager\NodeRunner\Cache\StringCacheDriver;
+use App\Application\Flow\ExecuteManager\NodeRunner\Cache\StringCache\StringCacheInterface;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Cache\V1\CacheGetNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\ErrorCode\FlowErrorCode;
@@ -45,8 +45,8 @@ class CacheGetNodeRunner extends AbstractCacheNodeRunner
 
         $cachePrefix = $this->getCachePrefix($paramsConfig->getCacheScope(), $executionData);
 
-        $cacheDriver = ApplicationContext::getContainer()->get(StringCacheDriver::class);
-        $cacheValue = $cacheDriver->get($cachePrefix, $cacheKey, '') ?: null;
+        $cacheDriver = ApplicationContext::getContainer()->get(StringCacheInterface::class);
+        $cacheValue = $cacheDriver->get($executionData->getDataIsolation(), $cachePrefix, $cacheKey, '') ?: null;
 
         $result = [
             'value' => $cacheValue,
