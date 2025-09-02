@@ -11,6 +11,8 @@ use App\Application\Mode\Assembler\AdminModeAssembler;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeDTO;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
+use App\ErrorCode\ModeErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
@@ -92,13 +94,18 @@ class AdminModeAppService extends AbstractModeAppService
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
+        // 先获取现有的完整实体
+        $existingMode = $this->modeDomainService->getModeById($dataIsolation, $modeId);
+        if (! $existingMode) {
+           ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+
         Db::beginTransaction();
         try {
-            // 从请求对象直接转换为实体
-            $modeEntity = AdminModeAssembler::updateModeRequestToEntity($request);
-            $modeEntity->setId($modeId);
+            // 将更新请求应用到现有实体（只更新允许修改的字段）
+            AdminModeAssembler::applyUpdateRequestToEntity($request, $existingMode);
 
-            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $modeEntity);
+            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $existingMode);
 
             Db::commit();
 
