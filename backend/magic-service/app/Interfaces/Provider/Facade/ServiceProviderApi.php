@@ -42,15 +42,19 @@ class ServiceProviderApi extends AbstractApi
     #[Inject]
     protected ProviderAppService $providerAppService;
 
-    // 根据分类获取服务商列表
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    /**
+     * 不需要判断管理员权限。
+     * 根据分类获取服务商列表.
+     */
     public function getServiceProviders(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
-    // 根据分类获取服务商列表
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    /**
+     * 不需要判断管理员权限。
+     * 根据分类获取服务商列表.
+     */
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);

@@ -41,6 +41,11 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     public string $projectMode = '';
 
     /**
+     * Topic mode.
+     */
+    public string $topicMode = '';
+
+    /**
      * Get topic ID (primary key).
      */
     public function getId(): string
@@ -93,6 +98,24 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     public function getProjectMode(): string
     {
         return $this->projectMode;
+    }
+
+    public function setProjectMode(string $projectMode): void
+    {
+        $this->projectMode = $projectMode;
+    }
+
+    /**
+     * Get topic mode.
+     */
+    public function getTopicMode(): string
+    {
+        return $this->topicMode;
+    }
+
+    public function setTopicMode(string $topicMode): void
+    {
+        $this->topicMode = $topicMode;
     }
 
     /**
