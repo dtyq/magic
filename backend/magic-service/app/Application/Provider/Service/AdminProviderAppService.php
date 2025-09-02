@@ -28,7 +28,6 @@ use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
@@ -424,7 +423,7 @@ readonly class AdminProviderAppService
         $icon = FileAssembler::formatPath($icon);
 
         $organizationCode = substr($icon, 0, strpos($icon, '/'));
-        $fileLink = $this->fileDomainService->getLink($organizationCode, $icon, StorageBucketType::Public);
+        $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
         return $fileLink !== null ? $fileLink->getUrl() : '';
     }
 

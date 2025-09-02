@@ -187,7 +187,35 @@ class AdminModeAssembler
     }
 
     /**
+     * 将UpdateModeRequest的数据应用到现有ModeEntity（部分更新）.
+     */
+    public static function applyUpdateRequestToEntity(UpdateModeRequest $request, ModeEntity $existingEntity): void
+    {
+        // 只更新请求中包含的允许修改的字段
+        $existingEntity->setNameI18n($request->getNameI18n());
+        $existingEntity->setPlaceholderI18n($request->getPlaceholderI18n());
+        $existingEntity->setIdentifier($request->getIdentifier());
+
+        if ($request->getIcon() !== null) {
+            $existingEntity->setIcon($request->getIcon());
+        }
+
+        if ($request->getColor() !== null) {
+            $existingEntity->setColor($request->getColor());
+        }
+
+        if ($request->getDescription() !== null) {
+            $existingEntity->setDescription($request->getDescription());
+        }
+
+        $existingEntity->setDistributionType($request->getDistributionType());
+        $existingEntity->setFollowModeId($request->getFollowModeId());
+        $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
+    }
+
+    /**
      * UpdateModeRequest转换为ModeEntity.
+     * @deprecated 请使用 applyUpdateRequestToEntity 方法进行部分更新
      */
     public static function updateModeRequestToEntity(UpdateModeRequest $request): ModeEntity
     {
