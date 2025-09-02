@@ -59,7 +59,9 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     public function show(string $code)
     {
         $authorization = $this->getAuthorization();
-        $entity = $this->superMagicAgentAppService->show($authorization, $code);
+        $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
+
+        $entity = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema);
 
         $withPromptString = (bool) $this->request->input('with_prompt_string', false);
 
