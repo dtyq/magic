@@ -9,11 +9,15 @@ namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
+use App\Application\Flow\Service\MagicFlowExecuteAppService;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Flow\DTO\MagicFlowApiChatDTO;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -116,6 +120,33 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $setting = $this->magicUserSettingDomainService->get($dataIsolation, UserSettingKey::SuperMagicAgentSort->value);
 
         return $setting?->getValue();
+    }
+
+    public function executeTool(Authenticatable $authorization, array $params): array
+    {
+        $toolCode = $params['code'] ?? '';
+        $arguments = $params['arguments'] ?? [];
+        if (empty($toolCode)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'code']);
+        }
+
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
+
+        $toolFlow = ToolsExecutor::getToolFlows($flowDataIsolation, [$toolCode])[0] ?? null;
+        if (! $toolFlow || ! $toolFlow->isEnabled()) {
+            $label = $toolFlow ? $toolFlow->getName() : $toolCode;
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.disabled', ['label' => $label]);
+        }
+        $apiChatDTO = new MagicFlowApiChatDTO();
+        $apiChatDTO->setParams($arguments);
+        $apiChatDTO->setFlowCode($toolFlow->getCode());
+        $apiChatDTO->setFlowVersionCode($toolFlow->getVersionCode());
+        $apiChatDTO->setMessage('super_magic_tool_call');
+        return di(MagicFlowExecuteAppService::class)->apiParamCallByRemoteTool(
+            $flowDataIsolation,
+            $apiChatDTO,
+            'super_magic_tool_call'
+        );
     }
 
     /**

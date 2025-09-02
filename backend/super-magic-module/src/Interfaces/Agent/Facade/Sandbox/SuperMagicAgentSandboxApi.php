@@ -26,4 +26,11 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
         $withPromptString = (bool) $this->request->input('with_prompt_string', false);
         return SuperMagicAgentAssembler::createDTO($entity, [], $withPromptString);
     }
+
+    public function executeTool()
+    {
+        $authorization = $this->getAuthorization();
+        $params = $this->request->all();
+        return $this->superMagicAgentAppService->executeTool($authorization, $params);
+    }
 }
