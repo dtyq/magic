@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Application\Contact\UserSetting\UserSettingKey;
+use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -21,11 +22,29 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     #[Inject]
     protected MagicUserSettingDomainService $magicUserSettingDomainService;
 
-    public function show(Authenticatable $authorization, string $code): SuperMagicAgentEntity
+    public function show(Authenticatable $authorization, string $code, bool $withToolScheme = false): SuperMagicAgentEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        return $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+        if ($withToolScheme) {
+            $remoteToolCodes = [];
+            foreach ($agent->getTools() as $tool) {
+                if ($tool->getType()->isRemote()) {
+                    $remoteToolCodes[] = $tool->getCode();
+                }
+            }
+            // 获取工具定义
+            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
+            foreach ($agent->getTools() as $tool) {
+                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
+                if ($remoteTool) {
+                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema() ?? []);
+                }
+            }
+        }
+        return $agent;
     }
 
     public function queries(Authenticatable $authorization, SuperMagicAgentQuery $query, Page $page): array
