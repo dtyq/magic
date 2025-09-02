@@ -113,4 +113,9 @@ class UpdateModeRequest extends FormRequest
     {
         return $this->input('placeholder_i18n', []);
     }
+
+    public function getSort(): int
+    {
+        return $this->input('sort', 0);
+    }
 }

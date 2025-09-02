@@ -195,6 +195,7 @@ class AdminModeAssembler
         $existingEntity->setNameI18n($request->getNameI18n());
         $existingEntity->setPlaceholderI18n($request->getPlaceholderI18n());
         $existingEntity->setIdentifier($request->getIdentifier());
+        $existingEntity->setSort($request->getSort());
 
         if ($request->getIcon() !== null) {
             $existingEntity->setIcon($request->getIcon());
@@ -211,15 +212,6 @@ class AdminModeAssembler
         $existingEntity->setDistributionType($request->getDistributionType());
         $existingEntity->setFollowModeId($request->getFollowModeId());
         $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
-    }
-
-    /**
-     * UpdateModeRequest转换为ModeEntity.
-     * @deprecated 请使用 applyUpdateRequestToEntity 方法进行部分更新
-     */
-    public static function updateModeRequestToEntity(UpdateModeRequest $request): ModeEntity
-    {
-        return new ModeEntity($request->all());
     }
 
     /**
