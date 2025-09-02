@@ -10,27 +10,32 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Exception;
-use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Redis\Redis;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 use function Hyperf\Translation\trans;
 
 class MessageQueueDomainService
 {
-    private const LOCK_PREFIX = 'message_queue_lock:';
+    // Unified topic lock prefix - consistent with compensation service
+    private const TOPIC_LOCK_PREFIX = 'msg_queue_compensation:topic:';
 
     private const LOCK_TIMEOUT = 10; // seconds
 
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected MessageQueueRepositoryInterface $messageQueueRepository,
-        protected Redis $redis,
-        protected StdoutLoggerInterface $logger,
+        protected LockerInterface $locker,
+        LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get(self::class);
     }
 
     /**
@@ -43,7 +48,7 @@ class MessageQueueDomainService
         array $messageContent,
         string $messageType
     ): MessageQueueEntity {
-        $lockKey = $this->getLockKey('create', $topicId, $dataIsolation->getCurrentUserId());
+        $lockKey = $this->getTopicLockKey($topicId);
 
         return $this->executeWithLock($lockKey, function () use ($dataIsolation, $projectId, $topicId, $messageContent, $messageType) {
             // Convert array message content to JSON string with Chinese support
@@ -81,7 +86,7 @@ class MessageQueueDomainService
         array $messageContent,
         string $messageType
     ): MessageQueueEntity {
-        $lockKey = $this->getLockKey('update', $topicId, $dataIsolation->getCurrentUserId());
+        $lockKey = $this->getTopicLockKey($topicId);
 
         return $this->executeWithLock($lockKey, function () use ($dataIsolation, $messageId, $projectId, $topicId, $messageContent, $messageType) {
             // Get existing message
@@ -132,7 +137,7 @@ class MessageQueueDomainService
             );
         }
 
-        $lockKey = $this->getLockKey('delete', $entity->getTopicId(), $dataIsolation->getCurrentUserId());
+        $lockKey = $this->getTopicLockKey($entity->getTopicId());
 
         return $this->executeWithLock($lockKey, function () use ($messageId, $dataIsolation) {
             return $this->messageQueueRepository->delete($messageId, $dataIsolation->getCurrentUserId());
@@ -185,7 +190,7 @@ class MessageQueueDomainService
             );
         }
 
-        $lockKey = $this->getLockKey('consume', $entity->getTopicId(), $dataIsolation->getCurrentUserId());
+        $lockKey = $this->getTopicLockKey($entity->getTopicId());
 
         return $this->executeWithLock($lockKey, function () use ($entity) {
             // Mark as in progress with optimistic locking
@@ -267,27 +272,90 @@ class MessageQueueDomainService
     }
 
     /**
-     * Execute operation with distributed lock.
+     * Acquire topic-level mutex lock.
+     * 获取话题级互斥锁.
+     */
+    public function acquireTopicLock(int $topicId, int $lockTimeout = 300): ?string
+    {
+        $lockKey = $this->getTopicLockKey($topicId);
+        $lockOwner = IdGenerator::getUniqueId32();
+
+        $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, $lockTimeout);
+
+        if (! $lockAcquired) {
+            return null; // Lock acquisition failed
+        }
+
+        return $lockOwner; // Return lock owner for later release
+    }
+
+    /**
+     * Release topic-level mutex lock.
+     * 释放话题级互斥锁.
+     */
+    public function releaseTopicLock(int $topicId, string $lockOwner): bool
+    {
+        $lockKey = $this->getTopicLockKey($topicId);
+        return $this->locker->release($lockKey, $lockOwner);
+    }
+
+    /**
+     * Get topic IDs that have pending messages for compensation.
+     * 获取有待处理消息的话题ID列表，用于补偿处理.
+     */
+    public function getCompensationTopics(int $limit = 50, array $organizationCodes = []): array
+    {
+        return $this->messageQueueRepository->getCompensationTopics($limit, $organizationCodes);
+    }
+
+    /**
+     * Get earliest pending message for specific topic.
+     * 获取指定话题的最早待处理消息.
+     */
+    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity
+    {
+        return $this->messageQueueRepository->getEarliestMessageByTopic($topicId);
+    }
+
+    /**
+     * Delay execution time for all pending messages in a topic.
+     * 延迟话题下所有待处理消息的执行时间.
+     */
+    public function delayTopicMessages(int $topicId, int $delayMinutes): bool
+    {
+        return $this->messageQueueRepository->delayTopicMessages($topicId, $delayMinutes);
+    }
+
+    /**
+     * Update message status by message ID.
+     * 更新消息状态（补偿机制专用，简化版本）.
+     */
+    public function updateStatus(int $messageId, MessageQueueStatus $status, ?string $errorMessage = null): bool
+    {
+        // Domain rule: Limit error message length to prevent database issues
+        if ($errorMessage !== null && mb_strlen($errorMessage) > 500) {
+            $errorMessage = mb_substr($errorMessage, 0, 497) . '...';
+        }
+
+        return $this->messageQueueRepository->updateStatus($messageId, $status, $errorMessage);
+    }
+
+    /**
+     * Execute operation with distributed mutex lock.
      */
     private function executeWithLock(string $lockKey, callable $callback): mixed
     {
-        $lockAcquired = false;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockAcquired = $this->locker->mutexLock($lockKey, $lockOwner, self::LOCK_TIMEOUT);
+
+        if (! $lockAcquired) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::TOPIC_LOCK_FAILED,
+                trans('message_queue.operation_locked')
+            );
+        }
 
         try {
-            // Try to acquire lock
-            $lockAcquired = $this->redis->set(
-                $lockKey,
-                time(),
-                ['nx', 'ex' => self::LOCK_TIMEOUT]
-            );
-
-            if (! $lockAcquired) {
-                ExceptionBuilder::throw(
-                    SuperAgentErrorCode::TOPIC_LOCK_FAILED,
-                    'message_queue.operation_locked'
-                );
-            }
-
             // Execute the callback
             return $callback();
         } catch (Exception $e) {
@@ -300,17 +368,16 @@ class MessageQueueDomainService
             throw $e;
         } finally {
             // Always release the lock
-            if ($lockAcquired) {
-                $this->redis->del($lockKey);
-            }
+            $this->locker->release($lockKey, $lockOwner);
         }
     }
 
     /**
-     * Generate lock key for different operations.
+     * Generate unified topic lock key - consistent with compensation service.
+     * 生成统一的话题锁Key，与补偿服务保持一致.
      */
-    private function getLockKey(string $operation, int $topicId, string $userId): string
+    private function getTopicLockKey(int $topicId): string
     {
-        return self::LOCK_PREFIX . $operation . ':' . $topicId . ':' . md5($userId);
+        return self::TOPIC_LOCK_PREFIX . $topicId;
     }
 }

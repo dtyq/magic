@@ -192,6 +192,7 @@ class TopicDomainService
         string $chatTopicId,
         string $topicName = '',
         string $workDir = '',
+        string $topicMode = ''
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -219,7 +220,9 @@ class TopicDomainService
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
-
+        if (! empty($topicMode)) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         return $this->topicRepository->createTopic($topicEntity);
     }
 
@@ -430,11 +433,6 @@ class TopicDomainService
         // Check ownership
         if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
-        }
-
-        // Check topic status - only running topics can perform message queue operations
-        if ($topicEntity->getCurrentTaskStatus() !== TaskStatus::RUNNING) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_RUNNING, 'topic.topic_not_running');
         }
 
         return $topicEntity;

@@ -75,4 +75,33 @@ interface MessageQueueRepositoryInterface
      * Update message with conditions (for status changes with concurrency control).
      */
     public function updateWithConditions(int $id, array $data, array $conditions = []): bool;
+
+    /**
+     * Get topic IDs that have pending messages for compensation.
+     * 获取有待处理消息的话题ID列表，用于补偿处理.
+     *
+     * @param int $limit Maximum number of topics to return
+     * @param array $organizationCodes Organization codes filter (empty array means all organizations)
+     * @return array Array of topic IDs
+     */
+    public function getCompensationTopics(int $limit, array $organizationCodes = []): array;
+
+    /**
+     * Get earliest pending message for specific topic.
+     * 获取指定话题的最早待处理消息.
+     *
+     * @param int $topicId Topic ID
+     * @return null|MessageQueueEntity Earliest pending message or null if none found
+     */
+    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity;
+
+    /**
+     * Delay execution time for all pending messages in a topic.
+     * 延迟话题下所有待处理消息的执行时间.
+     *
+     * @param int $topicId Topic ID
+     * @param int $delayMinutes Delay time in minutes
+     * @return bool True if any messages were updated, false otherwise
+     */
+    public function delayTopicMessages(int $topicId, int $delayMinutes): bool;
 }

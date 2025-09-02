@@ -68,53 +68,53 @@ class WorkDirectoryUtilTest extends TestCase
         $userId = 'user123';
 
         // Test legacy format (without /workspace)
-        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/some/path/SUPER_MAGIC/user123/project_456',
             $userId
         ));
 
         // Test new format (with /workspace)
-        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/some/path/SUPER_MAGIC/user123/project_456/workspace',
             $userId
         ));
 
         // Test relative path - legacy format
         $path = 'SUPER_MAGIC/user123/project_789';
-        $result = WorkDirectoryUtil::extractProjectIdFromAbsolutePath($path, $userId);
+        $result = WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($path, $userId);
         $this->assertEquals('789', $result, "Failed to extract project ID from path: {$path}, got: " . ($result ?? 'null'));
 
         // Test relative path - new format
-        $this->assertEquals('789', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('789', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             'SUPER_MAGIC/user123/project_789/workspace',
             $userId
         ));
 
         // Test with trailing slash - legacy format
-        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/some/path/SUPER_MAGIC/user123/project_456/',
             $userId
         ));
 
         // Test with trailing slash - new format
-        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('456', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/some/path/SUPER_MAGIC/user123/project_456/workspace/',
             $userId
         ));
 
         // Test with larger project ID
-        $this->assertEquals('123456789', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('123456789', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/some/path/SUPER_MAGIC/user123/project_123456789/workspace',
             $userId
         ));
 
         // Test invalid cases
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('', $userId));
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('/some/path', ''));
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('/some/path/SUPER_MAGIC/wronguser/project_456', $userId));
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('/some/path/SUPER_MAGIC/user123/project_abc', $userId));
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('/some/path/SUPER_MAGIC/user123/project_456/invalid_suffix', $userId));
-        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePath('/some/path/SUPER_MAGIC/user123/wrongformat', $userId));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('', $userId));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('/some/path', ''));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('/some/path/SUPER_MAGIC/wronguser/project_456', $userId));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('/some/path/SUPER_MAGIC/user123/project_abc', $userId));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('/some/path/SUPER_MAGIC/user123/project_456/invalid_suffix', $userId));
+        $this->assertNull(WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy('/some/path/SUPER_MAGIC/user123/wrongformat', $userId));
     }
 
     public function testBackwardCompatibility(): void
@@ -131,8 +131,8 @@ class WorkDirectoryUtilTest extends TestCase
         $this->assertTrue(WorkDirectoryUtil::isValidWorkDirectory($newPath, $userId));
 
         // Both should extract the same project ID
-        $this->assertEquals($projectId, WorkDirectoryUtil::extractProjectIdFromAbsolutePath($legacyPath, $userId));
-        $this->assertEquals($projectId, WorkDirectoryUtil::extractProjectIdFromAbsolutePath($newPath, $userId));
+        $this->assertEquals($projectId, WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($legacyPath, $userId));
+        $this->assertEquals($projectId, WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy($newPath, $userId));
     }
 
     public function testEdgeCases(): void
@@ -150,12 +150,12 @@ class WorkDirectoryUtilTest extends TestCase
             $userId
         ));
 
-        $this->assertEquals('999', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('999', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/SUPER_MAGIC/user_with_special-chars.123/project_999',
             $userId
         ));
 
-        $this->assertEquals('999', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('999', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/SUPER_MAGIC/user_with_special-chars.123/project_999/workspace',
             $userId
         ));
@@ -166,7 +166,7 @@ class WorkDirectoryUtilTest extends TestCase
             'user123'
         ));
 
-        $this->assertEquals('0', WorkDirectoryUtil::extractProjectIdFromAbsolutePath(
+        $this->assertEquals('0', WorkDirectoryUtil::extractProjectIdFromAbsolutePathLegacy(
             '/SUPER_MAGIC/user123/project_0/workspace',
             'user123'
         ));

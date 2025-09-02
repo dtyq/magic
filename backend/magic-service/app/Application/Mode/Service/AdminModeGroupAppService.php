@@ -73,7 +73,13 @@ class AdminModeGroupAppService extends AbstractModeAppService
 
             Db::commit();
 
-            return AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
+            $adminModeGroupDTO = AdminModeAssembler::groupEntityToAdminDTO($savedGroup);
+
+            $fileLinks = $this->fileDomainService->getBatchLinksByOrgPaths([$adminModeGroupDTO->getIcon()]);
+            if (isset($fileLinks[$adminModeGroupDTO->getIcon()])) {
+                $adminModeGroupDTO->setIcon($fileLinks[$adminModeGroupDTO->getIcon()]->getUrl());
+            }
+            return $adminModeGroupDTO;
         } catch (Exception $exception) {
             $this->logger->warning('Create mode group failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -84,7 +90,7 @@ class AdminModeGroupAppService extends AbstractModeAppService
     /**
      * 更新分组 (管理后台用).
      */
-    public function updateGroup(MagicUserAuthorization $authorization, string $groupId, UpdateModeGroupRequest $request): array
+    public function updateGroup(MagicUserAuthorization $authorization, string $groupId, UpdateModeGroupRequest $request): AdminModeGroupDTO
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
@@ -97,7 +103,12 @@ class AdminModeGroupAppService extends AbstractModeAppService
 
             Db::commit();
 
-            return AdminModeAssembler::groupEntityToAdminDTO($updatedGroup)->toArray();
+            $adminModeGroupDTO = AdminModeAssembler::groupEntityToAdminDTO($updatedGroup);
+            $fileLinks = $this->fileDomainService->getBatchLinksByOrgPaths([$adminModeGroupDTO->getIcon()]);
+            if (isset($fileLinks[$adminModeGroupDTO->getIcon()])) {
+                $adminModeGroupDTO->setIcon($fileLinks[$updatedGroup->getIcon()]->getUrl());
+            }
+            return $adminModeGroupDTO;
         } catch (Exception $exception) {
             $this->logger->warning('Update mode group failed: ' . $exception->getMessage());
             Db::rollBack();

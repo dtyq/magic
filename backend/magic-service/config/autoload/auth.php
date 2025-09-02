@@ -7,6 +7,8 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Auth\Guard\WebsocketChatUserGuard;
 use App\Infrastructure\Util\Auth\Guard\WebUserGuard;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Infrastructure\Utils\Auth\Guard\SandboxGuard;
+use Dtyq\SuperMagic\Interfaces\Authorization\Web\SandboxAuthorization;
 use Qbhy\HyperfAuth\Provider\EloquentProvider;
 
 return [
@@ -24,12 +26,20 @@ return [
             'driver' => WebsocketChatUserGuard::class,
             'provider' => 'magic-users',
         ],
+        'sandbox' => [
+            'driver' => SandboxGuard::class,
+            'provider' => 'sandbox',
+        ],
     ],
     'providers' => [
         // 麦吉自建用户体系
         'magic-users' => [
             'driver' => EloquentProvider::class,
             'model' => MagicUserAuthorization::class,
+        ],
+        'sandbox' => [
+            'driver' => EloquentProvider::class,
+            'model' => SandboxAuthorization::class,
         ],
     ],
 ];

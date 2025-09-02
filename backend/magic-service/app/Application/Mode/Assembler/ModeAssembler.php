@@ -47,7 +47,7 @@ class ModeAssembler
         foreach ($groupAggregate->getRelations() as $relation) {
             $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
-            // 如果提供了模型信息，则填充模型名称和图标
+            // 过滤掉套餐的情况
             $providerModelId = $relation->getProviderModelId();
             if (isset($providerModels[$providerModelId])) {
                 $providerModel = $providerModels[$providerModelId];
@@ -62,9 +62,8 @@ class ModeAssembler
                     $description = $providerModel->getDescription();
                 }
                 $modelDTO->setModelDescription($description);
+                $models[] = $modelDTO;
             }
-
-            $models[] = $modelDTO;
         }
 
         $dto->setModels($models);
@@ -78,9 +77,10 @@ class ModeAssembler
         $locale = $translator->getLocale();
 
         $array = $modeEntity->toArray();
-        unset($array['name_i18n']);
+        unset($array['name_i18n'], $array['placeholder_i18n']);
         $modeDTO = new ModeDTO($array);
         $modeDTO->setName($modeEntity->getNameI18n()[$locale]);
+        $modeDTO->setPlaceholder($modeEntity->getPlaceholderI18n()[$locale] ?? '');
         return $modeDTO;
     }
 

@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Hyperf\Logger\LoggerFactory;
 
 class AbstractAppService extends AbstractKernelAppService
 {
@@ -31,10 +32,17 @@ class AbstractAppService extends AbstractKernelAppService
         $projectDomainService = di(ProjectDomainService::class);
         $projectMemberService = di(ProjectMemberDomainService::class);
         $magicDepartmentUserDomainService = di(MagicDepartmentUserDomainService::class);
+        $logger = di(LoggerFactory::class)->get(get_class($this));
 
         $projectEntity = $projectDomainService->getProjectNotUserId($projectId);
 
         if ($projectEntity->getUserOrganizationCode() !== $organizationCode) {
+            $logger->error('Project access denied', [
+                'projectId' => $projectId,
+                'userId' => $userId,
+                'organizationCode' => $organizationCode,
+                'projectUserOrganizationCode' => $projectEntity->getUserOrganizationCode(),
+            ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
@@ -55,6 +63,13 @@ class AbstractAppService extends AbstractKernelAppService
                 return $projectEntity;
             }
         }
+
+        $logger->error('Project access denied', [
+            'projectId' => $projectId,
+            'userId' => $userId,
+            'organizationCode' => $organizationCode,
+            'projectUserOrganizationCode' => $projectEntity->getUserOrganizationCode(),
+        ]);
 
         ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
     }

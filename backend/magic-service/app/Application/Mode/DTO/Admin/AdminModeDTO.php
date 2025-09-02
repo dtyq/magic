@@ -16,6 +16,8 @@ class AdminModeDTO extends AbstractDTO
 
     protected array $nameI18n;
 
+    protected array $placeholderI18n = [];
+
     protected string $identifier;
 
     protected string $icon = '';
@@ -54,6 +56,16 @@ class AdminModeDTO extends AbstractDTO
     public function setNameI18n(array $nameI18n): void
     {
         $this->nameI18n = $nameI18n;
+    }
+
+    public function getPlaceholderI18n(): array
+    {
+        return $this->placeholderI18n;
+    }
+
+    public function setPlaceholderI18n(array $placeholderI18n): void
+    {
+        $this->placeholderI18n = $placeholderI18n;
     }
 
     public function getIdentifier(): string

@@ -29,7 +29,7 @@ class SuperMagicAgentDTO extends AbstractDTO
     /**
      * Agent图标.
      */
-    public string $icon = '';
+    public array $icon = [];
 
     /**
      * 系统提示词.
@@ -76,14 +76,14 @@ class SuperMagicAgentDTO extends AbstractDTO
         $this->description = $description ?? '';
     }
 
-    public function getIcon(): string
+    public function getIcon(): array
     {
         return $this->icon;
     }
 
-    public function setIcon(?string $icon): void
+    public function setIcon(?array $icon): void
     {
-        $this->icon = $icon ?? '';
+        $this->icon = $icon ?? [];
     }
 
     public function getPrompt(): array
