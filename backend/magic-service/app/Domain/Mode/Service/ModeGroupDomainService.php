@@ -86,21 +86,6 @@ class ModeGroupDomainService
     }
 
     /**
-     * 分组拖拽排序.
-     */
-    public function sortGroups(ModeDataIsolation $dataIsolation, array $groupIds): void
-    {
-        // 构建 ID -> sort 值映射（从最大值开始递减，确保第一个元素sort值最大）
-        $groupIdSortMap = [];
-        $maxSort = count($groupIds);
-        foreach ($groupIds as $index => $groupId) {
-            $groupIdSortMap[$groupId] = $maxSort - $index;
-        }
-
-        $this->groupRepository->batchUpdateSort($dataIsolation, $groupIdSortMap);
-    }
-
-    /**
      * 验证模式是否存在.
      */
     private function validateModeExists(ModeDataIsolation $dataIsolation, int $modeId): void
