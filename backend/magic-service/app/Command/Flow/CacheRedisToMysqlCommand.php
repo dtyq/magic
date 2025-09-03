@@ -68,10 +68,10 @@ class CacheRedisToMysqlCommand extends HyperfCommand
                     break;
                 }
                 // Use cursor-based SCAN for better performance
-                // Account for Redis prefix configuration (magic:) 
+                // Account for Redis prefix configuration (magic:)
                 $scanPattern = 'magic:' . self::REDIS_KEY_PREFIX . ':*';
                 $result = $this->redis->rawCommand('SCAN', $cursor, 'MATCH', $scanPattern, 'COUNT', self::BATCH_SIZE);
-                
+
                 $this->line("Scanning with pattern: {$scanPattern}", 'comment');
 
                 if (! is_array($result) || count($result) < 2) {
@@ -97,7 +97,7 @@ class CacheRedisToMysqlCommand extends HyperfCommand
                         try {
                             // Get TTL for the key
                             $ttl = $this->redis->ttl($redisKey);
-                            
+
                             // Parse Redis key to extract prefix and key
                             $parsedKey = $this->parseRedisKey($redisKey);
                             if (! $parsedKey) {
@@ -113,7 +113,7 @@ class CacheRedisToMysqlCommand extends HyperfCommand
                                 ++$totalErrors;
                                 continue;
                             }
-                            
+
                             // Unserialize PHP serialized data
                             $decodedValue = $this->decodeValue($value);
                             if ($decodedValue === null) {
@@ -124,7 +124,7 @@ class CacheRedisToMysqlCommand extends HyperfCommand
 
                             $ttlDescription = $ttl === -1 ? 'permanent' : "{$ttl}s";
                             $this->line("Found cache: {$redisKey} (TTL: {$ttlDescription})", 'comment');
-                            
+
                             // Show decoded value preview
                             $valuePreview = strlen($decodedValue) > 100 ? substr($decodedValue, 0, 100) . '...' : $decodedValue;
                             $this->line("  Decoded value: {$valuePreview}", 'comment');
@@ -222,7 +222,7 @@ class CacheRedisToMysqlCommand extends HyperfCommand
     /**
      * Decode value from Redis cache.
      * Handles PHP serialized data and returns string representation.
-     * 
+     *
      * @param string $value Raw value from Redis
      * @return null|string Decoded value or null on failure
      */
@@ -231,24 +231,25 @@ class CacheRedisToMysqlCommand extends HyperfCommand
         try {
             // Try to unserialize PHP serialized data
             $unserialized = @unserialize($value);
-            
+
             if ($unserialized !== false || $value === serialize(false)) {
                 // Successfully unserialized, convert to string representation
                 if (is_string($unserialized)) {
                     return $unserialized;
-                } else if (is_array($unserialized) || is_object($unserialized)) {
-                    return json_encode($unserialized, JSON_UNESCAPED_UNICODE);
-                } else if (is_bool($unserialized)) {
-                    return $unserialized ? 'true' : 'false';
-                } else if (is_null($unserialized)) {
-                    return 'null';
-                } else {
-                    return (string) $unserialized;
                 }
-            } else {
-                // Not serialized data, return as is
-                return $value;
+                if (is_array($unserialized) || is_object($unserialized)) {
+                    return json_encode($unserialized, JSON_UNESCAPED_UNICODE);
+                }
+                if (is_bool($unserialized)) {
+                    return $unserialized ? 'true' : 'false';
+                }
+                if (is_null($unserialized)) {
+                    return 'null';
+                }
+                return (string) $unserialized;
             }
+            // Not serialized data, return as is
+            return $value;
         } catch (Exception $e) {
             $this->logger->error('DecodeValueFailed', [
                 'value' => substr($value, 0, 200), // Log first 200 chars
