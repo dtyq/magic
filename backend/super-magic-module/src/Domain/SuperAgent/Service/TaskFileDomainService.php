@@ -33,6 +33,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayI
 use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileSortUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -328,40 +329,92 @@ class TaskFileDomainService
      */
     public function saveProjectFile(
         DataIsolation $dataIsolation,
-        TaskFileEntity $taskFileEntity
-    ): TaskFileEntity {
-        // Check if file already exists by project_id and file_key
-        if ($taskFileEntity->getProjectId() > 0 && ! empty($taskFileEntity->getFileKey())) {
-            $existingFile = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey());
-            if ($existingFile !== null) {
-                return $existingFile;
+        ProjectEntity $projectEntity,
+        TaskFileEntity $taskFileEntity,
+        string $storageType = '',
+        bool $isUpdated = false
+    ): ?TaskFileEntity {
+        // 检查输入参数
+        if ($taskFileEntity->getProjectId() <= 0 || empty($taskFileEntity->getFileKey())) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_NOT_FOUND,
+                trans('file.file_not_found')
+            );
+        }
+        try {
+            // 查找文件是否存在
+            $fileEntity = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey());
+            if (! empty($fileEntity) && $isUpdated === false) {
+                return $fileEntity;
             }
+
+            $isCreated = false;
+            $currentTime = date('Y-m-d H:i:s');
+            if (empty($fileEntity)) {
+                $isCreated = true;
+                $fileEntity = new TaskFileEntity();
+                $fileEntity->setFileId(IdGenerator::getSnowId());
+                $fileEntity->setFileKey($taskFileEntity->getFileKey());
+                $fileEntity->setCreatedAt($currentTime);
+            }
+
+            // id 相关设置
+            $fileEntity->setProjectId($taskFileEntity->getProjectId());
+            $fileEntity->setUserId($dataIsolation->getCurrentUserId());
+            $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $fileEntity->setTopicId($taskFileEntity->getTopicId());
+            //            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
+            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
+            //            }
+            //            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
+            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
+            //            }
+
+            // 文件信息相关设置
+            $fileEntity->setFileType($taskFileEntity->getFileType() ?? FileType::PROCESS->value);
+            $fileEntity->setFileName($taskFileEntity->getFileName() ?? basename($taskFileEntity->getFileKey()));
+            $fileEntity->setFileExtension($taskFileEntity->getFileExtension() ?? pathinfo($fileEntity->getFileName(), PATHINFO_EXTENSION));
+            $fileEntity->setFileSize($taskFileEntity->getFileSize() ?? 0);
+
+            // 设置存储类型，由于其他快照文件也存储到工作区，这里需要做下处理
+            if (empty($storageType)) {
+                if ($taskFileEntity->getStorageType() == StorageType::WORKSPACE->value && WorkFileUtil::isSnapshotFile($fileEntity->getFileKey())) {
+                    $fileEntity->setStorageType(StorageType::SNAPSHOT);
+                } else {
+                    $fileEntity->setStorageType($taskFileEntity->getStorageType());
+                }
+            } else {
+                $fileEntity->setStorageType($storageType);
+            }
+            $fileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileEntity->getFileKey()));
+            $fileEntity->setIsDirectory($taskFileEntity->getIsDirectory());
+            $fileEntity->setSort($taskFileEntity->getSort() ?? 0);
+
+            if (empty($taskFileEntity->getParentId())) {
+                $parentId = $this->findOrCreateDirectoryAndGetParentId(
+                    $projectEntity->getId(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileEntity->getFileKey(),
+                    $projectEntity->getWorkDir()
+                );
+                $fileEntity->setParentId($parentId);
+            } else {
+                $fileEntity->setParentId($taskFileEntity->getParentId());
+            }
+
+            $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
+            $fileEntity->setMetadata($taskFileEntity->getMetadata() ?? '');
+            $fileEntity->setUpdatedAt($currentTime);
+
+            if ($isCreated) {
+                return $this->taskFileRepository->insertOrIgnore($fileEntity);
+            }
+            return $this->taskFileRepository->updateById($taskFileEntity);
+        } catch (Throwable $e) {
+            $this->logger->error('Error saving project file', ['file_key' => $taskFileEntity->getFileKey(), 'error' => $e->getMessage()]);
+            throw $e;
         }
-
-        // Set data isolation context
-        $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
-        $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-
-        // Generate file ID if not set
-        if ($taskFileEntity->getFileId() === 0) {
-            $taskFileEntity->setFileId(IdGenerator::getSnowId());
-        }
-
-        // Extract file extension from file name if not set
-        if (empty($taskFileEntity->getFileExtension()) && ! empty($taskFileEntity->getFileName())) {
-            $fileExtension = pathinfo($taskFileEntity->getFileName(), PATHINFO_EXTENSION);
-            $taskFileEntity->setFileExtension($fileExtension);
-        }
-
-        // Set timestamps
-        $now = date('Y-m-d H:i:s');
-        $taskFileEntity->setCreatedAt($now);
-        $taskFileEntity->setUpdatedAt($now);
-
-        // Save to repository
-        $this->insert($taskFileEntity);
-
-        return $taskFileEntity;
     }
 
     /**
@@ -1694,7 +1747,7 @@ class TaskFileDomainService
         $dirEntity->setIsDirectory(true);
         $dirEntity->setParentId($parentId);
         $dirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
-        if (WorkDirectoryUtil::isSnapshotFile($fileKey)) {
+        if (WorkFileUtil::isSnapshotFile($fileKey)) {
             $dirEntity->setStorageType(StorageType::SNAPSHOT);
         } else {
             $dirEntity->setStorageType(StorageType::WORKSPACE);
@@ -1795,7 +1848,7 @@ class TaskFileDomainService
         $taskFileEntity->setIsDirectory($isDirectory);
         $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
         $taskFileEntity->setSource(TaskFileSource::AGENT);
-        if (WorkDirectoryUtil::isSnapshotFile($fileKey)) {
+        if (WorkFileUtil::isSnapshotFile($fileKey)) {
             $taskFileEntity->setStorageType(StorageType::SNAPSHOT);
         } else {
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);

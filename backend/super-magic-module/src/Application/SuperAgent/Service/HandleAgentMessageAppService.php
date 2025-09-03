@@ -40,6 +40,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -736,7 +737,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             );
 
             // 3. Call FileProcessAppService with parentId
-            if (WorkDirectoryUtil::isSnapshotFile($attachment['file_key'])) {
+            if (WorkFileUtil::isSnapshotFile($attachment['file_key'])) {
                 $storageType = StorageType::SNAPSHOT->value;
             } else {
                 $storageType = StorageType::WORKSPACE->value;
