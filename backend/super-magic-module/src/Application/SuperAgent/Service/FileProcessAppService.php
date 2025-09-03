@@ -904,20 +904,6 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
-    public function getFileVersions(int $fileId): array
-    {
-        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
-        if (empty($taskFileEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
-        }
-
-        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
-        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
-
-        return [];
-        // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
-    }
-
     public function getGitDir(string $fileKey): string
     {
         return '.workspace';

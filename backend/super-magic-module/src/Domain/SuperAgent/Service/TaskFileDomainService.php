@@ -223,7 +223,6 @@ class TaskFileDomainService
 
     /**
      * 根据文件key和topicId获取相对于工作目录的文件路径。
-     * 逻辑参考 AgentFileAppService::getFileVersions 方法。
      *
      * @param string $fileKey 完整的文件key（包含 workDir 前缀）
      * @param int $topicId 话题 ID

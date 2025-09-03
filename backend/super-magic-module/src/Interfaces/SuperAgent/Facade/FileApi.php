@@ -173,27 +173,6 @@ class FileApi extends AbstractApi
     }
 
     /**
-     * 获取文件版本列表.
-     */
-    public function getFileVersions(RequestContext $requestContext)
-    {
-        $fileId = (int) $this->request->input('file_id', '');
-        $topicId = (int) $this->request->input('topic_id', '');
-        return $this->agentFileAppService->getFileVersions($fileId, $topicId);
-    }
-
-    /**
-     * 获取文件版本内容.
-     */
-    public function getFileVersionContent(RequestContext $requestContext)
-    {
-        $fileId = (int) $this->request->input('file_id', '');
-        $commitHash = $this->request->input('commit_hash', '');
-        $topicId = (int) $this->request->input('topic_id', '');
-        return $this->agentFileAppService->getFileVersionContent($fileId, $commitHash, $topicId);
-    }
-
-    /**
      * 批量保存文件内容.
      * 并发执行沙箱文件编辑和OSS保存.
      *
