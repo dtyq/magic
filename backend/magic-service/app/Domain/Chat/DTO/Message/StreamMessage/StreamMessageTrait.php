@@ -28,7 +28,7 @@ trait StreamMessageTrait
         return $this->streamOptions ?? null;
     }
 
-    public function setStreamOptions(null|array|StreamOptions $streamOptions): static
+    public function setStreamOptions(array|StreamOptions|null $streamOptions): static
     {
         if (is_array($streamOptions)) {
             $this->streamOptions = new StreamOptions($streamOptions);

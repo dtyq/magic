@@ -187,7 +187,7 @@ class MagicDepartmentUserEntity extends AbstractEntity implements ArrayAccess
         return $this->employeeType;
     }
 
-    public function setEmployeeType(null|EmployeeType|int|string $employeeType): void
+    public function setEmployeeType(EmployeeType|int|string|null $employeeType): void
     {
         if (is_numeric($employeeType)) {
             $employeeType = EmployeeType::from((int) $employeeType);

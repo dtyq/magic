@@ -490,7 +490,7 @@ sql;
         return SeqAssembler::getClientSeqStructs($seqInfos, $messages);
     }
 
-    private function getSeqExtra(null|array|string $extra): string
+    private function getSeqExtra(array|string|null $extra): string
     {
         if (empty($extra)) {
             return '{}';

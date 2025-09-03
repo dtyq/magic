@@ -65,7 +65,7 @@ class LLMStreamCachedDTO extends AbstractEntity
         return $this->receiveMessageId ?? null;
     }
 
-    public function setReceiveMessageId(null|int|string $receiveMessageId): self
+    public function setReceiveMessageId(int|string|null $receiveMessageId): self
     {
         if (is_numeric($receiveMessageId)) {
             $this->receiveMessageId = (string) $receiveMessageId;
@@ -80,7 +80,7 @@ class LLMStreamCachedDTO extends AbstractEntity
         return $this->senderMessageId ?? null;
     }
 
-    public function setSenderMessageId(null|int|string $senderMessageId): self
+    public function setSenderMessageId(int|string|null $senderMessageId): self
     {
         if (is_numeric($senderMessageId)) {
             $this->senderMessageId = (string) $senderMessageId;
@@ -95,7 +95,7 @@ class LLMStreamCachedDTO extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(null|int|StreamMessageStatus|string $status): self
+    public function setStatus(int|StreamMessageStatus|string|null $status): self
     {
         if (is_numeric($status)) {
             $this->status = StreamMessageStatus::from((int) $status);

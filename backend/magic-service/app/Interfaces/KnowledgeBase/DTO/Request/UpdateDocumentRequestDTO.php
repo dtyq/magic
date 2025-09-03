@@ -106,7 +106,7 @@ class UpdateDocumentRequestDTO extends AbstractRequestDTO
         return $this->fragmentConfig;
     }
 
-    public function setFragmentConfig(null|array|FragmentConfig $fragmentConfig): static
+    public function setFragmentConfig(array|FragmentConfig|null $fragmentConfig): static
     {
         is_array($fragmentConfig) && $fragmentConfig = FragmentConfig::fromArray($fragmentConfig);
         $this->fragmentConfig = $fragmentConfig;

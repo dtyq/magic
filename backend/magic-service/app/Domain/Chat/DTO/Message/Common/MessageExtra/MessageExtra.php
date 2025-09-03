@@ -27,7 +27,7 @@ class MessageExtra extends AbstractDTO
         return $this->superAgent ?? null;
     }
 
-    public function setSuperAgent(null|array|SuperAgentExtra $superAgent): void
+    public function setSuperAgent(array|SuperAgentExtra|null $superAgent): void
     {
         if ($superAgent instanceof SuperAgentExtra) {
             $this->superAgent = $superAgent;

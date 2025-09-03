@@ -35,7 +35,7 @@ class ProviderConfigIdAssembler
      * 检查给定的配置ID是否为任何服务商的模板.
      * 支持数值型字符串格式的模板ID.
      */
-    public static function isAnyProviderTemplate(null|int|string $configId): bool
+    public static function isAnyProviderTemplate(int|string|null $configId): bool
     {
         return self::parseProviderTemplate($configId) !== null;
     }
@@ -45,7 +45,7 @@ class ProviderConfigIdAssembler
      * 支持数值型字符串格式的模板ID.
      * @return null|array{providerCode: ProviderCode, category: Category}
      */
-    public static function parseProviderTemplate(null|int|string $configId): ?array
+    public static function parseProviderTemplate(int|string|null $configId): ?array
     {
         if ($configId === null) {
             return null;
@@ -72,7 +72,7 @@ class ProviderConfigIdAssembler
     /**
      * 根据数值型字符串获取对应的ProviderTemplateId.
      */
-    public static function getTemplateIdFromValue(null|int|string $configId): ?ProviderTemplateId
+    public static function getTemplateIdFromValue(int|string|null $configId): ?ProviderTemplateId
     {
         if ($configId === null) {
             return null;

@@ -323,7 +323,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->thirdPlatformType;
     }
 
-    public function setThirdPlatformType(null|PlatformType|string $thirdPlatformType): static
+    public function setThirdPlatformType(PlatformType|string|null $thirdPlatformType): static
     {
         if (is_string($thirdPlatformType)) {
             $this->thirdPlatformType = PlatformType::from($thirdPlatformType);

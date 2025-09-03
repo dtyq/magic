@@ -50,7 +50,7 @@ class ProviderEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         if (is_numeric($id)) {
             $this->id = (int) $id;
@@ -64,7 +64,7 @@ class ProviderEntity extends AbstractEntity
         return $this->name;
     }
 
-    public function setName(null|int|string $name): void
+    public function setName(int|string|null $name): void
     {
         if ($name === null) {
             $this->name = '';
@@ -78,7 +78,7 @@ class ProviderEntity extends AbstractEntity
         return $this->providerCode;
     }
 
-    public function setProviderCode(null|int|ProviderCode|string $providerCode): void
+    public function setProviderCode(int|ProviderCode|string|null $providerCode): void
     {
         if ($providerCode === null || $providerCode === '') {
             $this->providerCode = ProviderCode::Official;
@@ -94,7 +94,7 @@ class ProviderEntity extends AbstractEntity
         return $this->description;
     }
 
-    public function setDescription(null|int|string $description): void
+    public function setDescription(int|string|null $description): void
     {
         if ($description === null) {
             $this->description = '';
@@ -108,7 +108,7 @@ class ProviderEntity extends AbstractEntity
         return $this->icon;
     }
 
-    public function setIcon(null|int|string $icon): void
+    public function setIcon(int|string|null $icon): void
     {
         if ($icon === null) {
             $this->icon = '';
@@ -122,7 +122,7 @@ class ProviderEntity extends AbstractEntity
         return $this->providerType;
     }
 
-    public function setProviderType(null|int|ProviderType|string $providerType): void
+    public function setProviderType(int|ProviderType|string|null $providerType): void
     {
         if ($providerType === null || $providerType === '') {
             $this->providerType = ProviderType::Normal;
@@ -138,7 +138,7 @@ class ProviderEntity extends AbstractEntity
         return $this->category;
     }
 
-    public function setCategory(null|Category|int|string $category): void
+    public function setCategory(Category|int|string|null $category): void
     {
         if ($category === null || $category === '') {
             $this->category = Category::LLM;
@@ -154,7 +154,7 @@ class ProviderEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(null|int|Status|string $status): void
+    public function setStatus(int|Status|string|null $status): void
     {
         if ($status === null || $status === '') {
             $this->status = Status::Disabled;
@@ -170,7 +170,7 @@ class ProviderEntity extends AbstractEntity
         return $this->isModelsEnable;
     }
 
-    public function setIsModelsEnable(null|int|string $isModelsEnable): void
+    public function setIsModelsEnable(int|string|null $isModelsEnable): void
     {
         if ($isModelsEnable === null) {
             $this->isModelsEnable = 0;
@@ -184,7 +184,7 @@ class ProviderEntity extends AbstractEntity
         return $this->translate;
     }
 
-    public function setTranslate(null|array|string $translate): void
+    public function setTranslate(array|string|null $translate): void
     {
         if ($translate === null) {
             $this->translate = [];
@@ -201,7 +201,7 @@ class ProviderEntity extends AbstractEntity
         return $this->remark;
     }
 
-    public function setRemark(null|int|string $remark): void
+    public function setRemark(int|string|null $remark): void
     {
         if ($remark === null) {
             $this->remark = '';
@@ -235,7 +235,7 @@ class ProviderEntity extends AbstractEntity
         return $this->deletedAt;
     }
 
-    public function setDeletedAt(null|DateTime|string $deletedAt): void
+    public function setDeletedAt(DateTime|string|null $deletedAt): void
     {
         if ($deletedAt === null) {
             $this->deletedAt = null;

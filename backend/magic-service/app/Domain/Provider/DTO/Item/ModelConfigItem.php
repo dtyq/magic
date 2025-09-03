@@ -46,7 +46,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->maxTokens;
     }
 
-    public function setMaxTokens(null|int|string $maxTokens): void
+    public function setMaxTokens(int|string|null $maxTokens): void
     {
         if ($maxTokens === null) {
             $this->maxTokens = null;
@@ -60,7 +60,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->vectorSize;
     }
 
-    public function setVectorSize(null|int|string $vectorSize): void
+    public function setVectorSize(int|string|null $vectorSize): void
     {
         if ($vectorSize === null) {
             $this->vectorSize = 2048;
@@ -74,7 +74,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->supportMultiModal;
     }
 
-    public function setSupportMultiModal(null|bool|int|string $supportMultiModal): void
+    public function setSupportMultiModal(bool|int|string|null $supportMultiModal): void
     {
         if ($supportMultiModal === null) {
             $this->supportMultiModal = false;
@@ -90,7 +90,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->supportEmbedding;
     }
 
-    public function setSupportEmbedding(null|bool|int|string $supportEmbedding): void
+    public function setSupportEmbedding(bool|int|string|null $supportEmbedding): void
     {
         if ($supportEmbedding === null) {
             $this->supportEmbedding = false;
@@ -106,7 +106,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->supportFunction;
     }
 
-    public function setSupportFunction(null|bool|int|string $supportFunction): void
+    public function setSupportFunction(bool|int|string|null $supportFunction): void
     {
         if ($supportFunction === null) {
             $this->supportFunction = false;
@@ -122,7 +122,7 @@ class ModelConfigItem extends AbstractDTO
         return $this->supportDeepThink;
     }
 
-    public function setSupportDeepThink(null|bool|int|string $supportDeepThink): void
+    public function setSupportDeepThink(bool|int|string|null $supportDeepThink): void
     {
         if ($supportDeepThink === null) {
             $this->supportDeepThink = false;

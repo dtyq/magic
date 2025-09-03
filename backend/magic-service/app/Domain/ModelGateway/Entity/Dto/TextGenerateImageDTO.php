@@ -80,7 +80,7 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         return $this->watermark;
     }
 
-    public function setWatermark(null|array|WatermarkConfig $watermark): void
+    public function setWatermark(array|WatermarkConfig|null $watermark): void
     {
         if (is_array($watermark)) {
             $watermark = new WatermarkConfig($watermark['logo_text_content'] ?? '', $watermark['position'] ?? 3, $watermark['opacity'] ?? 0.3);

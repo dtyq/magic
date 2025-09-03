@@ -53,6 +53,13 @@ class AdminModeApi extends AbstractApi
         return $this->adminModeAppService->getModeById($authorization, $id);
     }
 
+    public function getOriginMode(RequestInterface $request, string $id)
+    {
+        $authorization = $this->getAuthorization();
+        $this->checkAuth($authorization);
+        return $this->adminModeAppService->getOriginMode($authorization, $id);
+    }
+
     /**
      * 创建模式.
      */
