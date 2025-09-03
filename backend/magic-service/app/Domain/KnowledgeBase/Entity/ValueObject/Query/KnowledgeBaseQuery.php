@@ -121,7 +121,7 @@ class KnowledgeBaseQuery extends Query
         return $this->searchType;
     }
 
-    public function setSearchType(int|SearchType|null $searchType): KnowledgeBaseQuery
+    public function setSearchType(null|int|SearchType $searchType): KnowledgeBaseQuery
     {
         is_int($searchType) && $searchType = SearchType::from($searchType);
         $this->searchType = $searchType ?? SearchType::ALL;

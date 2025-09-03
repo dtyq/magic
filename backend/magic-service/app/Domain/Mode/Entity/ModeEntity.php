@@ -193,7 +193,7 @@ class ModeEntity extends AbstractEntity
         return $this->followModeId;
     }
 
-    public function setFollowModeId(int|string|null $followModeId): self
+    public function setFollowModeId(null|int|string $followModeId): self
     {
         if (is_null($followModeId)) {
             $followModeId = 0;

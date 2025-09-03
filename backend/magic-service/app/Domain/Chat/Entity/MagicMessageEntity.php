@@ -99,7 +99,7 @@ class MagicMessageEntity extends AbstractEntity
         return $this->currentVersionId ?? null;
     }
 
-    public function setCurrentVersionId(int|string|null $currentVersionId): static
+    public function setCurrentVersionId(null|int|string $currentVersionId): static
     {
         if (is_numeric($currentVersionId)) {
             $this->currentVersionId = (string) $currentVersionId;

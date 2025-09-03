@@ -60,7 +60,7 @@ final class MagicConversationEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(ConversationStatus|int|null $status): void
+    public function setStatus(null|ConversationStatus|int $status): void
     {
         if (is_int($status)) {
             $status = ConversationStatus::tryFrom($status);
@@ -73,7 +73,7 @@ final class MagicConversationEntity extends AbstractEntity
         return $this->extra;
     }
 
-    public function setExtra(ConversationExtra|string|null $extra): void
+    public function setExtra(null|ConversationExtra|string $extra): void
     {
         if (is_string($extra) && ! empty($extra)) {
             $extraData = Json::decode($extra);
@@ -90,7 +90,7 @@ final class MagicConversationEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         if (is_int($id)) {
             $id = (string) $id;
@@ -224,7 +224,7 @@ final class MagicConversationEntity extends AbstractEntity
         return $this->translateConfig;
     }
 
-    public function setTranslateConfig(array|string|null $translateConfig): void
+    public function setTranslateConfig(null|array|string $translateConfig): void
     {
         $translateConfig = $this->transformJson($translateConfig);
         $this->translateConfig = $translateConfig;
@@ -235,7 +235,7 @@ final class MagicConversationEntity extends AbstractEntity
         return $this->instructs;
     }
 
-    public function setInstructs(array|string|null $instructs): void
+    public function setInstructs(null|array|string $instructs): void
     {
         $instructs = $this->transformJson($instructs);
         $this->instructs = $instructs;

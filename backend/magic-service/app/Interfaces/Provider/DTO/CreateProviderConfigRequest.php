@@ -79,7 +79,7 @@ class CreateProviderConfigRequest extends AbstractDTO
         return $this->sort;
     }
 
-    public function setSort(int|string|null $sort): void
+    public function setSort(null|int|string $sort): void
     {
         if ($sort === null) {
             $this->sort = 0;

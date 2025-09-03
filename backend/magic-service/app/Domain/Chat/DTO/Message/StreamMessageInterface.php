@@ -21,5 +21,5 @@ interface StreamMessageInterface extends JsonSerializable, Arrayable
 
     public function getStreamOptions(): ?StreamOptions;
 
-    public function setStreamOptions(array|StreamOptions|null $streamOptions): static;
+    public function setStreamOptions(null|array|StreamOptions $streamOptions): static;
 }

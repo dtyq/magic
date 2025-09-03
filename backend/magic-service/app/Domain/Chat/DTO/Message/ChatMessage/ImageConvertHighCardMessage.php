@@ -41,7 +41,7 @@ class ImageConvertHighCardMessage extends AbstractChatMessageStruct implements C
         return $this->type;
     }
 
-    public function setType(ImageConvertHighResponseType|int|null $type): ImageConvertHighCardMessage
+    public function setType(null|ImageConvertHighResponseType|int $type): ImageConvertHighCardMessage
     {
         if (is_int($type)) {
             $type = ImageConvertHighResponseType::from($type);

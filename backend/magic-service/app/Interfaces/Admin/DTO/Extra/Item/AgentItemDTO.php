@@ -17,7 +17,7 @@ class AgentItemDTO extends AbstractDTO
 
     public ?string $avatar;
 
-    public function __construct(array|string|null $data = null)
+    public function __construct(null|array|string $data = null)
     {
         // 兼容前端传参
         is_string($data) && $data = ['agent_id' => $data];

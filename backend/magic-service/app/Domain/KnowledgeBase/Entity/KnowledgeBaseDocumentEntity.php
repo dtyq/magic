@@ -225,7 +225,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->retrieveConfig;
     }
 
-    public function setRetrieveConfig(array|RetrieveConfig|null $retrieveConfig): self
+    public function setRetrieveConfig(null|array|RetrieveConfig $retrieveConfig): self
     {
         is_array($retrieveConfig) && $retrieveConfig = RetrieveConfig::fromArray($retrieveConfig);
         $this->retrieveConfig = $retrieveConfig;
@@ -237,7 +237,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->fragmentConfig ?? $this->getDefaultFragmentConfig();
     }
 
-    public function setFragmentConfig(array|FragmentConfig|null $fragmentConfig): self
+    public function setFragmentConfig(null|array|FragmentConfig $fragmentConfig): self
     {
         // 默认配置
         empty($fragmentConfig) && $fragmentConfig = $this->getDefaultFragmentConfig();
@@ -375,7 +375,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->documentFile;
     }
 
-    public function setDocumentFile(array|DocumentFileInterface|null $documentFile): self
+    public function setDocumentFile(null|array|DocumentFileInterface $documentFile): self
     {
         is_array($documentFile) && $documentFile = AbstractDocumentFile::fromArray($documentFile);
         $this->documentFile = $documentFile;

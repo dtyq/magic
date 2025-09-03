@@ -86,7 +86,7 @@ class EndpointResponseDTO extends AbstractDTO
         return $this->id ?? '';
     }
 
-    public function setId(int|string|null $id): static
+    public function setId(null|int|string $id): static
     {
         $this->id = (string) $id;
         return $this;

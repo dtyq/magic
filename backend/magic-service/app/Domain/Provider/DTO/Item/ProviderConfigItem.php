@@ -67,7 +67,7 @@ class ProviderConfigItem extends AbstractDTO
         return $this->region;
     }
 
-    public function setAk(int|string|null $ak): void
+    public function setAk(null|int|string $ak): void
     {
         if ($ak === null) {
             $this->ak = '';
@@ -76,7 +76,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setSk(int|string|null $sk): void
+    public function setSk(null|int|string $sk): void
     {
         if ($sk === null) {
             $this->sk = '';
@@ -85,7 +85,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setApiKey(int|string|null $apiKey): void
+    public function setApiKey(null|int|string $apiKey): void
     {
         if ($apiKey === null) {
             $this->apiKey = '';
@@ -94,7 +94,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setUrl(int|string|null $url): void
+    public function setUrl(null|int|string $url): void
     {
         if ($url === null) {
             $this->url = '';
@@ -103,7 +103,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setProxyUrl(int|string|null $proxyUrl): void
+    public function setProxyUrl(null|int|string $proxyUrl): void
     {
         if ($proxyUrl === null) {
             $this->proxyUrl = '';
@@ -112,7 +112,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setApiVersion(int|string|null $apiVersion): void
+    public function setApiVersion(null|int|string $apiVersion): void
     {
         if ($apiVersion === null) {
             $this->apiVersion = '';
@@ -121,7 +121,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setDeploymentName(int|string|null $deploymentName): void
+    public function setDeploymentName(null|int|string $deploymentName): void
     {
         if ($deploymentName === null) {
             $this->deploymentName = '';
@@ -130,7 +130,7 @@ class ProviderConfigItem extends AbstractDTO
         }
     }
 
-    public function setRegion(int|string|null $region): void
+    public function setRegion(null|int|string $region): void
     {
         if ($region === null) {
             $this->region = '';

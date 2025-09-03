@@ -24,7 +24,7 @@ class OperatorAssembler
         return $dto;
     }
 
-    public static function createOperatorDTOByUserEntity(?MagicUserEntity $user, DateTime|string|null $dateTime = null): ?OperatorDTO
+    public static function createOperatorDTOByUserEntity(?MagicUserEntity $user, null|DateTime|string $dateTime = null): ?OperatorDTO
     {
         if (! $user) {
             return null;

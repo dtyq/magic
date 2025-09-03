@@ -43,7 +43,7 @@ class MagicTokenEntity extends AbstractEntity
         return $this->extra;
     }
 
-    public function setExtra(array|MagicTokenExtraInterface|string|null $extra): void
+    public function setExtra(null|array|MagicTokenExtraInterface|string $extra): void
     {
         if (is_string($extra) && $extra !== '') {
             $extra = Json::decode($extra);

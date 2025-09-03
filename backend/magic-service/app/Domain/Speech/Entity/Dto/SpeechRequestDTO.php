@@ -147,7 +147,7 @@ class SpeechRequestDTO extends AbstractDTO
         return $this->corpus;
     }
 
-    public function setCorpus(array|SpeechCorpusDTO|null $corpus): void
+    public function setCorpus(null|array|SpeechCorpusDTO $corpus): void
     {
         if (is_array($corpus)) {
             $corpus = new SpeechCorpusDTO($corpus);

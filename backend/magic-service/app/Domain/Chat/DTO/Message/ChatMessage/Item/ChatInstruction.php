@@ -44,7 +44,7 @@ class ChatInstruction extends AbstractEntity
         return $this->instruction;
     }
 
-    public function setInstruction(array|InstructionConfig|null $instruction): void
+    public function setInstruction(null|array|InstructionConfig $instruction): void
     {
         if (isset($instruction)) {
             if (is_array($instruction)) {

@@ -39,7 +39,7 @@ class ProviderConfigModelsDTO extends ProviderConfigDTO
         return $this->models;
     }
 
-    public function setModels(array|string|null $models): void
+    public function setModels(null|array|string $models): void
     {
         if ($models === null) {
             $this->models = [];

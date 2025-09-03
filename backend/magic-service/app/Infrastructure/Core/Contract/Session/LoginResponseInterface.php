@@ -33,7 +33,7 @@ interface LoginResponseInterface
 
     public function getThirdPlatformType(): PlatformType;
 
-    public function setThirdPlatformType(PlatformType|string|null $thirdPlatformType): self;
+    public function setThirdPlatformType(null|PlatformType|string $thirdPlatformType): self;
 
     /**
      * 转换为数组格式.

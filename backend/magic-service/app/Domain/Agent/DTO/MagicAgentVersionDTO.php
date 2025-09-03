@@ -115,7 +115,7 @@ class MagicAgentVersionDTO extends AbstractEntity
         return $this->visibilityConfig;
     }
 
-    public function setVisibilityConfig(array|VisibilityConfig|null $visibilityConfig): self
+    public function setVisibilityConfig(null|array|VisibilityConfig $visibilityConfig): self
     {
         if (is_array($visibilityConfig)) {
             $visibilityConfig = new VisibilityConfig($visibilityConfig);

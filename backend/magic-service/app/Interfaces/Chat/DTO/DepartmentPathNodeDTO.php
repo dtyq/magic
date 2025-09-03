@@ -37,7 +37,7 @@ class DepartmentPathNodeDTO extends AbstractDTO
         return $this->option;
     }
 
-    public function setOption(DepartmentOption|int|string|null $option): DepartmentPathNodeDTO
+    public function setOption(null|DepartmentOption|int|string $option): DepartmentPathNodeDTO
     {
         if (isset($option) && is_numeric($option)) {
             $this->option = DepartmentOption::tryFrom((int) $option);

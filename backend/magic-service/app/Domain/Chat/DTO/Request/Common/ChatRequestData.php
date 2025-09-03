@@ -45,7 +45,7 @@ class ChatRequestData extends AbstractEntity
         return $this->message;
     }
 
-    public function setMessage(array|Message|null $message): void
+    public function setMessage(null|array|Message $message): void
     {
         if ($message instanceof Message) {
             $this->message = $message;

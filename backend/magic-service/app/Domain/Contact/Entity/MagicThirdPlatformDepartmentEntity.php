@@ -102,7 +102,7 @@ class MagicThirdPlatformDepartmentEntity extends AbstractEntity
         return $this->magicDepartmentId;
     }
 
-    public function setMagicDepartmentId(int|string|null $magicDepartmentId): void
+    public function setMagicDepartmentId(null|int|string $magicDepartmentId): void
     {
         if (is_int($magicDepartmentId)) {
             $magicDepartmentId = (string) $magicDepartmentId;
@@ -148,7 +148,7 @@ class MagicThirdPlatformDepartmentEntity extends AbstractEntity
         return $this->thirdParentDepartmentId;
     }
 
-    public function setThirdParentDepartmentId(int|string|null $thirdParentDepartmentId): void
+    public function setThirdParentDepartmentId(null|int|string $thirdParentDepartmentId): void
     {
         if (is_int($thirdParentDepartmentId)) {
             $thirdParentDepartmentId = (string) $thirdParentDepartmentId;

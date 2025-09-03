@@ -46,7 +46,7 @@ class MagicEnvironmentEntity extends AbstractEntity
         return $this->extra;
     }
 
-    public function setExtra(array|MagicEnvironmentExtra|string|null $extra): void
+    public function setExtra(null|array|MagicEnvironmentExtra|string $extra): void
     {
         if (is_string($extra)) {
             $extra = Json::decode($extra);
@@ -123,7 +123,7 @@ class MagicEnvironmentEntity extends AbstractEntity
         return $this->openPlatformConfig;
     }
 
-    public function setOpenPlatformConfig(array|OpenPlatformConfigInterface|string|null $openPlatformConfig): void
+    public function setOpenPlatformConfig(null|array|OpenPlatformConfigInterface|string $openPlatformConfig): void
     {
         if (is_string($openPlatformConfig)) {
             $openPlatformConfig = Json::decode($openPlatformConfig);

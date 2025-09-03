@@ -51,7 +51,7 @@ class ChatAttachment extends AbstractEntity
         return $this->fileType;
     }
 
-    public function setFileType(FileType|int|null $fileType): void
+    public function setFileType(null|FileType|int $fileType): void
     {
         if ($fileType === null) {
             $this->fileType = FileType::File;

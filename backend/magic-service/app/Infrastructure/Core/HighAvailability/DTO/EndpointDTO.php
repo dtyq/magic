@@ -89,7 +89,7 @@ class EndpointDTO extends AbstractDTO
         return $this->resources ?? null;
     }
 
-    public function setResources(array|string|null $resources): static
+    public function setResources(null|array|string $resources): static
     {
         if (is_string($resources)) {
             $resources = json_decode($resources, true);
@@ -209,7 +209,7 @@ class EndpointDTO extends AbstractDTO
     /**
      * 设置数据库接入点ID.
      */
-    public function setEndpointId(int|string|null $endpointId): static
+    public function setEndpointId(null|int|string $endpointId): static
     {
         if (is_int($endpointId)) {
             $endpointId = (string) $endpointId;
@@ -229,7 +229,7 @@ class EndpointDTO extends AbstractDTO
     /**
      * 设置业务ID.
      */
-    public function setBusinessId(int|string|null $businessId): static
+    public function setBusinessId(null|int|string $businessId): static
     {
         if (is_int($businessId)) {
             $businessId = (string) $businessId;

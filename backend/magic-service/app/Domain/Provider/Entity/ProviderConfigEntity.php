@@ -45,7 +45,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         if (is_numeric($id)) {
             $this->id = (int) $id;
@@ -59,7 +59,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->serviceProviderId;
     }
 
-    public function setServiceProviderId(int|string|null $serviceProviderId): void
+    public function setServiceProviderId(null|int|string $serviceProviderId): void
     {
         if (is_numeric($serviceProviderId)) {
             $this->serviceProviderId = (int) $serviceProviderId;
@@ -73,7 +73,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(int|string|null $organizationCode): void
+    public function setOrganizationCode(null|int|string $organizationCode): void
     {
         if ($organizationCode === null) {
             $this->organizationCode = '';
@@ -87,7 +87,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->config ?? null;
     }
 
-    public function setConfig(array|ProviderConfigItem|string|null $config): void
+    public function setConfig(null|array|ProviderConfigItem|string $config): void
     {
         if ($config === null) {
             $this->config = null;
@@ -106,7 +106,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(int|Status|string|null $status): void
+    public function setStatus(null|int|Status|string $status): void
     {
         if ($status === null || $status === '') {
             $this->status = Status::Disabled;
@@ -140,7 +140,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $alias;
     }
 
-    public function setAlias(int|string|null $alias): void
+    public function setAlias(null|int|string $alias): void
     {
         if ($alias === null) {
             $this->alias = '';
@@ -154,7 +154,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->translate;
     }
 
-    public function setTranslate(array|string|null $translate): void
+    public function setTranslate(null|array|string $translate): void
     {
         if ($translate === null) {
             $this->translate = [];
@@ -171,7 +171,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->createdAt;
     }
 
-    public function setCreatedAt(DateTime|string|null $createdAt): void
+    public function setCreatedAt(null|DateTime|string $createdAt): void
     {
         if ($createdAt === null) {
             $this->createdAt = new DateTime();
@@ -185,7 +185,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(DateTime|string|null $updatedAt): void
+    public function setUpdatedAt(null|DateTime|string $updatedAt): void
     {
         if ($updatedAt === null) {
             $this->updatedAt = new DateTime();
@@ -199,7 +199,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->deletedAt;
     }
 
-    public function setDeletedAt(DateTime|string|null $deletedAt): void
+    public function setDeletedAt(null|DateTime|string $deletedAt): void
     {
         if ($deletedAt === null) {
             $this->deletedAt = null;
@@ -213,7 +213,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->providerCode;
     }
 
-    public function setProviderCode(int|ProviderCode|string|null $providerCode): void
+    public function setProviderCode(null|int|ProviderCode|string $providerCode): void
     {
         if ($providerCode === null || $providerCode === '') {
             $this->providerCode = null;
@@ -257,7 +257,7 @@ class ProviderConfigEntity extends AbstractEntity
         return $this->sort;
     }
 
-    public function setSort(int|string|null $sort): void
+    public function setSort(null|int|string $sort): void
     {
         if ($sort === null) {
             $this->sort = 0;

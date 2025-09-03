@@ -261,7 +261,7 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
         return $this->extra ?? null;
     }
 
-    public function setExtra(array|string|UserExtra|null $extra): void
+    public function setExtra(null|array|string|UserExtra $extra): void
     {
         if (empty($extra)) {
             $this->extra = null;

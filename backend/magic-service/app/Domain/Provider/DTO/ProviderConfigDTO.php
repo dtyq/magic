@@ -85,7 +85,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         if ($id === null) {
             $this->id = '';
@@ -99,7 +99,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->providerCode ?? null;
     }
 
-    public function setProviderCode(int|ProviderCode|string|null $providerCode): void
+    public function setProviderCode(null|int|ProviderCode|string $providerCode): void
     {
         if ($providerCode === null || $providerCode === '') {
             $this->providerCode = ProviderCode::Official;
@@ -115,7 +115,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->name;
     }
 
-    public function setName(int|string|null $name): void
+    public function setName(null|int|string $name): void
     {
         if ($name === null) {
             $this->name = '';
@@ -129,7 +129,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->providerType ?? null;
     }
 
-    public function setProviderType(int|ProviderType|string|null $providerType): void
+    public function setProviderType(null|int|ProviderType|string $providerType): void
     {
         if ($providerType === null || $providerType === '') {
             $this->providerType = ProviderType::Normal;
@@ -145,7 +145,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->description;
     }
 
-    public function setDescription(int|string|null $description): void
+    public function setDescription(null|int|string $description): void
     {
         if ($description === null) {
             $this->description = '';
@@ -159,7 +159,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->icon;
     }
 
-    public function setIcon(int|string|null $icon): void
+    public function setIcon(null|int|string $icon): void
     {
         if ($icon === null) {
             $this->icon = '';
@@ -173,7 +173,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->category ?? null;
     }
 
-    public function setCategory(Category|int|string|null $category): void
+    public function setCategory(null|Category|int|string $category): void
     {
         if ($category === null || $category === '') {
             $this->category = Category::LLM;
@@ -189,7 +189,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->status ?? null;
     }
 
-    public function setStatus(int|Status|string|null $status): void
+    public function setStatus(null|int|Status|string $status): void
     {
         if ($status === null || $status === '') {
             $this->status = Status::Disabled;
@@ -210,7 +210,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->createdAt;
     }
 
-    public function setCreatedAt(int|string|null $createdAt): void
+    public function setCreatedAt(null|int|string $createdAt): void
     {
         if ($createdAt === null) {
             $this->createdAt = '';
@@ -224,7 +224,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->translate;
     }
 
-    public function setTranslate(array|string|null $translate): void
+    public function setTranslate(null|array|string $translate): void
     {
         if ($translate === null) {
             $this->translate = [];
@@ -241,7 +241,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->remark;
     }
 
-    public function setRemark(int|string|null $remark): void
+    public function setRemark(null|int|string $remark): void
     {
         if ($remark === null) {
             $this->remark = '';
@@ -255,7 +255,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->sort;
     }
 
-    public function setSort(int|string|null $sort): void
+    public function setSort(null|int|string $sort): void
     {
         if ($sort === null) {
             $this->sort = 0;
@@ -271,7 +271,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->alias;
     }
 
-    public function setAlias(int|string|null $alias): void
+    public function setAlias(null|int|string $alias): void
     {
         if ($alias === null) {
             $this->alias = '';
@@ -285,7 +285,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->serviceProviderId;
     }
 
-    public function setServiceProviderId(int|string|null $serviceProviderId): void
+    public function setServiceProviderId(null|int|string $serviceProviderId): void
     {
         if ($serviceProviderId === null) {
             $this->serviceProviderId = '';
@@ -304,7 +304,7 @@ class ProviderConfigDTO extends AbstractDTO
         $this->config = $configItem;
     }
 
-    public function setConfig(array|ProviderConfigItem|string|null $config): void
+    public function setConfig(null|array|ProviderConfigItem|string $config): void
     {
         if ($config === null) {
             $this->config = null;
@@ -330,7 +330,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->decryptedConfig;
     }
 
-    public function setDecryptedConfig(array|ProviderConfigItem|string|null $decryptedConfig): void
+    public function setDecryptedConfig(null|array|ProviderConfigItem|string $decryptedConfig): void
     {
         if ($decryptedConfig === null) {
             $this->decryptedConfig = null;
@@ -351,7 +351,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->isModelsEnable;
     }
 
-    public function setIsModelsEnable(bool|int|string|null $isModelsEnable): void
+    public function setIsModelsEnable(null|bool|int|string $isModelsEnable): void
     {
         if ($isModelsEnable === null) {
             $this->isModelsEnable = false;
@@ -372,7 +372,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->models;
     }
 
-    public function setModels(array|string|null $models): void
+    public function setModels(null|array|string $models): void
     {
         if ($models === null) {
             $this->models = [];
@@ -394,7 +394,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->providerType ?? null;
     }
 
-    public function setServiceProviderType(int|ProviderType|string|null $serviceProviderType): void
+    public function setServiceProviderType(null|int|ProviderType|string $serviceProviderType): void
     {
         if ($serviceProviderType === null || $serviceProviderType === '') {
             $this->providerType = ProviderType::Normal;
@@ -410,7 +410,7 @@ class ProviderConfigDTO extends AbstractDTO
         return $this->providerCode ?? null;
     }
 
-    public function setServiceProviderCode(int|ProviderCode|string|null $serviceProviderCode): self
+    public function setServiceProviderCode(null|int|ProviderCode|string $serviceProviderCode): self
     {
         $this->setProviderCode($serviceProviderCode);
         return $this;

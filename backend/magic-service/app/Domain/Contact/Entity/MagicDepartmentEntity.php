@@ -60,7 +60,7 @@ class MagicDepartmentEntity extends AbstractEntity
         return $this->option;
     }
 
-    public function setOption(DepartmentOption|int|null $option): MagicDepartmentEntity
+    public function setOption(null|DepartmentOption|int $option): MagicDepartmentEntity
     {
         if (is_int($option)) {
             $option = DepartmentOption::tryFrom($option);
@@ -84,7 +84,7 @@ class MagicDepartmentEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         if (is_int($id)) {
             $id = (string) $id;
@@ -97,7 +97,7 @@ class MagicDepartmentEntity extends AbstractEntity
         return $this->departmentId;
     }
 
-    public function setDepartmentId(int|string|null $departmentId): void
+    public function setDepartmentId(null|int|string $departmentId): void
     {
         if (is_int($departmentId)) {
             $departmentId = (string) $departmentId;
@@ -110,7 +110,7 @@ class MagicDepartmentEntity extends AbstractEntity
         return $this->parentDepartmentId;
     }
 
-    public function setParentDepartmentId(int|string|null $parentDepartmentId): void
+    public function setParentDepartmentId(null|int|string $parentDepartmentId): void
     {
         if (is_int($parentDepartmentId)) {
             $parentDepartmentId = (string) $parentDepartmentId;

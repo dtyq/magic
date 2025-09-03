@@ -51,7 +51,7 @@ class JsonStreamCachedDTO extends AbstractEntity
         return $this->receiveMessageId ?? null;
     }
 
-    public function setReceiveMessageId(int|string|null $receiveMessageId): self
+    public function setReceiveMessageId(null|int|string $receiveMessageId): self
     {
         if (is_numeric($receiveMessageId)) {
             $this->receiveMessageId = (string) $receiveMessageId;
@@ -66,7 +66,7 @@ class JsonStreamCachedDTO extends AbstractEntity
         return $this->senderMessageId ?? null;
     }
 
-    public function setSenderMessageId(int|string|null $senderMessageId): self
+    public function setSenderMessageId(null|int|string $senderMessageId): self
     {
         if (is_numeric($senderMessageId)) {
             $this->senderMessageId = (string) $senderMessageId;
@@ -92,7 +92,7 @@ class JsonStreamCachedDTO extends AbstractEntity
         return $this->magicMessageId ?? null;
     }
 
-    public function setMagicMessageId(int|string|null $magicMessageId): self
+    public function setMagicMessageId(null|int|string $magicMessageId): self
     {
         if (is_numeric($magicMessageId)) {
             $this->magicMessageId = (string) $magicMessageId;
@@ -107,7 +107,7 @@ class JsonStreamCachedDTO extends AbstractEntity
         return $this->receiveMagicId ?? null;
     }
 
-    public function setReceiveMagicId(int|string|null $receiveMagicId): self
+    public function setReceiveMagicId(null|int|string $receiveMagicId): self
     {
         if (is_numeric($receiveMagicId)) {
             $this->receiveMagicId = (string) $receiveMagicId;

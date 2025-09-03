@@ -407,7 +407,7 @@ if (! function_exists('get_path_by_url')) {
 
 if (! function_exists('parse_json_config')) {
     // 解析JSON配置或返回空数组
-    function parse_json_config(array|string|null $value): array
+    function parse_json_config(null|array|string $value): array
     {
         if (is_array($value)) {
             return $value;

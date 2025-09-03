@@ -53,7 +53,7 @@ class AIImageCardMessage extends AbstractChatMessageStruct implements ChatFileIn
         return $this->type;
     }
 
-    public function setType(AIImageCardResponseType|int|null $type): AIImageCardMessage
+    public function setType(null|AIImageCardResponseType|int $type): AIImageCardMessage
     {
         is_int($type) && $type = AIImageCardResponseType::from($type);
         $this->type = $type;

@@ -114,7 +114,7 @@ class ModeRepository extends AbstractRepository implements ModeRepositoryInterfa
         return $model->delete();
     }
 
-    public function isIdentifierUnique(ModeDataIsolation $dataIsolation, string $identifier, int|string|null $excludeId = null): bool
+    public function isIdentifierUnique(ModeDataIsolation $dataIsolation, string $identifier, null|int|string $excludeId = null): bool
     {
         $builder = $this->createBuilder($dataIsolation, ModeModel::query());
         $query = $builder->where('identifier', $identifier);

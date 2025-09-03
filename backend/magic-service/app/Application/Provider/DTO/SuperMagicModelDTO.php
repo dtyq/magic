@@ -33,7 +33,7 @@ class SuperMagicModelDTO extends AbstractDTO
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         if ($id === null) {
             $this->id = '';
@@ -47,7 +47,7 @@ class SuperMagicModelDTO extends AbstractDTO
         return $this->modelId;
     }
 
-    public function setModelId(int|string|null $modelId): void
+    public function setModelId(null|int|string $modelId): void
     {
         if ($modelId === null) {
             $this->modelId = '';
@@ -61,7 +61,7 @@ class SuperMagicModelDTO extends AbstractDTO
         return $this->name;
     }
 
-    public function setName(int|string|null $name): void
+    public function setName(null|int|string $name): void
     {
         if ($name === null) {
             $this->name = '';
@@ -89,7 +89,7 @@ class SuperMagicModelDTO extends AbstractDTO
         return $this->description;
     }
 
-    public function setDescription(int|string|null $description): void
+    public function setDescription(null|int|string $description): void
     {
         if ($description === null) {
             $this->description = '';

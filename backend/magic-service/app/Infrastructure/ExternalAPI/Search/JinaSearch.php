@@ -57,7 +57,7 @@ class JinaSearch
     }
 
     /* @phpstan-ignore-next-line */
-    private function cleanText(string $text): array|string|null
+    private function cleanText(string $text): null|array|string
     {
         $text = trim($text);
 

@@ -58,7 +58,7 @@ class StreamOptions extends AbstractEntity
         return $this->status ?? null;
     }
 
-    public function setStatus(int|StreamMessageStatus|string|null $status): static
+    public function setStatus(null|int|StreamMessageStatus|string $status): static
     {
         if (is_numeric($status)) {
             $this->status = StreamMessageStatus::from((int) $status);

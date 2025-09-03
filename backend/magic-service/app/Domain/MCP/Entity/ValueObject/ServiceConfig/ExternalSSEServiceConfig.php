@@ -85,7 +85,7 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
         return $this->oauth2Config;
     }
 
-    public function setOauth2Config(array|Oauth2Config|null $oauth2Config): void
+    public function setOauth2Config(null|array|Oauth2Config $oauth2Config): void
     {
         if (is_array($oauth2Config)) {
             $oauth2Config = Oauth2Config::fromArray($oauth2Config);

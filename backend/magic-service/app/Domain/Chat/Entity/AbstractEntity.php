@@ -11,7 +11,7 @@ use Hyperf\Codec\Json;
 
 abstract class AbstractEntity extends \App\Infrastructure\Core\AbstractEntity
 {
-    protected function transformJson(array|string|null $jsonData): array
+    protected function transformJson(null|array|string $jsonData): array
     {
         if (empty($jsonData)) {
             return [];

@@ -473,7 +473,7 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->fragmentConfig ?? $this->getDefaultFragmentConfig();
     }
 
-    public function setFragmentConfig(array|FragmentConfig|null $fragmentConfig): self
+    public function setFragmentConfig(null|array|FragmentConfig $fragmentConfig): self
     {
         // 默认配置
         is_null($fragmentConfig) && $fragmentConfig = $this->getDefaultFragmentConfig();
@@ -507,7 +507,7 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
     /**
      * 设置检索配置.
      */
-    public function setRetrieveConfig(array|RetrieveConfig|null $retrieveConfig): void
+    public function setRetrieveConfig(null|array|RetrieveConfig $retrieveConfig): void
     {
         is_null($retrieveConfig) && $retrieveConfig = RetrieveConfig::createDefault();
         is_array($retrieveConfig) && $retrieveConfig = RetrieveConfig::fromArray($retrieveConfig);

@@ -18,7 +18,7 @@ trait EditMessageOptionsTrait
         return $this->editMessageOptions ?? null;
     }
 
-    public function setEditMessageOptions(array|EditMessageOptions|null $editMessageOptions): static
+    public function setEditMessageOptions(null|array|EditMessageOptions $editMessageOptions): static
     {
         if (is_null($editMessageOptions)) {
             return $this;

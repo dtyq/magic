@@ -123,7 +123,7 @@ class AdminModeDTO extends AbstractDTO
         return $this->followModeId;
     }
 
-    public function setFollowModeId(int|string|null $followModeId): void
+    public function setFollowModeId(null|int|string $followModeId): void
     {
         if (is_int($followModeId)) {
             $followModeId = (string) $followModeId;
