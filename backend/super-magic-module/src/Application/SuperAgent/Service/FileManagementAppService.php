@@ -28,7 +28,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -63,7 +62,6 @@ class FileManagementAppService extends AbstractAppService
 
     public function __construct(
         private readonly FileAppService $fileAppService,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
@@ -344,7 +342,7 @@ class FileManagementAppService extends AbstractAppService
         }
 
         // 1. 验证项目权限
-        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
         }
@@ -915,7 +913,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             // 1. Get project information
-            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();
