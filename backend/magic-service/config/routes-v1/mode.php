@@ -40,8 +40,6 @@ Router::addGroup('/api/v1', static function () {
             Router::get('/{groupId}', [AdminModeGroupApi::class, 'getGroupDetail']);
             // 创建分组
             Router::post('', [AdminModeGroupApi::class, 'createGroup']);
-            // 分组拖拽排序
-            Router::put('/batch-sort', [AdminModeGroupApi::class, 'sortGroups']);
             // 更新分组
             Router::put('/{groupId}', [AdminModeGroupApi::class, 'updateGroup']);
             // 删除分组

@@ -196,7 +196,8 @@ class ModeDomainService
 
         // 批量创建分组副本
         $newGroupEntities = [];
-        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
+        $maxSort = count($modeAggregate->getGroupAggregates());
+        foreach ($modeAggregate->getGroupAggregates() as $index => $groupAggregate) {
             $group = $groupAggregate->getGroup();
 
             // 创建新分组实体（提前生成ID）
@@ -206,7 +207,7 @@ class ModeDomainService
             $newGroup->setNameI18n($group->getNameI18n());
             $newGroup->setIcon(FileAssembler::formatPath($group->getIcon()));
             $newGroup->setDescription($group->getDescription());
-            $newGroup->setSort($group->getSort());
+            $newGroup->setSort($maxSort - $index);
             $newGroup->setStatus($group->getStatus());
             $newGroup->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             $newGroup->setCreatorId($dataIsolation->getCurrentUserId());

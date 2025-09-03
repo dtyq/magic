@@ -14,7 +14,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeGroupRequest;
-use App\Interfaces\Mode\DTO\Request\SortModeGroupsRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeGroupRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -85,18 +84,6 @@ class AdminModeGroupApi extends AbstractApi
         $authorization = $this->getAuthorization();
         $this->checkAuth($authorization);
         $this->modeGroupAppService->deleteGroup($authorization, $groupId);
-        return ['success' => true];
-    }
-
-    /**
-     * 分组拖拽排序.
-     */
-    public function sortGroups(SortModeGroupsRequest $request): array
-    {
-        $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
-        $request->validated();
-        $this->modeGroupAppService->sortGroups($authorization, $request->getGroupIds());
         return ['success' => true];
     }
 
