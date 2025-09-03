@@ -79,7 +79,7 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
         return $this->retrieveConfig;
     }
 
-    public function setRetrieveConfig(null|array|RetrieveConfig $retrieveConfig): static
+    public function setRetrieveConfig(array|RetrieveConfig|null $retrieveConfig): static
     {
         is_array($retrieveConfig) && $retrieveConfig = RetrieveConfig::fromArray($retrieveConfig);
         $this->retrieveConfig = $retrieveConfig;
@@ -91,7 +91,7 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
         return $this->fragmentConfig;
     }
 
-    public function setFragmentConfig(null|array|FragmentConfig $fragmentConfig): static
+    public function setFragmentConfig(array|FragmentConfig|null $fragmentConfig): static
     {
         is_array($fragmentConfig) && $fragmentConfig = FragmentConfig::fromArray($fragmentConfig);
         $this->fragmentConfig = $fragmentConfig;

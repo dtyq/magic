@@ -339,7 +339,7 @@ class MagicAgentVersionEntity extends AbstractEntity
         return $this->instructs;
     }
 
-    public function setInstructs(null|array|string $instructs): void
+    public function setInstructs(array|string|null $instructs): void
     {
         if (is_string($instructs)) {
             $this->instructs = Json::decode($instructs);
@@ -363,7 +363,7 @@ class MagicAgentVersionEntity extends AbstractEntity
         return $this->visibilityConfig;
     }
 
-    public function setVisibilityConfig(null|array|string|VisibilityConfig $visibilityConfig): void
+    public function setVisibilityConfig(array|string|VisibilityConfig|null $visibilityConfig): void
     {
         if (is_array($visibilityConfig)) {
             $visibilityConfig = new VisibilityConfig($visibilityConfig);

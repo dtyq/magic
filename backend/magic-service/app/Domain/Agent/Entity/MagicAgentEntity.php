@@ -124,7 +124,7 @@ class MagicAgentEntity extends AbstractEntity
         return $this->agentVersionId;
     }
 
-    public function setAgentVersionId(null|int|string $agentVersionId): void
+    public function setAgentVersionId(int|string|null $agentVersionId): void
     {
         if (! is_null($agentVersionId)) {
             $this->agentVersionId = (string) $agentVersionId;
@@ -249,7 +249,7 @@ class MagicAgentEntity extends AbstractEntity
         return $this->instructs;
     }
 
-    public function setInstructs(null|array|string $instructs): void
+    public function setInstructs(array|string|null $instructs): void
     {
         if (is_string($instructs)) {
             $this->instructs = Json::decode($instructs);
@@ -283,7 +283,7 @@ class MagicAgentEntity extends AbstractEntity
         return $this->botVersionId;
     }
 
-    public function setBotVersionId(null|int|string $botVersionId): void
+    public function setBotVersionId(int|string|null $botVersionId): void
     {
         if (is_null($botVersionId)) {
             return;

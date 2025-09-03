@@ -32,7 +32,7 @@ class MagicMessageDTO extends AbstractDTO
 
     protected ?MessageInterface $content;
 
-    protected null|ChatMessageType|ControlMessageType|IntermediateMessageType $messageType;
+    protected ChatMessageType|ControlMessageType|IntermediateMessageType|null $messageType;
 
     protected ?string $sendTime;
 
@@ -132,12 +132,12 @@ class MagicMessageDTO extends AbstractDTO
         return $this;
     }
 
-    public function getMessageType(): null|ChatMessageType|ControlMessageType|IntermediateMessageType
+    public function getMessageType(): ChatMessageType|ControlMessageType|IntermediateMessageType|null
     {
         return $this->messageType ?? null;
     }
 
-    public function setMessageType(null|ChatMessageType|ControlMessageType|IntermediateMessageType $messageType): static
+    public function setMessageType(ChatMessageType|ControlMessageType|IntermediateMessageType|null $messageType): static
     {
         $this->messageType = $messageType;
         return $this;

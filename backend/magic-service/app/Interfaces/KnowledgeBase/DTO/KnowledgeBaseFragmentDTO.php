@@ -98,7 +98,7 @@ class KnowledgeBaseFragmentDTO extends AbstractFlowDTO
         return $this->syncStatus;
     }
 
-    public function setSyncStatus(null|int|KnowledgeSyncStatus $syncStatus): static
+    public function setSyncStatus(int|KnowledgeSyncStatus|null $syncStatus): static
     {
         $syncStatus instanceof KnowledgeSyncStatus && $syncStatus = $syncStatus->value;
         $this->syncStatus = $syncStatus ?? 0;

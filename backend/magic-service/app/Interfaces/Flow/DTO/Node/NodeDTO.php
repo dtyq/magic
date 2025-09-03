@@ -126,7 +126,7 @@ class NodeDTO extends AbstractFlowDTO
     /**
      * 设置节点类型.
      */
-    public function setNodeType(null|int|string $nodeType): self
+    public function setNodeType(int|string|null $nodeType): self
     {
         $this->nodeType = (int) ($nodeType ?? 0);
         return $this;
@@ -243,7 +243,7 @@ class NodeDTO extends AbstractFlowDTO
     /**
      * 设置系统输出.
      */
-    public function setSystemOutput(null|array|NodeOutputDTO $systemOutput): void
+    public function setSystemOutput(array|NodeOutputDTO|null $systemOutput): void
     {
         $this->systemOutput = MagicFlowNodeAssembler::createNodeOutputDTOByMixed($systemOutput);
     }

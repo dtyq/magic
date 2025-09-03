@@ -35,7 +35,7 @@ class SpeechSubmitDTO extends AbstractRequestDTO
         return $this->user;
     }
 
-    public function setUser(null|array|SpeechUserDTO $user): void
+    public function setUser(array|SpeechUserDTO|null $user): void
     {
         if (is_array($user)) {
             $user = new SpeechUserDTO($user);

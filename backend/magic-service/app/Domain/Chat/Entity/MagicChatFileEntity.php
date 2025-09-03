@@ -71,7 +71,7 @@ final class MagicChatFileEntity extends AbstractEntity
         return $this->fileType;
     }
 
-    public function setFileType(null|FileType|int $fileType): void
+    public function setFileType(FileType|int|null $fileType): void
     {
         if (is_int($fileType)) {
             $fileType = FileType::tryFrom($fileType);
@@ -164,7 +164,7 @@ final class MagicChatFileEntity extends AbstractEntity
         return $this->fileId;
     }
 
-    public function setFileId(null|int|string $fileId): void
+    public function setFileId(int|string|null $fileId): void
     {
         if (is_int($fileId)) {
             $fileId = (string) $fileId;

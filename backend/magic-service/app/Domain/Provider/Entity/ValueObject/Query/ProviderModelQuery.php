@@ -52,7 +52,7 @@ class ProviderModelQuery extends Query
         return $this->category;
     }
 
-    public function setCategory(null|Category|string $category): void
+    public function setCategory(Category|string|null $category): void
     {
         if (is_null($category)) {
             return;
@@ -65,7 +65,7 @@ class ProviderModelQuery extends Query
         return $this->status;
     }
 
-    public function setStatus(null|int|Status $status): self
+    public function setStatus(int|Status|null $status): self
     {
         if (is_null($status)) {
             return $this;

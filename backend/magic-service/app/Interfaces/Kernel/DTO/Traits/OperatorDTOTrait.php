@@ -94,7 +94,7 @@ trait OperatorDTOTrait
         return $this->creatorInfo;
     }
 
-    public function setCreatorInfo(null|array|OperatorDTO $creatorInfo): void
+    public function setCreatorInfo(array|OperatorDTO|null $creatorInfo): void
     {
         if (is_array($creatorInfo)) {
             $creatorInfo = new OperatorDTO($creatorInfo);
@@ -107,7 +107,7 @@ trait OperatorDTOTrait
         return $this->modifierInfo;
     }
 
-    public function setModifierInfo(null|array|OperatorDTO $modifierInfo): void
+    public function setModifierInfo(array|OperatorDTO|null $modifierInfo): void
     {
         if (is_array($modifierInfo)) {
             $modifierInfo = new OperatorDTO($modifierInfo);

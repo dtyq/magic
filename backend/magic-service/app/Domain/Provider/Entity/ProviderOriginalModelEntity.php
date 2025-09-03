@@ -32,7 +32,7 @@ class ProviderOriginalModelEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         if (is_numeric($id)) {
             $this->id = (int) $id;
@@ -46,7 +46,7 @@ class ProviderOriginalModelEntity extends AbstractEntity
         return $this->modelId;
     }
 
-    public function setModelId(null|int|string $modelId): void
+    public function setModelId(int|string|null $modelId): void
     {
         if ($modelId === null) {
             $this->modelId = '';
@@ -60,7 +60,7 @@ class ProviderOriginalModelEntity extends AbstractEntity
         return $this->type;
     }
 
-    public function setType(null|int|ProviderOriginalModelType|string $type): void
+    public function setType(int|ProviderOriginalModelType|string|null $type): void
     {
         if ($type === null || $type === '') {
             $this->type = ProviderOriginalModelType::System;
@@ -76,7 +76,7 @@ class ProviderOriginalModelEntity extends AbstractEntity
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(null|int|string $organizationCode): void
+    public function setOrganizationCode(int|string|null $organizationCode): void
     {
         if ($organizationCode === null) {
             $this->organizationCode = '';
@@ -110,7 +110,7 @@ class ProviderOriginalModelEntity extends AbstractEntity
         return $this->deletedAt;
     }
 
-    public function setDeletedAt(null|DateTime|string $deletedAt): void
+    public function setDeletedAt(DateTime|string|null $deletedAt): void
     {
         if ($deletedAt === null) {
             $this->deletedAt = null;

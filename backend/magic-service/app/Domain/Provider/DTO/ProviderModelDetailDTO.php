@@ -65,7 +65,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->disabledBy;
     }
 
-    public function setDisabledBy(null|DisabledByType|int|string $disabledBy): self
+    public function setDisabledBy(DisabledByType|int|string|null $disabledBy): self
     {
         if ($disabledBy === null || $disabledBy === '') {
             $this->disabledBy = null;
@@ -87,7 +87,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->createdAt;
     }
 
-    public function setCreatedAt(null|int|string $createdAt): void
+    public function setCreatedAt(int|string|null $createdAt): void
     {
         if ($createdAt === null) {
             $this->createdAt = '';
@@ -101,7 +101,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->config;
     }
 
-    public function setConfig(null|array|ModelConfigItem|string $config): void
+    public function setConfig(array|ModelConfigItem|string|null $config): void
     {
         if ($config === null) {
             $this->config = null;
@@ -120,7 +120,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->id;
     }
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         if ($id === null) {
             $this->id = '';
@@ -134,7 +134,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->name;
     }
 
-    public function setName(null|int|string $name): void
+    public function setName(int|string|null $name): void
     {
         if ($name === null) {
             $this->name = '';
@@ -148,7 +148,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->modelVersion;
     }
 
-    public function setModelVersion(null|int|string $modelVersion): void
+    public function setModelVersion(int|string|null $modelVersion): void
     {
         if ($modelVersion === null) {
             $this->modelVersion = '';
@@ -162,7 +162,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->description;
     }
 
-    public function setDescription(null|int|string $description): void
+    public function setDescription(int|string|null $description): void
     {
         if ($description === null) {
             $this->description = '';
@@ -176,7 +176,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->icon;
     }
 
-    public function setIcon(null|int|string $icon): void
+    public function setIcon(int|string|null $icon): void
     {
         if ($icon === null) {
             $this->icon = '';
@@ -190,7 +190,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->modelType;
     }
 
-    public function setModelType(null|int|ModelType|string $modelType): void
+    public function setModelType(int|ModelType|string|null $modelType): void
     {
         if ($modelType === null || $modelType === '') {
             $this->modelType = ModelType::LLM;
@@ -206,7 +206,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->category;
     }
 
-    public function setCategory(null|Category|int|string $category): void
+    public function setCategory(Category|int|string|null $category): void
     {
         if ($category === null || $category === '') {
             $this->category = Category::LLM;
@@ -222,7 +222,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->status;
     }
 
-    public function setStatus(null|int|Status|string $status): void
+    public function setStatus(int|Status|string|null $status): void
     {
         if ($status === null || $status === '') {
             $this->status = Status::Disabled;
@@ -238,7 +238,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->sort;
     }
 
-    public function setSort(null|int|string $sort): void
+    public function setSort(int|string|null $sort): void
     {
         if ($sort === null) {
             $this->sort = 0;
@@ -252,7 +252,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->serviceProviderConfigId;
     }
 
-    public function setServiceProviderConfigId(null|int|string $serviceProviderConfigId): void
+    public function setServiceProviderConfigId(int|string|null $serviceProviderConfigId): void
     {
         if ($serviceProviderConfigId === null) {
             $this->serviceProviderConfigId = '';
@@ -266,7 +266,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->modelId;
     }
 
-    public function setModelId(null|int|string $modelId): void
+    public function setModelId(int|string|null $modelId): void
     {
         if ($modelId === null) {
             $this->modelId = '';
@@ -280,7 +280,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->translate;
     }
 
-    public function setTranslate(null|array|string $translate): void
+    public function setTranslate(array|string|null $translate): void
     {
         if ($translate === null) {
             $this->translate = [];
@@ -297,7 +297,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->visibleOrganizations;
     }
 
-    public function setVisibleOrganizations(null|array|string $visibleOrganizations): void
+    public function setVisibleOrganizations(array|string|null $visibleOrganizations): void
     {
         if ($visibleOrganizations === null) {
             $this->visibleOrganizations = [];
@@ -314,7 +314,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->visibleApplications;
     }
 
-    public function setVisibleApplications(null|array|string $visibleApplications): void
+    public function setVisibleApplications(array|string|null $visibleApplications): void
     {
         if ($visibleApplications === null) {
             $this->visibleApplications = [];
@@ -331,7 +331,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->superMagicDisplayState;
     }
 
-    public function setSuperMagicDisplayState(null|int|string $superMagicDisplayState): void
+    public function setSuperMagicDisplayState(int|string|null $superMagicDisplayState): void
     {
         if ($superMagicDisplayState === null) {
             $this->superMagicDisplayState = 0;
@@ -345,7 +345,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->loadBalancingWeight;
     }
 
-    public function setLoadBalancingWeight(null|int|string $loadBalancingWeight): void
+    public function setLoadBalancingWeight(int|string|null $loadBalancingWeight): void
     {
         if ($loadBalancingWeight === null) {
             $this->loadBalancingWeight = null;
@@ -359,7 +359,7 @@ class ProviderModelDetailDTO extends AbstractDTO
         return $this->visiblePackages;
     }
 
-    public function setVisiblePackages(null|array|string $visiblePackages): void
+    public function setVisiblePackages(array|string|null $visiblePackages): void
     {
         if ($visiblePackages === null) {
             $this->visiblePackages = [];

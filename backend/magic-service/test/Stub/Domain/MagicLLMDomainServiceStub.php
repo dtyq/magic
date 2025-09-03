@@ -14,7 +14,7 @@ use App\Domain\Chat\Service\MagicLLMDomainService;
  */
 class MagicLLMDomainServiceStub extends MagicLLMDomainService
 {
-    public function searchWithBing(string $query, null|bool|string $language = false): array
+    public function searchWithBing(string $query, bool|string|null $language = false): array
     {
         return [
             [

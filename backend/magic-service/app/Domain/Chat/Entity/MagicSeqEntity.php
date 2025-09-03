@@ -237,7 +237,7 @@ final class MagicSeqEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(null|int|MagicMessageStatus|string $status): self
+    public function setStatus(int|MagicMessageStatus|string|null $status): self
     {
         if ($status instanceof MagicMessageStatus) {
             $this->status = $status;
@@ -278,7 +278,7 @@ final class MagicSeqEntity extends AbstractEntity
         return $this->receiveList;
     }
 
-    public function setReceiveList(null|array|ReceiveList|string $receiveList): self
+    public function setReceiveList(array|ReceiveList|string|null $receiveList): self
     {
         if ($receiveList instanceof ReceiveList) {
             $this->receiveList = $receiveList;
@@ -308,7 +308,7 @@ final class MagicSeqEntity extends AbstractEntity
         return $this->extra;
     }
 
-    public function setExtra(null|array|SeqExtra|string $extra): self
+    public function setExtra(array|SeqExtra|string|null $extra): self
     {
         if (is_string($extra) && $extra !== '') {
             $extra = Json::decode($extra);

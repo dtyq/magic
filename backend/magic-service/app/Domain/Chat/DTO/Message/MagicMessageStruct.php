@@ -91,7 +91,7 @@ abstract class MagicMessageStruct extends AbstractEntity implements MessageInter
         return $this->extra ?? null;
     }
 
-    public function setExtra(null|array|MessageExtra $extra): void
+    public function setExtra(array|MessageExtra|null $extra): void
     {
         if ($extra instanceof MessageExtra) {
             $this->extra = $extra;

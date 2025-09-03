@@ -31,7 +31,7 @@ class ExternalDocumentFile extends AbstractDocumentFile implements ExternalDocum
         return $this->fileLink;
     }
 
-    public function setFileLink(null|array|FileLink $fileLink): static
+    public function setFileLink(array|FileLink|null $fileLink): static
     {
         is_array($fileLink) && $fileLink = new FileLink($fileLink['path'] ?? '', $fileLink['url'] ?? '', $fileLink['expires'] ?? 0, $fileLink['download_name'] ?? '');
         $this->fileLink = $fileLink;
