@@ -19,7 +19,6 @@ use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
-use InvalidArgumentException;
 
 class AdminModeAppService extends AbstractModeAppService
 {
@@ -48,11 +47,28 @@ class AdminModeAppService extends AbstractModeAppService
         $modeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $id);
 
         if (! $modeAggregate) {
-            throw new InvalidArgumentException('Mode not found');
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
         }
 
         $providerModels = $this->getModels($modeAggregate);
 
+        // 转换为DTO
+        $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
+
+        // 处理icon
+        $this->processModeAggregateIcons($modeAggregateDTO);
+
+        return $modeAggregateDTO;
+    }
+
+    public function getOriginMode(MagicUserAuthorization $authorization, string $id): AdminModeAggregateDTO
+    {
+        $dataIsolation = $this->getModeDataIsolation($authorization);
+        $modeAggregate = $this->modeDomainService->getOriginMode($dataIsolation, $id);
+        if (! $modeAggregate) {
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+        $providerModels = $this->getModels($modeAggregate);
         // 转换为DTO
         $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
 

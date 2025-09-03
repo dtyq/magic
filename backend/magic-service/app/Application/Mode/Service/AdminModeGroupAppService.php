@@ -137,4 +137,22 @@ class AdminModeGroupAppService extends AbstractModeAppService
             throw $exception;
         }
     }
+
+    /**
+     * 分组拖拽排序.
+     */
+    public function sortGroups(MagicUserAuthorization $authorization, array $groupIds): void
+    {
+        $dataIsolation = $this->getModeDataIsolation($authorization);
+
+        Db::beginTransaction();
+        try {
+            $this->groupDomainService->sortGroups($dataIsolation, $groupIds);
+            Db::commit();
+        } catch (Exception $exception) {
+            $this->logger->warning('Sort mode groups failed: ' . $exception->getMessage());
+            Db::rollBack();
+            throw $exception;
+        }
+    }
 }

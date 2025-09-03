@@ -63,6 +63,15 @@ class ModeDomainService
         return $this->buildModeAggregate($dataIsolation, $mode);
     }
 
+    public function getOriginMode(ModeDataIsolation $dataIsolation, int|string $id): ?ModeAggregate
+    {
+        $mode = $this->modeRepository->findById($dataIsolation, $id);
+        if (! $mode) {
+            return null;
+        }
+        return $this->buildModeAggregate($dataIsolation, $mode);
+    }
+
     /**
      * 根据ID获取模式实体（仅获取模式基本信息）.
      */

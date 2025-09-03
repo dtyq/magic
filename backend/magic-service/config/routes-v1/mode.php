@@ -22,6 +22,8 @@ Router::addGroup('/api/v1', static function () {
             Router::post('', [AdminModeApi::class, 'createMode']);
             // 获取模式详情
             Router::get('/{id}', [AdminModeApi::class, 'getMode']);
+            // 获取模式详情（不跟随）
+            Router::get('/origin/{id}', [AdminModeApi::class, 'getOriginMode']);
             // 更新模式
             Router::put('/{id}', [AdminModeApi::class, 'updateMode']);
             // 更新模式状态
@@ -38,6 +40,8 @@ Router::addGroup('/api/v1', static function () {
             Router::get('/{groupId}', [AdminModeGroupApi::class, 'getGroupDetail']);
             // 创建分组
             Router::post('', [AdminModeGroupApi::class, 'createGroup']);
+            // 分组拖拽排序
+            Router::put('/batch-sort', [AdminModeGroupApi::class, 'sortGroups']);
             // 更新分组
             Router::put('/{groupId}', [AdminModeGroupApi::class, 'updateGroup']);
             // 删除分组

@@ -36,7 +36,7 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
     {
         $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
         $models = $builder->where('mode_id', $modeId)
-            ->orderBy('sort', 'asc')
+            ->orderBy('sort', 'desc')
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -91,7 +91,7 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
         $models = $builder->where('mode_id', $modeId)
             ->where('status', 1)
-            ->orderBy('sort', 'asc')
+            ->orderBy('sort', 'desc')
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -151,7 +151,7 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
         $models = $builder->whereIn('mode_id', $modeIds)
             ->orderBy('mode_id', 'asc')
-            ->orderBy('sort', 'asc')
+            ->orderBy('sort', 'desc')
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -160,5 +160,18 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
             $data[] = ModeGroupFactory::modelToEntity($model);
         }
         return $data;
+    }
+
+    /**
+     * 批量更新分组排序.
+     */
+    public function batchUpdateSort(ModeDataIsolation $dataIsolation, array $groupIdSortMap): bool
+    {
+        foreach ($groupIdSortMap as $groupId => $sort) {
+            $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
+            $builder->where('id', $groupId)->update(['sort' => $sort]);
+        }
+
+        return true;
     }
 }
