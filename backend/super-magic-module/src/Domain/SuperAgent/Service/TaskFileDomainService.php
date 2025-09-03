@@ -324,7 +324,10 @@ class TaskFileDomainService
      * Save project file.
      *
      * @param DataIsolation $dataIsolation Data isolation context
+     * @param ProjectEntity $projectEntity Project entity
      * @param TaskFileEntity $taskFileEntity Task file entity with data to save
+     * @param string $storageType Storage type
+     * @param bool $isUpdated Whether the file is updated
      * @return TaskFileEntity Saved file entity
      */
     public function saveProjectFile(
