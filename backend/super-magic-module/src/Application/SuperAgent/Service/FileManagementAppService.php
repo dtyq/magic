@@ -343,9 +343,6 @@ class FileManagementAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-        }
 
         Db::beginTransaction();
         try {
