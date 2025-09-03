@@ -161,17 +161,4 @@ class ModeGroupRepository extends AbstractRepository implements ModeGroupReposit
         }
         return $data;
     }
-
-    /**
-     * 批量更新分组排序.
-     */
-    public function batchUpdateSort(ModeDataIsolation $dataIsolation, array $groupIdSortMap): bool
-    {
-        foreach ($groupIdSortMap as $groupId => $sort) {
-            $builder = $this->createBuilder($dataIsolation, ModeGroupModel::query());
-            $builder->where('id', $groupId)->update(['sort' => $sort]);
-        }
-
-        return true;
-    }
 }
