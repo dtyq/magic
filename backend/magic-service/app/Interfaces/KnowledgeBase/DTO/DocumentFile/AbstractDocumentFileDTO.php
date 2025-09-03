@@ -49,7 +49,7 @@ abstract class AbstractDocumentFileDTO extends AbstractDTO implements DocumentFi
         return $this->type;
     }
 
-    public function setType(null|DocumentFileType|int $type): static
+    public function setType(DocumentFileType|int|null $type): static
     {
         is_int($type) && $type = DocumentFileType::tryFrom($type);
         $this->type = $type;

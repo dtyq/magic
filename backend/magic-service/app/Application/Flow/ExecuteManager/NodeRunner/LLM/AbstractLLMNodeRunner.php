@@ -34,7 +34,7 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         AbstractLLMNodeParamsConfig $LLMNodeParamsConfig,
         MemoryManager $memoryManager,
         string $systemPrompt,
-        null|AbstractModel|ModelInterface $model = null,
+        AbstractModel|ModelInterface|null $model = null,
     ): Agent {
         $orgCode = $executionData->getOperator()->getOrganizationCode();
         $modelName = $LLMNodeParamsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());

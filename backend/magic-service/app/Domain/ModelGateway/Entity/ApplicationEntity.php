@@ -88,7 +88,7 @@ class ApplicationEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         $this->id = $id ? (int) $id : null;
     }

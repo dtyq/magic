@@ -132,7 +132,7 @@ class ApiKeyProviderEntity extends AbstractEntity
         return $this->code;
     }
 
-    public function setCode(null|int|string $code): void
+    public function setCode(int|string|null $code): void
     {
         $this->code = $code === null ? null : (string) $code;
     }

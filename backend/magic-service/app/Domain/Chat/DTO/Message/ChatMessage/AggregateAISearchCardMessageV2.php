@@ -212,7 +212,7 @@ class AggregateAISearchCardMessageV2 extends AbstractChatMessageStruct implement
         return $this->searchDeepLevel;
     }
 
-    public function setSearchDeepLevel(null|int|SearchDeepLevel|string $searchDeepLevel): AggregateAISearchCardMessageV2
+    public function setSearchDeepLevel(int|SearchDeepLevel|string|null $searchDeepLevel): AggregateAISearchCardMessageV2
     {
         if ($searchDeepLevel instanceof SearchDeepLevel) {
             $this->searchDeepLevel = $searchDeepLevel;

@@ -27,7 +27,7 @@ class SuperMagicProviderDTO extends AbstractDTO
         return $this->name;
     }
 
-    public function setName(null|int|string $name): void
+    public function setName(int|string|null $name): void
     {
         if ($name === null) {
             $this->name = '';
@@ -41,7 +41,7 @@ class SuperMagicProviderDTO extends AbstractDTO
         return $this->icon;
     }
 
-    public function setIcon(null|int|string $icon): void
+    public function setIcon(int|string|null $icon): void
     {
         if ($icon === null) {
             $this->icon = '';
@@ -55,7 +55,7 @@ class SuperMagicProviderDTO extends AbstractDTO
         return $this->sort;
     }
 
-    public function setSort(null|int|string $sort): void
+    public function setSort(int|string|null $sort): void
     {
         if ($sort === null) {
             $this->sort = 0;
@@ -69,7 +69,7 @@ class SuperMagicProviderDTO extends AbstractDTO
         return $this->recommended;
     }
 
-    public function setRecommended(null|bool|int|string $recommended): void
+    public function setRecommended(bool|int|string|null $recommended): void
     {
         if ($recommended === null) {
             $this->recommended = false;

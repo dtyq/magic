@@ -37,7 +37,7 @@ class AggregateAISearchCardMessage extends AbstractChatMessageStruct implements 
     protected ?array $associateQuestions = null;
 
     // 这里要兼容老版本的json数据
-    protected null|array|string $mindMap = null;
+    protected array|string|null $mindMap = null;
 
     protected ?array $searchKeywords = null;
 
@@ -198,12 +198,12 @@ class AggregateAISearchCardMessage extends AbstractChatMessageStruct implements 
         return $this;
     }
 
-    public function getMindMap(): null|array|string
+    public function getMindMap(): array|string|null
     {
         return $this->mindMap;
     }
 
-    public function setMindMap(null|array|string $mindMap): AggregateAISearchCardMessage
+    public function setMindMap(array|string|null $mindMap): AggregateAISearchCardMessage
     {
         $this->mindMap = $mindMap;
         return $this;
@@ -214,7 +214,7 @@ class AggregateAISearchCardMessage extends AbstractChatMessageStruct implements 
         return $this->searchDeepLevel;
     }
 
-    public function setSearchDeepLevel(null|int|SearchDeepLevel $searchDeepLevel): AggregateAISearchCardMessage
+    public function setSearchDeepLevel(int|SearchDeepLevel|null $searchDeepLevel): AggregateAISearchCardMessage
     {
         if (is_int($searchDeepLevel)) {
             $this->searchDeepLevel = SearchDeepLevel::from($searchDeepLevel);

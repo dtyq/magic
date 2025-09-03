@@ -70,7 +70,7 @@ class AdminGlobalSettingsEntity extends AbstractEntity
         return $this->extra;
     }
 
-    public function setExtra(null|SettingExtraInterface|string $extra): self
+    public function setExtra(SettingExtraInterface|string|null $extra): self
     {
         if (is_string($extra)) {
             $extra = Json::decode($extra);

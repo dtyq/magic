@@ -35,7 +35,7 @@ class AgentGlobalSettingsDTO extends AbstractDTO implements JsonSerializable
         return $this;
     }
 
-    public function setExtra(null|AbstractSettingExtra|array|SettingExtraDTOInterface $extra): self
+    public function setExtra(AbstractSettingExtra|array|SettingExtraDTOInterface|null $extra): self
     {
         if (is_array($extra)) {
             $this->extra = AbstractSettingExtraDTO::fromArrayAndType($extra, $this->getType());
@@ -57,7 +57,7 @@ class AgentGlobalSettingsDTO extends AbstractDTO implements JsonSerializable
         return $this->status;
     }
 
-    public function getExtra(): null|array|SettingExtraDTOInterface
+    public function getExtra(): array|SettingExtraDTOInterface|null
     {
         return $this->extra;
     }

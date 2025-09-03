@@ -85,7 +85,7 @@ class AccountEntity extends AbstractEntity
         return $this->magicId;
     }
 
-    public function setMagicId(null|int|string $magicId): void
+    public function setMagicId(int|string|null $magicId): void
     {
         if (is_int($magicId)) {
             $magicId = (string) $magicId;
@@ -206,7 +206,7 @@ class AccountEntity extends AbstractEntity
         return $this->gender;
     }
 
-    public function setGender(null|GenderType|int $gender): void
+    public function setGender(GenderType|int|null $gender): void
     {
         if (is_int($gender)) {
             $this->gender = GenderType::from($gender);
@@ -220,7 +220,7 @@ class AccountEntity extends AbstractEntity
         return $this->type;
     }
 
-    public function setType(null|int|UserType $type): void
+    public function setType(int|UserType|null $type): void
     {
         if (is_int($type)) {
             $this->type = UserType::from($type);
@@ -244,7 +244,7 @@ class AccountEntity extends AbstractEntity
         return $this->status;
     }
 
-    public function setStatus(null|AccountStatus|int $status): void
+    public function setStatus(AccountStatus|int|null $status): void
     {
         if (is_int($status)) {
             $this->status = AccountStatus::from($status);

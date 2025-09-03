@@ -77,7 +77,7 @@ class ClientJsonStreamSequenceResponse extends AbstractEntity
         return $this->status ?? null;
     }
 
-    public function setStatus(null|int|StreamMessageStatus $status): self
+    public function setStatus(int|StreamMessageStatus|null $status): self
     {
         if ($status instanceof StreamMessageStatus) {
             $status = $status->value;

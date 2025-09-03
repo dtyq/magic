@@ -37,7 +37,7 @@ class ApiKeyProviderQuery extends AbstractQuery
         return $this->relType;
     }
 
-    public function setRelType(null|ApiKeyProviderType|int $relType): void
+    public function setRelType(ApiKeyProviderType|int|null $relType): void
     {
         if (is_int($relType)) {
             $relType = ApiKeyProviderType::tryFrom($relType);

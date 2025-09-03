@@ -38,7 +38,7 @@ class AccessTokenDTO extends AbstractDTO
 
     public ?int $rpm = null;
 
-    public function setId(null|int|string $id): void
+    public function setId(int|string|null $id): void
     {
         $this->id = $id ? (string) $id : null;
     }

@@ -66,7 +66,7 @@ class DuckDuckGoSearch
     }
 
     /* @phpstan-ignore-next-line */
-    private function cleanText(string $text): null|array|string
+    private function cleanText(string $text): array|string|null
     {
         $text = trim($text);
 
