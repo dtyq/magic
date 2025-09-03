@@ -143,7 +143,6 @@ class ModelConfigItem extends AbstractDTO
         $this->isRecommended = $isRecommended;
     }
 
-
     public function getMaxOutputTokens(): ?int
     {
         return $this->maxOutputTokens;
