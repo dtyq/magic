@@ -60,4 +60,6 @@ interface ModeGroupRepositoryInterface
      * @return ModeGroupEntity[]
      */
     public function findByModeIds(ModeDataIsolation $dataIsolation, array $modeIds): array;
+
+    public function batchUpdateSort(ModeDataIsolation $dataIsolation, array $groupIdSortMap): bool;
 }
