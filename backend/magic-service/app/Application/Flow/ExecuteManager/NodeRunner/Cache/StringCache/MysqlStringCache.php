@@ -86,8 +86,8 @@ class MysqlStringCache implements StringCacheInterface
 
     /**
      * Extract scope tag from cache prefix.
-     * Prefix format: {scope}_{identifier} (e.g., "user_12345", "topic_conv123_topic456", "agent_agent001")
-     * 
+     * Prefix format: {scope}_{identifier} (e.g., "user_12345", "topic_conv123_topic456", "agent_agent001").
+     *
      * @param string $prefix The full cache prefix
      * @return string The scope tag (user, topic, agent)
      */
