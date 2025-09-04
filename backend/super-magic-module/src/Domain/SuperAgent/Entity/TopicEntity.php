@@ -84,7 +84,7 @@ class TopicEntity extends AbstractEntity
     /**
      * @var string 话题模式 (支持自定义字符串)
      */
-    protected string $topicMode = 'general';
+    protected string $topicMode = '';
 
     /**
      * @var float 话题成本
@@ -491,8 +491,7 @@ class TopicEntity extends AbstractEntity
      */
     public function setTopicMode(string $topicMode): self
     {
-        // 支持自定义字符串，直接使用传入的值
-        $this->topicMode = $topicMode ?: 'general';
+        $this->topicMode = $topicMode;
         return $this;
     }
 
