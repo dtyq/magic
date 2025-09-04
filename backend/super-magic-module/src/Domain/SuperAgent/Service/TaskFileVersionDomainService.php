@@ -51,11 +51,23 @@ class TaskFileVersionDomainService
         $versionFileKey = $this->generateVersionFileKey($fileEntity->getFileKey(), $nextVersion);
 
         // 3. 复制OSS文件到版本路径
+        $this->logger->info('Copying file to version path', [
+            'organization_code' => $fileEntity->getOrganizationCode(),
+            'source_key' => $fileEntity->getFileKey(),
+            'destination_key' => $versionFileKey,
+        ]);
+
         $this->copyFileToVersionPath(
             $fileEntity->getOrganizationCode(),
             $fileEntity->getFileKey(),
             $versionFileKey
         );
+
+        $this->logger->info('File copied to version path successfully', [
+            'organization_code' => $fileEntity->getOrganizationCode(),
+            'source_key' => $fileEntity->getFileKey(),
+            'destination_key' => $versionFileKey,
+        ]);
 
         // 4. 创建版本记录
         $versionEntity = new TaskFileVersionEntity();
