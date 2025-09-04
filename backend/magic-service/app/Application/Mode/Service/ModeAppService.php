@@ -106,6 +106,7 @@ class ModeAppService extends AbstractModeAppService
                 ],
                 'agent' => [
                     'type' => $agent->getType()->value,
+                    'category' => $agent->getCategory(),
                 ],
                 'groups' => $modeAggregateDTO['groups'] ?? [],
             ];
