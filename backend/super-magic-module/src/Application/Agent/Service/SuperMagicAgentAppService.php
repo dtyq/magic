@@ -191,6 +191,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $frequent = [];
         foreach ($frequentCodes as $code) {
             if (isset($agentMap[$code])) {
+                $agentMap[$code]->setCategory('frequent');
                 $frequent[] = $agentMap[$code];
             }
         }
@@ -203,6 +204,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         if (! empty($allOrder)) {
             foreach ($allOrder as $code) {
                 if (isset($agentMap[$code]) && ! isset($frequentCodesSet[$code])) {
+                    $agentMap[$code]->setCategory('all');
                     $all[] = $agentMap[$code];
                 }
             }
@@ -211,6 +213,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             foreach ($agents as $agent) {
                 $code = $agent->getCode();
                 if (! in_array($code, $allOrder) && ! isset($frequentCodesSet[$code])) {
+                    $agent->setCategory('all');
                     $all[] = $agent;
                 }
             }
@@ -218,6 +221,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             // 没有排序配置，直接过滤frequent
             foreach ($agents as $agent) {
                 if (! isset($frequentCodesSet[$agent->getCode()])) {
+                    $agent->setCategory('all');
                     $all[] = $agent;
                 }
             }
