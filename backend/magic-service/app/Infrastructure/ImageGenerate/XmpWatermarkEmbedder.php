@@ -136,6 +136,8 @@ class XmpWatermarkEmbedder
 
         $pos = 8; // 跳过PNG签名
         $chunks = [];
+        $xmpChunkFound = false;
+        $xmpChunkIndex = -1;
 
         // 解析现有块
         while ($pos < strlen($imageData) - 8) {
@@ -144,16 +146,28 @@ class XmpWatermarkEmbedder
             $chunkData = substr($imageData, $pos + 8, $chunkLength);
             $chunkCrc = substr($imageData, $pos + 8 + $chunkLength, 4);
 
-            $chunks[] = [
-                'type' => $chunkType,
-                'data' => $chunkData,
-                'crc' => $chunkCrc,
-            ];
+            // 检查是否为现有的 XMP tEXt 块
+            if ($chunkType === 'tEXt' && strpos($chunkData, "XML:com.adobe.xmp\0") === 0) {
+                $xmpChunkFound = true;
+                $xmpChunkIndex = count($chunks);
+                // 替换现有的 XMP 块
+                $chunks[] = [
+                    'type' => 'tEXt',
+                    'data' => "XML:com.adobe.xmp\0" . $xmpData,
+                    'crc' => null, // 将重新计算
+                ];
+            } else {
+                $chunks[] = [
+                    'type' => $chunkType,
+                    'data' => $chunkData,
+                    'crc' => $chunkCrc,
+                ];
+            }
 
             $pos += 8 + $chunkLength + 4;
 
-            // 在关键块后插入 XMP 文本块
-            if ($chunkType === 'IHDR') {
+            // 在关键块后插入新的 XMP 文本块（仅当没有找到现有XMP块时）
+            if ($chunkType === 'IHDR' && ! $xmpChunkFound) {
                 $chunks[] = [
                     'type' => 'tEXt',
                     'data' => "XML:com.adobe.xmp\0" . $xmpData,
