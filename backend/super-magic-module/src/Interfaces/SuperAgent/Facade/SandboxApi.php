@@ -149,6 +149,7 @@ class SandboxApi extends AbstractApi
         $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
         $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
         $initSandboxResponseDTO->setTopicId($requestDTO->getTopicId());
+        $initSandboxResponseDTO->setChatTopicId($requestDTO->getChatTopicId());
         // $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId((string) $magicUserAuthorization->getId());
@@ -158,7 +159,7 @@ class SandboxApi extends AbstractApi
         //  $dataIsolation = new DataIsolation($userEntity->getId(), $userEntity->getOrganizationCode(), $userEntity->getWorkDir());
 
         $userMessage = [
-            'chat_topic_id' => $requestDTO->getTopicId(),
+            'chat_topic_id' => $requestDTO->getChatTopicId(),
             'topic_id' => (int) $requestDTO->getTopicId(),
             // 'chat_conversation_id' => $requestDTO->getConversationId(),
             'prompt' => $requestDTO->getPrompt(),
@@ -238,6 +239,7 @@ class SandboxApi extends AbstractApi
                 // 抛异常，话题不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
+            $chatTopicId = $topic->getChatTopicId();
         } else {
             $saveTopicRequestDTO = new SaveTopicRequestDTO();
             $saveTopicRequestDTO->setTopicName('默认话题');
@@ -248,10 +250,13 @@ class SandboxApi extends AbstractApi
             $topic = $this->topicAppService->createTopicNotValidateAccessibleProject($requestContext, $saveTopicRequestDTO);
             if (! empty($topic->getId())) {
                 $topicId = $topic->getId();
+                $chatTopicId = $topic->getChatTopicId();
             } else {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
         }
+
+        $requestDTO->setChatTopicId($chatTopicId);
         $requestDTO->setTopicId($topicId);
     }
 }
