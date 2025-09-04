@@ -327,14 +327,14 @@ class TaskFileDomainService
             $fileEntity->setProjectId($taskFileEntity->getProjectId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            $fileEntity->setTopicId($taskFileEntity->getTopicId());
-            $fileEntity->setTaskId($taskFileEntity->getTaskId());
-            //            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
-            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
-            //            }
-            //            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
-            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
-            //            }
+            // $fileEntity->setTopicId($taskFileEntity->getTopicId());
+            // $fileEntity->setTaskId($taskFileEntity->getTaskId());
+            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
+                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
+            }
+            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
+                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
+            }
 
             // 文件信息相关设置
             $fileEntity->setFileType(! empty($taskFileEntity->getFileType()) ? $taskFileEntity->getFileType() : FileType::PROCESS->value);
@@ -1011,12 +1011,10 @@ class TaskFileDomainService
 
             $taskFileEntity = new TaskFileEntity();
             $taskFileEntity->setFileKey($fileKey);
-            //            $taskFileEntity->setTaskId($taskEntity->getId());
-            //            $taskFileEntity->setTopicId($taskEntity->getTopicId());
+            $taskFileEntity->setTaskId($taskEntity->getId());
+            $taskFileEntity->setTopicId($taskEntity->getTopicId());
             $taskFileEntity->setSource(TaskFileSource::AGENT);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
-            $taskFileEntity->setLatestModifiedTopicId((int) $metadata->getChatTopicId());
-            $taskFileEntity->setLatestModifiedTaskId((int) $metadata->getSuperMagicTaskId());
 
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
