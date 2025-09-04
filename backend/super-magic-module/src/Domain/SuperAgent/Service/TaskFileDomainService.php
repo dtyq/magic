@@ -327,6 +327,11 @@ class TaskFileDomainService
             $fileEntity->setProjectId($taskFileEntity->getProjectId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+
+            if ($isCreated) {
+                $fileEntity->setTopicId($taskFileEntity->getTopicId());
+                $fileEntity->setTaskId($taskFileEntity->getTaskId());
+            }
             // $fileEntity->setTopicId($taskFileEntity->getTopicId());
             // $fileEntity->setTaskId($taskFileEntity->getTaskId());
             if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
