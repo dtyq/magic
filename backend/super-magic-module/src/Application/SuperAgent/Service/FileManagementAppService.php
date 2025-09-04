@@ -342,7 +342,7 @@ class FileManagementAppService extends AbstractAppService
         }
 
         // 1. 验证项目权限
-        $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
         Db::beginTransaction();
         try {
