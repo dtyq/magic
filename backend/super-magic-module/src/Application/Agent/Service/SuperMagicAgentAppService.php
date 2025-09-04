@@ -12,11 +12,17 @@ use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Domain\Mode\Entity\ModeEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
+use App\Domain\Mode\Service\ModeDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Flow\DTO\MagicFlowApiChatDTO;
+use DateTime;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -25,6 +31,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
     #[Inject]
     protected MagicUserSettingDomainService $magicUserSettingDomainService;
+
+    #[Inject]
+    protected ModeDomainService $modeDomainService;
 
     public function show(Authenticatable $authorization, string $code, bool $withToolSchema = false): SuperMagicAgentEntity
     {
@@ -61,6 +70,13 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $query->setSelect(['id', 'code', 'name', 'description', 'icon']); // Only select necessary fields for list
 
         $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
+
+        // 合并内置模型
+        $builtinAgents = $this->getBuiltinAgent($dataIsolation);
+        if (! $page->isEnabled()) {
+            $result['list'] = array_merge($builtinAgents, $result['list']);
+            $result['total'] += count($builtinAgents);
+        }
 
         // 根据用户排列配置对结果进行分类
         $orderConfig = $this->getOrderConfig($authorization);
@@ -238,5 +254,47 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'frequent' => $frequent,
             'all' => $all,
         ];
+    }
+
+    /**
+     * @return array<SuperMagicAgentEntity>
+     */
+    private function getBuiltinAgent(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation): array
+    {
+        $modeDataIsolation = $this->createModeDataIsolation($superMagicAgentDataIsolation);
+        $query = new ModeQuery(excludeDefault: true, status: true);
+        $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage());
+        $list = [];
+        foreach ($modesResult['list'] as $mode) {
+            $list[] = $this->createBuiltinAgentEntityByMode($superMagicAgentDataIsolation, $mode);
+        }
+        return $list;
+    }
+
+    private function createBuiltinAgentEntityByMode(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation, ModeEntity $modeEntity): SuperMagicAgentEntity
+    {
+        $entity = new SuperMagicAgentEntity();
+
+        // 设置基本信息
+        $entity->setOrganizationCode($superMagicAgentDataIsolation->getCurrentOrganizationCode());
+        $entity->setCode($modeEntity->getIdentifier());
+        $entity->setName($modeEntity->getName());
+        $entity->setDescription($modeEntity->getPlaceholder());
+        $entity->setIcon([
+            'type' => $modeEntity->getIcon(),
+            'color' => $modeEntity->getColor(),
+        ]);
+        $entity->setType(SuperMagicAgentType::Built_In);
+        $entity->setEnabled(true);
+        $entity->setPrompt([]);
+        $entity->setTools([]);
+
+        // 设置系统创建信息
+        $entity->setCreator('system');
+        $entity->setCreatedAt(new DateTime());
+        $entity->setModifier('system');
+        $entity->setUpdatedAt(new DateTime());
+
+        return $entity;
     }
 }
