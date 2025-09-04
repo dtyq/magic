@@ -110,8 +110,10 @@ class ModeAppService extends AbstractModeAppService
             if (empty($modeAggregateDTO->getAllModelIds())) {
                 continue;
             }
-            $modeAggregateDTO->getMode()->setId($agent->getCode());
-            $list[] = $modeAggregateDTO;
+            $currentModeAggregateDTO = clone $modeAggregateDTO;
+            $currentModeAggregateDTO->getMode()->setId($agent->getCode());
+            $currentModeAggregateDTO->getMode()->setIdentifier($agent->getCode());
+            $list[] = $currentModeAggregateDTO;
         }
 
         return [
