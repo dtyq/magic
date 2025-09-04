@@ -266,11 +266,6 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         if (! empty($this->projectId)) {
             $taskFileEntity->setProjectId((int) $this->projectId);
         }
-
-        if (! empty($this->parentId)) {
-            // 使用DTO中的值
-            $taskFileEntity->setIsDirectory($this->isDirectory);
-        }
         $taskFileEntity->setSort($this->sort);
         $taskFileEntity->setParentId(! empty($this->parentId) ? (int) $this->parentId : 0);
 
