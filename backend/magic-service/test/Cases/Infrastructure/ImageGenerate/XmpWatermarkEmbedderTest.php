@@ -37,7 +37,7 @@ class XmpWatermarkEmbedderTest extends BaseTest
 
     public function test()
     {
-        $url = 'https://teamshareos-app-public.tos-cn-beijing.volces.com/MAGIC/713471849556451329/4c9184f37cff01bcdc32dc486ec36961/open/68b92d8eefeb5.png';
+        $url = '';
         $di = di(ImageWatermarkProcessor::class);
         $imageGenerateRequest = new ImageGenerateRequest();
         $watermark = new ImplicitWatermark();
