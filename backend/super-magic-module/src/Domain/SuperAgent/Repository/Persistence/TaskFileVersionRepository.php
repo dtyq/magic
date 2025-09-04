@@ -118,4 +118,32 @@ class TaskFileVersionRepository implements TaskFileVersionRepositoryInterface
 
         return $entities;
     }
+
+    /**
+     * 分页获取指定文件的版本列表，按版本号倒序.
+     */
+    public function getByFileIdWithPage(int $fileId, int $page, int $pageSize): array
+    {
+        $query = $this->model::query()->where('file_id', $fileId);
+
+        // 获取总数
+        $total = $query->count();
+
+        // 分页查询
+        $models = $query->orderBy('version', 'desc')
+            ->skip(($page - 1) * $pageSize)
+            ->take($pageSize)
+            ->get();
+
+        // 转换为实体
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new TaskFileVersionEntity($model->toArray());
+        }
+
+        return [
+            'list' => $entities,
+            'total' => $total,
+        ];
+    }
 }
