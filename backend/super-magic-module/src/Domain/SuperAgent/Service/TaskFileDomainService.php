@@ -328,7 +328,7 @@ class TaskFileDomainService
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
-            if($isCreated){
+            if ($isCreated) {
                 $fileEntity->setTopicId($taskFileEntity->getTopicId());
                 $fileEntity->setTaskId($taskFileEntity->getTaskId());
             }
