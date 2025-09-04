@@ -329,11 +329,11 @@ class TaskFileDomainService
             $fileEntity->setProjectId($taskFileEntity->getProjectId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
-                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
+            if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
+                $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTopicId());
             }
-            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
-                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
+            if (! empty($taskFileEntity->getTaskId()) && ($taskFileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
+                $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTaskId());
             }
             // 文件信息相关设置
             $fileEntity->setFileType(! empty($taskFileEntity->getFileType()) ? $taskFileEntity->getFileType() : FileType::PROCESS->value);
