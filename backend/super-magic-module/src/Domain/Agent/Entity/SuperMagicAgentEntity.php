@@ -65,12 +65,6 @@ class SuperMagicAgentEntity extends AbstractEntity
      */
     protected ?bool $enabled = null;
 
-    /**
-     * Category for agent classification.
-     * Values: 'frequent', 'all'
-     */
-    private string $category = 'all';
-
     protected string $creator;
 
     protected DateTime $createdAt;
@@ -78,6 +72,12 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected string $modifier;
 
     protected DateTime $updatedAt;
+
+    /**
+     * Category for agent classification.
+     * Values: 'frequent', 'all'.
+     */
+    private string $category = 'all';
 
     public function shouldCreate(): bool
     {

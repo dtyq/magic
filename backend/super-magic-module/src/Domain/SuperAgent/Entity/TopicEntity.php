@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Throwable;
 
 /**
  * 话题实体.
@@ -487,7 +488,6 @@ class TopicEntity extends AbstractEntity
 
     /**
      * 设置话题模式.
-     * @param string $topicMode
      */
     public function setTopicMode(string $topicMode): self
     {
