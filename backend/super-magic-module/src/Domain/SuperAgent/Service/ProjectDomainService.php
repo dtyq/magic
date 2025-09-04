@@ -14,7 +14,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -199,13 +198,13 @@ class ProjectDomainService
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
     }
 
-    public function updateProjectMode(int $id, TopicMode $topicMode): bool
+    public function updateProjectMode(int $id, string $topicMode): bool
     {
         $projectEntity = $this->projectRepository->findById($id);
         if (! $projectEntity || ! empty($projectEntity->getProjectMode())) {
             return false;
         }
-        $projectEntity->setProjectMode($topicMode->value);
+        $projectEntity->setProjectMode($topicMode);
         $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $this->projectRepository->save($projectEntity);
         return true;
