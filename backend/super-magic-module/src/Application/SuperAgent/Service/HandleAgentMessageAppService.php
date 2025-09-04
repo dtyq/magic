@@ -805,22 +805,22 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         // Set basic file information
         $taskFileEntity->setFileKey($attachment['file_key']);
-        $taskFileEntity->setFileName($attachment['filename'] ?? $attachment['display_filename'] ?? basename($attachment['file_key']));
+        $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
         $taskFileEntity->setFileExtension($attachment['file_extension']);
-        $taskFileEntity->setFileSize($attachment['file_size'] ?? 0);
+        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
 
         // Set file type based on attachment type and file_tag
         if ($type === 'tool') {
-            $taskFileEntity->setFileType($attachment['file_tag'] ?? FileType::PROCESS->value);
+            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
             $taskFileEntity->setSource(TaskFileSource::AGENT);
         } else {
             // message type
-            $taskFileEntity->setFileType($attachment['file_tag'] ?? FileType::PROCESS->value);
+            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
             $taskFileEntity->setSource(TaskFileSource::AGENT);
         }
 
         // Set storage type (will be overridden by saveProjectFile parameter)
-        $taskFileEntity->setStorageType($attachment['storage_type'] ?? StorageType::WORKSPACE->value);
+        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
         return $taskFileEntity;
     }
 

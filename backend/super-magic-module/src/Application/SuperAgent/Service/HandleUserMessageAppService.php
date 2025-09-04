@@ -568,12 +568,12 @@ class HandleUserMessageAppService extends AbstractAppService
 
         // Use attachment data directly
         $taskFileEntity->setFileKey($attachment['file_key']);
-        $fileName = $attachment['filename'] ?? $attachment['display_filename'] ?? basename($attachment['file_key']);
+        $fileName = ! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key']));
         $taskFileEntity->setFileName($fileName);
-        $taskFileEntity->setFileExtension($attachment['file_extension'] ?? pathinfo($fileName, PATHINFO_EXTENSION));
-        $taskFileEntity->setFileSize($attachment['file_size'] ?? 0);
-        $taskFileEntity->setFileType($attachment['file_tag'] ?? FileType::USER_UPLOAD->value);
-        $taskFileEntity->setStorageType($attachment['storage_type'] ?? StorageType::WORKSPACE->value);
+        $taskFileEntity->setFileExtension(! empty($attachment['file_extension']) ? $attachment['file_extension'] : pathinfo($fileName, PATHINFO_EXTENSION));
+        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+        $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::USER_UPLOAD->value);
+        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
         $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
         $taskFileEntity->setIsDirectory(false);
         $taskFileEntity->setSort(0);
