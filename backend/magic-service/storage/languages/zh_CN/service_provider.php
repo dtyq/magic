@@ -25,4 +25,5 @@ return [
     'magic_provider_not_found' => 'Magic服务商配置不存在',
     'original_model_id_already_exists' => '原始模型ID已存在',
     'original_model_not_found' => '原始模型不存在',
+    'invalid_pricing' => '价格不能小于0',
 ];
