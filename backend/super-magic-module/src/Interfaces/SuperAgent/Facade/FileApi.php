@@ -450,25 +450,6 @@ class FileApi extends AbstractApi
         return $this->fileProcessAppService->getFileNameById($id);
     }
 
-    /**
-     * 创建文件版本.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @return array 创建结果
-     */
-    public function createFileVersion(RequestContext $requestContext): array
-    {
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        // 获取请求数据并创建DTO
-        $requestDTO = CreateFileVersionRequestDTO::fromRequest($this->request);
-
-        // 调用应用服务
-        $responseDTO = $this->fileVersionAppService->createFileVersion($requestContext, $requestDTO);
-
-        return $responseDTO->toArray();
-    }
 
     /**
      * 获取文件版本列表.
