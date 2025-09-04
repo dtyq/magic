@@ -17,25 +17,25 @@ return new class extends Migration {
         Schema::create('magic_super_agent_task_file_versions', function (Blueprint $table) {
             // 主键
             $table->bigIncrements('id');
-            
+
             // 文件ID，关联magic_super_agent_task_files表
             $table->unsignedBigInteger('file_id')->comment('文件ID');
-            
+
             // 组织编码，用于数据隔离
             $table->string('organization_code', 64)->comment('组织编码');
-            
+
             // 文件键，标识文件的具体版本位置
             $table->string('file_key', 512)->comment('文件键');
-            
+
             // 版本号
             $table->unsignedInteger('version')->comment('版本号');
-            
+
             // 索引设计
             $table->index(['file_id', 'organization_code'], 'idx_file_id_org_code');
             $table->unique(['file_key'], 'unq_file_key');
             $table->index(['organization_code'], 'idx_organization_code');
             $table->index(['file_id', 'version'], 'idx_file_id_version');
-            
+
             // 时间字段
             $table->timestamps();
             $table->softDeletes();
