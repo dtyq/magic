@@ -107,7 +107,7 @@ class TopicDomainService
             return '';
         }
 
-        return ! empty($result['list'][0]->getTopicMode()) ? $result['list'][0]->getTopicMode()->value : '';
+        return $result['list'][0]->getTopicMode() ?? '';
     }
 
     /**

@@ -104,6 +104,10 @@ class ModeAppService extends AbstractModeAppService
                     'color' => $agent->getIcon()['color'] ?? '',
                     'sort' => 0,
                 ],
+                'agent' => [
+                    'type' => $agent->getType()->value,
+                    'category' => $agent->getCategory(),
+                ],
                 'groups' => $modeAggregateDTO['groups'] ?? [],
             ];
         }
