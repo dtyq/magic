@@ -25,6 +25,8 @@ class InitSandboxResponseDTO
 
     protected string $projectMode = 'general';
 
+    protected string $chatTopicId = '';
+
     protected string $topicId = '';
 
     protected string $conversationId = '';
@@ -103,6 +105,16 @@ class InitSandboxResponseDTO
     public function setTopicId(string $topicId): void
     {
         $this->topicId = $topicId;
+    }
+
+    public function getChatTopicId(): string
+    {
+        return $this->chatTopicId;
+    }
+
+    public function setChatTopicId(string $chatTopicId): void
+    {
+        $this->chatTopicId = $chatTopicId;
     }
 
     public function getTaskId(): string

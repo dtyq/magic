@@ -29,6 +29,8 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
 
     protected string $topicId = '';
 
+    protected string $chatTopicId= '';
+
     protected string $topicMode = '';
 
     protected string $prompt = '';
@@ -94,6 +96,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'project_mode' => '项目模式',
             'topic_mode' => '话题模式',
             'topic_id' => '话题ID',
+            'chat_topic_id' => '聊天话题ID',
             'prompt' => '提示词',
             'params' => '参数',
         ];
@@ -162,6 +165,16 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     public function setTopicId(string $topicId): void
     {
         $this->topicId = $topicId;
+    }
+
+    public function getChatTopicId(): string
+    {
+        return $this->chatTopicId;
+    }
+
+    public function setChatTopicId(string $chatTopicId): void
+    {
+        $this->chatTopicId = $chatTopicId;
     }
 
     public function getConversationId(): string
