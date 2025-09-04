@@ -60,6 +60,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $agent;
     }
 
+    /**
+     * @return array{frequent: array<SuperMagicAgentEntity>, all: array<SuperMagicAgentEntity>, total: int}
+     */
     public function queries(Authenticatable $authorization, SuperMagicAgentQuery $query, Page $page): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
