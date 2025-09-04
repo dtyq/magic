@@ -132,6 +132,12 @@ use App\Domain\MCP\Repository\Facade\MCPUserSettingRepositoryInterface;
 use App\Domain\MCP\Repository\Persistence\MCPServerRepository;
 use App\Domain\MCP\Repository\Persistence\MCPServerToolRepository;
 use App\Domain\MCP\Repository\Persistence\MCPUserSettingRepository;
+use App\Domain\Mode\Repository\Facade\ModeGroupRelationRepositoryInterface;
+use App\Domain\Mode\Repository\Facade\ModeGroupRepositoryInterface;
+use App\Domain\Mode\Repository\Facade\ModeRepositoryInterface;
+use App\Domain\Mode\Repository\Persistence\ModeGroupRelationRepository;
+use App\Domain\Mode\Repository\Persistence\ModeGroupRepository;
+use App\Domain\Mode\Repository\Persistence\ModeRepository;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -417,6 +423,11 @@ $dependencies = [
     PackageFilterInterface::class => DefaultPackageFilter::class,
 
     FontProviderInterface::class => DefaultFontProvider::class,
+
+    // mode
+    ModeRepositoryInterface::class => ModeRepository::class,
+    ModeGroupRepositoryInterface::class => ModeGroupRepository::class,
+    ModeGroupRelationRepositoryInterface::class => ModeGroupRelationRepository::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

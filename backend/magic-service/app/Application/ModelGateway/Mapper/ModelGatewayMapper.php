@@ -274,7 +274,7 @@ class ModelGatewayMapper extends ModelMapper
 
         // 加载 provider 配置的所有模型
         $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
-        $allModels = di(ProviderModelRepositoryInterface::class)->getAvailableModelsForOrganization($providerDataIsolation, Category::LLM);
+        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
 
         // 按模型类型过滤（如果指定了类型）
         $providerModelData = [];
@@ -468,7 +468,7 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 直接调用仓储层获取所有可用模型（已包含套餐可见性过滤）
-        $allModels = di(ProviderModelRepositoryInterface::class)->getAvailableModelsForOrganization($providerDataIsolation, Category::LLM);
+        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
         // 在可用模型中查找指定模型
         $providerModelEntity = null;
         foreach ($allModels as $availableModel) {

@@ -100,6 +100,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 'prompt' => $userMessageDTO->getPrompt(),
                 'attachments' => $userMessageDTO->getAttachments(),
                 'mentions' => $userMessageDTO->getMentions(),
+                'model_id' => $userMessageDTO->getModelId(),
                 'task_status' => TaskStatus::WAITING->value,
                 'work_dir' => $topicEntity->getWorkDir() ?? '',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -130,6 +131,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $userMessageDTO->getTopicMode()->value,
+                modelId: $userMessageDTO->getModelId(),
             );
             $sandboxID = $this->createAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -235,10 +237,8 @@ class HandleTaskMessageAppService extends AbstractAppService
         }
 
         if (empty($uid)) {
-            if ($accessToken->getType() === AccessTokenType::Application->value) {
+            if ($accessToken->getType() !== AccessTokenType::Application->value) {
                 $uid = $accessToken->getCreator();
-            } else {
-                $uid = $accessToken->getRelationId();
             }
         }
 
@@ -249,12 +249,16 @@ class HandleTaskMessageAppService extends AbstractAppService
     {
         $taskEntity = $this->taskDomainService->getTaskById($taskId);
 
-        var_dump($taskEntity, '=====taskEntity');
         if (empty($taskEntity)) {
             // 抛异常，任务不存在
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.task_not_found');
         }
         return $taskEntity;
+    }
+
+    public function getTaskBySandboxId(string $sandboxId): TaskEntity
+    {
+        return $this->taskDomainService->getTaskBySandboxId($sandboxId);
     }
 
     public function executeScriptTask(CreateScriptTaskRequestDTO $requestDTO): void
@@ -350,7 +354,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
 
         // Send message to agent
-        //  $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
+        $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         // Send message to agent
         return $sandboxId;

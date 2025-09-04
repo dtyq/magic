@@ -36,6 +36,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/models', [ServiceProviderApi::class, 'saveModelToServiceProvider']);
         Router::delete('/models/{modelId}', [ServiceProviderApi::class, 'deleteModel']);
         Router::put('/models/{modelId}/status', [ServiceProviderApi::class, 'updateModelStatus']);
+        Router::post('/models/queries', [ServiceProviderApi::class, 'queriesModels']); // 根据模型类型，模型状态获取模型
 
         // 模型标识管理
         Router::post('/model-id', [ServiceProviderApi::class, 'addModelIdForOrganization']);

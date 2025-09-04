@@ -126,52 +126,69 @@ class FileDefaultInitCommand extends Command
                     $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION);
                     $fileSize = filesize($filePath);
 
-                    // 构建文件的相对路径作为 key
-                    $relativePath = str_replace($baseFileDir . '/', '', $filePath);
-                    $key = $relativePath;
+                    // 生成业务唯一标识（用于重复检查）
+                    $businessIdentifier = $moduleName . '/' . $fileName;
 
-                    // 检查文件是否已存在于数据库中
-                    $existingFile = $this->defaultFileDomainService->getByKey($key);
-                    if ($existingFile !== null) {
-                        $this->line("    - 跳过已存在的文件: {$fileName}");
+                    // 正确的重复检查：查询相同业务类型下是否有相同的业务标识
+                    $existingFiles = $this->defaultFileDomainService->getByOrganizationCodeAndBusinessType($businessType, $organizationCode);
+                    $isDuplicate = false;
+                    foreach ($existingFiles as $existingFile) {
+                        // 使用 userId 字段存储业务标识来判断重复
+                        if ($existingFile->getUserId() === $businessIdentifier) {
+                            $isDuplicate = true;
+                            break;
+                        }
+                    }
+
+                    if ($isDuplicate) {
+                        $this->line("    - 跳过重复文件: {$fileName}");
                         ++$skippedFiles;
                         continue;
                     }
 
                     $this->line("    - 处理文件: {$fileName}");
 
-                    // 构建文件上传路径
-                    $uploadDir = dirname($relativePath);
+                    try {
+                        // 读取文件内容并转为 base64 格式
+                        $fileContent = file_get_contents($filePath);
+                        $mimeType = mime_content_type($filePath) ?: 'image/png';
+                        $base64Content = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
 
-                    // 上传文件到存储
-                    $uploadFile = new UploadFile(
-                        $filePath,
-                        $uploadDir,
-                        $fileName,
-                        false
-                    );
+                        // 完全参考 ImageWatermarkProcessor 的成功做法，但指定文件名
+                        $uploadFile = new UploadFile($base64Content, 'default-files', $fileName);
+                        $this->fileDomainService->uploadByCredential(
+                            $organizationCode,
+                            $uploadFile,
+                            StorageBucketType::Public
+                        );
 
-                    $this->fileDomainService->uploadByCredential(
-                        $organizationCode,
-                        $uploadFile,
-                        StorageBucketType::Public,
-                        false
-                    );
+                        // 立即验证文件是否可获取（关键验证步骤）
+                        $actualKey = $uploadFile->getKey();
+                        // 从 key 中提取组织编码，参考 ProviderAppService 的正确做法
+                        $keyOrganizationCode = substr($actualKey, 0, strpos($actualKey, '/'));
+                        $fileLink = $this->fileDomainService->getLink($keyOrganizationCode, $actualKey, StorageBucketType::Public);
+                        if (! $fileLink || ! $fileLink->getUrl()) {
+                            throw new Exception('文件上传失败，无法获取访问链接');
+                        }
 
-                    // 创建默认文件实体
-                    $defaultFileEntity = new DefaultFileEntity();
-                    $defaultFileEntity->setBusinessType($businessType->value);
-                    $defaultFileEntity->setFileType(DefaultFileType::DEFAULT->value);
-                    $defaultFileEntity->setKey($key);
-                    $defaultFileEntity->setFileSize($fileSize);
-                    $defaultFileEntity->setOrganization($organizationCode);
-                    $defaultFileEntity->setFileExtension($fileExtension);
-                    $defaultFileEntity->setUserId('system');
+                        // 验证成功后才创建数据库记录，使用实际的上传 key
+                        $defaultFileEntity = new DefaultFileEntity();
+                        $defaultFileEntity->setBusinessType($businessType->value);
+                        $defaultFileEntity->setFileType(DefaultFileType::DEFAULT->value);
+                        $defaultFileEntity->setKey($actualKey);
+                        $defaultFileEntity->setFileSize($fileSize);
+                        $defaultFileEntity->setOrganization($organizationCode);
+                        $defaultFileEntity->setFileExtension($fileExtension);
+                        $defaultFileEntity->setUserId($businessIdentifier); // 使用业务标识作为 userId
 
-                    // 保存实体
-                    $this->defaultFileDomainService->insert($defaultFileEntity);
+                        // 保存实体
+                        $this->defaultFileDomainService->insert($defaultFileEntity);
 
-                    ++$fileCount;
+                        ++$fileCount;
+                    } catch (Exception $e) {
+                        $this->error("  - 处理文件 {$fileName} 失败: {$e->getMessage()}");
+                        continue; // 不影响后续文件处理
+                    }
                 }
 
                 $this->line("    - 成功处理 {$fileCount} 个文件");

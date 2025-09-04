@@ -25,6 +25,8 @@ class ProviderModelQuery extends Query
 
     protected bool $isOffice = false;
 
+    protected bool $isModelIdFilter = false;
+
     public function getSuperMagicDisplay(): ?bool
     {
         return $this->superMagicDisplay;
@@ -50,9 +52,12 @@ class ProviderModelQuery extends Query
         return $this->category;
     }
 
-    public function setCategory(?Category $category): void
+    public function setCategory(null|Category|string $category): void
     {
-        $this->category = $category;
+        if (is_null($category)) {
+            return;
+        }
+        $this->category = $category instanceof Category ? $category : Category::from($category);
     }
 
     public function getStatus(): ?Status
@@ -60,9 +65,12 @@ class ProviderModelQuery extends Query
         return $this->status;
     }
 
-    public function setStatus(?Status $status): self
+    public function setStatus(null|int|Status $status): self
     {
-        $this->status = $status;
+        if (is_null($status)) {
+            return $this;
+        }
+        $this->status = $status instanceof Status ? $status : Status::from($status);
         return $this;
     }
 
@@ -84,5 +92,15 @@ class ProviderModelQuery extends Query
     public function setIsOffice(bool $isOffice): void
     {
         $this->isOffice = $isOffice;
+    }
+
+    public function isModelIdFilter(): bool
+    {
+        return $this->isModelIdFilter;
+    }
+
+    public function setIsModelIdFilter(bool $isModelIdFilter): void
+    {
+        $this->isModelIdFilter = $isModelIdFilter;
     }
 }

@@ -15,6 +15,7 @@ use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -216,6 +217,14 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
 
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+    }
+
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    public function queriesModels(RequestInterface $request): array
+    {
+        $authenticatable = $this->getAuthorization();
+        $providerModelQuery = new ProviderModelQuery($request->all());
+        return $this->adminProviderAppService->queriesModels($authenticatable, $providerModelQuery);
     }
 
     /**
