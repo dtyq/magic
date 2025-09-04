@@ -39,18 +39,13 @@ class FileVersionAppService extends AbstractAppService
      * @return CreateFileVersionResponseDTO 创建结果
      */
     public function createFileVersion(
-        RequestContext $requestContext,
         CreateFileVersionRequestDTO $requestDTO
     ): CreateFileVersionResponseDTO {
         // 获取用户授权信息
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
         $fileKey = $requestDTO->getFileKey();
 
         $this->logger->info('Creating file version', [
             'file_key' => $fileKey,
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
         ]);
 
         // 验证文件是否存在
@@ -59,23 +54,9 @@ class FileVersionAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
         }
 
-        // 验证文件权限 - 确保文件属于当前组织
-        if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.access_denied');
-        }
-
         // 验证文件是否为目录
         if ($fileEntity->getIsDirectory()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.cannot_version_directory');
-        }
-
-        // 验证项目权限
-        if ($fileEntity->getProjectId() > 0) {
-            $this->getAccessibleProject(
-                $fileEntity->getProjectId(),
-                $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
-            );
         }
 
         // 调用Domain Service创建版本
