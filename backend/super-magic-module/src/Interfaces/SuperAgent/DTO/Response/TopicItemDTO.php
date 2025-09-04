@@ -75,8 +75,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->setTopicName($entity->getTopicName());
         $dto->setTaskStatus($entity->getCurrentTaskStatus()->value);
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
-        $dto->setTopicMode($entity->getTopicMode()->value ?? '');
-        $dto->setTopicMode($entity->getTopicMode()->value ?? '');
+        $dto->setTopicMode($entity->getTopicMode());
         $dto->setSandboxId($entity->getSandboxId());
         $dto->setUpdatedAt($entity->getUpdatedAt());
         return $dto;
