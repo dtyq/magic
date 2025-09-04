@@ -89,6 +89,34 @@ class TaskFileVersionDomainService
     }
 
     /**
+     * 分页获取文件的历史版本列表.
+     *
+     * @param int $fileId 文件ID
+     * @param int $page 页码（从1开始）
+     * @param int $pageSize 每页数量
+     * @return array 包含 list（TaskFileVersionEntity数组）和 total（总数）的数组
+     */
+    public function getFileVersionsWithPage(int $fileId, int $page, int $pageSize): array
+    {
+        $this->logger->info('Getting file versions with pagination', [
+            'file_id' => $fileId,
+            'page' => $page,
+            'page_size' => $pageSize,
+        ]);
+
+        // 调用仓库层的分页查询方法
+        $result = $this->taskFileVersionRepository->getByFileIdWithPage($fileId, $page, $pageSize);
+
+        $this->logger->info('File versions retrieved successfully', [
+            'file_id' => $fileId,
+            'total' => $result['total'],
+            'current_page_count' => count($result['list']),
+        ]);
+
+        return $result;
+    }
+
+    /**
      * 批量清理多个文件的版本（用于定时任务等场景）.
      */
     public function batchCleanupFileVersions(array $fileIds, int $maxVersions): array

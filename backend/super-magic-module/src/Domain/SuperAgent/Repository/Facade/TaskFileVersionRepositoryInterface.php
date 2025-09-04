@@ -54,4 +54,14 @@ interface TaskFileVersionRepositoryInterface
      * @return TaskFileVersionEntity[]
      */
     public function getVersionsToCleanup(int $fileId, int $keepCount): array;
+
+    /**
+     * 分页获取指定文件的版本列表，按版本号倒序.
+     *
+     * @param int $fileId 文件ID
+     * @param int $page 页码（从1开始）
+     * @param int $pageSize 每页数量
+     * @return array 包含 list 和 total 的数组
+     */
+    public function getByFileIdWithPage(int $fileId, int $page, int $pageSize): array;
 }
