@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentFileAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileBatchAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\FileVersionAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -27,6 +28,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesReque
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
@@ -47,6 +49,7 @@ class FileApi extends AbstractApi
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileBatchAppService $fileBatchAppService,
         private readonly FileManagementAppService $fileManagementAppService,
+        private readonly FileVersionAppService $fileVersionAppService,
         protected WorkspaceAppService $workspaceAppService,
         protected RequestInterface $request,
         protected AgentFileAppService $agentFileAppService,
@@ -172,27 +175,6 @@ class FileApi extends AbstractApi
         }
 
         return $this->fileProcessAppService->workspaceAttachments($requestDTO);
-    }
-
-    /**
-     * 获取文件版本列表.
-     */
-    public function getFileVersions(RequestContext $requestContext)
-    {
-        $fileId = (int) $this->request->input('file_id', '');
-        $topicId = (int) $this->request->input('topic_id', '');
-        return $this->agentFileAppService->getFileVersions($fileId, $topicId);
-    }
-
-    /**
-     * 获取文件版本内容.
-     */
-    public function getFileVersionContent(RequestContext $requestContext)
-    {
-        $fileId = (int) $this->request->input('file_id', '');
-        $commitHash = $this->request->input('commit_hash', '');
-        $topicId = (int) $this->request->input('topic_id', '');
-        return $this->agentFileAppService->getFileVersionContent($fileId, $commitHash, $topicId);
     }
 
     /**
@@ -467,6 +449,26 @@ class FileApi extends AbstractApi
     {
         // Call app service to get file name
         return $this->fileProcessAppService->getFileNameById($id);
+    }
+
+    /**
+     * 创建文件版本.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 创建结果
+     */
+    public function createFileVersion(RequestContext $requestContext): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 获取请求数据并创建DTO
+        $requestDTO = CreateFileVersionRequestDTO::fromRequest($this->request);
+
+        // 调用应用服务
+        $responseDTO = $this->fileVersionAppService->createFileVersion($requestContext, $requestDTO);
+
+        return $responseDTO->toArray();
     }
 
     /**
