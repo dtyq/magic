@@ -758,7 +758,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $projectEntity,
                 $taskFileEntity,
                 $storageType,
-                false // isUpdated = false for new files
+                true // isUpdated = false for new files
             );
 
             // Update attachment information (maintain compatibility)
