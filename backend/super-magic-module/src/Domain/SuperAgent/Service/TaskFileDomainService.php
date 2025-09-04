@@ -1011,8 +1011,8 @@ class TaskFileDomainService
 
             $taskFileEntity = new TaskFileEntity();
             $taskFileEntity->setFileKey($fileKey);
-//            $taskFileEntity->setTaskId($taskEntity->getId());
-//            $taskFileEntity->setTopicId($taskEntity->getTopicId());
+            //            $taskFileEntity->setTaskId($taskEntity->getId());
+            //            $taskFileEntity->setTopicId($taskEntity->getTopicId());
             $taskFileEntity->setSource(TaskFileSource::AGENT);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setLatestModifiedTopicId((int) $metadata->getChatTopicId());

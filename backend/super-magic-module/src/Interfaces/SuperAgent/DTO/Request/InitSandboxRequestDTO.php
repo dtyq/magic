@@ -29,7 +29,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
 
     protected string $topicId = '';
 
-    protected string $chatTopicId= '';
+    protected string $chatTopicId = '';
 
     protected string $topicMode = '';
 
