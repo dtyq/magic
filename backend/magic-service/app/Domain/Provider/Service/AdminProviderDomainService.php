@@ -13,7 +13,6 @@ use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
@@ -246,6 +245,10 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         // 根据key进行过滤
         $models = [];
         foreach ($allModels as $model) {
+            // 过滤禁用
+            if ($model->getStatus() === Status::Disabled) {
+                continue;
+            }
             if (is_numeric($key)) {
                 // 按ID过滤
                 if ((string) $model->getId() === $key) {
@@ -321,33 +324,6 @@ class AdminProviderDomainService extends AbstractProviderDomainService
     {
         $serviceProviderEntities = $this->serviceProviderRepository->getNonOfficialByCategory($category);
         return ProviderAssembler::toDTOs($serviceProviderEntities);
-    }
-
-    /**
-     * 根据模型类型获取启用模型(优先取组织的).
-     * @throws Exception
-     */
-    public function findSelectedActiveProviderByType(string $organizationCode, ModelType $modelType): ?ProviderConfigEntity
-    {
-        // 创建数据隔离对象
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-
-        // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
-
-        // 按model_type过滤，只返回第一个
-        $model = null;
-        foreach ($allModels as $modelEntity) {
-            if ($modelEntity->getModelType() === $modelType) {
-                $model = $modelEntity;
-                break;
-            }
-        }
-
-        if (! $model) {
-            return null;
-        }
-        return $this->getServiceProviderConfig($model->getModelVersion(), (string) $model->getId(), $organizationCode, false);
     }
 
     /**
