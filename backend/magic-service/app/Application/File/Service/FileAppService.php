@@ -109,9 +109,9 @@ class FileAppService extends AbstractAppService
         return $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType, $downloadNames, $options);
     }
 
-    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile): void
+    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
-        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile);
+        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile, $storage, $autoDir, $contentType);
     }
 
     public function getFileByBusinessType(DefaultFileBusinessType $businessType, string $organizationCode): array
