@@ -14,6 +14,8 @@ use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\Volcengine\DTO\SpeechRecognitionResultDTO;
+use App\Infrastructure\ExternalAPI\Volcengine\ValueObject\VolcengineStatusCode;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -77,13 +79,12 @@ class VolcengineStandardClient
     }
 
     /**
-     * Submit BigModel ASR task.
+     * 提交大模型语音识别任务
      */
     public function submitBigModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
     {
         $requestData = $this->buildBigModelSubmitRequest($submitDTO);
-        $requestId = $requestData['req_id'];
-
+        $requestId = (string) $requestData['req_id'];
         try {
             $response = $this->httpClient->post(self::BIGMODEL_SUBMIT_URL, [
                 'headers' => [
@@ -99,7 +100,6 @@ class VolcengineStandardClient
 
             $responseBody = $response->getBody()->getContents();
             $result = Json::decode($responseBody);
-
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->error('Failed to parse Volcengine BigModel response JSON', [
                     'response_body' => $responseBody,
@@ -108,13 +108,16 @@ class VolcengineStandardClient
                 ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.bigmodel.invalid_response_format');
             }
 
+            $result['request_id'] = $requestId;
+            $responseHeaders = $this->extractResponseHeaders($response);
+
+            // 验证API状态码
+            $this->validateApiStatusCode($responseHeaders, $requestId);
+
             $this->logger->info('Volcengine BigModel speech recognition task submitted successfully', [
                 'request_id' => $requestId,
                 'response' => $result,
             ]);
-
-            $result['request_id'] = $requestId;
-            $responseHeaders = $this->extractResponseHeaders($response);
             return array_merge($result, $responseHeaders);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to submit BigModel task to Volcengine', [
@@ -137,7 +140,10 @@ class VolcengineStandardClient
         }
     }
 
-    public function queryBigModelResult(string $requestId): array
+    /**
+     * 查询大模型语音识别结果.
+     */
+    public function queryBigModelResult(string $requestId): SpeechRecognitionResultDTO
     {
         $queryData = [
             'appkey' => $this->config['app_id'],
@@ -171,7 +177,8 @@ class VolcengineStandardClient
             }
 
             $responseHeaders = $this->extractResponseHeaders($response);
-            return array_merge($result, $responseHeaders);
+            $result = array_merge($result, $responseHeaders);
+            return new SpeechRecognitionResultDTO($result);
         } catch (GuzzleException $e) {
             $this->logger->error('Failed to query BigModel result from Volcengine', [
                 'request_id' => $requestId,
@@ -399,5 +406,45 @@ class VolcengineStandardClient
         }
 
         return $result;
+    }
+
+    /**
+     * 验证火山引擎API响应状态码
+     * 只用于提交任务时验证是否成功提交（20000000）.
+     *
+     * @param array $responseHeaders 响应头数组
+     * @param string $requestId 请求ID，用于日志记录
+     */
+    private function validateApiStatusCode(array $responseHeaders, string $requestId): void
+    {
+        $statusCodeString = $responseHeaders['volcengine_status_code'] ?? null;
+
+        if ($statusCodeString === null) {
+            $this->logger->warning('Missing X-Api-Status-Code in response headers', [
+                'request_id' => $requestId,
+                'response_headers' => $responseHeaders,
+            ]);
+            return;
+        }
+
+        $statusCode = VolcengineStatusCode::fromString($statusCodeString);
+
+        if (! $statusCode || ! $statusCode->isSuccess()) {
+            $errorMessage = $responseHeaders['volcengine_message'] ?? 'Unknown error';
+            $expectedCode = VolcengineStatusCode::SUCCESS->value;
+
+            $this->logger->error('Volcengine API returned error status code', [
+                'request_id' => $requestId,
+                'status_code' => $statusCodeString,
+                'error_message' => $errorMessage,
+                'expected_code' => $expectedCode,
+            ]);
+
+            ExceptionBuilder::throw(AsrErrorCode::Error, 'speech.volcengine.bigmodel.api_error', [
+                'status_code' => $statusCodeString,
+                'error_message' => $errorMessage,
+                'request_id' => $requestId,
+            ]);
+        }
     }
 }
