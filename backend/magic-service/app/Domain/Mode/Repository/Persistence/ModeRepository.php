@@ -52,7 +52,6 @@ class ModeRepository extends AbstractRepository implements ModeRepositoryInterfa
      */
     public function queries(ModeDataIsolation $dataIsolation, ModeQuery $query, Page $page): array
     {
-        $dataIsolation->disabled();
         $builder = $this->createBuilder($dataIsolation, ModeModel::query());
 
         // 是否过滤默认模式
