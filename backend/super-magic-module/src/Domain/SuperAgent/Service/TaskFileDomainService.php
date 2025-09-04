@@ -300,7 +300,7 @@ class TaskFileDomainService
         bool $isUpdated = false
     ): ?TaskFileEntity {
         // 检查输入参数
-        if ($taskFileEntity->getProjectId() <= 0 || empty($taskFileEntity->getFileKey())) {
+        if (empty($taskFileEntity->getFileKey())) {
             ExceptionBuilder::throw(
                 SuperAgentErrorCode::FILE_NOT_FOUND,
                 trans('file.file_not_found')
@@ -320,6 +320,8 @@ class TaskFileDomainService
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
+                $fileEntity->setTopicId($taskFileEntity->getTopicId());
+                $fileEntity->setTaskId($taskFileEntity->getTaskId());
                 $fileEntity->setCreatedAt($currentTime);
             }
 
@@ -327,15 +329,12 @@ class TaskFileDomainService
             $fileEntity->setProjectId($taskFileEntity->getProjectId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            $fileEntity->setTopicId($taskFileEntity->getTopicId());
-            $fileEntity->setTaskId($taskFileEntity->getTaskId());
-            //            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
-            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
-            //            }
-            //            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
-            //                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
-            //            }
-
+            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
+                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
+            }
+            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
+                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
+            }
             // 文件信息相关设置
             $fileEntity->setFileType(! empty($taskFileEntity->getFileType()) ? $taskFileEntity->getFileType() : FileType::PROCESS->value);
             $fileEntity->setFileName(! empty($taskFileEntity->getFileName()) ? $taskFileEntity->getFileName() : basename($taskFileEntity->getFileKey()));
