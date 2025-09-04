@@ -375,7 +375,7 @@ class TaskFileDomainService
             if ($isCreated) {
                 return $this->taskFileRepository->insert($fileEntity);
             }
-            return $this->taskFileRepository->updateById($taskFileEntity);
+            return $this->taskFileRepository->updateById($fileEntity);
         } catch (Throwable $e) {
             $this->logger->error('Error saving project file', ['file_key' => $taskFileEntity->getFileKey(), 'error' => $e->getMessage()]);
             throw $e;
