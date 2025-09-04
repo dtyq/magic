@@ -16,7 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * 沙箱Token鉴权中间件
- * 用于验证来自沙箱的内部API调用token
+ * 用于验证来自沙箱的内部API调用token.
  */
 class SandboxTokenAuthMiddleware implements MiddlewareInterface
 {
@@ -24,7 +24,7 @@ class SandboxTokenAuthMiddleware implements MiddlewareInterface
     {
         // 从header中获取token
         $token = $request->getHeader('token')[0] ?? '';
-        
+
         // 验证token不为空
         if (empty($token)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');

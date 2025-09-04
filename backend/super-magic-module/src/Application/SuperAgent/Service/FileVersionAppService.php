@@ -34,7 +34,6 @@ class FileVersionAppService extends AbstractAppService
     /**
      * 创建文件版本.
      *
-     * @param RequestContext $requestContext 请求上下文
      * @param CreateFileVersionRequestDTO $requestDTO 请求DTO
      * @return CreateFileVersionResponseDTO 创建结果
      */
