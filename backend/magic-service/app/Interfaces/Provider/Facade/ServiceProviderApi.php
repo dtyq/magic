@@ -230,14 +230,6 @@ class ServiceProviderApi extends AbstractApi
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
     }
 
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
-    public function queriesModels(RequestInterface $request): array
-    {
-        $authenticatable = $this->getAuthorization();
-        $providerModelQuery = new ProviderModelQuery($request->all());
-        return $this->adminProviderAppService->queriesModels($authenticatable, $providerModelQuery);
-    }
-
     /**
      * 根据分类获取服务商通用逻辑.
      * @param RequestInterface $request 请求对象

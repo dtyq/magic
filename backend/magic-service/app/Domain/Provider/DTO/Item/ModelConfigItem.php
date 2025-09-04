@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
 class ModelConfigItem extends AbstractDTO
 {
@@ -233,7 +235,11 @@ class ModelConfigItem extends AbstractDTO
     {
         if ($inputPricing === null) {
             $this->inputPricing = null;
-        } elseif ($inputPricing > 0) {
+        } else {
+            $pricing = (float) $inputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
             $this->inputPricing = (string) $inputPricing;
         }
     }
@@ -242,7 +248,11 @@ class ModelConfigItem extends AbstractDTO
     {
         if ($outputPricing === null) {
             $this->outputPricing = null;
-        } elseif ($outputPricing > 0) {
+        } else {
+            $pricing = (float) $outputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
             $this->outputPricing = (string) $outputPricing;
         }
     }
@@ -251,7 +261,11 @@ class ModelConfigItem extends AbstractDTO
     {
         if ($cacheWritePricing === null) {
             $this->cacheWritePricing = null;
-        } elseif ($cacheWritePricing > 0) {
+        } else {
+            $pricing = (float) $cacheWritePricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
             $this->cacheWritePricing = (string) $cacheWritePricing;
         }
     }
@@ -260,7 +274,11 @@ class ModelConfigItem extends AbstractDTO
     {
         if ($cacheHitPricing === null) {
             $this->cacheHitPricing = null;
-        } elseif ($cacheHitPricing > 0) {
+        } else {
+            $pricing = (float) $cacheHitPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
             $this->cacheHitPricing = (string) $cacheHitPricing;
         }
     }

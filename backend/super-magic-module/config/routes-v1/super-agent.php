@@ -141,8 +141,6 @@ Router::addGroup(
         Router::addGroup('/file', static function () {
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
-            // 兼容
-            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
             // 获取话题文件上传STS Token
             Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
             // 创建文件和文件夹
@@ -161,6 +159,10 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 创建文件版本
+            Router::post('/versions', [FileApi::class, 'createFileVersion']);
+            // 获取文件版本列表
+            Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
@@ -245,10 +247,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
 
-        // 获取文件版本列表
-        Router::post('/versions', [FileApi::class, 'getFileVersions']);
-        // 获取文件版本内容
-        Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
         // 批量获取下载链接

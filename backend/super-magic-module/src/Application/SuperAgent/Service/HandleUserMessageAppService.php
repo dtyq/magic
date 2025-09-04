@@ -20,10 +20,14 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
@@ -58,7 +62,6 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly TaskDomainService $taskDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
-        private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
@@ -434,8 +437,148 @@ class HandleUserMessageAppService extends AbstractAppService
         $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
-        // Process user uploaded attachments
-        $attachmentsStr = $userMessageDTO->getAttachments();
-        $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
+        // Process user uploaded attachments using saveProjectFile
+        $this->processUserAttachments($userMessageDTO->getAttachments(), $taskEntity, $dataIsolation);
+    }
+
+    /**
+     * Process user uploaded attachments using TaskFileDomainService.saveProjectFile.
+     *
+     * @param null|string $attachmentsStr Attachments JSON string
+     * @param TaskEntity $taskEntity Task entity
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @return array Processing result statistics
+     */
+    private function processUserAttachments(?string $attachmentsStr, TaskEntity $taskEntity, DataIsolation $dataIsolation): array
+    {
+        $stats = [
+            'total' => 0,
+            'success' => 0,
+            'error' => 0,
+        ];
+
+        if (empty($attachmentsStr)) {
+            return $stats;
+        }
+
+        try {
+            // 1. Parse JSON
+            $attachmentsData = json_decode($attachmentsStr, true);
+            if (empty($attachmentsData) || ! is_array($attachmentsData)) {
+                $this->logger->warning(sprintf(
+                    'Attachment data format error, Task ID: %s, Original attachment data: %s',
+                    $taskEntity->getTaskId(),
+                    $attachmentsStr
+                ));
+                return $stats;
+            }
+
+            $stats['total'] = count($attachmentsData);
+
+            $this->logger->info(sprintf(
+                'Starting to process user attachments using saveProjectFile, Task ID: %s, Attachment count: %d',
+                $taskEntity->getTaskId(),
+                $stats['total']
+            ));
+
+            // 2. Get project entity
+            $projectEntity = $this->getAccessibleProject(
+                $taskEntity->getProjectId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
+            // 3. Process each attachment
+            foreach ($attachmentsData as $attachment) {
+                try {
+                    $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $taskEntity, $dataIsolation);
+                    if ($taskFileEntity) {
+                        $this->taskFileDomainService->saveProjectFile(
+                            $dataIsolation,
+                            $projectEntity,
+                            $taskFileEntity,
+                            StorageType::WORKSPACE->value,
+                            false
+                        );
+                        ++$stats['success'];
+
+                        $this->logger->info(sprintf(
+                            'User attachment processed successfully using saveProjectFile, File ID: %d, File key: %s, Task ID: %s',
+                            $taskFileEntity->getFileId(),
+                            $taskFileEntity->getFileKey(),
+                            $taskEntity->getTaskId()
+                        ));
+                    }
+                } catch (Throwable $e) {
+                    $this->logger->error(sprintf(
+                        'Failed to process user attachment: %s, File ID: %s, Task ID: %s',
+                        $e->getMessage(),
+                        $attachment['file_id'] ?? 'Unknown',
+                        $taskEntity->getTaskId()
+                    ));
+                    ++$stats['error'];
+                }
+            }
+
+            $this->logger->info(sprintf(
+                'User attachment processing completed using saveProjectFile, Task ID: %s, Processing result: Total=%d, Success=%d, Failed=%d',
+                $taskEntity->getTaskId(),
+                $stats['total'],
+                $stats['success'],
+                $stats['error']
+            ));
+
+            return $stats;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Overall user attachment processing failed: %s, Task ID: %s',
+                $e->getMessage(),
+                $taskEntity->getTaskId()
+            ));
+            $stats['error'] = $stats['total'];
+            return $stats;
+        }
+    }
+
+    /**
+     * Convert single attachment to TaskFileEntity.
+     *
+     * @param array $attachment Attachment data from JSON
+     * @param TaskEntity $taskEntity Task entity
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @return null|TaskFileEntity TaskFileEntity or null if conversion fails
+     */
+    private function convertAttachmentToTaskFileEntity(array $attachment, TaskEntity $taskEntity, DataIsolation $dataIsolation): ?TaskFileEntity
+    {
+        // Ensure required fields exist
+        if (empty($attachment['file_key'])) {
+            $this->logger->warning(sprintf(
+                'Attachment missing required fields (file_id or file_key), Task ID: %s, Attachment content: %s',
+                $taskEntity->getTaskId(),
+                json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            ));
+            return null;
+        }
+
+        // Create TaskFileEntity using attachment data directly
+        $taskFileEntity = new TaskFileEntity();
+        $taskFileEntity->setProjectId($taskEntity->getProjectId());
+        $taskFileEntity->setTopicId($taskEntity->getTopicId());
+        $taskFileEntity->setTaskId($taskEntity->getId());
+
+        // Use attachment data directly
+        $taskFileEntity->setFileKey($attachment['file_key']);
+        $fileName = ! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key']));
+        $taskFileEntity->setFileName($fileName);
+        $taskFileEntity->setFileExtension(! empty($attachment['file_extension']) ? $attachment['file_extension'] : pathinfo($fileName, PATHINFO_EXTENSION));
+        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+        $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::USER_UPLOAD->value);
+        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
+        $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $taskFileEntity->setIsDirectory(false);
+        $taskFileEntity->setSort(0);
+        // parentId will be automatically handled by saveProjectFile
+
+        return $taskFileEntity;
     }
 }
