@@ -22,7 +22,7 @@ COPY . /opt/www
 # - ffmpeg: 音频/视频处理工具，用于ASR录音文件合并
 RUN apk add --no-cache  git openssh-client ffmpeg && \
     ffmpeg -version | head -1 && \
-    echo "✅ FFmpeg installed successfully" \
+    echo "✅ FFmpeg installed successfully"
 
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
