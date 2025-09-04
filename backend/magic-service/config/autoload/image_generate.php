@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'watermark_aes_key' => env('WATERMARK_SIGN_AES_KEY', ''),
     'midjourney' => [
         'host' => env('MIDJOURNEY_HOST'),
         'api_key' => env('MIDJOURNEY_API_KEY'),
