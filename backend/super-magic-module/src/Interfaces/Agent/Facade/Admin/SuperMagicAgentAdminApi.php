@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Admin;
 
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
@@ -30,6 +31,11 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
 
         $requestData = $request->validated();
         $DTO = new SuperMagicAgentDTO($requestData);
+        $promptShadow = $request->input('prompt_shadow');
+        if ($promptShadow) {
+            $promptShadow = json_decode(ShadowCode::unShadow($promptShadow), true);
+            $DTO->setPrompt($promptShadow);
+        }
 
         $DO = SuperMagicAgentAssembler::createDO($DTO);
 

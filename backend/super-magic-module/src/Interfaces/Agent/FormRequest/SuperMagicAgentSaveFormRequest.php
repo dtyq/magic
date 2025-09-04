@@ -34,6 +34,7 @@ class SuperMagicAgentSaveFormRequest extends FormRequest
             'enabled' => 'nullable|boolean',
 
             // 系统提示词（Editor.js格式的JSON）
+            'prompt_shadow' => 'nullable|string',
             'prompt' => 'required|array',
 
             // 工具配置
