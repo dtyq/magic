@@ -7,9 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -27,9 +24,6 @@ class AgentFileAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
-        private readonly TaskDomainService $taskDomainService,
-        private readonly TopicDomainService $topicDomainService,
-        private readonly WorkspaceDomainService $workspaceDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }

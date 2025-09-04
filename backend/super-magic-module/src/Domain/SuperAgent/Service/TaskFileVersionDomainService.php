@@ -283,22 +283,4 @@ class TaskFileVersionDomainService
 
         throw new InvalidArgumentException('Unable to extract prefix from file key: ' . $fileKey);
     }
-
-    /**
-     * 验证版本文件路径的合法性.
-     */
-    private function validateVersionPath(string $versionFileKey, string $organizationCode): bool
-    {
-        // 检查路径是否属于指定的组织
-        if (! str_starts_with($versionFileKey, $organizationCode)) {
-            return false;
-        }
-
-        // 检查路径是否包含 /version/
-        if (! str_contains($versionFileKey, '/version/')) {
-            return false;
-        }
-
-        return true;
-    }
 }
