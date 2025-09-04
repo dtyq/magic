@@ -15,12 +15,12 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('magic_super_agent_task_files', function (Blueprint $table) {
-            $table->timestamp('latest_modified_topic_id')
+            $table->bigInteger('latest_modified_topic_id')
                 ->nullable()
                 ->after('topic_id')
                 ->comment('最新版本topic_id');
 
-            $table->timestamp('latest_modified_task_id')
+            $table->bigInteger('latest_modified_task_id')
                 ->nullable()
                 ->after('task_id')
                 ->comment('最新版本task_id');
