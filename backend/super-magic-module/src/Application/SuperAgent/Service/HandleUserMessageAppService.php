@@ -172,6 +172,7 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         $topicId = 0;
         $taskId = '';
+        $errMsg = '';
         try {
             // Get topic information
             $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
@@ -184,7 +185,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -262,9 +263,10 @@ class HandleUserMessageAppService extends AbstractAppService
                 );
             }
         } catch (EventException $e) {
+            $errMsg = $e->getMessage();
             $this->logger->warning(sprintf(
                 'Initialize task, event processing failed: %s',
-                $e->getMessage()
+                $errMsg
             ));
             // Send error message directly to client
             $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
@@ -277,9 +279,10 @@ class HandleUserMessageAppService extends AbstractAppService
                 remindEvent: $remindType
             );
         } catch (Throwable $e) {
+            $errMsg = $e->getMessage();
             $this->logger->error(sprintf(
                 'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
-                $e->getMessage(),
+                $errMsg,
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
                 $e->getLine(),
@@ -300,7 +303,7 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language): void
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
@@ -312,7 +315,7 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -377,6 +380,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
             $dataIsolation->getCurrentUserId(),
+            (string) $taskContext->getProjectId(),
         );
 
         // Initialize agent

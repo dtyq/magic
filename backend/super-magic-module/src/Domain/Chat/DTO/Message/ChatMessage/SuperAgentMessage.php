@@ -11,6 +11,7 @@ use App\Domain\Chat\DTO\Message\ChatMessage\AbstractChatMessageStruct;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
+use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\MemoryOperation;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\SuperAgentStep;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\SuperAgentTool;
 
@@ -42,13 +43,12 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
 
     protected ?string $remark = '';
 
+    protected ?MemoryOperation $memoryOperation;
+
     public function __construct(?array $messageStruct = null)
     {
         parent::__construct();
         if ($messageStruct !== null) {
-            if (isset($messageStruct['tool']) && ! ($messageStruct['tool'] instanceof SuperAgentTool)) {
-                $messageStruct['tool'] = new SuperAgentTool($messageStruct['tool']);
-            }
             $this->initProperty($messageStruct);
         }
         $this->setMessageType();
@@ -125,10 +125,22 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
         return $this->tool;
     }
 
-    public function setTool(?SuperAgentTool $tool): self
+    public function setTool(null|array|string|SuperAgentTool $tool): self
     {
-        if ($tool !== null) {
+        if ($tool === null) {
+            $this->tool = null;
+        } elseif ($tool instanceof SuperAgentTool) {
             $this->tool = $tool;
+        } elseif (is_string($tool)) {
+            if (json_validate($tool)) {
+                $decoded = json_decode($tool, true);
+                $this->tool = new SuperAgentTool($decoded);
+            } else {
+                // 如果不是有效的 JSON 字符串，可以选择抛出异常或忽略
+                $this->tool = null;
+            }
+        } else {
+            $this->tool = new SuperAgentTool($tool);
         }
         return $this;
     }
@@ -231,6 +243,31 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
     public function setContent(?string $content): static
     {
         $this->content = $content ?? '';
+        return $this;
+    }
+
+    public function getMemoryOperation(): ?MemoryOperation
+    {
+        return $this->memoryOperation;
+    }
+
+    public function setMemoryOperation(null|array|MemoryOperation|string $memoryOperation): self
+    {
+        if ($memoryOperation === null) {
+            $this->memoryOperation = null;
+        } elseif ($memoryOperation instanceof MemoryOperation) {
+            $this->memoryOperation = $memoryOperation;
+        } elseif (is_string($memoryOperation)) {
+            if (json_validate($memoryOperation)) {
+                $decoded = json_decode($memoryOperation, true);
+                $this->memoryOperation = new MemoryOperation($decoded);
+            } else {
+                // 如果不是有效的 JSON 字符串，可以选择抛出异常或忽略
+                $this->memoryOperation = null;
+            }
+        } else {
+            $this->memoryOperation = new MemoryOperation($memoryOperation);
+        }
         return $this;
     }
 

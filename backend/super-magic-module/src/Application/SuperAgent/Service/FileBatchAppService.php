@@ -73,7 +73,7 @@ class FileBatchAppService extends AbstractAppService
         if (empty($requestDTO->getFileIds())) {
             $userFiles = $this->taskFileDomainService->findUserFilesByProjectId($requestDTO->getProjectId());
         } else {
-            $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+            $userFiles = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectEntity->getId(), $fileIds);
         }
 
         // Check if there are valid files

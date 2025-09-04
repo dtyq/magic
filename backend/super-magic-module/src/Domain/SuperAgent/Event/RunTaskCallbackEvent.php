@@ -19,7 +19,8 @@ class RunTaskCallbackEvent extends AbstractEvent
         private int $topicId,
         private string $topicName,
         private int $taskId,
-        private TopicTaskMessageDTO $taskMessage
+        private TopicTaskMessageDTO $taskMessage,
+        private string $language
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
@@ -66,6 +67,11 @@ class RunTaskCallbackEvent extends AbstractEvent
         return $this->departmentIds;
     }
 
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
     /**
      * Convert the event object to array format.
      */
@@ -79,6 +85,7 @@ class RunTaskCallbackEvent extends AbstractEvent
             'taskId' => $this->taskId,
             'taskMessage' => $this->taskMessage->toArray() ?? $this->taskMessage,
             'departmentIds' => $this->departmentIds,
+            'language' => $this->language,
         ];
     }
 

@@ -12,8 +12,10 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\FontProviderInterface;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Di\Annotation\Inject;
 use Psr\Log\LoggerInterface;
 
@@ -34,7 +36,7 @@ class ImageWatermarkProcessor
     /**
      * 为base64格式图片添加水印.
      */
-    public function addWatermarkToBase64(string $base64Image, WatermarkConfig $config): string
+    public function addWatermarkToBase64(string $base64Image, ImageGenerateRequest $imageGenerateRequest): string
     {
         // 检测原始格式
         $originalFormat = $this->extractBase64Format($base64Image);
@@ -51,8 +53,9 @@ class ImageWatermarkProcessor
             throw new Exception('无法解析base64图片数据');
         }
 
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
         // 添加水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $config);
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
         ob_start();
@@ -66,14 +69,14 @@ class ImageWatermarkProcessor
 
         // 根据实际输出格式更新前缀
         $outputPrefix = $this->generateBase64Prefix($targetFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData));
+        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
     }
 
     /**
      * 为URL格式图片添加水印
      * 可选择返回格式：URL 或 base64.
      */
-    public function addWatermarkToUrl(string $imageUrl, WatermarkConfig $config, bool $returnAsUrl = true): string
+    public function addWatermarkToUrl(string $imageUrl, ImageGenerateRequest $imageGenerateRequest): string
     {
         // 下载图片
         $imageData = $this->downloadImage($imageUrl);
@@ -85,9 +88,9 @@ class ImageWatermarkProcessor
         if ($image === false) {
             throw new Exception('无法解析URL图片数据: ' . $imageUrl);
         }
-
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
         // 添加水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $config);
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
         ob_start();
@@ -101,7 +104,7 @@ class ImageWatermarkProcessor
 
         // 根据实际输出格式生成正确的base64前缀
         $outputPrefix = $this->generateBase64Prefix($detectedFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData));
+        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
     }
 
     /**
@@ -143,13 +146,21 @@ class ImageWatermarkProcessor
             // TTF字体大小需要调整，通常比内置字体小一些
             $ttfFontSize = max(8, (int) ($fontSize * 0.8));
 
-            // TTF字体的Y坐标是基线位置，需要调整
-            $ttfY = $y + $ttfFontSize;
+            // 正确计算TTF字体的基线位置
+            if (function_exists('imagettfbbox')) {
+                // 直接使用传入的Y坐标作为基线位置
+                $ttfY = $y;
+            } else {
+                // 如果无法获取边界框，直接使用传入的Y坐标
+                $ttfY = $y;
+            }
 
             imagettftext($image, $ttfFontSize, 0, $x, $ttfY, $fontColor, $fontFile, $text);
         } else {
             // 降级使用内置字体（仅支持ASCII字符）
-            imagestring($image, 5, $x, $y, $text, $fontColor);
+            // 内置字体的Y坐标是文字顶部，需要从基线位置转换
+            $builtinY = $y - (int) ($fontSize * 0.8); // 从基线位置转换为顶部位置
+            imagestring($image, 5, $x, $builtinY, $text, $fontColor);
 
             // 如果文本包含中文但没有TTF字体，记录警告
             if ($this->fontProvider->containsChinese($text)) {
@@ -190,39 +201,48 @@ class ImageWatermarkProcessor
             // 使用TTF字体计算实际文本边界框
             $ttfFontSize = max(8, (int) ($fontSize * 0.8));
             $bbox = imagettfbbox($ttfFontSize, 0, $fontFile, $text);
-            $textWidth = (int) ($bbox[4] - $bbox[0]);  // 右下角x - 左上角x
-            $textHeight = (int) ($bbox[1] - $bbox[7]); // 左下角y - 左上角y
+            $textWidth = (int) (($bbox[4] - $bbox[0]) * 1.2);  // 增加20%安全边距
+            $textHeight = (int) abs($bbox[1] - $bbox[7]); // 使用绝对值确保高度为正
+
+            // TTF字体的下降部分（descender）
+            $descender = (int) abs($bbox[1]); // 基线以下的部分
+            $ascender = (int) abs($bbox[7]);  // 基线以上的部分
+            $totalTextHeight = $descender + $ascender;
         } else {
             // 降级使用估算方法
             // 对于中文字符，每个字符宽度约等于字体大小
             $chineseCharCount = mb_strlen($text, 'UTF-8');
-            $textWidth = (int) ($chineseCharCount * $fontSize * 0.8);
+            $textWidth = (int) ($chineseCharCount * $fontSize * 1.0); // 增加安全边距
             $textHeight = $fontSize;
+            $descender = (int) ($fontSize * 0.2); // 内置字体估算下降部分
+            $ascender = (int) ($fontSize * 0.8); // 内置字体估算上升部分
+            $totalTextHeight = $textHeight;
         }
 
-        $margin = 20; // 边距
+        // 动态边距：基于字体大小计算，确保足够的空间
+        $margin = max(20, (int) ($fontSize * 0.8));
 
         switch ($position) {
             case 1: // 左上角
-                return [$margin, $margin + $textHeight];
+                return [$margin, $margin + $ascender];
             case 2: // 上方中央
-                return [(int) (($width - $textWidth) / 2), $margin + $textHeight];
+                return [max($margin, (int) (($width - $textWidth) / 2)), $margin + $ascender];
             case 3: // 右上角
-                return [$width - $textWidth - $margin, $margin + $textHeight];
+                return [max($margin, $width - $textWidth - $margin), $margin + $ascender];
             case 4: // 左侧中央
-                return [$margin, (int) (($height + $textHeight) / 2)];
+                return [$margin, (int) (($height + $ascender - $descender) / 2)];
             case 5: // 中央
-                return [(int) (($width - $textWidth) / 2), (int) (($height + $textHeight) / 2)];
+                return [max($margin, (int) (($width - $textWidth) / 2)), (int) (($height + $ascender - $descender) / 2)];
             case 6: // 右侧中央
-                return [$width - $textWidth - $margin, (int) (($height + $textHeight) / 2)];
+                return [max($margin, $width - $textWidth - $margin), (int) (($height + $ascender - $descender) / 2)];
             case 7: // 左下角
-                return [$margin, $height - $margin];
+                return [$margin, $height - $margin - $descender];
             case 8: // 下方中央
-                return [(int) (($width - $textWidth) / 2), $height - $margin];
+                return [max($margin, (int) (($width - $textWidth) / 2)), $height - $margin - $descender];
             case 9: // 右下角
-                return [$width - $textWidth - $margin, $height - $margin];
+                return [max($margin, $width - $textWidth - $margin), $height - $margin - $descender];
             default: // 默认右下角
-                return [$width - $textWidth - $margin, $height - $margin];
+                return [max($margin, $width - $textWidth - $margin), $height - $margin - $descender];
         }
     }
 
@@ -380,7 +400,7 @@ class ImageWatermarkProcessor
         };
     }
 
-    private function processBase64Images(string $base64Image): string
+    private function processBase64Images(string $base64Image, ImageGenerateRequest $imageGenerateRequest): string
     {
         $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
         $fileDomainService = di(FileDomainService::class);
@@ -392,6 +412,17 @@ class ImageWatermarkProcessor
             $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
 
             $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
+
+            $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+            $validityPeriod = $imageGenerateRequest->getValidityPeriod();
+
+            $metadataContent = ['AIGC' => $implicitWatermark->toArray()];
+            if ($validityPeriod !== null) {
+                $metadataContent['validityPeriod'] = $validityPeriod;
+            }
+            $metadata = ['metadata' => Json::encode($metadataContent)];
+
+            $fileDomainService->setHeadObjectByCredential($organizationCode, $uploadFile->getKey(), $metadata, StorageBucketType::Public);
 
             return $fileLink->getUrl();
         } catch (Exception $e) {

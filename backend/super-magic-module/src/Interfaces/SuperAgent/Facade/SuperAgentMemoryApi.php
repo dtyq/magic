@@ -22,6 +22,8 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use InvalidArgumentException;
 
+use function Hyperf\Translation\trans;
+
 #[ApiResponse('low_code')]
 class SuperAgentMemoryApi extends AbstractApi
 {
@@ -48,21 +50,42 @@ class SuperAgentMemoryApi extends AbstractApi
             'memory' => 'required|string',
             'tags' => 'array',
             'metadata' => 'required|array',
+            'immediate_effect' => 'boolean|nullable',
+            'project_id' => 'nullable|integer|string',
         ];
 
         $validatedParams = $this->checkParams($requestData, $rules);
         $metadata = $this->parseMetadata($validatedParams['metadata']);
 
+        // 根据 immediate_effect 参数决定记忆状态和内容设置
+        $immediateEffect = (bool) ($validatedParams['immediate_effect'] ?? false);
+
+        if ($immediateEffect) {
+            // 立即生效：记忆内容直接放入content，状态为active
+            $content = $validatedParams['memory'];
+            $pendingContent = null;
+            $status = MemoryStatus::ACTIVE->value;
+            $enabled = true; // active状态的记忆默认启用
+        } else {
+            // 默认行为：记忆内容放入pendingContent，状态为pending
+            $content = '';
+            $pendingContent = $validatedParams['memory'];
+            $status = MemoryStatus::PENDING->value;
+            $enabled = false; // pending状态的记忆默认不启用
+        }
+
         $dto = new CreateMemoryDTO([
-            'content' => '',
-            'pendingContent' => $validatedParams['memory'],
+            'content' => $content,
+            'pendingContent' => $pendingContent,
             'explanation' => $validatedParams['explanation'],
             'memoryType' => MemoryType::MANUAL_INPUT->value,
-            'status' => MemoryStatus::PENDING->value,
+            'status' => $status,
+            'enabled' => $enabled,
             'tags' => $validatedParams['tags'] ?? [],
             'orgId' => $metadata->getOrganizationCode(),
             'appId' => AgentConstant::SUPER_MAGIC_CODE,
-            'projectId' => $metadata->getProjectId() ?: null,
+            // 项目 id 不能从 $metadata 获取，因为这个参数是用来区分记忆是项目还是全局的。
+            'projectId' => isset($validatedParams['project_id']) ? (string) $validatedParams['project_id'] : null,
             'userId' => $metadata->getUserId(),
             'expiresAt' => null,
         ]);
@@ -132,7 +155,7 @@ class SuperAgentMemoryApi extends AbstractApi
 
         return [
             'success' => true,
-            'message' => '记忆删除成功',
+            'message' => trans('long_term_memory.api.memory_deleted_successfully'),
         ];
     }
 
@@ -146,7 +169,7 @@ class SuperAgentMemoryApi extends AbstractApi
         $validator = $this->validator->make($params, $rules);
 
         if ($validator->fails()) {
-            throw new InvalidArgumentException('参数验证失败: ' . implode(', ', $validator->errors()->all()));
+            throw new InvalidArgumentException(trans('long_term_memory.api.parameter_validation_failed', ['errors' => implode(', ', $validator->errors()->all())]));
         }
 
         return $validator->validated();
@@ -187,7 +210,7 @@ class SuperAgentMemoryApi extends AbstractApi
             AgentConstant::SUPER_MAGIC_CODE,
             $metadata->getUserId()
         )) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, '记忆不存在或无权限访问');
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, trans('long_term_memory.api.memory_not_belong_to_user'));
         }
     }
 }

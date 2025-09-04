@@ -401,4 +401,46 @@ class TopicDomainService
         ];
         return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
+
+    /**
+     * Validate topic for message queue operations.
+     * Checks both ownership and running status.
+     *
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $topicId Topic ID
+     * @return TopicEntity Topic entity if validation passes
+     * @throws Exception If validation fails
+     */
+    public function validateTopicForMessageQueue(DataIsolation $dataIsolation, int $topicId): TopicEntity
+    {
+        // Get topic by ID
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (empty($topicEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // Check ownership
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
+        return $topicEntity;
+    }
+
+    /**
+     * Check if topic is running by user.
+     *
+     * @param DataIsolation $dataIsolation Data isolation object
+     * @param int $topicId Topic ID
+     * @return bool True if topic is running and belongs to user
+     */
+    public function isTopicRunningByUser(DataIsolation $dataIsolation, int $topicId): bool
+    {
+        try {
+            $this->validateTopicForMessageQueue($dataIsolation, $topicId);
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
 }

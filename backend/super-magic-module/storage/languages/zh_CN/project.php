@@ -20,6 +20,11 @@ return [
     'update_members_failed' => '更新成员失败',
     'member_validation_failed' => '成员验证失败',
 
+    // 操作日志相关
+    'operation_log' => [
+        'not_found' => '操作日志记录不存在',
+    ],
+
     // 成员类型描述
     'member_type' => [
         'user' => '用户',

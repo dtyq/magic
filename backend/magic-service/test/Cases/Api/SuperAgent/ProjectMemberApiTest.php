@@ -7,16 +7,15 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\SuperAgent;
 
-use HyperfTest\Cases\Api\AbstractHttpTest;
 use Mockery;
 
 /**
  * @internal
  * 项目成员管理API测试
  */
-class ProjectMemberApiTest extends AbstractHttpTest
+class ProjectMemberApiTest extends AbstractApiTest
 {
-    private const string BASE_URI = '/api/v1/super-agent/projects';
+    private const BASE_URI = '/api/v1/super-agent/projects';
 
     private string $authorization = '';
 
@@ -79,6 +78,64 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->fileEditingStatusManagement($fileId);
 
         $this->fileEditingEdgeCases($fileId);
+    }
+
+    /**
+     * 测试项目置顶权限控制.
+     */
+    public function testProjectPinPermission(): void
+    {
+        $projectId = $this->projectId;
+
+        // 1. 先设置项目成员，确保测试2用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+
+        // 2. 切换到有权限的用户测试置顶成功
+        $this->switchUserTest2();
+        $this->pinProject($projectId, true);
+
+        // 3. 验证置顶成功
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 4. 清空项目成员，使当前用户没有权限
+        $this->switchUserTest1();
+        $this->updateEmptyMembers($projectId);
+
+        // 5. 切换到没有权限的用户测试权限控制
+        $this->switchUserTest2();
+        // 测试非项目成员不能置顶 - 应该返回权限错误
+        $this->pinProject($projectId, true, 51202); // 假设51202是权限错误码
+    }
+
+    /**
+     * 测试置顶功能边界情况.
+     */
+    public function testProjectPinEdgeCases(): void
+    {
+        $projectId = $this->projectId;
+
+        // 确保用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+        $this->switchUserTest2();
+
+        // 1. 重复置顶同一个项目 - 应该正常处理
+        $this->pinProject($projectId, true);
+        $this->pinProject($projectId, true); // 重复置顶
+
+        // 验证项目仍然是置顶状态
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 2. 重复取消置顶 - 应该正常处理
+        $this->pinProject($projectId, false);
+        $this->pinProject($projectId, false); // 重复取消置顶
+
+        // 验证项目不是置顶状态
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, false);
     }
 
     /**
@@ -179,7 +236,13 @@ class ProjectMemberApiTest extends AbstractHttpTest
         // 删除话题
         $this->deleteTopic($workspaceId, $projectId, $topicId);
 
-        // 9. 清空空成员
+        // 9. 测试项目置顶功能
+        $this->projectPinFeature($projectId);
+
+        // 10. 测试协作项目创建者列表功能
+        $this->collaborationProjectCreatorFeature();
+
+        // 11. 清空空成员
         $requestData = ['members' => []];
 
         // 发送PUT请求
@@ -591,22 +654,267 @@ class ProjectMemberApiTest extends AbstractHttpTest
         $this->assertEquals('test', $response['data']['project_name']);
     }
 
-    protected function switchUserTest1(): string
+    /**
+     * 测试项目置顶功能 - 完整流程测试.
+     */
+    public function projectPinFeature(string $projectId): void
     {
-        return $this->authorization = env('TEST_TOKEN');
+        // 确保当前用户是项目成员
+        $this->switchUserTest2();
+
+        // 1. 测试置顶项目
+        $this->pinProject($projectId, true);
+
+        // 2. 验证协作项目列表中项目被置顶
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, true);
+
+        // 3. 测试取消置顶
+        $this->pinProject($projectId, false);
+
+        // 4. 验证协作项目列表中项目不再置顶
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyProjectPinStatus($response, $projectId, false);
+
+        // 5. 重新置顶项目以测试排序
+        $this->pinProject($projectId, true);
+
+        // 6. 验证置顶项目排在前面
+        $response = $this->collaborationProjectsWithPinCheck();
+        $this->verifyPinnedProjectsAtTop($response);
     }
 
-    protected function switchUserTest2(): string
+    /**
+     * 置顶或取消置顶项目.
+     */
+    public function pinProject(string $projectId, bool $isPinned, int $expectedCode = 1000): array
     {
-        return $this->authorization = env('TEST2_TOKEN');
-    }
-
-    protected function getCommonHeaders(): array
-    {
-        return [
-            'organization-code' => env('TEST_ORGANIZATION_CODE'),
-            // 换成自己的
-            'Authorization' => $this->authorization,
+        $requestData = [
+            'is_pin' => $isPinned,
         ];
+
+        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}/pin", $requestData, $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
+
+        if ($expectedCode === 1000) {
+            $this->assertEquals('ok', $response['message']);
+            $this->assertIsArray($response['data']);
+            $this->assertEmpty($response['data']); // 置顶操作返回空数组
+        }
+
+        return $response;
+    }
+
+    /**
+     * 获取协作项目列表并返回完整响应用于置顶验证.
+     */
+    public function collaborationProjectsWithPinCheck(): array
+    {
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects', [], $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data']);
+
+        // 验证响应结构包含置顶相关字段
+        $this->assertArrayHasKey('list', $response['data'], '响应应包含list字段');
+        $this->assertArrayHasKey('total', $response['data'], '响应应包含total字段');
+
+        if (! empty($response['data']['list'])) {
+            $project = $response['data']['list'][0];
+            $this->assertArrayHasKey('is_pinned', $project, '项目应包含is_pinned字段');
+            $this->assertIsBool($project['is_pinned'], 'is_pinned应该是布尔值');
+        }
+
+        return $response;
+    }
+
+    /**
+     * 验证项目的置顶状态.
+     */
+    public function verifyProjectPinStatus(array $response, string $projectId, bool $expectedPinned): void
+    {
+        $projects = $response['data']['list'];
+        $targetProject = null;
+
+        foreach ($projects as $project) {
+            if ($project['id'] === $projectId) {
+                $targetProject = $project;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetProject, "项目 {$projectId} 应该在协作项目列表中");
+        $this->assertEquals(
+            $expectedPinned,
+            $targetProject['is_pinned'],
+            "项目 {$projectId} 的置顶状态应该为 " . ($expectedPinned ? 'true' : 'false')
+        );
+    }
+
+    /**
+     * 验证置顶项目排在列表前面.
+     */
+    public function verifyPinnedProjectsAtTop(array $response): void
+    {
+        $projects = $response['data']['list'];
+        $pinnedProjectsEnded = false;
+
+        foreach ($projects as $project) {
+            if ($project['is_pinned']) {
+                $this->assertFalse($pinnedProjectsEnded, '置顶项目应该排在非置顶项目前面');
+            } else {
+                $pinnedProjectsEnded = true;
+            }
+        }
+    }
+
+    /**
+     * 测试协作项目创建者列表功能 - 完整流程测试.
+     */
+    public function collaborationProjectCreatorFeature(): void
+    {
+        // 1. 测试有权限用户获取创建者列表
+        $this->switchUserTest2(); // 确保是有权限的协作用户
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListResponse($response);
+
+        // 2. 测试权限控制 - 清空成员后无权限
+        $this->switchUserTest1(); // 切换到项目所有者
+        $this->updateEmptyMembers($this->projectId); // 清空项目成员
+
+        $this->switchUserTest2(); // 切换到无权限用户
+        $emptyResponse = $this->getCollaborationProjectCreators();
+        $this->verifyEmptyCreatorListResponse($emptyResponse);
+
+        // 3. 恢复项目成员状态，以免影响后续测试
+        $this->switchUserTest1();
+        $this->updateMembers($this->projectId);
+    }
+
+    /**
+     * 测试协作项目创建者列表权限控制.
+     */
+    public function testCollaborationProjectCreatorsPermission(): void
+    {
+        $projectId = $this->projectId;
+
+        // 1. 先设置项目成员，确保测试2用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+
+        // 2. 切换到有权限的用户测试获取创建者列表成功
+        $this->switchUserTest2();
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListResponse($response);
+
+        // 3. 清空项目成员，使当前用户没有权限
+        $this->switchUserTest1();
+        $this->updateEmptyMembers($projectId);
+
+        // 4. 切换到没有权限的用户测试权限控制
+        $this->switchUserTest2();
+        $emptyResponse = $this->getCollaborationProjectCreators();
+        $this->verifyEmptyCreatorListResponse($emptyResponse);
+    }
+
+    /**
+     * 测试协作项目创建者列表边界情况.
+     */
+    public function testCollaborationProjectCreatorsEdgeCases(): void
+    {
+        // 确保用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($this->projectId);
+        $this->switchUserTest2();
+
+        // 1. 多次调用API - 应该返回一致结果
+        $response1 = $this->getCollaborationProjectCreators();
+        $response2 = $this->getCollaborationProjectCreators();
+
+        $this->assertEquals($response1['code'], $response2['code']);
+        $this->assertEquals(count($response1['data']), count($response2['data']));
+
+        // 2. 验证创建者去重 - 同一创建者只应该出现一次
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListDeduplication($response);
+    }
+
+    /**
+     * 获取协作项目创建者列表.
+     */
+    public function getCollaborationProjectCreators(int $expectedCode = 1000): array
+    {
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects/creators', [], $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
+
+        if ($expectedCode === 1000) {
+            $this->assertEquals('ok', $response['message']);
+            $this->assertIsArray($response['data']);
+        }
+
+        return $response;
+    }
+
+    /**
+     * 验证创建者列表响应结构.
+     */
+    public function verifyCreatorListResponse(array $response): void
+    {
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data'], '响应数据应该是数组');
+
+        // 验证至少有一个创建者
+        $this->assertGreaterThan(0, count($response['data']), '应该至少有一个创建者');
+
+        // 验证创建者数据结构
+        $creator = $response['data'][0];
+        $this->assertArrayHasKey('id', $creator, '创建者应包含id字段');
+        $this->assertArrayHasKey('name', $creator, '创建者应包含name字段');
+        $this->assertArrayHasKey('user_id', $creator, '创建者应包含user_id字段');
+        $this->assertArrayHasKey('avatar_url', $creator, '创建者应包含avatar_url字段');
+
+        // 验证字段类型
+        $this->assertIsString($creator['id'], 'id应该是字符串');
+        $this->assertIsString($creator['name'], 'name应该是字符串');
+        $this->assertIsString($creator['user_id'], 'user_id应该是字符串');
+        $this->assertIsString($creator['avatar_url'], 'avatar_url应该是字符串');
+
+        // 验证必填字段不为空
+        $this->assertNotEmpty($creator['id'], 'id不应该为空');
+        $this->assertNotEmpty($creator['user_id'], 'user_id不应该为空');
+    }
+
+    /**
+     * 验证空创建者列表响应.
+     */
+    public function verifyEmptyCreatorListResponse(array $response): void
+    {
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data'], '响应数据应该是数组');
+        $this->assertEquals(0, count($response['data']), '无权限时应该返回空数组');
+    }
+
+    /**
+     * 验证创建者列表去重.
+     */
+    public function verifyCreatorListDeduplication(array $response): void
+    {
+        $creators = $response['data'];
+        $userIds = array_column($creators, 'user_id');
+        $uniqueUserIds = array_unique($userIds);
+
+        $this->assertEquals(
+            count($userIds),
+            count($uniqueUserIds),
+            '创建者列表中不应该有重复的user_id'
+        );
     }
 }
