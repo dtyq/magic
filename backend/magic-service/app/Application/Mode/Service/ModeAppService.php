@@ -13,6 +13,9 @@ use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
+use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 
 class ModeAppService extends AbstractModeAppService
 {
@@ -21,16 +24,22 @@ class ModeAppService extends AbstractModeAppService
         $modeDataIsolation = $this->getModeDataIsolation($authorization);
         $modeDataIsolation->disabled();
 
-        // 创建查询对象：sort降序，过滤默认模式
-        $query = new ModeQuery('desc', true, true);
-        $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage());
-
-        if (empty($modesResult['list'])) {
-            return $modesResult;
+        // 获取目前的所有可用的 agent
+        $superMagicAgentAppService = di(SuperMagicAgentAppService::class);
+        $agentData = $superMagicAgentAppService->queries($authorization, new SuperMagicAgentQuery(), Page::createNoPage());
+        // 合并常用和全部 agent 列表，常用在前
+        /** @var array<SuperMagicAgentEntity> $allAgents */
+        $allAgents = array_merge($agentData['frequent'], $agentData['all']);
+        if (empty($allAgents)) {
+            return [];
         }
 
+        // 获取后台的所有模式，用于封装数据到 Agent 中
+        $query = new ModeQuery(status: true);
+        $modeEnabledList = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage())['list'];
+
         // 批量构建模式聚合根
-        $modeAggregates = $this->modeDomainService->batchBuildModeAggregates($modeDataIsolation, $modesResult['list']);
+        $modeAggregates = $this->modeDomainService->batchBuildModeAggregates($modeDataIsolation, $modeEnabledList);
 
         // 获取所有相关的模型信息
         $allModelIds = [];
@@ -62,7 +71,7 @@ class ModeAppService extends AbstractModeAppService
         // 转换为DTO数组
         $modeAggregateDTOs = [];
         foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[] = ModeAssembler::aggregateToDTO($aggregate, $providerModels);
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels);
         }
 
         // 处理图标URL转换
@@ -70,9 +79,33 @@ class ModeAppService extends AbstractModeAppService
             $this->processModeAggregateIcons($aggregateDTO);
         }
 
+        $list = [];
+        foreach ($allAgents as $agent) {
+            $modeAggregateDTO = $modeAggregateDTOs[$agent->getCode()] ?? null;
+            if (! $modeAggregateDTO) {
+                // 使用默认的
+                $modeAggregateDTO = $modeAggregateDTOs['default'] ?? null;
+            }
+            if (! $modeAggregateDTO) {
+                continue;
+            }
+            // 转换
+            $list[] = [
+                'mode' => [
+                    'id' => $agent->getCode(),
+                    'name' => $agent->getName(),
+                    'placeholder' => $agent->getDescription(),
+                    'icon' => $agent->getIcon()['type'] ?? '',
+                    'color' => $agent->getIcon()['color'] ?? '',
+                    'sort' => 0,
+                ],
+                'groups' => $modeAggregateDTO['groups'] ?? [],
+            ];
+        }
+
         return [
-            'total' => $modesResult['total'],
-            'list' => $modeAggregateDTOs,
+            'total' => count($list),
+            'list' => $list,
         ];
     }
 
