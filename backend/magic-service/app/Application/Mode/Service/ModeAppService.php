@@ -27,7 +27,7 @@ class ModeAppService extends AbstractModeAppService
 
         // 创建查询对象：sort降序，过滤默认模式
         $query = new ModeQuery('desc', true, true);
-        $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, new Page(1, 100));
+        $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage());
 
         if (empty($modesResult['list'])) {
             return $modesResult;

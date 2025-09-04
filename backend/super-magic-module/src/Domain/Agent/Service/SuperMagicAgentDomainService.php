@@ -20,7 +20,6 @@ use Dtyq\SuperMagic\Domain\Agent\Event\SuperMagicAgentDeletedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Event\SuperMagicAgentDisabledEvent;
 use Dtyq\SuperMagic\Domain\Agent\Event\SuperMagicAgentEnabledEvent;
 use Dtyq\SuperMagic\Domain\Agent\Event\SuperMagicAgentSavedEvent;
-use Dtyq\SuperMagic\Domain\Agent\Factory\BuiltinAgentFactory;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 
@@ -42,13 +41,7 @@ readonly class SuperMagicAgentDomainService
      */
     public function queries(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentQuery $query, Page $page): array
     {
-        $data = $this->superMagicAgentRepository->queries($dataIsolation, $query, $page);
-        if (! $page->isEnabled()) {
-            $builtinAgents = BuiltinAgentFactory::createAllBuiltinEntities($dataIsolation->getCurrentOrganizationCode());
-            $data['list'] = array_merge($builtinAgents, $data['list']);
-            $data['total'] += count($builtinAgents);
-        }
-        return $data;
+        return $this->superMagicAgentRepository->queries($dataIsolation, $query, $page);
     }
 
     public function save(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $savingEntity): SuperMagicAgentEntity
