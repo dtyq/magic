@@ -297,7 +297,7 @@ class TaskFileDomainService
         ProjectEntity $projectEntity,
         TaskFileEntity $taskFileEntity,
         string $storageType = '',
-        bool $isUpdated = false
+        bool $isUpdated = true
     ): ?TaskFileEntity {
         // 检查输入参数
         if (empty($taskFileEntity->getFileKey())) {
