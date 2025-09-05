@@ -30,11 +30,15 @@ return new class extends Migration {
             // 版本号
             $table->unsignedInteger('version')->comment('版本号');
 
+            // 编辑类型：1=人工编辑，2=AI编辑
+            $table->unsignedTinyInteger('edit_type')->default(1)->comment('编辑类型：1=人工编辑，2=AI编辑');
+
             // 索引设计
             $table->index(['file_id', 'organization_code'], 'idx_file_id_org_code');
             $table->unique(['file_key'], 'unq_file_key');
             $table->index(['organization_code'], 'idx_organization_code');
             $table->index(['file_id', 'version'], 'idx_file_id_version');
+            $table->index(['edit_type'], 'idx_edit_type');
 
             // 时间字段
             $table->timestamps();

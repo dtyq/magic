@@ -69,6 +69,7 @@ class GetFileVersionsResponseDTO extends AbstractDTO
             $list[] = [
                 'file_id' => (string) $entity->getFileId(),
                 'version' => $entity->getVersion(),
+                'edit_type' => $entity->getEditType(),
                 'created_at' => $entity->getCreatedAt(),
             ];
         }

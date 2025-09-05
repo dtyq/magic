@@ -21,6 +21,8 @@ class TaskFileVersionEntity extends AbstractEntity
 
     protected int $version = 0;
 
+    protected int $editType = 1;
+
     protected string $createdAt = '';
 
     protected string $updatedAt = '';
@@ -77,6 +79,16 @@ class TaskFileVersionEntity extends AbstractEntity
         $this->version = $version;
     }
 
+    public function getEditType(): int
+    {
+        return $this->editType;
+    }
+
+    public function setEditType(int $editType): void
+    {
+        $this->editType = $editType;
+    }
+
     public function getCreatedAt(): string
     {
         return $this->createdAt;
@@ -115,6 +127,7 @@ class TaskFileVersionEntity extends AbstractEntity
             'organization_code' => $this->organizationCode,
             'file_key' => $this->fileKey,
             'version' => $this->version,
+            'edit_type' => $this->editType,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,

@@ -33,7 +33,7 @@ class TaskFileVersionDomainService
     /**
      * 创建文件版本.
      */
-    public function createFileVersion(TaskFileEntity $fileEntity): ?TaskFileVersionEntity
+    public function createFileVersion(TaskFileEntity $fileEntity, int $editType = 1): ?TaskFileVersionEntity
     {
         // 仅对非目录文件创建版本
         if ($fileEntity->getIsDirectory()) {
@@ -76,6 +76,7 @@ class TaskFileVersionDomainService
         $versionEntity->setOrganizationCode($fileEntity->getOrganizationCode());
         $versionEntity->setFileKey($versionFileKey);
         $versionEntity->setVersion($nextVersion);
+        $versionEntity->setEditType($editType);
 
         $savedEntity = $this->taskFileVersionRepository->insert($versionEntity);
 
@@ -87,6 +88,7 @@ class TaskFileVersionDomainService
             'file_id' => $fileEntity->getFileId(),
             'version' => $nextVersion,
             'version_file_key' => $versionFileKey,
+            'edit_type' => $editType,
         ]);
 
         return $savedEntity;
