@@ -13,6 +13,7 @@ use App\Application\File\Service\FileCleanupAppService;
 use App\Application\Speech\Assembler\ChatMessageAssembler;
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Application\Speech\DTO\SaveFileRecordToProjectDTO;
+use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -67,19 +68,13 @@ readonly class AsrFileAppService
     /**
      * 处理ASR总结任务的完整流程（包含聊天消息发送）.
      *
-     * @param string $taskKey 任务键
-     * @param string $projectId 项目ID
-     * @param string $topicId 话题ID
+     * @param SummaryRequestDTO $summaryRequest 总结请求DTO
      * @param MagicUserAuthorization $userAuthorization 用户授权信息（包含用户ID和组织编码）
-     * @param string $modelId 模型ID
      * @return array 处理结果
      */
     public function processSummaryWithChat(
-        string $taskKey,
-        string $projectId,
-        string $topicId,
-        MagicUserAuthorization $userAuthorization,
-        string $modelId
+        SummaryRequestDTO $summaryRequest,
+        MagicUserAuthorization $userAuthorization
     ): array {
         try {
             // 从用户授权信息中获取必要的用户数据
@@ -87,36 +82,53 @@ readonly class AsrFileAppService
             $organizationCode = $userAuthorization->getOrganizationCode();
 
             // 1. 通过话题ID获取对话ID
-            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($topicId);
+            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($summaryRequest->topicId);
 
-            // 2. 获取并验证任务状态
-            $taskStatus = $this->getAndValidateTaskStatus($taskKey, $userId);
+            // 2. 获取并验证任务状态（如果有workspace_file_path则跳过此步骤）
+            $taskStatus = null;
+            if (! $summaryRequest->hasWorkspaceFilePath()) {
+                $taskStatus = $this->getAndValidateTaskStatus($summaryRequest->taskKey, $userId);
+            }
 
             // 3. 验证项目权限 - 确保项目属于当前用户和组织
-            $this->validateProjectAccess($projectId, $userId, $organizationCode);
+            $this->validateProjectAccess($summaryRequest->projectId, $userId, $organizationCode);
 
-            // 4. 处理ASR总结任务
-            if (! $taskStatus->isTaskSubmitted()) {
+            // 4. 处理ASR总结任务（如果没有workspace_file_path）
+            if (! $summaryRequest->hasWorkspaceFilePath() && $taskStatus && ! $taskStatus->isTaskSubmitted()) {
                 // 处理音频文件上传
-                $this->updateAudioToWorkspace($taskStatus, $organizationCode, $projectId, $userId);
+                $this->updateAudioToWorkspace($taskStatus, $organizationCode, $summaryRequest->projectId, $userId);
             }
 
             // 5. 构建处理总结任务DTO用于发送聊天消息
-            $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
-                $taskStatus,
-                $organizationCode,
-                $projectId,
-                $userId,
-                $topicId,
-                $conversationId,
-                $modelId
-            );
+            if ($summaryRequest->hasWorkspaceFilePath()) {
+                // 使用workspace_file_path构建虚拟任务状态
+                $taskStatus = $this->createVirtualTaskStatusFromWorkspaceFile($summaryRequest);
+                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
+                    $taskStatus,
+                    $organizationCode,
+                    $summaryRequest->projectId,
+                    $userId,
+                    $summaryRequest->topicId,
+                    $conversationId,
+                    $summaryRequest->modelId
+                );
+            } else {
+                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
+                    $taskStatus,
+                    $organizationCode,
+                    $summaryRequest->projectId,
+                    $userId,
+                    $summaryRequest->topicId,
+                    $conversationId,
+                    $summaryRequest->modelId
+                );
+            }
 
-            // 6. 保存更新后的任务状态
-            $this->saveTaskStatusToRedis($taskStatus);
-
-            // 7. 发送聊天消息模拟用户总结请求
+            // 6. 发送聊天消息模拟用户总结请求
             $this->sendSummaryChatMessage($processSummaryTaskDTO, $userAuthorization);
+
+            // 7. 保存更新后的任务状态（在发送聊天消息后）
+            $this->saveTaskStatusToRedis($taskStatus);
 
             return [
                 'success' => true,
@@ -1023,7 +1035,7 @@ readonly class AsrFileAppService
             $taskStatus->mergedAudioFileKey = $businessUploadResult['file_key']; // 业务目录中的合并文件
             $taskStatus->workspaceFileKey = $actualWorkspaceFileKey; // 工作区中的合并文件
             $taskStatus->workspaceFileUrl = $workspaceFileUrl;
-            $taskStatus->fileName = $fileName; // 保存文件名
+            $taskStatus->filePath = $workspaceFileKey; // 保存工作区文件路径
 
             // 8. 清理本地临时文件和远程小文件
             $this->cleanupTaskFiles($taskStatus->taskKey, $organizationCode, $taskStatus->businessDirectory);
@@ -1047,6 +1059,29 @@ readonly class AsrFileAppService
 
             throw new InvalidArgumentException(sprintf('音频文件处理失败: %s', $e->getMessage()));
         }
+    }
+
+    /**
+     * 从workspace_file_path创建虚拟任务状态.
+     *
+     * @param SummaryRequestDTO $summaryRequest 总结请求DTO
+     * @return AsrTaskStatusDTO 虚拟任务状态DTO
+     */
+    private function createVirtualTaskStatusFromWorkspaceFile(SummaryRequestDTO $summaryRequest): AsrTaskStatusDTO
+    {
+        $workspaceFilePath = $summaryRequest->workspaceFilePath;
+
+        // 创建虚拟任务状态，用于构建聊天消息
+        return new AsrTaskStatusDTO([
+            'task_key' => $summaryRequest->taskKey,
+            'user_id' => '', // 这里会在调用处设置
+            'business_directory' => $summaryRequest->getWorkspaceDirectory(),
+            'sts_full_directory' => $summaryRequest->getWorkspaceDirectory(),
+            'status' => AsrTaskStatusEnum::COMPLETED->value, // 直接标记为已完成
+            'workspace_file_key' => $workspaceFilePath,
+            'workspace_file_url' => '', // 这里可以为空，因为不需要下载URL
+            'file_path' => $workspaceFilePath, // 传入完整的工作区文件路径
+        ]);
     }
 
     /**
