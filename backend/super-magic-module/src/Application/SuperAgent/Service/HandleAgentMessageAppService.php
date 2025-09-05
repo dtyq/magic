@@ -132,7 +132,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $this->logger->info(sprintf('开始批量处理topic %d的消息', $topicId));
 
         // 1. 获取待处理的消息列表（按seq_id升序排列）
-        $processableMessages = $this->taskMessageDomainService->findProcessableMessages(topicId: $topicId, taskId: $taskId);
+        $processableMessages = $this->taskMessageDomainService->findProcessableMessages(topicId: $topicId, taskId: $taskId, senderType: 'assistant', timeoutMinutes: 30, maxRetries: 3, limit: 3);
 
         if (empty($processableMessages)) {
             $this->logger->info(sprintf('topic %d 没有待处理的消息', $topicId));
