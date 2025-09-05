@@ -67,12 +67,9 @@ class GetFileVersionsResponseDTO extends AbstractDTO
         $list = [];
         foreach ($entities as $entity) {
             $list[] = [
-                'id' => $entity->getId(),
-                'file_id' => $entity->getFileId(),
-                'file_key' => $entity->getFileKey(),
+                'file_id' => (string) $entity->getFileId(),
                 'version' => $entity->getVersion(),
                 'created_at' => $entity->getCreatedAt(),
-                'updated_at' => $entity->getUpdatedAt(),
             ];
         }
 
