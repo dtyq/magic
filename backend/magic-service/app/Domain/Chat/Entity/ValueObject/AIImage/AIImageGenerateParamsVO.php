@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Entity\ValueObject\AIImage;
 
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Infrastructure\Core\AbstractValueObject;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 
@@ -32,6 +33,10 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public array $referenceImages = [];
 
     public int $generateNum = 4;
+
+    public ImageGenerateSourceEnum $sourceType;
+
+    public string $sourceId;
 
     public function __construct()
     {
@@ -181,5 +186,25 @@ class AIImageGenerateParamsVO extends AbstractValueObject
         $this->setWidth($size['width']);
         $this->setHeight($size['height']);
         return $this;
+    }
+
+    public function getSourceType(): ImageGenerateSourceEnum
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(ImageGenerateSourceEnum $sourceType): void
+    {
+        $this->sourceType = $sourceType;
+    }
+
+    public function getSourceId(): string
+    {
+        return $this->sourceId;
+    }
+
+    public function setSourceId(string $sourceId): void
+    {
+        $this->sourceId = $sourceId;
     }
 }

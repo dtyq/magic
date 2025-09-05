@@ -13,6 +13,7 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Flow\Entity\ValueObject\NodeInput;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Infrastructure\Core\Collector\BuiltInToolSet\Annotation\BuiltInToolDefine;
 use App\Infrastructure\Util\Context\RequestContext;
 use Closure;
@@ -63,7 +64,9 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
                 ->setUserMessage($textMessage)
                 ->setOriginImageUrl($executionData->getTriggerData()?->getAttachments()[0]->getUrl())
                 ->setOriginImageId($executionData->getTriggerData()?->getAttachments()[0]->getChatFileId())
-                ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId());
+                ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId())
+                ->setSourceId($this->getCode())
+                ->setSourceType(ImageGenerateSourceEnum::TOOL);
             $this->getMagicChatImageConvertHighAppService()->handleUserMessage($requestContext, $reqDto);
             return [];
         };
