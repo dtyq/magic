@@ -234,6 +234,26 @@ class MagicChatTopicRepository implements MagicChatTopicRepositoryInterface
         return SeqAssembler::sortSeqList($clientSequenceResponses, $order);
     }
 
+    /**
+     * 通过topic_id获取话题信息（不需要conversation_id）.
+     */
+    public function getTopicByTopicId(string $topicId): ?MagicTopicEntity
+    {
+        if (empty($topicId)) {
+            return null;
+        }
+
+        $topic = $this->topicModel::query()
+            ->where('topic_id', $topicId)
+            ->first();
+
+        if (empty($topic)) {
+            return null;
+        }
+
+        return TopicAssembler::getTopicEntity($topic->toArray());
+    }
+
     public function deleteTopicByIds(array $ids)
     {
         $ids = array_values(array_filter(array_unique($ids)));
