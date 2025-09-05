@@ -706,19 +706,33 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		magicTopicID := r.Header.Get("magic-topic-id")
 		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
+
+		// 优先从原始请求头获取，避免被JWT覆盖
 		magicUserID := r.Header.Get("magic-user-id")
 		magicOrganizationCode := r.Header.Get("magic-organization-code")
 
-		// 从请求上下文中获取JWT claims
-		// if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
-		// 	magicUserID = claims.MagicUserID
-		// 	magicOrganizationCode = claims.MagicOrganizationCode
-		// }
+		// 从请求上下文中获取JWT claims作为fallback
+		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
+			// 只有当原始请求头中没有值时，才使用JWT中的值
+			if magicUserID == "" {
+				magicUserID = claims.MagicUserID
+			}
+			if magicOrganizationCode == "" {
+				magicOrganizationCode = claims.MagicOrganizationCode
+			}
+		}
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
 		// if userID == "" && magicUserID != "" {
 		// 	userID = magicUserID
 		// }
+
+		if debugMode {
+			logger.Printf("原始请求头 magic-user-id: %s", r.Header.Get("magic-user-id"))
+			logger.Printf("原始请求头 magic-organization-code: %s", r.Header.Get("magic-organization-code"))
+			logger.Printf("最终使用的 magicUserID: %s", magicUserID)
+			logger.Printf("最终使用的 magicOrganizationCode: %s", magicOrganizationCode)
+		}
 
 		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 聊天主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicChatTopicID, magicLanguage)
 
@@ -981,18 +995,23 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		proxyReq.Header = proxyHeaders
 
 		// 透传magic-user-id和magic-organization-code到目标API
-		if magicUserID != "" {
+		// 只有当原始请求头中没有对应值时，才从JWT中设置，避免覆盖原始值
+		if proxyReq.Header.Get("magic-user-id") == "" && magicUserID != "" {
 			proxyReq.Header.Set("magic-user-id", magicUserID)
 			if debugMode {
-				logger.Printf("透传magic-user-id: %s", magicUserID)
+				logger.Printf("从JWT设置magic-user-id: %s", magicUserID)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-user-id") != "" {
+			logger.Printf("保留原始magic-user-id: %s", proxyReq.Header.Get("magic-user-id"))
 		}
 
-		if magicOrganizationCode != "" {
+		if proxyReq.Header.Get("magic-organization-code") == "" && magicOrganizationCode != "" {
 			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
 			if debugMode {
-				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+				logger.Printf("从JWT设置magic-organization-code: %s", magicOrganizationCode)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-organization-code") != "" {
+			logger.Printf("保留原始magic-organization-code: %s", proxyReq.Header.Get("magic-organization-code"))
 		}
 
 		if magicTaskID != "" {
