@@ -11,6 +11,7 @@ use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\ModeAggregateDTO;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Application\Mode\DTO\ModeGroupDTO;
+use App\Application\Mode\DTO\ValueObject\ModelStatus;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ModeDataIsolation;
@@ -18,6 +19,7 @@ use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Mode\Service\ModeGroupDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -193,11 +195,11 @@ abstract class AbstractModeAppService
      */
     protected function getModels(ModeAggregate $modeAggregate): array
     {
-        // 获取所有模型ID
+        // 获取所有模型ID (使用model_id而不是provider_model_id)
         $allModelIds = [];
         foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
             foreach ($groupAggregate->getRelations() as $relation) {
-                $allModelIds[] = (string) $relation->getProviderModelId();
+                $allModelIds[] = $relation->getModelId();
             }
         }
 
@@ -206,8 +208,99 @@ abstract class AbstractModeAppService
         if (! empty($allModelIds)) {
             $providerDataIsolation = new ProviderDataIsolation();
             $providerDataIsolation->disabled();
-            $providerModels = $this->providerModelDomainService->getModelsByIds($providerDataIsolation, $allModelIds);
+            $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, array_unique($allModelIds));
+
+            // 为每个model_id选择最佳模型
+            foreach ($allModels as $modelId => $models) {
+                $bestModel = $this->selectBestModel($models);
+                if ($bestModel) {
+                    $providerModels[$modelId] = $bestModel;
+                }
+            }
         }
         return $providerModels;
+    }
+
+    /**
+     * 获取详细的模型信息（用于管理后台精确状态判断）.
+     * @return array<string, array{best: null|ProviderModelEntity, all: ProviderModelEntity[], status: string}>
+     */
+    protected function getDetailedModels(ModeAggregate $modeAggregate): array
+    {
+        // 获取所有模型ID
+        $allModelIds = [];
+        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
+            foreach ($groupAggregate->getRelations() as $relation) {
+                $allModelIds[] = $relation->getModelId();
+            }
+        }
+
+        if (empty($allModelIds)) {
+            return [];
+        }
+
+        $providerDataIsolation = new ProviderDataIsolation();
+        $providerDataIsolation->disabled();
+
+        // 单次查询获取完整的模型信息
+        $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, array_unique($allModelIds));
+
+        $result = [];
+        foreach (array_unique($allModelIds) as $modelId) {
+            $models = $allModels[$modelId] ?? [];
+            $bestModel = $this->selectBestModel($models);
+            $status = $this->determineStatus($models);
+
+            $result[$modelId] = [
+                'best' => $bestModel,
+                'all' => $models,
+                'status' => $status,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * 从模型列表中选择最佳模型.
+     *
+     * @param ProviderModelEntity[] $models 模型列表
+     * @return null|ProviderModelEntity 选择的最佳模型，如果没有可用模型则返回null
+     */
+    private function selectBestModel(array $models): ?ProviderModelEntity
+    {
+        if (empty($models)) {
+            return null;
+        }
+
+        // 策略1：优先选择启用状态的模型
+        foreach ($models as $model) {
+            if ($model->getStatus() && $model->getStatus()->value === Status::Enabled->value) {
+                return $model;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 根据模型列表确定状态.
+     *
+     * @param ProviderModelEntity[] $models 模型列表
+     * @return ModelStatus 状态：Normal、Disabled、Deleted
+     */
+    private function determineStatus(array $models): ModelStatus
+    {
+        if (empty($models)) {
+            return ModelStatus::Deleted;
+        }
+
+        foreach ($models as $model) {
+            if ($model->getStatus() && $model->getStatus() === Status::Enabled) {
+                return ModelStatus::Normal;
+            }
+        }
+
+        return ModelStatus::Disabled;
     }
 }
