@@ -330,7 +330,7 @@ class TaskFileDomainService
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
-                $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTopicId());
+                $fileEntity->setLatestModifiedTopicId($taskFileEntity->getTopicId());
             }
             if (! empty($taskFileEntity->getTaskId()) && ($taskFileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
                 $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTaskId());
