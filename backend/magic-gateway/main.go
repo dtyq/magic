@@ -706,20 +706,17 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		magicTopicID := r.Header.Get("magic-topic-id")
 		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
-
+		magicUserID=""
+		magicOrganizationCode := ""
 		// 优先从原始请求头获取，避免被JWT覆盖
-		magicUserID := r.Header.Get("magic-user-id")
-		magicOrganizationCode := r.Header.Get("magic-organization-code")
+		// magicUserID := r.Header.Get("magic-user-id")
+		// magicOrganizationCode := r.Header.Get("magic-organization-code")
 
 		// 从请求上下文中获取JWT claims作为fallback
 		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
 			// 只有当原始请求头中没有值时，才使用JWT中的值
-			if magicUserID == "" {
 				magicUserID = claims.MagicUserID
-			}
-			if magicOrganizationCode == "" {
 				magicOrganizationCode = claims.MagicOrganizationCode
-			}
 		}
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
