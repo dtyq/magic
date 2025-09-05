@@ -326,11 +326,6 @@ readonly class FileCleanupDomainService
             // Check if same record already exists
             $existingRecord = $this->repository->findByFileKey($fileKey, $organizationCode);
             if ($existingRecord && $existingRecord->isPending()) {
-                $this->logger->warning('File cleanup record already exists', [
-                    'file_key' => $fileKey,
-                    'organization_code' => $organizationCode,
-                    'existing_id' => $existingRecord->getId(),
-                ]);
                 return true; // Already exists pending cleanup record, return success directly
             }
 

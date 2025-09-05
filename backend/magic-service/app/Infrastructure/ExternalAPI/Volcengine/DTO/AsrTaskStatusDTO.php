@@ -23,11 +23,7 @@ class AsrTaskStatusDTO
 
     public string $stsFullDirectory = ''; // STS完整目录，用于前端上传
 
-    public AsrTaskStatusEnum $status = AsrTaskStatusEnum::NOT_PROCESSED;
-
-    public bool $taskSubmitted = false;
-
-    public ?string $speechTaskId = null; // 语音识别服务返回的任务ID
+    public AsrTaskStatusEnum $status = AsrTaskStatusEnum::FAILED;
 
     public ?string $mergedAudioFileKey = null; // 合并后的音频文件key，用于复用
 
@@ -35,11 +31,7 @@ class AsrTaskStatusDTO
 
     public ?string $workspaceFileUrl = null; // 工作区文件URL
 
-    public ?string $summaryContent = null;
-
-    public ?string $createdAt = null;
-
-    public ?string $updatedAt = null;
+    public ?string $fileName = null; // 文件名
 
     public function __construct(array $data = [])
     {
@@ -48,15 +40,11 @@ class AsrTaskStatusDTO
         $this->businessDirectory = $data['business_directory'] ?? $data['businessDirectory'] ?? '';
         $this->stsFullDirectory = $data['sts_full_directory'] ?? $data['stsFullDirectory'] ?? '';
 
-        $this->status = AsrTaskStatusEnum::fromString($data['status'] ?? 'not_processed');
-        $this->taskSubmitted = ($data['task_submitted'] ?? $data['taskSubmitted'] ?? 'false') === 'true' || ($data['task_submitted'] ?? $data['taskSubmitted'] ?? false) === true;
-        $this->speechTaskId = $data['speech_task_id'] ?? $data['speechTaskId'] ?? null;
+        $this->status = AsrTaskStatusEnum::fromString($data['status'] ?? 'failed');
         $this->mergedAudioFileKey = $data['merged_audio_file_key'] ?? $data['mergedAudioFileKey'] ?? null;
         $this->workspaceFileKey = $data['workspace_file_key'] ?? $data['workspaceFileKey'] ?? null;
         $this->workspaceFileUrl = $data['workspace_file_url'] ?? $data['workspaceFileUrl'] ?? null;
-        $this->summaryContent = $data['summary_content'] ?? $data['summaryContent'] ?? null;
-        $this->createdAt = $data['created_at'] ?? $data['createdAt'] ?? null;
-        $this->updatedAt = $data['updated_at'] ?? $data['updatedAt'] ?? null;
+        $this->fileName = $data['file_name'] ?? $data['fileName'] ?? null;
     }
 
     /**
@@ -80,14 +68,10 @@ class AsrTaskStatusDTO
             'business_directory' => $this->businessDirectory, // 业务目录，与task_key绑定
             'sts_full_directory' => $this->stsFullDirectory, // STS完整目录，用于前端上传
             'status' => $this->status->value,
-            'task_submitted' => $this->taskSubmitted ? 'true' : 'false',
-            'speech_task_id' => $this->speechTaskId,
             'merged_audio_file_key' => $this->mergedAudioFileKey,
             'workspace_file_key' => $this->workspaceFileKey,
             'workspace_file_url' => $this->workspaceFileUrl,
-            'summary_content' => $this->summaryContent,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'file_name' => $this->fileName,
         ];
     }
 
@@ -100,31 +84,18 @@ class AsrTaskStatusDTO
     }
 
     /**
-     * 检查任务是否已提交.
+     * 检查任务是否已提交（基于状态判断）.
      */
     public function isTaskSubmitted(): bool
     {
-        return $this->taskSubmitted;
-    }
-
-    /**
-     * 设置任务已提交状态
-     */
-    public function setTaskSubmitted(bool $submitted = true): void
-    {
-        $this->taskSubmitted = $submitted;
-        $this->updatedAt = date('Y-m-d H:i:s');
+        return $this->status->isTaskSubmitted();
     }
 
     /**
      * 更新状态
      */
-    public function updateStatus(AsrTaskStatusEnum $status, ?string $content = null): void
+    public function updateStatus(AsrTaskStatusEnum $status): void
     {
         $this->status = $status;
-        if ($content !== null) {
-            $this->summaryContent = $content;
-        }
-        $this->updatedAt = date('Y-m-d H:i:s');
     }
 }

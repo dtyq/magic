@@ -15,8 +15,10 @@ readonly class ProcessSummaryTaskDTO
         public AsrTaskStatusDTO $taskStatus,
         public string $organizationCode,
         public string $projectId,
-        public int $retry,
-        public string $userId
+        public string $userId,
+        public string $topicId,
+        public string $conversationId,
+        public string $modelId
     ) {
     }
 }

@@ -56,5 +56,10 @@ interface MagicChatTopicRepositoryInterface
      */
     public function getTopicMessages(MessagesQueryDTO $messagesQueryDTO): array;
 
+    /**
+     * 通过topic_id获取话题信息（不需要conversation_id）.
+     */
+    public function getTopicByTopicId(string $topicId): ?MagicTopicEntity;
+
     public function deleteTopicByIds(array $ids);
 }
