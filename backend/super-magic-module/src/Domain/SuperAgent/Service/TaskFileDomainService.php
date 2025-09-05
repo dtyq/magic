@@ -322,11 +322,12 @@ class TaskFileDomainService
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
                 $fileEntity->setTopicId($taskFileEntity->getTopicId());
                 $fileEntity->setTaskId($taskFileEntity->getTaskId());
+                $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
                 $fileEntity->setCreatedAt($currentTime);
             }
 
             // id 相关设置
-            $fileEntity->setProjectId($taskFileEntity->getProjectId());
+            $fileEntity->setProjectId($projectEntity->getId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
@@ -352,7 +353,7 @@ class TaskFileDomainService
                 $fileEntity->setStorageType($storageType);
             }
             $fileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileEntity->getFileKey()));
-            $fileEntity->setIsDirectory(WorkDirectoryUtil::isValidDirectoryName($fileEntity->getFileKey()));
+            $fileEntity->setIsDirectory($taskFileEntity->getIsDirectory());
             $fileEntity->setSort(! empty($taskFileEntity->getSort()) ? $taskFileEntity->getSort() : 0);
 
             if (empty($taskFileEntity->getParentId())) {
@@ -361,14 +362,14 @@ class TaskFileDomainService
                     $dataIsolation->getCurrentUserId(),
                     $dataIsolation->getCurrentOrganizationCode(),
                     $fileEntity->getFileKey(),
-                    $projectEntity->getWorkDir()
+                    $projectEntity->getWorkDir(),
+                    $fileEntity->getSource()
                 );
                 $fileEntity->setParentId($parentId);
             } else {
                 $fileEntity->setParentId($taskFileEntity->getParentId());
             }
 
-            $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
@@ -968,9 +969,12 @@ class TaskFileDomainService
      * @param int $projectId Project ID
      * @param string $fullFileKey Complete file key from storage
      * @param string $workDir Project work directory
+     * @param string $userId User ID
+     * @param string $organizationCode Organization code
+     * @param TaskFileSource $source File source
      * @return int The file_id of the direct parent directory
      */
-    public function findOrCreateDirectoryAndGetParentId(int $projectId, string $userId, string $organizationCode, string $fullFileKey, string $workDir): int
+    public function findOrCreateDirectoryAndGetParentId(int $projectId, string $userId, string $organizationCode, string $fullFileKey, string $workDir, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // 1. Get relative path of the file
         $relativePath = WorkDirectoryUtil::getRelativeFilePath($fullFileKey, $workDir);
@@ -980,11 +984,11 @@ class TaskFileDomainService
 
         // 3. If file is in root directory, return project root directory ID
         if ($parentDirPath === '.' || $parentDirPath === '/' || empty($parentDirPath)) {
-            return $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
+            return $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $source);
         }
 
         // 4. Ensure all directory levels exist and return the final parent ID
-        return $this->ensureDirectoryPathExists($projectId, $parentDirPath, $workDir, $userId, $organizationCode);
+        return $this->ensureDirectoryPathExists($projectId, $parentDirPath, $workDir, $userId, $organizationCode, $source);
     }
 
     /**
@@ -1014,6 +1018,13 @@ class TaskFileDomainService
             $taskFileEntity->setTopicId($taskEntity->getTopicId());
             $taskFileEntity->setSource(TaskFileSource::AGENT);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+            $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
+            if ($data->getIsDirectory()) {
+                $taskFileEntity->setIsDirectory(true);
+                $taskFileEntity->setFileType(FileType::DIRECTORY->value);
+            } else {
+                $taskFileEntity->setIsDirectory(false);
+            }
 
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
@@ -1070,9 +1081,10 @@ class TaskFileDomainService
      * @param string $workDir Project work directory
      * @param string $userId User ID
      * @param string $organizationCode Organization code
+     * @param TaskFileSource $source File source
      * @return int Root directory file_id
      */
-    public function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode): int
+    public function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // Look for existing root directory (parent_id IS NULL and is_directory = true)
         $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
@@ -1100,7 +1112,7 @@ class TaskFileDomainService
         $rootDirEntity->setFileType(FileType::DIRECTORY->value);
         $rootDirEntity->setIsDirectory(true);
         $rootDirEntity->setParentId(null);
-        $rootDirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $rootDirEntity->setSource($source);
         $rootDirEntity->setStorageType(StorageType::WORKSPACE);
         $rootDirEntity->setIsHidden(true);
         $rootDirEntity->setSort(0);
@@ -1284,7 +1296,7 @@ class TaskFileDomainService
 
         // 根节点单独处理
         $sourceRootFileId = $this->findOrCreateProjectRootDirectory($sourceProjectEntity->getId(), $sourceProjectEntity->getWorkDir(), $sourceProjectEntity->getUserId(), $sourceProjectEntity->getUserOrganizationCode());
-        $forkRootFileId = $this->findOrCreateProjectRootDirectory($forkProjectEntity->getId(), $forkProjectEntity->getWorkDir(), $forkProjectEntity->getUserId(), $forkProjectEntity->getUserOrganizationCode());
+        $forkRootFileId = $this->findOrCreateProjectRootDirectory($forkProjectEntity->getId(), $forkProjectEntity->getWorkDir(), $forkProjectEntity->getUserId(), $forkProjectEntity->getUserOrganizationCode(), TaskFileSource::COPY);
         $sourceToNewIdMap[$sourceRootFileId] = $forkRootFileId;
 
         try {
@@ -1572,13 +1584,16 @@ class TaskFileDomainService
      * @param int $projectId Project ID
      * @param string $dirPath Directory path (e.g., "a/b/c")
      * @param string $workDir Project work directory
+     * @param string $userId User ID
+     * @param string $organizationCode Organization code
+     * @param TaskFileSource $source File source
      * @return int The file_id of the final directory in the path
      */
-    private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode): int
+    private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // Split path into parts and process each level
         $pathParts = array_filter(explode('/', trim($dirPath, '/')));
-        $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode);
+        $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $source);
         $currentPath = '';
 
         foreach ($pathParts as $dirName) {
@@ -1591,7 +1606,7 @@ class TaskFileDomainService
                 $currentParentId = $existingDir->getFileId();
             } else {
                 // Create new directory
-                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode);
+                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode, $source);
                 $currentParentId = $newDirId;
             }
         }
@@ -1638,7 +1653,7 @@ class TaskFileDomainService
      * @param string $workDir Project work directory
      * @return int Created directory file_id
      */
-    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode): int
+    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         $dirEntity = new TaskFileEntity();
         $dirEntity->setFileId(IdGenerator::getSnowId());
@@ -1650,12 +1665,13 @@ class TaskFileDomainService
         // Build complete file_key: workDir + relativePath + trailing slash
         $fullPrefix = $this->getFullPrefix($organizationCode);
         $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
+        $fileKey = ltrim($fileKey, '/') . '/';
         $dirEntity->setFileKey($fileKey);
         $dirEntity->setFileSize(0);
         $dirEntity->setFileType(FileType::DIRECTORY->value);
         $dirEntity->setIsDirectory(true);
         $dirEntity->setParentId($parentId);
-        $dirEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
+        $dirEntity->setSource($source);
         if (WorkFileUtil::isSnapshotFile($fileKey)) {
             $dirEntity->setStorageType(StorageType::SNAPSHOT);
         } else {

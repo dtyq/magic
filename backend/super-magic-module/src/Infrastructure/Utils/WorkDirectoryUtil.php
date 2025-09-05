@@ -360,8 +360,8 @@ class WorkDirectoryUtil
 
         // Check for dangerous characters that could cause file system issues
         // Windows forbidden characters: < > : " | ? *
-        // Also check for control characters (ASCII 0-31)
-        if (preg_match('/[<>:"|?*\x00-\x1f]/', $directoryName)) {
+        // Also check for control characters (ASCII 0-31) and single quotes
+        if (preg_match('/[<>:"|?*\'\x00-\x1f]/', $directoryName)) {
             return false;
         }
 
@@ -395,22 +395,52 @@ class WorkDirectoryUtil
                 return false;
             }
 
-            // Check for components that are just dots
-            if ($component === '.' || $component === '..') {
+            // Check for components with leading/trailing spaces (always problematic)
+            if (preg_match('/^\s|\s$/', $component)) {
                 return false;
             }
 
-            // Check for components starting or ending with spaces or dots (problematic on Windows)
-            if (preg_match('/^[\s.]+|[\s.]+$/', $component)) {
+            // Check for components that are only dots (., .., ..., etc.)
+            // This allows hidden directories like .git, .visual but rejects dot-only patterns
+            if (preg_match('/^\.+$/', $component)) {
                 return false;
             }
 
-            // Check if component looks like a file (has an extension)
+            // Check for components ending with dots (problematic on Windows)
+            if (preg_match('/\.$/', $component)) {
+                return false;
+            }
+
+            // Check if component looks like a file (has a common file extension)
             // Only check the last component to determine if it's a file
+            // Exclude hidden directories (starting with .) from file extension check
             $pathParts = explode('/', $directoryName);
             $lastComponent = end($pathParts);
-            if ($component === $lastComponent && preg_match('/\.[a-zA-Z0-9]+$/', $component)) {
-                return false;
+            if ($component === $lastComponent && ! str_starts_with($component, '.')) {
+                // Check for Dockerfile patterns (special case)
+                if (preg_match('/^[Dd]ockerfile/', $component)) {
+                    return false;
+                }
+
+                // Check against common file extensions that are definitely files
+                $commonFileExtensions = [
+                    'txt', 'md', 'json', 'xml', 'yml', 'yaml', 'ini', 'conf', 'log', 'lock',
+                    'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx', 'vue', 'php', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'h', 'hpp',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
+                    'png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'ico', 'webp',
+                    'mp3', 'mp4', 'avi', 'mkv', 'mov', 'wav', 'flac',
+                    'zip', 'tar', 'gz', 'bz2', 'rar', '7z', 'xz',
+                    'exe', 'dll', 'so', 'dylib', 'app', 'dmg', 'msi',
+                    'sql', 'db', 'sqlite', 'csv',
+                    'prod', 'dev', 'test', 'staging', // Docker/config file suffixes
+                ];
+
+                if (preg_match('/\.([a-zA-Z0-9]+)$/', $component, $matches)) {
+                    $extension = strtolower($matches[1]);
+                    if (in_array($extension, $commonFileExtensions)) {
+                        return false;
+                    }
+                }
             }
         }
 

@@ -743,22 +743,24 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
 
         try {
-            // Determine storage type
-            $storageType = WorkFileUtil::isSnapshotFile($attachment['file_key'])
-                ? StorageType::SNAPSHOT->value
-                : StorageType::WORKSPACE->value;
-
-            // Convert attachment to TaskFileEntity
-            $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
-
-            // Use saveProjectFile to save the file
-            $savedEntity = $this->taskFileDomainService->saveProjectFile(
-                $dataIsolation,
-                $projectEntity,
-                $taskFileEntity,
-                $storageType,
-                true // isUpdated = false for new files
-            );
+            // Save the file and move it to the sandbox, which is temporarily abandoned
+            //             Determine storage type
+            //            $storageType = WorkFileUtil::isSnapshotFile($attachment['file_key'])
+            //                ? StorageType::SNAPSHOT->value
+            //                : StorageType::WORKSPACE->value;
+            //
+            //            // Convert attachment to TaskFileEntity
+            //            $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
+            //
+            //             Use saveProjectFile to save the file
+            //            $savedEntity = $this->taskFileDomainService->saveProjectFile(
+            //                $dataIsolation,
+            //                $projectEntity,
+            //                $taskFileEntity,
+            //                $storageType,
+            //                true // isUpdated = false for new files
+            //            );
+            $savedEntity = $this->taskFileDomainService->getByFileKey($attachment['file_key']);
 
             // Update attachment information (maintain compatibility)
             $attachment['file_id'] = (string) $savedEntity->getFileId();
@@ -821,6 +823,12 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         // Set storage type (will be overridden by saveProjectFile parameter)
         $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
+
+        if (WorkDirectoryUtil::isValidDirectoryName($attachment['file_key'])) {
+            $taskFileEntity->setIsDirectory(true);
+        } else {
+            $taskFileEntity->setIsDirectory(false);
+        }
         return $taskFileEntity;
     }
 
