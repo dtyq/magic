@@ -31,7 +31,7 @@ class AsrTaskStatusDTO
 
     public ?string $workspaceFileUrl = null; // 工作区文件URL
 
-    public ?string $fileName = null; // 文件名
+    public ?string $filePath = null; // 工作区文件路径
 
     public function __construct(array $data = [])
     {
@@ -44,7 +44,7 @@ class AsrTaskStatusDTO
         $this->mergedAudioFileKey = $data['merged_audio_file_key'] ?? $data['mergedAudioFileKey'] ?? null;
         $this->workspaceFileKey = $data['workspace_file_key'] ?? $data['workspaceFileKey'] ?? null;
         $this->workspaceFileUrl = $data['workspace_file_url'] ?? $data['workspaceFileUrl'] ?? null;
-        $this->fileName = $data['file_name'] ?? $data['fileName'] ?? null;
+        $this->filePath = $data['file_path'] ?? $data['filePath'] ?? $data['file_name'] ?? $data['fileName'] ?? null;
     }
 
     /**
@@ -71,7 +71,7 @@ class AsrTaskStatusDTO
             'merged_audio_file_key' => $this->mergedAudioFileKey,
             'workspace_file_key' => $this->workspaceFileKey,
             'workspace_file_url' => $this->workspaceFileUrl,
-            'file_name' => $this->fileName,
+            'file_path' => $this->filePath,
         ];
     }
 

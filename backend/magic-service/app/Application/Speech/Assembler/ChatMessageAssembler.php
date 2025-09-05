@@ -50,11 +50,12 @@ class ChatMessageAssembler
         }
         // 生成文件信息
         $fileId = (string) IdGenerator::getSnowId();
-        $fileName = $dto->taskStatus->fileName ?: $dto->taskStatus->taskKey;
-        $filePath = $dto->taskStatus->taskKey;
+
+        $fullFilePath = $dto->taskStatus->filePath;
+        $fileName = basename($fullFilePath); // 从完整路径中提取文件名
 
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($fileId, $fileName, $filePath, $dto->modelId);
+        $messageContent = $this->buildMessageContent($fileId, $fileName, $fullFilePath, $dto->modelId);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -137,7 +138,7 @@ class ChatMessageAssembler
                     ],
                     'input_mode' => 'plan',
                     'chat_mode' => 'normal',
-                    'topic_pattern' => 'general',
+                    'topic_pattern' => 'summary',
                     'model' => [
                         'model_id' => $modelId,
                     ],

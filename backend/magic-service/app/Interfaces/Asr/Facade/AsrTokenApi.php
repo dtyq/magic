@@ -9,6 +9,7 @@ namespace App\Interfaces\Asr\Facade;
 
 use App\Application\Asr\DTO\DownloadMergedAudioResponseDTO;
 use App\Application\File\Service\FileAppService;
+use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -104,8 +105,8 @@ class AsrTokenApi extends AbstractApi
     }
 
     /**
-     * ASR专用服务端代理文件上传
-     * POST /api/v1/asr/upload.
+     * 录音文件上传服务,debug 使用.
+     * @deprecated
      *
      * @param RequestInterface $request 包含 task_key 和文件数据
      */
@@ -169,83 +170,6 @@ class AsrTokenApi extends AbstractApi
     }
 
     /**
-     * 直接查询录音状态 - 纯查询，不执行任何处理逻辑
-     * GET /api/v1/asr/status.
-     *
-     * @param RequestInterface $request 包含 task_key 参数
-     * @return array 返回任务状态信息，包含目录下的文件列表
-     */
-    public function queryStatus(RequestInterface $request): array
-    {
-        $userAuthorization = $this->getAuthorization();
-        $userId = $userAuthorization->getId();
-        $organizationCode = $userAuthorization->getOrganizationCode();
-
-        // 获取task_key参数
-        $taskKey = $request->input('task_key', '');
-
-        if (empty($taskKey)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
-        }
-
-        // 从Redis获取任务状态 - 委托给应用服务
-        $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
-
-        if ($taskStatus->isEmpty()) {
-            return [
-                'success' => false,
-                'task_key' => $taskKey,
-                'exists' => false,
-                'message' => trans('asr.api.validation.task_not_exist'),
-                'user' => [
-                    'user_id' => $userId,
-                    'magic_id' => $userAuthorization->getMagicId(),
-                    'organization_code' => $organizationCode,
-                ],
-                'queried_at' => date('Y-m-d H:i:s'),
-            ];
-        }
-
-        try {
-            // 获取并验证任务状态（包含安全检查）
-            $taskStatus = $this->asrFileAppService->getAndValidateTaskStatus($taskKey, $userId);
-        } catch (InvalidArgumentException $e) {
-            return [
-                'success' => false,
-                'task_key' => $taskKey,
-                'exists' => false,
-                'message' => $e->getMessage(),
-                'user' => [
-                    'user_id' => $userId,
-                    'magic_id' => $userAuthorization->getMagicId(),
-                    'organization_code' => $organizationCode,
-                ],
-                'queried_at' => date('Y-m-d H:i:s'),
-            ];
-        }
-
-        // 获取目录下的文件列表
-        $fileListData = $this->asrFileAppService->buildFileListResponse($organizationCode, $taskStatus->businessDirectory);
-
-        return [
-            'success' => true,
-            'task_key' => $taskKey,
-            'exists' => true,
-            'directory' => $taskStatus->stsFullDirectory, // 返回STS完整目录
-            'business_directory' => $taskStatus->businessDirectory, // 新增：业务目录
-            'files' => $fileListData['files'],  // 新增：文件列表
-            'file_count' => $fileListData['file_count'],  // 新增：文件数量
-            'user' => [
-                'user_id' => $userId,
-                'organization_code' => $organizationCode,
-            ],
-            'status' => $taskStatus->status->value,
-            'has_summary' => $taskStatus->status === AsrTaskStatusEnum::COMPLETED,
-            'queried_at' => date('Y-m-d H:i:s'),
-        ];
-    }
-
-    /**
      * 查询录音总结状态
      * GET /api/v1/asr/summary.
      *
@@ -255,15 +179,12 @@ class AsrTokenApi extends AbstractApi
     {
         $userAuthorization = $this->getAuthorization();
         // 验证并获取请求参数
-        [$taskKey, $projectId, $topicId, $modelId] = $this->validateSummaryParams($request);
+        $summaryRequest = $this->validateSummaryParams($request);
 
         // 处理ASR总结任务的完整流程（包含聊天消息发送）
         $result = $this->asrFileAppService->processSummaryWithChat(
-            $taskKey,
-            $projectId,
-            $topicId,
-            $userAuthorization,
-            $modelId
+            $summaryRequest,
+            $userAuthorization
         );
 
         // 如果处理失败，直接返回错误
@@ -271,17 +192,17 @@ class AsrTokenApi extends AbstractApi
             return [
                 'success' => false,
                 'error' => $result['error'],
-                'task_key' => $taskKey,
-                'project_id' => $projectId,
-                'chat_topic_id' => $topicId,
+                'task_key' => $summaryRequest->taskKey,
+                'project_id' => $summaryRequest->projectId,
+                'chat_topic_id' => $summaryRequest->topicId,
             ];
         }
 
         return [
             'success' => true,
-            'task_key' => $taskKey,
-            'project_id' => $projectId,
-            'chat_topic_id' => $topicId,
+            'task_key' => $summaryRequest->taskKey,
+            'project_id' => $summaryRequest->projectId,
+            'chat_topic_id' => $summaryRequest->topicId,
             'conversation_id' => $result['conversation_id'],
         ];
     }
@@ -529,10 +450,9 @@ class AsrTokenApi extends AbstractApi
     /**
      * 验证 summary 请求参数.
      *
-     * @return array [taskKey, projectId, topicId, modelId]
      * @throws InvalidArgumentException
      */
-    private function validateSummaryParams(RequestInterface $request): array
+    private function validateSummaryParams(RequestInterface $request): SummaryRequestDTO
     {
         // 获取task_key参数
         $taskKey = $request->input('task_key', '');
@@ -542,6 +462,8 @@ class AsrTokenApi extends AbstractApi
         $topicId = $request->input('chat_topic_id', '');
         // 获取model_id参数（必传参数）
         $modelId = $request->input('model_id', '');
+        // 获取workspace_file_path参数（可选参数）
+        $workspaceFilePath = $request->input('workspace_file_path', null);
 
         if (empty($taskKey)) {
             throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
@@ -559,6 +481,6 @@ class AsrTokenApi extends AbstractApi
             throw new InvalidArgumentException(trans('asr.api.validation.model_id_required'));
         }
 
-        return [$taskKey, $projectId, $topicId, $modelId];
+        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath);
     }
 }
