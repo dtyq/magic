@@ -242,7 +242,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             }
         }
 
-        return $this->userDomainService->getByUserId($uid);
+        return $this->userDomainService->getByUserId(uid: $uid);
     }
 
     public function getTask(int $taskId): TaskEntity
