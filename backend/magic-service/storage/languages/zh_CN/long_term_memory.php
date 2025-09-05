@@ -43,5 +43,6 @@ return [
         'parameter_validation_failed' => '参数验证失败: :errors',
         'action_accept' => '接受',
         'action_reject' => '拒绝',
+        'content_length_exceeded' => '内容长度不能超过5000个字符',
     ],
 ];

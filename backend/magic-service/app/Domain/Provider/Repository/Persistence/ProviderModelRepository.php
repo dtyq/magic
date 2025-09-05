@@ -250,8 +250,13 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         usort($allModels, static function ($a, $b) {
             return $b->getSort() <=> $a->getSort();
         });
-
-        // 6. 转为数组并缓存结果，缓存10秒
+        // 6. 过滤状态
+        if ($status !== null) {
+            $allModels = array_filter($allModels, static function (ProviderModelEntity $model) use ($status) {
+                return $model->getStatus() === $status;
+            });
+        }
+        // 7. 转为数组并缓存结果，缓存10秒
         $modelsArray = [];
         foreach ($allModels as $model) {
             $modelsArray[] = $model->toArray();
