@@ -17,7 +17,9 @@ use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryStatus;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\AbstractApi;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\MagicUserAuthorizationTrait;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
@@ -27,7 +29,6 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\Validation\Rule;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
 use function Hyperf\Translation\trans;
@@ -533,15 +534,17 @@ class LongTermMemoryAdminApi extends AbstractApi
 
     /**
      * 校验请求参数.
-     *
-     * @throws InvalidArgumentException
      */
     protected function checkParams(array $params, array $rules, ?string $method = null): array
     {
         $validator = $this->validator->make($params, $rules);
 
         if ($validator->fails()) {
-            throw new InvalidArgumentException(trans('long_term_memory.api.validation_failed', ['errors' => implode(', ', $validator->errors()->all())]));
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                'long_term_memory.api.validation_failed',
+                ['errors' => implode(',', $validator->errors()->keys())]
+            );
         }
 
         return $validator->validated();
@@ -554,10 +557,23 @@ class LongTermMemoryAdminApi extends AbstractApi
     {
         $params = $request->all();
         $rules = [
-            'content' => 'string|max:65535',
+            'content' => 'string|required',
         ];
 
-        return $this->checkParams($params, $rules);
+        $validatedParams = $this->checkParams($params, $rules);
+
+        // 手动检查内容长度
+        if (isset($validatedParams['content'])) {
+            $contentLength = mb_strlen($validatedParams['content']);
+            if ($contentLength > 5000) {
+                ExceptionBuilder::throw(
+                    GenericErrorCode::ParameterValidationFailed,
+                    'long_term_memory.api.content_length_exceeded'
+                );
+            }
+        }
+
+        return $validatedParams;
     }
 
     /**
@@ -600,14 +616,7 @@ class LongTermMemoryAdminApi extends AbstractApi
             ]);
         }
 
-        $contentLength = mb_strlen($inputContent);
-
-        // 检查长度限制：超过5000字符时抛出异常
-        if ($contentLength > 5000) {
-            throw new InvalidArgumentException(trans('long_term_memory.api.content_length_exceeded'));
-        }
-
-        // 内容在限制范围内：直接处理并构建DTO
+        // 直接处理并构建DTO（长度检查已在参数验证阶段完成）
         return new UpdateMemoryDTO([
             'content' => $inputContent,
             'pendingContent' => null, // 清空pending_content
