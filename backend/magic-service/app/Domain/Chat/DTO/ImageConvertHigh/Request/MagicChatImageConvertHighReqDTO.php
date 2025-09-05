@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\DTO\ImageConvertHigh\Request;
 
 use App\Domain\Chat\DTO\Message\MessageInterface;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 
 class MagicChatImageConvertHighReqDTO
 {
@@ -32,6 +33,10 @@ class MagicChatImageConvertHighReqDTO
     public string $referMessageId = '';
 
     public ?string $radio = null;
+
+    public ImageGenerateSourceEnum $sourceType;
+
+    public string $sourceId;
 
     public function getReferText(): ?string
     {
@@ -151,6 +156,28 @@ class MagicChatImageConvertHighReqDTO
     public function setRadio(?string $radio): MagicChatImageConvertHighReqDTO
     {
         $this->radio = $radio;
+        return $this;
+    }
+
+    public function getSourceType(): ImageGenerateSourceEnum
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(ImageGenerateSourceEnum $sourceType): self
+    {
+        $this->sourceType = $sourceType;
+        return $this;
+    }
+
+    public function getSourceId(): string
+    {
+        return $this->sourceId;
+    }
+
+    public function setSourceId(string $sourceId): self
+    {
+        $this->sourceId = $sourceId;
         return $this;
     }
 }
