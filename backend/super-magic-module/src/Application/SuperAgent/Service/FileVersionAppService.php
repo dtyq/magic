@@ -14,8 +14,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileVersionsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RollbackFileToVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateFileVersionResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\GetFileVersionsResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\RollbackFileToVersionResponseDTO;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -135,5 +137,72 @@ class FileVersionAppService extends AbstractAppService
 
         // 返回结果
         return GetFileVersionsResponseDTO::fromData($result['list'], $result['total'], $requestDTO->getPage());
+    }
+
+    /**
+     * 文件回滚到指定版本.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param RollbackFileToVersionRequestDTO $requestDTO 请求DTO
+     * @return RollbackFileToVersionResponseDTO 回滚结果
+     */
+    public function rollbackFileToVersion(
+        RequestContext $requestContext,
+        RollbackFileToVersionRequestDTO $requestDTO
+    ): RollbackFileToVersionResponseDTO {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $fileId = $requestDTO->getFileId();
+        $targetVersion = $requestDTO->getVersion();
+
+        $this->logger->info('Rolling back file to version', [
+            'file_id' => $fileId,
+            'target_version' => $targetVersion,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+        ]);
+
+        // 验证文件是否存在
+        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        if (! $fileEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_not_found');
+        }
+
+        // 验证文件权限 - 确保文件属于当前组织
+        if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.access_denied');
+        }
+
+        // 验证文件是否为目录
+        if ($fileEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.cannot_rollback_directory');
+        }
+
+        // 验证项目权限
+        if ($fileEntity->getProjectId() > 0) {
+            $this->getAccessibleProject(
+                $fileEntity->getProjectId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+        }
+
+        $newVersionEntity = $this->taskFileVersionDomainService->rollbackFileToVersion(
+            $fileEntity,
+            $targetVersion
+        );
+
+        if (! $newVersionEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, 'file.rollback_failed');
+        }
+
+        $this->logger->info('File rollback completed successfully', [
+            'file_id' => $fileId,
+            'target_version' => $targetVersion,
+            'new_version_id' => $newVersionEntity->getId(),
+            'new_version' => $newVersionEntity->getVersion(),
+        ]);
+
+        return RollbackFileToVersionResponseDTO::createEmpty();
     }
 }

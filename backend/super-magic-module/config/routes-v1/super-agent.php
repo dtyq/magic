@@ -147,6 +147,8 @@ Router::addGroup(
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
             // 获取文件版本列表
             Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
+            // 文件回滚到指定版本
+            Router::post('/{id}/rollback', [FileApi::class, 'rollbackFileToVersion']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件

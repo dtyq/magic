@@ -64,4 +64,9 @@ interface TaskFileVersionRepositoryInterface
      * @return array 包含 list 和 total 的数组
      */
     public function getByFileIdWithPage(int $fileId, int $page, int $pageSize): array;
+
+    /**
+     * 根据文件ID和版本号获取特定版本.
+     */
+    public function getByFileIdAndVersion(int $fileId, int $version): ?TaskFileVersionEntity;
 }

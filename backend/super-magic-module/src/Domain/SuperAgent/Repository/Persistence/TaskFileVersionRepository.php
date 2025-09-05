@@ -146,4 +146,21 @@ class TaskFileVersionRepository implements TaskFileVersionRepositoryInterface
             'total' => $total,
         ];
     }
+
+    /**
+     * 根据文件ID和版本号获取特定版本.
+     */
+    public function getByFileIdAndVersion(int $fileId, int $version): ?TaskFileVersionEntity
+    {
+        $model = $this->model::query()
+            ->where('file_id', $fileId)
+            ->where('version', $version)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileVersionEntity($model->toArray());
+    }
 }

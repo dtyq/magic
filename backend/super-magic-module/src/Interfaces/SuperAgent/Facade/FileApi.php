@@ -34,6 +34,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RollbackFileToVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
@@ -467,6 +468,25 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         $responseDTO = $this->fileVersionAppService->getFileVersions($requestContext, $requestDTO);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 文件回滚到指定版本.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 文件ID
+     * @return array 回滚结果
+     */
+    public function rollbackFileToVersion(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = RollbackFileToVersionRequestDTO::fromRequest($this->request);
+        $requestDTO->setFileId((int) $id);
+
+        $responseDTO = $this->fileVersionAppService->rollbackFileToVersion($requestContext, $requestDTO);
 
         return $responseDTO->toArray();
     }
