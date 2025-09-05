@@ -297,10 +297,10 @@ class TaskFileDomainService
         ProjectEntity $projectEntity,
         TaskFileEntity $taskFileEntity,
         string $storageType = '',
-        bool $isUpdated = false
+        bool $isUpdated = true
     ): ?TaskFileEntity {
         // 检查输入参数
-        if ($taskFileEntity->getProjectId() <= 0 || empty($taskFileEntity->getFileKey())) {
+        if (empty($taskFileEntity->getFileKey())) {
             ExceptionBuilder::throw(
                 SuperAgentErrorCode::FILE_NOT_FOUND,
                 trans('file.file_not_found')
@@ -320,6 +320,8 @@ class TaskFileDomainService
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
+                $fileEntity->setTopicId($taskFileEntity->getTopicId());
+                $fileEntity->setTaskId($taskFileEntity->getTaskId());
                 $fileEntity->setCreatedAt($currentTime);
             }
 
@@ -327,20 +329,12 @@ class TaskFileDomainService
             $fileEntity->setProjectId($taskFileEntity->getProjectId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
             $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-
-            if ($isCreated) {
-                $fileEntity->setTopicId($taskFileEntity->getTopicId());
-                $fileEntity->setTaskId($taskFileEntity->getTaskId());
+            if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
+                $fileEntity->setLatestModifiedTopicId($taskFileEntity->getTopicId());
             }
-            // $fileEntity->setTopicId($taskFileEntity->getTopicId());
-            // $fileEntity->setTaskId($taskFileEntity->getTaskId());
-            if (! empty($fileEntity->getTopicId()) && ($fileEntity->getTopicId() !== $taskFileEntity->getLatestModifiedTopicId())) {
-                $fileEntity->setLatestModifiedTaskId($fileEntity->getTopicId());
+            if (! empty($taskFileEntity->getTaskId()) && ($taskFileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
+                $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTaskId());
             }
-            if (! empty($fileEntity->getTaskId()) && ($fileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
-                $fileEntity->setLatestModifiedTaskId($fileEntity->getTaskId());
-            }
-
             // 文件信息相关设置
             $fileEntity->setFileType(! empty($taskFileEntity->getFileType()) ? $taskFileEntity->getFileType() : FileType::PROCESS->value);
             $fileEntity->setFileName(! empty($taskFileEntity->getFileName()) ? $taskFileEntity->getFileName() : basename($taskFileEntity->getFileKey()));
@@ -381,7 +375,7 @@ class TaskFileDomainService
             if ($isCreated) {
                 return $this->taskFileRepository->insert($fileEntity);
             }
-            return $this->taskFileRepository->updateById($taskFileEntity);
+            return $this->taskFileRepository->updateById($fileEntity);
         } catch (Throwable $e) {
             $this->logger->error('Error saving project file', ['file_key' => $taskFileEntity->getFileKey(), 'error' => $e->getMessage()]);
             throw $e;

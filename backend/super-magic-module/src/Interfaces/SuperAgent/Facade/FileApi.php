@@ -28,13 +28,13 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesReque
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RollbackFileToVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
@@ -453,26 +453,6 @@ class FileApi extends AbstractApi
     }
 
     /**
-     * 创建文件版本.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @return array 创建结果
-     */
-    public function createFileVersion(RequestContext $requestContext): array
-    {
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        // 获取请求数据并创建DTO
-        $requestDTO = CreateFileVersionRequestDTO::fromRequest($this->request);
-
-        // 调用应用服务
-        $responseDTO = $this->fileVersionAppService->createFileVersion($requestContext, $requestDTO);
-
-        return $responseDTO->toArray();
-    }
-
-    /**
      * 获取文件版本列表.
      *
      * @param RequestContext $requestContext 请求上下文
@@ -490,6 +470,25 @@ class FileApi extends AbstractApi
 
         // 调用应用服务
         $responseDTO = $this->fileVersionAppService->getFileVersions($requestContext, $requestDTO);
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 文件回滚到指定版本.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 文件ID
+     * @return array 回滚结果
+     */
+    public function rollbackFileToVersion(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = RollbackFileToVersionRequestDTO::fromRequest($this->request);
+        $requestDTO->setFileId((int) $id);
+
+        $responseDTO = $this->fileVersionAppService->rollbackFileToVersion($requestContext, $requestDTO);
 
         return $responseDTO->toArray();
     }

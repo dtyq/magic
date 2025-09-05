@@ -89,8 +89,27 @@ class ModeAppService extends AbstractModeAppService
             if (! $modeAggregateDTO) {
                 continue;
             }
-            $modeAggregateDTO->getMode()->setId($agent->getCode());
-            $list[] = $modeAggregateDTO;
+            // 如果没有配置任何模型，要被过滤
+            if (empty($modeAggregateDTO->getAllModelIds())) {
+                continue;
+            }
+            // 转换
+            $list[] = [
+                'mode' => [
+                    'id' => $agent->getCode(),
+                    'name' => $agent->getName(),
+                    'placeholder' => $agent->getDescription(),
+                    'identifier' => $agent->getCode(),
+                    'icon' => $agent->getIcon()['type'] ?? '',
+                    'color' => $agent->getIcon()['color'] ?? '',
+                    'sort' => 0,
+                ],
+                'agent' => [
+                    'type' => $agent->getType()->value,
+                    'category' => $agent->getCategory(),
+                ],
+                'groups' => $modeAggregateDTO['groups'] ?? [],
+            ];
         }
 
         return [

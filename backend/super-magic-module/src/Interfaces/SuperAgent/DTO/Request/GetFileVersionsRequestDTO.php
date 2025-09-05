@@ -65,7 +65,7 @@ class GetFileVersionsRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'file_id' => 'required|integer|min:1',
+            'id' => 'required|integer|min:1',
             'page' => 'integer|min:1',
             'page_size' => 'integer|min:1|max:100',
         ];
@@ -77,9 +77,9 @@ class GetFileVersionsRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'file_id.required' => 'File ID cannot be empty',
-            'file_id.integer' => 'File ID must be an integer',
-            'file_id.min' => 'File ID must be greater than 0',
+            'id.required' => 'File ID cannot be empty',
+            'id.integer' => 'File ID must be an integer',
+            'id.min' => 'File ID must be greater than 0',
             'page.integer' => 'Page must be an integer',
             'page.min' => 'Page must be greater than 0',
             'page_size.integer' => 'Page size must be an integer',

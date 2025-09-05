@@ -73,6 +73,12 @@ class SuperMagicAgentEntity extends AbstractEntity
 
     protected DateTime $updatedAt;
 
+    /**
+     * Category for agent classification.
+     * Values: 'frequent', 'all'.
+     */
+    private string $category = 'all';
+
     public function shouldCreate(): bool
     {
         return empty($this->code);
@@ -358,5 +364,15 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setUpdatedAt(DateTime $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getCategory(): string
+    {
+        return $this->category;
+    }
+
+    public function setCategory(string $category): void
+    {
+        $this->category = $category;
     }
 }

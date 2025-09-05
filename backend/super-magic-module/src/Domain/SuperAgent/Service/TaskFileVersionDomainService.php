@@ -51,11 +51,23 @@ class TaskFileVersionDomainService
         $versionFileKey = $this->generateVersionFileKey($fileEntity->getFileKey(), $nextVersion);
 
         // 3. 复制OSS文件到版本路径
-        $this->copyFileToVersionPath(
+        $this->logger->info('Copying file to version path', [
+            'organization_code' => $fileEntity->getOrganizationCode(),
+            'source_key' => $fileEntity->getFileKey(),
+            'destination_key' => $versionFileKey,
+        ]);
+
+        $this->copyFile(
             $fileEntity->getOrganizationCode(),
             $fileEntity->getFileKey(),
             $versionFileKey
         );
+
+        $this->logger->info('File copied to version path successfully', [
+            'organization_code' => $fileEntity->getOrganizationCode(),
+            'source_key' => $fileEntity->getFileKey(),
+            'destination_key' => $versionFileKey,
+        ]);
 
         // 4. 创建版本记录
         $versionEntity = new TaskFileVersionEntity();
@@ -145,6 +157,81 @@ class TaskFileVersionDomainService
     }
 
     /**
+     * 文件回滚到指定版本.
+     */
+    public function rollbackFileToVersion(TaskFileEntity $fileEntity, int $targetVersion): ?TaskFileVersionEntity
+    {
+        $fileId = $fileEntity->getFileId();
+        $organizationCode = $fileEntity->getOrganizationCode();
+
+        $this->logger->info('Starting file rollback to version', [
+            'file_id' => $fileId,
+            'target_version' => $targetVersion,
+            'organization_code' => $organizationCode,
+        ]);
+
+        // 1. 验证目标版本是否存在
+        $targetVersionEntity = $this->taskFileVersionRepository->getByFileIdAndVersion($fileId, $targetVersion);
+        if (! $targetVersionEntity) {
+            $this->logger->error('Target version not found', [
+                'file_id' => $fileId,
+                'target_version' => $targetVersion,
+            ]);
+            return null;
+        }
+
+        $this->logger->info('Target version found', [
+            'file_id' => $fileId,
+            'target_version' => $targetVersion,
+            'version_file_key' => $targetVersionEntity->getFileKey(),
+        ]);
+
+        // 2. 将版本文件复制到当前文件位置
+        $currentFileKey = $fileEntity->getFileKey();
+        $versionFileKey = $targetVersionEntity->getFileKey();
+
+        $this->logger->info('Copying version file to current file location', [
+            'source_key' => $versionFileKey,
+            'destination_key' => $currentFileKey,
+        ]);
+
+        $this->copyFile(
+            $organizationCode,
+            $versionFileKey,
+            $currentFileKey
+        );
+
+        $this->logger->info('File copied from version to workspace successfully', [
+            'source_key' => $versionFileKey,
+            'destination_key' => $currentFileKey,
+        ]);
+
+        // 3. 复用createFileVersion方法为回滚后的文件创建新版本记录
+        $this->logger->info('Creating new version record after rollback using createFileVersion', [
+            'file_id' => $fileId,
+        ]);
+
+        $newVersionEntity = $this->createFileVersion($fileEntity);
+
+        if (! $newVersionEntity) {
+            $this->logger->error('Failed to create version record after rollback', [
+                'file_id' => $fileId,
+                'target_version' => $targetVersion,
+            ]);
+            return null;
+        }
+
+        $this->logger->info('File rollback completed successfully', [
+            'file_id' => $fileId,
+            'target_version' => $targetVersion,
+            'new_version' => $newVersionEntity->getVersion(),
+            'new_version_id' => $newVersionEntity->getId(),
+        ]);
+
+        return $newVersionEntity;
+    }
+
+    /**
      * 获取下一个版本号.
      */
     private function getNextVersionNumber(int $fileId): int
@@ -163,50 +250,17 @@ class TaskFileVersionDomainService
             throw new InvalidArgumentException('Original file key must contain /workspace/ path');
         }
 
-        // 将 /workspace/ 替换为 /version/
-        $versionBasePath = str_replace('/workspace/', '/version/', $originalFileKey);
+        // 只替换第一次出现的 /workspace/ 为 /version/
+        $pos = strpos($originalFileKey, '/workspace/');
+        if ($pos !== false) {
+            $versionBasePath = substr_replace($originalFileKey, '/version/', $pos, strlen('/workspace/'));
+        } else {
+            // 理论上不会执行到这里，因为上面已经验证过
+            throw new InvalidArgumentException('Original file key must contain /workspace/ path');
+        }
 
         // 在文件名后追加版本号
         return $versionBasePath . '/' . $version;
-    }
-
-    /**
-     * 复制文件到版本路径.
-     */
-    private function copyFileToVersionPath(string $organizationCode, string $sourceKey, string $destinationKey): void
-    {
-        try {
-            // 从源文件路径中提取prefix（用于确定操作权限）
-            $prefix = $this->extractPrefixFromFileKey($sourceKey);
-
-            // 使用已有的复制文件功能
-            $this->cloudFileRepository->copyObjectByCredential(
-                $prefix,
-                $organizationCode,
-                $sourceKey,
-                $destinationKey,
-                StorageBucketType::SandBox,
-                [
-                    'metadata_directive' => 'COPY', // 复制原文件的元数据
-                ]
-            );
-
-            $this->logger->info('File copied to version path successfully', [
-                'organization_code' => $organizationCode,
-                'source_key' => $sourceKey,
-                'destination_key' => $destinationKey,
-                'prefix' => $prefix,
-            ]);
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to copy file to version path', [
-                'organization_code' => $organizationCode,
-                'source_key' => $sourceKey,
-                'destination_key' => $destinationKey,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            throw $e;
-        }
     }
 
     /**
@@ -241,31 +295,21 @@ class TaskFileVersionDomainService
             $ossFailedCount = 0;
 
             foreach ($versionsToDelete as $versionEntity) {
-                try {
-                    $prefix = $this->extractPrefixFromFileKey($versionEntity->getFileKey());
+                $prefix = '/';
 
-                    $this->cloudFileRepository->deleteObjectByCredential(
-                        $prefix,
-                        $versionEntity->getOrganizationCode(),
-                        $versionEntity->getFileKey(),
-                        StorageBucketType::SandBox
-                    );
+                $this->cloudFileRepository->deleteObjectByCredential(
+                    $prefix,
+                    $versionEntity->getOrganizationCode(),
+                    $versionEntity->getFileKey(),
+                    StorageBucketType::SandBox
+                );
 
-                    ++$ossDeletedCount;
+                ++$ossDeletedCount;
 
-                    $this->logger->debug('Version file deleted from OSS', [
-                        'version_id' => $versionEntity->getId(),
-                        'file_key' => $versionEntity->getFileKey(),
-                    ]);
-                } catch (Throwable $e) {
-                    ++$ossFailedCount;
-                    $this->logger->warning('Failed to delete version file from OSS', [
-                        'version_id' => $versionEntity->getId(),
-                        'file_key' => $versionEntity->getFileKey(),
-                        'error' => $e->getMessage(),
-                    ]);
-                    // OSS删除失败不阻塞数据库清理
-                }
+                $this->logger->debug('Version file deleted from OSS', [
+                    'version_id' => $versionEntity->getId(),
+                    'file_key' => $versionEntity->getFileKey(),
+                ]);
             }
 
             // 4. 批量删除数据库记录（无论OSS删除是否成功）
@@ -290,25 +334,28 @@ class TaskFileVersionDomainService
         }
     }
 
-    /**
-     * 从文件键中提取prefix.
-     */
-    private function extractPrefixFromFileKey(string $fileKey): string
+    private function copyFile(string $organizationCode, string $sourceKey, string $destinationKey): void
     {
-        // 提取组织路径作为prefix
-        // 例如从 "DT001/588417216353927169/project_821348087617409025/version/a/file10.txt/1"
-        // 提取出 "DT001/588417216353927169/project_821348087617409025/"
+        // 从源文件路径中提取prefix（用于确定操作权限）
+        $prefix = '/';
 
-        if (str_contains($fileKey, '/version/')) {
-            $parts = explode('/version/', $fileKey);
-            return $parts[0] . '/';
-        }
+        // 使用已有的复制文件功能
+        $this->cloudFileRepository->copyObjectByCredential(
+            $prefix,
+            $organizationCode,
+            $sourceKey,
+            $destinationKey,
+            StorageBucketType::SandBox,
+            [
+                'metadata_directive' => 'COPY', // 复制原文件的元数据
+            ]
+        );
 
-        if (str_contains($fileKey, '/workspace/')) {
-            $parts = explode('/workspace/', $fileKey);
-            return $parts[0] . '/';
-        }
-
-        throw new InvalidArgumentException('Unable to extract prefix from file key: ' . $fileKey);
+        $this->logger->info('File copied successfully', [
+            'organization_code' => $organizationCode,
+            'source_key' => $sourceKey,
+            'destination_key' => $destinationKey,
+            'prefix' => $prefix,
+        ]);
     }
 }
