@@ -66,6 +66,9 @@ return [
     'api' => [
         'validation' => [
             'task_key_required' => 'ต้องการพารามิเตอร์ task key',
+            'project_id_required' => 'ต้องการพารามิเตอร์ ID โครงการ',
+            'chat_topic_id_required' => 'ต้องการพารามิเตอร์ ID หัวข้อการสนทนา',
+            'model_id_required' => 'ต้องการพารามิเตอร์ ID รุ่น',
             'file_required' => 'ต้องการพารามิเตอร์ไฟล์',
             'task_not_found' => 'ไม่พบงานหรือหมดอายุ',
             'task_not_exist' => 'งานไม่มีอยู่หรือหมดอายุแล้ว',
@@ -117,6 +120,7 @@ return [
 
     // เกี่ยวกับชื่อไฟล์
     'file_names' => [
+        'recording_prefix' => 'บันทึกเสียง',
         'merged_audio_prefix' => 'ไฟล์เสียง',
         'transcription_prefix' => 'ผลลัพธ์การถอดความ',
         'summary_prefix' => 'สรุปการบันทึกเสียง',
@@ -130,5 +134,10 @@ return [
         'summary_content_title' => 'เนื้อหาสรุปโดย AI',
         'task_id_label' => 'ID งาน',
         'generate_time_label' => 'เวลาที่สร้าง',
+    ],
+
+    // เกี่ยวกับข้อความแชท
+    'messages' => [
+        'summary_content' => ' สรุปเนื้อหา',
     ],
 ];
