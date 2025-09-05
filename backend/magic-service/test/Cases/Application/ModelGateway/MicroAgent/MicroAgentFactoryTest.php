@@ -11,7 +11,6 @@ use App\Application\ModelGateway\MicroAgent\AgentParser\AgentParserFactory;
 use App\Application\ModelGateway\MicroAgent\MicroAgent;
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use HyperfTest\HttpTestCase;
-use ReflectionClass;
 
 /**
  * @internal
@@ -41,14 +40,8 @@ class MicroAgentFactoryTest extends HttpTestCase
         $this->assertTrue($this->factory->hasAgent('example'));
 
         // Verify it loaded the correct configuration from example.agent.yaml
-        $reflection = new ReflectionClass($agent);
-        $modelIdProperty = $reflection->getProperty('modelId');
-        $modelIdProperty->setAccessible(true);
-        $this->assertEquals('gpt-4', $modelIdProperty->getValue($agent));
-
-        $temperatureProperty = $reflection->getProperty('temperature');
-        $temperatureProperty->setAccessible(true);
-        $this->assertEquals(0.7, $temperatureProperty->getValue($agent));
+        $this->assertEquals('gpt-4o', $agent->getModelId());
+        $this->assertEquals(0.7, $agent->getTemperature());
     }
 
     public function testGetAgentReturnsCachedAgent(): void
@@ -68,7 +61,7 @@ class MicroAgentFactoryTest extends HttpTestCase
         $agent = $this->factory->getAgent('example');
 
         $this->assertEquals('example', $agent->getName());
-        $this->assertEquals('gpt-4', $agent->getModelId());
+        $this->assertEquals('gpt-4o', $agent->getModelId());
         $this->assertEquals(0.7, $agent->getTemperature());
         $this->assertTrue($agent->isEnabledModelFallbackChain());
 
@@ -143,10 +136,22 @@ class MicroAgentFactoryTest extends HttpTestCase
         $this->assertEquals(1, $this->factory->getCacheSize());
 
         // Both should have same configuration from example.agent.yaml
-        $this->assertEquals('gpt-4', $reloadedAgent->getModelId());
+        $this->assertEquals('gpt-4o', $reloadedAgent->getModelId());
 
         // The reloaded agent should be the new cached instance
         $cachedAgent = $this->factory->getAgent('example');
         $this->assertSame($reloadedAgent, $cachedAgent);
+    }
+
+    public function testEasyCall()
+    {
+        $this->markTestSkipped('Requires actual API calls and valid configuration.');
+        $example = $this->factory->getAgent('example');
+        $response = $example->easyCall(organizationCode: 'DT001', userPrompt: '你好', businessParams: [
+            'organization_id' => 'DT001',
+            'user_id' => 'user_123456',
+        ]);
+        var_dump($response);
+        $this->assertNotEmpty($response);
     }
 }

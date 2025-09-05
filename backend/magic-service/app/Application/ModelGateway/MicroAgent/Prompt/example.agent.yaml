@@ -1,5 +1,5 @@
 ---
-model_id: gpt-4
+model_id: gpt-4o
 temperature: 0.7
 enabled_model_fallback_chain: true
 ---

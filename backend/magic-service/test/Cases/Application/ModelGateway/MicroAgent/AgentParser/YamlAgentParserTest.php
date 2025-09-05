@@ -55,7 +55,7 @@ class YamlAgentParserTest extends TestCase
 
         // Test config values from example.agent.yaml
         $config = $result['config'];
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
 
@@ -102,7 +102,7 @@ class YamlAgentParserTest extends TestCase
         $config = $result['config'];
 
         // Verify the actual example configuration values
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
     }
@@ -133,7 +133,7 @@ class YamlAgentParserTest extends TestCase
         $this->assertArrayHasKey('system', $exampleResult);
 
         // Verify configuration
-        $this->assertEquals('gpt-4', $exampleResult['config']['model_id']);
+        $this->assertEquals('gpt-4o', $exampleResult['config']['model_id']);
         $this->assertEquals(0.7, $exampleResult['config']['temperature']);
         $this->assertTrue($exampleResult['config']['enabled_model_fallback_chain']);
 

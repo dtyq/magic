@@ -53,7 +53,7 @@ class MicroAgentIntegrationTest extends HttpTestCase
 
         // Verify the configuration was loaded correctly using public methods
         $this->assertEquals('example', $agent->getName());
-        $this->assertEquals('gpt-4', $agent->getModelId());
+        $this->assertEquals('gpt-4o', $agent->getModelId());
         $this->assertEquals(0.7, $agent->getTemperature());
         $this->assertTrue($agent->isEnabledModelFallbackChain());
 
@@ -159,7 +159,7 @@ class MicroAgentIntegrationTest extends HttpTestCase
         $this->assertCount(1, $cachedNames);
 
         // Verify the cached agent has correct configuration
-        $this->assertEquals('gpt-4', $exampleAgent1->getModelId());
+        $this->assertEquals('gpt-4o', $exampleAgent1->getModelId());
     }
 
     public function testCacheManagement(): void
@@ -207,7 +207,7 @@ class MicroAgentIntegrationTest extends HttpTestCase
         $this->assertArrayHasKey('system', $parsed);
 
         $config = $parsed['config'];
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
 

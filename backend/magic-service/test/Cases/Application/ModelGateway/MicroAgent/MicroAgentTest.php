@@ -223,7 +223,7 @@ class MicroAgentTest extends HttpTestCase
         $exampleAgent = $this->microAgentFactory->getAgent('example');
 
         $this->assertEquals('example', $exampleAgent->getName());
-        $this->assertEquals('gpt-4', $exampleAgent->getModelId());
+        $this->assertEquals('gpt-4o', $exampleAgent->getModelId());
         $this->assertEquals(0.7, $exampleAgent->getTemperature());
         $this->assertTrue($exampleAgent->isEnabledModelFallbackChain());
 
