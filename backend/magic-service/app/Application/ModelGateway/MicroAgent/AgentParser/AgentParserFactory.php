@@ -41,23 +41,35 @@ readonly class AgentParserFactory
 
     /**
      * Find agent file by trying different supported extensions.
+     * Supports both flat structure (agent) and directory structure (directory.agent).
      */
     private function findAgentFile(string $agent): string
     {
         $basePath = $this->getBasePath();
-
-        // Try different supported extensions
         $supportedExtensions = $this->getAllSupportedExtensions();
 
+        // Parse agent name to support directory.agent format
+        if (str_contains($agent, '.')) {
+            // Directory format: SuperMagicAgent.content_generator -> SuperMagicAgent/content_generator
+            $parts = explode('.', $agent, 2);
+            $directory = $parts[0];
+            $agentName = $parts[1];
+            $agentPath = $directory . '/' . $agentName;
+        } else {
+            // Flat format: example -> example
+            $agentPath = $agent;
+        }
+
+        // Try different supported extensions
         foreach ($supportedExtensions as $extension) {
-            $filePath = $basePath . '/' . $agent . '.' . $extension;
+            $filePath = $basePath . '/' . $agentPath . '.' . $extension;
             if (file_exists($filePath)) {
                 return $filePath;
             }
         }
 
         ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.file_not_found', [
-            'file' => $basePath . '/' . $agent . '.{' . implode(',', $supportedExtensions) . '}',
+            'file' => $basePath . '/' . $agentPath . '.{' . implode(',', $supportedExtensions) . '}',
         ]);
     }
 

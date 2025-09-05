@@ -36,7 +36,7 @@ class AgentParserFactoryTest extends TestCase
 
         // Verify example.agent.yaml configuration
         $config = $result['config'];
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
 
@@ -85,7 +85,7 @@ class AgentParserFactoryTest extends TestCase
 
         // Verify the specific example configuration
         $config = $exampleResult['config'];
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
     }
@@ -110,7 +110,7 @@ class AgentParserFactoryTest extends TestCase
         $this->assertNotEmpty($result['system'], 'Agent example has empty system content');
 
         // Verify specific values for example agent
-        $this->assertEquals('gpt-4', $config['model_id']);
+        $this->assertEquals('gpt-4o', $config['model_id']);
         $this->assertEquals(0.7, $config['temperature']);
         $this->assertTrue($config['enabled_model_fallback_chain']);
         $this->assertStringContainsString('{{domain}}', $result['system']);
