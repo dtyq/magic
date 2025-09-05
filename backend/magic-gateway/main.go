@@ -706,7 +706,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		magicTopicID := r.Header.Get("magic-topic-id")
 		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
-		
+
 		// 优先从原始请求头获取，避免被JWT覆盖
 		magicUserID := r.Header.Get("magic-user-id")
 		magicOrganizationCode := r.Header.Get("magic-organization-code")
