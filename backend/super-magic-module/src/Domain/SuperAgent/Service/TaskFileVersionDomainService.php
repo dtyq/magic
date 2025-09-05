@@ -189,7 +189,7 @@ class TaskFileVersionDomainService
     {
         try {
             // 从源文件路径中提取prefix（用于确定操作权限）
-            $prefix = $this->extractPrefixFromFileKey($sourceKey);
+            $prefix = "/";
 
             // 使用已有的复制文件功能
             $this->cloudFileRepository->copyObjectByCredential(
@@ -254,7 +254,7 @@ class TaskFileVersionDomainService
 
             foreach ($versionsToDelete as $versionEntity) {
                 try {
-                    $prefix = $this->extractPrefixFromFileKey($versionEntity->getFileKey());
+                    $prefix = "/";
 
                     $this->cloudFileRepository->deleteObjectByCredential(
                         $prefix,
@@ -300,45 +300,5 @@ class TaskFileVersionDomainService
             ]);
             throw $e;
         }
-    }
-
-    /**
-     * 从文件键中提取prefix.
-     */
-    private function extractPrefixFromFileKey(string $fileKey): string
-    {
-        // 提取组织路径作为prefix
-        // 例如从 "DT001/588417216353927169/project_821348087617409025/version/a/file10.txt/1"
-        // 提取出 "DT001/588417216353927169/project_821348087617409025/"
-
-        if (str_contains($fileKey, '/version/')) {
-            $parts = explode('/version/', $fileKey);
-            return $parts[0] . '/';
-        }
-
-        if (str_contains($fileKey, '/workspace/')) {
-            $parts = explode('/workspace/', $fileKey);
-            return $parts[0] . '/';
-        }
-
-        throw new InvalidArgumentException('Unable to extract prefix from file key: ' . $fileKey);
-    }
-
-    /**
-     * 验证版本文件路径的合法性.
-     */
-    private function validateVersionPath(string $versionFileKey, string $organizationCode): bool
-    {
-        // 检查路径是否属于指定的组织
-        if (! str_starts_with($versionFileKey, $organizationCode)) {
-            return false;
-        }
-
-        // 检查路径是否包含 /version/
-        if (! str_contains($versionFileKey, '/version/')) {
-            return false;
-        }
-
-        return true;
     }
 }
