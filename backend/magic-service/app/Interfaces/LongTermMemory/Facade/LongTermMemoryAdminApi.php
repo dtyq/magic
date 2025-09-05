@@ -121,14 +121,8 @@ class LongTermMemoryAdminApi extends AbstractApi
             return $ownershipValidation;
         }
 
-        // 3. 处理内容更新
-        $processResult = $this->processContentUpdate(
-            $validatedParams['content'] ?? null,
-            $authorization
-        );
-
-        // 4. 构建更新DTO并执行更新
-        $dto = $this->buildUpdateMemoryDTO($processResult);
+        // 3. 处理内容更新并构建DTO
+        $dto = $this->buildUpdateMemoryDTO($validatedParams['content'] ?? null);
         $this->longTermMemoryAppService->updateMemory($memoryId, $dto);
 
         return [
@@ -590,99 +584,37 @@ class LongTermMemoryAdminApi extends AbstractApi
     }
 
     /**
-     * 处理内容更新逻辑.
-     *
-     * @param mixed $authorization
-     * @return array{content: null|string, explanation: null|string, originText: null|string, tags: null|array}
+     * 处理内容更新并构建更新记忆的DTO.
      */
-    private function processContentUpdate(?string $inputContent, $authorization): array
+    private function buildUpdateMemoryDTO(?string $inputContent): UpdateMemoryDTO
     {
-        // 如果没有传入内容，直接返回空值
+        // 如果没有传入内容，直接返回空值的DTO
         if ($inputContent === null) {
-            return [
+            return new UpdateMemoryDTO([
                 'content' => null,
+                'pendingContent' => null, // 清空pending_content
+                'status' => null,
                 'explanation' => null,
                 'originText' => null,
                 'tags' => null,
-            ];
+            ]);
         }
 
         $contentLength = mb_strlen($inputContent);
 
-        // 短内容：直接入库
-        if ($contentLength < 100) {
-            return $this->processShortContent($inputContent);
+        // 检查长度限制：超过5000字符时抛出异常
+        if ($contentLength > 5000) {
+            throw new InvalidArgumentException(trans('long_term_memory.api.content_length_exceeded'));
         }
 
-        // 长内容：使用LLM处理
-        return $this->processLongContent($inputContent, $authorization);
-    }
-
-    /**
-     * 处理短内容（长度 < 100）.
-     *
-     * @return array{content: string, explanation: string, originText: null, tags: null}
-     */
-    private function processShortContent(string $content): array
-    {
-        return [
-            'content' => $content,
+        // 内容在限制范围内：直接处理并构建DTO
+        return new UpdateMemoryDTO([
+            'content' => $inputContent,
+            'pendingContent' => null, // 清空pending_content
+            'status' => MemoryStatus::ACTIVE->value,
             'explanation' => trans('long_term_memory.api.user_manual_edit_explanation'),
             'originText' => null,
             'tags' => null,
-        ];
-    }
-
-    /**
-     * 处理长内容（长度 >= 100）.
-     *
-     * @param mixed $authorization
-     * @return array{content: string, explanation: string, originText: string, tags: null|array}
-     */
-    private function processLongContent(string $content, $authorization): array
-    {
-        // 调用LLM处理内容
-        $evaluationDTO = new EvaluateConversationRequestDTO([
-            'conversationContent' => '用户要求一定要记住：' . $content,
-            'appId' => $authorization->getApplicationCode(),
-        ]);
-
-        $shouldRemember = $this->longTermMemoryAppService->shouldRememberContent(
-            $this->longTermMemoryAppService->getChatModel($authorization),
-            $evaluationDTO
-        );
-
-        // LLM建议记忆：使用LLM处理结果
-        if ($shouldRemember->memory) {
-            return [
-                'content' => $shouldRemember->memory,
-                'explanation' => $shouldRemember->explanation,
-                'originText' => $content,
-                'tags' => $shouldRemember->tags,
-            ];
-        }
-
-        // LLM不建议记忆：自动压缩
-        return [
-            'content' => mb_substr($content, 0, 100) . '...[已压缩]',
-            'explanation' => trans('long_term_memory.api.content_auto_compressed_explanation'),
-            'originText' => $content,
-            'tags' => null,
-        ];
-    }
-
-    /**
-     * 构建更新记忆的DTO.
-     */
-    private function buildUpdateMemoryDTO(array $processResult): UpdateMemoryDTO
-    {
-        return new UpdateMemoryDTO([
-            'content' => $processResult['content'],
-            'pendingContent' => null, // 清空pending_content
-            'status' => $processResult['content'] !== null ? MemoryStatus::ACTIVE->value : null,
-            'explanation' => $processResult['explanation'],
-            'originText' => $processResult['originText'],
-            'tags' => $processResult['tags'],
         ]);
     }
 }
