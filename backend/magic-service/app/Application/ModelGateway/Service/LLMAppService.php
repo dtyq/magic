@@ -976,17 +976,6 @@ class LLMAppService extends AbstractLLMAppService
             $context['organization_code'] = $accessToken->getRelationId();
         }
 
-        if ($context['user_id']) {
-            $context['user_config'] = $this->userConfigDomainService->getByAppCodeAndOrganizationCode(
-                $dataIsolation,
-                $context['app_code'],
-                $context['organization_code'],
-                $context['user_id']
-            );
-            $context['user_config']->checkRpm();
-            $context['user_config']->checkAmount();
-        }
-
         return $context;
     }
 
