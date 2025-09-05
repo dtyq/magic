@@ -791,46 +791,46 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
     }
 
-    /**
-     * Convert attachment array to TaskFileEntity based on type.
-     * @param array $attachment Attachment data
-     * @param TaskEntity $task Task entity
-     * @param DataIsolation $dataIsolation Data isolation object
-     * @param string $type Attachment type: 'tool' or 'message'
-     */
-    private function convertAttachmentToTaskFileEntity(array $attachment, TaskEntity $task, DataIsolation $dataIsolation, string $type): TaskFileEntity
-    {
-        $taskFileEntity = new TaskFileEntity();
-        $taskFileEntity->setProjectId($task->getProjectId());
-        $taskFileEntity->setTopicId($task->getTopicId());
-        $taskFileEntity->setTaskId($task->getId());
-
-        // Set basic file information
-        $taskFileEntity->setFileKey($attachment['file_key']);
-        $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
-        $taskFileEntity->setFileExtension($attachment['file_extension']);
-        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
-
-        // Set file type based on attachment type and file_tag
-        if ($type === 'tool') {
-            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
-            $taskFileEntity->setSource(TaskFileSource::AGENT);
-        } else {
-            // message type
-            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
-            $taskFileEntity->setSource(TaskFileSource::AGENT);
-        }
-
-        // Set storage type (will be overridden by saveProjectFile parameter)
-        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
-
-        if (WorkDirectoryUtil::isValidDirectoryName($attachment['file_key'])) {
-            $taskFileEntity->setIsDirectory(true);
-        } else {
-            $taskFileEntity->setIsDirectory(false);
-        }
-        return $taskFileEntity;
-    }
+//    /**
+//     * Convert attachment array to TaskFileEntity based on type.
+//     * @param array $attachment Attachment data
+//     * @param TaskEntity $task Task entity
+//     * @param DataIsolation $dataIsolation Data isolation object
+//     * @param string $type Attachment type: 'tool' or 'message'
+//     */
+//    private function convertAttachmentToTaskFileEntity(array $attachment, TaskEntity $task, DataIsolation $dataIsolation, string $type): TaskFileEntity
+//    {
+//        $taskFileEntity = new TaskFileEntity();
+//        $taskFileEntity->setProjectId($task->getProjectId());
+//        $taskFileEntity->setTopicId($task->getTopicId());
+//        $taskFileEntity->setTaskId($task->getId());
+//
+//        // Set basic file information
+//        $taskFileEntity->setFileKey($attachment['file_key']);
+//        $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
+//        $taskFileEntity->setFileExtension($attachment['file_extension']);
+//        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+//
+//        // Set file type based on attachment type and file_tag
+//        if ($type === 'tool') {
+//            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+//            $taskFileEntity->setSource(TaskFileSource::AGENT);
+//        } else {
+//            // message type
+//            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+//            $taskFileEntity->setSource(TaskFileSource::AGENT);
+//        }
+//
+//        // Set storage type (will be overridden by saveProjectFile parameter)
+//        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
+//
+//        if (WorkDirectoryUtil::isValidDirectoryName($attachment['file_key'])) {
+//            $taskFileEntity->setIsDirectory(true);
+//        } else {
+//            $taskFileEntity->setIsDirectory(false);
+//        }
+//        return $taskFileEntity;
+//    }
 
     /**
      * Process tool content storage to object storage.
