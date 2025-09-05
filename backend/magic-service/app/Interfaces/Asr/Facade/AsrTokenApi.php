@@ -81,7 +81,7 @@ class AsrTokenApi extends AbstractApi
             'duration' => $tokenData['duration'],
             'expires_at' => $tokenData['expires_at'],
             'resource_id' => $tokenData['resource_id'],
-            'user' => $userInfo + ['magic_id' => $magicId],
+            'user' => $userInfo,
         ];
     }
 
@@ -100,7 +100,7 @@ class AsrTokenApi extends AbstractApi
         return [
             'cleared' => $cleared,
             'message' => $cleared ? trans('asr.api.token.cache_cleared') : trans('asr.api.token.cache_not_exist'),
-            'user' => $userInfo + ['magic_id' => $magicId],
+            'user' => $userInfo,
         ];
     }
 
@@ -494,6 +494,7 @@ class AsrTokenApi extends AbstractApi
 
         return [
             'user_id' => $userAuthorization->getId(),
+            'magic_id' => $userAuthorization->getMagicId(),
             'organization_code' => $userAuthorization->getOrganizationCode(),
         ];
     }
