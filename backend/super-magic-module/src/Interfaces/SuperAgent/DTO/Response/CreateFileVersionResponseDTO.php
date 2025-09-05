@@ -8,46 +8,18 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileVersionEntity;
 
 /**
  * 创建文件版本响应 DTO.
  */
 class CreateFileVersionResponseDTO extends AbstractDTO
 {
-    protected int $version = 0;
-
-    protected string $createdAt = '';
-
-    public function getVersion(): int
-    {
-        return $this->version;
-    }
-
-    public function setVersion(int $version): void
-    {
-        $this->version = $version;
-    }
-
-    public function getCreatedAt(): string
-    {
-        return $this->createdAt;
-    }
-
-    public function setCreatedAt(string $createdAt): void
-    {
-        $this->createdAt = $createdAt;
-    }
-
     /**
-     * 从实体创建响应DTO.
+     * 创建空响应实例.
      */
-    public static function fromEntity(TaskFileVersionEntity $entity): self
+    public static function createEmpty(): self
     {
-        $dto = new self();
-        $dto->setVersion($entity->getVersion());
-        $dto->setCreatedAt($entity->getCreatedAt());
-        return $dto;
+        return new self();
     }
 
     /**
@@ -55,9 +27,6 @@ class CreateFileVersionResponseDTO extends AbstractDTO
      */
     public function toArray(): array
     {
-        return [
-            'version' => $this->version,
-            'created_at' => $this->createdAt,
-        ];
+        return [];
     }
 }

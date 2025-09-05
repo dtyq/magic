@@ -19,6 +19,11 @@ class CreateFileVersionRequestDTO extends AbstractRequestDTO
      */
     protected string $fileKey = '';
 
+    /**
+     * 编辑类型.
+     */
+    protected int $editType = 1;
+
     public function getFileKey(): string
     {
         return $this->fileKey;
@@ -29,6 +34,16 @@ class CreateFileVersionRequestDTO extends AbstractRequestDTO
         $this->fileKey = $fileKey;
     }
 
+    public function getEditType(): int
+    {
+        return $this->editType;
+    }
+
+    public function setEditType(int $editType): void
+    {
+        $this->editType = $editType;
+    }
+
     /**
      * 获取验证规则.
      */
@@ -36,6 +51,7 @@ class CreateFileVersionRequestDTO extends AbstractRequestDTO
     {
         return [
             'file_key' => 'required|string|max:500',
+            'edit_type' => 'sometimes|integer|in:1,2',
         ];
     }
 
@@ -48,6 +64,8 @@ class CreateFileVersionRequestDTO extends AbstractRequestDTO
             'file_key.required' => 'File key cannot be empty',
             'file_key.string' => 'File key must be a string',
             'file_key.max' => 'File key cannot exceed 500 characters',
+            'edit_type.integer' => 'Edit type must be an integer',
+            'edit_type.in' => 'Edit type must be 1 (manual) or 2 (AI)',
         ];
     }
 }
