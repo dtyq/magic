@@ -827,6 +827,22 @@ class MagicChatDomainService extends AbstractDomainService
     }
 
     /**
+     * 通过 topic_id 获取 conversation_id.
+     *
+     * @param string $topicId 话题ID
+     * @return string conversation_id
+     */
+    public function getConversationIdByTopicId(string $topicId): string
+    {
+        $topic = $this->magicChatTopicRepository->getTopicByTopicId($topicId);
+        if (! $topic) {
+            ExceptionBuilder::throw(ChatErrorCode::TOPIC_NOT_FOUND);
+        }
+
+        return $topic->getConversationId();
+    }
+
+    /**
      * 批量获取会话详情.
      * @param array $conversationIds 会话ID数组
      * @return array<string,MagicConversationEntity> 以会话ID为键的会话实体数组

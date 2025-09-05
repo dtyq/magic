@@ -66,6 +66,9 @@ return [
     'api' => [
         'validation' => [
             'task_key_required' => 'Tham số khóa nhiệm vụ là bắt buộc',
+            'project_id_required' => 'Tham số ID dự án là bắt buộc',
+            'chat_topic_id_required' => 'Tham số ID chủ đề trò chuyện là bắt buộc',
+            'model_id_required' => 'Tham số ID mô hình là bắt buộc',
             'file_required' => 'Tham số tệp là bắt buộc',
             'task_not_found' => 'Không tìm thấy nhiệm vụ hoặc đã hết hạn',
             'task_not_exist' => 'Nhiệm vụ không tồn tại hoặc đã hết hạn',
@@ -117,6 +120,7 @@ return [
 
     // Liên quan đến tên tệp
     'file_names' => [
+        'recording_prefix' => 'Ghi âm',
         'merged_audio_prefix' => 'Tệp ghi âm',
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
@@ -130,5 +134,10 @@ return [
         'summary_content_title' => 'Nội dung tóm tắt AI',
         'task_id_label' => 'ID Nhiệm vụ',
         'generate_time_label' => 'Thời gian tạo',
+    ],
+
+    // Liên quan đến tin nhắn chat
+    'messages' => [
+        'summary_content' => ' Tóm tắt nội dung',
     ],
 ];

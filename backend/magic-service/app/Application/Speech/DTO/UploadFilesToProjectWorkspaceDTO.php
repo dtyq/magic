@@ -14,9 +14,7 @@ readonly class UploadFilesToProjectWorkspaceDTO
     public function __construct(
         public string $organizationCode,
         public AsrTaskStatusDTO $taskStatus,
-        public string $projectId,
-        public string $transcriptionContent,
-        public bool $forceRetry = false
+        public string $projectId
     ) {
     }
 }

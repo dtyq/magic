@@ -68,6 +68,8 @@ return [
         'validation' => [
             'task_key_required' => 'Task key parameter is required',
             'project_id_required' => 'Project ID parameter is required',
+            'chat_topic_id_required' => 'Chat topic ID parameter is required',
+            'model_id_required' => '模型ID参数是必需的',
             'retry_files_uploaded' => 'Files have been re-uploaded to project workspace',
             'file_required' => 'File parameter is required',
             'task_not_found' => 'Task not found or expired',
@@ -124,6 +126,7 @@ return [
 
     // 文件名相关
     'file_names' => [
+        'recording_prefix' => '录音',
         'merged_audio_prefix' => '录音文件',
         'transcription_prefix' => '录音转文字结果',
         'summary_prefix' => '录音的总结',
@@ -137,5 +140,10 @@ return [
         'summary_content_title' => 'AI 总结内容',
         'task_id_label' => '任务ID',
         'generate_time_label' => '生成时间',
+    ],
+
+    // 聊天消息相关
+    'messages' => [
+        'summary_content' => ' 总结内容',
     ],
 ];

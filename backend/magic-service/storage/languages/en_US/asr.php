@@ -68,6 +68,8 @@ return [
         'validation' => [
             'task_key_required' => 'Task key parameter is required',
             'project_id_required' => 'Project ID parameter is required',
+            'chat_topic_id_required' => 'Chat topic ID parameter is required',
+            'model_id_required' => 'Model ID parameter is required',
             'retry_files_uploaded' => 'Files have been re-uploaded to project workspace',
             'file_required' => 'File parameter is required',
             'task_not_found' => 'Task not found or expired',
@@ -124,6 +126,7 @@ return [
 
     // File names related
     'file_names' => [
+        'recording_prefix' => 'Recording',
         'merged_audio_prefix' => 'Recording File',
         'transcription_prefix' => 'Transcription Result',
         'summary_prefix' => 'Recording Summary',
@@ -137,5 +140,10 @@ return [
         'summary_content_title' => 'AI Summary Content',
         'task_id_label' => 'Task ID',
         'generate_time_label' => 'Generated Time',
+    ],
+
+    // Chat messages related
+    'messages' => [
+        'summary_content' => ' Summarize content',
     ],
 ];

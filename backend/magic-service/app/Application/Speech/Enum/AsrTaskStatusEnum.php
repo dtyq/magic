@@ -12,8 +12,6 @@ namespace App\Application\Speech\Enum;
  */
 enum AsrTaskStatusEnum: string
 {
-    case NOT_PROCESSED = 'not_processed';    // 未处理
-    case PROCESSING = 'processing';          // 处理中
     case COMPLETED = 'completed';            // 已完成
     case FAILED = 'failed';                  // 失败
 
@@ -23,19 +21,9 @@ enum AsrTaskStatusEnum: string
     public function getDescription(): string
     {
         return match ($this) {
-            self::NOT_PROCESSED => '未处理',
-            self::PROCESSING => '处理中',
             self::COMPLETED => '已完成',
             self::FAILED => '失败',
         };
-    }
-
-    /**
-     * 检查是否为终态
-     */
-    public function isTerminal(): bool
-    {
-        return $this === self::COMPLETED || $this === self::FAILED;
     }
 
     /**
@@ -47,10 +35,18 @@ enum AsrTaskStatusEnum: string
     }
 
     /**
+     * 检查任务是否已提交（基于状态判断）.
+     */
+    public function isTaskSubmitted(): bool
+    {
+        return $this === self::COMPLETED;
+    }
+
+    /**
      * 从字符串创建枚举.
      */
     public static function fromString(string $status): self
     {
-        return self::tryFrom($status) ?? self::NOT_PROCESSED;
+        return self::tryFrom($status) ?? self::FAILED;
     }
 }
