@@ -58,4 +58,12 @@ interface ProviderModelRepositoryInterface
      * @return ProviderModelEntity[] 模型实体数组，以ID为键
      */
     public function getByIds(ProviderDataIsolation $dataIsolation, array $ids): array;
+
+    /**
+     * 批量根据ModelID获取模型.
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param string[] $modelIds 模型标识数组
+     * @return array<string, ProviderModelEntity[]> 模型实体数组，以model_id为键，值为对应的模型列表
+     */
+    public function getByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array;
 }
