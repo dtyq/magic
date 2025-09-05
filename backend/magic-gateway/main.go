@@ -704,21 +704,23 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 从请求头中获取magic-task-id 和magic-topic-id
 		magicTaskID := r.Header.Get("magic-task-id")
 		magicTopicID := r.Header.Get("magic-topic-id")
+		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
-		var magicUserID, magicOrganizationCode string
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
 
 		// 从请求上下文中获取JWT claims
-		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
-			magicUserID = claims.MagicUserID
-			magicOrganizationCode = claims.MagicOrganizationCode
-		}
+		// if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
+		// 	magicUserID = claims.MagicUserID
+		// 	magicOrganizationCode = claims.MagicOrganizationCode
+		// }
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
-		if userID == "" && magicUserID != "" {
-			userID = magicUserID
-		}
+		// if userID == "" && magicUserID != "" {
+		// 	userID = magicUserID
+		// }
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicLanguage)
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 聊天主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicChatTopicID, magicLanguage)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -1005,6 +1007,13 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			proxyReq.Header.Set("magic-topic-id", magicTopicID)
 			if debugMode {
 				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+			}
+		}
+
+		if magicChatTopicID != "" {
+			proxyReq.Header.Set("magic-chat-topic-id", magicChatTopicID)
+			if debugMode {
+				logger.Printf("透传magic-chat-topic-id: %s", magicChatTopicID)
 			}
 		}
 
