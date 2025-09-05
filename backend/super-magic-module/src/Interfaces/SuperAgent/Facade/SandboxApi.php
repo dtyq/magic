@@ -139,7 +139,7 @@ class SandboxApi extends AbstractApi
         $this->initProject($requestContext, $requestDTO, $magicUserAuthorization->getId());
 
         // 判断话题是否存在，不存在则初始化话题
-        $this->initTopic(requestContext: $requestContext, $requestDTO);
+        $this->initTopic($requestContext, $requestDTO);
 
         // $requestDTO->setConversationId($requestDTO->getTopicId());
 
