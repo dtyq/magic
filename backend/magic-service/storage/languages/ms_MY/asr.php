@@ -66,6 +66,9 @@ return [
     'api' => [
         'validation' => [
             'task_key_required' => 'Parameter kunci tugas diperlukan',
+            'project_id_required' => 'Parameter ID projek diperlukan',
+            'chat_topic_id_required' => 'Parameter ID topik sembang diperlukan',
+            'model_id_required' => 'Parameter ID model diperlukan',
             'file_required' => 'Parameter fail diperlukan',
             'task_not_found' => 'Tugas tidak dijumpai atau telah tamat tempoh',
             'task_not_exist' => 'Tugas tidak wujud atau telah tamat tempoh',
@@ -117,6 +120,7 @@ return [
 
     // Nama fail berkaitan
     'file_names' => [
+        'recording_prefix' => 'Rakaman',
         'merged_audio_prefix' => 'Fail Rakaman',
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
@@ -130,5 +134,10 @@ return [
         'summary_content_title' => 'Kandungan Ringkasan AI',
         'task_id_label' => 'ID Tugas',
         'generate_time_label' => 'Masa Dijana',
+    ],
+
+    // Berkaitan dengan mesej sembang
+    'messages' => [
+        'summary_content' => ' Ringkaskan kandungan',
     ],
 ];
