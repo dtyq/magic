@@ -189,7 +189,7 @@ class TaskFileVersionDomainService
     {
         try {
             // 从源文件路径中提取prefix（用于确定操作权限）
-            $prefix = "/";
+            $prefix = '/';
 
             // 使用已有的复制文件功能
             $this->cloudFileRepository->copyObjectByCredential(
@@ -254,7 +254,7 @@ class TaskFileVersionDomainService
 
             foreach ($versionsToDelete as $versionEntity) {
                 try {
-                    $prefix = "/";
+                    $prefix = '/';
 
                     $this->cloudFileRepository->deleteObjectByCredential(
                         $prefix,
