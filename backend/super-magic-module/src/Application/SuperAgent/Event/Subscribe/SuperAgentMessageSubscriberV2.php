@@ -142,9 +142,9 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 mcpConfig: [],
                 modelId: $superAgentExtra?->getModelId() ?? '',
                 language: $language,
-                queueId: $queueId,
                 messageId: $messageId,
                 messageSeqId: $messageSeqId,
+                queueId: $queueId,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {
