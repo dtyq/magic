@@ -91,15 +91,6 @@ class TaskDomainService
             'updated_uid' => $userId,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
-        $conditions = [
-            'id' => $topicEntity->getId(),
-        ];
-        $data = [
-            'current_task_id' => $taskEntity->getId(),
-            'current_task_status' => TaskStatus::WAITING,
-            'updated_uid' => $userId,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
         if (empty($topicEntity->getTopicMode())) {
             $topicEntity->setTopicMode($topicMode);
             $data['topic_mode'] = $topicMode;
