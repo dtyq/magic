@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
-use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
