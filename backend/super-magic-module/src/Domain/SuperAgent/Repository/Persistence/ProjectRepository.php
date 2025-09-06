@@ -146,8 +146,13 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
 
         // 应用查询条件
         foreach ($conditions as $field => $value) {
-            // 默认等于查询
-            $query->where($field, $value);
+            if (is_array($value)) {
+                // 支持project_ids数组查询
+                $query->whereIn('id', $value);
+            } else {
+                // 默认等于查询
+                $query->where($field, $value);
+            }
         }
 
         // 获取总数
@@ -170,6 +175,16 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'total' => $total,
             'list' => $entities,
         ];
+    }
+
+    /**
+     * 更新项目的updated_at为当前时间.
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool
+    {
+        $conditions = ['id' => $projectId];
+        $data = ['updated_at' => date('Y-m-d H:i:s')];
+        return $this->updateProjectByCondition($conditions, $data);
     }
 
     /**

@@ -7,19 +7,25 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\Application\Mode\Service\ModeAppService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use HyperfTest\Cases\BaseTest;
 
@@ -181,42 +187,48 @@ class ImageGenerateTest extends BaseTest
         $this->markTestSkipped();
     }
 
-    /**
-     * Check if binary data is valid image data by examining magic bytes.
-     */
-    private static function isValidImageData(string $data): bool
+    public function testText2ImageByQwenImage()
     {
-        if (strlen($data) < 8) {
-            return false;
-        }
+        //        $di = di(ProviderConfigDomainService::class);
+        //        $magicUserAuthorization = new MagicUserAuthorization();
+        //        $magicUserAuthorization->setOrganizationCode('TGosRaFhvb');
+        //
+        //        $providerModelsByConfig = $di->getProviderConfig(ProviderDataIsolation::create('TGosRaFhvb'), '814826843393773568');
+        //        $config = $providerModelsByConfig->getConfig();
+        //        // 创建服务提供商配置
+        //
+        //        // 创建通义千问模型实例
+        //        $qwenImageModel = new QwenImageModel($config);
+        //
+        //        // 创建请求实例
+        //        $qwenImageRequest = new QwenImageModelRequest();
+        //        $qwenImageRequest->setPrompt('一只可爱的小猫咪在花园里玩耍，阳光明媚，色彩丰富，高质量摄影');
+        //        $qwenImageRequest->setHeight('1328');
+        //        $qwenImageRequest->setWidth('1328');
+        //        $qwenImageRequest->setGenerateNum(1);
+        //        $qwenImageRequest->setModel('qwen-image');
+        //
+        //        // 生成图片
+        //        $result = $qwenImageModel->generateImage($qwenImageRequest);
+        //
+        //        // 验证结果
+        //        $this->assertNotEmpty($result);
+        //        $this->assertEquals(ImageGenerateType::URL, $result->getImageGenerateType());
+        //        $urls = $result->getData();
+        //        $this->assertIsArray($urls);
+        //        $this->assertCount(1, $urls);
+        //        $this->assertNotEmpty($urls[0]);
+        //        $this->assertStringStartsWith('http', $urls[0]);
+        //
+        //        var_dump($result);
+        //        $this->markTestSkipped();
+    }
 
-        // Check for common image format signatures
-        $signatures = [
-            // PNG
-            "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A",
-            // JPEG
-            "\xFF\xD8\xFF",
-            // GIF87a
-            "\x47\x49\x46\x38\x37\x61",
-            // GIF89a
-            "\x47\x49\x46\x38\x39\x61",
-            // BMP
-            "\x42\x4D",
-            // WebP
-            "\x52\x49\x46\x46",
-        ];
-
-        foreach ($signatures as $signature) {
-            if (strpos($data, $signature) === 0) {
-                return true;
-            }
-        }
-
-        // For WebP, we need additional check
-        if (strpos($data, "\x52\x49\x46\x46") === 0 && strpos($data, "\x57\x45\x42\x50") === 8) {
-            return true;
-        }
-
-        return false;
+    public function testWatermark()
+    {
+        $di = di(ModeAppService::class);
+        $magicUserAuthorization = new MagicUserAuthorization();
+        $modeByIdentifier = $di->getModeByIdentifier($magicUserAuthorization, '94');
+        var_dump($modeByIdentifier);
     }
 }

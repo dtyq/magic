@@ -41,6 +41,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('topic.topic_access_denied')]
     case TOPIC_ACCESS_DENIED = 51053;
 
+    #[ErrorMessage('topic.topic_not_running')]
+    case TOPIC_NOT_RUNNING = 51054;
+
     // Task related error codes (51100-51149)
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;
@@ -130,6 +133,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.convert_failed')]
     case FILE_CONVERT_FAILED = 51176;
 
+    #[ErrorMessage('file.move_operation_busy')]
+    case FILE_OPERATION_BUSY = 51177;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;
@@ -155,6 +161,27 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.project_id_required')]
     case BATCH_PROJECT_ID_REQUIRED = 51207;
 
+    #[ErrorMessage('project.fork_already_running')]
+    case PROJECT_FORK_ALREADY_RUNNING = 51208;
+
+    #[ErrorMessage('project.fork_not_found')]
+    case PROJECT_FORK_NOT_FOUND = 51209;
+
+    #[ErrorMessage('project.fork_access_denied')]
+    case PROJECT_FORK_ACCESS_DENIED = 51210;
+
+    #[ErrorMessage('project.department_not_found')]
+    case DEPARTMENT_NOT_FOUND = 51211;
+
+    #[ErrorMessage('project.invalid_member_type')]
+    case INVALID_MEMBER_TYPE = 51212;
+
+    #[ErrorMessage('project.update_members_failed')]
+    case UPDATE_MEMBERS_FAILED = 51213;
+
+    #[ErrorMessage('project.member_validation_failed')]
+    case MEMBER_VALIDATION_FAILED = 51214;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
@@ -164,4 +191,8 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('task.access_token.not_found')]
     case ACCESS_TOKEN_NOT_FOUND = 51254;
+
+    // Message Queue related error codes (51290-51299) - allocated from highest numbers
+    #[ErrorMessage('message_queue.status_not_modifiable')]
+    case MESSAGE_STATUS_NOT_MODIFIABLE = 51299;
 }

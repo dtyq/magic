@@ -16,6 +16,7 @@ class MagicUserSettingFactory
     {
         $entity = new MagicUserSettingEntity();
         $entity->setId($model->id);
+        $entity->setMagicId($model->magic_id);
         $entity->setOrganizationCode($model->organization_code);
         $entity->setUserId($model->user_id);
         $entity->setKey($model->key);
@@ -32,6 +33,7 @@ class MagicUserSettingFactory
     {
         return [
             'id' => $entity->getId(),
+            'magic_id' => $entity->getMagicId(),
             'organization_code' => $entity->getOrganizationCode(),
             'user_id' => $entity->getUserId(),
             'key' => $entity->getKey(),

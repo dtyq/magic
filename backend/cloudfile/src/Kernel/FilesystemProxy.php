@@ -361,6 +361,22 @@ class FilesystemProxy extends Filesystem
     }
 
     /**
+     * Set object metadata by credential.
+     *
+     * @param CredentialPolicy $credentialPolicy 凭证策略
+     * @param string $objectKey 对象键
+     * @param array $metadata 要设置的元数据
+     * @param array $options 额外选项
+     */
+    public function setHeadObjectByCredential(CredentialPolicy $credentialPolicy, string $objectKey, array $metadata, array $options = []): void
+    {
+        $credentialPolicy->setSts(true);
+        $credentialPolicy->setStsType('set_object_meta');
+        $credential = $this->getUploadTemporaryCredential($credentialPolicy, $options);
+        $this->getSimpleUploadInstance($this->adapterName)->setHeadObjectByCredential($credential, $objectKey, $metadata, $options);
+    }
+
+    /**
      * Download file by chunks.
      *
      * @param string $filePath Remote file path

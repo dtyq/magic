@@ -68,6 +68,7 @@ class MagicUserInfoAppService extends AbstractAppService
             'id' => $userId,
             'nickname' => $userEntity->getNickname() ?? '',
             'real_name' => $accountEntity?->getRealName() ?? '',
+            'avatar_url' => $userEntity->getAvatarUrl() ?? '',
             'work_number' => $workNumber,
             'position' => $position,
             'departments' => $departments,

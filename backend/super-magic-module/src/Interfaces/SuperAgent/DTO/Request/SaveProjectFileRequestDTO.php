@@ -66,7 +66,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     /**
      * 父级ID（可选，默认为null）.
      */
-    private ?int $parentId = null;
+    private string $parentId = '';
 
     /**
      * 存储类型（可选，默认为空字符串）.
@@ -76,7 +76,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     /**
      * 前置文件ID，用于指定插入位置，0=第一位，-1=末尾（默认）.
      */
-    private int $preFileId = -1;
+    private string $preFileId = '-1';
 
     /**
      * 来源字段.
@@ -100,9 +100,9 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->fileType = $data['file_type'] ?? FileType::USER_UPLOAD->value;
         $instance->isDirectory = (bool) ($data['is_directory'] ?? false);
         $instance->sort = (int) ($data['sort'] ?? 0);
-        $instance->parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
+        $instance->parentId = isset($data['parent_id']) ? $data['parent_id'] : '';
         $instance->storageType = $data['storage_type'] ?? StorageType::WORKSPACE;
-        $instance->preFileId = (int) ($data['pre_file_id'] ?? -1);
+        $instance->preFileId = $data['pre_file_id'] ?? '-1';
 
         return $instance;
     }
@@ -206,12 +206,12 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
-    public function getParentId(): ?int
+    public function getParentId(): string
     {
         return $this->parentId;
     }
 
-    public function setParentId(?int $parentId): self
+    public function setParentId(string $parentId): self
     {
         $this->parentId = $parentId;
         return $this;
@@ -228,12 +228,12 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
-    public function getPreFileId(): int
+    public function getPreFileId(): string
     {
         return $this->preFileId;
     }
 
-    public function setPreFileId(int $preFileId): self
+    public function setPreFileId(string $preFileId): self
     {
         $this->preFileId = $preFileId;
         return $this;
@@ -267,10 +267,12 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             $taskFileEntity->setProjectId((int) $this->projectId);
         }
 
-        // 使用DTO中的值
-        $taskFileEntity->setIsDirectory($this->isDirectory);
+        if (! empty($this->parentId)) {
+            // 使用DTO中的值
+            $taskFileEntity->setIsDirectory($this->isDirectory);
+        }
         $taskFileEntity->setSort($this->sort);
-        $taskFileEntity->setParentId($this->parentId);
+        $taskFileEntity->setParentId(! empty($this->parentId) ? (int) $this->parentId : 0);
 
         // 设置存储类型
         if (! empty($this->storageType)) {

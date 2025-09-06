@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Chat\Assembler;
 
+use App\Domain\Chat\DTO\MagicMessageDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\AggregateAISearchCardMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\AggregateAISearchCardMessageV2;
 use App\Domain\Chat\DTO\Message\ChatMessage\AIImageCardMessage;
@@ -44,15 +45,16 @@ use App\Domain\Chat\DTO\Message\ControlMessage\TopicCreateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicDeleteMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\UnknowControlMessage;
+use App\Domain\Chat\DTO\Message\IntermediateMessage\SuperMagicInstructionMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\ControlRequest;
-use App\Domain\Chat\DTO\Request\StreamRequest;
 use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\IntermediateMessageType;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -62,11 +64,12 @@ use Throwable;
 
 class MessageAssembler
 {
-    public static function getMessageType(string $messageTypeString): ChatMessageType|ControlMessageType
+    public static function getMessageType(string $messageTypeString): ChatMessageType|ControlMessageType|IntermediateMessageType
     {
         $messageTypeString = strtolower(string_to_line($messageTypeString));
         $messageType = ChatMessageType::tryFrom($messageTypeString);
         $messageType = $messageType ?? ControlMessageType::tryFrom($messageTypeString);
+        $messageType = $messageType ?? IntermediateMessageType::tryFrom($messageTypeString);
         if ($messageType === null) {
             ExceptionBuilder::throw(ChatErrorCode::MESSAGE_TYPE_ERROR);
         }
@@ -87,9 +90,12 @@ class MessageAssembler
             if ($messageTypeEnum instanceof ControlMessageType) {
                 return self::getControlMessageStruct($messageTypeEnum, $messageStructArray);
             }
-            /* @phpstan-ignore-next-line */
             if ($messageTypeEnum instanceof ChatMessageType) {
                 return self::getChatMessageStruct($messageTypeEnum, $messageStructArray);
+            }
+            /* @phpstan-ignore-next-line */
+            if ($messageTypeEnum instanceof IntermediateMessageType) {
+                return self::getIntermediateMessageStruct($messageTypeEnum, $messageStructArray);
             }
         } catch (BusinessException$exception) {
             throw $exception;
@@ -136,16 +142,17 @@ class MessageAssembler
         return $messageDTO;
     }
 
-    public static function getStreamMessageDTOByRequest(
-        StreamRequest $request,
+    public static function getIntermediateMessageDTO(
+        ChatRequest $chatRequest,
         MagicConversationEntity $conversationEntity,
         MagicUserEntity $senderUserEntity
-    ): MagicMessageEntity {
+    ): MagicMessageDTO {
         $time = date('Y-m-d H:i:s');
-        $appMessageId = $request->getData()->getMessage()->getAppMessageId();
-        $requestMessage = $request->getData()->getMessage();
+        $appMessageId = $chatRequest->getData()->getMessage()->getAppMessageId();
+        $requestMessage = $chatRequest->getData()->getMessage();
+        $topicId = $chatRequest->getData()->getMessage()->getTopicId();
         // 消息的type和content抽象出来
-        $messageDTO = new MagicMessageEntity();
+        $messageDTO = new MagicMessageDTO();
         $messageDTO->setSenderId($conversationEntity->getUserId());
         // TODO 会话表应该冗余的记录收发双方的用户类型，目前只记录了收件方的，需要补充
         $senderType = ConversationType::from($senderUserEntity->getUserType()->value);
@@ -161,6 +168,7 @@ class MessageAssembler
         $messageDTO->setCreatedAt($time);
         $messageDTO->setUpdatedAt($time);
         $messageDTO->setDeletedAt(null);
+        $messageDTO->setTopicId($topicId);
         return $messageDTO;
     }
 
@@ -243,6 +251,16 @@ class MessageAssembler
             ControlMessageType::AgentInstruct => new InstructMessage($messageStructArray),
             ControlMessageType::AddFriendSuccess => new AddFriendMessage($messageStructArray),
             default => new UnknowControlMessage()
+        };
+    }
+
+    /**
+     * 获取临时消息的结构.
+     */
+    public static function getIntermediateMessageStruct(IntermediateMessageType $messageTypeEnum, array $messageStructArray): MessageInterface
+    {
+        return match ($messageTypeEnum) {
+            IntermediateMessageType::SuperMagicInstruction => new SuperMagicInstructionMessage($messageStructArray),
         };
     }
 

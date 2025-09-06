@@ -27,7 +27,9 @@ class InitAgentRequest
         private string $agentMode = '',
         private string $magicServiceHost = '',
         private string $chatHistoryDir = '',
-        private string $workDir = ''
+        private string $workDir = '',
+        private ?string $memory = null,
+        private ?string $modelId = null
     ) {
     }
 
@@ -48,7 +50,9 @@ class InitAgentRequest
             $data['agent_mode'] ?? '',
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
             $data['chat_history_dir'] ?? '',
-            $data['work_dir'] ?? ''
+            $data['work_dir'] ?? '',
+            $data['memory'] ?? null,
+            $data['model_id'] ?? null
         );
     }
 
@@ -75,9 +79,26 @@ class InitAgentRequest
         string $agentMode = '',
         string $magicServiceHost = '',
         string $chatHistoryDir = '',
-        string $workDir = ''
+        string $workDir = '',
+        ?string $memory = null,
+        ?string $modelId = null
     ): self {
-        return new self($messageId, $userId, $projectId, $uploadConfig, $messageSubscriptionConfig, $stsTokenRefresh, $metadata, $taskMode, $agentMode, $magicServiceHost, $chatHistoryDir, $workDir);
+        return new self(
+            $messageId,
+            $userId,
+            $projectId,
+            $uploadConfig,
+            $messageSubscriptionConfig,
+            $stsTokenRefresh,
+            $metadata,
+            $taskMode,
+            $agentMode,
+            $magicServiceHost,
+            $chatHistoryDir,
+            $workDir,
+            $memory,
+            $modelId
+        );
     }
 
     /**
@@ -267,6 +288,34 @@ class InitAgentRequest
     }
 
     /**
+     * 获取记忆内容.
+     */
+    public function getMemory(): ?string
+    {
+        return $this->memory;
+    }
+
+    /**
+     * 设置记忆内容.
+     */
+    public function setMemory(?string $memory): self
+    {
+        $this->memory = $memory;
+        return $this;
+    }
+
+    public function getModelId(): ?string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(?string $modelId): self
+    {
+        $this->modelId = $modelId;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -286,6 +335,8 @@ class InitAgentRequest
             'magic_service_host' => $this->magicServiceHost,
             'chat_history_dir' => $this->chatHistoryDir,
             'work_dir' => $this->workDir,
+            'memory' => $this->memory,
+            'model_id' => $this->modelId,
         ];
     }
 }

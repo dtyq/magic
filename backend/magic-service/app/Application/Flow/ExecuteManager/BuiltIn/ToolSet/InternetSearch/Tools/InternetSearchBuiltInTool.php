@@ -123,8 +123,7 @@ class InternetSearchBuiltInTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;

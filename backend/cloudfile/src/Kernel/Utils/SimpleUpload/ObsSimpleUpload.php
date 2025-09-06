@@ -120,4 +120,12 @@ class ObsSimpleUpload extends SimpleUpload
     {
         throw new CloudFileException('deleteObjectsByCredential not implemented for ObsSimpleUpload');
     }
+
+    /**
+     * Set object metadata by credential (not implemented yet).
+     */
+    public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void
+    {
+        throw new CloudFileException('setHeadObjectByCredential not implemented for ObsSimpleUpload');
+    }
 }

@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicTopicDomainService as MagicChatTopicDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -25,6 +26,8 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
@@ -33,6 +36,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
@@ -73,8 +77,10 @@ class WorkspaceAppService extends AbstractAppService
         protected ChatAppService $chatAppService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
+        protected ResourceShareDomainService $resourceShareDomainService,
         protected Producer $producer,
-        LoggerFactory $loggerFactory,
+        protected LoggerFactory $loggerFactory,
+        protected FileCleanupAppService $fileCleanupAppService,
         protected FileDomainService $fileDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -148,7 +154,7 @@ class WorkspaceAppService extends AbstractAppService
 
         // 获取工作区详情
         $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
-        if (empty($workspaceEntity)) {
+        if ($workspaceEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
         }
 
@@ -275,7 +281,7 @@ class WorkspaceAppService extends AbstractAppService
     {
         // 获取当前话题的创建者
         $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
-        if (empty($topicEntity)) {
+        if ($topicEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
         if ($topicEntity->getCreatedUid() != $userAuthorization->getId()) {
@@ -294,9 +300,16 @@ class WorkspaceAppService extends AbstractAppService
             ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
         }
         // 从token 获取内容
-        $topicId = AccessTokenUtil::getResource($token);
+        $shareId = AccessTokenUtil::getShareId($token);
+        $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+        }
+        if ($shareEntity->getResourceType() != ResourceType::Topic->value) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+        }
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $requestDto->setTopicId($topicId);
+        $requestDto->setTopicId($shareEntity->getResourceId());
 
         // 创建DataIsolation
         $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
@@ -466,7 +479,7 @@ class WorkspaceAppService extends AbstractAppService
         $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
         if ($topicEntity != null) {
             $data['project_id'] = (string) $topicEntity->getProjectId();
-            $projectEntity = $this->projectDomainService->getProject($topicEntity->getProjectId(), $topicEntity->getUserId());
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $topicEntity->getUserId(), $topicEntity->getUserOrganizationCode());
             $data['project_name'] = $projectEntity->getProjectName();
         }
         return $data;
@@ -554,72 +567,13 @@ class WorkspaceAppService extends AbstractAppService
             }
 
             // 验证文件是否属于当前用户
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $userAuthorization->getId());
-            if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
-                // 如果这个话题不是本人的，不处理
-                continue;
-            }
+            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $organizationCode);
 
             $downloadNames = [];
             if ($downloadMode === 'download') {
                 $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
             }
             $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames, $options);
-            if (empty($fileLink)) {
-                // 如果获取URL失败，跳过
-                continue;
-            }
-
-            // 只添加成功的结果
-            $result[] = [
-                'file_id' => $fileId,
-                'url' => $fileLink->getUrl(),
-            ];
-        }
-
-        return $result;
-    }
-
-    /**
-     * 通过访问令牌获取文件URL列表.
-     *
-     * @param array $fileIds 文件ID列表
-     * @param string $token 访问令牌
-     * @param string $downloadMode 下载模式 默认下载 download 预览 preview
-     * @return array 文件URL列表
-     */
-    public function getFileUrlsByAccessToken(array $fileIds, string $token, string $downloadMode): array
-    {
-        // 从缓存里获取数据
-        if (! AccessTokenUtil::validate($token)) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
-        }
-
-        // 从token获取内容
-        $topicId = AccessTokenUtil::getResource($token);
-        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $result = [];
-
-        // 获取 topic 详情
-        $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
-        }
-
-        foreach ($fileIds as $fileId) {
-            $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
-            $isBelongTopic = ((string) $fileEntity?->getTopicId()) === $topicId;
-            $isBelongProject = ((string) $fileEntity?->getProjectId()) == $topicEntity->getProjectId();
-            if (empty($fileEntity) || (! $isBelongTopic && ! $isBelongProject)) {
-                // 如果文件不存在或既不属于该话题也不属于该项目，跳过
-                continue;
-            }
-
-            $downloadNames = [];
-            if ($downloadMode == 'download') {
-                $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
-            }
-            $fileLink = $this->fileAppService->getLink($organizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames);
             if (empty($fileLink)) {
                 // 如果获取URL失败，跳过
                 continue;
@@ -739,6 +693,42 @@ class WorkspaceAppService extends AbstractAppService
             'tree' => $tree,
             'total' => $result['total'],
         ];
+    }
+
+    /**
+     * 注册转换后的PDF文件以供定时清理.
+     */
+    public function registerConvertedPdfsForCleanup(MagicUserAuthorization $userAuthorization, array $convertedFiles): void
+    {
+        if (empty($convertedFiles)) {
+            return;
+        }
+
+        $filesForCleanup = [];
+        foreach ($convertedFiles as $file) {
+            if (empty($file['oss_key']) || empty($file['filename'])) {
+                continue;
+            }
+
+            $filesForCleanup[] = [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'file_key' => $file['oss_key'],
+                'file_name' => $file['filename'],
+                'file_size' => $file['size'] ?? 0, // 如果响应中没有size，默认为0
+                'source_type' => 'pdf_conversion',
+                'source_id' => $file['batch_id'] ?? null,
+                'expire_after_seconds' => 7200, // 2 小时后过期
+                'bucket_type' => 'private',
+            ];
+        }
+
+        if (! empty($filesForCleanup)) {
+            $this->fileCleanupAppService->registerFilesForCleanup($filesForCleanup);
+            $this->logger->info('[PDF Converter] Registered converted PDF files for cleanup', [
+                'user_id' => $userAuthorization->getId(),
+                'files_count' => count($filesForCleanup),
+            ]);
+        }
     }
 
     /**

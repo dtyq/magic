@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\MagicUserAuthorizationTrait;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -17,6 +19,24 @@ abstract class AbstractApi
     public function __construct(
         protected RequestInterface $request,
     ) {
+    }
+
+    /**
+     * 校验沙箱 Token.
+     */
+    protected function validateSandboxToken(): void
+    {
+        // 从 header 中获取 token 字段
+        $token = $this->request->getHeaderLine('token');
+        if (empty($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
+        }
+
+        // 从 env 获取沙箱 token ，然后对比沙箱 token 和请求 token 是否一致
+        $sandboxToken = config('super-magic.sandbox.token', '');
+        if ($sandboxToken !== $token) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
+        }
     }
 
     protected function getAccessToken(): string

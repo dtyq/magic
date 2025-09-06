@@ -173,8 +173,7 @@ abstract class AbstractAIImageBuiltInTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;

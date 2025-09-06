@@ -11,6 +11,7 @@ use App\Application\Chat\Event\Publish\MessageDispatchPublisher;
 use App\Application\Chat\Event\Publish\MessagePushPublisher;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
+use App\Application\Chat\Service\MagicIntermediateMessageAppService;
 use App\Domain\Chat\Annotation\VerifyStructure;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\Common\MagicContext;
@@ -72,6 +73,7 @@ class MagicChatWebSocketApi extends BaseNamespace
         private readonly Timer $timer,
         private readonly AuthManager $authManager,
         private readonly MagicControlMessageAppService $magicControlMessageAppService,
+        private readonly MagicIntermediateMessageAppService $magicIntermediateMessageAppService,
         private readonly TranslatorInterface $translator
     ) {
         $this->config->setPingTimeout(2000); // ping 超时
@@ -253,17 +255,51 @@ class MagicChatWebSocketApi extends BaseNamespace
         }
     }
 
-    #[Event('stream')]
+    #[Event('intermediate')]
     #[VerifyStructure]
     /**
-     * 流式消息.
-     * 录音功能已移除，此方法返回功能不可用错误.
+     * 不存入数据库的实时消息，用于一些临时消息场景。
      * @throws Throwable
      */
-    public function onStreamMessage(Socket $socket, array $params)
+    public function onIntermediateMessage(Socket $socket, array $params)
     {
-        $this->logger->info('Stream message request received but recording functionality has been removed');
-        ExceptionBuilder::throw(ChatErrorCode::OPERATION_FAILED, 'Recording functionality has been removed');
+        try {
+            $appendRules = [
+                'data.conversation_id' => 'required|string',
+                'data.refer_message_id' => 'string',
+                'data.message' => 'required|array',
+                'data.message.type' => 'required|string',
+                'data.message.app_message_id' => 'required|string',
+            ];
+            $this->relationAppMsgIdAndRequestId($params['data']['message']['app_message_id'] ?? '');
+            $this->checkParams($appendRules, $params);
+            $this->setLocale($params['context']['language'] ?? '');
+            # 使用 magicChatContract 校验参数
+            $chatRequest = new ChatRequest($params);
+            // 兼容历史版本,从query中获取token
+            $userToken = $socket->getRequest()->getQueryParams()['authorization'] ?? '';
+            $this->magicChatMessageAppService->setUserContext($userToken, $chatRequest->getContext());
+            // 根据消息类型,分发到对应的处理模块
+            $userAuthorization = $this->getAuthorization();
+            // 将账号的所有设备加入同一个房间
+            $this->magicChatMessageAppService->joinRoom($userAuthorization, $socket);
+            return $this->magicIntermediateMessageAppService->dispatchClientIntermediateMessage($chatRequest, $userAuthorization);
+        } catch (BusinessException $businessException) {
+            throw $businessException;
+        } catch (Throwable $exception) {
+            $errMsg = [
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+                'message' => $exception->getMessage(),
+                'code' => $exception->getCode(),
+                'trace' => $exception->getTraceAsString(),
+            ];
+            ExceptionBuilder::throw(
+                ChatErrorCode::OPERATION_FAILED,
+                Json::encode($errMsg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                throwable: $exception
+            );
+        }
     }
 
     /**

@@ -27,7 +27,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -61,7 +60,6 @@ class FileProcessAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly FileDomainService $fileDomainService,
         private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
@@ -611,7 +609,7 @@ class FileProcessAppService extends AbstractAppService
             return $files;
         }
 
-        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
         foreach ($taskFiles as $taskFile) {
             $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey(), StorageBucketType::SandBox);
@@ -1006,10 +1004,12 @@ class FileProcessAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
         }
 
-        // Check if current user is the file owner
+        /*// Check if current user is the file owner
         if ($taskFileEntity->getUserId() !== $authorization->getId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.permission_denied');
-        }
+        }*/
+
+        $this->getAccessibleProject($taskFileEntity->getProjectId(), $authorization->getId(), $authorization->getOrganizationCode());
 
         return $taskFileEntity;
     }

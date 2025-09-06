@@ -90,8 +90,7 @@ class TextSplitterTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         return $input;

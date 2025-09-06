@@ -89,7 +89,10 @@ class SandboxApi extends AbstractApi
         }
         // $userInfoRequestDTO = new UserInfoRequestDTO(['uid' => $apiKey]);
 
-        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, '');
+        // 判断请求头是否存在magic-user-id
+        $magicUserId = $this->request->header('magic-user-id', '');
+
+        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, $magicUserId);
 
         if (empty($userEntity)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_found');
@@ -122,6 +125,7 @@ class SandboxApi extends AbstractApi
         $requestDTO->setWorkspaceId($workspaceId);
         $requestDTO->setProjectId($projectId);
         $requestDTO->setTopicId($topicId);
+        $requestDTO->setTopicMode($topic->getTopicMode());
 
         return $this->initSandbox($requestContext, $requestDTO, $this->getAuthorization());
     }
@@ -137,7 +141,7 @@ class SandboxApi extends AbstractApi
         // 判断话题是否存在，不存在则初始化话题
         $this->initTopic($requestContext, $requestDTO);
 
-        $requestDTO->setConversationId($requestDTO->getTopicId());
+        // $requestDTO->setConversationId($requestDTO->getTopicId());
 
         $initSandboxResponseDTO = new InitSandboxResponseDTO();
 
@@ -145,7 +149,8 @@ class SandboxApi extends AbstractApi
         $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
         $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
         $initSandboxResponseDTO->setTopicId($requestDTO->getTopicId());
-        $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
+        $initSandboxResponseDTO->setChatTopicId($requestDTO->getChatTopicId());
+        // $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId((string) $magicUserAuthorization->getId());
         $dataIsolation->setThirdPartyOrganizationCode($magicUserAuthorization->getOrganizationCode());
@@ -154,17 +159,20 @@ class SandboxApi extends AbstractApi
         //  $dataIsolation = new DataIsolation($userEntity->getId(), $userEntity->getOrganizationCode(), $userEntity->getWorkDir());
 
         $userMessage = [
-            'chat_topic_id' => $requestDTO->getTopicId(),
+            'chat_topic_id' => $requestDTO->getChatTopicId(),
             'topic_id' => (int) $requestDTO->getTopicId(),
-            'chat_conversation_id' => $requestDTO->getConversationId(),
+            // 'chat_conversation_id' => $requestDTO->getConversationId(),
             'prompt' => $requestDTO->getPrompt(),
             'attachments' => null,
             'mentions' => null,
             'agent_user_id' => (string) $magicUserAuthorization->getId(),
-            'agent_mode' => '',
+            'project_mode' => $requestDTO->getProjectMode(),
+            'topic_mode' => $requestDTO->getTopicMode(),
             'task_mode' => '',
+            'model_id' => $requestDTO->getModelId(),
         ];
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
+
         // $this->handleApiMessageAppService->handleApiMessage($dataIsolation, $userMessageDTO);
         // $userMessageDTO->setAgentMode($requestDTO->getProjectMode());
         $result = $this->handleTaskMessageAppService->initSandbox($dataIsolation, $userMessageDTO);
@@ -200,7 +208,7 @@ class SandboxApi extends AbstractApi
         $projectId = $requestDTO->getProjectId();
 
         if ($projectId > 0) {
-            $project = $this->projectAppService->getProject((int) $projectId, $userId);
+            $project = $this->projectAppService->getProject($requestContext, (int) $projectId);
             if (empty($project->getId())) {
                 // 抛异常，项目不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_not_found');
@@ -231,18 +239,24 @@ class SandboxApi extends AbstractApi
                 // 抛异常，话题不存在
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
+            $chatTopicId = $topic->getChatTopicId();
         } else {
             $saveTopicRequestDTO = new SaveTopicRequestDTO();
             $saveTopicRequestDTO->setTopicName('默认话题');
             $saveTopicRequestDTO->setProjectId((string) $requestDTO->getProjectId());
             $saveTopicRequestDTO->setWorkspaceId((string) $requestDTO->getWorkspaceId());
-            $topic = $this->topicAppService->createTopic($requestContext, $saveTopicRequestDTO);
+            $saveTopicRequestDTO->setProjectMode($requestDTO->getProjectMode());
+            $saveTopicRequestDTO->setTopicMode($requestDTO->getTopicMode());
+            $topic = $this->topicAppService->createTopicNotValidateAccessibleProject($requestContext, $saveTopicRequestDTO);
             if (! empty($topic->getId())) {
                 $topicId = $topic->getId();
+                $chatTopicId = $topic->getChatTopicId();
             } else {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_not_found');
             }
         }
+
+        $requestDTO->setChatTopicId($chatTopicId);
         $requestDTO->setTopicId($topicId);
     }
 

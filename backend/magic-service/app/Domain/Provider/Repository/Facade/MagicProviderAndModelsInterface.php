@@ -44,7 +44,7 @@ interface MagicProviderAndModelsInterface
     /**
      * 根据ID获取组织 Magic 模型.
      *
-     * @param int $id 模型ID
+     * @param int $id 模型ID`
      * @return null|ProviderModelEntity 找到的模型实体，不存在则返回null
      */
     public function getMagicModelById(int $id): ?ProviderModelEntity;

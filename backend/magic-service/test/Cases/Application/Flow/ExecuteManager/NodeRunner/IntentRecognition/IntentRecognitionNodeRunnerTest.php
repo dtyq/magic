@@ -93,8 +93,7 @@ class IntentRecognitionNodeRunnerTest extends ExecuteManagerBaseTest
         }
     ]
 }
-JSON
-            ,
+JSON,
             true
         ));
         $input = new NodeInput();
@@ -141,8 +140,7 @@ JSON
                     }
                 }
             }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);
@@ -239,8 +237,7 @@ JSON
         }
     ]
 }
-JSON
-            ,
+JSON,
             true
         ));
         $input = new NodeInput();
@@ -287,8 +284,7 @@ JSON
                     }
                 }
             }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);

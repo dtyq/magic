@@ -312,6 +312,7 @@ class TopicRepository implements TopicRepositoryInterface
             ->update([
                 'current_task_id' => $taskId,
                 'current_task_status' => $status->value,
+                'sandbox_id' => $sandboxId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]) > 0;
     }

@@ -141,6 +141,23 @@ interface CloudFileRepositoryInterface
     ): array;
 
     /**
+     * Set object metadata by credential.
+     *
+     * @param string $organizationCode Organization code for data isolation
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     */
+    public function setHeadObjectByCredential(
+        string $organizationCode,
+        string $objectKey,
+        array $metadata,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): void;
+
+    /**
      * Create object by credential (file or folder).
      *
      * @param string $organizationCode Organization code

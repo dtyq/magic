@@ -17,18 +17,30 @@ interface TaskFileRepositoryInterface
      */
     public function getById(int $id): ?TaskFileEntity;
 
-    public function getFilesByIds(array $fileIds): array;
+    /**
+     * 根据ID批量获取文件.
+     * @return TaskFileEntity[]
+     */
+    public function getFilesByIds(array $fileIds, int $projectId = 0): array;
 
     /**
      * 根据ID批量获取文件.
      * @return TaskFileEntity[]
      */
-    public function getTaskFilesByIds(array $ids): array;
+    public function getTaskFilesByIds(array $ids, int $projectId = 0): array;
 
     /**
      * 根据fileKey获取文件.
      */
     public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity;
+
+    /**
+     * 根据fileKey数组批量获取文件.
+     *
+     * @param array $fileKeys 文件Key数组
+     * @return TaskFileEntity[] 文件实体数组，以file_key为键
+     */
+    public function getByFileKeys(array $fileKeys): array;
 
     /**
      * 根据项目ID和fileKey获取文件.
@@ -117,6 +129,11 @@ interface TaskFileRepositoryInterface
     public function findUserFilesByProjectId(string $projectId): array;
 
     /**
+     * @return TaskFileEntity[] 用户文件列表
+     */
+    public function findFilesByProjectIdAndIds(int $projectId, array $fileIds): array;
+
+    /**
      * 根据项目ID获取所有文件的file_key列表（高性能查询）.
      */
     public function getFileKeysByProjectId(int $projectId, int $limit = 1000): array;
@@ -155,6 +172,8 @@ interface TaskFileRepositoryInterface
      * 获取同一父目录下的所有兄弟节点.
      */
     public function getSiblingsByParentId(?int $parentId, int $projectId, string $orderBy = 'sort', string $direction = 'ASC'): array;
+
+    public function getSiblingCountByParentId(int $parentId, int $projectId): int;
 
     /**
      * 批量更新排序值.
@@ -202,4 +221,40 @@ interface TaskFileRepositoryInterface
     public function batchBindToProject(array $fileIds, int $projectId, int $parentId): int;
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * Count files by project ID.
+     *
+     * @param int $projectId Project ID
+     * @return int Total count of files in the project
+     */
+    public function countFilesByProjectId(int $projectId): int;
+
+    /**
+     * Get files by project ID with resume support.
+     * Used for fork migration with pagination and resume capability.
+     *
+     * @param int $projectId Project ID
+     * @param null|int $lastFileId Last processed file ID for resume
+     * @param int $limit Number of files to fetch
+     * @return TaskFileEntity[] Array of file entities
+     */
+    public function getFilesByProjectIdWithResume(int $projectId, ?int $lastFileId, int $limit): array;
+
+    /**
+     * Batch update parent_id for multiple files.
+     * Used for fixing parent relationships during fork operations.
+     *
+     * @param array $fileIds Array of file IDs to update
+     * @param int $parentId New parent ID to set
+     * @param string $userId User performing the update
+     * @return int Number of affected rows
+     */
+    public function batchUpdateParentId(array $fileIds, int $parentId, string $userId): int;
+
+    public function updateFileByCondition(array $condition, array $data): bool;
+
+    public function lockDirectChildrenForUpdate(int $parentId): array;
+
+    public function getAllChildrenByParentId(int $parentId): array;
 }

@@ -16,7 +16,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
@@ -38,13 +37,12 @@ use function Hyperf\Coroutine\go;
  * File Converter Application Service.
  * Coordinates the entire file conversion process, including sandbox creation, initialization, and file conversion.
  */
-class FileConverterAppService
+class FileConverterAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
@@ -85,12 +83,9 @@ class FileConverterAppService
             $this->validateConvertRequest($fileIds);
 
             // Permission validation and file retrieval
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-            if ($projectEntity->getUserId() !== $userId) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-            }
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
-            $validFiles = $this->getValidFiles($fileIds, $userId);
+            $validFiles = $this->getValidFiles($fileIds, $projectEntity->getId());
             // Check for duplicate requests
             $taskKey = $this->handleDuplicateRequest($userAuthorization, $fileIds, $convertType, $userId);
             if (is_array($taskKey)) {
@@ -607,12 +602,11 @@ class FileConverterAppService
      * Retrieves valid files to which the user has permission.
      *
      * @param array $fileIds array of file IDs
-     * @param string $userId the user ID
      * @return TaskFileEntity[] list of user files
      */
-    private function getValidFiles(array $fileIds, string $userId): array
+    private function getValidFiles(array $fileIds, int $projectId): array
     {
-        $userFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $userId);
+        $userFiles = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectId, $fileIds);
 
         if (empty($userFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);

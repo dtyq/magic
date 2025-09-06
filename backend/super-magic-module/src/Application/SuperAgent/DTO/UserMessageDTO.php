@@ -31,6 +31,7 @@ class UserMessageDTO
         private array $mcpConfig = [],
         private string $modelId = '',
         private string $language = '',
+        private readonly string $queueId = '',
         private readonly string $messageId = '',
         private readonly string $messageSeqId = '',
     ) {
@@ -116,6 +117,11 @@ class UserMessageDTO
         $this->language = $language;
     }
 
+    public function getQueueId(): string
+    {
+        return $this->queueId;
+    }
+
     public function getMessageId(): string
     {
         return $this->messageId;
@@ -150,6 +156,7 @@ class UserMessageDTO
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
             modelId: $data['model_id'] ?? $data['modelId'] ?? '',
             language: $data['language'] ?? 'zh_CN',
+            queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
         );
@@ -175,6 +182,7 @@ class UserMessageDTO
             'mcp_config' => $this->mcpConfig,
             'model_id' => $this->modelId,
             'language' => $this->language,
+            'queue_id' => $this->queueId,
             'message_id' => $this->messageId,
             'message_seq_id' => $this->messageSeqId,
         ];

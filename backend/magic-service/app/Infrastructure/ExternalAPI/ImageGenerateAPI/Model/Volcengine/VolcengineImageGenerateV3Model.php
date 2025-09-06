@@ -10,26 +10,21 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerate;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use Exception;
 use Hyperf\Codec\Json;
-use Hyperf\Di\Annotation\Inject;
-use Psr\Log\LoggerInterface;
 
-class VolcengineImageGenerateV3Model implements ImageGenerate
+class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 {
     // 最大轮询重试次数
     private const MAX_RETRY_COUNT = 30;
 
     // 轮询重试间隔（秒）
     private const RETRY_INTERVAL = 2;
-
-    #[Inject]
-    protected LoggerInterface $logger;
 
     private VolcengineAPI $api;
 
@@ -38,9 +33,38 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         $this->api = new VolcengineAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
     }
 
-    public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        $rawResults = $this->generateImageInternal($imageGenerateRequest);
+        return $this->generateImageRawInternal($imageGenerateRequest);
+    }
+
+    public function setAK(string $ak)
+    {
+        $this->api->setAk($ak);
+    }
+
+    public function setSK(string $sk)
+    {
+        $this->api->setSk($sk);
+    }
+
+    public function setApiKey(string $apiKey)
+    {
+        // TODO: Implement setApiKey() method.
+    }
+
+    public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
+    {
+        $rawData = $this->generateImageRaw($imageGenerateRequest);
+        if ($this->isWatermark($imageGenerateRequest)) {
+            return $rawData;
+        }
+        return $this->processVolcengineV3RawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
+    {
+        $rawResults = $this->generateImageRawInternal($imageGenerateRequest);
 
         // 从原生结果中提取图片URL
         $imageUrls = [];
@@ -65,30 +89,10 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
         return new ImageGenerateResponse(ImageGenerateType::URL, $imageUrls);
     }
 
-    public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
-    {
-        return $this->generateImageInternal($imageGenerateRequest);
-    }
-
-    public function setAK(string $ak)
-    {
-        $this->api->setAk($ak);
-    }
-
-    public function setSK(string $sk)
-    {
-        $this->api->setSk($sk);
-    }
-
-    public function setApiKey(string $apiKey)
-    {
-        // TODO: Implement setApiKey() method.
-    }
-
     /**
      * 生成图像的核心逻辑，返回原生结果.
      */
-    private function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): array
+    private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
     {
         if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
             $this->logger->error('火山文生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
@@ -224,22 +228,10 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
 
     private function pollTaskResult(string $taskId, VolcengineModelRequest $imageGenerateRequest): array
     {
-        $organizationCode = $imageGenerateRequest->getOrganizationCode();
         $reqKey = $imageGenerateRequest->getModel();
         $retryCount = 0;
 
         $reqJson = ['return_url' => true];
-
-        // 从请求对象中获取水印配置
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-
-        if ($watermarkConfig !== null) {
-            $reqJson['logo_info'] = $watermarkConfig;
-            $this->logger->info('火山文生图：添加水印配置', [
-                'orgCode' => $organizationCode,
-                'logo_info' => $watermarkConfig,
-            ]);
-        }
 
         $reqJsonString = Json::encode($reqJson);
 
@@ -324,5 +316,46 @@ class VolcengineImageGenerateV3Model implements ImageGenerate
 
         $this->logger->error('火山文生图：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    /**
+     * 为火山引擎V3原始数据添加水印.
+     */
+    private function processVolcengineV3RawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
+    {
+        foreach ($rawData as $index => &$result) {
+            if (! isset($result['data'])) {
+                continue;
+            }
+
+            $data = &$result['data'];
+
+            try {
+                // 处理 base64 格式图片
+                if (! empty($data['binary_data_base64'])) {
+                    foreach ($data['binary_data_base64'] as $i => &$base64Image) {
+                        $base64Image = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $imageGenerateRequest);
+                    }
+                    unset($base64Image);
+                }
+
+                // 处理 URL 格式图片
+                if (! empty($data['image_urls'])) {
+                    foreach ($data['image_urls'] as $i => &$imageUrl) {
+                        $imageUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+                    }
+                    unset($imageUrl);
+                }
+            } catch (Exception $e) {
+                // 水印处理失败时，记录错误但不影响图片返回
+                $this->logger->error('火山引擎V3图片水印处理失败', [
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理下一张图片，当前图片保持原始状态
+            }
+        }
+
+        return $rawData;
     }
 }

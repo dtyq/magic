@@ -563,6 +563,87 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
+     * 复制文件（同步操作）.
+     */
+    public function copyFiles(array $files): GatewayResult
+    {
+        $requestData = [
+            'files' => $files,
+        ];
+
+        $this->logger->info('[Sandbox][Gateway] Copying files', [
+            'files_count' => count($requestData['files']),
+            'max_retries' => 3,
+        ]);
+
+        try {
+            return retry(3, function () use ($requestData) {
+                try {
+                    $response = $this->getClient()->post($this->buildApiPath('api/v1/files/copy'), [
+                        'headers' => $this->getAuthHeaders(),
+                        'json' => $requestData,
+                        'timeout' => 60, // Increased timeout for file copy operations
+                    ]);
+
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+
+                    $this->logger->info('[Sandbox][Gateway] Raw API response for file copy', [
+                        'response_data' => $responseData,
+                        'json_last_error' => json_last_error(),
+                        'json_last_error_msg' => json_last_error_msg(),
+                    ]);
+
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] File copy completed successfully', [
+                            'files_count' => count($requestData['files']),
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to copy files', [
+                            'files_count' => count($requestData['files']),
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when copying files', [
+                        'files_count' => count($requestData['files']),
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+
+                    // Only retry for retryable errors
+                    if (! $isRetryableError) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+
+                    // Re-throw for retry mechanism to handle
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when copying files', [
+                        'files_count' => count($requestData['files']),
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 1000); // Start with 1 second delay between retries
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for copying files', [
+                'files_count' => count($requestData['files']),
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * 升级沙箱镜像.
      */
     public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult

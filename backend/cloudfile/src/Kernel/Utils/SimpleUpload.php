@@ -95,6 +95,16 @@ abstract class SimpleUpload
     abstract public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array;
 
     /**
+     * Set object metadata by credential.
+     *
+     * @param array $credential Credential array
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param array $options Additional options
+     */
+    abstract public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void;
+
+    /**
      * 分片上传文件
      * 默认实现抛出"暂未实现"异常，子类需要重写此方法.
      *

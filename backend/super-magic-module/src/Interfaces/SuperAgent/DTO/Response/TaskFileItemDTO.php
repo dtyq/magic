@@ -51,7 +51,7 @@ class TaskFileItemDTO extends AbstractDTO
     /**
      * 文件相对路径.
      */
-    public string $relativeFilePath;
+    public string $relativeFilePath = '';
 
     /**
      * 文件大小.
@@ -66,7 +66,7 @@ class TaskFileItemDTO extends AbstractDTO
     /**
      * 是否为隐藏文件：true-是，false-否.
      */
-    public bool $isHidden;
+    public bool $isHidden = false;
 
     /**
      * 主题ID.
@@ -94,6 +94,11 @@ class TaskFileItemDTO extends AbstractDTO
     public int $sort = 0;
 
     /**
+     * 父级文件ID.
+     */
+    public string $parentId = '';
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
@@ -110,9 +115,9 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $entity->getExternalUrl();
         $dto->isHidden = $entity->getIsHidden();
         $dto->topicId = (string) $entity->getTopicId();
-        $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->isDirectory = $entity->getIsDirectory();
         $dto->sort = $entity->getSort();
+        $dto->parentId = (string) $entity->getParentId();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
 
         // Handle metadata JSON decoding
@@ -157,6 +162,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->sort = $data['sort'] ?? 0;
+        $dto->parentId = (string) ($data['parent_id'] ?? '');
 
         // Handle metadata - could be string (JSON) or array
         $metadata = $data['metadata'] ?? null;
@@ -199,6 +205,7 @@ class TaskFileItemDTO extends AbstractDTO
             'is_directory' => $this->isDirectory,
             'metadata' => $this->metadata,
             'sort' => $this->sort,
+            'parent_id' => $this->parentId,
         ];
     }
 }

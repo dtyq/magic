@@ -178,7 +178,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
      * @param null|Category $category 模型分类，为空时返回所有分类模型
      * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和Magic模型（不去重）
      */
-    public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array
+    public function getModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null, ?Status $status = Status::Enabled): array
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
 
@@ -201,9 +201,14 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 缓存未命中，执行原逻辑
         // 1. 先查询组织下启用的服务商配置ID
-        $enabledConfigQuery = ProviderConfigModel::query()
+        $builder = ProviderConfigModel::query();
+
+        if ($status !== null) {
+            $builder->where('status', $status->value);
+        }
+
+        $enabledConfigQuery = $builder
             ->where('organization_code', $organizationCode)
-            ->where('status', Status::Enabled->value)
             ->whereNull('deleted_at')
             ->select('id');
         $enabledConfigIds = Db::select($enabledConfigQuery->toSql(), $enabledConfigQuery->getBindings());
@@ -214,7 +219,6 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! empty($enabledConfigIdArray)) {
             $organizationModelsBuilder = $this->createProviderModelQuery()
                 ->where('organization_code', $organizationCode)
-                ->where('status', Status::Enabled->value)
                 ->whereIn('service_provider_config_id', $enabledConfigIdArray);
             if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
                 // 查询普通组织自己的模型。 官方组织的模型现在 model_parent_id 等于它自己，需要洗数据。
@@ -223,6 +227,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
             // 如果指定了分类，添加分类过滤条件
             if ($category !== null) {
                 $organizationModelsBuilder->where('category', $category->value);
+            }
+
+            if ($status !== null) {
+                $builder->where('status', $status->value);
             }
 
             $organizationModelsResult = Db::select($organizationModelsBuilder->toSql(), $organizationModelsBuilder->getBindings());
@@ -242,8 +250,13 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         usort($allModels, static function ($a, $b) {
             return $b->getSort() <=> $a->getSort();
         });
-
-        // 6. 转为数组并缓存结果，缓存10秒
+        // 6. 过滤状态
+        if ($status !== null) {
+            $allModels = array_filter($allModels, static function (ProviderModelEntity $model) use ($status) {
+                return $model->getStatus() === $status;
+            });
+        }
+        // 7. 转为数组并缓存结果，缓存10秒
         $modelsArray = [];
         foreach ($allModels as $model) {
             $modelsArray[] = $model->toArray();
@@ -253,10 +266,31 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         return $allModels;
     }
 
+    public function getByIds(ProviderDataIsolation $dataIsolation, array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query())
+            ->whereIn('id', $ids);
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        $entities = ProviderModelAssembler::toEntities($result);
+
+        // 转换为以ID为键的数组
+        $modelsById = [];
+        foreach ($entities as $entity) {
+            $modelsById[(string) $entity->getId()] = $entity;
+        }
+
+        return $modelsById;
+    }
+
     /**
      * 根据ID查询模型（不限制组织）.
      */
-    private function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity
+    public function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity
     {
         $query = $this->createProviderModelQuery()
             ->where('id', $id);

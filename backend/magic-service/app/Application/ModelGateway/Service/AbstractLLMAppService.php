@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
@@ -22,6 +23,7 @@ use App\Domain\ModelGateway\Service\OrganizationConfigDomainService;
 use App\Domain\ModelGateway\Service\UserConfigDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -42,6 +44,8 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileDomainService $fileDomainService,
         protected WatermarkConfigInterface $watermarkConfig,
+        protected ImageWatermarkProcessor $imageWatermarkProcessor,
+        protected PointComponentInterface $pointComponent,
         protected PackageFilterInterface $packageFilter,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);

@@ -12,14 +12,21 @@ use App\Domain\Chat\Event\Agent\AgentExecuteInterface;
 use Dtyq\SuperMagic\Application\Share\Adapter\TopicShareableResource;
 use Dtyq\SuperMagic\Application\Share\Factory\ShareableResourceFactory;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ProjectOperatorLogSubscriber;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectOperationLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -28,6 +35,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordReposito
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectForkRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettingRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectOperationLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
@@ -36,6 +48,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
@@ -92,7 +105,11 @@ class ConfigProvider
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 ProjectRepositoryInterface::class => ProjectRepository::class,
+                ProjectOperationLogRepositoryInterface::class => ProjectOperationLogRepository::class,
+                ProjectOperationLogDomainService::class => ProjectOperationLogDomainService::class,
                 SandboxInterface::class => SandboxService::class,
+                ProjectMemberRepositoryInterface::class => ProjectMemberRepository::class,
+                ProjectMemberSettingRepositoryInterface::class => ProjectMemberSettingRepository::class,
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
@@ -102,6 +119,8 @@ class ConfigProvider
                 FileProcessAppService::class => FileProcessAppService::class,
                 // 添加HandleAgentMessageAppService的依赖注入
                 HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
+                // 添加MessageQueueAppService的依赖注入
+                MessageQueueAppService::class => MessageQueueAppService::class,
                 // 添加SandboxFileEditAppService的依赖注入
                 FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
@@ -111,10 +130,13 @@ class ConfigProvider
                 ResourceShareAppService::class => ResourceShareAppService::class,
                 TokenUsageRecordRepositoryInterface::class => TokenUsageRecordRepository::class,
                 WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
+                ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
+                MessageQueueRepositoryInterface::class => MessageQueueRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,
                 I18nLoadListener::class,
+                ProjectOperatorLogSubscriber::class,
             ],
             'error_message' => [
                 'error_code_mapper' => [

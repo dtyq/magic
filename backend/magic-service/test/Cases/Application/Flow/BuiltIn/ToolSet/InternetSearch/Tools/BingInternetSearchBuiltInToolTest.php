@@ -105,8 +105,7 @@ class BingInternetSearchBuiltInToolTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);

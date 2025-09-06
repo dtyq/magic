@@ -133,8 +133,7 @@ class LoaderTool extends AbstractBuiltInTool
         }
     }
 }
-JSON
-            , true)));
+JSON, true)));
         return $input;
     }
 }

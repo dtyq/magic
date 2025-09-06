@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
@@ -19,7 +20,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
@@ -50,7 +50,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
     public function agentExecEvent(UserCallAgentEvent $userCallAgentEvent)
     {
         // Determine if Super Magic needs to be called
-        if ($userCallAgentEvent->agentAccountEntity->getAiCode() === AgentConstant::SUPER_MAGIC_CODE) {
+        if ($userCallAgentEvent->agentAccountEntity->getAiCode() === AppCodeEnum::SUPER_MAGIC->value) {
             $this->handlerSuperMagicMessage($userCallAgentEvent);
         } else {
             // Process messages through normal agent handling
@@ -76,6 +76,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
             $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
             $mentions = $superAgentExtra?->getMentionsJsonStruct();
+            $queueId = $superAgentExtra?->getQueueId() ?? '';
             // Extract necessary information
             $conversationId = $userCallAgentEvent->seqEntity->getConversationId() ?? '';
             $chatTopicId = $userCallAgentEvent->seqEntity->getExtra()?->getTopicId() ?? '';
@@ -143,6 +144,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 mcpConfig: [],
                 modelId: $superAgentExtra?->getModelId() ?? '',
                 language: $language,
+                queueId: $queueId,
                 messageId: $messageId,
                 messageSeqId: $messageSeqId,
             );
@@ -153,7 +155,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 $this->handleUserMessageAppService->handleChatMessage($dataIsolation, $userMessageDTO);
             }
             $this->logger->info('Super agent message processing completed');
-
             return;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
@@ -164,7 +165,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 json_encode($userCallAgentEvent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 $e->getTraceAsString()
             ));
-
             return; // Acknowledge message even on error to avoid message accumulation
         }
     }

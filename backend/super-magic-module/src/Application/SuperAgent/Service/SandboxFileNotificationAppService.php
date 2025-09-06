@@ -15,6 +15,9 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -23,6 +26,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\LockKeyManageUtils;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -38,7 +42,8 @@ class SandboxFileNotificationAppService extends AbstractAppService
         protected TaskFileDomainService $taskFileDomainService,
         protected ProjectDomainService $projectDomainService,
         protected LockerInterface $locker,
-        LoggerFactory $loggerFactory
+        protected readonly EventDispatcherInterface $eventDispatcher,
+        LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -97,16 +102,24 @@ class SandboxFileNotificationAppService extends AbstractAppService
             ));
 
             // 7. Handle file operation based on type
+            $taskFileEntity = null;
             switch ($data->getOperation()) {
                 case 'CREATE':
                 case 'UPDATE':
                     $result = $this->handleCreateOrUpdateFile($dataIsolation, $metadata, $data, $projectEntity, $fileKey);
+                    $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
                     break;
                 case 'DELETE':
+                    $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
                     $result = $this->handleDeleteFile($dataIsolation, $fileKey);
                     break;
                 default:
                     ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'Unsupported operation');
+            }
+
+            // Dispatch file operation event
+            if ($taskFileEntity) {
+                $this->dispatchFileOperationEvent($dataIsolation, $data, $taskFileEntity);
             }
 
             $this->logger->info(sprintf(
@@ -167,7 +180,7 @@ class SandboxFileNotificationAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'Project ID not found in metadata');
         }
 
-        return $this->projectDomainService->getProject((int) $projectId, $metadata->getUserId());
+        return $this->getAccessibleProject((int) $projectId, $metadata->getUserId(), $metadata->getOrganizationCode());
     }
 
     /**
@@ -264,5 +277,40 @@ class SandboxFileNotificationAppService extends AbstractAppService
             'operation' => 'DELETE',
             'success' => $deleted,
         ];
+    }
+
+    /**
+     * Dispatch file operation event based on operation type.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param SandboxFileNotificationDataValueObject $data File data
+     * @param mixed $taskFileEntity Task file entity (can be null)
+     */
+    private function dispatchFileOperationEvent(
+        DataIsolation $dataIsolation,
+        SandboxFileNotificationDataValueObject $data,
+        $taskFileEntity
+    ): void {
+        if (! $taskFileEntity) {
+            return;
+        }
+
+        $userId = $dataIsolation->getCurrentUserId() ?? '';
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        switch ($data->getOperation()) {
+            case 'CREATE':
+                $event = new FileUploadedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+            case 'UPDATE':
+                $event = new FileContentSavedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+            case 'DELETE':
+                $event = new FileDeletedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+        }
     }
 }

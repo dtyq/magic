@@ -12,7 +12,7 @@ use App\Domain\Flow\Entity\ValueObject\Node;
 use App\Domain\Flow\Entity\ValueObject\NodeOutput;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Infrastructure\Core\Dag\VertexResult;
-use Connector\Component\ComponentFactory;
+use Dtyq\FlowExprEngine\ComponentFactory;
 use HyperfTest\Cases\Application\Flow\ExecuteManager\ExecuteManagerBaseTest;
 
 /**
@@ -87,6 +87,6 @@ JSON, true)));
         ]);
         $runner->execute($vertexResult, $executionData, []);
         $this->assertTrue($node->getNodeDebugResult()->isSuccess());
-        $this->assertNull($executionData->getNodeContext($node->getNodeId())['cache_value']);
+        $this->assertNull($executionData->getNodeContext($node->getNodeId())['value']);
     }
 }

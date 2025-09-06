@@ -15,4 +15,25 @@ return [
     'work_dir' => [
         'not_found' => '项目工作目录未找到',
     ],
+    'department_not_found' => '部门不存在',
+    'invalid_member_type' => '无效的成员类型',
+    'update_members_failed' => '更新成员失败',
+    'member_validation_failed' => '成员验证失败',
+
+    // 操作日志相关
+    'operation_log' => [
+        'not_found' => '操作日志记录不存在',
+    ],
+
+    // 成员类型描述
+    'member_type' => [
+        'user' => '用户',
+        'department' => '部门',
+    ],
+
+    // 成员状态描述
+    'member_status' => [
+        'active' => '激活',
+        'inactive' => '非激活',
+    ],
 ];

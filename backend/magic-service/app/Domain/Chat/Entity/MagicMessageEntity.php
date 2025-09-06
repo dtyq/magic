@@ -14,6 +14,7 @@ use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\IntermediateMessageType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Hyperf\Codec\Json;
@@ -53,7 +54,7 @@ class MagicMessageEntity extends AbstractEntity
 
     protected string $magicMessageId = '';
 
-    protected ChatMessageType|ControlMessageType $messageType;
+    protected ChatMessageType|ControlMessageType|IntermediateMessageType $messageType;
 
     protected string $sendTime = '';
 
@@ -131,23 +132,19 @@ class MagicMessageEntity extends AbstractEntity
         return $this;
     }
 
-    public function getMessageType(): ChatMessageType|ControlMessageType
+    public function getMessageType(): ChatMessageType|ControlMessageType|IntermediateMessageType
     {
         return $this->messageType;
     }
 
-    public function setMessageType(ChatMessageType|ControlMessageType|string $messageType): static
+    public function setMessageType(ChatMessageType|ControlMessageType|IntermediateMessageType|string $messageType): static
     {
-        if (is_string($messageType)) {
-            $chatMessageType = ChatMessageType::tryFrom($messageType);
-            if ($chatMessageType === null) {
-                $this->messageType = ControlMessageType::tryFrom($messageType);
-            } else {
-                $this->messageType = $chatMessageType;
-            }
-        } else {
+        if (! is_string($messageType)) {
             $this->messageType = $messageType;
+            return $this;
         }
+
+        $this->messageType = $this->parseMessageTypeFromString($messageType);
         return $this;
     }
 
@@ -338,5 +335,25 @@ class MagicMessageEntity extends AbstractEntity
         $data['message_type'] = $this->getMessageType()->getName();
         $data['content'] = $this->getContent()->toArray();
         return $data;
+    }
+
+    private function parseMessageTypeFromString(string $messageType): ChatMessageType|ControlMessageType|IntermediateMessageType
+    {
+        $chatMessageType = ChatMessageType::tryFrom($messageType);
+        if ($chatMessageType !== null) {
+            return $chatMessageType;
+        }
+
+        $controlMessageType = ControlMessageType::tryFrom($messageType);
+        if ($controlMessageType !== null) {
+            return $controlMessageType;
+        }
+
+        $intermediateMessageType = IntermediateMessageType::tryFrom($messageType);
+        if ($intermediateMessageType !== null) {
+            return $intermediateMessageType;
+        }
+
+        throw new InvalidArgumentException("Invalid message type: {$messageType}");
     }
 }

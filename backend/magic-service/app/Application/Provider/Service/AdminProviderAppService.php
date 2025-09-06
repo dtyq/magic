@@ -20,6 +20,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
@@ -27,7 +28,6 @@ use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
@@ -329,6 +329,76 @@ readonly class AdminProviderAppService
     }
 
     /**
+     * 获取官方组织下的所有可用模型.
+     * @return ProviderModelDetailDTO[]
+     */
+    public function queriesModels(MagicUserAuthorization $authorization, ProviderModelQuery $providerModelQuery): array
+    {
+        $dataIsolation = ProviderDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+        );
+        $queriesModels = $this->adminProviderDomainService->queriesModels($dataIsolation, $providerModelQuery);
+        $providerConfigModelsDTOs = [];
+        foreach ($queriesModels as $model) {
+            $providerConfigModelsDTOs[] = new ProviderModelDetailDTO($model->toArray());
+        }
+        $this->processModelIcons($providerConfigModelsDTOs);
+        return $providerConfigModelsDTOs;
+    }
+
+    /**
+     * @param $providerModelDetailDTOs ProviderModelDetailDTO[]
+     */
+    private function processModelIcons(array $providerModelDetailDTOs): void
+    {
+        if (empty($providerModelDetailDTOs)) {
+            return;
+        }
+
+        // 收集所有图标路径按组织编码分组
+        $iconsByOrg = [];
+        $iconToModelMap = [];
+
+        foreach ($providerModelDetailDTOs as $model) {
+            $icon = $model->getIcon();
+            if (empty($icon)) {
+                continue;
+            }
+
+            $icon = FileAssembler::formatPath($icon);
+            $organizationCode = substr($icon, 0, strpos($icon, '/'));
+
+            if (! isset($iconsByOrg[$organizationCode])) {
+                $iconsByOrg[$organizationCode] = [];
+            }
+            $iconsByOrg[$organizationCode][] = $icon;
+
+            if (! isset($iconToModelMap[$icon])) {
+                $iconToModelMap[$icon] = [];
+            }
+            $iconToModelMap[$icon][] = $model;
+        }
+
+        // 批量获取图标URL
+        $iconUrlMap = [];
+        foreach ($iconsByOrg as $organizationCode => $icons) {
+            $links = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
+            $iconUrlMap = array_merge($iconUrlMap, $links);
+        }
+
+        // 设置图标URL
+        foreach ($iconUrlMap as $icon => $fileLink) {
+            if (isset($iconToModelMap[$icon])) {
+                $url = $fileLink ? $fileLink->getUrl() : '';
+                foreach ($iconToModelMap[$icon] as $model) {
+                    $model->setIcon($url);
+                }
+            }
+        }
+    }
+
+    /**
      * 填充 provider 信息并处理 icon.
      */
     private function fillProviderInfoAndIcon(
@@ -353,7 +423,7 @@ readonly class AdminProviderAppService
         $icon = FileAssembler::formatPath($icon);
 
         $organizationCode = substr($icon, 0, strpos($icon, '/'));
-        $fileLink = $this->fileDomainService->getLink($organizationCode, $icon, StorageBucketType::Public);
+        $fileLink = $this->fileDomainService->getLink($organizationCode, $icon);
         return $fileLink !== null ? $fileLink->getUrl() : '';
     }
 

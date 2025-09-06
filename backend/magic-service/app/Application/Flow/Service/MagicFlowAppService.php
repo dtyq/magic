@@ -284,7 +284,7 @@ class MagicFlowAppService extends AbstractFlowAppService
     /**
      * @return array{total: int, list: array<MagicFlowToolSetEntity>, icons: array<string, FileLink>, users: array<string, MagicUserEntity>}
      */
-    public function queryToolSets(Authenticatable $authorization): array
+    public function queryToolSets(Authenticatable $authorization, bool $withBuiltInTools = true): array
     {
         /** @var MagicUserAuthorization $authorization */
         $page = Page::createNoPage();
@@ -309,17 +309,19 @@ class MagicFlowAppService extends AbstractFlowAppService
 
         // 增加系统内置工具集
         $builtInTools = [];
-        foreach (BuiltInToolSetCollector::list() as $builtInToolSet) {
-            $toolSetData['list'][] = $builtInToolSet->generateToolSet();
-            foreach ($builtInToolSet->getTools() as $builtInTool) {
-                // 私有工具，需要有高级图像转换URI权限才能显示
-                if ($builtInTool->getCode() === 'ai_image_image_convert_high'
-                    && ! PermissionChecker::mobileHasPermission($authorization->getMobile(), SuperPermissionEnum::FLOW_ADMIN)
-                ) {
-                    continue;
-                }
-                if ($builtInTool->isShow()) {
-                    $builtInTools[] = $builtInTool;
+        if ($withBuiltInTools) {
+            foreach (BuiltInToolSetCollector::list() as $builtInToolSet) {
+                $toolSetData['list'][] = $builtInToolSet->generateToolSet();
+                foreach ($builtInToolSet->getTools() as $builtInTool) {
+                    // 私有工具，需要有高级图像转换URI权限才能显示
+                    if ($builtInTool->getCode() === 'ai_image_image_convert_high'
+                        && ! PermissionChecker::mobileHasPermission($authorization->getMobile(), SuperPermissionEnum::FLOW_ADMIN)
+                    ) {
+                        continue;
+                    }
+                    if ($builtInTool->isShow()) {
+                        $builtInTools[] = $builtInTool;
+                    }
                 }
             }
         }
@@ -365,10 +367,11 @@ class MagicFlowAppService extends AbstractFlowAppService
         $toolSetData['total'] = count($toolSetData['list']);
 
         $toolSetData['icons'] = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths);
-        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
-            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
-            $userIds
-        );
+        //        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
+        //            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
+        //            $userIds
+        //        );
+        $toolSetData['users'] = [];
 
         return $toolSetData;
     }

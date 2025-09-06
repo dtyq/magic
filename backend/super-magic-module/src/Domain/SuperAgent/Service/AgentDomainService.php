@@ -9,14 +9,11 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\File\Service\FileAppService;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -39,6 +36,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -55,7 +53,6 @@ class AgentDomainService
         LoggerFactory $loggerFactory,
         private SandboxGatewayInterface $gateway,
         private SandboxAgentInterface $agent,
-        private readonly FileProcessAppService $fileProcessAppService,
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly CloudFileRepositoryInterface $cloudFileRepository,
@@ -172,14 +169,16 @@ class AgentDomainService
         return $result;
     }
 
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
+    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): void
     {
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'memory_provided' => $memory !== null,
+            'memory_length' => $memory ? strlen($memory) : 0,
         ]);
 
         // 1. 构建初始化信息
-        $config = $this->generateInitializationInfo($dataIsolation, $taskContext);
+        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory);
 
         // 2. 调用初始化接口
         $result = $this->agent->initAgent($taskContext->getSandboxId(), InitAgentRequest::fromArray($config));
@@ -201,14 +200,16 @@ class AgentDomainService
     {
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'prompt' => $taskContext->getTask()->getPrompt(),
+            'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
+            'mentions' => $taskContext->getTask()->getMentions(),
+            'mcp_config' => $taskContext->getMcpConfig(),
+            'model_id' => $taskContext->getModelId(),
+            'dynamic_config' => $taskContext->getDynamicConfig(),
         ]);
-
-        $mentionsJsonStruct = $this->buildMentionsJsonStruct($dataIsolation, $taskContext->getTask()->getMentions(), $taskContext->getTask()->getProjectId());
-
-        $attachmentUrls = [];
-        if (! empty($mentionsJsonStruct)) {
-            $attachmentUrls = $this->fileProcessAppService->getFilesWithMentions($dataIsolation, $mentionsJsonStruct);
-        }
+        $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -218,7 +219,6 @@ class AgentDomainService
             prompt: $taskContext->getTask()->getPrompt(),
             taskMode: $taskContext->getTask()->getTaskMode(),
             agentMode: $taskContext->getAgentMode(),
-            attachments: $attachmentUrls,
             mentions: $mentionsJsonStruct,
             mcpConfig: $taskContext->getMcpConfig(),
             modelId: $taskContext->getModelId(),
@@ -716,7 +716,7 @@ class AgentDomainService
     /**
      * 构建初始化消息.
      */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext): array
+    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
     {
         // 1. 获取上传配置信息
         $storageType = StorageBucketType::SandBox->value;
@@ -744,7 +744,7 @@ class AgentDomainService
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
             workspaceId: $taskContext->getWorkspaceId(),
             projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $dataIsolation->getLanguage(),
+            language: $dataIsolation->getLanguage() ?? '',
             userInfo: $userInfo,
         );
 
@@ -778,69 +778,28 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
+            'model_id' => $taskContext->getModelId(),
         ];
     }
 
     /**
-     * 构建 mentions 的 JSON 结构数组，只包含 type, file_path, file_url 三个字段.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
      * @param null|string $mentionsJson mentions 的 JSON 字符串
-     * @param null|int $projectId 项目 ID
      * @return array 处理后的 mentions 数组
      */
-    private function buildMentionsJsonStruct(DataIsolation $dataIsolation, ?string $mentionsJson, ?int $projectId): array
+    private function buildMentionsJsonStruct(?string $mentionsJson): array
     {
-        $mentionsJsonStruct = [];
-
-        if (empty($mentionsJson)) {
-            return $mentionsJsonStruct;
+        if ($mentionsJson && json_validate($mentionsJson)) {
+            $mentions = (array) Json::decode($mentionsJson);
+        } else {
+            $mentions = [];
         }
 
-        $mentions = json_decode($mentionsJson, true);
-        if (empty($mentions) || ! is_array($mentions)) {
-            return $mentionsJsonStruct;
+        if (empty($mentionsJson) || empty($mentions)) {
+            return $mentions;
         }
-
-        $fileIds = array_filter(array_column($mentions, 'file_id'));
-        if (empty($fileIds)) {
-            return $mentionsJsonStruct;
-        }
-
-        $filesWithUrl = $this->fileProcessAppService->getFilesWithUrl($dataIsolation, $fileIds, $projectId);
-
-        // 提前处理 file_id，将文件数据转换为以 file_id 为键的关联数组，避免双重循环
-        $fileIdToFileMap = [];
-        foreach ($filesWithUrl as $file) {
-            $fileIdToFileMap[$file['file_id']] = $file;
-        }
-
-        // 构建新的数据结构，只包含 type, file_path, file_url
-        foreach ($mentions as $mention) {
-            $fileId = $mention['file_id'] ?? null;
-            if (! $fileId) {
-                continue;
-            }
-
-            // 从原始 mentions 中获取 type
-            $type = $mention['type'] ?? MentionType::PROJECT_FILE->value;
-
-            // 直接通过 file_id 获取对应的文件信息
-            $matchedFile = $fileIdToFileMap[$fileId] ?? null;
-
-            if ($matchedFile) {
-                // 从 file_url 中提取 file_path
-                $filePath = $mention['file_path'] ?? '';
-                if (empty($filePath) && ! empty($matchedFile['file_url'])) {
-                    // 使用 FileAssembler::formatPath 从 URL 中提取路径
-                    $filePath = FileAssembler::formatPath($matchedFile['file_url']);
-                }
-                $mentionFile = ['type' => $type, 'file_path' => $filePath, 'file_metadata' => $matchedFile];
-                $mentionsJsonStruct[] = $mentionFile;
-            }
-        }
-        return $mentionsJsonStruct;
+        return $mentions;
     }
 }

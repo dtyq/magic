@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -59,6 +61,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
@@ -73,6 +76,10 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         // Get topic information
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->getChatTopicId());
+
+        // 检查项目是否有权限
+        $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
         if (is_null($topicEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
@@ -165,6 +172,7 @@ class HandleUserMessageAppService extends AbstractAppService
     {
         $topicId = 0;
         $taskId = '';
+        $errMsg = '';
         try {
             // Get topic information
             $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
@@ -173,8 +181,11 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
 
+            // 检查项目是否有权限
+            $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity);
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -253,9 +264,10 @@ class HandleUserMessageAppService extends AbstractAppService
                 );
             }
         } catch (EventException $e) {
+            $errMsg = $e->getMessage();
             $this->logger->warning(sprintf(
                 'Initialize task, event processing failed: %s',
-                $e->getMessage()
+                $errMsg
             ));
             // Send error message directly to client
             $remindType = TaskEventUtil::getRemindTaskEventByCode($e->getCode());
@@ -268,12 +280,14 @@ class HandleUserMessageAppService extends AbstractAppService
                 remindEvent: $remindType
             );
         } catch (Throwable $e) {
+            $errMsg = $e->getMessage();
             $this->logger->error(sprintf(
-                'handleChatMessage Error: %s, User: %s file: %s line: %s',
-                $e->getMessage(),
+                'handleChatMessage Error: %s, User: %s file: %s line: %s stack: %s',
+                $errMsg,
                 $dataIsolation->getCurrentUserId(),
                 $e->getFile(),
-                $e->getLine()
+                $e->getLine(),
+                $e->getTraceAsString()
             ));
             // Send error message directly to client
             $this->clientMessageAppService->sendErrorMessageToClient(
@@ -290,7 +304,7 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language): void
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
@@ -302,7 +316,7 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -362,8 +376,16 @@ class HandleUserMessageAppService extends AbstractAppService
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
+        // user long term memory
+        $memory = $this->longTermMemoryDomainService->getEffectiveMemoriesForPrompt(
+            $dataIsolation->getCurrentOrganizationCode(),
+            AppCodeEnum::SUPER_MAGIC->value,
+            $dataIsolation->getCurrentUserId(),
+            (string) $taskContext->getProjectId(),
+        );
+
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());

@@ -10,11 +10,20 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Hyperf\DbConnection\Db;
+
+use function Hyperf\Translation\trans;
 
 /**
  * Project Domain Service.
@@ -23,6 +32,10 @@ class ProjectDomainService
 {
     public function __construct(
         private readonly ProjectRepositoryInterface $projectRepository,
+        private readonly ProjectForkRepositoryInterface $projectForkRepository,
+        private readonly TaskFileRepositoryInterface $taskFileRepository,
+        private readonly TopicRepositoryInterface $topicRepository,
+        private readonly TaskRepositoryInterface $taskRepository,
     ) {
     }
 
@@ -111,9 +124,13 @@ class ProjectDomainService
         return $project;
     }
 
-    public function getProjectNotUserId(int $projectId): ProjectEntity
+    public function getProjectNotUserId(int $projectId): ?ProjectEntity
     {
-        return $this->projectRepository->findById($projectId);
+        $project = $this->projectRepository->findById($projectId);
+        if ($project === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
+        }
+        return $project;
     }
 
     /**
@@ -165,5 +182,191 @@ class ProjectDomainService
         $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $this->projectRepository->save($projectEntity);
         return true;
+    }
+
+    public function getProjectForkCount(int $projectId): int
+    {
+        return $this->projectForkRepository->getForkCountByProjectId($projectId);
+    }
+
+    public function findByForkProjectId(int $forkProjectId): ?ProjectForkEntity
+    {
+        return $this->projectForkRepository->findByForkProjectId($forkProjectId);
+    }
+
+    /**
+     * Fork project.
+     */
+    public function forkProject(
+        int $sourceProjectId,
+        int $targetWorkspaceId,
+        string $targetProjectName,
+        string $userId,
+        string $userOrganizationCode
+    ): array {
+        // Check if user already has a running fork for this project
+        if ($this->projectForkRepository->hasRunningFork($userId, $sourceProjectId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_FORK_ALREADY_RUNNING, trans('project.fork_already_running'));
+        }
+
+        // Get source project entity
+        $sourceProject = $this->projectRepository->findById($sourceProjectId);
+        if (! $sourceProject) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        $currentTime = date('Y-m-d H:i:s');
+
+        // Create forked project entity
+        $forkedProject = $this->createForkedProjectFromSource(
+            $sourceProject,
+            $targetWorkspaceId,
+            $targetProjectName,
+            $userId,
+            $userOrganizationCode,
+            $currentTime
+        );
+
+        // Save forked project
+        $forkedProject = $this->projectRepository->create($forkedProject);
+
+        // Count total files in source project
+        $totalFiles = $this->taskFileRepository->countFilesByProjectId($sourceProjectId);
+
+        // Create fork record
+        $projectFork = new ProjectForkEntity();
+        $projectFork->setSourceProjectId($sourceProjectId)
+            ->setForkProjectId($forkedProject->getId())
+            ->setTargetWorkspaceId($targetWorkspaceId)
+            ->setUserId($userId)
+            ->setUserOrganizationCode($userOrganizationCode)
+            ->setStatus(ForkStatus::RUNNING->value)
+            ->setProgress(0)
+            ->setTotalFiles($totalFiles)
+            ->setProcessedFiles(0)
+            ->setCreatedUid($userId)
+            ->setUpdatedUid($userId)
+            ->setCreatedAt($currentTime)
+            ->setUpdatedAt($currentTime);
+
+        $projectFork = $this->projectForkRepository->create($projectFork);
+
+        return [$forkedProject, $projectFork];
+    }
+
+    public function getForkProjectRecordById(int $forkId): ?ProjectForkEntity
+    {
+        return $this->projectForkRepository->findById($forkId);
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(int $sourceProjectId, int $targetWorkspaceId, string $userId): ProjectEntity
+    {
+        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId) {
+            $currentTime = date('Y-m-d H:i:s');
+
+            // Get the source project first to return updated entity
+            $sourceProject = $this->projectRepository->findById($sourceProjectId);
+            if (! $sourceProject) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+            }
+
+            // Get original workspace ID for topic and task updates
+            $originalWorkspaceId = $sourceProject->getWorkspaceId();
+
+            // Check if project is already in target workspace
+            if ($originalWorkspaceId === $targetWorkspaceId) {
+                // Project is already in the target workspace, no need to move
+                return $sourceProject;
+            }
+
+            // Update project workspace_id
+            $projectUpdateResult = $this->projectRepository->updateProjectByCondition(
+                ['id' => $sourceProjectId],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_uid' => $userId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            if (! $projectUpdateResult) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::UPDATE_PROJECT_FAILED, trans('project.project_update_failed'));
+            }
+
+            // Update topics workspace_id
+            $topicUpdateResult = $this->topicRepository->updateTopicByCondition(
+                [
+                    'project_id' => $sourceProjectId,
+                    'workspace_id' => $originalWorkspaceId,
+                ],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            // Update tasks workspace_id
+            $taskUpdateResult = $this->taskRepository->updateTaskByCondition(
+                [
+                    'project_id' => $sourceProjectId,
+                    'workspace_id' => $originalWorkspaceId,
+                ],
+                [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_at' => $currentTime,
+                ]
+            );
+
+            // Return updated project entity
+            $updatedProject = $this->projectRepository->findById($sourceProjectId);
+            if (! $updatedProject) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+            }
+
+            // todo 记录操作日志
+
+            return $updatedProject;
+        });
+    }
+
+    /**
+     * 更新项目的updated_at时间.
+     */
+    public function updateUpdatedAtToNow(int $projectId): bool
+    {
+        return $this->projectRepository->updateUpdatedAtToNow($projectId);
+    }
+
+    /**
+     * Create forked project from source project.
+     */
+    private function createForkedProjectFromSource(
+        ProjectEntity $sourceProject,
+        int $targetWorkspaceId,
+        string $targetProjectName,
+        string $userId,
+        string $userOrganizationCode,
+        string $currentTime
+    ): ProjectEntity {
+        $forkedProject = new ProjectEntity();
+        $forkedProject->setUserId($userId)
+            ->setUserOrganizationCode($userOrganizationCode)
+            ->setWorkspaceId($targetWorkspaceId)
+            ->setProjectName($targetProjectName)
+            ->setProjectDescription($sourceProject->getProjectDescription())
+            ->setWorkDir('') // Will be set later during file migration
+            ->setProjectMode($sourceProject->getProjectMode())
+            ->setProjectStatus(ProjectStatus::ACTIVE->value)
+            ->setCurrentTopicId(null)
+            ->setCurrentTopicStatus('')
+            ->setCreatedUid($userId)
+            ->setUpdatedUid($userId)
+            ->setCreatedAt($currentTime)
+            ->setUpdatedAt($currentTime);
+
+        return $forkedProject;
     }
 }

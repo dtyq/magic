@@ -139,7 +139,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
                     date('Y-m-d H:i:s', $actualOriginalTimestamp),
                     $messageDTO->getPayload()?->getMessageId()
                 ));
-                return Result::REQUEUE;
+                return Result::ACK;
             }
 
             $this->logger->info(sprintf(
@@ -190,7 +190,7 @@ class TopicTaskMessageSubscriber extends ConsumerMessage
 
     public function acquireLock(string $lockKey, string $lockOwner, int $lockExpireSeconds): bool
     {
-        return $this->locker->mutexLock($lockKey, $lockOwner, $lockExpireSeconds);
+        return $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
     }
 
     /**

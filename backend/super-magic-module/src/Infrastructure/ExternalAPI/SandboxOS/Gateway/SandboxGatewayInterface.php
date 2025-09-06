@@ -95,6 +95,14 @@ interface SandboxGatewayInterface
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
 
     /**
+     * 复制文件（同步操作）.
+     *
+     * @param array $files 文件复制项目数组，格式：[['source_oss_path' => 'xxx', 'target_oss_path' => 'xxx'], ...]
+     * @return GatewayResult 复制结果
+     */
+    public function copyFiles(array $files): GatewayResult;
+
+    /**
      * 升级沙箱镜像.
      *
      * @param string $messageId 消息ID

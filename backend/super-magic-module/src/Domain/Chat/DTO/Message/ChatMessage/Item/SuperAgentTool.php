@@ -51,7 +51,7 @@ class SuperAgentTool extends AbstractEntity
 
     public function __construct(array $tool)
     {
-        $this->initProperty($tool);
+        parent::__construct($tool);
     }
 
     public function getId(): ?string

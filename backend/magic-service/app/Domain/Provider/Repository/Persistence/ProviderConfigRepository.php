@@ -93,6 +93,9 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
             $builder->whereIn('id', $query->getIds());
         }
 
+        // 添加排序（数字越大越靠前）
+        $builder->orderBy('sort', 'DESC')->orderBy('id', 'ASC');
+
         $result = $this->getByPage($builder, $page, $query);
 
         $list = [];
@@ -156,18 +159,6 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
     {
         $builder = $this->createConfigQuery()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
         $builder->where('id', $id)->delete();
-    }
-
-    public function findByIdAndOrganizationCode(string $id, string $organizationCode): ?ProviderConfigEntity
-    {
-        $model = $this->createConfigQuery()
-            ->where('id', $id)
-            ->where('organization_code', $organizationCode)
-            ->first();
-        if (! $model) {
-            return null;
-        }
-        return ProviderConfigAssembler::toEntity($model->toArray());
     }
 
     public function findFirstByServiceProviderId(ProviderDataIsolation $dataIsolation, int $serviceProviderId): ?ProviderConfigEntity
@@ -261,6 +252,14 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
                 $otherProviders[] = $provider;
             }
         }
+
+        // 对其他服务商按 sort 字段排序（数字越大越靠前）
+        usort($otherProviders, function ($a, $b) {
+            if ($a->getSort() === $b->getSort()) {
+                return strcmp($a->getId(), $b->getId()); // 相同 sort 值时按 ID 排序
+            }
+            return $b->getSort() <=> $a->getSort(); // 降序排列，数字大的在前
+        });
 
         // 如果找到 Magic 服务商，将其放在第一位（非官方组织才会有 Magic 服务商）
         if ($magicProvider !== null) {
@@ -373,7 +372,9 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
         // 根据组织编码和服务商ID列表获取配置
         $providerConfigQuery = $this->createConfigQuery()
             ->where('organization_code', $organizationCode)
-            ->whereIn('service_provider_id', $serviceProviderIds);
+            ->whereIn('service_provider_id', $serviceProviderIds)
+            ->orderBy('sort', 'DESC')
+            ->orderBy('id', 'ASC');
 
         if ($status) {
             $providerConfigQuery->where('status', $status->value);

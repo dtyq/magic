@@ -3,7 +3,7 @@
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
 </div>
 
-![Magic Open Source Product Matrix](https://public-cdn.letsmagic.cn/static/img/super-magic-publish-header-en.png?v=20250515)
+![Magic Open Source Product Matrix](https://public-cdn.letsmagic.ai/static/img/super-magic-publish-header-en.png?v=20250819)
 
 # 🔥 Magic - First Open-Source All-in-One AI Productivity Platform
 
@@ -36,7 +36,7 @@ Magic aims to help enterprises of all sizes quickly build and deploy AI applicat
 
 Magic is the first **"open-source all-in-one AI productivity platform"**, not a single AI product, but a comprehensive product matrix with rich capabilities.
 
-![Product Matrix](https://public-cdn.letsmagic.cn/static/img/super-magic-open-source-projects-en.png?v=20250515)
+![Product Matrix](https://public-cdn.letsmagic.ai/static/img/super-magic-open-source-projects-en.png?v=20250819)
 
 - **[Super Magic](https://github.com/dtyq/super-magic)** - A **general-purpose AI Agent** designed for complex task scenarios
 - **[Magic IM](https://github.com/dtyq/magic)** - An enterprise-grade instant messaging system that integrates AI Agent conversations with internal enterprise communication
@@ -55,7 +55,7 @@ In addition to the above AI products, we have also open-sourced some of the infr
 
 A powerful **general-purpose AI Agent** specially designed for complex task scenarios. Through a multi-agent design system and rich tool capabilities, Super Magic supports intelligent abilities such as **autonomous task understanding**, **autonomous task planning**, **autonomous action**, and **autonomous error correction**. It can understand natural language instructions, execute various business processes, and deliver final target results. As the flagship product of the Magic product matrix, Super Magic provides powerful secondary development capabilities through open source, allowing enterprises to quickly build and deploy intelligent assistants that meet specific business needs, greatly improving decision-making efficiency and quality.
 
-![Super Magic](https://public-cdn.letsmagic.cn/static/img/super-magic-buffett.gif)
+![Super Magic](https://public-cdn.letsmagic.ai/static/img/super-magic-buffett.gif)
 
 #### Super Magic Case Studies
 - [Analysis of Investment Insights from Buffett's 2025 Shareholders Meeting](https://www.letsmagic.cn/share/777665156986277889)
@@ -76,11 +76,11 @@ Magic Flow is a powerful visual AI workflow orchestration system that allows use
 - **Custom Extensions**: Support for custom tool node development to meet specific business scenario requirements.
 - **Real-time Debugging and Monitoring**: Providing comprehensive debugging and monitoring functions to help quickly identify and solve problems in workflows, ensuring stable operation of AI applications.
 
-![Magic Flow](https://public-cdn.letsmagic.cn/static/img/magic-flow.png)
+![Magic Flow](https://public-cdn.letsmagic.ai/static/img/magic-flow.png)
 
 As an important component of the Magic product matrix, Magic Flow can be seamlessly integrated with other Magic products to create a complete enterprise-level AI application ecosystem.
 
-![Magic Multi-Agents and Events](https://public-cdn.letsmagic.cn/static/img/super-magic-multi-agents-and-events-en.png?v=20250515)
+![Magic Multi-Agents and Events](https://public-cdn.letsmagic.ai/static/img/super-magic-multi-agents-and-events-en.png?v=20250819)
 
 ### Magic IM
 
@@ -94,7 +94,7 @@ Magic IM has the following core features:
 - **Multi-organizational Architecture**: Support for multi-organization deployment and strict organizational data isolation, with each organization having independent data space and access permissions.
 - **Data Security**: Strict data isolation and access control mechanisms, multi-level permission management, safeguarding sensitive enterprise information and ensuring no data leakage between organizations.
 
-![Magic IM](https://public-cdn.letsmagic.cn/static/img/magic-im-group-chat-en.png?v=20250515)
+![Magic IM](https://public-cdn.letsmagic.ai/static/img/magic-im-group-chat-en.png?v=20250819)
 
 ## Teamshare OS
 

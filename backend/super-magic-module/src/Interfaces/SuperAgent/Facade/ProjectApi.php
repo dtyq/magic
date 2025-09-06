@@ -12,8 +12,10 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -27,7 +29,7 @@ class ProjectApi extends AbstractApi
 {
     public function __construct(
         protected RequestInterface $request,
-        private readonly ProjectAppService $projectAppService
+        private readonly ProjectAppService $projectAppService,
     ) {
         parent::__construct($request);
     }
@@ -82,8 +84,11 @@ class ProjectApi extends AbstractApi
 
         $userId = $this->getAuthorization()->getId();
 
-        $project = $this->projectAppService->getProject((int) $id, $userId);
-        $projectDTO = ProjectItemDTO::fromEntity($project);
+        $project = $this->projectAppService->getProject($requestContext, (int) $id);
+
+        $hasProjectMember = $this->projectAppService->hasProjectMember($project->getId());
+
+        $projectDTO = ProjectItemDTO::fromEntity($project, null, null, $hasProjectMember);
 
         return $projectDTO->toArray();
     }
@@ -152,5 +157,42 @@ class ProjectApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         return $this->projectAppService->getCloudFiles($requestContext, (int) $id);
+    }
+
+    /**
+     * Fork project.
+     */
+    public function fork(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = ForkProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->forkProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Check fork project status.
+     */
+    public function forkStatus(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->projectAppService->checkForkProjectStatus($requestContext, (int) $id);
+    }
+
+    /**
+     * Move project to another workspace.
+     */
+    public function moveProject(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->moveProject($requestContext, $requestDTO);
     }
 }

@@ -8,6 +8,7 @@ use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Chat\Facade\MagicChatAdminContactApi;
 use App\Interfaces\Chat\Facade\MagicChatHttpApi;
 use App\Interfaces\Chat\Facade\MagicChatUserApi;
+use App\Interfaces\Contact\Facade\MagicUserOrganizationApi;
 use App\Interfaces\Contact\Facade\MagicUserSettingApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -15,6 +16,10 @@ use Hyperf\HttpServer\Router\Router;
 Router::addGroup('/api/v1/contact/accounts', function () {
     // Get user details for all organizations under the current account
     Router::get('/me/users', [MagicChatUserApi::class, 'getAccountUsersDetail']);
+    // 获取我的当前组织
+    Router::get('/me/organization-code', [MagicUserOrganizationApi::class, 'getCurrentOrganizationCode']);
+    // 修改我的当前组织
+    Router::put('/me/organization-code', [MagicUserOrganizationApi::class, 'setCurrentOrganizationCode']);
 });
 
 // 通讯录（需要组织上下文）

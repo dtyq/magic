@@ -100,8 +100,7 @@ class ImageConvertHighBuiltInToolTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-            ,
+JSON,
             true
         )));
         $node->setInput($input);

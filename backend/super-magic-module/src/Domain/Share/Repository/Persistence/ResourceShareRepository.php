@@ -47,7 +47,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
      */
     public function getShareByCode(string $shareCode): ?ResourceShareEntity
     {
-        $model = $this->model->newQuery()->where('share_code', $shareCode)->first();
+        $model = $this->model->newQuery()->where('share_code', $shareCode)->orderBy('id', 'desc')->first();
         return $model ? $this->modelToEntity($model) : null;
     }
 

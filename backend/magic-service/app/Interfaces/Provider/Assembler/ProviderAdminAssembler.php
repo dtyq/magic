@@ -94,13 +94,14 @@ class ProviderAdminAssembler
         $dto->setCategory($provider->getCategory());
         $dto->setStatus($providerConfig->getStatus());
         $dto->setIsModelsEnable($provider->getIsModelsEnable());
-        $dto->setTranslate($provider->getTranslate());
+        $dto->setTranslate(array_merge($provider->getTranslate(), $providerConfig->getTranslate()));
         $dto->setCreatedAt($provider->getCreatedAt()->format('Y-m-d H:i:s'));
 
         // 从 ProviderConfig 填充配置信息
         $dto->setAlias($providerConfig->getAlias());
         $dto->setServiceProviderId($providerConfig->getServiceProviderId());
         $dto->setConfig($providerConfig->getConfig());
+        $dto->setSort($providerConfig->getSort());
 
         // 转换模型 Entity 为 DTO
         $modelDTOs = [];

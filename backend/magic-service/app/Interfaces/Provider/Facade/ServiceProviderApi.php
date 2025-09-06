@@ -7,18 +7,19 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Provider\Facade;
 
-use App\Application\Chat\Service\MagicAccountAppService;
-use App\Application\Chat\Service\MagicUserContactAppService;
+use App\Application\Kernel\Enum\MagicOperationEnum;
+use App\Application\Kernel\Enum\MagicResourceEnum;
+use App\Application\Provider\DTO\SuperMagicModelDTO;
 use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
+use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
-use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
+use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
@@ -38,23 +39,28 @@ class ServiceProviderApi extends AbstractApi
     #[Inject]
     protected AdminOriginModelAppService $adminOriginModelAppService;
 
+    #[Inject]
+    protected ProviderAppService $providerAppService;
+
     // 根据分类获取服务商列表
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getServiceProviders(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
     // 根据分类获取服务商列表
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
     // 获取服务商和模型列表
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getServiceProviderConfigModels(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
-        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $providerConfigAggregateDTO = $this->adminProviderAppService->getProviderModelsByConfigId($authenticatable, $serviceProviderConfigId);
@@ -63,9 +69,9 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 更新服务商
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function updateServiceProviderConfig(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $updateProviderConfigRequest = new UpdateProviderConfigRequest($request->all());
@@ -73,9 +79,9 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 修改模型状态
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function updateModelStatus(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         $authenticatable = $this->getAuthorization();
         $status = $request->input('status', 0);
@@ -94,9 +100,9 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 保存模型
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function saveModelToServiceProvider(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         $saveProviderModelDTO = new SaveProviderModelDTO($request->all());
         return $this->adminProviderAppService->saveModel($authenticatable, $saveProviderModelDTO);
@@ -106,9 +112,9 @@ class ServiceProviderApi extends AbstractApi
      * 连通性测试.
      * @throws Exception
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function connectivityTest(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $serviceProviderConfigId = $request->input('service_provider_config_id');
@@ -122,27 +128,26 @@ class ServiceProviderApi extends AbstractApi
     /**
      * @throws Exception
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteModel(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         $authenticatable = $this->getAuthorization();
         $this->adminProviderAppService->deleteModel($authenticatable, $modelId);
     }
 
     // 获取原始模型id
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function listOriginalModels()
     {
-        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         return $this->adminOriginModelAppService->list($authenticatable);
     }
 
     // 增加原始模型id
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addOriginalModel(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
-
         $authenticatable = $this->getAuthorization();
         $modelId = $request->input('model_id');
         $this->adminOriginModelAppService->create($authenticatable, $modelId);
@@ -150,9 +155,9 @@ class ServiceProviderApi extends AbstractApi
 
     // 组织添加服务商
     #[Deprecated]
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addServiceProviderForOrganization(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $createProviderConfigRequest = new CreateProviderConfigRequest($request->all());
@@ -160,19 +165,19 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 删除服务商
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteServiceProviderForOrganization(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
 
-        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         $this->adminProviderAppService->deleteProvider($authenticatable, $serviceProviderConfigId);
     }
 
     // 组织添加模型标识
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function addModelIdForOrganization(RequestInterface $request)
     {
-        $this->isInWhiteListForOrganization();
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
         $modelId = $request->input('model_id');
@@ -180,9 +185,9 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 组织删除模型标识
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteModelIdForOrganization(RequestInterface $request, ?string $modelId = null)
     {
-        $this->isInWhiteListForOrganization();
         $modelId = $modelId ?? $request->input('model_id') ?? '';
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -194,9 +199,9 @@ class ServiceProviderApi extends AbstractApi
      * 直接从数据库中查询category为llm且provider_type不为OFFICIAL的服务商
      * 不依赖于当前组织，适用于需要添加服务商的场景.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
     public function getNonOfficialLlmProviders()
     {
-        $this->isInWhiteListForOrganization();
         $authenticatable = $this->getAuthorization();
         // 直接获取所有LLM类型的非官方服务商
         return $this->adminProviderAppService->getAllNonOfficialProviders(Category::LLM, $authenticatable->getOrganizationCode());
@@ -204,33 +209,22 @@ class ServiceProviderApi extends AbstractApi
 
     /**
      * Get super magic display models and Magic provider models visible to current organization.
-     * @return ProviderModelDetailDTO[]
+     * @return SuperMagicModelDTO[]
      */
     public function getSuperMagicDisplayModels(): array
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
 
-        return $this->adminProviderAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+        return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
     }
 
-    private function getPhone(string $userId)
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    public function queriesModels(RequestInterface $request): array
     {
-        $magicUserContactAppService = di(MagicUserContactAppService::class);
-        $user = $magicUserContactAppService->getByUserId($userId);
-        $magicAccountAppService = di(MagicAccountAppService::class);
-        $accountEntity = $magicAccountAppService->getAccountInfoByMagicId($user->getMagicId());
-        return $accountEntity->getPhone();
-    }
-
-    // 判断当前用户是否在白名单中
-    private function isInWhiteListForOrganization(): void
-    {
-        $authentication = $this->getAuthorization();
-        $phone = $this->getPhone($authentication->getId());
-        if (! PermissionChecker::isOrganizationAdmin($authentication->getOrganizationCode(), $phone)) {
-            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
-        }
+        $authenticatable = $this->getAuthorization();
+        $providerModelQuery = new ProviderModelQuery($request->all());
+        return $this->adminProviderAppService->queriesModels($authenticatable, $providerModelQuery);
     }
 
     /**
@@ -244,7 +238,6 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         $category = $request->input('category', 'llm');
         $serviceProviderCategory = Category::tryFrom($category);
-        $this->isInWhiteListForOrganization();
         if (! $serviceProviderCategory) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
         }

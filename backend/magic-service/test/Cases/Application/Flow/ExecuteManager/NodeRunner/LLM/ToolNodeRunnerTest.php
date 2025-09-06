@@ -77,8 +77,7 @@ class ToolNodeRunnerTest extends ExecuteManagerBaseTest
         }
     }
 }
-JSON
-                    , true)),
+JSON, true)),
             ],
         ]);
         $input = new NodeInput();
@@ -128,8 +127,7 @@ JSON
         }
     }
 }
-JSON
-            , true)));
+JSON, true)));
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'
  {
@@ -236,8 +234,7 @@ JSON, true)));
         }
     }
 }
-JSON
-                    , true)),
+JSON, true)),
             ],
             'user_prompt' => ComponentFactory::fastCreate(json_decode(<<<'JSON'
 {
@@ -257,8 +254,7 @@ JSON
         ]
     }
 }
-JSON
-                , true))->toArray(),
+JSON, true))->toArray(),
             'model' => 'gpt-4o-global',
         ]);
         $input = new NodeInput();
@@ -308,8 +304,7 @@ JSON
         }
     }
 }
-JSON
-            , true)));
+JSON, true)));
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'
  {
@@ -389,8 +384,7 @@ JSON, true)));
                     "properties": {}
                 }
             }
-JSON
-                    , true)),
+JSON, true)),
             ],
         ]);
         $input = new NodeInput();
@@ -488,8 +482,7 @@ JSON
                 }
             }
         }
-JSON
-            , true)));
+JSON, true)));
         $output = new NodeOutput();
         $output->setForm(ComponentFactory::fastCreate(json_decode(<<<'JSON'
 {

@@ -8,27 +8,50 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
+use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -43,6 +66,11 @@ class FileManagementAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ResourceShareDomainService $resourceShareDomainService,
+        private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
+        private readonly LockerInterface $locker,
+        private readonly Producer $producer,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -70,7 +98,7 @@ class FileManagementAppService extends AbstractAppService
 
             // 情况1：有项目ID，获取项目的work_dir
             if (! empty($projectId)) {
-                $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+                $projectEntity = $this->getAccessibleProject((int) $projectId, $userId, $userAuthorization->getOrganizationCode());
                 $workDir = $projectEntity->getWorkDir();
                 if (empty($workDir)) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
@@ -184,10 +212,30 @@ class FileManagementAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // 构建锁名称 - 基于项目ID和相对目录路径
+        $projectId = $requestDTO->getProjectId();
+        $fileKey = $requestDTO->getFileKey();
+
+        // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 计算相对目录路径（与 findOrCreateDirectoryAndGetParentId 逻辑一致）
+        $relativePath = WorkDirectoryUtil::getRelativeFilePath($fileKey, $projectEntity->getWorkDir());
+        $relativeDirectoryPath = dirname($relativePath);
+
+        $lockName = "file_directory_create:{$projectId}:" . md5($relativeDirectoryPath);
+        $lockOwner = getmypid() . '_' . microtime(true);
+
+        // 获取自旋锁（30秒超时）
+        if (! $this->locker->spinLock($lockName, $lockOwner, 30)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_SAVE_FAILED,
+                trans('file.directory_creation_locked')
+            );
+        }
+
         Db::beginTransaction();
         try {
-            $projectId = $requestDTO->getProjectId();
-
             if (empty($requestDTO->getFileKey())) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_key_required'));
             }
@@ -196,15 +244,9 @@ class FileManagementAppService extends AbstractAppService
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_name_required'));
             }
 
-            if ($requestDTO->getFileSize() <= 0) {
+            /*if ($requestDTO->getFileSize() <= 0) {
                 ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('validation.file_size_required'));
-            }
-
-            // 校验项目归属权限 - 确保用户只能保存到自己的项目
-            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
-            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-            }
+            }*/
 
             if (empty($requestDTO->getParentId())) {
                 $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
@@ -214,7 +256,7 @@ class FileManagementAppService extends AbstractAppService
                     fullFileKey: $requestDTO->getFileKey(),
                     workDir: $projectEntity->getWorkDir()
                 );
-                $requestDTO->setParentId($parentId);
+                $requestDTO->setParentId((string) $parentId);
             } else {
                 $parentFileEntity = $this->taskFileDomainService->getById((int) $requestDTO->getParentId());
                 if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != (int) $projectId) {
@@ -227,8 +269,8 @@ class FileManagementAppService extends AbstractAppService
 
             // 通过领域服务计算排序值
             $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
-                $requestDTO->getParentId(),
-                $requestDTO->getPreFileId(),
+                ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : null,
+                (int) $requestDTO->getPreFileId(),
                 (int) $requestDTO->getProjectId()
             );
 
@@ -242,6 +284,10 @@ class FileManagementAppService extends AbstractAppService
             );
 
             Db::commit();
+
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
 
             // 返回保存结果
             return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
@@ -266,6 +312,129 @@ class FileManagementAppService extends AbstractAppService
                 $requestDTO->getFileKey()
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, trans('file.file_save_failed'));
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
+        }
+    }
+
+    /**
+     * 批量保存项目文件（同一目录下）.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param BatchSaveProjectFilesRequestDTO $requestDTO Batch save request DTO
+     * @return array 批量保存结果，返回文件ID数组
+     */
+    public function batchSaveFiles(RequestContext $requestContext, BatchSaveProjectFilesRequestDTO $requestDTO): array
+    {
+        $files = $requestDTO->getFiles();
+
+        if (empty($files)) {
+            return [];
+        }
+
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $projectId = (int) $requestDTO->getProjectId();
+
+        // 项目级别锁
+        $lockName = "batch_save_files:{$projectId}";
+        $lockOwner = $userAuthorization->getId();
+
+        // 获取项目级别的锁（30秒超时）
+        if (! $this->locker->spinLock($lockName, $lockOwner, 30)) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_SAVE_FAILED,
+                trans('file.batch_save_locked')
+            );
+        }
+
+        Db::beginTransaction();
+        try {
+            // 1. 验证项目权限
+            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
+            }
+
+            // 2. 确定父目录ID
+            $parentIdStr = $requestDTO->getParentId();
+            if (empty($parentIdStr)) {
+                // 使用根目录
+                $parentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    $projectId,
+                    $projectEntity->getWorkDir(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            } else {
+                // 验证指定的parentId是否属于当前项目
+                $parentFileEntity = $this->taskFileDomainService->getById((int) $parentIdStr);
+                if (empty($parentFileEntity) || $parentFileEntity->getProjectId() != $projectId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.parent_not_found'));
+                }
+                $parentId = (int) $parentIdStr; // 转换为int类型
+            }
+
+            // 3. 批量保存文件
+            $savedFileIds = [];
+            foreach ($files as $fileData) {
+                try {
+                    // 基础参数验证
+                    if (empty($fileData['file_key'])) {
+                        throw new InvalidArgumentException('file_key is required');
+                    }
+                    if (empty($fileData['file_name'])) {
+                        throw new InvalidArgumentException('file_name is required');
+                    }
+
+                    // 创建 SaveProjectFileRequestDTO
+                    $fileData['project_id'] = (string) $projectEntity->getId();
+                    $fileData['parent_id'] = (string) $parentId;
+                    $requestDTO = SaveProjectFileRequestDTO::fromRequest($fileData);
+
+                    // 创建文件实体
+                    $taskFileEntity = $requestDTO->toEntity();
+
+                    // 保存文件（不设置排序值）
+                    $savedEntity = $this->taskFileDomainService->saveProjectFile(
+                        $dataIsolation,
+                        $taskFileEntity
+                    );
+
+                    $savedFileIds[] = TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir());
+                } catch (Throwable $e) {
+                    $this->logger->warning(sprintf(
+                        'Single file save failed in batch: %s, File: %s, Error: %s',
+                        $fileData['file_key'] ?? 'unknown',
+                        $fileData['file_name'] ?? 'unknown',
+                        $e->getMessage()
+                    ));
+                    // 单个文件失败不影响其他文件，继续处理下一个
+                }
+            }
+            Db::commit();
+            return $savedFileIds;
+        } catch (BusinessException $e) {
+            Db::rollBack();
+            $this->logger->warning(sprintf(
+                'Business logic error in batch save files: %s, Project ID: %s, Error Code: %d',
+                $e->getMessage(),
+                $projectId,
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf(
+                'System error in batch save files: %s, Project ID: %s',
+                $e->getMessage(),
+                $projectId
+            ));
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, trans('file.batch_save_failed'));
+        } finally {
+            // 确保释放锁
+            $this->locker->release($lockName, $lockOwner);
         }
     }
 
@@ -284,13 +453,10 @@ class FileManagementAppService extends AbstractAppService
         Db::beginTransaction();
         try {
             $projectId = (int) $requestDTO->getProjectId();
-            $parentId = (int) $requestDTO->getParentId();
+            $parentId = ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : 0;
 
             // 校验项目归属权限 - 确保用户只能在自己的项目中创建文件
-            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-            }
+            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 如果 parent_id 为空，则设置为根目录
             if (empty($parentId)) {
@@ -305,7 +471,7 @@ class FileManagementAppService extends AbstractAppService
             // 通过领域服务计算排序值
             $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
                 $parentId === 0 ? null : $parentId,
-                $requestDTO->getPreFileId(),
+                (int) $requestDTO->getPreFileId(),
                 $projectId
             );
 
@@ -320,6 +486,11 @@ class FileManagementAppService extends AbstractAppService
             );
 
             Db::commit();
+
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
+
             // 返回创建结果
             return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
@@ -352,13 +523,19 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
+            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
+                // 发布目录已删除事件
+                $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($directoryDeletedEvent);
             } else {
                 $deletedCount = 1;
                 $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
+                // 发布文件已删除事件
+                $fileDeletedEvent = new FileDeletedEvent($fileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+                $this->eventDispatcher->dispatch($fileDeletedEvent);
             }
             return ['file_id' => $fileId, 'count' => $deletedCount];
         } catch (BusinessException $e) {
@@ -392,7 +569,7 @@ class FileManagementAppService extends AbstractAppService
             $fileId = $requestDTO->getFileId();
 
             // 1. 验证项目是否属于当前用户
-            $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
+            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 2. 获取工作目录并拼接完整路径
             $workDir = $projectEntity->getWorkDir();
@@ -410,6 +587,10 @@ class FileManagementAppService extends AbstractAppService
 
             // 4. 调用领域服务执行批量删除
             $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath);
+
+            // 发布目录已删除事件
+            $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($directoryDeletedEvent);
 
             $this->logger->info(sprintf(
                 'Successfully deleted directory: Project ID: %s, Path: %s, Deleted files: %d',
@@ -455,10 +636,7 @@ class FileManagementAppService extends AbstractAppService
             $forceDelete = $requestDTO->getForceDelete();
 
             // Validate project ownership
-            $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-            if ($projectEntity->getUserId() != $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, trans('project.project_access_denied'));
-            }
+            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // Call domain service to batch delete files
             $result = $this->taskFileDomainService->batchDeleteProjectFiles(
@@ -474,6 +652,10 @@ class FileManagementAppService extends AbstractAppService
                 $projectId,
                 count($fileIds)
             ));
+
+            // 发布文件已上传事件
+            $fileUploadedEvent = new FilesBatchDeletedEvent((int) $requestDTO->getProjectId(), $requestDTO->getFileIds(), $userAuthorization);
+            $this->eventDispatcher->dispatch($fileUploadedEvent);
 
             return $result;
         } catch (BusinessException $e) {
@@ -504,8 +686,8 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
+            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if ($fileEntity->getIsDirectory()) {
                 // Directory rename: batch process all sub-files
@@ -521,6 +703,10 @@ class FileManagementAppService extends AbstractAppService
                 // Single file rename: use existing method
                 $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
             }
+
+            // 发布文件已重命名事件
+            $fileRenamedEvent = new FileRenamedEvent($newFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileRenamedEvent);
 
             return TaskFileItemDTO::fromEntity($newFileEntity, $projectEntity->getWorkDir())->toArray();
         } catch (BusinessException $e) {
@@ -543,16 +729,16 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, int $preFileId = -1): array
+    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, ?int $preFileId = null): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        Db::beginTransaction();
         try {
-            $fileEntity = $this->taskFileDomainService->getUserFileEntity($dataIsolation, $fileId);
-            $projectEntity = $this->projectDomainService->getProject($fileEntity->getProjectId(), $dataIsolation->getCurrentUserId());
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
+            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
+            // 2. Handle target parent directory
             if (empty($targetParentId)) {
                 $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $projectEntity->getId(),
@@ -562,31 +748,62 @@ class FileManagementAppService extends AbstractAppService
                 );
             }
 
-            // Check if this is a same-level move BEFORE modifying the entity
-            $isSameLevelMove = ($fileEntity->getParentId() === $targetParentId);
-
-            if ($isSameLevelMove) {
-                // For same-level moves, only handle sorting logic
-                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
-
-                // Update the entity in database (sort and updated_at)
-                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-                $this->taskFileDomainService->updateById($fileEntity);
-            } else {
-                // For cross-directory moves, handle both sorting and moving
-                $this->taskFileDomainService->handleFileSortOnMove($fileEntity, $targetParentId, $preFileId);
-                $this->taskFileDomainService->moveProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetParentId);
+            // Directory move: use asynchronous processing
+            if ($fileEntity->getIsDirectory()) {
+                $batchKey = $this->batchOperationStatusManager->generateBatchKey(FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), (string) $fileEntity->getFileId());
+                // Initialize task status
+                $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
+                // Publish move event
+                $fileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
+                $event = FileBatchMoveEvent::fromDTO(
+                    $batchKey,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileIds,
+                    $projectEntity->getId(),
+                    $preFileId,
+                    $targetParentId
+                );
+                $this->logger->info(sprintf('Move file request data, batchKey: %s', $batchKey), [
+                    'file_ids' => $fileIds,
+                    'target_parent_id' => $targetParentId,
+                    'pre_file_id' => $preFileId,
+                ]);
+                $publisher = new FileBatchMovePublisher($event);
+                $this->producer->produce($publisher);
+                // Return asynchronous response
+                return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
             }
 
-            Db::commit();
-            return [
-                'file_id' => $fileId,
-                'target_parent_id' => $targetParentId,
-                'pre_file_id' => $preFileId,
-            ];
+            // single file sync move
+            // 3. Handle cross-directory move file path update (check BEFORE modifying parent_id)
+            $originalParentId = $fileEntity->getParentId();
+            if ($originalParentId !== $targetParentId) {
+                $this->taskFileDomainService->moveProjectFile(
+                    $dataIsolation,
+                    $fileEntity,
+                    $projectEntity->getWorkDir(),
+                    $targetParentId
+                );
+            }
+
+            // 4. Use enhanced sorting method to handle move (includes locking and re balancing)
+            $this->taskFileDomainService->handleFileSortOnMove(
+                $fileEntity,
+                $targetParentId,
+                $preFileId
+            );
+
+            // 5. re get file
+            $newFileEntity = $this->taskFileDomainService->getById($fileId);
+
+            // 发布文件已移动事件
+            $fileMovedEvent = new FileMovedEvent($newFileEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($fileMovedEvent);
+
+            $result = TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
+            return FileBatchOperationResponseDTO::createSyncSuccess($result)->toArray();
         } catch (BusinessException $e) {
-            // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
-            Db::rollBack();
             $this->logger->warning(sprintf(
                 'Business logic error in move file: %s, File ID: %s, Target Parent ID: %s, Error Code: %d',
                 $e->getMessage(),
@@ -594,18 +811,14 @@ class FileManagementAppService extends AbstractAppService
                 $targetParentId,
                 $e->getCode()
             ));
-            // 直接重新抛出业务异常，让上层处理
             throw $e;
         } catch (Throwable $e) {
-            // 捕获其他系统异常
-            Db::rollBack();
             $this->logger->error(sprintf(
                 'System error in move project file: %s, File ID: %s, Target Parent ID: %s',
                 $e->getMessage(),
                 $fileId,
                 $targetParentId
             ));
-            // 转换为统一的系统错误
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
         }
     }
@@ -662,11 +875,38 @@ class FileManagementAppService extends AbstractAppService
     public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode): array
     {
         try {
-            return $this->taskFileDomainService->getFileUrlsByAccessToken(
-                $fileIds,
-                $accessToken,
-                $downloadMode
-            );
+            // 从缓存里获取数据
+            if (! AccessTokenUtil::validate($accessToken)) {
+                ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
+            }
+
+            // 从token获取内容
+            $shareId = AccessTokenUtil::getShareId($accessToken);
+            $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+            if (! $shareEntity) {
+                ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+            }
+
+            $projectId = 0;
+            switch ($shareEntity->getResourceType()) {
+                case ResourceType::Topic->value:
+                    $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
+                    if (empty($topicEntity)) {
+                        ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+                    }
+                    $projectId = $topicEntity->getProjectId();
+                    break;
+                case ResourceType::Project->value:
+                    $projectId = (int) $shareEntity->getResourceId();
+                    break;
+                default:
+                    ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+            }
+
+            $organizationCode = AccessTokenUtil::getOrganizationCode($accessToken);
+            $dataIsolation = DataIsolation::simpleMake($organizationCode);
+
+            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
@@ -684,6 +924,151 @@ class FileManagementAppService extends AbstractAppService
                 $downloadMode
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_urls_by_token_failed'));
+        }
+    }
+
+    /**
+     * Batch move files.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param BatchMoveFileRequestDTO $requestDTO Request DTO
+     * @return array Batch move result
+     */
+    public function batchMoveFile(RequestContext $requestContext, BatchMoveFileRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            // 1. Get project information
+            $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId());
+
+            // Generate batch key for tracking
+            $fileIds = $requestDTO->getFileIds();
+            sort($fileIds); // Ensure consistent hash for same file IDs
+            $fileIdsHash = md5(implode(',', $fileIds));
+            $batchKey = $this->batchOperationStatusManager->generateBatchKey(
+                FileBatchOperationStatusManager::OPERATION_MOVE,
+                $dataIsolation->getCurrentUserId(),
+                $fileIdsHash
+            );
+
+            // Initialize task status
+            $fileCount = count($requestDTO->getFileIds());
+            $this->batchOperationStatusManager->initializeTask(
+                $batchKey,
+                FileBatchOperationStatusManager::OPERATION_MOVE,
+                $dataIsolation->getCurrentUserId(),
+                $fileCount
+            );
+
+            // Print request data
+            $this->logger->info(sprintf('Batch move file request data, batchKey: %s', $batchKey), [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'pre_file_id' => $requestDTO->getPreFileId(),
+            ]);
+
+            // Create and publish batch move event
+            $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
+            if (empty($requestDTO->getTargetParentId())) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            } else {
+                $targetParentId = (int) $requestDTO->getTargetParentId();
+            }
+            $event = FileBatchMoveEvent::fromDTO(
+                $batchKey,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $requestDTO->getFileIds(),
+                $projectEntity->getId(),
+                $preFileId,
+                $targetParentId
+            );
+            $publisher = new FileBatchMovePublisher($event);
+            $this->producer->produce($publisher);
+            $this->eventDispatcher->dispatch($event);
+
+            // Return asynchronous response
+            return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
+        } catch (BusinessException $e) {
+            $this->logger->warning('Business logic error in batch move file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('System error in batch move file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.batch_move_failed'));
+        }
+    }
+
+    /**
+     * Check batch operation status.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param CheckBatchOperationStatusRequestDTO $requestDTO Request DTO
+     * @return FileBatchOperationStatusResponseDTO Response DTO
+     */
+    public function checkBatchOperationStatus(
+        RequestContext $requestContext,
+        CheckBatchOperationStatusRequestDTO $requestDTO
+    ): FileBatchOperationStatusResponseDTO {
+        try {
+            $batchKey = $requestDTO->getBatchKey();
+            $userAuthorization = $requestContext->getUserAuthorization();
+            $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+            // Verify user permission for this batch operation
+            if (! $this->batchOperationStatusManager->verifyUserPermission($batchKey, $dataIsolation->getCurrentUserId())) {
+                $this->logger->warning('User permission denied for batch operation status check', [
+                    'batch_key' => $batchKey,
+                    'user_id' => $dataIsolation->getCurrentUserId(),
+                ]);
+                return FileBatchOperationStatusResponseDTO::createNotFound();
+            }
+
+            // Get task status from Redis
+            $taskStatus = $this->batchOperationStatusManager->getTaskStatus($batchKey);
+
+            if (! $taskStatus) {
+                $this->logger->info('Batch operation not found', [
+                    'batch_key' => $batchKey,
+                    'user_id' => $dataIsolation->getCurrentUserId(),
+                ]);
+                return FileBatchOperationStatusResponseDTO::createNotFound();
+            }
+
+            // Log the status check
+            $this->logger->debug('Batch operation status retrieved', [
+                'batch_key' => $batchKey,
+                'status' => $taskStatus['status'] ?? 'unknown',
+                'operation' => $taskStatus['operation'] ?? 'unknown',
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+
+            // Create response DTO from task status
+            return FileBatchOperationStatusResponseDTO::fromTaskStatus($taskStatus);
+        } catch (BusinessException $e) {
+            $this->logger->warning('Business logic error in checking batch operation status', [
+                'batch_key' => $requestDTO->getBatchKey(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('System error in checking batch operation status', [
+                'batch_key' => $requestDTO->getBatchKey(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
         }
     }
 }

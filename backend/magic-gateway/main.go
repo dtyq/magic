@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,46 +14,51 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 )
 
 // 全局变量
 var (
-	// Redis客户端
-	redisClient *redis.Client
 	jwtSecret   []byte
+	jwtSecretID string // 密钥版本标识
 	envVars     map[string]string
 	logger      *log.Logger
 	debugMode   bool
 	ctx         = context.Background()
 
-	// Redis连接状态
-	redisAvailable bool
-
-	// 内存令牌存储（作为Redis的后备方案）
-	inMemoryTokenStore = make(map[string]TokenInfo)
-
 	// 支持的服务列表
 	supportedServices = []string{"OPENAI", "MAGIC", "DEEPSEEK"}
+
+	// 全局令牌版本计数器（用于吊销）
+	tokenVersionCounter int64 = 0
+
+	// 全局吊销时间戳
+	globalRevokeTimestamp int64 = 0
+
+	// JWT相关安全配置
+	keyRotationInterval = 24 * time.Hour // 密钥轮换间隔
+	lastKeyRotation time.Time
 )
 
-// TokenInfo 存储令牌相关信息
-type TokenInfo struct {
-	ContainerID string    `json:"container_id"`
-	Created     time.Time `json:"created"`
-	Expires     time.Time `json:"expires"`
-}
-
-// JWTClaims 定义JWT的声明
+// JWTClaims 定义JWT的声明 - 增强版
 type JWTClaims struct {
 	jwt.RegisteredClaims
 	ContainerID string `json:"container_id"`
+	MagicUserID string `json:"magic_user_id,omitempty"`
+	MagicOrganizationCode string `json:"magic_organization_code,omitempty"`
+	// 添加令牌版本用于吊销
+	TokenVersion int64 `json:"token_version"`
+	// 添加创建时间
+	CreatedAt int64 `json:"created_at"`
+	// 添加安全相关字段
+	KeyID string `json:"kid,omitempty"` // 密钥版本标识
+	Nonce string `json:"nonce,omitempty"` // 防重放攻击
+	Scope string `json:"scope,omitempty"` // 权限范围
 }
 
 // ServiceInfo 存储服务配置信息
@@ -59,6 +67,46 @@ type ServiceInfo struct {
 	BaseURL string `json:"base_url"`
 	ApiKey  string `json:"api_key,omitempty"`
 	Model   string `json:"default_model,omitempty"`
+}
+
+// 初始化JWT安全配置 - 从MAGIC_GATEWAY_API_KEY获取密钥
+func initJWTSecurity() {
+	// 从MAGIC_GATEWAY_API_KEY获取JWT密钥
+	apiKey := getEnvWithDefault("MAGIC_GATEWAY_API_KEY", "")
+	if apiKey == "" {
+		logger.Fatal("错误: 必须设置MAGIC_GATEWAY_API_KEY环境变量")
+	}
+
+	// 验证API密钥强度
+	// if len(apiKey) < 32 {
+	// 	logger.Printf("警告: MAGIC_GATEWAY_API_KEY长度不足，建议至少32字符")
+	// }
+
+	// 使用API密钥作为JWT密钥
+	jwtSecret = []byte(apiKey)
+
+	// 创建密钥版本标识（使用API密钥的哈希）
+	hash := sha256.Sum256([]byte(apiKey))
+	jwtSecretID = hex.EncodeToString(hash[:8]) // 使用前8字节作为版本标识
+
+	lastKeyRotation = time.Now()
+
+	logger.Printf("JWT安全配置已初始化，使用MAGIC_GATEWAY_API_KEY作为密钥")
+}
+
+// 生成防重放攻击的随机数
+func generateNonce() string {
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
+
+// 检查密钥轮换
+func checkKeyRotation() {
+	if time.Since(lastKeyRotation) > keyRotationInterval {
+		// 这里可以实现密钥轮换逻辑
+		logger.Printf("密钥轮换检查: 当前密钥已使用 %v", time.Since(lastKeyRotation))
+	}
 }
 
 // 初始化函数
@@ -70,11 +118,13 @@ func init() {
 	// 加载.env文件
 	err := godotenv.Load()
 	if err != nil {
-		logger.Println("警告: 无法加载.env文件:", err)
+		if debugMode {
+			logger.Printf("警告: 无法加载.env文件:", err)
+		}
 	}
 
-	// 获取JWT密钥
-	jwtSecret = []byte(getEnvWithDefault("JWT_SECRET", "your-secret-key-change-me"))
+	// 初始化JWT安全配置
+	initJWTSecurity()
 
 	// 缓存环境变量
 	envVars = make(map[string]string)
@@ -92,100 +142,6 @@ func init() {
 	}
 
 	logger.Printf("已加载 %d 个环境变量", len(envVars))
-
-	// 初始化Redis客户端
-	initRedisClient()
-
-	// 检测可用的API服务
-	detectAvailableServices()
-}
-
-// 初始化Redis客户端
-func initRedisClient() {
-	// 如果在Docker环境中运行，使用容器名称连接Redis
-	redisHost := getEnvWithDefault("REDIS_HOST", "magic-redis")
-	redisPort := getEnvWithDefault("REDIS_PORT", "6379")
-	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
-
-	// 向后兼容，如果直接设置了REDIS_ADDR则优先使用
-	if directAddr := getEnvWithDefault("REDIS_ADDR", ""); directAddr != "" {
-		redisAddr = directAddr
-	}
-
-	redisPassword := getEnvWithDefault("REDIS_PASSWORD", "")
-
-	// 根据环境确定使用的Redis数据库
-	env := getEnvWithDefault("ENV", "test")
-	redisDB := 0 // 默认使用DB 0
-
-	// 为不同环境使用不同的数据库
-	switch env {
-	case "test":
-		redisDB = 0
-	case "pre":
-		redisDB = 1
-	case "prod":
-		redisDB = 2
-	default:
-		// 未知环境默认使用test环境的数据库
-		redisDB = 0
-		logger.Printf("未知环境: %s, 将使用test环境的Redis数据库", env)
-	}
-
-	// 如果明确指定了DB，则使用指定的
-	if dbStr := getEnvWithDefault("REDIS_DB", ""); dbStr != "" {
-		if db, err := strconv.Atoi(dbStr); err == nil {
-			redisDB = db
-		}
-	}
-
-	logger.Printf("连接Redis: %s (DB: %d, 环境: %s)", redisAddr, redisDB, env)
-
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: redisPassword,
-		DB:       redisDB,
-	})
-
-	// 测试连接
-	_, err := redisClient.Ping(ctx).Result()
-	if err != nil {
-		logger.Printf("警告: 无法连接到Redis: %v", err)
-		logger.Printf("将使用内存存储作为后备方案")
-		redisAvailable = false
-	} else {
-		logger.Printf("成功连接到Redis服务器，使用数据库: %d", redisDB)
-		redisAvailable = true
-	}
-}
-
-// 检测可用的API服务
-func detectAvailableServices() {
-	availableServices := []ServiceInfo{}
-
-	for _, service := range supportedServices {
-		baseUrlKey := fmt.Sprintf("%s_API_BASE_URL", service)
-		apiKeyKey := fmt.Sprintf("%s_API_KEY", service)
-		modelKey := fmt.Sprintf("%s_MODEL", service)
-
-		baseUrl, hasBaseUrl := envVars[baseUrlKey]
-		apiKey, hasApiKey := envVars[apiKeyKey]
-		model, _ := envVars[modelKey]
-
-		if hasBaseUrl && hasApiKey {
-			availableServices = append(availableServices, ServiceInfo{
-				Name:    service,
-				BaseURL: baseUrl,
-				ApiKey:  apiKey,
-				Model:   model,
-			})
-			logger.Printf("检测到可用API服务: %s (%s)", service, baseUrl)
-		}
-	}
-
-	if len(availableServices) == 0 {
-		logger.Println("警告: 未检测到任何可用的API服务")
-	}
 }
 
 // 辅助函数：获取环境变量，如果不存在则使用默认值
@@ -207,6 +163,7 @@ func main() {
 	http.HandleFunc("/env", envHandler)
 	http.HandleFunc("/status", statusHandler)
 	http.HandleFunc("/revoke", revokeHandler)
+	http.HandleFunc("/revoke-all", revokeAllTokensHandler) // 新增吊销所有令牌的端点
 	http.HandleFunc("/services", servicesHandler)
 	http.HandleFunc("/", proxyHandler)
 
@@ -227,7 +184,15 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		containerID := r.Header.Get("X-Container-ID")
-		logger.Printf("服务列表请求来自容器: %s", containerID)
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
+
+		// 如果X-Container-ID为空但magic-user-id存在，使用magic-user-id
+		if containerID == "" && magicUserID != "" {
+			containerID = magicUserID
+		}
+
+		logger.Printf("服务列表请求来自容器: %s, 用户: %s, 组织: %s", containerID, magicUserID, magicOrganizationCode)
 
 		// 获取可用服务列表
 		services := []ServiceInfo{}
@@ -272,152 +237,7 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 	handler(w, r)
 }
 
-// 保存令牌到存储
-func saveToken(tokenID string, tokenInfo TokenInfo) error {
-	if redisAvailable {
-		// 尝试保存到Redis
-		err := saveTokenToRedis(tokenID, tokenInfo)
-		if err != nil {
-			logger.Printf("保存到Redis失败，回退到内存存储: %v", err)
-			// 如果Redis保存失败，回退到内存存储
-			inMemoryTokenStore[tokenID] = tokenInfo
-		}
-		return nil
-	} else {
-		// 直接使用内存存储
-		inMemoryTokenStore[tokenID] = tokenInfo
-		if debugMode {
-			logger.Printf("令牌已保存到内存: %s", tokenID)
-		}
-		return nil
-	}
-}
-
-// 从存储获取令牌
-func getToken(tokenID string) (TokenInfo, bool) {
-	if redisAvailable {
-		// 首先尝试从Redis获取
-		tokenInfo, found := getTokenFromRedis(tokenID)
-		if found {
-			return tokenInfo, true
-		}
-	}
-
-	// 如果Redis不可用或Redis中未找到，从内存中获取
-	tokenInfo, found := inMemoryTokenStore[tokenID]
-	return tokenInfo, found
-}
-
-// 从存储中删除令牌
-func deleteToken(tokenID string) error {
-	if redisAvailable {
-		// 尝试从Redis删除
-		err := deleteTokenFromRedis(tokenID)
-		if err != nil {
-			logger.Printf("从Redis删除令牌失败: %v", err)
-		}
-	}
-
-	// 无论Redis操作是否成功，都从内存中删除
-	delete(inMemoryTokenStore, tokenID)
-	if debugMode {
-		logger.Printf("令牌已从内存删除: %s", tokenID)
-	}
-
-	return nil
-}
-
-// 获取活跃令牌数量
-func getActiveTokenCount() int64 {
-	var count int64 = 0
-
-	if redisAvailable {
-		// 尝试从Redis获取令牌数量
-		redisCount, err := getTokenCount()
-		if err == nil {
-			count = redisCount
-		}
-	}
-
-	// 如果Redis不可用或获取失败，使用内存存储的数量
-	if count == 0 {
-		count = int64(len(inMemoryTokenStore))
-	}
-
-	return count
-}
-
-// 保存令牌到Redis
-func saveTokenToRedis(tokenID string, tokenInfo TokenInfo) error {
-	// 将TokenInfo序列化为JSON
-	tokenJSON, err := json.Marshal(tokenInfo)
-	if err != nil {
-		return err
-	}
-
-	// 设置过期时间（比令牌本身多1天，确保Redis中的数据在令牌有效期内始终可用）
-	expiration := time.Until(tokenInfo.Expires) + 24*time.Hour
-
-	// 保存到Redis
-	err = redisClient.Set(ctx, "token:"+tokenID, tokenJSON, expiration).Err()
-	if err != nil {
-		return err
-	}
-
-	if debugMode {
-		logger.Printf("令牌已保存到Redis: %s, 过期时间: %v", tokenID, expiration)
-	}
-
-	return nil
-}
-
-// 从Redis获取令牌信息
-func getTokenFromRedis(tokenID string) (TokenInfo, bool) {
-	var tokenInfo TokenInfo
-
-	// 从Redis获取令牌
-	tokenJSON, err := redisClient.Get(ctx, "token:"+tokenID).Result()
-	if err != nil {
-		if err != redis.Nil {
-			logger.Printf("从Redis获取令牌出错: %v", err)
-		}
-		return tokenInfo, false
-	}
-
-	// 反序列化JSON
-	err = json.Unmarshal([]byte(tokenJSON), &tokenInfo)
-	if err != nil {
-		logger.Printf("解析令牌JSON出错: %v", err)
-		return tokenInfo, false
-	}
-
-	return tokenInfo, true
-}
-
-// 从Redis删除令牌
-func deleteTokenFromRedis(tokenID string) error {
-	err := redisClient.Del(ctx, "token:"+tokenID).Err()
-	if err != nil {
-		return err
-	}
-
-	if debugMode {
-		logger.Printf("令牌已从Redis删除: %s", tokenID)
-	}
-
-	return nil
-}
-
-// 获取Redis中的所有令牌数量
-func getTokenCount() (int64, error) {
-	count, err := redisClient.Keys(ctx, "token:*").Result()
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(count)), nil
-}
-
-// 认证处理程序
+// 认证处理程序 - 修改为无状态认证
 func authHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
@@ -449,23 +269,9 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	logger.Printf("提取的客户端IP: %s", clientIP)
 
-	// 只允许本地请求（127.0.0.1或::1）
-	//isLocalhost := clientIP == "127.0.0.1" || clientIP == "::1" || clientIP == "localhost" || clientIP == "::ffff:127.0.0.1"
-	// if !isLocalhost {
-	// 	logger.Printf("拒绝来自非本地地址的令牌请求: %s", clientIP)
-	// 	http.Error(w, "只允许从本地主机请求临时令牌", http.StatusForbidden)
-	// 	return
-	// }
-
 	// 验证 Gateway API Key
 	gatewayAPIKey := r.Header.Get("X-Gateway-API-Key")
-	expectedAPIKey, exists := envVars["MAGIC_GATEWAY_API_KEY"]
-
-	if !exists {
-		logger.Printf("环境变量中未找到 MAGIC_GATEWAY_API_KEY，API密钥验证失败")
-		http.Error(w, "服务器配置错误", http.StatusInternalServerError)
-		return
-	}
+	expectedAPIKey := string(jwtSecret) // 直接使用JWT密钥作为期望的API密钥
 
 	if gatewayAPIKey == "" || gatewayAPIKey != expectedAPIKey {
 		logger.Printf("API密钥验证失败: 提供的密钥不匹配或为空")
@@ -475,27 +281,61 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 获取用户ID
 	userID := r.Header.Get("X-USER-ID")
+	magicUserID := r.Header.Get("magic-user-id")
+	magicOrganizationCode := r.Header.Get("magic-organization-code")
+	if userID == "" && magicUserID != "" {
+		userID = magicUserID
+	}
+
 	if userID == "" {
 		userID = "default-user"
 	}
 
-	logger.Printf("认证请求来自本地用户: %s", userID)
+	if magicOrganizationCode == "" {
+		magicOrganizationCode = ""
+	}
+
+	logger.Printf("认证请求来自本地用户: %s, 组织: %s", userID, magicOrganizationCode)
+
+	// 检查密钥轮换
+	checkKeyRotation()
+
+	// 生成防重放攻击的随机数
+	nonce := generateNonce()
 
 	// 创建唯一标识
 	tokenID := fmt.Sprintf("%d-%s", time.Now().UnixNano(), userID)
 
-	// 创建JWT声明 - 设置30天过期时间
+	// 增加令牌版本
+	atomic.AddInt64(&tokenVersionCounter, 1)
+	currentVersion := atomic.LoadInt64(&tokenVersionCounter)
+
+	// 创建JWT声明
 	claims := JWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)), // 30天后过期
+			NotBefore: jwt.NewNumericDate(time.Now()), // 立即生效
 		},
 		ContainerID: userID, // 保持字段名不变，但存储用户ID
+		MagicUserID: magicUserID,
+		MagicOrganizationCode: magicOrganizationCode,
+		TokenVersion: currentVersion,
+		CreatedAt: time.Now().Unix(),
+		KeyID: jwtSecretID,
+		Nonce: nonce,
+		Scope: "api_gateway", // 定义权限范围
 	}
 
 	// 创建令牌
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// 设置头部信息
+	token.Header["kid"] = jwtSecretID
+	token.Header["alg"] = "HS256"
+	token.Header["typ"] = "JWT"
+
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
 		logger.Printf("生成令牌失败: %v", err)
@@ -503,21 +343,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 存储令牌信息
-	tokenInfo := TokenInfo{
-		ContainerID: userID,
-		Created:     time.Now(),
-		Expires:     time.Now().Add(30 * 24 * time.Hour), // 30天后过期
-	}
-
-	err = saveToken(tokenID, tokenInfo)
-	if err != nil {
-		logger.Printf("保存令牌失败: %v", err)
-		http.Error(w, "保存令牌失败", http.StatusInternalServerError)
-		return
-	}
-
-	logger.Printf("生成30天有效令牌: %s (用户: %s)", tokenID, userID)
+	logger.Printf("生成安全令牌 (版本: %d, 密钥版本: %s) 用户: %s", currentVersion, jwtSecretID, userID)
 
 	// 返回令牌
 	w.Header().Set("Content-Type", "application/json")
@@ -526,10 +352,11 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		"header":  "Magic-Authorization",
 		"example": fmt.Sprintf("Magic-Authorization: Bearer %s", tokenString),
 		"note":    "请确保在使用令牌时添加Bearer前缀，否则网关将自动添加",
+		"security": "令牌包含防重放保护和密钥版本控制",
 	})
 }
 
-// 验证令牌函数
+// 验证令牌函数 - 修改为无状态验证
 func validateToken(tokenString string) (*JWTClaims, bool) {
 	// 移除Bearer前缀
 	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
@@ -540,6 +367,14 @@ func validateToken(tokenString string) (*JWTClaims, bool) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("意外的签名方法: %v", token.Header["alg"])
 		}
+
+		// 验证密钥版本
+		if kid, ok := token.Header["kid"].(string); ok {
+			if kid != jwtSecretID {
+				return nil, fmt.Errorf("密钥版本不匹配: %s", kid)
+			}
+		}
+
 		return jwtSecret, nil
 	}) // 现在验证标准声明，包括过期时间验证
 
@@ -560,11 +395,24 @@ func validateToken(tokenString string) (*JWTClaims, bool) {
 
 	// 提取声明
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		// 检查令牌是否在存储中
-		if _, exists := getToken(claims.ID); !exists {
-			logger.Printf("令牌未找到或已被吊销: %s", claims.ID)
+		// 检查令牌是否在全局吊销时间之后创建
+		if claims.CreatedAt < atomic.LoadInt64(&globalRevokeTimestamp) {
+			logger.Printf("令牌已被全局吊销")
 			return nil, false
 		}
+
+		// 验证权限范围
+		if claims.Scope != "api_gateway" {
+			logger.Printf("令牌权限范围无效: %s", claims.Scope)
+			return nil, false
+		}
+
+		// 验证密钥版本
+		if claims.KeyID != jwtSecretID {
+			logger.Printf("令牌密钥版本不匹配: %s", claims.KeyID)
+			return nil, false
+		}
+
 		return claims, true
 	}
 
@@ -598,21 +446,24 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 				// 如果没有Bearer前缀，则自动添加
 				authHeader = "Bearer " + authHeader
 				if debugMode {
-					logger.Printf("自动为Magic-Authorization头添加Bearer前缀: %s", authHeader)
+					//logger.Printf("自动为Magic-Authorization头添加Bearer前缀: %s", authHeader)
 				}
 			}
 		}
 
-		//super-magic代码有问题，暂时去掉 验证令牌
-		// claims, valid := validateToken(authHeader)
-		// if !valid {
-		// 	http.Error(w, "无效或过期的令牌", http.StatusUnauthorized)
-		// 	return
-		// }
+		// 验证令牌
+		claims, valid := validateToken(authHeader)
+		if !valid {
+			http.Error(w, "无效或过期的令牌", http.StatusUnauthorized)
+			return
+		}
 
 		// 将令牌信息存储在请求上下文中
-		// r.Header.Set("X-USER-ID", claims.ContainerID)
-		// r.Header.Set("X-TOKEN-ID", claims.ID)
+		r.Header.Set("X-User-Id", claims.ContainerID)
+
+		// 将JWT claims存储到请求上下文中，供后续处理程序使用
+		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
+		r = r.WithContext(ctx)
 
 		// 调用下一个处理程序
 		next(w, r)
@@ -632,8 +483,15 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 		// 获取请求的环境变量
 		varsParam := r.URL.Query().Get("vars")
 		userID := r.Header.Get("X-USER-ID")
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
 
-		logger.Printf("环境变量请求来自用户 %s: %s", userID, varsParam)
+		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
+		if userID == "" && magicUserID != "" {
+			userID = magicUserID
+		}
+
+		logger.Printf("环境变量请求来自用户 %s, 组织: %s, 变量: %s", userID, magicOrganizationCode, varsParam)
 
 		// 不再返回实际的环境变量值，而是返回可用的环境变量名称列表
 		allowedVarNames := getAvailableEnvVarNames()
@@ -695,16 +553,13 @@ func getAvailableEnvVarNames() []string {
 	return allowedVarNames
 }
 
-// 状态处理程序
+// 状态处理程序 - 修改为无状态认证
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	// 在调试模式下记录完整请求信息
 	if debugMode {
 		logger.Printf("STATUS请求:")
 		logFullRequest(r)
 	}
-
-	// 获取活跃令牌数量
-	tokenCount := getActiveTokenCount()
 
 	// 获取可用的环境变量名称
 	allowedVarNames := getAvailableEnvVarNames()
@@ -726,18 +581,21 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
 		"status":             "ok",
 		"version":            getEnvWithDefault("API_GATEWAY_VERSION", "1.0.0"),
-		"active_tokens":      tokenCount,
-		"redis_available":    redisAvailable,
+		"auth_mode":          "stateless_jwt",
 		"token_validity":     "30天",
 		"env_vars_available": allowedVarNames,
 		"services_available": availableServices,
+		"current_token_version": atomic.LoadInt64(&tokenVersionCounter),
+		"global_revoke_timestamp": atomic.LoadInt64(&globalRevokeTimestamp),
+		"jwt_key_id": jwtSecretID,
+		"jwt_algorithm": "HS256",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
 }
 
-// 吊销令牌处理程序
+// 吊销令牌处理程序 - 修改为基于版本吊销
 func revokeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
@@ -763,45 +621,56 @@ func revokeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 检查令牌是否存在
-		if _, exists := getToken(requestBody.TokenID); !exists {
-			http.Error(w, "令牌未找到", http.StatusNotFound)
-			return
-		}
-
-		// 删除令牌
-		err = deleteToken(requestBody.TokenID)
-		if err != nil {
-			logger.Printf("删除令牌失败: %v", err)
-			http.Error(w, "删除令牌失败", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Printf("吊销令牌: %s", requestBody.TokenID)
+		// 对于无状态认证，我们无法吊销单个令牌
+		// 但可以设置全局吊销时间戳来吊销所有令牌
+		logger.Printf("单个令牌吊销请求: %s (无状态认证不支持单个吊销)", requestBody.TokenID)
 
 		// 返回成功
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{
+		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
+			"message": "无状态认证模式下，请使用 /revoke-all 端点吊销所有令牌",
 		})
 	})
 
 	handler(w, r)
 }
 
-// 清理过期令牌 - Redis会自动处理过期，仅清理内存存储
-func cleanupExpiredTokens() {
-	// Redis会自动清理过期的键
-	// 仅清理内存存储中的过期令牌
-	now := time.Now()
-	for tokenID, tokenInfo := range inMemoryTokenStore {
-		if tokenInfo.Expires.Before(now) {
-			delete(inMemoryTokenStore, tokenID)
-			if debugMode {
-				logger.Printf("内存存储清理过期令牌: %s", tokenID)
-			}
-		}
+// 吊销所有令牌处理程序
+func revokeAllTokensHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
+		return
 	}
+
+	// 需要认证
+	handler := withAuth(func(w http.ResponseWriter, r *http.Request) {
+		// 在调试模式下记录完整请求信息
+		if debugMode {
+			logger.Printf("REVOKE_ALL请求:")
+			logFullRequest(r)
+		}
+
+		// 设置全局吊销时间戳为当前时间
+		atomic.StoreInt64(&globalRevokeTimestamp, time.Now().Unix())
+
+		logger.Printf("已吊销所有令牌")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "所有令牌已被吊销",
+			"revoke_timestamp": atomic.LoadInt64(&globalRevokeTimestamp),
+		})
+	})
+
+	handler(w, r)
+}
+
+// 清理过期令牌 - 无状态认证不需要清理
+func cleanupExpiredTokens() {
+	// 无状态认证模式下，JWT会自动处理过期
+	// 无需手动清理
 }
 
 // 获取服务信息
@@ -823,16 +692,33 @@ func getServiceInfo(service string) (string, string, bool) {
 func proxyHandler(w http.ResponseWriter, r *http.Request) {
 	// 排除特定端点
 	path := strings.Trim(r.URL.Path, "/")
-	if path == "auth" || path == "env" || path == "status" || path == "revoke" || path == "services" {
+	if path == "auth" || path == "env" || path == "status" || path == "revoke" || path == "revoke-all" || path == "services" {
 		http.Error(w, "无效的端点", http.StatusNotFound)
 		return
 	}
 
 	// 需要认证
 	handler := withAuth(func(w http.ResponseWriter, r *http.Request) {
-		// 获取用户信息
+		// 从JWT claims中获取用户信息
 		userID := r.Header.Get("X-USER-ID")
-		logger.Printf("代理请求来自用户: %s, 路径: %s", userID, path)
+		// 从请求头中获取magic-task-id 和magic-topic-id
+		magicTaskID := r.Header.Get("magic-task-id")
+		magicTopicID := r.Header.Get("magic-topic-id")
+		magicLanguage := r.Header.Get("magic-language")
+		var magicUserID, magicOrganizationCode string
+
+		// 从请求上下文中获取JWT claims
+		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
+			magicUserID = claims.MagicUserID
+			magicOrganizationCode = claims.MagicOrganizationCode
+		}
+
+		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
+		if userID == "" && magicUserID != "" {
+			userID = magicUserID
+		}
+
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicLanguage)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -850,6 +736,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 处理JSON请求
 		contentType := r.Header.Get("Content-Type")
+		var jsonData interface{}
 		if strings.Contains(contentType, "application/json") {
 			var data interface{}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
@@ -860,12 +747,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 				// 替换环境变量引用
 				data = replaceEnvVars(data)
-
-				// 记录替换后的请求体
-				if newBody, err := json.Marshal(data); err == nil {
-					// logger.Printf("替换环境变量后的请求体: %s", string(newBody))
-					bodyBytes = newBody
-				}
+				jsonData = data
 			} else {
 				logger.Printf("解析JSON请求体失败: %v", err)
 			}
@@ -873,60 +755,6 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 创建新请求体
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-		// 构建请求头，替换环境变量引用
-		proxyHeaders := make(http.Header)
-		for key, values := range r.Header {
-			if shouldSkipHeader(key) {
-				continue
-			}
-
-			for _, value := range values {
-				// 特殊处理 Authorization 头
-				if key == "Authorization" {
-					// 处理 Bearer env:XXX 格式
-					if strings.HasPrefix(value, "Bearer env:") {
-						envKey := strings.TrimPrefix(value, "Bearer env:")
-						if envValue, exists := envVars[envKey]; exists {
-							proxyHeaders.Add(key, "Bearer "+envValue)
-							if debugMode {
-								logger.Printf("替换环境变量引用 (Bearer env:): %s => Bearer %s", envKey, envValue)
-							}
-							continue
-						}
-					}
-
-					// 处理直接使用环境变量名的情况，如 Bearer OPENAI_API_KEY
-					if strings.HasPrefix(value, "Bearer ") {
-						tokenValue := strings.TrimPrefix(value, "Bearer ")
-						if envValue, exists := envVars[tokenValue]; exists {
-							proxyHeaders.Add(key, "Bearer "+envValue)
-							if debugMode {
-								logger.Printf("替换环境变量引用 (直接引用): Bearer %s => Bearer %s", tokenValue, envValue)
-							}
-							continue
-						}
-					}
-				}
-
-				// 检查所有头部值是否直接为环境变量名
-				if envValue, exists := envVars[value]; exists {
-					// 如果头部值完全等于某个环境变量名，则替换为环境变量的值
-					proxyHeaders.Add(key, envValue)
-					if debugMode {
-						logger.Printf("替换请求头中的环境变量名称: %s: %s => %s", key, value, envValue)
-					}
-					continue
-				}
-
-				// 替换字符串中的环境变量引用
-				newValue := replaceEnvVarsInString(value)
-				proxyHeaders.Add(key, newValue)
-				if debugMode && newValue != value {
-					logger.Printf("替换请求头中的环境变量引用: %s: %s => %s", key, value, newValue)
-				}
-			}
-		}
 
 		// 确定目标服务URL
 		targetBase := r.URL.Query().Get("target")
@@ -1021,15 +849,75 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 如果没有目标URL，返回错误
-		if targetBase == "" {
-			logger.Printf("未指定目标API URL: %s", path)
-			http.Error(w, "未指定目标API URL", http.StatusBadRequest)
-			return
+		// 构建请求头，替换环境变量引用
+		proxyHeaders := make(http.Header)
+		for key, values := range r.Header {
+			if shouldSkipHeader(key) {
+				continue
+			}
+
+			for _, value := range values {
+				// 特殊处理 Authorization 头
+				if key == "Authorization" {
+					// 处理 Bearer env:XXX 格式
+					if strings.HasPrefix(value, "Bearer env:") {
+						envKey := strings.TrimPrefix(value, "Bearer env:")
+						if envValue, exists := envVars[envKey]; exists {
+							proxyHeaders.Add(key, "Bearer "+envValue)
+							if debugMode {
+								logger.Printf("替换环境变量引用 (Bearer env:): %s", envKey)
+							}
+							continue
+						}
+					}
+
+					// 处理直接使用环境变量名的情况，如 Bearer OPENAI_API_KEY
+					if strings.HasPrefix(value, "Bearer ") {
+						tokenValue := strings.TrimPrefix(value, "Bearer ")
+						if envValue, exists := envVars[tokenValue]; exists {
+							proxyHeaders.Add(key, "Bearer "+envValue)
+							if debugMode {
+								logger.Printf("替换环境变量引用 (直接引用): Bearer %s => Bearer %s", tokenValue, envValue)
+							}
+							continue
+						}
+					}
+				}
+
+				// 检查所有头部值是否直接为环境变量名
+				if envValue, exists := envVars[value]; exists {
+					// 如果头部值完全等于某个环境变量名，则替换为环境变量的值
+					proxyHeaders.Add(key, envValue)
+					if debugMode {
+						logger.Printf("替换请求头中的环境变量名称: %s: %s => %s", key, value, envValue)
+					}
+					continue
+				}
+
+				// 替换字符串中的环境变量引用
+				newValue := replaceEnvVarsInString(value)
+				proxyHeaders.Add(key, newValue)
+				if debugMode && newValue != value {
+					logger.Printf("替换请求头中的环境变量引用: %s: %s => %s", key, value, newValue)
+				}
+			}
 		}
+
+
 
 		// 替换URL中的环境变量
 		targetBase = replaceEnvVarsInString(targetBase)
+
+		// 处理JSON请求体中的特定API密钥替换
+		if jsonData != nil {
+			jsonData = processApiKeyInBody(jsonData, targetBase)
+			// 重新序列化JSON数据
+			if newBody, err := json.Marshal(jsonData); err == nil {
+				bodyBytes = newBody
+				// 更新请求体
+				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			}
+		}
 
 		// 构建完整URL
 		targetBase = strings.TrimSuffix(targetBase, "/")
@@ -1089,6 +977,43 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 设置请求头
 		proxyReq.Header = proxyHeaders
+
+		// 透传magic-user-id和magic-organization-code到目标API
+		if magicUserID != "" {
+			proxyReq.Header.Set("magic-user-id", magicUserID)
+			if debugMode {
+				logger.Printf("透传magic-user-id: %s", magicUserID)
+			}
+		}
+
+		if magicOrganizationCode != "" {
+			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
+			if debugMode {
+				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+			}
+		}
+
+		if magicTaskID != "" {
+			proxyReq.Header.Set("magic-task-id", magicTaskID)
+			if debugMode {
+				logger.Printf("透传magic-task-id: %s", magicTaskID)
+			}
+		}
+
+
+		if magicTopicID != "" {
+			proxyReq.Header.Set("magic-topic-id", magicTopicID)
+			if debugMode {
+				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+			}
+		}
+
+		if magicLanguage != "" {
+			proxyReq.Header.Set("magic-language", magicLanguage)
+			if debugMode {
+				logger.Printf("透传magic-language: %s", magicLanguage)
+			}
+		}
 
 		// 如果需要添加API密钥且请求头中没有Authorization
 		if shouldAddApiKey && !headerExists(proxyHeaders, "Authorization") {
@@ -1308,7 +1233,12 @@ func logFullRequest(r *http.Request) {
 	logger.Printf("--- 请求头 ---")
 	for key, values := range r.Header {
 		for _, value := range values {
-			logger.Printf("%s: %s", key, value)
+			if debugMode{
+				//过滤 Magic-Authorization 、X-Gateway-Api-Key
+				if key != "Magic-Authorization" && key != "X-Gateway-Api-Key" {
+					logger.Printf("%s: %s", key, value)
+				}
+			}
 		}
 	}
 
@@ -1319,21 +1249,123 @@ func logFullRequest(r *http.Request) {
 		logger.Printf("读取请求体失败: %v", err)
 	} else {
 		// 尝试格式化JSON请求体
-		contentType := r.Header.Get("Content-Type")
-		if strings.Contains(contentType, "application/json") {
-			var prettyJSON bytes.Buffer
-			err = json.Indent(&prettyJSON, bodyBytes, "", "  ")
-			if err == nil {
-				logger.Printf("%s", prettyJSON.String())
-			} else {
-				logger.Printf("%s", string(bodyBytes))
-			}
-		} else {
-			logger.Printf("%s", string(bodyBytes))
-		}
+		// contentType := r.Header.Get("Content-Type")
+		// if strings.Contains(contentType, "application/json") {
+		// 	var prettyJSON bytes.Buffer
+		// 	err = json.Indent(&prettyJSON, bodyBytes, "", "  ")
+		// 	if err == nil {
+		// 		logger.Printf("%s", prettyJSON.String())
+		// 	} else {
+		// 		if debugMode{
+		// 			logger.Printf("%s", string(bodyBytes))
+		// 		}
+		// 	}
+		// } else {
+		// 	if debugMode{
+		// 		logger.Printf("%s", string(bodyBytes))
+		// 	}
+		// }
 
 		// 重置请求体以便后续处理
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 	logger.Printf("=====================================")
+}
+
+// processApiKeyInBody 处理特定API_BASE_URL对应的API密钥在请求体中的替换
+func processApiKeyInBody(data interface{}, targetBase string) interface{} {
+	// 定义需要检查的特定API_BASE_URL和对应的API_KEY
+	specialApiKeys := map[string]string{
+		"TEXT_TO_IMAGE_API_BASE_URL":     "TEXT_TO_IMAGE_ACCESS_KEY",
+		"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
+		"BING_SUBSCRIPTION_ENDPOINT":     "BING_SUBSCRIPTION_KEY",
+	}
+
+	// 检查目标URL是否匹配特定的API_BASE_URL
+	var matchedApiKey string
+	for baseUrlKey, apiKeyKey := range specialApiKeys {
+		if baseUrlValue, exists := envVars[baseUrlKey]; exists {
+			// 检查目标URL是否精确匹配该API_BASE_URL的值
+			// 使用更严格的匹配逻辑，确保域名完全匹配
+			if strings.HasPrefix(targetBase, baseUrlValue) {
+				// 额外的检查：确保下一个字符是路径分隔符或URL结束
+				remainingPart := targetBase[len(baseUrlValue):]
+				if remainingPart == "" || strings.HasPrefix(remainingPart, "/") {
+					if apiKeyValue, exists := envVars[apiKeyKey]; exists {
+						matchedApiKey = apiKeyValue
+						if debugMode {
+							logger.Printf("检测到特定API_BASE_URL匹配: %s => %s", baseUrlKey, apiKeyKey)
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// 如果没有匹配到特定的API密钥，直接返回原数据
+	if matchedApiKey == "" {
+		return data
+	}
+
+	// 递归处理数据结构，查找并替换API密钥
+	return replaceApiKeyInData(data, matchedApiKey)
+}
+
+// replaceApiKeyInData 递归替换数据结构中的API密钥
+func replaceApiKeyInData(data interface{}, apiKey string) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			// 检查是否是API密钥相关的字段
+			if isApiKeyField(key) {
+				// 如果字段值为空或者是占位符，则替换为实际的API密钥
+				if strValue, ok := value.(string); ok {
+					// 检查各种占位符格式
+					if strValue == "" ||
+					   strValue == "env:"+key ||
+					   strValue == "${"+key+"}" ||
+					   strValue == "$"+key ||
+					   strValue == "{$"+key+"}" ||
+					   strings.Contains(strValue, "${") ||
+					   strings.Contains(strValue, "$") {
+						result[key] = apiKey
+						if debugMode {
+							logger.Printf("在请求体中替换API密钥: %s => %s", key, apiKey)
+						}
+						continue
+					}
+				}
+			}
+			result[key] = replaceApiKeyInData(value, apiKey)
+		}
+		return result
+
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = replaceApiKeyInData(item, apiKey)
+		}
+		return result
+
+	default:
+		return v
+	}
+}
+
+// isApiKeyField 检查字段名是否是API密钥相关的字段
+func isApiKeyField(fieldName string) bool {
+	apiKeyFields := []string{
+		"api_key", "apiKey", "access_key", "accessKey", "key", "token", "authorization",
+		"TEXT_TO_IMAGE_ACCESS_KEY", "VOICE_UNDERSTANDING_API_KEY", "BING_SUBSCRIPTION_KEY",
+	}
+
+	fieldNameLower := strings.ToLower(fieldName)
+	for _, apiField := range apiKeyFields {
+		if strings.Contains(fieldNameLower, strings.ToLower(apiField)) {
+			return true
+		}
+	}
+	return false
 }

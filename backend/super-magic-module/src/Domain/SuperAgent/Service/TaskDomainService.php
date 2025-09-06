@@ -21,7 +21,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -73,14 +72,16 @@ class TaskDomainService
         $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
         if (empty($projectEntity->getProjectMode())) {
             $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => date('Y-m-d H:i:s')]);
-        } elseif ($projectEntity->getProjectMode() === TopicMode::DATA_ANALYSIS->value) {
-            // fixed the topic mode
-            $topicMode = TopicMode::DATA_ANALYSIS->value;
         }
 
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
         // Update topic's current task ID and status
+        $topicEntity->setCurrentTaskId($taskEntity->getId());
+        $topicEntity->setCurrentTaskStatus(TaskStatus::RUNNING);
+        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $topicEntity->setUpdatedUid($userId);
+        $topicEntity->setTaskMode($taskEntity->getTaskMode());
         $conditions = [
             'id' => $topicEntity->getId(),
         ];

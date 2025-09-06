@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
@@ -17,6 +18,8 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     protected string $size = '';
 
     protected int $n = 1;
+
+    protected ?WatermarkConfig $watermark = null;
 
     public function getPrompt(): string
     {
@@ -70,5 +73,19 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         if ($this->prompt === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'prompt_field']);
         }
+    }
+
+    public function getWatermark(): ?WatermarkConfig
+    {
+        return $this->watermark;
+    }
+
+    public function setWatermark(null|array|WatermarkConfig $watermark): void
+    {
+        if (is_array($watermark)) {
+            $watermark = new WatermarkConfig($watermark['logo_text_content'] ?? '', $watermark['position'] ?? 3, $watermark['opacity'] ?? 0.3);
+        }
+
+        $this->watermark = $watermark;
     }
 }

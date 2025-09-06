@@ -97,6 +97,15 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $this->userRepository->getUserOrganizations($userId);
     }
 
+    /**
+     * 根据 magicId 获取用户所属的组织列表.
+     * @return string[]
+     */
+    public function getUserOrganizationsByMagicId(string $magicId): array
+    {
+        return $this->userRepository->getUserOrganizationsByMagicId($magicId);
+    }
+
     public function getByUserId(string $uid): ?MagicUserEntity
     {
         return $this->userRepository->getUserById($uid);

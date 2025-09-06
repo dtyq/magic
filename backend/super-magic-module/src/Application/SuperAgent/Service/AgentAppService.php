@@ -30,13 +30,13 @@ use Throwable;
  * Agent应用服务
  * 负责协调Agent领域服务的调用，遵循DDD原则.
  */
-class AgentAppService
+readonly class AgentAppService
 {
     private LoggerInterface $logger;
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly AgentDomainService $agentDomainService,
+        private AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
@@ -63,14 +63,6 @@ class AgentAppService
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult
     {
         return $this->agentDomainService->getBatchSandboxStatus($sandboxIds);
-    }
-
-    /**
-     * 初始化Agent.
-     */
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext): void
-    {
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
     }
 
     /**

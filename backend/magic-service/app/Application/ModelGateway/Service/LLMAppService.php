@@ -10,6 +10,8 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -17,11 +19,12 @@ use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\Domain\ModelGateway\Entity\ImageGeneratedEntity;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -40,6 +43,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleV
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
+use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
@@ -47,8 +51,10 @@ use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
@@ -111,13 +117,12 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // Determine object type based on model type
+            // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
             $objectType = $isImageModel ? 'image' : 'model';
 
             // Set common fields
             $modelConfigEntity->setModel($model->getModelName());
-            // Model type
             $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
             $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
             $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
@@ -163,16 +168,11 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function imageGenerate(MagicUserAuthorization $authorization, string $modelVersion, string $modelId, array $data): array
     {
-        $providerModelsDTO = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
-        if ($providerModelsDTO === null) {
+        $providerConfigEntity = $this->serviceProviderDomainService->getServiceProviderConfig($modelVersion, $modelId, $authorization->getOrganizationCode());
+        if ($providerConfigEntity === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
-        if ($providerModelsDTO->getServiceProviderType() === ProviderType::Normal) {
-            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
-        }
-        if (empty($modelVersion)) {
-            $modelVersion = $providerModelsDTO->getModels()[0]?->getModelVersion();
-        }
+
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
         }
@@ -186,15 +186,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
 
-        // 只有火山模型才处理水印配置
-        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
-            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($authorization->getOrganizationCode());
-            if ($watermarkConfig !== null) {
-                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
-            }
-        }
-
-        $providerConfigItem = $providerModelsDTO->getConfig();
+        $providerConfigItem = $providerConfigEntity->getConfig();
         if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
@@ -210,6 +202,14 @@ class LLMAppService extends AbstractLLMAppService
 
         $this->logger->info('Image generation service configuration', $configInfo);
 
+        $watermarkConfig = new WatermarkConfig(ImageWatermarkProcessor::WATERMARK_TEXT, 9, 0.3);
+        $imageGenerateRequest->setWatermarkConfig($watermarkConfig);
+
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($authorization->getOrganizationCode())
+            ->setUserId($authorization->getId())
+            ->setAgentId($data['agent_id'] ?? '');
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
@@ -220,6 +220,18 @@ class LLMAppService extends AbstractLLMAppService
 
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
+
+        // 发布图片生成事件
+        $imageGeneratedEntity = new ImageGeneratedEntity();
+        $imageGeneratedEntity->setOrganizationCode($authorization->getOrganizationCode());
+        $imageGeneratedEntity->setUserId($authorization->getId());
+        $imageGeneratedEntity->setModel($modelVersion);
+        $imageGeneratedEntity->setImageCount($data['generate_num'] ?? 4);
+        $imageGeneratedEntity->setCreatedAt(new DateTime());
+
+        $event = new ImageGeneratedEvent($imageGeneratedEntity);
+        AsyncEventUtil::dispatch($event);
+
         return $images;
     }
 
@@ -235,6 +247,17 @@ class LLMAppService extends AbstractLLMAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        $imageGeneratedEntity = new ImageGeneratedEntity();
+        $imageGeneratedEntity->setOrganizationCode($userAuthorization->getOrganizationCode());
+        $imageGeneratedEntity->setUserId($userAuthorization->getId());
+        $imageGeneratedEntity->setImageCount(1);
+        $imageGeneratedEntity->setCreatedAt(new DateTime());
+        $imageGeneratedEntity->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+
+        $event = new ImageGeneratedEvent($imageGeneratedEntity);
+        AsyncEventUtil::dispatch($event);
+
         return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
     }
 
@@ -285,27 +308,45 @@ class LLMAppService extends AbstractLLMAppService
 
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
 
-        if ($imageGenerateType === ImageGenerateModelType::Volcengine || $imageGenerateType === ImageGenerateModelType::VolcengineImageGenerateV3) {
-            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig($organizationCode);
-            if ($watermarkConfig !== null) {
-                $imageGenerateRequest->setWatermarkConfig($watermarkConfig->toArray());
-            }
-        }
+        $imageGenerateRequest->setWatermarkConfig($textGenerateImageDTO->getWatermark());
 
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($textGenerateImageDTO->getTopicId());
+
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setValidityPeriod(1);
+
+        $errorMessage = '';
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+
+                    // 发布图片生成事件
+                    $imageGeneratedEntity = new ImageGeneratedEntity();
+                    $imageGeneratedEntity->setOrganizationCode($organizationCode);
+                    $imageGeneratedEntity->setUserId($creator);
+                    $imageGeneratedEntity->setModel($modelVersion);
+                    $imageGeneratedEntity->setImageCount($textGenerateImageDTO->getN());
+                    $imageGeneratedEntity->setTopicId($textGenerateImageDTO->getTopicId());
+                    $imageGeneratedEntity->setTaskId($textGenerateImageDTO->getTaskId());
+                    $imageGeneratedEntity->setCreatedAt(new DateTime());
+
+                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                    AsyncEventUtil::dispatch($event);
 
                     return $generateImageRaw;
                 }
             } catch (Exception $e) {
+                $errorMessage = $e->getMessage();
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
         }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $errorMessage);
     }
 
     /**
@@ -313,7 +354,7 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
-        $this->validateAccessToken($imageEditDTO);
+        $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
 
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
@@ -331,13 +372,24 @@ class LLMAppService extends AbstractLLMAppService
             try {
                 $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
+                    // 发布图片生成事件
+                    $imageGeneratedEntity = new ImageGeneratedEntity();
+                    $imageGeneratedEntity->setOrganizationCode($accessTokenEntity->getOrganizationCode());
+                    $imageGeneratedEntity->setUserId($accessTokenEntity->getCreator());
+                    $imageGeneratedEntity->setModel($modelVersion);
+                    $imageGeneratedEntity->setImageCount(1); // 图生图默认为1张
+                    $imageGeneratedEntity->setCreatedAt(new DateTime());
+
+                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                    AsyncEventUtil::dispatch($event);
+
                     return $generateImageRaw;
                 }
             } catch (Exception $e) {
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
         }
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        ExceptionBuilder::throw(ImageGenerateErrorCode::NOT_FOUND_ERROR_CODE);
     }
 
     /**
@@ -370,7 +422,6 @@ class LLMAppService extends AbstractLLMAppService
 
             // Prepare cache keys for batch query (skip removeCount=0)
             $cacheKeys = [];
-            $removeCountMapping = [];
             foreach ($hashes as $removeCount => $messagesHash) {
                 // Skip removeCount=0 (full array) since we only check conversation continuation
                 if ($removeCount === 0) {
@@ -382,7 +433,6 @@ class LLMAppService extends AbstractLLMAppService
                 $endpointCacheKey = self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
 
                 $cacheKeys[] = $endpointCacheKey;
-                $removeCountMapping[$endpointCacheKey] = $removeCount;
             }
 
             // Batch query Redis for all cache keys at once
@@ -430,6 +480,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // Parse business parameters
             $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
+            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
 
             // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;
@@ -752,7 +803,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param mixed $value Value to convert
      * @return string String representation
      */
-    private function convertToString($value): string
+    private function convertToString(mixed $value): string
     {
         if (is_string($value)) {
             return $value;
@@ -767,7 +818,7 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         if (is_array($value) || is_object($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+            return Json::encode($value) ?: '';
         }
 
         if (is_scalar($value)) {
@@ -915,7 +966,7 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($accessToken->getType()->isUser()) {
             $context['user_id'] = $accessToken->getRelationId();
-            $context['source_id'] = "{$accessToken->getName()}";
+            $context['source_id'] = $accessToken->getName();
             // Personal users also have the organization they were in when creating the token
             $context['organization_code'] = $accessToken->getOrganizationCode();
         }
@@ -923,17 +974,6 @@ class LLMAppService extends AbstractLLMAppService
         // Organization level token
         if ($accessToken->getType()->isOrganization()) {
             $context['organization_code'] = $accessToken->getRelationId();
-        }
-
-        if ($context['user_id']) {
-            $context['user_config'] = $this->userConfigDomainService->getByAppCodeAndOrganizationCode(
-                $dataIsolation,
-                $context['app_code'],
-                $context['organization_code'],
-                $context['user_id']
-            );
-            $context['user_config']->checkRpm();
-            $context['user_config']->checkAmount();
         }
 
         return $context;
@@ -1128,8 +1168,8 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         // Use absolute values to ensure positive result
-        $a = abs($a);
-        $b = abs($b);
+        $a = (int) abs($a);
+        $b = (int) abs($b);
 
         // Iterative approach to avoid stack overflow for large numbers
         while ($b !== 0) {
@@ -1161,7 +1201,9 @@ class LLMAppService extends AbstractLLMAppService
                 $this->fileDomainService->uploadByCredential($authorization->getOrganizationCode(), $uploadFile, StorageBucketType::Public);
 
                 $fileLink = $this->fileDomainService->getLink($authorization->getOrganizationCode(), $uploadFile->getKey(), StorageBucketType::Public);
-
+                if ($fileLink === null) {
+                    continue;
+                }
                 $processedImages[] = $fileLink->getUrl();
             } catch (Exception $e) {
                 $this->logger->error('Failed to process base64 image', [

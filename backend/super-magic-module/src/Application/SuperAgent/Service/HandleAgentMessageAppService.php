@@ -13,6 +13,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -82,7 +83,7 @@ class HandleAgentMessageAppService extends AbstractAppService
      */
     public function handleAgentMessage(TopicTaskMessageDTO $messageDTO): void
     {
-        $this->logger->info(sprintf(
+        $this->logger->debug(sprintf(
             'Starting to process topic task message, task_id: %s, message content: %s',
             $messageDTO->getPayload()->getTaskId() ?? '',
             json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -150,6 +151,9 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 2. 按顺序逐条处理消息
         foreach ($processableMessages as $messageEntity) {
             try {
+                /*
+                 * @var TaskMessageEntity $messageEntity
+                 */
                 // 更新状态为处理中
                 $this->taskMessageDomainService->updateProcessingStatus(
                     id: $messageEntity->getId(),
@@ -158,7 +162,8 @@ class HandleAgentMessageAppService extends AbstractAppService
 
                 // 检查任务是否已终止
                 $currentTaskId = $messageEntity->getTaskId();
-                if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $currentTaskId)) {
+                if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $currentTaskId) || $messageEntity->getEvent() === AgentEventEnum::AGENT_SUSPENDED) {
+                    $isTermination = true;
                     $this->logger->info(sprintf(
                         '任务 %s 已终止，跳过消息处理 message_id: %s',
                         $currentTaskId,
@@ -206,6 +211,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                     $messageEntity->getSeqId(),
                     $e->getMessage()
                 ));
+                break;
             } catch (Throwable $e) {
                 // 处理失败，更新重试次数和错误信息
                 $newRetryCount = $messageEntity->getRetryCount() + 1;
@@ -424,7 +430,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             $taskContext->getTopicId(),
             $topicEntity->getTopicName(),
             $taskContext->getTask()->getId(),
-            $messageDTO
+            $messageDTO,
+            $messageDTO->getMetadata()->getLanguage()
         ));
     }
 
@@ -896,6 +903,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             remindEvent: $remindType
         );
 
+        TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
+
         // Get sandbox status, if sandbox is running, send interrupt command
         try {
             $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
@@ -906,8 +915,6 @@ class HandleAgentMessageAppService extends AbstractAppService
                     (string) $taskContext->getTask()->getId(),
                     trans('task.agent_stopped')
                 );
-            } else {
-                TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());
             }
         } catch (SandboxOperationException $e) {
             // ignore

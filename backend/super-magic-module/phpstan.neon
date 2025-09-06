@@ -11,8 +11,7 @@ parameters:
   level: 5
   paths:
     - src
-  excludePaths:
-    - vendor
+  excludePaths: []
   reportUnmatchedIgnoredErrors: false
   # 信任PHPDoc中声明的类型，并根据类型做静态分析
   treatPhpDocTypesAsCertain: true

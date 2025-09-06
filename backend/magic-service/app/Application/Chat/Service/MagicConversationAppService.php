@@ -31,6 +31,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Message\Role;
+use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -54,6 +55,7 @@ class MagicConversationAppService extends AbstractAppService
         protected FileDomainService $fileDomainService,
         protected readonly MagicAgentDomainService $magicAgentDomainService,
         protected readonly SlidingWindowUtil $slidingWindowUtil,
+        protected readonly Redis $redis
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(get_class($this));
@@ -79,19 +81,16 @@ class MagicConversationAppService extends AbstractAppService
             $this->magicConversationDomainService->getConversationById($conversationId, $dataIsolation);
         }
 
-        // Generate a unique debounce key based on user ID and conversation ID
-        $debounceKey = sprintf(
-            'chat_completions_debounce:%s:%s',
-            $userAuthorization->getMagicId(),
-            $conversationId ?? 'standalone'
-        );
+        // Generate a unique throttle key based on user ID and conversation ID
+        $throttleKey = sprintf('chat_completions_throttle:%s', $userAuthorization->getMagicId());
 
-        // Use the sliding window utility for debouncing, executing only the last request within a 1-second window
-        if (! $this->slidingWindowUtil->shouldExecuteWithDebounce($debounceKey, 0.1)) {
-            $this->logger->info('Chat completions request skipped due to debounce', [
+        // Use the sliding window utility for throttling, accepting only one request per 500ms window
+        $canExecute = $this->redis->set($throttleKey, '1', ['NX', 'PX' => (int) (0.5 * 1000)]);
+        if (! $canExecute) {
+            $this->logger->info('Chat completions request skipped due to throttle', [
                 'user_id' => $userAuthorization->getId(),
                 'conversation_id' => $conversationId,
-                'debounce_key' => $debounceKey,
+                'throttle_key' => $throttleKey,
             ]);
             return '';
         }
@@ -329,9 +328,7 @@ class MagicConversationAppService extends AbstractAppService
         $completionDTO = new CompletionDTO();
         $completionDTO->setModel($modelName);
         $completionDTO->setMessages($messages);
-        $completionDTO->setTemperature(0.3); // Lower temperature for more deterministic completion
-        $completionDTO->setFrequencyPenalty(0.5); // Frequency penalty to reduce repetitive vocabulary
-        $completionDTO->setPresencePenalty(0.3); // Presence penalty to encourage new vocabulary
+        $completionDTO->setTemperature(0.1); // Lower temperature for more deterministic completion
         $completionDTO->setStream(false);
         $completionDTO->setMaxTokens(50);
         $completionDTO->setStop(["\n", "\n\n"]); // Stop tokens to control completion behavior

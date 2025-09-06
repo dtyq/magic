@@ -53,6 +53,12 @@ interface MagicUserRepositoryInterface
      */
     public function getUserOrganizations(string $userId): array;
 
+    /**
+     * 根据 magicId 获取用户所属的组织列表.
+     * @return string[]
+     */
+    public function getUserOrganizationsByMagicId(string $magicId): array;
+
     public function getUserByAiCode(string $aiCode): array;
 
     public function searchByKeyword(string $keyword): array;

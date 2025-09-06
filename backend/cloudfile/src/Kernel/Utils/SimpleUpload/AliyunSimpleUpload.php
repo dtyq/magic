@@ -664,26 +664,6 @@ class AliyunSimpleUpload extends SimpleUpload
                     = 'attachment; filename="' . addslashes($filename) . '"';
             }
 
-            //            if (isset($options['content_type'])) {
-            //                $signedUrlOptions['response-content-type'] = $options['content_type'];
-            //            }
-
-            // Set custom response headers if provided
-            if (isset($options['custom_headers']) && is_array($options['custom_headers'])) {
-                foreach ($options['custom_headers'] as $headerName => $headerValue) {
-                    // For response override parameters, ensure they have 'response-' prefix
-                    if (strpos($headerName, 'response-') !== 0) {
-                        $headerName = 'response-' . $headerName;
-                    }
-                    // Skip response-content-type to avoid OSS InvalidRequest: Can not override response header on content-type
-                    if (strtolower($headerName) === 'response-content-type') {
-                        $this->sdkContainer->getLogger()->info('Aliyun OSS ignoring response-content-type override for presign');
-                        continue;
-                    }
-                    $signedUrlOptions[$headerName] = (string) $headerValue;
-                }
-            }
-
             // Generate signed URL - pass relative seconds, not absolute timestamp
             $method = $options['method'] ?? 'GET';
             $signedUrl = $ossClient->signUrl($sdkConfig['bucket'], $objectKey, $expires, $method, $signedUrlOptions);
@@ -799,6 +779,101 @@ class AliyunSimpleUpload extends SimpleUpload
                 'error' => $exception->getMessage(),
             ]);
             throw new CloudFileException('Delete objects failed: ' . $exception->getMessage(), 0, $exception);
+        }
+    }
+
+    /**
+     * Set object metadata by credential using Aliyun OSS SDK.
+     *
+     * @param array $credential Credential information
+     * @param string $objectKey Object key to set metadata
+     * @param array $metadata Metadata to set
+     * @param array $options Additional options
+     */
+    public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void
+    {
+        try {
+            // Convert credential to SDK config
+            $sdkConfig = $this->convertCredentialToSdkConfig($credential);
+
+            // Create OSS SDK client
+            $ossClient = $this->createOssClient($sdkConfig);
+
+            $this->sdkContainer->getLogger()->info('Aliyun OSS setHeadObjectByCredential request', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'metadata_count' => count($metadata),
+            ]);
+
+            // Prepare copy options for metadata modification
+            // In Aliyun OSS, modifying metadata is done through copyObject with REPLACE directive
+            $copyOptions = [
+                OssClient::OSS_HEADERS => [
+                    // Set metadata directive to REPLACE - ignore source metadata and use new metadata
+                    'x-oss-metadata-directive' => 'REPLACE',
+                ],
+            ];
+
+            // Set standard HTTP headers if provided
+            if (isset($metadata['content_type'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Content-Type'] = $metadata['content_type'];
+            }
+            if (isset($metadata['content_disposition'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Content-Disposition'] = $metadata['content_disposition'];
+            }
+            if (isset($metadata['content_encoding'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Content-Encoding'] = $metadata['content_encoding'];
+            }
+            if (isset($metadata['content_language'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Content-Language'] = $metadata['content_language'];
+            }
+            if (isset($metadata['cache_control'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Cache-Control'] = $metadata['cache_control'];
+            }
+            if (isset($metadata['expires'])) {
+                $copyOptions[OssClient::OSS_HEADERS]['Expires'] = $metadata['expires'];
+            }
+
+            // Set custom metadata (x-oss-meta-* headers)
+            foreach ($metadata as $key => $value) {
+                // Skip standard HTTP headers
+                if (in_array($key, ['content_type', 'content_disposition', 'content_encoding', 'content_language', 'cache_control', 'expires'])) {
+                    continue;
+                }
+                // Add custom metadata with x-oss-meta- prefix
+                $copyOptions[OssClient::OSS_HEADERS]['x-oss-meta-' . $key] = (string) $value;
+            }
+
+            // Execute copy object to same location with new metadata (metadata modification)
+            $ossClient->copyObject(
+                $sdkConfig['bucket'], // source bucket
+                $objectKey,           // source object
+                $sdkConfig['bucket'], // destination bucket (same as source)
+                $objectKey,           // destination object (same as source)
+                $copyOptions
+            );
+
+            $this->sdkContainer->getLogger()->info('set_object_meta_success', [
+                'bucket' => $sdkConfig['bucket'],
+                'object_key' => $objectKey,
+                'metadata_count' => count($metadata),
+            ]);
+        } catch (OssException $exception) {
+            $this->sdkContainer->getLogger()->error('set_object_meta_oss_error', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+                'error_code' => $exception->getErrorCode(),
+                'request_id' => $exception->getRequestId(),
+            ]);
+            throw new CloudFileException('OSS SDK error: ' . $exception->getMessage(), 0, $exception);
+        } catch (Throwable $exception) {
+            $this->sdkContainer->getLogger()->error('set_object_meta_failed', [
+                'bucket' => $sdkConfig['bucket'] ?? 'unknown',
+                'object_key' => $objectKey,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new CloudFileException('Set object metadata failed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

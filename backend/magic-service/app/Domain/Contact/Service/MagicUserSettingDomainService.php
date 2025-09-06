@@ -26,6 +26,22 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
+     * 获取全局配置.
+     */
+    public function getGlobal(string $key): ?MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->getGlobal($key);
+    }
+
+    /**
+     * 保存全局配置.
+     */
+    public function saveGlobal(MagicUserSettingEntity $savingEntity): MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->saveGlobal($savingEntity);
+    }
+
+    /**
      * @return array{total: int, list: array<MagicUserSettingEntity>}
      */
     public function queries(DataIsolation $dataIsolation, MagicUserSettingQuery $query, Page $page): array
@@ -37,6 +53,7 @@ readonly class MagicUserSettingDomainService
     {
         $savingEntity->setCreator($dataIsolation->getCurrentUserId());
         $savingEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $savingEntity->setMagicId($dataIsolation->getCurrentMagicId());
         $savingEntity->setUserId($dataIsolation->getCurrentUserId());
 
         $existingEntity = $this->magicUserSettingRepository->get($dataIsolation, $savingEntity->getKey());
@@ -49,5 +66,30 @@ readonly class MagicUserSettingDomainService
         }
 
         return $this->magicUserSettingRepository->save($dataIsolation, $entity);
+    }
+
+    /**
+     * 通过 magicId 保存用户设置（跨组织）.
+     */
+    public function saveByMagicId(string $magicId, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity
+    {
+        // 获取现有记录以保持实体完整性
+        $existingEntity = $this->magicUserSettingRepository->getByMagicId($magicId, $magicUserSettingEntity->getKey());
+
+        if ($existingEntity) {
+            $magicUserSettingEntity->prepareForModification($existingEntity);
+        } else {
+            $magicUserSettingEntity->prepareForCreation();
+        }
+
+        return $this->magicUserSettingRepository->saveByMagicId($magicId, $magicUserSettingEntity);
+    }
+
+    /**
+     * 通过 magicId 获取用户设置（跨组织）.
+     */
+    public function getByMagicId(string $magicId, string $key): ?MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->getByMagicId($magicId, $key);
     }
 }

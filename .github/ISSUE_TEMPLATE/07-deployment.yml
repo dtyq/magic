@@ -1,5 +1,5 @@
-name: 🚀 Deployment / Installation Issue
-description: Report issues with deployment, installation, or setup
+name: 🚀 Deployment and Installation Issue / 部署安装问题
+description: Report issues with deployment, installation, or setup / 部署安装方面的问题
 title: "[Deployment]: "
 labels: ["deployment", "installation", "setup"]
 assignees: []

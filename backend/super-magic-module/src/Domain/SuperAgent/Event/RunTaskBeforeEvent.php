@@ -15,7 +15,8 @@ class RunTaskBeforeEvent extends AbstractEvent
         private int $topicId,
         private int $rounds,
         private int $currentTaskRunCount,
-        private array $departmentIds
+        private array $departmentIds,
+        private string $language
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
@@ -56,6 +57,11 @@ class RunTaskBeforeEvent extends AbstractEvent
         return $this->departmentIds;
     }
 
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
     /**
      * Convert the event object to array format.
      */
@@ -68,6 +74,7 @@ class RunTaskBeforeEvent extends AbstractEvent
             'rounds' => $this->rounds,
             'currentTaskRunCount' => $this->currentTaskRunCount,
             'departmentIds' => $this->departmentIds,
+            'language' => $this->language,
         ];
     }
 }
