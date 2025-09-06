@@ -35,12 +35,12 @@ readonly class AgentAppService
     private LoggerInterface $logger;
 
     public function __construct(
-        LoggerFactory $loggerFactory,
-        private AgentDomainService $agentDomainService,
+        private LoggerFactory $loggerFactory,
+        private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
-        $this->logger = $loggerFactory->get('sandbox');
+        $this->logger = $this->loggerFactory->get('sandbox');
     }
 
     /**
