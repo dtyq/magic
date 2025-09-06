@@ -33,6 +33,9 @@ class ImageWatermarkProcessor
     #[Inject]
     protected FontProviderInterface $fontProvider;
 
+    #[Inject]
+    protected XmpWatermarkEmbedder $xmpEmbedder;
+
     /**
      * 为base64格式图片添加水印.
      */
@@ -54,7 +57,7 @@ class ImageWatermarkProcessor
         }
 
         $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-        // 添加水印
+        // 添加视觉水印
         $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
@@ -67,9 +70,16 @@ class ImageWatermarkProcessor
         imagedestroy($image);
         imagedestroy($watermarkedImage);
 
-        // 根据实际输出格式更新前缀
+        // 立即添加XMP隐式水印
+        $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+        $xmpWatermarkedData = $this->xmpEmbedder->embedWatermarkToImageData(
+            $watermarkedData,
+            $implicitWatermark
+        );
+
+        // 重新编码为base64并上传
         $outputPrefix = $this->generateBase64Prefix($targetFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
+        return $this->processBase64Images($outputPrefix . base64_encode($xmpWatermarkedData), $imageGenerateRequest);
     }
 
     /**
@@ -89,7 +99,7 @@ class ImageWatermarkProcessor
             throw new Exception('无法解析URL图片数据: ' . $imageUrl);
         }
         $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-        // 添加水印
+        // 添加视觉水印
         $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
 
         // 使用检测到的格式进行无损输出
@@ -102,9 +112,30 @@ class ImageWatermarkProcessor
         imagedestroy($image);
         imagedestroy($watermarkedImage);
 
+        // 立即添加XMP隐式水印
+        $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+        $xmpWatermarkedData = $this->xmpEmbedder->embedWatermarkToImageData(
+            $watermarkedData,
+            $implicitWatermark
+        );
+
         // 根据实际输出格式生成正确的base64前缀
         $outputPrefix = $this->generateBase64Prefix($detectedFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($watermarkedData), $imageGenerateRequest);
+        return $this->processBase64Images($outputPrefix . base64_encode($xmpWatermarkedData), $imageGenerateRequest);
+    }
+
+    public function extractWatermarkInfo(string $imageUrl): ?array
+    {
+        try {
+            $imageData = $this->downloadImage($imageUrl);
+            return $this->xmpEmbedder->extractWatermarkFromImageData($imageData);
+        } catch (Exception $e) {
+            $this->logger->error('Failed to extract watermark info', [
+                'error' => $e->getMessage(),
+                'url' => $imageUrl,
+            ]);
+            return null;
+        }
     }
 
     /**
@@ -407,18 +438,18 @@ class ImageWatermarkProcessor
         try {
             $subDir = 'open';
 
+            // 直接使用已包含XMP水印的base64数据
             $uploadFile = new UploadFile($base64Image, $subDir, '');
 
             $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
 
             $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
 
-            $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+            // 设置对象元数据作为备用方案
             $validityPeriod = $imageGenerateRequest->getValidityPeriod();
-
-            $metadataContent = ['AIGC' => $implicitWatermark->toArray()];
+            $metadataContent = [];
             if ($validityPeriod !== null) {
-                $metadataContent['validityPeriod'] = $validityPeriod;
+                $metadataContent['validity_period'] = $validityPeriod;
             }
             $metadata = ['metadata' => Json::encode($metadataContent)];
 

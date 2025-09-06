@@ -339,6 +339,7 @@ class MagicFlowAppService extends AbstractFlowAppService
 
         $toolQuery->setToolSetIds(array_values($toolSetIds));
 
+        $toolQuery->setSelect(['id', 'code', 'version_code', 'name', 'description', 'type', 'tool_set_id', 'enabled', 'organization_code', 'created_uid', 'created_at', 'updated_uid', 'updated_at']);
         $toolResult = $this->magicFlowDomainService->queries($dataIsolation, $toolQuery, $page);
 
         // 增加系统内置工具

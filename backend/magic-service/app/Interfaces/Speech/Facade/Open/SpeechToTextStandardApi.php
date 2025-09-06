@@ -107,11 +107,12 @@ class SpeechToTextStandardApi extends AbstractOpenApi
         $speechQueryDTO->setIps($this->getClientIps());
 
         $result = $this->speechToTextStandardAppService->queryLargeModelResult($speechQueryDTO);
+        $resultArray = $result->toArray();
 
         if ($type === self::VOLCENGINE_TYPE) {
-            return $this->setVolcengineHeaders($result);
+            return $this->setVolcengineHeaders($resultArray);
         }
-        return $result;
+        return $resultArray;
     }
 
     public function flash(RequestInterface $request): array

@@ -117,6 +117,8 @@ class TokenUsage:
     total_tokens: int
     input_tokens_details: Optional[InputTokensDetails] = None
     output_tokens_details: Optional[OutputTokensDetails] = None
+    model_id: Optional[str] = None  # Added field for model ID
+    model_name: Optional[str] = None  # Added field for model name
 
     # 注册的解析器，按优先级顺序排列
     _parsers: ClassVar[List[Type[TokenUsageParser]]] = []
@@ -128,6 +130,10 @@ class TokenUsage:
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
         }
+        if self.model_id:
+            data["model_id"] = self.model_id
+        if self.model_name:
+            data["model_name"] = self.model_name
 
         # 只有当details对象存在且其to_dict()结果不为None时才加入
         if self.input_tokens_details:
@@ -151,6 +157,8 @@ class TokenUsage:
             total_tokens=data.get("total_tokens", 0),
             input_tokens_details=InputTokensDetails.from_dict(data.get("input_tokens_details")),
             output_tokens_details=OutputTokensDetails.from_dict(data.get("output_tokens_details")),
+            model_id=data.get("model_id"),
+            model_name=data.get("model_name")
         )
 
     @classmethod
@@ -460,3 +468,60 @@ def is_llm_usage_info(data: Any) -> bool:
     # 检查是否包含token相关字段
     token_fields = ["input_tokens", "output_tokens", "prompt_tokens", "completion_tokens", "total_tokens"]
     return any(field in data for field in token_fields)
+
+
+@dataclass
+class TokenUsageReport:
+    """Token使用统计报告对象，用于包装token使用统计信息"""
+    type: str  # "summary" 或 "item"
+    usages: List[TokenUsage] = field(default_factory=list)
+
+    @classmethod
+    def create_item_report(cls, token_usage: TokenUsage) -> 'TokenUsageReport':
+        """创建单次调用的token使用统计报告
+
+        Args:
+            token_usage: 单次调用的token使用统计
+
+        Returns:
+            TokenUsageReport: 包含单次调用token使用统计的报告
+        """
+        return cls(type="item", usages=[token_usage])
+
+    @classmethod
+    def create_summary_report(cls, usages: List[TokenUsage]) -> 'TokenUsageReport':
+        """创建汇总的token使用统计报告
+
+        Args:
+            usages: 所有模型的token使用统计列表
+
+        Returns:
+            TokenUsageReport: 包含所有模型token使用统计的汇总报告
+        """
+        return cls(type="summary", usages=usages)
+
+    @classmethod
+    def from_cost_report(cls, cost_report: CostReport) -> 'TokenUsageReport':
+        """从CostReport创建TokenUsageReport
+
+        Args:
+            cost_report: 成本报告对象
+
+        Returns:
+            TokenUsageReport: 包含所有模型token使用统计的汇总报告
+        """
+        usages = []
+        for model in cost_report.models:
+            # 创建新的TokenUsage对象，并设置model_id和model_name
+            token_usage = TokenUsage(
+                input_tokens=model.usage.input_tokens,
+                output_tokens=model.usage.output_tokens,
+                total_tokens=model.usage.total_tokens,
+                input_tokens_details=model.usage.input_tokens_details,
+                output_tokens_details=model.usage.output_tokens_details,
+                model_id=model.model_name,  # CostReport中的model_name对应TokenUsage中的model_id
+                model_name=model.model_name
+            )
+            usages.append(token_usage)
+        
+        return cls.create_summary_report(usages)

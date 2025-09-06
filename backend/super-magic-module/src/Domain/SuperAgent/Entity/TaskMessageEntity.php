@@ -145,7 +145,12 @@ class TaskMessageEntity extends AbstractEntity
     protected ?int $imSeqId = null;
 
     /**
-     * @var null|int IM 状态（来自magic_chat_sequences表的status字段）
+     * @var null|string 关联ID，用于消息追踪和关联
+     */
+    protected ?string $correlationId = null;
+
+    /**
+     * @var null|int IM 状态
      */
     protected ?int $imStatus = null;
 
@@ -414,6 +419,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getCorrelationId(): ?string
+    {
+        return $this->correlationId;
+    }
+
+    public function setCorrelationId(?string $correlationId): self
+    {
+        $this->correlationId = $correlationId;
+        return $this;
+    }
+
     public function getImStatus(): ?int
     {
         return $this->imStatus;
@@ -454,6 +470,7 @@ class TaskMessageEntity extends AbstractEntity
             'retry_count' => $this->retryCount,
             'processed_at' => $this->processedAt,
             'im_seq_id' => $this->imSeqId,
+            'correlation_id' => $this->correlationId,
             'im_status' => $this->imStatus,
         ];
 
@@ -490,6 +507,11 @@ class TaskMessageEntity extends AbstractEntity
         // Add im_seq_id if provided
         if ($taskMessageDTO->getImSeqId() !== null) {
             $messageData['im_seq_id'] = $taskMessageDTO->getImSeqId();
+        }
+
+        // Add correlation_id if provided
+        if ($taskMessageDTO->getCorrelationId() !== null) {
+            $messageData['correlation_id'] = $taskMessageDTO->getCorrelationId();
         }
 
         return new TaskMessageEntity($messageData);

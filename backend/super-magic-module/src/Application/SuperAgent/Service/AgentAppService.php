@@ -30,7 +30,7 @@ use Throwable;
  * Agent应用服务
  * 负责协调Agent领域服务的调用，遵循DDD原则.
  */
-readonly class AgentAppService
+class AgentAppService
 {
     private LoggerInterface $logger;
 
@@ -609,7 +609,7 @@ readonly class AgentAppService
             sandboxId: $sandboxId,
             taskId: $topicEntity->getCurrentTaskId() ? (string) $topicEntity->getCurrentTaskId() : '',
             instruction: ChatInstruction::Normal,
-            agentMode: $topicEntity->getTopicMode() ? $topicEntity->getTopicMode()->value : 'general',
+            agentMode: $topicEntity->getTopicMode() ?: 'general',
             workspaceId: (string) $topicEntity->getWorkspaceId(),
         );
 

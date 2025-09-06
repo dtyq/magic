@@ -125,6 +125,8 @@ class ContentTypeUtil
         'mp3', 'wav', 'ogg', 'm4a',
     ];
 
+    private static array $needToSetContentTypeFileExt = ['css'];
+
     /**
      * Get Content-Type for a file based on its extension.
      *
@@ -237,6 +239,12 @@ class ContentTypeUtil
 
         // For attachment, handle filename encoding
         return self::buildAttachmentDisposition($filename);
+    }
+
+    public static function isSetContentType(string $filename): bool
+    {
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        return in_array($ext, self::$needToSetContentTypeFileExt);
     }
 
     /**

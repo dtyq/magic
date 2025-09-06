@@ -6,6 +6,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.event.common import BaseEventData
 from agentlang.interface.context import AgentContextInterface
 from agentlang.tools.tool_result import ToolResult
+from agentlang.llms.token_usage.models import TokenUsage
 
 
 class BeforeInitEventData(BaseEventData):
@@ -42,6 +43,7 @@ class AfterLlmResponseEventData(BaseEventData):
     tool_context: ToolContext
     llm_response_message: ChatCompletionMessage  # 大模型返回的消息内容
     show_in_ui: bool = True  # 是否在UI中显示
+    token_usage: Optional[TokenUsage] = None
 
 
 class BeforeToolCallEventData(BaseEventData):

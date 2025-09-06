@@ -4,6 +4,9 @@
 提供创建不同类型TaskMessage的工厂类
 """
 
+import random
+import time
+
 from agentlang.event.data import (
     AfterInitEventData,
     AfterLlmResponseEventData,
@@ -15,6 +18,8 @@ from agentlang.event.data import (
 )
 from agentlang.event.event import Event, EventType
 from agentlang.logger import get_logger
+from agentlang.llms.token_usage.models import TokenUsage, TokenUsageReport
+from agentlang.llms.factory import LLMFactory
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import AttachmentTag
 from app.core.entity.event.event import (
@@ -185,6 +190,20 @@ class TaskMessageFactory:
             status = TaskStatus.ERROR
             content = "任务执行结束"
 
+        sleep_duration = random.uniform(1, 2)
+        time.sleep(sleep_duration)
+        logger.debug(f"Slept for {sleep_duration:.2f} seconds before LLM request")
+        
+        # 从agent_context中获取token使用报告
+        token_usage_summary = None
+        try:
+            # 先尝试从agent_context获取
+            token_usage_summary = agent_context.get_token_usage_report()
+            logger.info(f"成功获取token使用汇总信息，包含 {len(token_usage_summary.usages) if token_usage_summary and token_usage_summary.usages else 0} 个模型的使用数据")
+        except Exception as e:
+            logger.error(f"获取token使用报告失败: {e}", exc_info=True)
+        
+        # 创建ServerMessage，包含token使用汇总信息
         return ServerMessage.create(
             metadata=agent_context.get_init_client_message_metadata(),
             payload=ServerMessagePayload.create(
@@ -196,7 +215,8 @@ class TaskMessageFactory:
                 attachments=attachments,
                 project_archive=project_archive,
                 event=EventType.AFTER_MAIN_AGENT_RUN
-            )
+            ),
+            token_usage_details=token_usage_summary
         )
 
     @classmethod
@@ -248,18 +268,29 @@ class TaskMessageFactory:
 
         # 确保 task_id 不为 None，如果为 None 则使用空字符串
         task_id = agent_context.get_task_id() or ""
+        
+        # 只使用事件中的token使用数据
+        token_usage_report = None
+        token_usage_from_event = getattr(event.data, "token_usage", None)
+        if token_usage_from_event:
+            token_usage_report = TokenUsageReport.create_item_report(token_usage_from_event)
+            logger.debug(f"使用事件中的token使用数据创建报告")
 
+        payload = ServerMessagePayload.create(
+            task_id=task_id,
+            sandbox_id=agent_context.get_sandbox_id(),
+            message_type=MessageType.THINKING,
+            status=TaskStatus.RUNNING,
+            content=content,
+            event=event.event_type,
+            show_in_ui=show_in_ui,
+        )
+        
+        # 传入token使用报告
         return ServerMessage.create(
             metadata=agent_context.get_init_client_message_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=task_id,
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=TaskStatus.RUNNING,
-                content=content,
-                event=event.event_type,
-                show_in_ui=show_in_ui  # 传递显示标志
-            )
+            payload=payload,
+            token_usage_details=token_usage_report
         )
 
     @classmethod

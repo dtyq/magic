@@ -119,7 +119,7 @@ func init() {
 	err := godotenv.Load()
 	if err != nil {
 		if debugMode {
-			logger.Printf("警告: 无法加载.env文件:", err)
+			logger.Printf("警告: 无法加载.env文件: %v", err)
 		}
 	}
 
@@ -704,21 +704,37 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 从请求头中获取magic-task-id 和magic-topic-id
 		magicTaskID := r.Header.Get("magic-task-id")
 		magicTopicID := r.Header.Get("magic-topic-id")
+		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
-		var magicUserID, magicOrganizationCode string
 
-		// 从请求上下文中获取JWT claims
+		// 优先从原始请求头获取，避免被JWT覆盖
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
+
+		// 从请求上下文中获取JWT claims作为fallback
 		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
-			magicUserID = claims.MagicUserID
-			magicOrganizationCode = claims.MagicOrganizationCode
+			// 只有当原始请求头中没有值时，才使用JWT中的值
+			if magicUserID == "" {
+				magicUserID = claims.MagicUserID
+			}
+			if magicOrganizationCode == "" {
+				magicOrganizationCode = claims.MagicOrganizationCode
+			}
 		}
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
-		if userID == "" && magicUserID != "" {
-			userID = magicUserID
+		// if userID == "" && magicUserID != "" {
+		// 	userID = magicUserID
+		// }
+
+		if debugMode {
+			logger.Printf("原始请求头 magic-user-id: %s", r.Header.Get("magic-user-id"))
+			logger.Printf("原始请求头 magic-organization-code: %s", r.Header.Get("magic-organization-code"))
+			logger.Printf("最终使用的 magicUserID: %s", magicUserID)
+			logger.Printf("最终使用的 magicOrganizationCode: %s", magicOrganizationCode)
 		}
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicLanguage)
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 聊天主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicChatTopicID, magicLanguage)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -979,18 +995,23 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		proxyReq.Header = proxyHeaders
 
 		// 透传magic-user-id和magic-organization-code到目标API
-		if magicUserID != "" {
+		// 只有当原始请求头中没有对应值时，才从JWT中设置，避免覆盖原始值
+		if proxyReq.Header.Get("magic-user-id") == "" && magicUserID != "" {
 			proxyReq.Header.Set("magic-user-id", magicUserID)
 			if debugMode {
-				logger.Printf("透传magic-user-id: %s", magicUserID)
+				logger.Printf("从JWT设置magic-user-id: %s", magicUserID)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-user-id") != "" {
+			logger.Printf("保留原始magic-user-id: %s", proxyReq.Header.Get("magic-user-id"))
 		}
 
-		if magicOrganizationCode != "" {
+		if proxyReq.Header.Get("magic-organization-code") == "" && magicOrganizationCode != "" {
 			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
 			if debugMode {
-				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+				logger.Printf("从JWT设置magic-organization-code: %s", magicOrganizationCode)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-organization-code") != "" {
+			logger.Printf("保留原始magic-organization-code: %s", proxyReq.Header.Get("magic-organization-code"))
 		}
 
 		if magicTaskID != "" {
@@ -1005,6 +1026,13 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			proxyReq.Header.Set("magic-topic-id", magicTopicID)
 			if debugMode {
 				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+			}
+		}
+
+		if magicChatTopicID != "" {
+			proxyReq.Header.Set("magic-chat-topic-id", magicChatTopicID)
+			if debugMode {
+				logger.Printf("透传magic-chat-topic-id: %s", magicChatTopicID)
 			}
 		}
 
@@ -1033,30 +1061,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		logger.Printf("代理响应状态码: %d", resp.StatusCode)
 
-		// 在调试模式下记录完整响应信息
-		if debugMode {
-			logFullResponse(resp, targetURL)
-		}
-
-		// 读取响应体
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			logger.Printf("读取响应体失败: %v", err)
-			http.Error(w, "读取响应体失败", http.StatusInternalServerError)
-			return
-		}
-
-
-		// 判断respBody 大小，如果超过100kb 则不打印
-		if len(respBody) > 100*1024 {
-			logger.Printf("响应体大小超过100kb，不打印")
-		} else {
-			logger.Printf("响应体内容: %s", string(respBody))
-		}
-
-
-		// 重新构建响应体供后续使用
-		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+		// 检查是否为SSE流式响应
+		contentType = resp.Header.Get("Content-Type")
+		isSSEResponse := strings.Contains(strings.ToLower(contentType), "text/event-stream") ||
+			strings.Contains(strings.ToLower(contentType), "text/stream") ||
+			strings.Contains(strings.ToLower(contentType), "application/stream")
 
 		// 设置响应头
 		for key, values := range resp.Header {
@@ -1070,8 +1079,70 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 设置状态码
 		w.WriteHeader(resp.StatusCode)
 
-		// 转发响应体
-		w.Write(respBody)
+		// 处理SSE流式响应
+		if isSSEResponse {
+			logger.Printf("检测到SSE流式响应，开始流式转发")
+
+			// 确保连接保持活跃，设置必要的流式响应头
+			if flusher, ok := w.(http.Flusher); ok {
+				// 实时转发流式数据
+				buffer := make([]byte, 4096)
+				for {
+					n, err := resp.Body.Read(buffer)
+					if n > 0 {
+						// 写入数据到客户端
+						w.Write(buffer[:n])
+						// 立即刷新缓冲区，确保数据实时传输
+						flusher.Flush()
+
+						if debugMode {
+							logger.Printf("转发SSE数据块: %d 字节", n)
+						}
+					}
+					if err != nil {
+						if err == io.EOF {
+							logger.Printf("SSE流结束")
+						} else {
+							logger.Printf("读取SSE流错误: %v", err)
+						}
+						break
+					}
+				}
+			} else {
+				logger.Printf("警告: ResponseWriter不支持Flush，降级为普通响应处理")
+				// 降级处理：读取完整响应体
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					logger.Printf("读取响应体失败: %v", err)
+					return
+				}
+				w.Write(respBody)
+			}
+		} else {
+			// 非流式响应的原有处理逻辑
+			// 在调试模式下记录完整响应信息
+			if debugMode {
+				logFullResponse(resp, targetURL)
+			}
+
+			// 读取响应体
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				logger.Printf("读取响应体失败: %v", err)
+				http.Error(w, "读取响应体失败", http.StatusInternalServerError)
+				return
+			}
+
+			// 判断respBody 大小，如果超过100kb 则不打印
+			if len(respBody) > 100*1024 {
+				logger.Printf("响应体大小超过100kb，不打印")
+			} else {
+				logger.Printf("响应体内容: %s", string(respBody))
+			}
+
+			// 转发响应体
+			w.Write(respBody)
+		}
 	})
 
 	handler(w, r)
@@ -1080,7 +1151,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 // 检查是否应跳过请求头
 func shouldSkipHeader(key string) bool {
 	key = strings.ToLower(key)
-	skipHeaders := []string{"host", "content-length", "connection", "x-forwarded-for"}
+	// 对于流式响应，需要保留更多头部信息
+	skipHeaders := []string{"host", "x-forwarded-for"}
+
+	// 对于流式响应，不跳过connection相关的头部
+	// content-length在流式响应中通常不需要或由服务器自动处理
 	for _, h := range skipHeaders {
 		if key == h {
 			return true

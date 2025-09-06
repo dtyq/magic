@@ -28,6 +28,8 @@ class TaskContext
      * @param ChatInstruction $instruction 聊天指令
      * @param string $agentMode Agent模式
      * @param array $mcpConfig MCP配置
+     * @param string $modelId 模型ID
+     * @param array $dynamicConfig 动态配置
      * @param string $workspaceId 工作区ID
      * @param string $messageId 消息ID
      */
@@ -241,11 +243,15 @@ class TaskContext
     public function getDynamicConfig(): array
     {
         if (! empty($this->modelId) && empty($this->dynamicConfig['models'][$this->getModelId()])) {
-            // 添加默认配置
+            $modelName = $this->getModelId();
+            // 当 max 模型是 claude 系列的时候，并且是 slider 模式的时候，切换为 claude3.7
+            if ($modelName === 'max' && $this->getAgentMode() === 'ppt') {
+                $modelName = 'claude-3.7';
+            }
             $this->dynamicConfig['models'][$this->getModelId()] = [
                 'api_key' => '${MAGIC_API_KEY}',
                 'api_base_url' => '${MAGIC_API_BASE_URL}',
-                'name' => $this->getModelId(),
+                'name' => $modelName,
             ];
         }
 

@@ -28,9 +28,6 @@ storage/logs/
 *.swp
 .DS_Store
 
-# 测试文件
-tests/
-phpunit.xml
 .phpunit.result.cache
 volumes/
 # 文档
@@ -56,5 +53,4 @@ yarn-error.log
 
 # 新增的代码块
 runtime/
-test/
 *.bak 

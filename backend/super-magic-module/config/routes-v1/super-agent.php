@@ -94,6 +94,22 @@ Router::addGroup(
             Router::post('/delete', [TopicApi::class, 'deleteTopic']);
             // 智能重命名话题
             Router::post('/rename', [TopicApi::class, 'renameTopic']);
+            // Checkpoint 回滚管理
+            Router::addGroup('/{id}/checkpoints', static function () {
+                // 直接回滚检查点
+                Router::post('/rollback', [TopicApi::class, 'rollbackCheckpoint']);
+
+                Router::addGroup('/rollback', static function () {
+                    // 检查回滚检查点的可行性
+                    Router::post('/check', [TopicApi::class, 'rollbackCheckpointCheck']);
+                    // 开始回滚检查点（标记状态而非删除）
+                    Router::post('/start', [TopicApi::class, 'rollbackCheckpointStart']);
+                    // 提交回滚检查点（物理删除撤回状态的消息）
+                    Router::post('/commit', [TopicApi::class, 'rollbackCheckpointCommit']);
+                    // 撤销回滚检查点（将撤回状态的消息恢复为正常状态）
+                    Router::post('/undo', [TopicApi::class, 'rollbackCheckpointUndo']);
+                });
+            });
         });
 
         // 任务相关
@@ -125,8 +141,6 @@ Router::addGroup(
         Router::addGroup('/file', static function () {
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
-            // 兼容
-            Router::post('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
             // 获取话题文件上传STS Token
             Router::get('/topic-upload-token', [FileApi::class, 'getTopicUploadToken']);
             // 创建文件和文件夹
@@ -145,6 +159,10 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 获取文件版本列表
+            Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
+            // 文件回滚到指定版本
+            Router::post('/{id}/rollback', [FileApi::class, 'rollbackFileToVersion']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
@@ -178,6 +196,8 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+            // 升级沙箱镜像
+            Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
@@ -197,6 +217,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
 
     // 获取任务附件 （需要替换一下这个名称）
     Router::post('/tasks/get-file-url', [FileApi::class, 'getFileUrls']);
+    // 批量转换文件为 PDF
+    Router::post('/tasks/pdf/conversions', [TaskApi::class, 'convertFilesToPdf']);
     // 投递消息
     Router::post('/tasks/deliver-message', [TaskApi::class, 'deliverMessage']);
 
@@ -225,10 +247,6 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
 
-        // 获取文件版本列表
-        Router::post('/versions', [FileApi::class, 'getFileVersions']);
-        // 获取文件版本内容
-        Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
         // 批量获取下载链接

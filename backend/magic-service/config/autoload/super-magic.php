@@ -16,6 +16,10 @@ return [
         'callback_host' => \Hyperf\Support\env('APP_HOST', ''),
         'deployment_id' => \Hyperf\Support\env('DEPLOYMENT_ID', ''),
     ],
+    'magic-gateway' => [
+        'magic_api_key' => \Hyperf\Support\env('MAGIC_API_KEY', ''),
+        'api_url' => \Hyperf\Support\env('MAGIC_API_SERVICE_BASE_URL', ''),
+    ],
     'share' => [
         'encrypt_key' => \Hyperf\Support\env('SHARE_ENCRYPT_KEY', ''),
         'encrypt_iv' => \Hyperf\Support\env('SHARE_ENCRYPT_IV', ''),
@@ -33,5 +37,8 @@ return [
     'user_message_queue' => [
         'enabled' => \Hyperf\Support\env('USER_MESSAGE_QUEUE_ENABLED', true),
         'whitelist' => array_filter(explode(',', \Hyperf\Support\env('USER_MESSAGE_QUEUE_WHITELIST', ''))),
+    ],
+    'file_version' => [
+        'max_versions' => \Hyperf\Support\env('FILE_VERSION_MAX_VERSIONS', 10),
     ],
 ];

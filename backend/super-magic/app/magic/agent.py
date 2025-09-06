@@ -1043,8 +1043,13 @@ class Agent(BaseAgent):
         if self.is_agent_running():
             self.set_agent_state(AgentState.FINISHED)
 
-        # 记录token使用情况 - 只在非流模式下打印
+        # 记录token使用情况 - 只在非流模式下记录和打印
         if not self.stream_mode:
+            # 获取token使用报告
+            token_report = self.get_token_usage_report()
+            # 保存token使用报告到context中
+            self.agent_context.set_token_usage_report(token_report)
+            # 打印token使用报告
             self.print_token_usage()
 
         return final_response
@@ -1105,6 +1110,9 @@ class Agent(BaseAgent):
         request_time = time.time() - start_time
         # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ 调用 LLM 结束 ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ #
 
+        # 从 TokenUsageTracker 获取最近一次记录的、结构化的 TokenUsage 对象
+        current_token_usage = LLMFactory.token_tracker.get_last_recorded_usage()
+
         # --- 处理 LLM 响应内容为空的情况 ---
         # ChatHistory 标准化应该已经处理了大部分情况，这里作为最后防线
         # 特别是处理 API 返回的 content 为 None 但有 tool_calls 的情况
@@ -1154,7 +1162,8 @@ class Agent(BaseAgent):
                 request_time=request_time,
                 success=True,
                 tool_context=tool_context,
-                llm_response_message=llm_response_message # 传递原始响应消息
+                llm_response_message=llm_response_message, # 传递原始响应消息
+                token_usage=current_token_usage # Added token_usage
             )
         )
 

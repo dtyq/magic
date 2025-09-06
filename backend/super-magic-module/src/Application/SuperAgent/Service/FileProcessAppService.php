@@ -29,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -62,6 +63,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly FileDomainService $fileDomainService,
         private readonly LockerInterface $locker,
+        private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -904,20 +906,6 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
-    public function getFileVersions(int $fileId): array
-    {
-        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
-        if (empty($taskFileEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
-        }
-
-        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
-        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
-
-        return [];
-        // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
-    }
-
     public function getGitDir(string $fileKey): string
     {
         return '.workspace';
@@ -979,6 +967,9 @@ class FileProcessAppService extends AbstractAppService
 
         // 4. Update file metadata
         $this->updateFileMetadata($taskFileEntity, $result);
+
+        // 5. 创建文件版本
+        $this->taskFileVersionDomainService->createFileVersion($taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),

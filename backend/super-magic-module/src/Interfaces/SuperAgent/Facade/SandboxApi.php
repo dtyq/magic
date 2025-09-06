@@ -149,7 +149,7 @@ class SandboxApi extends AbstractApi
         $initSandboxResponseDTO->setProjectId($requestDTO->getProjectId());
         $initSandboxResponseDTO->setProjectMode($requestDTO->getProjectMode());
         $initSandboxResponseDTO->setTopicId($requestDTO->getTopicId());
-        $initSandboxResponseDTO->setChatTopicId($requestDTO->getChatTopicId());
+        // $initSandboxResponseDTO->setChatTopicId($requestDTO->getChatTopicId());
         // $initSandboxResponseDTO->setConversationId($requestDTO->getTopicId());
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId((string) $magicUserAuthorization->getId());

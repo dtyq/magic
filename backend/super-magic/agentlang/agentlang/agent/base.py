@@ -15,6 +15,7 @@ from agentlang.agent.loader import AgentLoader
 from agentlang.agent.state import AgentState
 from agentlang.chat_history import ToolCall
 from agentlang.llms.factory import LLMFactory
+from agentlang.llms.token_usage.models import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.core.context.agent_context import AgentContext
@@ -270,6 +271,23 @@ class BaseAgent(ABC):
             logger.info(formatted_report)
         except Exception as e:
             logger.error(f"打印Token使用报告时出错: {e!s}")
+            
+    def get_token_usage_report(self) -> TokenUsageReport:
+        """
+        获取token使用报告。
+        
+        Returns:
+            TokenUsageReport: token使用报告
+        """
+        try:
+            # 从LLMFactory获取token使用报告
+            token_report = LLMFactory.token_tracker.get_usage_report()
+            return token_report
+        except Exception as e:
+            logger.error(f"获取token使用报告时出错: {e!s}")
+            # 返回空报告
+            from agentlang.llms.token_usage.models import TokenUsageReport
+            return TokenUsageReport.create_summary_report([])
 
     def load_agent_config(self, agent_name: str) -> None:
         """

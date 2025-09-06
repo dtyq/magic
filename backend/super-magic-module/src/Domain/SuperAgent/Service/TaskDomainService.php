@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
@@ -32,8 +34,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\ContentTypeUtil;
 use Hyperf\Contract\StdoutLoggerInterface;
 use RuntimeException;
+use Throwable;
 
 class TaskDomainService
 {
@@ -43,6 +47,7 @@ class TaskDomainService
         protected TaskRepositoryInterface $taskRepository,
         protected TaskMessageRepositoryInterface $messageRepository,
         protected TaskFileRepositoryInterface $taskFileRepository,
+        protected CloudFileRepository $cloudFileRepository,
         protected StdoutLoggerInterface $logger,
         protected SandboxService $sandboxService,
         protected SandboxAgentInterface $sandboxAgent,
@@ -77,11 +82,15 @@ class TaskDomainService
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
         // Update topic's current task ID and status
-        $topicEntity->setCurrentTaskId($taskEntity->getId());
-        $topicEntity->setCurrentTaskStatus(TaskStatus::RUNNING);
-        $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $topicEntity->setUpdatedUid($userId);
-        $topicEntity->setTaskMode($taskEntity->getTaskMode());
+        $conditions = [
+            'id' => $topicEntity->getId(),
+        ];
+        $data = [
+            'current_task_id' => $taskEntity->getId(),
+            'current_task_status' => TaskStatus::RUNNING->value,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
         $conditions = [
             'id' => $topicEntity->getId(),
         ];
@@ -353,6 +362,20 @@ class TaskDomainService
         // Set parent_id if provided
         if ($parentId !== null) {
             $taskFileEntity->setParentId($parentId);
+        }
+
+        // Css file need to set content type
+        if (! $taskFileEntity->getIsDirectory() && ContentTypeUtil::isSetContentType($taskFileEntity->getFileName())) {
+            try {
+                $this->cloudFileRepository->setHeadObjectByCredential(
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileKey,
+                    ['content_type' => ContentTypeUtil::getContentType($taskFileEntity->getFileName())],
+                    StorageBucketType::SandBox
+                );
+            } catch (Throwable $e) {
+                $this->logger->error('setHeadObjectByCredential error', ['file_name' => $taskFileEntity->getFileName(), 'msg' => $e->getMessage()]);
+            }
         }
 
         // Use insertOrIgnore method, if there's already a record with the same file_key and topic_id, return the existing entity

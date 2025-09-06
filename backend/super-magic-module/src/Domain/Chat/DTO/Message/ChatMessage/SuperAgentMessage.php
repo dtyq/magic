@@ -45,6 +45,8 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
 
     protected ?MemoryOperation $memoryOperation;
 
+    protected ?string $correlationId = null; // 🎯 添加 correlation_id 字段
+
     public function __construct(?array $messageStruct = null)
     {
         parent::__construct();
@@ -200,6 +202,17 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
         return $this;
     }
 
+    public function getCorrelationId(): ?string
+    {
+        return $this->correlationId;
+    }
+
+    public function setCorrelationId(?string $correlationId): self
+    {
+        $this->correlationId = $correlationId;
+        return $this;
+    }
+
     public function toArray(bool $filterNull = false): array
     {
         $data = array_merge(parent::toArray($filterNull), [
@@ -221,6 +234,7 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
             'send_timestamp' => $this->sendTimestamp ?? time(),
             'attachments' => $this->attachments,
             'remark' => $this->remark,
+            'correlation_id' => $this->correlationId,
         ]);
 
         if ($filterNull) {
