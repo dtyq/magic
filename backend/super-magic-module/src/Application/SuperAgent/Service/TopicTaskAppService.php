@@ -13,15 +13,20 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicMessageProcessPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
@@ -40,6 +45,7 @@ class TopicTaskAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskMessageDomainService $taskMessageDomainService,
+        private readonly SandboxDomainService $sandboxDomainService,
         protected MagicUserDomainService $userDomainService,
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
@@ -206,5 +212,46 @@ class TopicTaskAppService extends AbstractAppService
             ]);
             throw $e;
         }
+    }
+
+    public function updateTaskStatusFromSandbox(TopicEntity $topicEntity): TaskStatus
+    {
+        $this->logger->info(sprintf('开始检查任务状态: topic_id=%s', $topicEntity->getId()));
+        $sandboxId = ! empty($topicEntity->getSandboxId()) ? $topicEntity->getSandboxId() : (string) $topicEntity->getId();
+
+        // 调用SandboxService的getStatus接口获取容器状态
+        $result = $this->sandboxDomainService->getSandboxStatus($sandboxId);
+
+        // 如果沙箱存在且状态为 running，直接返回该沙箱
+        if ($result->getStatus() === SandboxStatus::RUNNING) {
+            $this->logger->info(sprintf('沙箱状态正常(running): sandboxId=%s', $topicEntity->getSandboxId()));
+            return TaskStatus::RUNNING;
+        }
+
+        $errMsg = $result->getStatus();
+
+        // 获取当前任务
+        $taskId = $topicEntity->getCurrentTaskId();
+        if ($taskId) {
+            // 更新任务状态
+            $this->taskDomainService->updateTaskStatusByTaskId($taskId, TaskStatus::ERROR, $errMsg);
+        }
+
+        // 更新话题状态
+        $this->topicDomainService->updateTopicStatus($topicEntity->getId(), $taskId, TaskStatus::ERROR);
+
+        // 触发完成事件
+        AsyncEventUtil::dispatch(new RunTaskAfterEvent(
+            $topicEntity->getUserOrganizationCode(),
+            $topicEntity->getUserId(),
+            $topicEntity->getId(),
+            $taskId,
+            TaskStatus::ERROR->value,
+            null
+        ));
+
+        $this->logger->info(sprintf('结束检查任务状态: topic_id=%s, status=%s, error_msg=%s', $topicEntity->getId(), TaskStatus::ERROR->value, $errMsg));
+
+        return TaskStatus::ERROR;
     }
 }

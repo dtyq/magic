@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Crontab;
 
-use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
@@ -23,7 +23,7 @@ readonly class CheckTaskStatusTask
 {
     public function __construct(
         protected TopicAppService $topicAppService,
-        protected TaskAppService $taskAppService,
+        protected TopicTaskAppService $taskAppService,
         protected StdoutLoggerInterface $logger,
         protected SandboxInterface $sandboxService,
     ) {
@@ -66,10 +66,6 @@ readonly class CheckTaskStatusTask
             $updatedToErrorCount = 0;
 
             foreach ($staleRunningTopics as $topic) {
-                $sandboxId = $topic->getSandboxId();
-                if (empty($sandboxId)) {
-                    continue;
-                }
                 // 每次循环后休眠0.1秒，避免请求过于频繁
                 usleep(100000); // 100000微秒 = 0.1秒
                 $status = $this->taskAppService->updateTaskStatusFromSandbox($topic);
