@@ -35,7 +35,7 @@ readonly class AgentAppService
     private LoggerInterface $logger;
 
     public function __construct(
-        LoggerFactory $loggerFactory,
+        private LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
