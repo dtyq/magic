@@ -14,17 +14,30 @@ use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentRepositoryInterface;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Chat\Assembler\DepartmentAssembler;
 use Hyperf\Cache\Annotation\Cacheable;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
+use Hyperf\Logger\LoggerFactory;
+use Hyperf\Redis\Redis;
 use JetBrains\PhpStorm\ArrayShape;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
 {
     public function __construct(
         protected DepartmentModel $model,
+        protected Redis $redis,
+        protected LockerInterface $locker,
+        protected LoggerInterface $logger,
     ) {
+        try {
+            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get(get_class($this));
+        } catch (Throwable) {
+        }
     }
 
     public function getDepartmentById(string $departmentId, string $organizationCode): ?MagicDepartmentEntity
@@ -143,7 +156,7 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
     {
         $departments = $this->model->newQuery()
             ->where('organization_code', $organizationCode)
-            ->where('name', 'like', "%{$departmentName}%")
+            ->where('name', 'like', sprintf('%%%s%%', $departmentName))
             ->limit(100)
             /* @phpstan-ignore-next-line */
             ->when($pageSize, function (Builder $query) use ($pageToken, $pageSize) {
@@ -172,17 +185,42 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
 
     /**
      * 获取部门的所有子部门的成员总数.
+     * 使用自旋锁避免并发，一次性查询所有部门数据并缓存到 Redis.
      */
     public function getSelfAndChildrenEmployeeSum(MagicDepartmentEntity $magicDepartmentEntity): int
     {
-        $departments = $this->getChildrenDepartmentsFromCache($magicDepartmentEntity->getOrganizationCode(), $magicDepartmentEntity->getLevel());
-        $employeeSum = 0;
-        foreach ($departments as $department) {
-            if (str_contains($department['path'], $magicDepartmentEntity->getDepartmentId())) {
-                $employeeSum += $department['employee_sum'];
-            }
+        $organizationCode = $magicDepartmentEntity->getOrganizationCode();
+        $departmentId = $magicDepartmentEntity->getDepartmentId();
+
+        // 先尝试从 Redis 缓存获取
+        $cacheKey = sprintf('department_employee_sum:%s', $organizationCode);
+
+        $cachedData = $this->redis->hget($cacheKey, $departmentId);
+        if ($cachedData !== false) {
+            return (int) $cachedData;
         }
-        return $employeeSum;
+
+        // 使用自旋锁避免并发计算
+        $lockKey = sprintf('department_calc_lock:%s', $organizationCode);
+        $lockOwner = uniqid('dept_calc_', true);
+
+        if (! $this->locker->spinLock($lockKey, $lockOwner, 30)) {
+            return 0;
+        }
+
+        try {
+            // 一次性获取组织下的所有部门数据
+            $allDepartments = $this->getAllDepartmentsForCalculation($organizationCode);
+            // 计算每个部门的员工总数并缓存到 Redis
+            $this->calculateAndCacheAllDepartmentEmployeeSums($organizationCode, $allDepartments, $cacheKey);
+            $result = $this->redis->hget($cacheKey, $departmentId);
+            return $result !== false ? (int) $result : 0;
+        } catch (Throwable) {
+            // 发生异常时直接计算不走缓存
+            return $this->calculateSelfAndChildrenEmployeeSum($organizationCode, $departmentId);
+        } finally {
+            $this->locker->release($lockKey, $lockOwner);
+        }
     }
 
     /**
@@ -290,7 +328,7 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
         // Add organization name fuzzy search if provided
         if (! empty($organizationName)) {
             $query->where(function ($query) use ($organizationName) {
-                $query->orWhere('name', 'like', "%{$organizationName}%");
+                $query->orWhere('name', 'like', sprintf('%%%s%%', $organizationName));
                 $query->orWhere('organization_code', '=', $organizationName);
             });
         }
@@ -355,12 +393,76 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
         return Db::select($query->toSql(), $query->getBindings());
     }
 
-    #[Cacheable(prefix: 'getChildrenDepartments', ttl: 60)]
-    private function getChildrenDepartmentsFromCache(string $orgCode, int $level): array
+    /**
+     * 一次性获取组织下的所有部门数据，用于员工数计算.
+     */
+    private function getAllDepartmentsForCalculation(string $organizationCode): array
+    {
+        $query = $this->model::query()
+            ->select(['department_id', 'path', 'employee_sum'])
+            ->where('organization_code', $organizationCode);
+
+        return Db::select($query->toSql(), $query->getBindings());
+    }
+
+    /**
+     * 计算并缓存所有部门的员工总数.
+     */
+    private function calculateAndCacheAllDepartmentEmployeeSums(string $organizationCode, array $allDepartments, string $cacheKey): void
+    {
+        $departmentSums = [];
+
+        // 为每个部门计算员工总数
+        foreach ($allDepartments as $department) {
+            $departmentId = $department->department_id;
+            $employeeSum = 0;
+
+            // 计算包含当前部门及其所有子部门的员工总数
+            foreach ($allDepartments as $checkDept) {
+                if (str_contains($checkDept->path, $departmentId)) {
+                    $employeeSum += $checkDept->employee_sum ?? 0;
+                }
+            }
+
+            $departmentSums[$departmentId] = $employeeSum;
+        }
+
+        // 批量写入 Redis 缓存
+        try {
+            if (! empty($departmentSums)) {
+                $this->redis->multi();
+                // 使用 hmset 一次性设置多个 hash 字段，更高效
+                $this->redis->hmset($cacheKey, $departmentSums);
+                // 设置缓存过期时间
+                $this->redis->expire($cacheKey, 60 * 5);
+                $this->redis->exec();
+            }
+        } catch (Throwable $e) {
+            // Redis 异常时记录日志，但不影响业务流程
+            $this->logger->warning('calculateAndCacheAllDepartmentEmployeeSums Failed to cache department employee sums', [
+                'organization_code' => $organizationCode,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * 直接计算单个部门的员工总数（不使用缓存）.
+     */
+    private function calculateSelfAndChildrenEmployeeSum(string $organizationCode, string $departmentId): int
     {
         $query = $this->model->newQuery()
-            ->where('organization_code', $orgCode)
-            ->where('level', '>=', $level);
-        return Db::select($query->toSql(), $query->getBindings());
+            ->select(['employee_sum'])
+            ->where('organization_code', $organizationCode)
+            ->where('path', 'like', sprintf('%%%s%%', $departmentId));
+
+        $departments = Db::select($query->toSql(), $query->getBindings());
+
+        $employeeSum = 0;
+        foreach ($departments as $department) {
+            $employeeSum += (int) ($department->employee_sum ?? 0);
+        }
+
+        return $employeeSum;
     }
 }
