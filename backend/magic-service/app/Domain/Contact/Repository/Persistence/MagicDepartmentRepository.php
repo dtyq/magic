@@ -211,11 +211,19 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
         try {
             // 一次性获取组织下的所有部门数据
             $allDepartments = $this->getAllDepartmentsForCalculation($organizationCode);
+
             // 计算每个部门的员工总数并缓存到 Redis
             $this->calculateAndCacheAllDepartmentEmployeeSums($organizationCode, $allDepartments, $cacheKey);
             $result = $this->redis->hget($cacheKey, $departmentId);
+
             return $result !== false ? (int) $result : 0;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            $this->logger->error('Exception in getSelfAndChildrenEmployeeSum', [
+                'organization_code' => $organizationCode,
+                'department_id' => $departmentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             // 发生异常时直接计算不走缓存
             return $this->calculateSelfAndChildrenEmployeeSum($organizationCode, $departmentId);
         } finally {
@@ -414,13 +422,13 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
 
         // 为每个部门计算员工总数
         foreach ($allDepartments as $department) {
-            $departmentId = $department->department_id;
+            $departmentId = $department['department_id'];
             $employeeSum = 0;
 
             // 计算包含当前部门及其所有子部门的员工总数
             foreach ($allDepartments as $checkDept) {
-                if (str_contains($checkDept->path, $departmentId)) {
-                    $employeeSum += $checkDept->employee_sum ?? 0;
+                if (str_contains($checkDept['path'], $departmentId)) {
+                    $employeeSum += $checkDept['employee_sum'] ?? 0;
                 }
             }
 
@@ -430,12 +438,30 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
         // 批量写入 Redis 缓存
         try {
             if (! empty($departmentSums)) {
+                // 确保所有值都是字符串格式
+                $stringDepartmentSums = [];
+                foreach ($departmentSums as $deptId => $sum) {
+                    $stringDepartmentSums[$deptId] = (string) $sum;
+                }
+
                 $this->redis->multi();
-                // 使用 hmset 一次性设置多个 hash 字段，更高效
-                $this->redis->hmset($cacheKey, $departmentSums);
+                // 使用 hmset 一次性设置多个 hash 字段
+                $this->redis->hmset($cacheKey, $stringDepartmentSums);
                 // 设置缓存过期时间
                 $this->redis->expire($cacheKey, 60 * 5);
-                $this->redis->exec();
+                $results = $this->redis->exec();
+
+                // 检查事务执行结果
+                if ($results === false) {
+                    $this->logger->error('Redis transaction failed', [
+                        'cache_key' => $cacheKey,
+                        'organization_code' => $organizationCode,
+                    ]);
+                }
+            } else {
+                $this->logger->warning('departmentSums is empty, skipping Redis write', [
+                    'organization_code' => $organizationCode,
+                ]);
             }
         } catch (Throwable $e) {
             // Redis 异常时记录日志，但不影响业务流程
@@ -460,7 +486,7 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
 
         $employeeSum = 0;
         foreach ($departments as $department) {
-            $employeeSum += (int) ($department->employee_sum ?? 0);
+            $employeeSum += (int) ($department['employee_sum'] ?? 0);
         }
 
         return $employeeSum;
