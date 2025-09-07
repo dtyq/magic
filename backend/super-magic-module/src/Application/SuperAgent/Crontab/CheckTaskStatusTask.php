@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Crontab;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -18,14 +20,19 @@ use Throwable;
 /**
  * 检查长时间处于运行状态的任务
  */
-#[Crontab(rule: '15 * * * *', name: 'CheckTaskStatus', singleton: true, onOneServer: true, callback: 'execute', memo: '每小时的第15分钟检查超过6小时未完成的话题和容器状态')]
+#[Crontab(rule: '12 * * * *', name: 'CheckTaskStatus', singleton: true, onOneServer: true, callback: 'execute', memo: '每小时的第12分钟检查超过6小时未完成的话题和容器状态')]
 readonly class CheckTaskStatusTask
 {
+    private const GLOBAL_LOCK_KEY = 'check_task_status_crontab_lock';
+
+    private const GLOBAL_LOCK_EXPIRE = 900; // Global lock timeout: 15 minutes
+
     public function __construct(
         protected TopicAppService $topicAppService,
         protected TopicTaskAppService $taskAppService,
         protected StdoutLoggerInterface $logger,
         protected SandboxInterface $sandboxService,
+        private LockerInterface $locker,
     ) {
     }
 
@@ -34,12 +41,33 @@ readonly class CheckTaskStatusTask
      */
     public function execute(): void
     {
+        $startTime = microtime(true);
+        $globalLockOwner = IdGenerator::getUniqueId32();
+
         $this->logger->info('[CheckTaskStatusTask] 开始检查长时间未更新的任务');
+
+        // Step 1: Acquire global lock to prevent multiple instances
+        if (! $this->acquireGlobalLock($globalLockOwner)) {
+            $this->logger->info('[CheckTaskStatusTask] 无法获取全局锁，其他实例正在执行任务，跳过本次执行');
+            return;
+        }
+
         try {
             // 检查任务状态和容器状态
             $this->checkTasksStatus();
+
+            $executionTime = round((microtime(true) - $startTime) * 1000, 2);
+            $this->logger->info(sprintf(
+                '[CheckTaskStatusTask] 任务执行完成，耗时: %sms',
+                $executionTime
+            ));
         } catch (Throwable $e) {
-            $this->logger->error(sprintf('[CheckTaskStatusTask] 执行失败: %s', $e->getMessage()));
+            $this->logger->error(sprintf('[CheckTaskStatusTask] 执行失败: %s', $e->getMessage()), [
+                'exception' => $e,
+            ]);
+        } finally {
+            // Step 2: Always release global lock
+            $this->releaseGlobalLock($globalLockOwner);
         }
     }
 
@@ -83,6 +111,26 @@ readonly class CheckTaskStatusTask
         } catch (Throwable $e) {
             $this->logger->error(sprintf('[CheckTaskStatusTask] 检查任务状态失败: %s', $e->getMessage()));
             throw $e;
+        }
+    }
+
+    /**
+     * Acquire global lock.
+     */
+    private function acquireGlobalLock(string $lockOwner): bool
+    {
+        return $this->locker->mutexLock(self::GLOBAL_LOCK_KEY, $lockOwner, self::GLOBAL_LOCK_EXPIRE);
+    }
+
+    /**
+     * Release global lock.
+     */
+    private function releaseGlobalLock(string $lockOwner): void
+    {
+        if ($this->locker->release(self::GLOBAL_LOCK_KEY, $lockOwner)) {
+            $this->logger->info('[CheckTaskStatusTask] 全局锁释放成功');
+        } else {
+            $this->logger->error('[CheckTaskStatusTask] 全局锁释放失败，可能需要人工检查');
         }
     }
 }
