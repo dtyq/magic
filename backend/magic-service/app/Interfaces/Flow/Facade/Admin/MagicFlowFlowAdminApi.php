@@ -137,7 +137,7 @@ class MagicFlowFlowAdminApi extends AbstractFlowAdminApi
      */
     public function queryToolSets()
     {
-        $withBuiltin = (bool) $this->request->input('with_builtin', false);
+        $withBuiltin = (bool) $this->request->input('with_builtin', true);
         $result = $this->magicFlowAppService->queryToolSets($this->getAuthorization(), $withBuiltin);
         return MagicFlowToolSetAssembler::createPageListDTO($result['total'], $result['list'], Page::createNoPage(), $result['users'], $result['icons']);
     }
