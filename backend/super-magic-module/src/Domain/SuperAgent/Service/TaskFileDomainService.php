@@ -1163,23 +1163,17 @@ class TaskFileDomainService
      */
     public function getFileUrls(DataIsolation $dataIsolation, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $fileEntities = $this->taskFileRepository->findUserFilesByIds(
+            $fileIds,
+            $dataIsolation->getCurrentUserId()
+        );
+
+        if (empty($fileEntities)) {
+            return [];
+        }
+
         $result = [];
-
-        foreach ($fileIds as $fileId) {
-            // 获取文件实体
-            $fileEntity = $this->taskFileRepository->getById((int) $fileId);
-            if (empty($fileEntity)) {
-                // 如果文件不存在，跳过
-                continue;
-            }
-
-            // 验证文件是否属于当前用户
-            if ($fileEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
-                // 如果这个文件不是本人的，不处理
-                continue;
-            }
-
+        foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
                 continue;
@@ -1187,7 +1181,7 @@ class TaskFileDomainService
 
             try {
                 // 检查是否指定了版本号
-                $specifiedVersion = $fileVersions[$fileId] ?? null;
+                $specifiedVersion = $fileVersions[$fileEntity->getFileId()] ?? null;
 
                 if ($specifiedVersion !== null) {
                     // 查询指定版本的文件信息
@@ -1204,9 +1198,10 @@ class TaskFileDomainService
                     }
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, $fileId);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
             } catch (Throwable $e) {
-                // 如果获取URL失败，跳过
+                // 获取URL失败，记录日志并跳过
+                $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
                 continue;
             }
         }
