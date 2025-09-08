@@ -24,4 +24,7 @@ Router::addGroup('/api/v1/asr', function () {
     Router::get('/summary', [AsrTokenApi::class, 'summary']); // 查询录音总结状态（包含处理逻辑）
     // 合并录音文件下载服务
     Router::get('/download-url', [AsrTokenApi::class, 'downloadMergedAudio']); // 获取合并后录音文件的下载链接
+
+    // 文件列表查询服务 - 测试接口
+    Router::post('/files', [AsrTokenApi::class, 'listObject']); // 查询指定目录下的文件列表（测试用）
 }, ['middleware' => [RequestContextMiddleware::class]]);

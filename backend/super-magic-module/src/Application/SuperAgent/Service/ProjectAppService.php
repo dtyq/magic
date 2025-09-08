@@ -325,6 +325,11 @@ class ProjectAppService extends AbstractAppService
             $conditions['workspace_id'] = $requestDTO->getWorkspaceId();
         }
 
+        // Add project name fuzzy search condition
+        if (! empty($requestDTO->getProjectName())) {
+            $conditions['project_name_like'] = $requestDTO->getProjectName();
+        }
+
         $result = $this->projectDomainService->getProjectsByConditions(
             $conditions,
             $requestDTO->getPage(),

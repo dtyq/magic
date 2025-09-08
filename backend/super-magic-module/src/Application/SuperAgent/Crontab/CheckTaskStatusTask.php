@@ -13,8 +13,9 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicTaskAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
-use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Crontab\Annotation\Crontab;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -27,13 +28,16 @@ readonly class CheckTaskStatusTask
 
     private const GLOBAL_LOCK_EXPIRE = 900; // Global lock timeout: 15 minutes
 
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected TopicAppService $topicAppService,
         protected TopicTaskAppService $taskAppService,
-        protected StdoutLoggerInterface $logger,
         protected SandboxInterface $sandboxService,
         private LockerInterface $locker,
+        LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get(self::class);
     }
 
     /**
@@ -41,6 +45,11 @@ readonly class CheckTaskStatusTask
      */
     public function execute(): void
     {
+        $enableCrontab = config('super-magic.task.check_task_crontab.enabled', false);
+        if ($enableCrontab === false) {
+            return;
+        }
+
         $startTime = microtime(true);
         $globalLockOwner = IdGenerator::getUniqueId32();
 
