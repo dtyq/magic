@@ -16,9 +16,6 @@ WORKDIR /opt/www
 
 COPY . /opt/www
 
-# 安装 PostgreSQL 客户端库及其他依赖
-RUN apk add --no-cache  git openssh-client
-
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
 #    apk update && \
