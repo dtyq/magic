@@ -1163,18 +1163,15 @@ class TaskFileDomainService
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrls(DataIsolation $dataIsolation, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
+    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
     {
-        $fileEntities = $this->taskFileRepository->findUserFilesByIds(
-            $fileIds,
-            $dataIsolation->getCurrentUserId()
-        );
+        $result = [];
 
+        $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
         if (empty($fileEntities)) {
-            return [];
+            return $result;
         }
 
-        $result = [];
         foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
