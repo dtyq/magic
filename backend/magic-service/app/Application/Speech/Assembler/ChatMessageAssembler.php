@@ -54,8 +54,11 @@ class ChatMessageAssembler
         $fullFilePath = $dto->taskStatus->filePath;
         $fileName = basename($fullFilePath); // 从完整路径中提取文件名
 
+        // 提取工作区下的相对路径
+        $workspaceRelativePath = $this->extractWorkspaceRelativePath($fullFilePath);
+
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($fileId, $fileName, $fullFilePath, $dto->modelId);
+        $messageContent = $this->buildMessageContent($fileId, $fileName, $workspaceRelativePath, $dto->modelId);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -145,5 +148,46 @@ class ChatMessageAssembler
                 ],
             ],
         ];
+    }
+
+    /**
+     * 提取工作区下的相对路径.
+     *
+     * 从完整路径中提取相对于workspace/的相对路径
+     * 例如：DT001/588417216353927169/project_821749697183776769/workspace/录音总结_20250908_153820/原始录音文件.webm
+     * 返回：录音总结_20250908_153820/原始录音文件.webm
+     *
+     * 如果传入的已经是相对路径，直接返回原始路径
+     *
+     * @param string $fullPath 完整文件路径或相对路径
+     * @return string 工作区相对路径或原始路径
+     */
+    private function extractWorkspaceRelativePath(string $fullPath): string
+    {
+        // 标准化路径分隔符
+        $normalizedPath = str_replace('\\', '/', trim($fullPath, '/'));
+
+        // 查找 workspace/ 的位置
+        $workspacePos = strpos($normalizedPath, '/workspace/');
+        if ($workspacePos !== false) {
+            // 提取 workspace/ 后面的部分
+            $relativePath = substr($normalizedPath, $workspacePos + 11); // 11 = strlen('/workspace/')
+
+            // 如果相对路径不为空，返回相对路径
+            if (! empty($relativePath)) {
+                return $relativePath;
+            }
+        }
+
+        // 如果没有找到 /workspace/，尝试查找 workspace/ 开头的情况
+        if (str_starts_with($normalizedPath, 'workspace/')) {
+            $relativePath = substr($normalizedPath, 10); // 移除 'workspace/' 前缀
+            if (! empty($relativePath)) {
+                return $relativePath;
+            }
+        }
+
+        // 如果都没找到workspace标识，直接返回原始路径（可能已经是相对路径）
+        return $normalizedPath;
     }
 }
