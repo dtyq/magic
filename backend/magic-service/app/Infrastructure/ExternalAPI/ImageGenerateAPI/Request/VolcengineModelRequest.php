@@ -16,9 +16,6 @@ class VolcengineModelRequest extends ImageGenerateRequest
     // 目前只支持 url
     private array $referenceImages = [];
 
-    // 组织代码，用于水印配置判断
-    private ?string $organizationCode = null;
-
     public function __construct(string $width = '512', string $height = '512', string $prompt = '', string $negativePrompt = '')
     {
         parent::__construct($width, $height, $prompt, $negativePrompt);
