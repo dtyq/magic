@@ -23,4 +23,9 @@ class ProjectFileConstant
      * Metadata type for slide.
      */
     public const METADATA_TYPE_SLIDE = 'slide';
+
+    public static function isSetMetadataFile(string $fileName): bool
+    {
+        return in_array($fileName, [self::PROJECT_CONFIG_FILENAME, self::SLIDE_INDEX_FILENAME]);
+    }
 }
