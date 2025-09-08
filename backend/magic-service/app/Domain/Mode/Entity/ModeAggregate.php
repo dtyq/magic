@@ -47,5 +47,4 @@ class ModeAggregate
     {
         $this->groupAggregates = $groupAggregates;
     }
-
 }

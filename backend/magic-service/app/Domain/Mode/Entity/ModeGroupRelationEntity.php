@@ -113,8 +113,6 @@ class ModeGroupRelationEntity extends AbstractEntity
         $this->updatedAt = $updatedAt;
     }
 
-
-
     public function setProviderModelId(int|string $providerModelId): void
     {
         $this->providerModelId = (int) $providerModelId;

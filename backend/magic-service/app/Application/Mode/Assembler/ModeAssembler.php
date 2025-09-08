@@ -31,11 +31,11 @@ class ModeAssembler
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
             $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels);
             // 只有当分组下有模型时才添加（前台过滤空分组）
-            if (!empty($groupDTO->getModels())) {
+            if (! empty($groupDTO->getModels())) {
                 $groupAggregatesDTOs[] = $groupDTO;
             }
         }
-        
+
         $dto->setGroups($groupAggregatesDTOs);
 
         return $dto;
@@ -102,7 +102,7 @@ class ModeAssembler
             $modeGroupDetailDTO = new ModeGroupDetailDTO($modeGroupEntity->toArray());
             $locale = di(TranslatorInterface::class)->getLocale();
             $modeGroupDetailDTO->setName($modeGroupEntity->getNameI18n()[$locale]);
-            
+
             // 设置模型信息
             $models = [];
             foreach ($groupAggregate->getRelations() as $relation) {
@@ -128,7 +128,7 @@ class ModeAssembler
             }
 
             // 只有当分组下有模型时才添加（前台过滤空分组）
-            if (!empty($models)) {
+            if (! empty($models)) {
                 $modeGroupDetailDTO->setModels($models);
                 $modeGroupDetailDTO->sortModels(); // 对模型排序
                 $flatGroups[] = $modeGroupDetailDTO;
