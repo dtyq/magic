@@ -392,6 +392,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             return;
         }
         $dataIsolation->setCurrentOrganizationCode($magicFlow->getOrganizationCode());
+        $dataIsolation->setCurrentUserId($magicFlow->getCreator());
         EnvManager::initDataIsolationEnv($dataIsolation);
 
         $datetime = new DateTime();
