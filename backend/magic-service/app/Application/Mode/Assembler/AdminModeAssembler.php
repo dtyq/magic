@@ -13,6 +13,7 @@ use App\Application\Mode\DTO\Admin\AdminModeGroupAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeGroupDTO;
 use App\Application\Mode\DTO\ModeGroupModelDTO;
 use App\Application\Mode\DTO\ModeGroupRelationDTO;
+use App\Application\Mode\DTO\ValueObject\ModelStatus;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
@@ -73,7 +74,7 @@ class AdminModeAssembler
      * 分组聚合根转换为DTO.
      *
      * @param ModeGroupAggregate $groupAggregate 分组聚合根
-     * @param array $providerModels 可选的模型信息映射 [modelId => ProviderModelEntity]
+     * @param array $providerModels 可选的模型信息映射 [model_id => ['best' => ProviderModelEntity|null, 'all' => ProviderModelEntity[], 'status' => string]]
      */
     public static function groupAggregateToAdminDTO(ModeGroupAggregate $groupAggregate, array $providerModels = []): AdminModeGroupAggregateDTO
     {
@@ -85,12 +86,16 @@ class AdminModeAssembler
         foreach ($groupAggregate->getRelations() as $relation) {
             $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
-            // 如果提供了模型信息，则填充模型名称和图标
-            $providerModelId = $relation->getProviderModelId();
-            if (isset($providerModels[$providerModelId])) {
-                $providerModel = $providerModels[$providerModelId];
+            // 使用 model_id 查找模型
+            $modelId = $relation->getModelId();
+            $modelInfo = $providerModels[$modelId] ?? null;
+
+            if ($modelInfo && $modelInfo['best']) {
+                // 找到可用模型，使用最佳模型的信息
+                $providerModel = $modelInfo['best'];
                 $modelDTO->setModelName($providerModel->getName());
                 $modelDTO->setModelIcon($providerModel->getIcon());
+                $modelDTO->setModelStatus($modelInfo['status']); // 使用计算出的状态
                 $description = '';
                 $translate = $providerModel->getTranslate();
                 if (is_array($translate) && isset($translate['description'][$locale])) {
@@ -99,6 +104,14 @@ class AdminModeAssembler
                     $description = $providerModel->getDescription();
                 }
                 $modelDTO->setModelDescription($description);
+
+                // 保持向后兼容，设置 providerModelId 为查找到的模型的ID
+                $modelDTO->setProviderModelId((string) $providerModel->getId());
+            } else {
+                // 后台管理需要显示所有状态，包括无可用模型的情况
+                $status = $modelInfo['status'] ?? ModelStatus::Deleted;
+                $modelDTO->setModelStatus($status);
+                $modelDTO->setModelStatus($status);
             }
 
             $models[] = $modelDTO;
