@@ -94,7 +94,7 @@ readonly class AsrFileAppService
             $this->validateProjectAccess($summaryRequest->projectId, $userId, $organizationCode);
 
             // 4. 处理ASR总结任务（如果没有workspace_file_path）
-            if (! $summaryRequest->hasWorkspaceFilePath() && $taskStatus && ! $taskStatus->isTaskSubmitted()) {
+            if ($taskStatus && ! $summaryRequest->hasWorkspaceFilePath() && ! $taskStatus->isTaskSubmitted()) {
                 // 处理音频文件上传
                 $this->updateAudioToWorkspace($taskStatus, $organizationCode, $summaryRequest->projectId, $userId);
             }
@@ -103,26 +103,16 @@ readonly class AsrFileAppService
             if ($summaryRequest->hasWorkspaceFilePath()) {
                 // 使用workspace_file_path构建虚拟任务状态
                 $taskStatus = $this->createVirtualTaskStatusFromWorkspaceFile($summaryRequest);
-                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
-                    $taskStatus,
-                    $organizationCode,
-                    $summaryRequest->projectId,
-                    $userId,
-                    $summaryRequest->topicId,
-                    $conversationId,
-                    $summaryRequest->modelId
-                );
-            } else {
-                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
-                    $taskStatus,
-                    $organizationCode,
-                    $summaryRequest->projectId,
-                    $userId,
-                    $summaryRequest->topicId,
-                    $conversationId,
-                    $summaryRequest->modelId
-                );
             }
+            $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
+                $taskStatus,
+                $organizationCode,
+                $summaryRequest->projectId,
+                $userId,
+                $summaryRequest->topicId,
+                $conversationId,
+                $summaryRequest->modelId
+            );
 
             // 6. 发送聊天消息模拟用户总结请求
             $this->sendSummaryChatMessage($processSummaryTaskDTO, $userAuthorization);
@@ -171,7 +161,8 @@ readonly class AsrFileAppService
     {
         try {
             // 1. 使用公共方法下载并合并音频文件
-            $mergedAudioFile = $this->downloadAndMergeAudio($organizationCode, $businessDirectory, $taskKey);
+            $mergedResult = $this->downloadAndMergeAudio($organizationCode, $businessDirectory, $taskKey);
+            $mergedAudioFile = $mergedResult['file_path'];
 
             // 2. 上传合并后的音频文件到同个业务目录
             $uploadResult = $this->uploadMergedAudioAndGetUrl($organizationCode, $mergedAudioFile, $taskKey, $businessDirectory);
@@ -364,36 +355,6 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 构建包含文件列表的响应.
-     */
-    public function buildFileListResponse(string $organizationCode, string $businessDirectory): array
-    {
-        $uploadedFiles = [];
-        try {
-            // 使用ASR文件服务查询音频文件
-            $files = $this->getAudioFileList($organizationCode, $businessDirectory);
-
-            foreach ($files as $file) {
-                $uploadedFiles[] = [
-                    'filename' => $file->getFilename() ?: basename($file->getKey()),
-                    'key' => $file->getKey(),
-                    'size' => $file->getSize(),
-                    'modified' => $file->getLastModified(),
-                ];
-            }
-        } catch (Throwable) {
-            // 静默处理，不影响主要功能
-        }
-
-        return [
-            'files' => $uploadedFiles,
-            'file_count' => count($uploadedFiles),
-        ];
-    }
-
-    // ==================== 任务状态管理 ====================
-
-    /**
      * 从Redis获取任务状态
      *
      * @param string $taskKey 任务键
@@ -481,10 +442,10 @@ readonly class AsrFileAppService
      * @param string $organizationCode 组织编码
      * @param string $businessDirectory 业务目录
      * @param string $taskKey 任务键
-     * @return string 本地合并后的音频文件路径
+     * @return array 包含合并文件路径和格式的数组 ['file_path' => string, 'format' => string]
      * @throws InvalidArgumentException
      */
-    protected function downloadAndMergeAudio(string $organizationCode, string $businessDirectory, string $taskKey): string
+    protected function downloadAndMergeAudio(string $organizationCode, string $businessDirectory, string $taskKey): array
     {
         $processStartTime = microtime(true);
 
@@ -495,14 +456,28 @@ readonly class AsrFileAppService
         ]);
 
         try {
-            // 1. 下载所有音频文件到本地
+            // 1. 获取音频文件列表，用于格式检测
+            $allAudioFiles = $this->getAudioFileList($organizationCode, $businessDirectory);
+            $audioFiles = array_filter($allAudioFiles, static function (CloudFileInfoDTO $file) {
+                $filename = $file->getFilename();
+                return preg_match('/^\d+\..+$/', $filename);
+            });
+
+            if (empty($audioFiles)) {
+                throw new InvalidArgumentException('audio_file_not_found');
+            }
+
+            // 2. 检测主要音频格式
+            $dominantFormat = $this->detectDominantAudioFormat($audioFiles);
+
+            // 3. 下载所有音频文件到本地
             $localAudioFiles = $this->downloadAudioFiles($organizationCode, $businessDirectory, $taskKey);
             if (empty($localAudioFiles)) {
                 throw new InvalidArgumentException('audio_file_not_found');
             }
 
-            // 2. 合并音频文件
-            $mergedFile = $this->mergeAudioFiles($localAudioFiles, $taskKey);
+            // 4. 合并音频文件
+            $mergedFile = $this->mergeAudioFiles($localAudioFiles, $taskKey, $dominantFormat);
 
             // 记录流程完成
             $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
@@ -516,9 +491,10 @@ readonly class AsrFileAppService
                 'output_size_bytes' => $outputSize,
                 'total_duration_ms' => $totalDuration,
                 'downloaded_files_count' => count($localAudioFiles),
+                'detected_format' => $dominantFormat,
             ]);
 
-            return $mergedFile;
+            return ['file_path' => $mergedFile, 'format' => $dominantFormat];
         } catch (Throwable $e) {
             $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
 
@@ -532,6 +508,34 @@ readonly class AsrFileAppService
 
             throw $e;
         }
+    }
+
+    /**
+     * 检测音频文件的主要格式（用于决定合并后的文件格式）.
+     *
+     * @param CloudFileInfoDTO[] $audioFiles 音频文件列表
+     * @return string 主要文件格式扩展名
+     */
+    private function detectDominantAudioFormat(array $audioFiles): string
+    {
+        $formatCount = [];
+
+        foreach ($audioFiles as $audioFile) {
+            $filename = $audioFile->getFilename();
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+            if (in_array($extension, ['webm', 'mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'])) {
+                $formatCount[$extension] = ($formatCount[$extension] ?? 0) + 1;
+            }
+        }
+
+        if (empty($formatCount)) {
+            return 'webm'; // 默认格式
+        }
+
+        // 返回出现次数最多的格式
+        arsort($formatCount);
+        return array_key_first($formatCount);
     }
 
     /**
@@ -710,87 +714,75 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 合并音频文件为一个完整文件.
+     * 合并音频文件为一个完整文件 - 直接二进制拼接.
      *
      * @param array $audioFiles 音频文件路径列表
      * @param string $taskKey 任务键
+     * @param string $format 目标文件格式扩展名
      * @return string 合并后文件路径
      * @throws InvalidArgumentException
      */
-    private function mergeAudioFiles(array $audioFiles, string $taskKey): string
+    private function mergeAudioFiles(array $audioFiles, string $taskKey, string $format = 'webm'): string
     {
         if (empty($audioFiles)) {
             throw new InvalidArgumentException('没有音频文件可合并');
         }
 
-        $this->logger->info('开始音频文件合并处理', [
+        $mergeStartTime = microtime(true);
+
+        $this->logger->info('开始音频文件二进制合并处理', [
             'task_key' => $taskKey,
             'files_count' => count($audioFiles),
             'audio_files' => array_map('basename', $audioFiles),
         ]);
 
         $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
-        $outputFile = sprintf('%s/merged_audio.webm', $runtimeDir);
+        $outputFile = sprintf('%s/merged_audio.%s', $runtimeDir, $format);
 
-        // 如果只有一个文件，直接返回该文件路径
+        // 按文件名数字顺序排序
+        usort($audioFiles, static function (string $a, string $b): int {
+            $aNum = (int) pathinfo(basename($a), PATHINFO_FILENAME);
+            $bNum = (int) pathinfo(basename($b), PATHINFO_FILENAME);
+            return $aNum <=> $bNum;
+        });
+
+        // 记录排序后的文件列表
+        $this->logger->info('音频文件排序完成', [
+            'task_key' => $taskKey,
+            'sorted_files' => array_map('basename', $audioFiles),
+        ]);
+
+        // 如果只有一个文件，直接复制
         if (count($audioFiles) === 1) {
             $sourceFile = $audioFiles[0];
             $sourceSize = file_exists($sourceFile) ? filesize($sourceFile) : 0;
 
             $this->logger->info('单个音频文件直接复制', [
                 'task_key' => $taskKey,
-                'source_file' => $sourceFile,
-                'target_file' => $outputFile,
+                'source_file' => basename($sourceFile),
+                'target_file' => basename($outputFile),
                 'file_size_bytes' => $sourceSize,
             ]);
 
-            // 复制文件到目标位置
             if (! copy($sourceFile, $outputFile)) {
-                $this->logger->error('复制单个音频文件失败', [
-                    'task_key' => $taskKey,
-                    'source_file' => $sourceFile,
-                    'target_file' => $outputFile,
-                ]);
                 throw new InvalidArgumentException('复制单个音频文件失败');
             }
-
-            $this->logger->info('单个音频文件复制成功', [
-                'task_key' => $taskKey,
-                'output_file' => $outputFile,
-                'output_size_bytes' => file_exists($outputFile) ? filesize($outputFile) : 0,
-            ]);
 
             return $outputFile;
         }
 
-        // 多个文件需要合并 - 使用FFmpeg
-        $ffmpegPath = $this->findFFmpegPath();
-        if (! $ffmpegPath) {
-            $this->logger->error('FFmpeg未找到，无法合并多个音频文件', [
-                'task_key' => $taskKey,
-                'files_count' => count($audioFiles),
-                'audio_files' => array_map('basename', $audioFiles),
-            ]);
-            throw new InvalidArgumentException('未找到FFmpeg，无法合并音频文件。请安装FFmpeg: brew install ffmpeg (macOS) 或 apt-get install ffmpeg (Ubuntu)');
-        }
-
-        $this->logger->info('找到FFmpeg，准备合并多个音频文件', [
-            'task_key' => $taskKey,
-            'ffmpeg_path' => $ffmpegPath,
-            'files_count' => count($audioFiles),
-        ]);
-
-        return $this->mergeAudioWithFFmpeg($audioFiles, $taskKey, $ffmpegPath, $outputFile);
+        // 多个文件直接二进制合并
+        return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile, $mergeStartTime);
     }
 
     /**
      * 保存文件记录到项目文件表.
      */
-    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto): void
+    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto, string $timestamp): void
     {
         try {
-            // 直接使用项目根目录作为父目录，不再创建专门的ASR目录
-            $parentId = $this->ensureWorkspaceRootDirectoryExists($dto->organizationCode, $dto->projectId, $dto->userId);
+            // 使用ASR录音目录作为父目录
+            $parentId = $this->ensureAsrRecordingsDirectoryExists($dto->organizationCode, $dto->projectId, $dto->userId, $timestamp);
 
             // 创建文件实体
             $taskFileEntity = new TaskFileEntity([
@@ -809,7 +801,7 @@ readonly class AsrFileAppService
                 'is_hidden' => false,
                 'is_directory' => false,
                 'sort' => 0,
-                'parent_id' => $parentId, // 直接使用项目根目录ID
+                'parent_id' => $parentId, // 使用ASR录音目录ID
                 'source' => 2, // 2-项目目录
                 'metadata' => Json::encode([
                     'asr_task' => true,
@@ -833,112 +825,138 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 使用FFmpeg合并音频文件.
+     * 直接二进制合并音频文件.
      *
      * @param array $audioFiles 音频文件路径列表
      * @param string $taskKey 任务键
-     * @param string $ffmpegPath FFmpeg可执行路径
      * @param string $outputFile 输出文件路径
+     * @param float $mergeStartTime 合并开始时间
      * @return string 合并后文件路径
      * @throws InvalidArgumentException
      */
-    private function mergeAudioWithFFmpeg(array $audioFiles, string $taskKey, string $ffmpegPath, string $outputFile): string
+    private function mergeAudioFilesBinary(array $audioFiles, string $taskKey, string $outputFile, float $mergeStartTime): string
     {
-        $mergeStartTime = microtime(true);
-
         // 记录合并前的文件信息
         $inputFileInfos = [];
         $totalInputSize = 0;
         foreach ($audioFiles as $file) {
             $fileSize = file_exists($file) ? filesize($file) : 0;
             $inputFileInfos[] = [
-                'file_path' => $file,
+                'file_path' => basename($file),
                 'filename' => basename($file),
                 'size_bytes' => $fileSize,
             ];
             $totalInputSize += $fileSize;
         }
 
-        $this->logger->info('开始使用FFmpeg合并音频文件', [
+        $this->logger->info('开始二进制合并音频文件', [
             'task_key' => $taskKey,
-            'ffmpeg_path' => $ffmpegPath,
             'input_files_count' => count($audioFiles),
             'total_input_size_bytes' => $totalInputSize,
-            'output_file' => $outputFile,
+            'output_file' => basename($outputFile),
             'input_files' => $inputFileInfos,
         ]);
 
-        // 创建文件列表
-        $listFile = sprintf('%s/runtime/asr/%s/file_list.txt', BASE_PATH, $taskKey);
-        $listContent = '';
-        foreach ($audioFiles as $file) {
-            $listContent .= sprintf("file '%s'\n", str_replace("'", "'\"'\"'", $file));
-        }
+        try {
+            // 删除可能存在的输出文件
+            if (file_exists($outputFile)) {
+                unlink($outputFile);
+            }
 
-        if (! file_put_contents($listFile, $listContent)) {
-            throw new InvalidArgumentException('创建文件列表失败');
-        }
+            // 打开输出文件进行写入
+            $outputHandle = fopen($outputFile, 'wb');
+            if ($outputHandle === false) {
+                throw new InvalidArgumentException('无法创建输出文件');
+            }
 
-        // 删除可能存在的输出文件，避免FFmpeg询问覆盖
-        if (file_exists($outputFile)) {
-            unlink($outputFile);
-        }
+            $processedFiles = 0;
+            $totalWritten = 0;
 
-        // 执行合并命令（添加-y参数自动覆盖文件）
-        $command = sprintf(
-            '%s -y -f concat -safe 0 -i %s -c copy %s 2>&1',
-            escapeshellcmd($ffmpegPath),
-            escapeshellarg($listFile),
-            escapeshellarg($outputFile)
-        );
+            // 逐个读取并写入文件
+            foreach ($audioFiles as $inputFile) {
+                if (! file_exists($inputFile)) {
+                    $this->logger->warning('输入文件不存在，跳过', [
+                        'task_key' => $taskKey,
+                        'input_file' => basename($inputFile),
+                    ]);
+                    continue;
+                }
 
-        // 记录FFmpeg命令参数
-        $this->logger->info('执行FFmpeg合并命令', [
-            'task_key' => $taskKey,
-            'command' => $command,
-            'list_file' => $listFile,
-            'list_content' => $listContent,
-        ]);
+                $inputHandle = fopen($inputFile, 'rb');
+                if ($inputHandle === false) {
+                    $this->logger->warning('无法打开输入文件，跳过', [
+                        'task_key' => $taskKey,
+                        'input_file' => basename($inputFile),
+                    ]);
+                    continue;
+                }
 
-        $execStartTime = microtime(true);
-        $output = shell_exec($command);
-        $execDuration = round((microtime(true) - $execStartTime) * 1000, 2);
+                // 以块的方式复制文件内容
+                $fileSize = 0;
+                while (! feof($inputHandle)) {
+                    $chunk = fread($inputHandle, 8192); // 8KB chunks
+                    if ($chunk !== false) {
+                        $written = fwrite($outputHandle, $chunk);
+                        if ($written === false) {
+                            fclose($inputHandle);
+                            fclose($outputHandle);
+                            throw new InvalidArgumentException('写入输出文件失败');
+                        }
+                        $fileSize += $written;
+                        $totalWritten += $written;
+                    }
+                }
 
-        if (! file_exists($outputFile) || filesize($outputFile) === 0) {
-            $this->logger->error('FFmpeg合并失败', [
+                fclose($inputHandle);
+                ++$processedFiles;
+
+                $this->logger->debug('文件合并完成', [
+                    'task_key' => $taskKey,
+                    'input_file' => basename($inputFile),
+                    'bytes_written' => $fileSize,
+                    'processed_files' => $processedFiles,
+                ]);
+            }
+
+            fclose($outputHandle);
+
+            // 验证输出文件
+            if (! file_exists($outputFile) || filesize($outputFile) === 0) {
+                throw new InvalidArgumentException('合并后的文件为空或不存在');
+            }
+
+            $outputFileSize = filesize($outputFile);
+            $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
+
+            $this->logger->info('二进制音频合并成功', [
                 'task_key' => $taskKey,
-                'command' => $command,
-                'ffmpeg_output' => $output,
-                'output_file' => $outputFile,
-                'list_file' => $listFile,
-                'exec_duration_ms' => $execDuration,
+                'processed_files_count' => $processedFiles,
+                'total_input_size_bytes' => $totalInputSize,
+                'output_file' => basename($outputFile),
+                'output_file_size_bytes' => $outputFileSize,
+                'total_merge_duration_ms' => $totalMergeDuration,
+                'bytes_written' => $totalWritten,
             ]);
-            throw new InvalidArgumentException(sprintf('音频文件合并失败: %s', $output ?? '未知错误'));
+
+            return $outputFile;
+        } catch (Throwable $e) {
+            $this->logger->error('二进制合并失败', [
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+                'output_file' => basename($outputFile),
+                'processed_files' => $processedFiles ?? 0,
+            ]);
+
+            // 清理可能的部分输出文件
+            if (isset($outputHandle) && is_resource($outputHandle)) {
+                fclose($outputHandle);
+            }
+            if (file_exists($outputFile)) {
+                unlink($outputFile);
+            }
+
+            throw new InvalidArgumentException(sprintf('音频文件二进制合并失败: %s', $e->getMessage()));
         }
-
-        // 合并成功，记录详细信息
-        $outputFileSize = filesize($outputFile);
-        $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
-
-        $this->logger->info('FFmpeg音频合并成功', [
-            'task_key' => $taskKey,
-            'command' => $command,
-            'ffmpeg_output' => $output,
-            'input_files_count' => count($audioFiles),
-            'total_input_size_bytes' => $totalInputSize,
-            'output_file' => $outputFile,
-            'output_file_size_bytes' => $outputFileSize,
-            'exec_duration_ms' => $execDuration,
-            'total_merge_duration_ms' => $totalMergeDuration,
-            'compression_ratio' => $totalInputSize > 0 ? round($outputFileSize / $totalInputSize, 4) : 0,
-        ]);
-
-        // 清理临时文件列表
-        if (file_exists($listFile)) {
-            unlink($listFile);
-        }
-
-        return $outputFile;
     }
 
     /**
@@ -969,45 +987,6 @@ readonly class AsrFileAppService
 
         // 使用通用删除方法
         $this->deleteRemoteFiles($organizationCode, $businessDirectory, $filesToDelete);
-    }
-
-    /**
-     * 查找FFmpeg路径.
-     */
-    private function findFFmpegPath(): ?string
-    {
-        $possiblePaths = [
-            '/usr/local/bin/ffmpeg',
-            '/usr/bin/ffmpeg',
-            '/opt/homebrew/bin/ffmpeg',
-            '/opt/local/bin/ffmpeg', // MacPorts
-            '/snap/bin/ffmpeg', // Ubuntu Snap
-            'ffmpeg', // 系统PATH中
-        ];
-
-        foreach ($possiblePaths as $path) {
-            if ($path === 'ffmpeg') {
-                // 检查系统PATH
-                $result = shell_exec('which ffmpeg 2>/dev/null || where ffmpeg 2>/dev/null');
-                if ($result && trim($result)) {
-                    return trim($result);
-                }
-            } elseif (is_executable($path)) {
-                return $path;
-            }
-        }
-
-        $this->logger->error('FFmpeg未找到，音频合并将失败', [
-            'searched_paths' => $possiblePaths,
-            'install_commands' => [
-                'macOS' => 'brew install ffmpeg',
-                'Ubuntu/Debian' => 'sudo apt-get install ffmpeg',
-                'CentOS/RHEL' => 'sudo yum install ffmpeg',
-                'Docker' => 'RUN apt-get update && apt-get install -y ffmpeg',
-            ],
-        ]);
-
-        return null;
     }
 
     /**
@@ -1059,16 +1038,54 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 构建项目根目录下的文件键（直接位于项目workDir根目录）.
+     * 构建ASR录音目录路径信息（提取公共逻辑）.
+     *
+     * @param string $userId 用户ID
+     * @param string $projectId 项目ID
+     * @param string $organizationCode 组织编码
+     * @param string $timestamp 时间戳
+     * @return array 包含目录路径信息的数组
      */
-    private function buildProjectRootFileKey(string $userId, string $projectId, string $fileName): string
+    private function buildAsrDirectoryPath(string $userId, string $projectId, string $organizationCode, string $timestamp): array
     {
+        // 获取项目实体 (如果项目不存在会自动抛出 PROJECT_NOT_FOUND 异常)
         $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+        // 从项目实体获取工作区目录
         $workDir = $projectEntity->getWorkDir();
         if (empty($workDir)) {
             throw new InvalidArgumentException(sprintf('项目 %s 的工作区目录为空', $projectId));
         }
-        return sprintf('%s/%s', trim($workDir, '/'), $fileName);
+
+        // 获取完整的工作区目录路径（包含组织编码前缀）
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+        $fullWorkDir = sprintf('%s%s', rtrim($fullPrefix, '/'), $workDir);
+
+        // 生成动态目录名：{录音纪要国际化名称}_Ymd_His
+        $asrDirectoryName = sprintf('%s_%s', trans('asr.directory.recordings_summary_folder'), $timestamp);
+
+        return [
+            'full_work_dir' => trim($fullWorkDir, '/'),
+            'asr_directory_name' => $asrDirectoryName,
+            'asr_directory_key' => sprintf('%s/%s/', trim($fullWorkDir, '/'), $asrDirectoryName),
+        ];
+    }
+
+    /**
+     * 构建工作区文件键 - 通过项目实体获取正确的工作区目录.
+     *
+     * @param string $userId 用户ID
+     * @param string $projectId 项目ID
+     * @param string $fileName 文件名
+     * @param string $organizationCode 组织编码
+     * @param null|string $timestamp 时间戳，如果为null则使用当前时间
+     */
+    private function buildWorkspaceFileKey(string $userId, string $projectId, string $fileName, string $organizationCode, ?string $timestamp = null): string
+    {
+        $timestamp = $timestamp ?: date('Ymd_His');
+        $pathInfo = $this->buildAsrDirectoryPath($userId, $projectId, $organizationCode, $timestamp);
+
+        $relativePath = sprintf('%s/%s', $pathInfo['asr_directory_name'], $fileName);
+        return sprintf('%s/%s', $pathInfo['full_work_dir'], $relativePath);
     }
 
     /**
@@ -1155,6 +1172,75 @@ readonly class AsrFileAppService
     }
 
     /**
+     * 确保ASR录音目录存在，如果不存在则创建.
+     *
+     * @param string $organizationCode 组织代码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param string $timestamp 时间戳，用于生成动态目录名
+     * @return int ASR录音目录的实际file_id
+     */
+    private function ensureAsrRecordingsDirectoryExists(string $organizationCode, string $projectId, string $userId, string $timestamp): int
+    {
+        $pathInfo = $this->buildAsrDirectoryPath($userId, $projectId, $organizationCode, $timestamp);
+        $asrDirKey = $pathInfo['asr_directory_key'];
+        $asrDirName = $pathInfo['asr_directory_name'];
+
+        // 先查找是否已存在该目录
+        $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $asrDirKey);
+        if ($existingDir !== null) {
+            return $existingDir->getFileId();
+        }
+
+        // 确保项目工作区根目录存在
+        $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+
+        // 创建ASR录音目录实体
+        $asrDirEntity = new TaskFileEntity([
+            'user_id' => $userId,
+            'organization_code' => $organizationCode,
+            'project_id' => (int) $projectId,
+            'topic_id' => 0,
+            'task_id' => 0,
+            'file_type' => 'directory',
+            'file_name' => $asrDirName,
+            'file_extension' => '',
+            'file_key' => $asrDirKey,
+            'file_size' => 0,
+            'external_url' => '',
+            'storage_type' => 'workspace',
+            'is_hidden' => false,
+            'is_directory' => true,
+            'sort' => 0,
+            'parent_id' => $rootDirectoryId,
+            'source' => 2, // 2-项目目录
+            'metadata' => Json::encode([
+                'asr_directory' => true,
+                'created_by' => 'asr_summary_api',
+                'created_at' => date('Y-m-d H:i:s'),
+            ]),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // 尝试插入，如果已存在则忽略
+        $result = $this->taskFileDomainService->insertOrIgnore($asrDirEntity);
+
+        // 如果插入成功，返回新创建的目录ID
+        if ($result !== null) {
+            return $result->getFileId();
+        }
+
+        // 如果插入被忽略（目录已存在），再次查找并返回现有目录ID
+        $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $asrDirKey);
+        if ($existingDir !== null) {
+            return $existingDir->getFileId();
+        }
+
+        throw new InvalidArgumentException(sprintf('无法创建或获取ASR录音目录，项目ID: %s', $projectId));
+    }
+
+    /**
      * 确保工作区根目录存在，如果不存在则创建.
      *
      * 使用TaskFileDomainService的findOrCreateProjectRootDirectory方法
@@ -1186,19 +1272,23 @@ readonly class AsrFileAppService
 
     /**
      * 处理音频文件上传到工作区，不进行语音识别.
-     * 直接下载、合并、上传到工作区根目录，避免中间步骤.
+     * 直接下载、合并、上传到工作区的动态ASR录音目录，避免中间步骤.
+     * 目录名格式：{录音纪要国际化名称}_Ymd_His.
      */
     private function updateAudioToWorkspace(AsrTaskStatusDTO $taskStatus, string $organizationCode, string $projectId, string $userId): void
     {
         try {
             // 1. 使用公共方法下载并合并音频文件
-            $mergedLocalAudioFile = $this->downloadAndMergeAudio($organizationCode, $taskStatus->businessDirectory, $taskStatus->taskKey);
+            $mergedResult = $this->downloadAndMergeAudio($organizationCode, $taskStatus->businessDirectory, $taskStatus->taskKey);
+            $mergedLocalAudioFile = $mergedResult['file_path'];
+            $audioFormat = $mergedResult['format'];
 
-            // 2. 准备上传到工作区根目录
-            $fileName = sprintf('%s_%s.webm', trans('asr.file_names.merged_audio_prefix'), date('Ymd_His'));
-            $workspaceFileKey = $this->buildProjectRootFileKey($userId, $projectId, $fileName);
+            // 2. 准备上传到工作区指定目录（动态ASR录音目录）
+            $timestamp = date('Ymd_His');
+            $fileName = sprintf('%s.%s', trans('asr.file_names.original_recording'), $audioFormat);
+            $workspaceFileKey = $this->buildWorkspaceFileKey($userId, $projectId, $fileName, $organizationCode, $timestamp);
 
-            // 3. 直接上传合并文件到工作区
+            // 3. 直接上传合并文件到工作区的动态ASR录音目录
             $uploadFile = new UploadFile($mergedLocalAudioFile, '', $workspaceFileKey, false);
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
@@ -1214,7 +1304,7 @@ readonly class AsrFileAppService
                 pathinfo($fileName, PATHINFO_EXTENSION),
                 $userId
             );
-            $this->saveFileRecordToProject($saveDto);
+            $this->saveFileRecordToProject($saveDto, $timestamp);
 
             // 5. 获取文件访问URL
             $fileLink = $this->fileAppService->getLink($organizationCode, $actualWorkspaceFileKey, StorageBucketType::SandBox);

@@ -122,6 +122,7 @@ return [
     'file_names' => [
         'recording_prefix' => 'Rakaman',
         'merged_audio_prefix' => 'Fail Rakaman',
+        'original_recording' => 'Fail Rakaman Asal',
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
     ],

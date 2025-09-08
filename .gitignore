@@ -33,6 +33,7 @@ bin/use_super_magic
 bin/magic.lock
 backend/magic-service/vendor/
 backend/magic-service/runtime/
+backend/magic-service-go-engine
 
 config/.env_magic_gateway
 config/.env_sandbox_gateway
