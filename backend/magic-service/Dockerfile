@@ -16,13 +16,8 @@ WORKDIR /opt/www
 
 COPY . /opt/www
 
-# 安装系统依赖
-# - git: 版本控制工具
-# - openssh-client: SSH客户端
-# - ffmpeg: 音频/视频处理工具，用于ASR录音文件合并
-RUN apk add --no-cache  git openssh-client ffmpeg && \
-    ffmpeg -version | head -1 && \
-    echo "✅ FFmpeg installed successfully"
+# 安装 PostgreSQL 客户端库及其他依赖
+RUN apk add --no-cache  git openssh-client
 
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
