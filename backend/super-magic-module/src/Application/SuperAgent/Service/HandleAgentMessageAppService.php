@@ -24,7 +24,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -535,16 +534,6 @@ class HandleAgentMessageAppService extends AbstractAppService
                 if ($outputTool !== null) {
                     $messageData['tool'] = $outputTool;
                 }
-            }
-
-            // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
-            if (! empty($processedEntities)) {
-                AsyncEventUtil::dispatch(new AttachmentsProcessedEvent($processedEntities, $taskContext));
-                $this->logger->info(sprintf(
-                    'Dispatched AttachmentsProcessedEvent for %d processed attachments, task_id: %s',
-                    count($processedEntities),
-                    $taskContext->getTask()->getTaskId()
-                ));
             }
         } catch (Exception $e) {
             $this->logger->error(sprintf('Exception occurred while processing attachments: %s', $e->getMessage()));

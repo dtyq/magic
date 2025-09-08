@@ -14,6 +14,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -23,6 +25,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -374,9 +377,22 @@ class TaskFileDomainService
             $fileEntity->setUpdatedAt($currentTime);
 
             if ($isCreated) {
-                return $this->taskFileRepository->insert($fileEntity);
+                $newFileEntity = $this->taskFileRepository->insert($fileEntity);
             }
-            return $this->taskFileRepository->updateById($fileEntity);
+            $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
+
+            // set meta data file
+            // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
+            if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
+                AsyncEventUtil::dispatch(new AttachmentsProcessedEvent($newFileEntity->getParentId(), $newFileEntity->getProjectId(), $newFileEntity->getTaskId()));
+                $this->logger->info(sprintf(
+                    'Dispatched AttachmentsProcessedEvent for saveProjectFile processed attachments, parentId: %d, projectId: %d, taskId: %d',
+                    $newFileEntity->getParentId(),
+                    $newFileEntity->getProjectId(),
+                    $newFileEntity->getTaskId()
+                ));
+            }
+            return $newFileEntity;
         } catch (Throwable $e) {
             $this->logger->error('Error saving project file', ['file_key' => $taskFileEntity->getFileKey(), 'error' => $e->getMessage()]);
             throw $e;
@@ -1576,6 +1592,22 @@ class TaskFileDomainService
         }
 
         return $fileEntity;
+    }
+
+    /**
+     * Get sibling file entities by parent id.`.
+     * @return TaskFileEntity[]
+     */
+    public function getSiblingFileEntitiesByParentId(int $parentId, int $projectId): array
+    {
+        $models = $this->taskFileRepository->getSiblingsByParentId($parentId, $projectId);
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model);
+        }
+
+        return $list;
     }
 
     /**
