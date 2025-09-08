@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "142e0291555c94d760c1e0552c027b842ac62a36"
+                "reference": "99b93af5991ea1f45421266c78c8dd0740195e82"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=142e0291555c94d760c1e0552c027b842ac62a36",
-                "reference": "142e0291555c94d760c1e0552c027b842ac62a36",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=99b93af5991ea1f45421266c78c8dd0740195e82",
+                "reference": "99b93af5991ea1f45421266c78c8dd0740195e82",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-04T21:01:20+08:00"
+            "time": "2025-09-07T20:16:33+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "cdc1720f3580c22286915c49bd3684374861105e"
+                "reference": "5394bf851eaa0f985b310bc31df2b1169785cb9b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=cdc1720f3580c22286915c49bd3684374861105e",
-                "reference": "cdc1720f3580c22286915c49bd3684374861105e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=5394bf851eaa0f985b310bc31df2b1169785cb9b",
+                "reference": "5394bf851eaa0f985b310bc31df2b1169785cb9b",
                 "shasum": ""
             },
             "require": {
@@ -2679,7 +2679,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-07T12:04:08+08:00"
+            "time": "2025-09-08T11:14:30+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -18412,16 +18412,16 @@
         },
         {
             "name": "sebastian/comparator",
-            "version": "5.0.3",
+            "version": "5.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/comparator.git",
-                "reference": "a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e"
+                "reference": "e8e53097718d2b53cfb2aa859b06a41abf58c62e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e",
-                "reference": "a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e",
+                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/e8e53097718d2b53cfb2aa859b06a41abf58c62e",
+                "reference": "e8e53097718d2b53cfb2aa859b06a41abf58c62e",
                 "shasum": ""
             },
             "require": {
@@ -18477,15 +18477,27 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/comparator/issues",
                 "security": "https://github.com/sebastianbergmann/comparator/security/policy",
-                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.3"
+                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.4"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/comparator",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-10-18T14:56:07+00:00"
+            "time": "2025-09-07T05:25:07+00:00"
         },
         {
             "name": "sebastian/complexity",
@@ -19628,8 +19640,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "dtyq/magic-enterprise-service": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19646,6 +19658,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
+    "platform-dev": [],
     "plugin-api-version": "2.6.0"
 }
