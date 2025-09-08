@@ -56,7 +56,6 @@ class ChatMessageAssembler
 
         // 提取工作区下的相对路径
         $workspaceRelativePath = $this->extractWorkspaceRelativePath($fullFilePath);
-
         // 构建消息内容
         $messageContent = $this->buildMessageContent($fileId, $fileName, $workspaceRelativePath, $dto->modelId);
 
