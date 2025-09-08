@@ -94,6 +94,7 @@ class BaseDataIsolation implements DataIsolationInterface
         $this->magicId = $parentDataIsolation->getMagicId();
         $this->envId = $parentDataIsolation->getEnvId();
         $this->enabled = $parentDataIsolation->isEnable();
+        $this->setContainOfficialOrganization(true);
 
         $this->thirdPlatformOrganizationCode = $parentDataIsolation->getThirdPlatformOrganizationCode();
         $this->thirdPlatformUserId = $parentDataIsolation->getThirdPlatformUserId();

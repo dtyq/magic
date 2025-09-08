@@ -10,17 +10,15 @@ namespace App\Interfaces\Mode\Facade;
 use App\Application\Mode\Service\ModeAppService;
 use App\Infrastructure\Core\AbstractApi;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Di\Annotation\Inject;
 
 #[ApiResponse('low_code')]
 class ModeApi extends AbstractApi
 {
-    public function __construct(
-        private ModeAppService $modeAppService
-    ) {
-    }
+    #[Inject]
+    protected ModeAppService $modeAppService;
 
-    public function getModes(RequestInterface $request)
+    public function getModes()
     {
         return $this->modeAppService->getModes($this->getAuthorization());
     }

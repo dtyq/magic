@@ -87,7 +87,7 @@ class MagicChatImageConvertHighAppService extends AbstractAIImageAppService
         $dataIsolation = $this->createDataIsolation($authorization);
         $requestContext->setDataIsolation($dataIsolation);
         try {
-            $taskId = $this->llmAppService->imageConvertHigh($authorization, $reqDTO->getOriginImageUrl());
+            $taskId = $this->llmAppService->imageConvertHigh($authorization, $reqDTO);
             $this->aiSendMessage(
                 $reqDTO->getConversationId(),
                 (string) $this->idGenerator->generate(),

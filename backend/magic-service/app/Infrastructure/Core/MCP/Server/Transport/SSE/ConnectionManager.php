@@ -72,7 +72,6 @@ class ConnectionManager
         $connection = $this->getConnection($serverName, $sessionId);
         $connection?->end();
         unset($this->connections[$serverName][$sessionId], $this->handlers[$serverName][$sessionId], $this->lastActiveTime[$serverName][$sessionId]);
-
         $this->logger->debug('ConnectionRemoved', [
             'server_name' => $serverName,
             'session_id' => $sessionId,

@@ -24,6 +24,7 @@ use App\ErrorCode\TokenErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\ErrorCode\UserTaskErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 
 return [
     'exception_class' => BusinessException::class,
@@ -47,5 +48,6 @@ return [
         ServiceProviderErrorCode::class => [44000, 44999],
         LongTermMemoryErrorCode::class => [45000, 45999],
         MCPErrorCode::class => [51500, 51599],
+        SuperMagicErrorCode::class => [60000, 60999],
     ],
 ];

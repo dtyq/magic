@@ -68,4 +68,19 @@ class ModelUsageEvent
     {
         return $this->businessParams;
     }
+
+    public function toArray(): array
+    {
+        return [
+            'model_type' => $this->modelType,
+            'model_id' => $this->modelId,
+            'model_version' => $this->modelVersion,
+            'usage' => $this->usage->toArray(),
+            'organization_code' => $this->organizationCode,
+            'user_id' => $this->userId,
+            'app_id' => $this->appId,
+            'service_provider_model_id' => $this->serviceProviderModelId,
+            'business_params' => $this->businessParams,
+        ];
+    }
 }

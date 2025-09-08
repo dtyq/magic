@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\DTO;
 
+use App\Application\Mode\DTO\ValueObject\ModelStatus;
 use App\Infrastructure\Core\AbstractDTO;
 
 class ModeGroupModelDTO extends AbstractDTO
@@ -26,6 +27,8 @@ class ModeGroupModelDTO extends AbstractDTO
     protected string $modelIcon = '';
 
     protected int $sort = 0;
+
+    protected ModelStatus $modelStatus = ModelStatus::Normal;
 
     public function getId(): string
     {
@@ -105,5 +108,19 @@ class ModeGroupModelDTO extends AbstractDTO
     public function setModelDescription(string $modelDescription): void
     {
         $this->modelDescription = $modelDescription;
+    }
+
+    public function getModelStatus(): ModelStatus
+    {
+        return $this->modelStatus;
+    }
+
+    public function setModelStatus(ModelStatus|string $modelStatus): void
+    {
+        if ($modelStatus instanceof ModelStatus) {
+            $this->modelStatus = $modelStatus;
+        } else {
+            $this->modelStatus = ModelStatus::from($modelStatus);
+        }
     }
 }

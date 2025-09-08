@@ -73,7 +73,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         // 确保排序方向是有效的
         $sortDirection = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
-        // 构建基础查询 - 关联 magic_chat_sequences 表获取 im_status
+        // 构建基础查询
         $query = $this->model::query()
             ->leftJoin('magic_chat_sequences', 'magic_super_agent_message.im_seq_id', '=', 'magic_chat_sequences.id')
             ->select('magic_super_agent_message.*', 'magic_chat_sequences.status as im_status')

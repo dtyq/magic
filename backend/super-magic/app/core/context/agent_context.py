@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from agentlang.context.base_agent_context import BaseAgentContext
 from agentlang.event.common import BaseEventData
 from agentlang.event.event import Event, EventType, StoppableEvent
+from agentlang.llms.token_usage.models import TokenUsageReport
 from agentlang.logger import get_logger
 from app.core.config.communication_config import STSTokenRefreshConfig
 from app.core.entity.attachment import Attachment
@@ -88,7 +89,8 @@ class AgentContext(BaseAgentContext):
             "interrupt_queue": (None, Optional[asyncio.Queue]),
             "sandbox_id": ("", str),
             "project_archive_info": (None, Optional[ProjectArchiveInfo]),
-            "organization_code": (None, Optional[str])
+            "organization_code": (None, Optional[str]),
+            "final_token_usage_report": (None, Optional[TokenUsageReport]),
         })
 
         # 标记初始化完成
@@ -550,3 +552,20 @@ class AgentContext(BaseAgentContext):
             str: 字典形式的对象表示
         """
         return self.__str__()
+
+    def set_token_usage_report(self, report: TokenUsageReport) -> None:
+        """设置 token 使用报告
+
+        Args:
+            report: token 使用报告实例
+        """
+        self.shared_context.update_field("final_token_usage_report", report)
+        logger.debug("已更新 token 使用报告")
+
+    def get_token_usage_report(self) -> Optional[TokenUsageReport]:
+        """获取 token 使用报告
+
+        Returns:
+            Optional[TokenUsageReport]: token 使用报告，如果不存在则返回 None
+        """
+        return self.shared_context.get_field("final_token_usage_report")

@@ -20,7 +20,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileVersionAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
@@ -109,7 +109,9 @@ class FileApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
         }
 
-        if ($token !== config('super-magic.sandbox.token', '')) {
+        $sandboxToken = config('super-magic.sandbox.token', '');
+        $magicApiKey = config('super-magic.magic-gateway.magic_api_key', '');
+        if ($sandboxToken !== $token && $magicApiKey !== $token) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_invalid');
         }
         // 创建DTO并从请求中解析数据
@@ -234,8 +236,8 @@ class FileApi extends AbstractApi
 
         $targetName = $this->request->input('target_name', '');
 
-        // Validate target_name parameter using WorkDirectoryUtil
-        if (! WorkDirectoryUtil::isValidFileName($targetName)) {
+        // Validate target_name parameter using WorkFileUtil
+        if (! WorkFileUtil::isValidFileName($targetName)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_NAME, 'file.illegal_file_name');
         }
         return $this->fileManagementAppService->renameFile($requestContext, (int) $id, $targetName);
@@ -503,6 +505,10 @@ class FileApi extends AbstractApi
         // 获取请求DTO
         $dto = GetFileUrlsRequestDTO::fromRequest($this->request);
 
+        if (empty($this->request->input('project_id'))) {
+            $dto->setProjectId((string) $this->fileManagementAppService->getProjectIdByFileId((int) $dto->getFileIds()[0]));
+        }
+
         if (! empty($dto->getToken())) {
             // 走令牌校验逻辑
             return $this->fileManagementAppService->getFileUrlsByAccessToken(
@@ -523,6 +529,7 @@ class FileApi extends AbstractApi
         // 调用应用服务
         return $this->fileManagementAppService->getFileUrls(
             $requestContext,
+            $dto->getProjectId(),
             $dto->getFileIds(),
             $dto->getDownloadMode(),
             $options,

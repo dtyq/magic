@@ -44,6 +44,10 @@ class DbQueryExecutedListener implements ListenerInterface
      */
     public function process(object $event): void
     {
+        // 如果是定时任务环境，不记录SQL日志
+        if (config('crontab.enable', false)) {
+            return;
+        }
         if ($event instanceof QueryExecuted) {
             $sql = $event->sql;
             if (! Arr::isAssoc($event->bindings)) {

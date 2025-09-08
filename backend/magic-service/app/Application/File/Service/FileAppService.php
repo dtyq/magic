@@ -25,6 +25,7 @@ use Hyperf\Cache\Annotation\Cacheable;
 use Psr\SimpleCache\CacheInterface;
 use Qbhy\HyperfAuth\Authenticatable;
 use Swow\Psr7\Message\UploadedFile;
+use Throwable;
 
 class FileAppService extends AbstractAppService
 {
@@ -93,6 +94,33 @@ class FileAppService extends AbstractAppService
         return $result;
     }
 
+    /**
+     * 批量获取文件下载链接（避免N+1查询问题）.
+     */
+    public function getBatchLinks(string $organizationCode, array $fileKeys, ?StorageBucketType $bucketType = null): array
+    {
+        if (empty($fileKeys)) {
+            return [];
+        }
+
+        $bucketType = $bucketType ?? StorageBucketType::Private;
+
+        try {
+            // 检查是否支持批量获取链接的方法
+            $links = $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType);
+
+            $result = [];
+            foreach ($fileKeys as $fileKey) {
+                $result[$fileKey] = isset($links[$fileKey]) ? $links[$fileKey]->getUrl() : '';
+            }
+
+            return $result;
+        } catch (Throwable $e) {
+            // 降级处理：单个获取
+            return $this->getFallbackLinks($organizationCode, $fileKeys, $bucketType);
+        }
+    }
+
     #[Cacheable(prefix: 'default_icons', ttl: 60)]
     public function getDefaultIcons(): array
     {
@@ -109,9 +137,9 @@ class FileAppService extends AbstractAppService
         return $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType, $downloadNames, $options);
     }
 
-    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile): void
+    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
-        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile);
+        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile, $storage, $autoDir, $contentType);
     }
 
     public function getFileByBusinessType(DefaultFileBusinessType $businessType, string $organizationCode): array
@@ -278,5 +306,25 @@ class FileAppService extends AbstractAppService
         }
 
         ExceptionBuilder::throw(GenericErrorCode::SystemError, 'unknown_authorization_type');
+    }
+
+    /**
+     * 降级方案：单个获取文件链接.
+     */
+    private function getFallbackLinks(string $organizationCode, array $fileKeys, ?StorageBucketType $bucketType = null): array
+    {
+        $bucketType = $bucketType ?? StorageBucketType::Private;
+        $result = [];
+
+        foreach ($fileKeys as $fileKey) {
+            try {
+                $link = $this->getLink($organizationCode, $fileKey, $bucketType);
+                $result[$fileKey] = $link ? $link->getUrl() : '';
+            } catch (Throwable $e) {
+                $result[$fileKey] = '';
+            }
+        }
+
+        return $result;
     }
 }

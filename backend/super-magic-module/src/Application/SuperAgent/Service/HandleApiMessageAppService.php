@@ -126,7 +126,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $userMessageDTO->getTopicMode()->value,
+                agentMode: $userMessageDTO->getTopicMode(),
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -233,7 +233,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $userMessageDTO->getTopicMode()->value,
+                agentMode: $userMessageDTO->getTopicMode(),
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);

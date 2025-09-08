@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\DTO;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 
 /**
  * User message DTO for initializing agent task.
@@ -24,16 +23,16 @@ class UserMessageDTO
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
-        private readonly TopicMode $topicMode = TopicMode::GENERAL,
+        private readonly string $topicMode = 'general',
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
         private array $mcpConfig = [],
         private string $modelId = '',
         private string $language = '',
-        private readonly string $queueId = '',
         private readonly string $messageId = '',
         private readonly string $messageSeqId = '',
+        private readonly string $queueId = '',
     ) {
     }
 
@@ -77,7 +76,7 @@ class UserMessageDTO
         return $this->instruction;
     }
 
-    public function getTopicMode(): TopicMode
+    public function getTopicMode(): string
     {
         return $this->topicMode;
     }
@@ -117,11 +116,6 @@ class UserMessageDTO
         $this->language = $language;
     }
 
-    public function getQueueId(): string
-    {
-        return $this->queueId;
-    }
-
     public function getMessageId(): string
     {
         return $this->messageId;
@@ -130,6 +124,11 @@ class UserMessageDTO
     public function getMessageSeqId(): string
     {
         return $this->messageSeqId;
+    }
+
+    public function getQueueId(): string
+    {
+        return $this->queueId;
     }
 
     /**
@@ -148,17 +147,15 @@ class UserMessageDTO
             instruction: isset($data['instruction'])
                 ? ChatInstruction::tryFrom($data['instruction']) ?? ChatInstruction::Normal
                 : ChatInstruction::Normal,
-            topicMode: isset($data['topic_mode']) || isset($data['topicMode'])
-                ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
-                : TopicMode::GENERAL,
+            topicMode: $data['topic_mode'] ?? $data['topicMode'] ?? 'general',
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
             modelId: $data['model_id'] ?? $data['modelId'] ?? '',
             language: $data['language'] ?? 'zh_CN',
-            queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
+            queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
         );
     }
 
@@ -176,15 +173,15 @@ class UserMessageDTO
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
             'instruction' => $this->instruction->value,
-            'topic_mode' => $this->topicMode->value,
+            'topic_mode' => $this->topicMode,
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
             'mcp_config' => $this->mcpConfig,
             'model_id' => $this->modelId,
             'language' => $this->language,
-            'queue_id' => $this->queueId,
             'message_id' => $this->messageId,
             'message_seq_id' => $this->messageSeqId,
+            'queue_id' => $this->queueId,
         ];
     }
 }

@@ -159,10 +159,10 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->fileUrl = $data['file_url'] ?? $data['external_url'] ?? '';
         $dto->isHidden = $data['is_hidden'] ?? false;
         $dto->topicId = (string) ($data['topic_id'] ?? '');
-        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->sort = $data['sort'] ?? 0;
         $dto->parentId = (string) ($data['parent_id'] ?? '');
+        $dto->updatedAt = (string) ($data['updated_at'] ?? '');
 
         // Handle metadata - could be string (JSON) or array
         $metadata = $data['metadata'] ?? null;

@@ -95,6 +95,7 @@ class MagicAgentDomainService
         if (empty($id)) {
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED);
         }
+
         Db::transaction(function () use ($id, $organizationCode) {
             $magicAgentEntity = $this->agentRepository->getAgentById($id);
             $this->agentRepository->deleteAgentById($id, $organizationCode);

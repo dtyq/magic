@@ -377,7 +377,7 @@ MARKDOWN;
                     $apiChatDTO->setFlowCode($toolFlow->getCode());
                     $apiChatDTO->setFlowVersionCode($toolFlow->getVersionCode());
                     $apiChatDTO->setMessage('mcp_tool_call');
-                    return di(MagicFlowExecuteAppService::class)->apiParamCallByMCPTool($flowDataIsolation, $apiChatDTO);
+                    return di(MagicFlowExecuteAppService::class)->apiParamCallByRemoteTool($flowDataIsolation, $apiChatDTO, 'super_magic_mcp_tool');
                 },
             );
         }

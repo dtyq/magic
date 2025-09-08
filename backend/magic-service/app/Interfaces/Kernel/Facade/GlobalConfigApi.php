@@ -9,12 +9,17 @@ namespace App\Interfaces\Kernel\Facade;
 
 use App\Application\Kernel\DTO\GlobalConfig;
 use App\Application\Kernel\Service\MagicSettingAppService;
+use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\Traits\MagicUserAuthorizationTrait;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 #[ApiResponse('low_code')]
 class GlobalConfigApi
 {
+    use MagicUserAuthorizationTrait;
+
     public function __construct(
         private readonly MagicSettingAppService $magicSettingAppService,
     ) {
@@ -28,6 +33,7 @@ class GlobalConfigApi
 
     public function updateGlobalConfig(RequestInterface $request): array
     {
+        $this->isCurrentOrganizationOfficial();
         $isMaintenance = (bool) $request->input('is_maintenance', false);
         $description = (string) $request->input('maintenance_description', '');
 
@@ -38,5 +44,15 @@ class GlobalConfigApi
         $this->magicSettingAppService->save($config);
 
         return $config->toArray();
+    }
+
+    private function isCurrentOrganizationOfficial(): bool
+    {
+        $officialOrganization = config('service_provider.office_organization');
+        $organizationCode = $this->getAuthorization()->getOrganizationCode();
+        if ($officialOrganization !== $organizationCode) {
+            ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
+        }
+        return true;
     }
 }
