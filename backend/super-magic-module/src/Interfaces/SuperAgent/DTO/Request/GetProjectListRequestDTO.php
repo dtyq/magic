@@ -31,9 +31,9 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
     public string $workspaceId = '';
 
     /**
-     * name.
+     * Project name for fuzzy search.
      */
-    public string $name = '';
+    public string $projectName = '';
 
     /**
      * Get page number.
@@ -83,14 +83,14 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
         return $this->workspaceId ? (int) $this->workspaceId : null;
     }
 
-    public function getName(): string
+    public function getProjectName(): string
     {
-        return $this->name;
+        return $this->projectName;
     }
 
-    public function setName(string $name): void
+    public function setProjectName(string $projectName): void
     {
-        $this->name = $name;
+        $this->projectName = $projectName;
     }
 
     /**
@@ -102,6 +102,7 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
             'page' => 'integer|min:1',
             'page_size' => 'integer|min:1|max:100',
             'workspace_id' => 'nullable|string',
+            'project_name' => 'nullable|string|max:255',
         ];
     }
 
@@ -117,6 +118,8 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
             'page_size.min' => 'Page size must be greater than 0',
             'page_size.max' => 'Page size cannot exceed 100',
             'workspace_id.string' => 'Workspace ID must be a string',
+            'project_name.string' => 'Project name must be a string',
+            'project_name.max' => 'Project name cannot exceed 255 characters',
         ];
     }
 }

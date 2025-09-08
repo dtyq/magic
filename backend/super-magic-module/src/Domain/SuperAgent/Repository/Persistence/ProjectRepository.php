@@ -149,6 +149,9 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             if (is_array($value)) {
                 // 支持project_ids数组查询
                 $query->whereIn('id', $value);
+            } elseif ($field === 'project_name_like') {
+                // Support fuzzy search for project name
+                $query->where('project_name', 'like', '%' . $value . '%');
             } else {
                 // 默认等于查询
                 $query->where($field, $value);
