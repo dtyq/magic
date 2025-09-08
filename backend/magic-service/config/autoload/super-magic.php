@@ -27,7 +27,7 @@ return [
         ],
         'check_task_crontab' => [
             'enabled' => \Hyperf\Support\env('CHECK_TASK_CRONTAB_ENABLED', true),
-        ]
+        ],
     ],
     'message' => [
         'process_mode' => \Hyperf\Support\env('SUPER_MAGIC_MESSAGE_PROCESS_MODE', 'direct'), // direct OR queue
