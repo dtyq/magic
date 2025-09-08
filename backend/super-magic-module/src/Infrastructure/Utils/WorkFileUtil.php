@@ -133,7 +133,7 @@ class WorkFileUtil
 
         // Check if any component is exactly .webview-reports or .browser_screenshots
         foreach ($components as $component) {
-            if ($component === '.webview-reports' || $component === '.browser_screenshots') {
+            if ($component === '.webview-reports' || $component === '.browser_screenshots' || $component === '.visual') {
                 return true;
             }
         }
