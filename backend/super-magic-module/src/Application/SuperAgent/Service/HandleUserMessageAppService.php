@@ -236,6 +236,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
+                messageId: $userMessageDTO->getMessageId(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
@@ -424,11 +425,13 @@ class HandleUserMessageAppService extends AbstractAppService
             attachments: $attachmentsArray,
             mentions: $mentionsArray,
             showInUi: true,
-            messageId: null
+            messageId: $userMessageDTO->getMessageId(),
+            imSeqId: (int) $userMessageDTO->getMessageSeqId()
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
         $taskMessageEntity->setProcessingStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+        $this->logger->info(sprintf('Saved user message, task id: %s, message id: %s, im seq id: %d', $taskEntity->getId(), $taskMessageEntity->getId(), $taskMessageEntity->getImSeqId()));
         $this->taskDomainService->recordTaskMessage($taskMessageEntity);
 
         // Process user uploaded attachments

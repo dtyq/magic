@@ -630,6 +630,85 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
+     * 升级沙箱镜像.
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult
+    {
+        $config = [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+        ];
+
+        $this->logger->info('[Sandbox][Gateway] Upgrading sandbox', [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+            'max_retries' => 3,
+        ]);
+
+        try {
+            return retry(3, function () use ($config, $messageId) {
+                try {
+                    $response = $this->getClient()->put($this->buildApiPath('api/v1/sandboxes/upgrade'), [
+                        'headers' => $this->getAuthHeaders(),
+                        'json' => $config,
+                        'timeout' => 60, // 升级可能需要更长时间
+                    ]);
+
+                    $responseData = json_decode($response->getBody()->getContents(), true);
+
+                    $this->logger->info('[Sandbox][Gateway] Raw upgrade API response', [
+                        'response_data' => $responseData,
+                        'message_id' => $messageId,
+                    ]);
+
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Sandbox upgraded successfully', [
+                            'message_id' => $messageId,
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to upgrade sandbox', [
+                            'message_id' => $messageId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when upgrading sandbox', [
+                        'message_id' => $messageId,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+
+                    if (! $isRetryableError) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when upgrading sandbox', [
+                        'message_id' => $messageId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 1000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for upgrading sandbox', [
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Override parent getAuthHeaders to include user-specific headers.
      */
     protected function getAuthHeaders(): array

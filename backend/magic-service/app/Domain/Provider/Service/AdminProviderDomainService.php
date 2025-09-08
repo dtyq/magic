@@ -13,9 +13,9 @@ use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
@@ -240,11 +240,15 @@ class AdminProviderDomainService extends AbstractProviderDomainService
     {
         // 创建数据隔离对象并获取可用模型
         $dataIsolation = ProviderDataIsolation::create($orgCode);
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
 
         // 根据key进行过滤
         $models = [];
         foreach ($allModels as $model) {
+            // 过滤禁用
+            if ($model->getStatus() === Status::Disabled) {
+                continue;
+            }
             if (is_numeric($key)) {
                 // 按ID过滤
                 if ((string) $model->getId() === $key) {
@@ -277,7 +281,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
 
         // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
 
         // 按model_id过滤
         $models = [];
@@ -323,40 +327,13 @@ class AdminProviderDomainService extends AbstractProviderDomainService
     }
 
     /**
-     * 根据模型类型获取启用模型(优先取组织的).
-     * @throws Exception
-     */
-    public function findSelectedActiveProviderByType(string $organizationCode, ModelType $modelType): ?ProviderConfigEntity
-    {
-        // 创建数据隔离对象
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-
-        // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
-
-        // 按model_type过滤，只返回第一个
-        $model = null;
-        foreach ($allModels as $modelEntity) {
-            if ($modelEntity->getModelType() === $modelType) {
-                $model = $modelEntity;
-                break;
-            }
-        }
-
-        if (! $model) {
-            return null;
-        }
-        return $this->getServiceProviderConfig($model->getModelVersion(), (string) $model->getId(), $organizationCode, false);
-    }
-
-    /**
      * @return ProviderModelEntity[]
      */
     public function getOfficeModels(Category $category): array
     {
         $officeOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
         $providerDataIsolation = ProviderDataIsolation::create($officeOrganizationCode);
-        return $this->providerModelRepository->getAvailableModelsForOrganization($providerDataIsolation, $category);
+        return $this->providerModelRepository->getModelsForOrganization($providerDataIsolation, $category);
     }
 
     /**
@@ -408,7 +385,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
 
         // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
 
         // 按super_magic_display_state过滤
         $models = [];
@@ -439,6 +416,26 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         });
 
         return $uniqueModels;
+    }
+
+    public function queriesModels(ProviderDataIsolation $dataIsolation, ProviderModelQuery $providerModelQuery): array
+    {
+        $providerModelEntities = $this->providerModelRepository->getModelsForOrganization($dataIsolation, $providerModelQuery->getCategory(), $providerModelQuery->getStatus());
+
+        // modelId 经过过滤，去重选一个
+        if ($providerModelQuery->isModelIdFilter()) {
+            $uniqueModels = [];
+            foreach ($providerModelEntities as $model) {
+                $modelId = $model->getModelId();
+                // 如果这个 modelId 还没有被添加，则添加
+                if (! isset($uniqueModels[$modelId])) {
+                    $uniqueModels[$modelId] = $model;
+                }
+            }
+            $providerModelEntities = array_values($uniqueModels);
+        }
+
+        return $providerModelEntities;
     }
 
     /**
@@ -532,7 +529,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
 
         // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
 
         // 按model_version过滤
         $filteredModels = [];

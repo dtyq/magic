@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
 class ModelConfigItem extends AbstractDTO
 {
@@ -31,13 +33,13 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $billingCurrency = null;
 
-    protected ?float $inputPricing = null;
+    protected ?string $inputPricing = null;
 
-    protected ?float $outputPricing = null;
+    protected ?string $outputPricing = null;
 
-    protected ?float $cacheWritePricing = null;
+    protected ?string $cacheWritePricing = null;
 
-    protected ?float $cacheHitPricing = null;
+    protected ?string $cacheHitPricing = null;
 
     protected bool $officialRecommended = false;
 
@@ -133,6 +135,16 @@ class ModelConfigItem extends AbstractDTO
         }
     }
 
+    public function isRecommended(): bool
+    {
+        return $this->isRecommended;
+    }
+
+    public function setIsRecommended(bool $isRecommended): void
+    {
+        $this->isRecommended = $isRecommended;
+    }
+
     public function getMaxOutputTokens(): ?int
     {
         return $this->maxOutputTokens;
@@ -153,22 +165,22 @@ class ModelConfigItem extends AbstractDTO
         return $this->billingCurrency;
     }
 
-    public function getInputPricing(): ?float
+    public function getInputPricing(): ?string
     {
         return $this->inputPricing;
     }
 
-    public function getOutputPricing(): ?float
+    public function getOutputPricing(): ?string
     {
         return $this->outputPricing;
     }
 
-    public function getCacheWritePricing(): ?float
+    public function getCacheWritePricing(): ?string
     {
         return $this->cacheWritePricing;
     }
 
-    public function getCacheHitPricing(): ?float
+    public function getCacheHitPricing(): ?string
     {
         return $this->cacheHitPricing;
     }
@@ -219,47 +231,55 @@ class ModelConfigItem extends AbstractDTO
         }
     }
 
-    public function setInputPricing(?float $inputPricing): void
+    public function setInputPricing(null|float|string $inputPricing): void
     {
         if ($inputPricing === null) {
             $this->inputPricing = null;
-        } elseif ($inputPricing > 0) {
-            $this->inputPricing = $inputPricing;
         } else {
-            $this->inputPricing = null;
+            $pricing = (float) $inputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->inputPricing = (string) $inputPricing;
         }
     }
 
-    public function setOutputPricing(?float $outputPricing): void
+    public function setOutputPricing(null|float|string $outputPricing): void
     {
         if ($outputPricing === null) {
             $this->outputPricing = null;
-        } elseif ($outputPricing > 0) {
-            $this->outputPricing = $outputPricing;
         } else {
-            $this->outputPricing = null;
+            $pricing = (float) $outputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->outputPricing = (string) $outputPricing;
         }
     }
 
-    public function setCacheWritePricing(?float $cacheWritePricing): void
+    public function setCacheWritePricing(null|float|string $cacheWritePricing): void
     {
         if ($cacheWritePricing === null) {
             $this->cacheWritePricing = null;
-        } elseif ($cacheWritePricing > 0) {
-            $this->cacheWritePricing = $cacheWritePricing;
         } else {
-            $this->cacheWritePricing = null;
+            $pricing = (float) $cacheWritePricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheWritePricing = (string) $cacheWritePricing;
         }
     }
 
-    public function setCacheHitPricing(?float $cacheHitPricing): void
+    public function setCacheHitPricing(null|float|string $cacheHitPricing): void
     {
         if ($cacheHitPricing === null) {
             $this->cacheHitPricing = null;
-        } elseif ($cacheHitPricing > 0) {
-            $this->cacheHitPricing = $cacheHitPricing;
         } else {
-            $this->cacheHitPricing = null;
+            $pricing = (float) $cacheHitPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheHitPricing = (string) $cacheHitPricing;
         }
     }
 

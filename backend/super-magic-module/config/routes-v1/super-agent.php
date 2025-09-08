@@ -248,14 +248,14 @@ Router::addGroup('/api/v1/open-api/super-magic', static function () {
     Router::put('/task/status', [OpenTaskApi::class, 'updateTaskStatus']);
 
     // // 获取任务
-    // Router::get('/task/{id}', [OpenTaskApi::class, 'getOpenApiTask']);
+    Router::get('/task', [OpenTaskApi::class, 'getTask']);
     // // 获取任务列表
     // Router::get('/tasks', [OpenTaskApi::class, 'getOpenApiTaskList']);
 
     // 任务相关
     Router::addGroup('/task', static function () {
         // 获取任务下的附件列表
-        Router::get('/attachments/{id}', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
+        Router::get('/attachments', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
     });
 
     // 项目相关 - 公开接口

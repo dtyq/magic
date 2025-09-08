@@ -97,4 +97,13 @@ interface SandboxGatewayInterface
      * @return GatewayResult 复制结果
      */
     public function copyFiles(array $files): GatewayResult;
+
+    /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，通常为"continue"
+     * @return GatewayResult 升级结果
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult;
 }

@@ -8,12 +8,15 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\Chat\Service\MagicAgentEventAppService;
+use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
+use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleUserMessageAppService;
@@ -35,6 +38,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 
     public function __construct(
         protected readonly HandleUserMessageAppService $handleUserMessageAppService,
+        protected readonly MagicChatMessageAppService $magicChatMessageAppService,
         protected readonly LoggerFactory $loggerFactory,
         MagicConversationDomainService $magicConversationDomainService,
     ) {
@@ -83,6 +87,13 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
             $language = $userCallAgentEvent->messageEntity?->getLanguage() ?? '';
 
+            // Get User Seq id
+            $useSeqEntity = $this->magicChatMessageAppService->getMagicSeqEntity($userCallAgentEvent->seqEntity->getMagicMessageId(), ConversationType::User);
+            if ($useSeqEntity) {
+                $messageId = $messageSeqId = $useSeqEntity->getId();
+            } else {
+                $messageId = $messageSeqId = (string) IdGenerator::getSnowId();
+            }
             // Parameter validation
             if (empty($conversationId) || empty($chatTopicId) || empty($organizationCode)
                 || empty($userId) || empty($agentUserId)) {
@@ -134,6 +145,8 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 modelId: $superAgentExtra?->getModelId() ?? '',
                 language: $language,
                 queueId: $queueId,
+                messageId: $messageId,
+                messageSeqId: $messageSeqId,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {

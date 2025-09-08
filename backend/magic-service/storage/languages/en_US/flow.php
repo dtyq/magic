@@ -241,4 +241,48 @@ return [
         'conversation_id' => 'Conversation ID',
         'modifier' => 'Modifier',
     ],
+    'cache' => [
+        'validation_failed' => 'Cache validation failed',
+        'not_found' => 'Cache not found',
+        'expired' => 'Cache expired',
+        'operation_failed' => 'Cache operation failed',
+        'cache_prefix' => [
+            'empty' => 'Cache prefix cannot be empty',
+            'too_long' => 'Cache prefix cannot exceed {max} characters',
+        ],
+        'cache_key' => [
+            'empty' => 'Cache key cannot be empty',
+            'too_long' => 'Cache key cannot exceed {max} characters',
+        ],
+        'cache_key_hash' => [
+            'invalid_length' => 'Cache key hash must be exactly {expected} characters',
+        ],
+        'scope_tag' => [
+            'empty' => 'Scope tag cannot be empty',
+            'too_long' => 'Scope tag cannot exceed {max} characters',
+        ],
+        'organization_code' => [
+            'empty' => 'Organization code cannot be empty',
+            'too_long' => 'Organization code cannot exceed {max} characters',
+        ],
+        'ttl' => [
+            'invalid_range' => 'TTL seconds must be between {min} and {max} (-1/0/null for permanent cache)',
+        ],
+        'creator' => [
+            'too_long' => 'Creator cannot exceed {max} characters',
+        ],
+        'modifier' => [
+            'too_long' => 'Modifier cannot exceed {max} characters',
+        ],
+        'extend' => [
+            'negative_seconds' => 'Additional seconds cannot be negative',
+            'exceeds_maximum' => 'Extended TTL would exceed maximum value {max}',
+        ],
+        'id' => [
+            'invalid' => 'ID must be a positive integer, got: {id}',
+        ],
+        'prefix' => [
+            'invalid_format' => 'Invalid cache prefix format',
+        ],
+    ],
 ];

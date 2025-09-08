@@ -49,7 +49,15 @@ interface ProviderModelRepositoryInterface
      * @param null|Category $category 模型分类，为空时返回所有分类模型
      * @return ProviderModelEntity[] 按sort降序排序的模型列表，包含组织模型和Magic模型（不去重）
      */
-    public function getAvailableModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null): array;
+    public function getModelsForOrganization(ProviderDataIsolation $dataIsolation, ?Category $category = null, Status $status = Status::Enabled): array;
+
+    /**
+     * 批量根据ID获取模型.
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param string[] $ids 模型ID数组
+     * @return ProviderModelEntity[] 模型实体数组，以ID为键
+     */
+    public function getByIds(ProviderDataIsolation $dataIsolation, array $ids): array;
 
     public function getModelByIdWithoutOrgFilter(string $id): ?ProviderModelEntity;
 }

@@ -58,12 +58,18 @@ class OpenTaskApi extends AbstractApi
     {
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
+        $id = $this->request->input('id', '');
         /**
          * @var null|MagicUserEntity
          */
         $userEntity = null;
 
         $this->handApiKey($requestContext, $userEntity);
+
+        // 如果task_id为空，则使用id
+        if (empty($taskId)) {
+            $taskId = $id;
+        }
 
         if (empty($taskId) || empty($status)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_id_or_status_is_required');
@@ -118,10 +124,17 @@ class OpenTaskApi extends AbstractApi
 
         $this->handApiKey($requestContext, $userEntity);
 
-        $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
+        // $magicUserId = $this->request->header('magic-user-id', '');
+
+        if (empty($userEntity)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_found');
+        }
+        $magicUserAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
+
+        // $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
 
         // 判断话题是否存在，不存在则初始化话题
-        $topicId = $taskEntity->getTopicId();
+        $topicId = $requestDTO->getTopicId();
 
         $topicDTO = $this->topicAppService->getTopic($requestContext, (int) $topicId);
 
@@ -133,33 +146,55 @@ class OpenTaskApi extends AbstractApi
         $dataIsolation->setCurrentOrganizationCode($userEntity->getOrganizationCode());
         $dataIsolation->setUserType(UserType::Human);
         //  $dataIsolation = new DataIsolation($userEntity->getId(), $userEntity->getOrganizationCode(), $userEntity->getWorkDir());
-
-        // 检查容器是否正常
-        $result = $this->agentAppService->getSandboxStatus($topicDTO->getSandboxId());
-        if ($result->getStatus() !== SandboxStatus::RUNNING) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $topicDTO->getSandboxId(), (string) $topicDTO->getId(), '任务已终止.');
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_not_running');
-        }
-
-        $userMessage = [
-            'chat_topic_id' => (string) $topicDTO->getChatTopicId(),
-            'chat_conversation_id' => (string) $topicDTO->getChatConversationId(),
-            'prompt' => $requestDTO->getPrompt(),
-            'attachments' => null,
-            'mentions' => null,
-            'agent_user_id' => (string) $userEntity->getId(),
-            'agent_mode' => '',
-            'task_mode' => $taskEntity->getTaskMode(),
-        ];
-        $userMessageDTO = UserMessageDTO::fromArray($userMessage);
+        $sandboxId = $topicDTO->getSandboxId();
         try {
+            // 检查容器是否正常
+            $result = $this->agentAppService->getSandboxStatus($sandboxId);
+
+            if ($result->getStatus() !== SandboxStatus::RUNNING) {
+                // 容器未正常运行，需要先运行容器
+                $userMessage = [
+                    'chat_topic_id' => $topicDTO->getChatTopicId(),
+                    'topic_id' => (int) $topicDTO->getChatTopicId(),
+                    'chat_conversation_id' => $requestDTO->getConversationId(),
+                    'prompt' => $requestDTO->getPrompt(),
+                    'attachments' => null,
+                    'mentions' => null,
+                    'agent_user_id' => (string) $magicUserAuthorization->getId(),
+                    'agent_mode' => '',
+                    'task_mode' => '',
+                ];
+                $userMessageDTO = UserMessageDTO::fromArray($userMessage);
+                $result = $this->handleTaskMessageAppService->initSandbox($dataIsolation, $userMessageDTO);
+
+                if (empty($result['sandbox_id'])) {
+                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'the sandbox cannot running,please check the sandbox status');
+                }
+                $sandboxId = $result['sandbox_id'];
+                $taskEntity = $this->handleTaskAppService->getTask((int) $result['task_id']);
+            } else {
+                $taskEntity = $this->handleTaskAppService->getTaskBySandboxId($sandboxId);
+            }
+
+            $userMessage = [
+                'chat_topic_id' => (string) $topicDTO->getChatTopicId(),
+                'chat_conversation_id' => (string) $topicDTO->getChatConversationId(),
+                'prompt' => $requestDTO->getPrompt(),
+                'attachments' => null,
+                'mentions' => null,
+                'agent_user_id' => (string) $userEntity->getId(),
+                'agent_mode' => '',
+                'task_mode' => $taskEntity->getTaskMode(),
+            ];
+            $userMessageDTO = UserMessageDTO::fromArray($userMessage);
+
             $this->handleTaskMessageAppService->sendChatMessage($dataIsolation, $userMessageDTO);
         } catch (Exception $e) {
-            $this->agentAppService->sendInterruptMessage($dataIsolation, $topicDTO->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'send_message_failed');
+            // $this->agentAppService->sendInterruptMessage($dataIsolation, $topicDTO->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, $e->getMessage());
         }
 
-        return [];
+        return $taskEntity->toArray();
     }
 
     /**
@@ -205,11 +240,11 @@ class OpenTaskApi extends AbstractApi
      * Summary of getOpenApiTaskAttachments.
      */
     #[ApiResponse('low_code')]
-    public function getOpenApiTaskAttachments(RequestContext $requestContext, $id): array
+    public function getOpenApiTaskAttachments(RequestContext $requestContext): array
     {
         // 获取任务文件请求DTO
         // $requestDTO = GetTaskFilesRequestDTO::fromRequest($this->request);
-        var_dump($id, '===============');
+        $id = $this->request->input('id', '');
         if (empty($id)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'id is required');
         }
@@ -225,5 +260,21 @@ class OpenTaskApi extends AbstractApi
         $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
         return $this->workspaceAppService->getTaskAttachments($userAuthorization, (int) $id, 1, 100);
+    }
+
+    // 获取任务信息
+    public function getTask(RequestContext $requestContext): array
+    {
+        $taskId = $this->request->input('task_id', '');
+        if (empty($taskId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_id is required');
+        }
+
+        $task = $this->taskAppService->getTaskById((int) $taskId);
+        if (empty($task)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_not_found');
+        }
+
+        return $task->toArray();
     }
 }

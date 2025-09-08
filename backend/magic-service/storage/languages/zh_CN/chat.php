@@ -24,6 +24,10 @@ return [
             'duration_positive' => '语音时长必须大于0秒，当前时长：:duration 秒',
             'duration_exceeds_limit' => '语音时长不能超过:max_duration 秒，当前时长：:duration 秒',
         ],
+        'rollback' => [
+            'seq_id_not_found' => '消息序列ID不存在',
+            'magic_message_id_not_found' => '关联的消息ID不存在',
+        ],
     ],
     'already_exist' => '已存在',
     'not_found' => '未找到',

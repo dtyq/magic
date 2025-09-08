@@ -20,6 +20,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackStartRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackUndoRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InitAgentRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
@@ -195,12 +200,20 @@ class AgentDomainService
     {
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'prompt' => $taskContext->getTask()->getPrompt(),
+            'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
+            'mentions' => $taskContext->getTask()->getMentions(),
+            'mcp_config' => $taskContext->getMcpConfig(),
+            'model_id' => $taskContext->getModelId(),
+            'dynamic_config' => $taskContext->getDynamicConfig(),
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
-            messageId: (string) IdGenerator::getSnowId(),
+            messageId: $taskContext->getMessageId(),
             userId: $dataIsolation->getCurrentUserId(),
             taskId: (string) $taskContext->getTask()->getId(),
             prompt: $taskContext->getTask()->getPrompt(),
@@ -443,6 +456,264 @@ class AgentDomainService
     }
 
     /**
+     * 回滚到指定的checkpoint.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpoint(string $sandboxId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Rolling back to checkpoint', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        try {
+            $request = CheckpointRollbackRequest::create($targetMessageId);
+            $response = $this->agent->rollbackCheckpoint($sandboxId, $request);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Domain] Checkpoint rollback successful', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'message' => $response->getMessage(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Domain] Checkpoint rollback failed', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during checkpoint rollback', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint', 'Checkpoint rollback failed: ' . $e->getMessage(), 3004);
+        }
+    }
+
+    /**
+     * 开始回滚到指定的checkpoint（调用沙箱网关）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointStart(string $sandboxId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Starting checkpoint rollback', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        try {
+            $request = CheckpointRollbackStartRequest::create($targetMessageId);
+            $response = $this->agent->rollbackCheckpointStart($sandboxId, $request);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Domain] Checkpoint rollback start successful', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'message' => $response->getMessage(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Domain] Checkpoint rollback start failed', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during checkpoint rollback start', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint start', 'Checkpoint rollback start failed: ' . $e->getMessage(), 3005);
+        }
+    }
+
+    /**
+     * 提交回滚到指定的checkpoint（调用沙箱网关）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointCommit(string $sandboxId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Committing checkpoint rollback', [
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        try {
+            $request = CheckpointRollbackCommitRequest::create();
+            $response = $this->agent->rollbackCheckpointCommit($sandboxId, $request);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Domain] Checkpoint rollback commit successful', [
+                    'sandbox_id' => $sandboxId,
+                    'message' => $response->getMessage(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Domain] Checkpoint rollback commit failed', [
+                    'sandbox_id' => $sandboxId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during checkpoint rollback commit', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint commit', 'Checkpoint rollback commit failed: ' . $e->getMessage(), 3006);
+        }
+    }
+
+    /**
+     * 撤销回滚沙箱checkpoint（调用沙箱网关）.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return AgentResponse 回滚响应
+     */
+    public function rollbackCheckpointUndo(string $sandboxId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Undoing checkpoint rollback', [
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        try {
+            $request = CheckpointRollbackUndoRequest::create();
+            $response = $this->agent->rollbackCheckpointUndo($sandboxId, $request);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Domain] Checkpoint rollback undo successful', [
+                    'sandbox_id' => $sandboxId,
+                    'message' => $response->getMessage(),
+                ]);
+            } else {
+                $this->logger->error('[Sandbox][Domain] Checkpoint rollback undo failed', [
+                    'sandbox_id' => $sandboxId,
+                    'code' => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during checkpoint rollback undo', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint undo', 'Checkpoint rollback undo failed: ' . $e->getMessage(), 3007);
+        }
+    }
+
+    /**
+     * 检查回滚到指定checkpoint的可行性.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $targetMessageId 目标消息ID
+     * @return AgentResponse 检查响应
+     */
+    public function rollbackCheckpointCheck(string $sandboxId, string $targetMessageId): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Checking checkpoint rollback feasibility', [
+            'sandbox_id' => $sandboxId,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        try {
+            $request = CheckpointRollbackCheckRequest::create($targetMessageId);
+            $response = $this->agent->rollbackCheckpointCheck($sandboxId, $request);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('[Sandbox][Domain] Checkpoint rollback check completed', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'can_rollback' => $response->getDataValue('can_rollback'),
+                ]);
+            } else {
+                $this->logger->warning('[Sandbox][Domain] Checkpoint rollback check failed', [
+                    'sandbox_id' => $sandboxId,
+                    'target_message_id' => $targetMessageId,
+                    'error' => $response->getMessage(),
+                ]);
+            }
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during checkpoint rollback check', [
+                'sandbox_id' => $sandboxId,
+                'target_message_id' => $targetMessageId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Rollback checkpoint check', 'Checkpoint rollback check failed: ' . $e->getMessage(), 3008);
+        }
+    }
+
+    /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，默认为continue
+     * @return AgentResponse 升级响应结果
+     * @throws SandboxOperationException 当升级失败时抛出异常
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Upgrading sandbox image', [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+        ]);
+
+        try {
+            // 调用网关服务进行升级
+            $result = $this->gateway->upgradeSandbox($messageId, $contextType);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Domain] Failed to upgrade sandbox', [
+                    'message_id' => $messageId,
+                    'context_type' => $contextType,
+                    'error' => $result->getMessage(),
+                    'code' => $result->getCode(),
+                ]);
+                throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
+            }
+
+            $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+            ]);
+
+            // 将GatewayResult转换为AgentResponse
+            return AgentResponse::fromGatewayResult($result);
+        } catch (SandboxOperationException $e) {
+            // 重新抛出沙箱操作异常
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during sandbox upgrade', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Upgrade sandbox', 'Sandbox upgrade failed: ' . $e->getMessage(), 3009);
+        }
+    }
+
+    /**
      * 构建初始化消息.
      */
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
@@ -473,7 +744,7 @@ class AgentDomainService
             superMagicTaskId: (string) $taskContext->getTask()->getId(),
             workspaceId: $taskContext->getWorkspaceId(),
             projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $dataIsolation->getLanguage(),
+            language: $dataIsolation->getLanguage() ?? '',
             userInfo: $userInfo,
         );
 
@@ -510,6 +781,7 @@ class AgentDomainService
             'memory' => $memory,
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
+            'model_id' => $taskContext->getModelId(),
         ];
     }
 

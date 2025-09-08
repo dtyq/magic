@@ -28,7 +28,8 @@ class InitAgentRequest
         private string $magicServiceHost = '',
         private string $chatHistoryDir = '',
         private string $workDir = '',
-        private ?string $memory = null
+        private ?string $memory = null,
+        private ?string $modelId = null
     ) {
     }
 
@@ -50,7 +51,8 @@ class InitAgentRequest
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
             $data['chat_history_dir'] ?? '',
             $data['work_dir'] ?? '',
-            $data['memory'] ?? null
+            $data['memory'] ?? null,
+            $data['model_id'] ?? null
         );
     }
 
@@ -78,7 +80,8 @@ class InitAgentRequest
         string $magicServiceHost = '',
         string $chatHistoryDir = '',
         string $workDir = '',
-        ?string $memory = null
+        ?string $memory = null,
+        ?string $modelId = null
     ): self {
         return new self(
             $messageId,
@@ -93,7 +96,8 @@ class InitAgentRequest
             $magicServiceHost,
             $chatHistoryDir,
             $workDir,
-            $memory
+            $memory,
+            $modelId
         );
     }
 
@@ -300,6 +304,17 @@ class InitAgentRequest
         return $this;
     }
 
+    public function getModelId(): ?string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(?string $modelId): self
+    {
+        $this->modelId = $modelId;
+        return $this;
+    }
+
     /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
@@ -321,6 +336,7 @@ class InitAgentRequest
             'chat_history_dir' => $this->chatHistoryDir,
             'work_dir' => $this->workDir,
             'memory' => $this->memory,
+            'model_id' => $this->modelId,
         ];
     }
 }

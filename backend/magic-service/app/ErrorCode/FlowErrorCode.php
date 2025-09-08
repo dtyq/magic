@@ -37,4 +37,17 @@ enum FlowErrorCode: int
 
     #[ErrorMessage(message: 'flow.error.access_denied')]
     case AccessDenied = 31008;
+
+    // Cache related error codes
+    #[ErrorMessage(message: 'flow.cache.validation_failed')]
+    case CacheValidationFailed = 31009;
+
+    #[ErrorMessage(message: 'flow.cache.not_found')]
+    case CacheNotFound = 31010;
+
+    #[ErrorMessage(message: 'flow.cache.expired')]
+    case CacheExpired = 31011;
+
+    #[ErrorMessage(message: 'flow.cache.operation_failed')]
+    case CacheOperationFailed = 31012;
 }

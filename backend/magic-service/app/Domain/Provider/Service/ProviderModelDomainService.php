@@ -38,7 +38,7 @@ readonly class ProviderModelDomainService
     public function getByIdOrModelId(ProviderDataIsolation $dataIsolation, string $id): ?ProviderModelEntity
     {
         // 获取所有分类的可用模型
-        $allModels = $this->providerModelRepository->getAvailableModelsForOrganization($dataIsolation);
+        $allModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation);
 
         // 循环判断 id 等于 $id 或者 model_id 等于 $id
         foreach ($allModels as $model) {
@@ -110,6 +110,18 @@ readonly class ProviderModelDomainService
     public function deleteByModelParentIds(ProviderDataIsolation $dataIsolation, array $modelParentIds): void
     {
         $this->providerModelRepository->deleteByModelParentIds($dataIsolation, $modelParentIds);
+    }
+
+    /**
+     * 批量根据ID获取模型.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param string[] $ids 模型ID数组
+     * @return ProviderModelEntity[] 模型实体数组，以ID为键
+     */
+    public function getModelsByIds(ProviderDataIsolation $dataIsolation, array $ids): array
+    {
+        return $this->providerModelRepository->getByIds($dataIsolation, $ids);
     }
 
     public function getModelById(string $id): ?ProviderModelEntity

@@ -99,4 +99,5 @@ return [
     'instruct_display_type_normal' => 'Normal',
     'instruct_display_type_system' => 'System',
     'no_version' => 'no version',
+    'sandbox_upgrade_failed' => 'Sandbox image upgrade failed',
 ];

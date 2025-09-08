@@ -28,4 +28,5 @@ return [
     'magic_provider_not_found' => 'Magic service provider configuration not found',
     'original_model_id_already_exists' => 'Original model ID already exists',
     'original_model_not_found' => 'Original model not found',
+    'invalid_pricing' => 'Pricing cannot be less than 0',
 ];

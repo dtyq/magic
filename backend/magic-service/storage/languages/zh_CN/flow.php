@@ -257,4 +257,48 @@ return [
         'conversation_id' => '会话ID',
         'modifier' => '修改人',
     ],
+    'cache' => [
+        'validation_failed' => '缓存验证失败',
+        'not_found' => '缓存不存在',
+        'expired' => '缓存已过期',
+        'operation_failed' => '缓存操作失败',
+        'cache_prefix' => [
+            'empty' => '缓存前缀不能为空',
+            'too_long' => '缓存前缀不能超过{max}个字符',
+        ],
+        'cache_key' => [
+            'empty' => '缓存键不能为空',
+            'too_long' => '缓存键不能超过{max}个字符',
+        ],
+        'cache_key_hash' => [
+            'invalid_length' => '缓存键哈希值长度必须为{expected}个字符',
+        ],
+        'scope_tag' => [
+            'empty' => '作用域标识不能为空',
+            'too_long' => '作用域标识不能超过{max}个字符',
+        ],
+        'organization_code' => [
+            'empty' => '组织代码不能为空',
+            'too_long' => '组织代码不能超过{max}个字符',
+        ],
+        'ttl' => [
+            'invalid_range' => 'TTL秒数必须在{min}到{max}之间（-1/0/null代表永久缓存）',
+        ],
+        'creator' => [
+            'too_long' => '创建人不能超过{max}个字符',
+        ],
+        'modifier' => [
+            'too_long' => '更新人不能超过{max}个字符',
+        ],
+        'extend' => [
+            'negative_seconds' => '扩展时间不能为负数',
+            'exceeds_maximum' => '扩展后的TTL不能超过最大值{max}',
+        ],
+        'id' => [
+            'invalid' => 'ID必须是正整数，当前值：{id}',
+        ],
+        'prefix' => [
+            'invalid_format' => '缓存前缀格式无效',
+        ],
+    ],
 ];

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
+use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 
@@ -114,4 +115,71 @@ interface TopicRepositoryInterface
     public function getRunningWorkspaceIds(array $workspaceIds): array;
 
     public function getRunningProjectIds(array $projectIds): array;
+
+    // ======================= 消息回滚相关方法 =======================
+
+    /**
+     * 根据序列ID获取magic_message_id.
+     */
+    public function getMagicMessageIdBySeqId(string $seqId): ?string;
+
+    /**
+     * 根据magic_message_id获取所有相关的seq_id（所有视角）.
+     */
+    public function getAllSeqIdsByMagicMessageId(string $magicMessageId): array;
+
+    /**
+     * 根据基础seq_ids获取当前话题当前消息以及这条消息后面的所有消息.
+     * @param array $baseSeqIds 基础seq_ids
+     * @return array 所有相关的seq_ids
+     */
+    public function getAllSeqIdsFromCurrent(array $baseSeqIds): array;
+
+    /**
+     * 删除topic_messages数据.
+     */
+    public function deleteTopicMessages(array $seqIds): int;
+
+    /**
+     * 根据seq_ids删除messages和sequences数据.
+     */
+    public function deleteMessagesAndSequencesBySeqIds(array $seqIds): bool;
+
+    /**
+     * 根据im_seq_id删除magic_super_agent_message表中对应话题的后续消息.
+     *
+     * 删除逻辑：
+     * 1. 根据im_seq_id查询magic_super_agent_message表，获取对应的主键id和topic_id
+     * 2. 删除当前话题中id >= 查询到的主键id的所有数据
+     *
+     * @param int $seqId IM消息的序列ID
+     * @return int 删除的记录数
+     */
+    public function deleteSuperAgentMessagesFromSeqId(int $seqId): int;
+
+    /**
+     * 批量更新magic_chat_sequences表的status字段.
+     *
+     * @param array $seqIds 需要更新的序列ID数组
+     * @param MagicMessageStatus $status 目标状态
+     * @return bool 更新是否成功
+     */
+    public function batchUpdateSeqStatus(array $seqIds, MagicMessageStatus $status): bool;
+
+    /**
+     * 根据基础seq_ids获取当前话题中小于指定seq_id的所有消息.
+     *
+     * @param array $baseSeqIds 基础seq_ids
+     * @return array 小于指定seq_id的所有消息列表
+     */
+    public function getAllSeqIdsBeforeCurrent(array $baseSeqIds): array;
+
+    /**
+     * 根据话题ID获取所有撤回状态的消息seq_ids.
+     *
+     * @param int $topicId 话题ID
+     * @param string $userId 用户ID（权限验证）
+     * @return array 撤回状态的消息seq_ids
+     */
+    public function getRevokedSeqIdsByTopicId(int $topicId, string $userId): array;
 }

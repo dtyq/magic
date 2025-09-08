@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
+use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -15,12 +16,19 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Exception;
+use Hyperf\DbConnection\Db;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 class TopicDomainService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         protected TopicRepositoryInterface $topicRepository,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get('topic');
     }
 
     public function getTopicById(int $id): ?TopicEntity
@@ -184,6 +192,7 @@ class TopicDomainService
         string $chatTopicId,
         string $topicName = '',
         string $workDir = '',
+        string $topicMode = ''
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -211,7 +220,9 @@ class TopicDomainService
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
-
+        if (! empty($topicMode)) {
+            $topicEntity->setTopicMode($topicMode);
+        }
         return $this->topicRepository->createTopic($topicEntity);
     }
 
@@ -442,5 +453,155 @@ class TopicDomainService
         } catch (Exception $e) {
             return false;
         }
+    }
+
+    // ======================= 消息回滚相关方法 =======================
+
+    /**
+     * 执行消息回滚逻辑.
+     */
+    public function rollbackMessages(string $targetSeqId): void
+    {
+        // 根据seq_id获取magic_message_id
+        $magicMessageId = $this->topicRepository->getMagicMessageIdBySeqId($targetSeqId);
+        if (empty($magicMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 获取所有相关的seq_id（所有视角）
+        $baseSeqIds = $this->topicRepository->getAllSeqIdsByMagicMessageId($magicMessageId);
+        if (empty($baseSeqIds)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.magic_message_id_not_found');
+        }
+
+        // 获取从当前消息开始的所有seq_ids（当前消息和后续消息）
+        $allSeqIds = $this->topicRepository->getAllSeqIdsFromCurrent($baseSeqIds);
+        if (empty($allSeqIds)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 在事务中执行删除操作
+        Db::transaction(function () use ($allSeqIds, $targetSeqId) {
+            // 删除topic_messages数据
+            $this->topicRepository->deleteTopicMessages($allSeqIds);
+
+            // 删除messages和sequences数据
+            $this->topicRepository->deleteMessagesAndSequencesBySeqIds($allSeqIds);
+
+            // 删除magic_super_agent_message表的数据
+            $this->topicRepository->deleteSuperAgentMessagesFromSeqId((int) $targetSeqId);
+        });
+    }
+
+    /**
+     * 执行消息回滚开始逻辑（标记状态而非删除）.
+     */
+    public function rollbackMessagesStart(string $targetSeqId): void
+    {
+        // 根据seq_id获取magic_message_id
+        $magicMessageId = $this->topicRepository->getMagicMessageIdBySeqId($targetSeqId);
+        if (empty($magicMessageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 获取所有相关的seq_id（所有视角）
+        $baseSeqIds = $this->topicRepository->getAllSeqIdsByMagicMessageId($magicMessageId);
+        if (empty($baseSeqIds)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.magic_message_id_not_found');
+        }
+
+        // 获取从当前消息开始的所有seq_ids（当前消息和后续消息）
+        $allSeqIdsFromCurrent = $this->topicRepository->getAllSeqIdsFromCurrent($baseSeqIds);
+        if (empty($allSeqIdsFromCurrent)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'chat.message.rollback.seq_id_not_found');
+        }
+
+        // 获取小于当前消息的所有消息
+        $allSeqIdsBeforeCurrent = $this->topicRepository->getAllSeqIdsBeforeCurrent($baseSeqIds);
+
+        // 在事务中执行状态更新操作
+        Db::transaction(function () use ($allSeqIdsFromCurrent, $allSeqIdsBeforeCurrent) {
+            // 1. 将小于target_message_id的所有消息设置为已查看状态（正常状态）
+            if (! empty($allSeqIdsBeforeCurrent)) {
+                $this->topicRepository->batchUpdateSeqStatus($allSeqIdsBeforeCurrent, MagicMessageStatus::Read);
+            }
+
+            // 2. 标记大于等于target_message_id的消息为撤回状态
+            $this->topicRepository->batchUpdateSeqStatus($allSeqIdsFromCurrent, MagicMessageStatus::Revoked);
+        });
+    }
+
+    /**
+     * 执行消息回滚提交逻辑（物理删除撤回状态的消息）.
+     */
+    public function rollbackMessagesCommit(int $topicId, string $userId): void
+    {
+        // 获取该话题中所有撤回状态的消息seq_ids
+        $revokedSeqIds = $this->topicRepository->getRevokedSeqIdsByTopicId($topicId, $userId);
+
+        if (empty($revokedSeqIds)) {
+            // 没有撤回状态的消息，直接返回
+            return;
+        }
+
+        // 为了使用现有的删除逻辑，需要找到一个target_seq_id用于deleteSuperAgentMessagesFromSeqId
+        // 取最小的seq_id作为target（确保删除所有相关的super_agent_message）
+        $targetSeqId = min($revokedSeqIds);
+
+        // 在事务中执行删除操作（与现有rollbackMessages逻辑一致）
+        Db::transaction(function () use ($revokedSeqIds, $targetSeqId) {
+            // 删除topic_messages数据
+            $this->topicRepository->deleteTopicMessages($revokedSeqIds);
+
+            // 删除messages和sequences数据
+            $this->topicRepository->deleteMessagesAndSequencesBySeqIds($revokedSeqIds);
+
+            // 删除magic_super_agent_message表的数据
+            $this->topicRepository->deleteSuperAgentMessagesFromSeqId($targetSeqId);
+        });
+    }
+
+    /**
+     * 执行消息撤回撤销逻辑（将撤回状态的消息恢复为正常状态）.
+     *
+     * @param int $topicId 话题ID
+     * @param string $userId 用户ID（权限验证）
+     */
+    public function rollbackMessagesUndo(int $topicId, string $userId): void
+    {
+        $this->logger->info('[TopicDomain] Starting message rollback undo', [
+            'topic_id' => $topicId,
+            'user_id' => $userId,
+        ]);
+
+        // 获取该话题中所有撤回状态的消息seq_ids
+        $revokedSeqIds = $this->topicRepository->getRevokedSeqIdsByTopicId($topicId, $userId);
+
+        if (empty($revokedSeqIds)) {
+            $this->logger->info('[TopicDomain] No revoked messages found for undo', [
+                'topic_id' => $topicId,
+                'user_id' => $userId,
+            ]);
+            // 没有撤回状态的消息，直接返回
+            return;
+        }
+
+        $this->logger->info('[TopicDomain] Found revoked messages for undo', [
+            'topic_id' => $topicId,
+            'user_id' => $userId,
+            'revoked_seq_ids_count' => count($revokedSeqIds),
+        ]);
+
+        // 在事务中执行状态更新操作（将撤回状态恢复为已查看状态）
+        Db::transaction(function () use ($revokedSeqIds) {
+            // 将撤回状态的消息恢复为已查看状态
+            $this->topicRepository->batchUpdateSeqStatus($revokedSeqIds, MagicMessageStatus::Read);
+        });
+
+        $this->logger->info('[TopicDomain] Message rollback undo completed successfully', [
+            'topic_id' => $topicId,
+            'user_id' => $userId,
+            'restored_seq_ids_count' => count($revokedSeqIds),
+        ]);
     }
 }

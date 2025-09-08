@@ -121,14 +121,33 @@ class FileAppService extends AbstractAppService
         $files = array_merge($organizationFileEntities, $defaultFileEntities);
 
         $keys = array_column($files, 'key');
-        $fileLinks = $this->fileDomainService->getLinks($organizationCode, $keys);
+
+        // 按组织编码分组文件 keys，参考 ProviderAppService 做法
+        $keysByOrg = [];
+        foreach ($keys as $key) {
+            if (empty($key)) {
+                continue;
+            }
+            $keyOrganizationCode = substr($key, 0, strpos($key, '/'));
+            if (! isset($keysByOrg[$keyOrganizationCode])) {
+                $keysByOrg[$keyOrganizationCode] = [];
+            }
+            $keysByOrg[$keyOrganizationCode][] = $key;
+        }
+
+        // 批量获取各组织的文件链接
+        $allFileLinks = [];
+        foreach ($keysByOrg as $orgCode => $orgKeys) {
+            $links = $this->fileDomainService->getLinks($orgCode, $orgKeys);
+            $allFileLinks = array_merge($allFileLinks, $links);
+        }
 
         $fileObject = [];
         foreach ($files as $file) {
             $key = $file->getKey();
             $fileType = $file->getFileType();
-            if (isset($fileLinks[$key])) {
-                $fileObject[] = ['key' => $key, 'url' => $fileLinks[$key]->getUrl(), 'type' => $fileType];
+            if (isset($allFileLinks[$key])) {
+                $fileObject[] = ['key' => $key, 'url' => $allFileLinks[$key]->getUrl(), 'type' => $fileType];
             } else {
                 $fileObject[] = ['key' => $key, 'url' => '', 'type' => $fileType];
             }
