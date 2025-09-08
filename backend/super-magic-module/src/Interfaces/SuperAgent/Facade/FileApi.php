@@ -514,7 +514,8 @@ class FileApi extends AbstractApi
             return $this->fileManagementAppService->getFileUrlsByAccessToken(
                 $dto->getFileIds(),
                 $dto->getToken(),
-                $dto->getDownloadMode()
+                $dto->getDownloadMode(),
+                $dto->getFileVersions()
             );
         }
 
@@ -531,7 +532,8 @@ class FileApi extends AbstractApi
             $dto->getProjectId(),
             $dto->getFileIds(),
             $dto->getDownloadMode(),
-            $options
+            $options,
+            $dto->getFileVersions()  // 新增：直接作为方法参数传递
         );
     }
 }
