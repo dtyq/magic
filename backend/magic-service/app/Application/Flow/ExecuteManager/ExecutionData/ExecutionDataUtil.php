@@ -20,7 +20,7 @@ class ExecutionDataUtil
     public static function appendTriggerTopInfo(array $flowData, ExecutionData $executionData): void
     {
         $flow = $flowData['flow'];
-        $agent = $flowData['agent'];
+        $agent = $flowData['agent'] ?? null;
 
         $executionData->setTriggerTopInfo([
             'flow_info' => [
