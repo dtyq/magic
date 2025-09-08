@@ -372,6 +372,82 @@ class AsrTokenApi extends AbstractApi
     }
 
     /**
+     * 查询指定目录下的文件列表（测试接口）
+     * POST /api/v1/asr/files.
+     *
+     * @param RequestInterface $request 包含 task_key 或 directory 参数
+     */
+    public function listObject(RequestInterface $request): array
+    {
+        $userAuthorization = $this->getAuthorization();
+        $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 获取查询参数
+        $taskKey = $request->input('task_key', '');
+        $directory = $request->input('directory', '');
+
+        // 确定查询目录：优先使用 task_key，其次使用 directory
+        if (! empty($taskKey)) {
+            // 通过 task_key 获取业务目录
+            $taskStatus = $this->asrFileAppService->getAndValidateTaskStatus($taskKey, $userId);
+            $businessDirectory = $taskStatus->businessDirectory;
+        } elseif (! empty($directory)) {
+            // 直接使用提供的目录
+            $businessDirectory = trim($directory, '/');
+        } else {
+            throw new InvalidArgumentException('task_key 或 directory 参数至少需要提供一个');
+        }
+
+        try {
+            // 调用应用层服务获取文件列表
+            $files = $this->asrFileAppService->listFilesInDirectory($organizationCode, $businessDirectory);
+
+            // 转换为API响应格式
+            $fileList = [];
+            foreach ($files as $file) {
+                $fileList[] = [
+                    'file_key' => $file->getKey(),
+                    'filename' => $file->getFilename(),
+                    'size' => $file->getSize(),
+                    'last_modified' => $file->getLastModified(),
+                ];
+            }
+
+            return [
+                'success' => true,
+                'directory' => sprintf('/%s/', $businessDirectory),
+                'file_count' => count($fileList),
+                'files' => $fileList,
+                'user' => [
+                    'user_id' => $userId,
+                    'organization_code' => $organizationCode,
+                ],
+                'queried_at' => date('Y-m-d H:i:s'),
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error('查询文件列表失败', [
+                'task_key' => $taskKey,
+                'directory' => $businessDirectory,
+                'organization_code' => $organizationCode,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'directory' => sprintf('/%s/', $businessDirectory),
+                'error' => sprintf('查询文件列表失败：%s', $e->getMessage()),
+                'user' => [
+                    'user_id' => $userId,
+                    'organization_code' => $organizationCode,
+                ],
+                'queried_at' => date('Y-m-d H:i:s'),
+            ];
+        }
+    }
+
+    /**
      * 生成ASR录音文件专用上传目录.
      */
     private function generateAsrUploadDirectory(string $userId, string $taskKey): string
