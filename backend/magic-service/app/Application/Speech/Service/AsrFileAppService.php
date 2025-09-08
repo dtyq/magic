@@ -1065,6 +1065,7 @@ readonly class AsrFileAppService
 
         return [
             'full_work_dir' => trim($fullWorkDir, '/'),
+            'file_relative_dir' => trim($workDir . '/' . $asrDirectoryName, '/'),
             'asr_directory_name' => $asrDirectoryName,
             'asr_directory_key' => sprintf('%s/%s/', trim($fullWorkDir, '/'), $asrDirectoryName),
         ];
@@ -1075,17 +1076,14 @@ readonly class AsrFileAppService
      *
      * @param string $userId 用户ID
      * @param string $projectId 项目ID
-     * @param string $fileName 文件名
      * @param string $organizationCode 组织编码
      * @param null|string $timestamp 时间戳，如果为null则使用当前时间
      */
-    private function buildWorkspaceFileKey(string $userId, string $projectId, string $fileName, string $organizationCode, ?string $timestamp = null): string
+    private function getFileRelativeDir(string $userId, string $projectId, string $organizationCode, ?string $timestamp = null): string
     {
         $timestamp = $timestamp ?: date('Ymd_His');
         $pathInfo = $this->buildAsrDirectoryPath($userId, $projectId, $organizationCode, $timestamp);
-
-        $relativePath = sprintf('%s/%s', $pathInfo['asr_directory_name'], $fileName);
-        return sprintf('%s/%s', $pathInfo['full_work_dir'], $relativePath);
+        return $pathInfo['file_relative_dir'];
     }
 
     /**
@@ -1286,10 +1284,10 @@ readonly class AsrFileAppService
             // 2. 准备上传到工作区指定目录（动态ASR录音目录）
             $timestamp = date('Ymd_His');
             $fileName = sprintf('%s.%s', trans('asr.file_names.original_recording'), $audioFormat);
-            $workspaceFileKey = $this->buildWorkspaceFileKey($userId, $projectId, $fileName, $organizationCode, $timestamp);
+            $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId, $organizationCode, $timestamp);
 
             // 3. 直接上传合并文件到工作区的动态ASR录音目录
-            $uploadFile = new UploadFile($mergedLocalAudioFile, '', $workspaceFileKey, false);
+            $uploadFile = new UploadFile($mergedLocalAudioFile, $fileRelativeDir, $fileName, false);
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
@@ -1317,7 +1315,7 @@ readonly class AsrFileAppService
             $taskStatus->mergedAudioFileKey = $businessUploadResult['file_key']; // 业务目录中的合并文件
             $taskStatus->workspaceFileKey = $actualWorkspaceFileKey; // 工作区中的合并文件
             $taskStatus->workspaceFileUrl = $workspaceFileUrl;
-            $taskStatus->filePath = $workspaceFileKey; // 保存工作区文件路径
+            $taskStatus->filePath = $fileRelativeDir; // 保存工作区文件路径
 
             // 8. 清理本地临时文件和远程小文件
             $this->cleanupTaskFiles($taskStatus->taskKey, $organizationCode, $taskStatus->businessDirectory);
