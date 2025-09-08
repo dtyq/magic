@@ -30,17 +30,17 @@ use Throwable;
  * Agent应用服务
  * 负责协调Agent领域服务的调用，遵循DDD原则.
  */
-class AgentAppService
+readonly class AgentAppService
 {
     private LoggerInterface $logger;
 
     public function __construct(
-        LoggerFactory $loggerFactory,
+        private LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
-        $this->logger = $loggerFactory->get('sandbox');
+        $this->logger = $this->loggerFactory->get('sandbox');
     }
 
     /**

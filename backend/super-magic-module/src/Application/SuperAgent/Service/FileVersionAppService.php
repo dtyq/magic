@@ -44,9 +44,11 @@ class FileVersionAppService extends AbstractAppService
     ): CreateFileVersionResponseDTO {
         // 获取用户授权信息
         $fileKey = $requestDTO->getFileKey();
+        $editType = $requestDTO->getEditType();
 
         $this->logger->info('Creating file version', [
             'file_key' => $fileKey,
+            'edit_type' => $editType,
         ]);
 
         // 验证文件是否存在
@@ -61,7 +63,7 @@ class FileVersionAppService extends AbstractAppService
         }
 
         // 调用Domain Service创建版本
-        $versionEntity = $this->taskFileVersionDomainService->createFileVersion($fileEntity);
+        $versionEntity = $this->taskFileVersionDomainService->createFileVersion($fileEntity, $editType);
 
         if (! $versionEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_SAVE_FAILED, 'file.version_create_failed');
@@ -72,10 +74,11 @@ class FileVersionAppService extends AbstractAppService
             'file_id' => $fileEntity->getFileId(),
             'version_id' => $versionEntity->getId(),
             'version' => $versionEntity->getVersion(),
+            'edit_type' => $editType,
         ]);
 
         // 返回结果
-        return CreateFileVersionResponseDTO::fromEntity($versionEntity);
+        return CreateFileVersionResponseDTO::createEmpty();
     }
 
     /**

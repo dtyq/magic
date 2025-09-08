@@ -268,6 +268,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         }
         $taskFileEntity->setSort($this->sort);
         $taskFileEntity->setParentId(! empty($this->parentId) ? (int) $this->parentId : 0);
+        $taskFileEntity->setIsDirectory($this->isDirectory);
 
         // 设置存储类型
         if (! empty($this->storageType)) {

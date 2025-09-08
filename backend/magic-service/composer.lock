@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.11",
+            "version": "3.356.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "9dcb228185d441cedd4e6fe76905f6a6cdf83a9c"
+                "reference": "0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/9dcb228185d441cedd4e6fe76905f6a6cdf83a9c",
-                "reference": "9dcb228185d441cedd4e6fe76905f6a6cdf83a9c",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3",
+                "reference": "0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.11"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.12"
             },
-            "time": "2025-09-04T18:06:33+00:00"
+            "time": "2025-09-05T18:10:41+00:00"
         },
         {
             "name": "brick/math",
@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "0d7e4f79a8e9f483a9a4230de654e694bdc8a180"
+                "reference": "8f278986c9f960c5f8d2b1181e6b2d14db575914"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=0d7e4f79a8e9f483a9a4230de654e694bdc8a180",
-                "reference": "0d7e4f79a8e9f483a9a4230de654e694bdc8a180",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=8f278986c9f960c5f8d2b1181e6b2d14db575914",
+                "reference": "8f278986c9f960c5f8d2b1181e6b2d14db575914",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-04T07:16:14+00:00"
+            "time": "2025-09-05T09:01:59+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "11920da06d1c001872442de90531a1d3e7176f83"
+                "reference": "cdc1720f3580c22286915c49bd3684374861105e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=11920da06d1c001872442de90531a1d3e7176f83",
-                "reference": "11920da06d1c001872442de90531a1d3e7176f83",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=cdc1720f3580c22286915c49bd3684374861105e",
+                "reference": "cdc1720f3580c22286915c49bd3684374861105e",
                 "shasum": ""
             },
             "require": {
@@ -2679,7 +2679,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-05T15:30:36+08:00"
+            "time": "2025-09-07T12:04:08+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6452,16 +6452,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.50",
+            "version": "v1.1.52",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "0ad1492bc4b7f8a28d86d8f3de4f1f8cfa6b2a9b"
+                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=0ad1492bc4b7f8a28d86d8f3de4f1f8cfa6b2a9b",
-                "reference": "0ad1492bc4b7f8a28d86d8f3de4f1f8cfa6b2a9b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
+                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
                 "shasum": ""
             },
             "require": {
@@ -6533,9 +6533,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.50"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.52"
             },
-            "time": "2025-09-05T11:31:13+08:00"
+            "time": "2025-09-07T15:34:54+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -19628,8 +19628,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19646,6 +19646,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }

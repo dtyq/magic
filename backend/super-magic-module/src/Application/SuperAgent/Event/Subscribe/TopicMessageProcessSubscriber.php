@@ -82,7 +82,7 @@ class TopicMessageProcessSubscriber extends ConsumerMessage
             // 尝试获取话题级别的锁
             $lockKey = 'handle_topic_message_lock:' . $topicId;
             $lockOwner = IdGenerator::getUniqueId32();
-            $lockExpireSeconds = 20; // 给批量处理更多时间
+            $lockExpireSeconds = 50; // 给批量处理更多时间
 
             $lockAcquired = $this->acquireLock($lockKey, $lockOwner, $lockExpireSeconds);
 
