@@ -269,6 +269,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     private function getBuiltinAgent(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation): array
     {
         $modeDataIsolation = $this->createModeDataIsolation($superMagicAgentDataIsolation);
+        $modeDataIsolation->setOnlyOfficialOrganization(true);
         $query = new ModeQuery(excludeDefault: true, status: true);
         $modesResult = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage());
         $list = [];
