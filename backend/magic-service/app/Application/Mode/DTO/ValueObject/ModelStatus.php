@@ -14,7 +14,7 @@ enum ModelStatus: string
     case Deleted = 'deleted';
 
     /**
-     * 获取状态描述
+     * 获取状态描述.
      */
     public function getDescription(): string
     {
