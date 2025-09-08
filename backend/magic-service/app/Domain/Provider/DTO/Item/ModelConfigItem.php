@@ -27,9 +27,9 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?int $maxOutputTokens = null;
 
-    protected ?float $creativity = 0.5;
+    protected ?float $creativity = null;
 
-    protected ?float $temperature = 0.7;
+    protected ?float $temperature = null;
 
     protected ?string $billingCurrency = null;
 
