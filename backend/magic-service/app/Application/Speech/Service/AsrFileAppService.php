@@ -94,7 +94,7 @@ readonly class AsrFileAppService
             $this->validateProjectAccess($summaryRequest->projectId, $userId, $organizationCode);
 
             // 4. 处理ASR总结任务（如果没有workspace_file_path）
-            if (! $summaryRequest->hasWorkspaceFilePath() && $taskStatus && ! $taskStatus->isTaskSubmitted()) {
+            if ($taskStatus && ! $summaryRequest->hasWorkspaceFilePath() && ! $taskStatus->isTaskSubmitted()) {
                 // 处理音频文件上传
                 $this->updateAudioToWorkspace($taskStatus, $organizationCode, $summaryRequest->projectId, $userId);
             }
@@ -103,26 +103,16 @@ readonly class AsrFileAppService
             if ($summaryRequest->hasWorkspaceFilePath()) {
                 // 使用workspace_file_path构建虚拟任务状态
                 $taskStatus = $this->createVirtualTaskStatusFromWorkspaceFile($summaryRequest);
-                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
-                    $taskStatus,
-                    $organizationCode,
-                    $summaryRequest->projectId,
-                    $userId,
-                    $summaryRequest->topicId,
-                    $conversationId,
-                    $summaryRequest->modelId
-                );
-            } else {
-                $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
-                    $taskStatus,
-                    $organizationCode,
-                    $summaryRequest->projectId,
-                    $userId,
-                    $summaryRequest->topicId,
-                    $conversationId,
-                    $summaryRequest->modelId
-                );
             }
+            $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
+                $taskStatus,
+                $organizationCode,
+                $summaryRequest->projectId,
+                $userId,
+                $summaryRequest->topicId,
+                $conversationId,
+                $summaryRequest->modelId
+            );
 
             // 6. 发送聊天消息模拟用户总结请求
             $this->sendSummaryChatMessage($processSummaryTaskDTO, $userAuthorization);
@@ -363,36 +353,6 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException(trans('asr.api.validation.project_access_validation_failed', ['error' => $e->getMessage()]));
         }
     }
-
-    /**
-     * 构建包含文件列表的响应.
-     */
-    public function buildFileListResponse(string $organizationCode, string $businessDirectory): array
-    {
-        $uploadedFiles = [];
-        try {
-            // 使用ASR文件服务查询音频文件
-            $files = $this->getAudioFileList($organizationCode, $businessDirectory);
-
-            foreach ($files as $file) {
-                $uploadedFiles[] = [
-                    'filename' => $file->getFilename() ?: basename($file->getKey()),
-                    'key' => $file->getKey(),
-                    'size' => $file->getSize(),
-                    'modified' => $file->getLastModified(),
-                ];
-            }
-        } catch (Throwable) {
-            // 静默处理，不影响主要功能
-        }
-
-        return [
-            'files' => $uploadedFiles,
-            'file_count' => count($uploadedFiles),
-        ];
-    }
-
-    // ==================== 任务状态管理 ====================
 
     /**
      * 从Redis获取任务状态
@@ -754,7 +714,7 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 合并音频文件为一个完整文件.
+     * 合并音频文件为一个完整文件 - 直接二进制拼接.
      *
      * @param array $audioFiles 音频文件路径列表
      * @param string $taskKey 任务键
@@ -768,7 +728,9 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException('没有音频文件可合并');
         }
 
-        $this->logger->info('开始音频文件合并处理', [
+        $mergeStartTime = microtime(true);
+
+        $this->logger->info('开始音频文件二进制合并处理', [
             'task_key' => $taskKey,
             'files_count' => count($audioFiles),
             'audio_files' => array_map('basename', $audioFiles),
@@ -777,55 +739,40 @@ readonly class AsrFileAppService
         $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
         $outputFile = sprintf('%s/merged_audio.%s', $runtimeDir, $format);
 
-        // 如果只有一个文件，直接返回该文件路径
+        // 按文件名数字顺序排序
+        usort($audioFiles, static function (string $a, string $b): int {
+            $aNum = (int) pathinfo(basename($a), PATHINFO_FILENAME);
+            $bNum = (int) pathinfo(basename($b), PATHINFO_FILENAME);
+            return $aNum <=> $bNum;
+        });
+
+        // 记录排序后的文件列表
+        $this->logger->info('音频文件排序完成', [
+            'task_key' => $taskKey,
+            'sorted_files' => array_map('basename', $audioFiles),
+        ]);
+
+        // 如果只有一个文件，直接复制
         if (count($audioFiles) === 1) {
             $sourceFile = $audioFiles[0];
             $sourceSize = file_exists($sourceFile) ? filesize($sourceFile) : 0;
 
             $this->logger->info('单个音频文件直接复制', [
                 'task_key' => $taskKey,
-                'source_file' => $sourceFile,
-                'target_file' => $outputFile,
+                'source_file' => basename($sourceFile),
+                'target_file' => basename($outputFile),
                 'file_size_bytes' => $sourceSize,
             ]);
 
-            // 复制文件到目标位置
             if (! copy($sourceFile, $outputFile)) {
-                $this->logger->error('复制单个音频文件失败', [
-                    'task_key' => $taskKey,
-                    'source_file' => $sourceFile,
-                    'target_file' => $outputFile,
-                ]);
                 throw new InvalidArgumentException('复制单个音频文件失败');
             }
-
-            $this->logger->info('单个音频文件复制成功', [
-                'task_key' => $taskKey,
-                'output_file' => $outputFile,
-                'output_size_bytes' => file_exists($outputFile) ? filesize($outputFile) : 0,
-            ]);
 
             return $outputFile;
         }
 
-        // 多个文件需要合并 - 使用FFmpeg
-        $ffmpegPath = $this->findFFmpegPath();
-        if (! $ffmpegPath) {
-            $this->logger->error('FFmpeg未找到，无法合并多个音频文件', [
-                'task_key' => $taskKey,
-                'files_count' => count($audioFiles),
-                'audio_files' => array_map('basename', $audioFiles),
-            ]);
-            throw new InvalidArgumentException('未找到FFmpeg，无法合并音频文件。请安装FFmpeg: brew install ffmpeg (macOS) 或 apt-get install ffmpeg (Ubuntu)');
-        }
-
-        $this->logger->info('找到FFmpeg，准备合并多个音频文件', [
-            'task_key' => $taskKey,
-            'ffmpeg_path' => $ffmpegPath,
-            'files_count' => count($audioFiles),
-        ]);
-
-        return $this->mergeAudioWithFFmpeg($audioFiles, $taskKey, $ffmpegPath, $outputFile);
+        // 多个文件直接二进制合并
+        return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile, $mergeStartTime);
     }
 
     /**
@@ -878,112 +825,138 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 使用FFmpeg合并音频文件.
+     * 直接二进制合并音频文件.
      *
      * @param array $audioFiles 音频文件路径列表
      * @param string $taskKey 任务键
-     * @param string $ffmpegPath FFmpeg可执行路径
      * @param string $outputFile 输出文件路径
+     * @param float $mergeStartTime 合并开始时间
      * @return string 合并后文件路径
      * @throws InvalidArgumentException
      */
-    private function mergeAudioWithFFmpeg(array $audioFiles, string $taskKey, string $ffmpegPath, string $outputFile): string
+    private function mergeAudioFilesBinary(array $audioFiles, string $taskKey, string $outputFile, float $mergeStartTime): string
     {
-        $mergeStartTime = microtime(true);
-
         // 记录合并前的文件信息
         $inputFileInfos = [];
         $totalInputSize = 0;
         foreach ($audioFiles as $file) {
             $fileSize = file_exists($file) ? filesize($file) : 0;
             $inputFileInfos[] = [
-                'file_path' => $file,
+                'file_path' => basename($file),
                 'filename' => basename($file),
                 'size_bytes' => $fileSize,
             ];
             $totalInputSize += $fileSize;
         }
 
-        $this->logger->info('开始使用FFmpeg合并音频文件', [
+        $this->logger->info('开始二进制合并音频文件', [
             'task_key' => $taskKey,
-            'ffmpeg_path' => $ffmpegPath,
             'input_files_count' => count($audioFiles),
             'total_input_size_bytes' => $totalInputSize,
-            'output_file' => $outputFile,
+            'output_file' => basename($outputFile),
             'input_files' => $inputFileInfos,
         ]);
 
-        // 创建文件列表
-        $listFile = sprintf('%s/runtime/asr/%s/file_list.txt', BASE_PATH, $taskKey);
-        $listContent = '';
-        foreach ($audioFiles as $file) {
-            $listContent .= sprintf("file '%s'\n", str_replace("'", "'\"'\"'", $file));
-        }
+        try {
+            // 删除可能存在的输出文件
+            if (file_exists($outputFile)) {
+                unlink($outputFile);
+            }
 
-        if (! file_put_contents($listFile, $listContent)) {
-            throw new InvalidArgumentException('创建文件列表失败');
-        }
+            // 打开输出文件进行写入
+            $outputHandle = fopen($outputFile, 'wb');
+            if ($outputHandle === false) {
+                throw new InvalidArgumentException('无法创建输出文件');
+            }
 
-        // 删除可能存在的输出文件，避免FFmpeg询问覆盖
-        if (file_exists($outputFile)) {
-            unlink($outputFile);
-        }
+            $processedFiles = 0;
+            $totalWritten = 0;
 
-        // 执行合并命令（添加-y参数自动覆盖文件）
-        $command = sprintf(
-            '%s -y -f concat -safe 0 -i %s -c copy %s 2>&1',
-            escapeshellcmd($ffmpegPath),
-            escapeshellarg($listFile),
-            escapeshellarg($outputFile)
-        );
+            // 逐个读取并写入文件
+            foreach ($audioFiles as $inputFile) {
+                if (! file_exists($inputFile)) {
+                    $this->logger->warning('输入文件不存在，跳过', [
+                        'task_key' => $taskKey,
+                        'input_file' => basename($inputFile),
+                    ]);
+                    continue;
+                }
 
-        // 记录FFmpeg命令参数
-        $this->logger->info('执行FFmpeg合并命令', [
-            'task_key' => $taskKey,
-            'command' => $command,
-            'list_file' => $listFile,
-            'list_content' => $listContent,
-        ]);
+                $inputHandle = fopen($inputFile, 'rb');
+                if ($inputHandle === false) {
+                    $this->logger->warning('无法打开输入文件，跳过', [
+                        'task_key' => $taskKey,
+                        'input_file' => basename($inputFile),
+                    ]);
+                    continue;
+                }
 
-        $execStartTime = microtime(true);
-        $output = shell_exec($command);
-        $execDuration = round((microtime(true) - $execStartTime) * 1000, 2);
+                // 以块的方式复制文件内容
+                $fileSize = 0;
+                while (! feof($inputHandle)) {
+                    $chunk = fread($inputHandle, 8192); // 8KB chunks
+                    if ($chunk !== false) {
+                        $written = fwrite($outputHandle, $chunk);
+                        if ($written === false) {
+                            fclose($inputHandle);
+                            fclose($outputHandle);
+                            throw new InvalidArgumentException('写入输出文件失败');
+                        }
+                        $fileSize += $written;
+                        $totalWritten += $written;
+                    }
+                }
 
-        if (! file_exists($outputFile) || filesize($outputFile) === 0) {
-            $this->logger->error('FFmpeg合并失败', [
+                fclose($inputHandle);
+                ++$processedFiles;
+
+                $this->logger->debug('文件合并完成', [
+                    'task_key' => $taskKey,
+                    'input_file' => basename($inputFile),
+                    'bytes_written' => $fileSize,
+                    'processed_files' => $processedFiles,
+                ]);
+            }
+
+            fclose($outputHandle);
+
+            // 验证输出文件
+            if (! file_exists($outputFile) || filesize($outputFile) === 0) {
+                throw new InvalidArgumentException('合并后的文件为空或不存在');
+            }
+
+            $outputFileSize = filesize($outputFile);
+            $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
+
+            $this->logger->info('二进制音频合并成功', [
                 'task_key' => $taskKey,
-                'command' => $command,
-                'ffmpeg_output' => $output,
-                'output_file' => $outputFile,
-                'list_file' => $listFile,
-                'exec_duration_ms' => $execDuration,
+                'processed_files_count' => $processedFiles,
+                'total_input_size_bytes' => $totalInputSize,
+                'output_file' => basename($outputFile),
+                'output_file_size_bytes' => $outputFileSize,
+                'total_merge_duration_ms' => $totalMergeDuration,
+                'bytes_written' => $totalWritten,
             ]);
-            throw new InvalidArgumentException(sprintf('音频文件合并失败: %s', $output ?? '未知错误'));
+
+            return $outputFile;
+        } catch (Throwable $e) {
+            $this->logger->error('二进制合并失败', [
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+                'output_file' => basename($outputFile),
+                'processed_files' => $processedFiles ?? 0,
+            ]);
+
+            // 清理可能的部分输出文件
+            if (isset($outputHandle) && is_resource($outputHandle)) {
+                fclose($outputHandle);
+            }
+            if (file_exists($outputFile)) {
+                unlink($outputFile);
+            }
+
+            throw new InvalidArgumentException(sprintf('音频文件二进制合并失败: %s', $e->getMessage()));
         }
-
-        // 合并成功，记录详细信息
-        $outputFileSize = filesize($outputFile);
-        $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
-
-        $this->logger->info('FFmpeg音频合并成功', [
-            'task_key' => $taskKey,
-            'command' => $command,
-            'ffmpeg_output' => $output,
-            'input_files_count' => count($audioFiles),
-            'total_input_size_bytes' => $totalInputSize,
-            'output_file' => $outputFile,
-            'output_file_size_bytes' => $outputFileSize,
-            'exec_duration_ms' => $execDuration,
-            'total_merge_duration_ms' => $totalMergeDuration,
-            'compression_ratio' => $totalInputSize > 0 ? round($outputFileSize / $totalInputSize, 4) : 0,
-        ]);
-
-        // 清理临时文件列表
-        if (file_exists($listFile)) {
-            unlink($listFile);
-        }
-
-        return $outputFile;
     }
 
     /**
@@ -1014,45 +987,6 @@ readonly class AsrFileAppService
 
         // 使用通用删除方法
         $this->deleteRemoteFiles($organizationCode, $businessDirectory, $filesToDelete);
-    }
-
-    /**
-     * 查找FFmpeg路径.
-     */
-    private function findFFmpegPath(): ?string
-    {
-        $possiblePaths = [
-            '/usr/local/bin/ffmpeg',
-            '/usr/bin/ffmpeg',
-            '/opt/homebrew/bin/ffmpeg',
-            '/opt/local/bin/ffmpeg', // MacPorts
-            '/snap/bin/ffmpeg', // Ubuntu Snap
-            'ffmpeg', // 系统PATH中
-        ];
-
-        foreach ($possiblePaths as $path) {
-            if ($path === 'ffmpeg') {
-                // 检查系统PATH
-                $result = shell_exec('which ffmpeg 2>/dev/null || where ffmpeg 2>/dev/null');
-                if ($result && trim($result)) {
-                    return trim($result);
-                }
-            } elseif (is_executable($path)) {
-                return $path;
-            }
-        }
-
-        $this->logger->error('FFmpeg未找到，音频合并将失败', [
-            'searched_paths' => $possiblePaths,
-            'install_commands' => [
-                'macOS' => 'brew install ffmpeg',
-                'Ubuntu/Debian' => 'sudo apt-get install ffmpeg',
-                'CentOS/RHEL' => 'sudo yum install ffmpeg',
-                'Docker' => 'RUN apt-get update && apt-get install -y ffmpeg',
-            ],
-        ]);
-
-        return null;
     }
 
     /**
