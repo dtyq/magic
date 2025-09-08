@@ -12,6 +12,8 @@ use App\Application\File\Service\FileAppService;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
@@ -23,7 +25,6 @@ use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Swow\Psr7\Message\UploadedFile;
 use Throwable;
@@ -119,13 +120,13 @@ class AsrTokenApi extends AbstractApi
         // 获取task_key参数
         $taskKey = $request->input('task_key', '');
         if (empty($taskKey)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
         // 获取上传文件
         $file = $request->file('file');
         if (! $file instanceof UploadedFile) {
-            throw new InvalidArgumentException(trans('asr.api.validation.file_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.file_required'));
         }
 
         // 验证任务是否存在且属于当前用户 - 委托给应用服务
@@ -165,7 +166,7 @@ class AsrTokenApi extends AbstractApi
                 'user_id' => $userId,
             ]);
 
-            throw new InvalidArgumentException(trans('asr.api.upload.failed_exception', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.upload.failed_exception', ['error' => $e->getMessage()]));
         }
     }
 
@@ -222,7 +223,7 @@ class AsrTokenApi extends AbstractApi
         // 获取task_key参数
         $taskKey = $request->input('task_key', '');
         if (empty($taskKey)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
         // 获取并验证任务状态 - 委托给应用服务
@@ -243,7 +244,7 @@ class AsrTokenApi extends AbstractApi
                 $userId,
                 $organizationCode
             )->toArray();
-        } catch (InvalidArgumentException $e) {
+        } catch (Throwable $e) {
             // 处理业务异常
             if (str_contains($e->getMessage(), 'audio_file_not_found')) {
                 return DownloadMergedAudioResponseDTO::createFailureResponse(
@@ -290,7 +291,7 @@ class AsrTokenApi extends AbstractApi
         // 获取task_key参数
         $taskKey = $request->input('task_key', '');
         if (empty($taskKey)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
         // 检查task_key是否已存在，如果存在则使用已有目录，如果不存在则生成新目录
@@ -333,7 +334,7 @@ class AsrTokenApi extends AbstractApi
                 'token_data_keys' => array_keys($tokenData),
                 'temporary_credential_keys' => isset($tokenData['temporary_credential']) ? array_keys($tokenData['temporary_credential']) : 'not_exists',
             ]);
-            throw new InvalidArgumentException(trans('asr.api.token.sts_get_failed'));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.token.sts_get_failed'));
         }
 
         $stsFullDirectory = $tokenData['temporary_credential']['dir'];
@@ -396,7 +397,7 @@ class AsrTokenApi extends AbstractApi
             // 直接使用提供的目录
             $businessDirectory = trim($directory, '/');
         } else {
-            throw new InvalidArgumentException('task_key 或 directory 参数至少需要提供一个');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_key 或 directory 参数至少需要提供一个');
         }
 
         try {
@@ -525,8 +526,6 @@ class AsrTokenApi extends AbstractApi
 
     /**
      * 验证 summary 请求参数.
-     *
-     * @throws InvalidArgumentException
      */
     private function validateSummaryParams(RequestInterface $request): SummaryRequestDTO
     {
@@ -541,20 +540,26 @@ class AsrTokenApi extends AbstractApi
         // 获取workspace_file_path参数（可选参数）
         $workspaceFilePath = $request->input('workspace_file_path', null);
 
-        if (empty($taskKey)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.task_key_required'));
+        // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
+        if (! empty($workspaceFilePath) && empty($taskKey)) {
+            $taskKey = uniqid('', true);
+        }
+
+        // 如果既没有task_key也没有workspace_file_path，则抛出异常
+        if (empty($taskKey) && empty($workspaceFilePath)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
         if (empty($projectId)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.project_id_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.project_id_required'));
         }
 
         if (empty($topicId)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.chat_topic_id_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.chat_topic_id_required'));
         }
 
         if (empty($modelId)) {
-            throw new InvalidArgumentException(trans('asr.api.validation.model_id_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.model_id_required'));
         }
 
         return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath);

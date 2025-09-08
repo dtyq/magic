@@ -122,6 +122,7 @@ return [
     'file_names' => [
         'recording_prefix' => 'บันทึกเสียง',
         'merged_audio_prefix' => 'ไฟล์เสียง',
+        'original_recording' => 'ไฟล์บันทึกเสียงต้นฉบับ',
         'transcription_prefix' => 'ผลลัพธ์การถอดความ',
         'summary_prefix' => 'สรุปการบันทึกเสียง',
     ],

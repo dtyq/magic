@@ -122,6 +122,7 @@ return [
     'file_names' => [
         'recording_prefix' => 'Ghi âm',
         'merged_audio_prefix' => 'Tệp ghi âm',
+        'original_recording' => 'Tệp ghi âm gốc',
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
     ],

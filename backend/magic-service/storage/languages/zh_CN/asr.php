@@ -128,6 +128,7 @@ return [
     'file_names' => [
         'recording_prefix' => '录音',
         'merged_audio_prefix' => '录音文件',
+        'original_recording' => '原始录音文件',
         'transcription_prefix' => '录音转文字结果',
         'summary_prefix' => '录音的总结',
     ],

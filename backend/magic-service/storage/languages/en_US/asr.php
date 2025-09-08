@@ -128,6 +128,7 @@ return [
     'file_names' => [
         'recording_prefix' => 'Recording',
         'merged_audio_prefix' => 'Recording File',
+        'original_recording' => 'Original Recording',
         'transcription_prefix' => 'Transcription Result',
         'summary_prefix' => 'Recording Summary',
     ],
