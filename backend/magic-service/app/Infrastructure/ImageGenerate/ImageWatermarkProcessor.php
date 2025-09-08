@@ -10,6 +10,7 @@ namespace App\Infrastructure\ImageGenerate;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\FontProviderInterface;
+use App\Domain\ImageGenerate\Contract\ImageEnhancementProcessorInterface;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
@@ -34,7 +35,7 @@ class ImageWatermarkProcessor
     protected FontProviderInterface $fontProvider;
 
     #[Inject]
-    protected XmpWatermarkEmbedder $xmpEmbedder;
+    protected ImageEnhancementProcessorInterface $imageEnhancementProcessor;
 
     /**
      * 为base64格式图片添加水印.
@@ -72,7 +73,7 @@ class ImageWatermarkProcessor
 
         // 立即添加XMP隐式水印
         $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
-        $xmpWatermarkedData = $this->xmpEmbedder->embedWatermarkToImageData(
+        $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
             $watermarkedData,
             $implicitWatermark
         );
@@ -114,7 +115,7 @@ class ImageWatermarkProcessor
 
         // 立即添加XMP隐式水印
         $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
-        $xmpWatermarkedData = $this->xmpEmbedder->embedWatermarkToImageData(
+        $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
             $watermarkedData,
             $implicitWatermark
         );
@@ -128,7 +129,7 @@ class ImageWatermarkProcessor
     {
         try {
             $imageData = $this->downloadImage($imageUrl);
-            return $this->xmpEmbedder->extractWatermarkFromImageData($imageData);
+            return $this->imageEnhancementProcessor->extractEnhancementFromImageData($imageData);
         } catch (Exception $e) {
             $this->logger->error('Failed to extract watermark info', [
                 'error' => $e->getMessage(),

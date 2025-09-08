@@ -13,8 +13,6 @@ class QwenImageModelRequest extends ImageGenerateRequest
 
     protected bool $watermark = true;
 
-    protected string $organizationCode = '';
-
     public function __construct(
         string $width = '1328',
         string $height = '1328',
@@ -28,11 +26,6 @@ class QwenImageModelRequest extends ImageGenerateRequest
     public function getOrganizationCode(): string
     {
         return $this->organizationCode;
-    }
-
-    public function setOrganizationCode(string $organizationCode): void
-    {
-        $this->organizationCode = $organizationCode;
     }
 
     public function isPromptExtend(): bool
