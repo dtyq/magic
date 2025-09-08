@@ -1312,11 +1312,11 @@ readonly class AsrFileAppService
             $businessUploadResult = $this->uploadMergedAudioAndGetUrl($organizationCode, $mergedLocalAudioFile, $taskStatus->taskKey, $taskStatus->businessDirectory);
 
             // 7. 更新任务状态
+            $fileWorkspaceRelativePath = rtrim($fileRelativeDir, '/') . '/' . $fileName;
             $taskStatus->mergedAudioFileKey = $businessUploadResult['file_key']; // 业务目录中的合并文件
             $taskStatus->workspaceFileKey = $actualWorkspaceFileKey; // 工作区中的合并文件
             $taskStatus->workspaceFileUrl = $workspaceFileUrl;
-            $taskStatus->filePath = $fileRelativeDir; // 保存工作区文件路径
-
+            $taskStatus->filePath = $fileWorkspaceRelativePath; // 保存工作区文件路径
             // 8. 清理本地临时文件和远程小文件
             $this->cleanupTaskFiles($taskStatus->taskKey, $organizationCode, $taskStatus->businessDirectory);
 
