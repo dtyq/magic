@@ -49,4 +49,7 @@ enum ServiceProviderErrorCode: int
 
     #[ErrorMessage('service_provider.model_operation_locked')]
     case ModelOperationLocked = 44013;
+
+    #[ErrorMessage('service_provider.invalid_pricing')]
+    case InvalidPricing = 44014;
 }

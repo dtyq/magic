@@ -42,15 +42,19 @@ class ServiceProviderApi extends AbstractApi
     #[Inject]
     protected ProviderAppService $providerAppService;
 
-    // 根据分类获取服务商列表
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    /**
+     * 不需要判断管理员权限。
+     * 根据分类获取服务商列表.
+     */
     public function getServiceProviders(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
-    // 根据分类获取服务商列表
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    /**
+     * 不需要判断管理员权限。
+     * 根据分类获取服务商列表.
+     */
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
@@ -184,13 +188,6 @@ class ServiceProviderApi extends AbstractApi
         $this->adminOriginModelAppService->create($authenticatable, $modelId);
     }
 
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_MODEL], MagicOperationEnum::QUERY)]
-    public function queriesModels(RequestInterface $request)
-    {
-        $providerModelQuery = new ProviderModelQuery($request->all());
-        return $this->adminProviderAppService->queriesModels($this->getAuthorization(), $providerModelQuery);
-    }
-
     // 组织删除模型标识
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::EDIT)]
     public function deleteModelIdForOrganization(RequestInterface $request, ?string $modelId = null)
@@ -224,6 +221,14 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
 
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
+    }
+
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    public function queriesModels(RequestInterface $request): array
+    {
+        $authenticatable = $this->getAuthorization();
+        $providerModelQuery = new ProviderModelQuery($request->all());
+        return $this->adminProviderAppService->queriesModels($authenticatable, $providerModelQuery);
     }
 
     /**

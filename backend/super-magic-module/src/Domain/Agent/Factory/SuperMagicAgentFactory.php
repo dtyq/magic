@@ -39,12 +39,16 @@ class SuperMagicAgentFactory
             $entity->setDescription($model->description);
         }
 
-        if ($model->icon !== null && $model->icon !== '') {
+        if ($model->icon !== null && ! empty($model->icon)) {
             $entity->setIcon($model->icon);
         }
 
         if ($model->prompt !== null) {
             $entity->setPrompt($model->prompt);
+        }
+
+        if ($model->tools !== null) {
+            $entity->setTools($model->tools);
         }
 
         if ($model->type !== null) {

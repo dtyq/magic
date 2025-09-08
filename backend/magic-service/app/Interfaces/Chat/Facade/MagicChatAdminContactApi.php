@@ -118,11 +118,13 @@ class MagicChatAdminContactApi extends AbstractApi
         if (! in_array($queryType, UserQueryType::types())) {
             ExceptionBuilder::throw(ChatErrorCode::INPUT_PARAM_ERROR, 'chat.common.param_error', ['param' => 'query_type']);
         }
+        $filterAgent = (bool) $request->input('filter_agent', false);
         $queryType = UserQueryType::from($queryType);
         $listQuery = new UserQueryDTO();
         $listQuery->setQuery($query);
         $listQuery->setPageToken($pageToken);
         $listQuery->setQueryType($queryType);
+        $listQuery->setFilterAgent($filterAgent);
         return $this->userContactAppService->searchDepartmentUser($listQuery, $authorization);
     }
 

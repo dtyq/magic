@@ -200,6 +200,14 @@ class AgentDomainService
     {
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'prompt' => $taskContext->getTask()->getPrompt(),
+            'task_mode' => $taskContext->getTask()->getTaskMode(),
+            'agent_mode' => $taskContext->getAgentMode(),
+            'mentions' => $taskContext->getTask()->getMentions(),
+            'mcp_config' => $taskContext->getMcpConfig(),
+            'model_id' => $taskContext->getModelId(),
+            'dynamic_config' => $taskContext->getDynamicConfig(),
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -657,6 +665,55 @@ class AgentDomainService
     }
 
     /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，默认为continue
+     * @return AgentResponse 升级响应结果
+     * @throws SandboxOperationException 当升级失败时抛出异常
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): AgentResponse
+    {
+        $this->logger->info('[Sandbox][Domain] Upgrading sandbox image', [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+        ]);
+
+        try {
+            // 调用网关服务进行升级
+            $result = $this->gateway->upgradeSandbox($messageId, $contextType);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Domain] Failed to upgrade sandbox', [
+                    'message_id' => $messageId,
+                    'context_type' => $contextType,
+                    'error' => $result->getMessage(),
+                    'code' => $result->getCode(),
+                ]);
+                throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
+            }
+
+            $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+            ]);
+
+            // 将GatewayResult转换为AgentResponse
+            return AgentResponse::fromGatewayResult($result);
+        } catch (SandboxOperationException $e) {
+            // 重新抛出沙箱操作异常
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Domain] Unexpected error during sandbox upgrade', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'error' => $e->getMessage(),
+            ]);
+            throw new SandboxOperationException('Upgrade sandbox', 'Sandbox upgrade failed: ' . $e->getMessage(), 3009);
+        }
+    }
+
+    /**
      * 构建初始化消息.
      */
     private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
@@ -677,18 +734,19 @@ class AgentDomainService
             'language' => $dataIsolation->getLanguage(),
         ]);
         $messageMetadata = new MessageMetadata(
-            agentUserId: $taskContext->getAgentUserId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            chatTopicId: $taskContext->getChatTopicId(),
-            instruction: $taskContext->getInstruction()->value,
-            sandboxId: $taskContext->getSandboxId(),
-            superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            workspaceId: $taskContext->getWorkspaceId(),
-            projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $dataIsolation->getLanguage() ?? '',
-            userInfo: $userInfo,
+            $taskContext->getAgentUserId(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $taskContext->getChatConversationId(),
+            $taskContext->getChatTopicId(),
+            (string) $taskContext->getTopicId(),
+            $taskContext->getInstruction()->value,
+            $taskContext->getSandboxId(),
+            (string) $taskContext->getTask()->getId(),
+            $taskContext->getWorkspaceId(),
+            (string) $taskContext->getTask()->getProjectId(),
+            $dataIsolation->getLanguage() ?? '',
+            $userInfo,
         );
 
         // chat history

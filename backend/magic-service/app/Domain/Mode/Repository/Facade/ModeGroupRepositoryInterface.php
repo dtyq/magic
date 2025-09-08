@@ -53,4 +53,11 @@ interface ModeGroupRepositoryInterface
      * @param $groupEntities ModeGroupEntity[]
      */
     public function batchSave(ModeDataIsolation $dataIsolation, array $groupEntities);
+
+    /**
+     * 根据多个模式ID批量获取分组列表.
+     * @param int[]|string[] $modeIds
+     * @return ModeGroupEntity[]
+     */
+    public function findByModeIds(ModeDataIsolation $dataIsolation, array $modeIds): array;
 }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\File\Service;
 
+use App\Domain\File\DTO\CloudFileInfoDTO;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -92,6 +93,40 @@ readonly class FileDomainService
     }
 
     /**
+     * 批量获取文件链接（自动从路径提取组织编码并分组处理）.
+     * @param string[] $filePaths 包含组织编码的文件路径数组，格式：orgCode/path/file.ext
+     * @param null|StorageBucketType $bucketType 存储桶类型，默认为Public
+     * @return array<string,FileLink> 文件路径到FileLink的映射
+     */
+    public function getBatchLinksByOrgPaths(array $filePaths, ?StorageBucketType $bucketType = null): array
+    {
+        // 过滤空路径和已经是URL的路径
+        $validPaths = array_filter($filePaths, static fn ($path) => ! empty($path) && ! is_url($path));
+
+        if (empty($validPaths)) {
+            return [];
+        }
+
+        // 按组织代码分组文件路径
+        $pathsByOrg = [];
+        foreach ($validPaths as $filePath) {
+            $orgCode = explode('/', $filePath, 2)[0] ?? '';
+            if (! empty($orgCode)) {
+                $pathsByOrg[$orgCode][] = $filePath;
+            }
+        }
+
+        // 批量获取文件链接
+        $allLinks = [];
+        foreach ($pathsByOrg as $orgCode => $paths) {
+            $orgLinks = $this->getLinks($orgCode, $paths, $bucketType);
+            $allLinks = array_merge($allLinks, $orgLinks);
+        }
+
+        return $allLinks;
+    }
+
+    /**
      * Download file using chunk download.
      *
      * @param string $organizationCode Organization code
@@ -148,6 +183,32 @@ readonly class FileDomainService
         return $this->cloudFileRepository->deleteFile($organizationCode, $filePath, $bucketType);
     }
 
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code for data isolation
+     * @param array $objectKeys Array of object keys to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    public function deleteObjectsByCredential(
+        string $prefix,
+        string $organizationCode,
+        array $objectKeys,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        return $this->cloudFileRepository->deleteObjectsByCredential(
+            $prefix,
+            $organizationCode,
+            $objectKeys,
+            $bucketType,
+            $options
+        );
+    }
+
     public function getFullPrefix(string $organizationCode): string
     {
         return $this->cloudFileRepository->getFullPrefix($organizationCode);
@@ -177,5 +238,44 @@ readonly class FileDomainService
         array $options = []
     ): void {
         $this->cloudFileRepository->setHeadObjectByCredential($organizationCode, $objectKey, $metadata, $bucketType, $options);
+    }
+
+    /**
+     * 从云存储获取文件列表.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $directoryPrefix 目录前缀
+     * @param StorageBucketType $bucketType 存储桶类型
+     * @return CloudFileInfoDTO[] 文件DTO对象数组
+     */
+    public function getFilesFromCloudStorage(
+        string $organizationCode,
+        string $directoryPrefix,
+        StorageBucketType $bucketType = StorageBucketType::Private
+    ): array {
+        // 使用listObjectsByCredential列出目录文件
+        $objectsResponse = $this->cloudFileRepository->listObjectsByCredential(
+            $organizationCode,
+            $directoryPrefix,
+            $bucketType
+        );
+
+        $files = [];
+
+        // 正确解析对象列表数据结构
+        $objectsList = $objectsResponse['objects'] ?? $objectsResponse;
+
+        foreach ($objectsList as $object) {
+            $objectKey = $object['key'] ?? $object['Key'] ?? '';
+            $filename = basename($objectKey);
+
+            $files[] = new CloudFileInfoDTO(
+                key: $objectKey,
+                filename: $filename,
+                size: $object['size'] ?? null,
+                lastModified: isset($object['last_modified']) ? date('Y-m-d H:i:s', $object['last_modified']) : null
+            );
+        }
+        return $files;
     }
 }

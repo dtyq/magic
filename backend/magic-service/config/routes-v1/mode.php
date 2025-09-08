@@ -22,6 +22,8 @@ Router::addGroup('/api/v1', static function () {
             Router::post('', [AdminModeApi::class, 'createMode']);
             // 获取模式详情
             Router::get('/{id}', [AdminModeApi::class, 'getMode']);
+            // 获取模式详情（不跟随）
+            Router::get('/origin/{id}', [AdminModeApi::class, 'getOriginMode']);
             // 更新模式
             Router::put('/{id}', [AdminModeApi::class, 'updateMode']);
             // 更新模式状态
@@ -46,6 +48,5 @@ Router::addGroup('/api/v1', static function () {
     });
     Router::addGroup('/modes', static function () {
         Router::get('', [ModeApi::class, 'getModes']);
-        Router::get('/{identifier}', [ModeApi::class, 'getModeByIdentifier']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

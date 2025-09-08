@@ -21,6 +21,7 @@ use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Agent\Assembler\FileAssembler;
 
 class ModeDomainService
 {
@@ -49,12 +50,25 @@ class ModeDomainService
             return null;
         }
 
-        // 如果是跟随模式，递归获取被跟随模式的配置
+        // 如果是跟随模式，获取被跟随模式的分组配置
         if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
-            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            $followModeAggregate = $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            if ($followModeAggregate) {
+                // 使用当前模式的基本信息 + 被跟随模式的分组配置
+                return new ModeAggregate($mode, $followModeAggregate->getGroupAggregates());
+            }
         }
 
         // 构建聚合根
+        return $this->buildModeAggregate($dataIsolation, $mode);
+    }
+
+    public function getOriginMode(ModeDataIsolation $dataIsolation, int|string $id): ?ModeAggregate
+    {
+        $mode = $this->modeRepository->findById($dataIsolation, $id);
+        if (! $mode) {
+            return null;
+        }
         return $this->buildModeAggregate($dataIsolation, $mode);
     }
 
@@ -76,9 +90,13 @@ class ModeDomainService
             return null;
         }
 
-        // 如果是跟随模式，递归获取被跟随模式的配置
+        // 如果是跟随模式，获取被跟随模式的分组配置
         if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
-            return $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            $followModeAggregate = $this->getModeDetailById($dataIsolation, $mode->getFollowModeId());
+            if ($followModeAggregate) {
+                // 使用当前模式的基本信息 + 被跟随模式的分组配置
+                return new ModeAggregate($mode, $followModeAggregate->getGroupAggregates());
+            }
         }
 
         // 构建聚合根
@@ -178,7 +196,8 @@ class ModeDomainService
 
         // 批量创建分组副本
         $newGroupEntities = [];
-        foreach ($modeAggregate->getGroupAggregates() as $groupAggregate) {
+        $maxSort = count($modeAggregate->getGroupAggregates());
+        foreach ($modeAggregate->getGroupAggregates() as $index => $groupAggregate) {
             $group = $groupAggregate->getGroup();
 
             // 创建新分组实体（提前生成ID）
@@ -186,9 +205,9 @@ class ModeDomainService
             $newGroup->setId(IdGenerator::getSnowId());
             $newGroup->setModeId((int) $id);
             $newGroup->setNameI18n($group->getNameI18n());
-            $newGroup->setIcon($group->getIcon());
+            $newGroup->setIcon(FileAssembler::formatPath($group->getIcon()));
             $newGroup->setDescription($group->getDescription());
-            $newGroup->setSort($group->getSort());
+            $newGroup->setSort($maxSort - $index);
             $newGroup->setStatus($group->getStatus());
             $newGroup->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             $newGroup->setCreatorId($dataIsolation->getCurrentUserId());
@@ -226,6 +245,74 @@ class ModeDomainService
 
         // 返回更新后的聚合根
         return $this->getModeDetailById($dataIsolation, $id);
+    }
+
+    /**
+     * 批量构建模式聚合根（优化版本，避免N+1查询）.
+     * @param ModeEntity[] $modes
+     * @return ModeAggregate[]
+     */
+    public function batchBuildModeAggregates(ModeDataIsolation $dataIsolation, array $modes): array
+    {
+        if (empty($modes)) {
+            return [];
+        }
+
+        // 第一步：建立跟随关系映射 followMap[跟随者ID] = 被跟随者ID
+        $followMap = [];
+        $modeIds = [];
+
+        foreach ($modes as $mode) {
+            $modeIds[] = $mode->getId();
+
+            // 如果是跟随模式，建立映射关系
+            if ($mode->isInheritedConfiguration() && $mode->hasFollowMode()) {
+                $followMap[$mode->getId()] = $mode->getFollowModeId();
+                $modeIds[] = $mode->getFollowModeId(); // 也要收集被跟随的模式ID
+            }
+        }
+        $modeIds = array_unique($modeIds);
+
+        // 第二步：批量获取所有分组和关系
+        $allGroups = $this->groupRepository->findByModeIds($dataIsolation, $modeIds);
+        $allRelations = $this->relationRepository->findByModeIds($dataIsolation, $modeIds);
+
+        // 第三步：按模式ID分组数据
+        $groupsByModeId = [];
+        foreach ($allGroups as $group) {
+            $groupsByModeId[$group->getModeId()][] = $group;
+        }
+
+        $relationsByModeId = [];
+        foreach ($allRelations as $relation) {
+            $relationsByModeId[$relation->getModeId()][] = $relation;
+        }
+
+        // 第四步：构建聚合根数组
+        $aggregates = [];
+        foreach ($modes as $mode) {
+            $modeId = $mode->getId();
+
+            // 查找最终源模式ID（递归查找跟随链）
+            $ultimateSourceId = $this->findUltimateSourceId($modeId, $followMap);
+
+            $groups = $groupsByModeId[$ultimateSourceId] ?? [];
+            $relations = $relationsByModeId[$ultimateSourceId] ?? [];
+
+            // 构建分组聚合根数组
+            $groupAggregates = [];
+            foreach ($groups as $group) {
+                // 获取该分组下的所有关联关系
+                $groupRelations = array_filter($relations, fn ($relation) => $relation->getGroupId() === $group->getId());
+                usort($groupRelations, fn ($a, $b) => $a->getSort() <=> $b->getSort());
+
+                $groupAggregates[] = new ModeGroupAggregate($group, $groupRelations);
+            }
+
+            $aggregates[] = new ModeAggregate($mode, $groupAggregates);
+        }
+
+        return $aggregates;
     }
 
     /**
@@ -284,5 +371,30 @@ class ModeDomainService
         if (! $this->modeRepository->isIdentifierUnique($dataIsolation, $modeEntity->getIdentifier())) {
             ExceptionBuilder::throw(ModeErrorCode::MODE_IDENTIFIER_ALREADY_EXISTS);
         }
+    }
+
+    /**
+     * 根据跟随关系映射递归查找最终源模式ID.
+     * @param int $modeId 当前模式ID
+     * @param array $followMap 跟随关系映射 [跟随者ID => 被跟随者ID]
+     * @param array $visited 防止循环跟随
+     * @return int 最终源模式ID
+     */
+    private function findUltimateSourceId(int $modeId, array $followMap, array $visited = []): int
+    {
+        // 防止循环跟随
+        if (in_array($modeId, $visited)) {
+            return $modeId;
+        }
+
+        // 如果该模式没有跟随关系，说明它就是最终源
+        if (! isset($followMap[$modeId])) {
+            return $modeId;
+        }
+
+        $visited[] = $modeId;
+
+        // 递归查找跟随目标的最终源
+        return $this->findUltimateSourceId($followMap[$modeId], $followMap, $visited);
     }
 }

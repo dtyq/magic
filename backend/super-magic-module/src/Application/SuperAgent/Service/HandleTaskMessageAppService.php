@@ -95,7 +95,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 'topic_id' => $topicId,
                 'task_id' => '', // Initially empty, this is agent's task id
                 'task_mode' => $taskMode,
-                'topic_mode' => $userMessageDTO->getTopicMode()->value,
+                'topic_mode' => $userMessageDTO->getTopicMode(),
                 'sandbox_id' => $topicEntity->getSandboxId(), // Current task prioritizes reusing previous topic's sandbox id
                 'prompt' => $userMessageDTO->getPrompt(),
                 'attachments' => $userMessageDTO->getAttachments(),
@@ -130,7 +130,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $userMessageDTO->getTopicMode()->value,
+                agentMode: $userMessageDTO->getTopicMode(),
                 modelId: $userMessageDTO->getModelId(),
             );
             $sandboxID = $this->createAgent($dataIsolation, $taskContext);
@@ -221,7 +221,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
-            agentMode: $userMessageDTO->getTopicMode()->value,
+            agentMode: $userMessageDTO->getTopicMode(),
         );
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
@@ -242,7 +242,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             }
         }
 
-        return $this->userDomainService->getByUserId($uid);
+        return $this->userDomainService->getByUserId(uid: $uid);
     }
 
     public function getTask(int $taskId): TaskEntity

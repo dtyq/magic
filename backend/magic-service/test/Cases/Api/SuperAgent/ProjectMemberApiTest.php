@@ -239,7 +239,10 @@ class ProjectMemberApiTest extends AbstractApiTest
         // 9. 测试项目置顶功能
         $this->projectPinFeature($projectId);
 
-        // 10. 清空空成员
+        // 10. 测试协作项目创建者列表功能
+        $this->collaborationProjectCreatorFeature();
+
+        // 11. 清空空成员
         $requestData = ['members' => []];
 
         // 发送PUT请求
@@ -690,7 +693,7 @@ class ProjectMemberApiTest extends AbstractApiTest
             'is_pin' => $isPinned,
         ];
 
-        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}", $requestData, $this->getCommonHeaders());
+        $response = $this->put("/api/v1/super-agent/collaboration-projects/{$projectId}/pin", $requestData, $this->getCommonHeaders());
 
         $this->assertNotNull($response, '响应不应该为null');
         $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
@@ -767,5 +770,151 @@ class ProjectMemberApiTest extends AbstractApiTest
                 $pinnedProjectsEnded = true;
             }
         }
+    }
+
+    /**
+     * 测试协作项目创建者列表功能 - 完整流程测试.
+     */
+    public function collaborationProjectCreatorFeature(): void
+    {
+        // 1. 测试有权限用户获取创建者列表
+        $this->switchUserTest2(); // 确保是有权限的协作用户
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListResponse($response);
+
+        // 2. 测试权限控制 - 清空成员后无权限
+        $this->switchUserTest1(); // 切换到项目所有者
+        $this->updateEmptyMembers($this->projectId); // 清空项目成员
+
+        $this->switchUserTest2(); // 切换到无权限用户
+        $emptyResponse = $this->getCollaborationProjectCreators();
+        $this->verifyEmptyCreatorListResponse($emptyResponse);
+
+        // 3. 恢复项目成员状态，以免影响后续测试
+        $this->switchUserTest1();
+        $this->updateMembers($this->projectId);
+    }
+
+    /**
+     * 测试协作项目创建者列表权限控制.
+     */
+    public function testCollaborationProjectCreatorsPermission(): void
+    {
+        $projectId = $this->projectId;
+
+        // 1. 先设置项目成员，确保测试2用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($projectId);
+
+        // 2. 切换到有权限的用户测试获取创建者列表成功
+        $this->switchUserTest2();
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListResponse($response);
+
+        // 3. 清空项目成员，使当前用户没有权限
+        $this->switchUserTest1();
+        $this->updateEmptyMembers($projectId);
+
+        // 4. 切换到没有权限的用户测试权限控制
+        $this->switchUserTest2();
+        $emptyResponse = $this->getCollaborationProjectCreators();
+        $this->verifyEmptyCreatorListResponse($emptyResponse);
+    }
+
+    /**
+     * 测试协作项目创建者列表边界情况.
+     */
+    public function testCollaborationProjectCreatorsEdgeCases(): void
+    {
+        // 确保用户有权限
+        $this->switchUserTest1();
+        $this->updateMembers($this->projectId);
+        $this->switchUserTest2();
+
+        // 1. 多次调用API - 应该返回一致结果
+        $response1 = $this->getCollaborationProjectCreators();
+        $response2 = $this->getCollaborationProjectCreators();
+
+        $this->assertEquals($response1['code'], $response2['code']);
+        $this->assertEquals(count($response1['data']), count($response2['data']));
+
+        // 2. 验证创建者去重 - 同一创建者只应该出现一次
+        $response = $this->getCollaborationProjectCreators();
+        $this->verifyCreatorListDeduplication($response);
+    }
+
+    /**
+     * 获取协作项目创建者列表.
+     */
+    public function getCollaborationProjectCreators(int $expectedCode = 1000): array
+    {
+        $response = $this->client->get('/api/v1/super-agent/collaboration-projects/creators', [], $this->getCommonHeaders());
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
+
+        if ($expectedCode === 1000) {
+            $this->assertEquals('ok', $response['message']);
+            $this->assertIsArray($response['data']);
+        }
+
+        return $response;
+    }
+
+    /**
+     * 验证创建者列表响应结构.
+     */
+    public function verifyCreatorListResponse(array $response): void
+    {
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data'], '响应数据应该是数组');
+
+        // 验证至少有一个创建者
+        $this->assertGreaterThan(0, count($response['data']), '应该至少有一个创建者');
+
+        // 验证创建者数据结构
+        $creator = $response['data'][0];
+        $this->assertArrayHasKey('id', $creator, '创建者应包含id字段');
+        $this->assertArrayHasKey('name', $creator, '创建者应包含name字段');
+        $this->assertArrayHasKey('user_id', $creator, '创建者应包含user_id字段');
+        $this->assertArrayHasKey('avatar_url', $creator, '创建者应包含avatar_url字段');
+
+        // 验证字段类型
+        $this->assertIsString($creator['id'], 'id应该是字符串');
+        $this->assertIsString($creator['name'], 'name应该是字符串');
+        $this->assertIsString($creator['user_id'], 'user_id应该是字符串');
+        $this->assertIsString($creator['avatar_url'], 'avatar_url应该是字符串');
+
+        // 验证必填字段不为空
+        $this->assertNotEmpty($creator['id'], 'id不应该为空');
+        $this->assertNotEmpty($creator['user_id'], 'user_id不应该为空');
+    }
+
+    /**
+     * 验证空创建者列表响应.
+     */
+    public function verifyEmptyCreatorListResponse(array $response): void
+    {
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals('ok', $response['message']);
+        $this->assertIsArray($response['data'], '响应数据应该是数组');
+        $this->assertEquals(0, count($response['data']), '无权限时应该返回空数组');
+    }
+
+    /**
+     * 验证创建者列表去重.
+     */
+    public function verifyCreatorListDeduplication(array $response): void
+    {
+        $creators = $response['data'];
+        $userIds = array_column($creators, 'user_id');
+        $uniqueUserIds = array_unique($userIds);
+
+        $this->assertEquals(
+            count($userIds),
+            count($uniqueUserIds),
+            '创建者列表中不应该有重复的user_id'
+        );
     }
 }

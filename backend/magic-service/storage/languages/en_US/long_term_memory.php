@@ -43,5 +43,6 @@ return [
         'parameter_validation_failed' => 'Parameter validation failed: :errors',
         'action_accept' => 'accept',
         'action_reject' => 'reject',
+        'content_length_exceeded' => 'Content length cannot exceed 5000 characters',
     ],
 ];

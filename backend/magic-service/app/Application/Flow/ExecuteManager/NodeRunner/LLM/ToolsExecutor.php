@@ -84,14 +84,22 @@ class ToolsExecutor extends AbstractTool
     /**
      * @return array<MagicFlowEntity>
      */
-    public static function getToolFlows(FlowDataIsolation $dataIsolation, array $codes): array
+    public static function getToolFlows(FlowDataIsolation $dataIsolation, array $codes, bool $keyWithCode = false): array
     {
+        if (empty($codes)) {
+            return [];
+        }
         $list = [];
         // 优先尝试内置工具
         foreach (BuiltInToolSetCollector::list() as $builtInToolSet) {
             foreach ($builtInToolSet->getTools() as $tool) {
                 if (in_array($tool->getCode(), $codes)) {
-                    $list[] = $tool->generateToolFlow($dataIsolation->getCurrentOrganizationCode());
+                    $toolFlow = $tool->generateToolFlow($dataIsolation->getCurrentOrganizationCode());
+                    if ($keyWithCode) {
+                        $list[$tool->getCode()] = $toolFlow;
+                    } else {
+                        $list[] = $toolFlow;
+                    }
                     unset($codes[array_search($tool->getCode(), $codes)]);
                 }
             }
@@ -100,7 +108,11 @@ class ToolsExecutor extends AbstractTool
             $toolFlows = di(MagicFlowDomainService::class)->getByCodes($dataIsolation, $codes);
             foreach ($toolFlows as $toolFlow) {
                 if ($toolFlow->isEnabled() && $toolFlow->getType()->isTools()) {
-                    $list[] = $toolFlow;
+                    if ($keyWithCode) {
+                        $list[$toolFlow->getCode()] = $toolFlow;
+                    } else {
+                        $list[] = $toolFlow;
+                    }
                 }
             }
         }

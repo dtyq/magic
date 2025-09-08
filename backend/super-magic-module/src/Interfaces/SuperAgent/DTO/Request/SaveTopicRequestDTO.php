@@ -41,6 +41,11 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     public string $projectMode = '';
 
     /**
+     * Topic mode.
+     */
+    public string $topicMode = '';
+
+    /**
      * Get topic ID (primary key).
      */
     public function getId(): string
@@ -95,6 +100,24 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
         return $this->projectMode;
     }
 
+    public function setProjectMode(string $projectMode): void
+    {
+        $this->projectMode = $projectMode;
+    }
+
+    /**
+     * Get topic mode.
+     */
+    public function getTopicMode(): string
+    {
+        return $this->topicMode;
+    }
+
+    public function setTopicMode(string $topicMode): void
+    {
+        $this->topicMode = $topicMode;
+    }
+
     /**
      * Check if this is an update operation.
      */
@@ -112,7 +135,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
             'id' => 'nullable|string',
             'topic_name' => 'present|string|max:100',
             'project_id' => 'required|string',
-            'project_mode' => 'nullable|string|in:general,ppt,data_analysis,report,meeting,summary,super-magic',
+            'project_mode' => 'nullable|string',
         ];
     }
 
@@ -126,7 +149,6 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
             'topic_name.max' => 'Topic name cannot exceed 100 characters',
             'project_id.required' => 'Project ID cannot be empty',
             'project_id.string' => 'Project ID must be a string',
-            'project_mode.in' => 'Project mode must be one of: general, ppt, data_analysis, report, meeting, summary, super-magic',
         ];
     }
 }

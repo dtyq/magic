@@ -30,6 +30,7 @@ class ModeFactory
         $entity->setDescription($model->description);
         $entity->setIsDefault($model->is_default);
         $entity->setStatus($model->status);
+        $entity->setPlaceholderI18n($model->placeholder_i18n ?? []);
 
         $entity->setDistributionType(DistributionTypeEnum::fromValue($model->distribution_type));
         $entity->setFollowModeId((string) $model->follow_mode_id);

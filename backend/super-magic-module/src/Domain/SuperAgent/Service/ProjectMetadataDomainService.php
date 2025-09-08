@@ -105,6 +105,14 @@ class ProjectMetadataDomainService
             return;
         }
 
+        if ($parentEntity->getMetadata() === $metadataJson) {
+            $this->logger->info('Parent directory metadata is up to date', [
+                'file_id' => $fileEntity->getFileId(),
+                'parent_id' => $fileEntity->getParentId(),
+            ]);
+            return;
+        }
+
         $parentEntity->setMetadata($metadataJson);
         $this->taskFileRepository->updateById($parentEntity);
 
@@ -135,6 +143,13 @@ class ProjectMetadataDomainService
             return;
         }
 
+        if ($siblingEntity->getMetadata() === $metadataJson) {
+            $this->logger->info('Sibling index.html metadata is up to date', [
+                'index_file_id' => $siblingEntity->getFileId(),
+                'index_file_key' => $siblingEntity->getFileKey(),
+            ]);
+            return;
+        }
         $siblingEntity->setMetadata($metadataJson);
         $this->taskFileRepository->updateById($siblingEntity);
 

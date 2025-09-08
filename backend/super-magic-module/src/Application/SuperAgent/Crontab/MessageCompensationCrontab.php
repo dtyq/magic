@@ -33,13 +33,15 @@ use Throwable;
     mutexExpires: 60,                         // Mutex lock expires in 60 seconds
     onOneServer: true,                        // Execute on only one server
     callback: 'execute',
-    memo: 'Message compensation scheduled task for handling missed messages'
+    memo: 'Message compensation scheduled task for handling missed messages',
+    enable: false
 )]
 readonly class MessageCompensationCrontab
 {
     private const GLOBAL_LOCK_KEY = 'message_compensation_crontab_lock';
 
-    private const TOPIC_LOCK_PREFIX = 'handle_topic_message_lock:';
+    // Unified topic lock prefix - consistent with all message queue services
+    private const TOPIC_LOCK_PREFIX = 'msg_queue_compensation:topic:';
 
     private const GLOBAL_LOCK_EXPIRE = 60; // Global lock timeout: 60 seconds
 

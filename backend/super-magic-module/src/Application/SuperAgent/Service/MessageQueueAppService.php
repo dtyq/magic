@@ -7,10 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConsumeMessageQueueRequestDTO;
@@ -32,7 +33,6 @@ class MessageQueueAppService extends AbstractAppService
     public function __construct(
         private readonly MessageQueueDomainService $messageQueueDomainService,
         private readonly TopicDomainService $topicDomainService,
-        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -62,18 +62,22 @@ class MessageQueueAppService extends AbstractAppService
             $topicId
         );
 
-        // Validate project ownership
-        $this->projectDomainService->getProject(
-            $projectId,
-            $dataIsolation->getCurrentUserId()
-        );
+        // Validate message type against ChatMessageType enum
+        $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+        if ($chatMessageType === null) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::VALIDATE_FAILED,
+                trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+            );
+        }
 
         // Create message queue
         $messageEntity = $this->messageQueueDomainService->createMessage(
             $dataIsolation,
             $projectId,
             $topicId,
-            $requestDTO->getMessageContent()
+            $requestDTO->getMessageContent(),
+            $requestDTO->getMessageType()
         );
 
         $this->logger->info('Message queue created successfully', [
@@ -107,11 +111,25 @@ class MessageQueueAppService extends AbstractAppService
         $projectId = (int) $requestDTO->getProjectId();
         $topicId = (int) $requestDTO->getTopicId();
 
-        // Validate project ownership
-        $this->projectDomainService->getProject(
-            $projectId,
+        // Get message and check permissions and status
+        $existingMessage = $this->messageQueueDomainService->getMessageForUser(
+            $messageId,
             $dataIsolation->getCurrentUserId()
         );
+
+        // Validate ownership
+        if ($existingMessage->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
+        // Validate message type against ChatMessageType enum
+        $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+        if ($chatMessageType === null) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::VALIDATE_FAILED,
+                trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+            );
+        }
 
         // Update message queue
         $messageEntity = $this->messageQueueDomainService->updateMessage(
@@ -119,7 +137,8 @@ class MessageQueueAppService extends AbstractAppService
             $messageId,
             $projectId,
             $topicId,
-            $requestDTO->getMessageContent()
+            $requestDTO->getMessageContent(),
+            $requestDTO->getMessageType()
         );
 
         $this->logger->info('Message queue updated successfully', [
@@ -153,11 +172,10 @@ class MessageQueueAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId()
         );
 
-        // Validate project ownership
-        $this->projectDomainService->getProject(
-            $existingMessage->getProjectId(),
-            $dataIsolation->getCurrentUserId()
-        );
+        // Validate ownership
+        if ($existingMessage->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
 
         // Check if message can be deleted (same rule as modification)
         if (! $existingMessage->canBeModified()) {
@@ -201,17 +219,23 @@ class MessageQueueAppService extends AbstractAppService
         $conditions = [];
 
         if ($requestDTO->hasProjectFilter()) {
-            $projectId = (int) $requestDTO->getProjectId();
-            // Validate project ownership
-            $this->projectDomainService->getProject(
-                $projectId,
-                $dataIsolation->getCurrentUserId()
-            );
-            $conditions['project_id'] = $projectId;
+            $conditions['project_id'] = (int) $requestDTO->getProjectId();
         }
 
         if ($requestDTO->hasTopicFilter()) {
             $conditions['topic_id'] = (int) $requestDTO->getTopicId();
+        }
+
+        if ($requestDTO->hasMessageTypeFilter()) {
+            // Validate message type against ChatMessageType enum
+            $chatMessageType = ChatMessageType::tryFrom($requestDTO->getMessageType());
+            if ($chatMessageType === null) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::VALIDATE_FAILED,
+                    trans('message_queue.invalid_message_type', ['type' => $requestDTO->getMessageType()])
+                );
+            }
+            $conditions['message_type'] = $requestDTO->getMessageType();
         }
 
         // Query messages
@@ -225,9 +249,11 @@ class MessageQueueAppService extends AbstractAppService
         // Format response
         $list = [];
         foreach ($result['list'] as $messageEntity) {
+            /* @var MessageQueueEntity $messageEntity */
             $list[] = [
                 'queue_id' => (string) $messageEntity->getId(),
-                'message_content' => $messageEntity->getMessageContent(),
+                'message_content' => $messageEntity->getMessageContentAsArray(),
+                'message_type' => $messageEntity->getMessageType(),
                 'status' => $messageEntity->getStatus()->value,
                 'execute_time' => $messageEntity->getExecuteTime(),
                 'err_message' => $messageEntity->getErrMessage(),
@@ -260,6 +286,16 @@ class MessageQueueAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // Get message and check permissions and status
+        $existingMessage = $this->messageQueueDomainService->getMessageForUser(
+            $messageId,
+            $dataIsolation->getCurrentUserId()
+        );
+        // Validate ownership
+        if ($existingMessage->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
         // Consume message
         $messageEntity = $this->messageQueueDomainService->consumeMessage($dataIsolation, $messageId);
 
@@ -271,5 +307,10 @@ class MessageQueueAppService extends AbstractAppService
         return [
             'status' => $messageEntity->getStatus()->value,
         ];
+    }
+
+    public function getMessageQueueEntity(int $queueId, string $userId): ?MessageQueueEntity
+    {
+        return $this->messageQueueDomainService->getMessageForUser($queueId, $userId);
     }
 }

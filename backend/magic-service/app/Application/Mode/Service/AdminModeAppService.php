@@ -11,13 +11,14 @@ use App\Application\Mode\Assembler\AdminModeAssembler;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeDTO;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
+use App\ErrorCode\ModeErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
-use InvalidArgumentException;
 
 class AdminModeAppService extends AbstractModeAppService
 {
@@ -46,16 +47,33 @@ class AdminModeAppService extends AbstractModeAppService
         $modeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $id);
 
         if (! $modeAggregate) {
-            throw new InvalidArgumentException('Mode not found');
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
         }
 
-        $providerModels = $this->getModels($modeAggregate);
+        $providerModels = $this->getDetailedModels($modeAggregate);
 
         // 转换为DTO
         $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
 
         // 处理icon
-        $this->processModeAggregateIcons($authorization, $modeAggregateDTO);
+        $this->processModeAggregateIcons($modeAggregateDTO);
+
+        return $modeAggregateDTO;
+    }
+
+    public function getOriginMode(MagicUserAuthorization $authorization, string $id): AdminModeAggregateDTO
+    {
+        $dataIsolation = $this->getModeDataIsolation($authorization);
+        $modeAggregate = $this->modeDomainService->getOriginMode($dataIsolation, $id);
+        if (! $modeAggregate) {
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+        $providerModels = $this->getDetailedModels($modeAggregate);
+        // 转换为DTO
+        $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
+
+        // 处理icon
+        $this->processModeAggregateIcons($modeAggregateDTO);
 
         return $modeAggregateDTO;
     }
@@ -92,13 +110,18 @@ class AdminModeAppService extends AbstractModeAppService
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
 
+        // 先获取现有的完整实体
+        $existingMode = $this->modeDomainService->getModeById($dataIsolation, $modeId);
+        if (! $existingMode) {
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+
         Db::beginTransaction();
         try {
-            // 从请求对象直接转换为实体
-            $modeEntity = AdminModeAssembler::updateModeRequestToEntity($request);
-            $modeEntity->setId($modeId);
+            // 将更新请求应用到现有实体（只更新允许修改的字段）
+            AdminModeAssembler::applyUpdateRequestToEntity($request, $existingMode);
 
-            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $modeEntity);
+            $updatedMode = $this->modeDomainService->updateMode($dataIsolation, $existingMode);
 
             Db::commit();
 
@@ -134,9 +157,11 @@ class AdminModeAppService extends AbstractModeAppService
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
+        $providerModels = $this->getDetailedModels($defaultModeAggregate);
 
-        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate);
-        $this->processModeAggregateIcons($authorization, $adminModeAggregateDTO);
+        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate, $providerModels);
+
+        $this->processModeAggregateIcons($adminModeAggregateDTO);
 
         return $adminModeAggregateDTO;
     }

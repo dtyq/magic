@@ -30,17 +30,17 @@ use Throwable;
  * Agent应用服务
  * 负责协调Agent领域服务的调用，遵循DDD原则.
  */
-class AgentAppService
+readonly class AgentAppService
 {
     private LoggerInterface $logger;
 
     public function __construct(
-        LoggerFactory $loggerFactory,
+        private LoggerFactory $loggerFactory,
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
     ) {
-        $this->logger = $loggerFactory->get('sandbox');
+        $this->logger = $this->loggerFactory->get('sandbox');
     }
 
     /**
@@ -507,6 +507,60 @@ class AgentAppService
     }
 
     /**
+     * 升级沙箱镜像.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，默认为continue
+     * @return AgentResponse 升级响应结果
+     * @throws BusinessException 当升级失败时抛出异常
+     */
+    public function upgradeSandbox(
+        DataIsolation $dataIsolation,
+        string $messageId,
+        string $contextType = 'continue'
+    ): AgentResponse {
+        $this->logger->info('[Sandbox][App] Upgrading sandbox image', [
+            'message_id' => $messageId,
+            'context_type' => $contextType,
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+        ]);
+
+        try {
+            // 调用领域服务执行升级
+            $response = $this->agentDomainService->upgradeSandbox($messageId, $contextType);
+
+            $this->logger->info('[Sandbox][App] Sandbox upgrade completed successfully', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+            ]);
+
+            return $response;
+        } catch (SandboxOperationException $e) {
+            $this->logger->error('[Sandbox][App] Sandbox upgrade failed', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+
+            throw new BusinessException('Sandbox upgrade failed: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][App] Unexpected error during sandbox upgrade', [
+                'message_id' => $messageId,
+                'context_type' => $contextType,
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new BusinessException('Unexpected error during sandbox upgrade: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * 创建并初始化沙箱.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
@@ -555,7 +609,7 @@ class AgentAppService
             sandboxId: $sandboxId,
             taskId: $topicEntity->getCurrentTaskId() ? (string) $topicEntity->getCurrentTaskId() : '',
             instruction: ChatInstruction::Normal,
-            agentMode: $topicEntity->getTopicMode() ? $topicEntity->getTopicMode()->value : 'general',
+            agentMode: $topicEntity->getTopicMode() ?: 'general',
             workspaceId: (string) $topicEntity->getWorkspaceId(),
         );
 

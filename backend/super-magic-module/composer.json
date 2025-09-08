@@ -6,6 +6,11 @@
             "Dtyq\\SuperMagic\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Dtyq\\SuperMagic\\Tests\\": "tests/"
+        }
+    },
     "authors": [
         {
             "name": "dtyq",
@@ -58,7 +63,7 @@
             }
         },
         "branch-alias": {
-            "dev-master": "0.0-dev"
+            "dev-master": "0.1-dev"
         }
     },
     "scripts": {

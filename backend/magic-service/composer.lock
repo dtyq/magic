@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5369eeebc366aa1c7fe7f553b0be8e2d",
+    "content-hash": "a06247d59146ced824937e90b4a9377f",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.7",
+            "version": "3.356.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "6b44237a218485bf43a0015600aebf43cb726d4e"
+                "reference": "0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/6b44237a218485bf43a0015600aebf43cb726d4e",
-                "reference": "6b44237a218485bf43a0015600aebf43cb726d4e",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3",
+                "reference": "0068088fed44e2bed3a2e82f2c7a0bb9e356b3c3",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.7"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.12"
             },
-            "time": "2025-08-28T18:14:39+00:00"
+            "time": "2025-09-05T18:10:41+00:00"
         },
         {
             "name": "brick/math",
@@ -1218,16 +1218,16 @@
         },
         {
             "name": "doctrine/dbal",
-            "version": "3.10.1",
+            "version": "3.10.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/doctrine/dbal.git",
-                "reference": "3626601014388095d3af9de7e9e958623b7ef005"
+                "reference": "c6c16cf787eaba3112203dfcd715fa2059c62282"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/dbal/zipball/3626601014388095d3af9de7e9e958623b7ef005",
-                "reference": "3626601014388095d3af9de7e9e958623b7ef005",
+                "url": "https://api.github.com/repos/doctrine/dbal/zipball/c6c16cf787eaba3112203dfcd715fa2059c62282",
+                "reference": "c6c16cf787eaba3112203dfcd715fa2059c62282",
                 "shasum": ""
             },
             "require": {
@@ -1243,10 +1243,10 @@
             },
             "require-dev": {
                 "doctrine/cache": "^1.11|^2.0",
-                "doctrine/coding-standard": "13.0.0",
+                "doctrine/coding-standard": "13.0.1",
                 "fig/log-test": "^1",
                 "jetbrains/phpstorm-stubs": "2023.1",
-                "phpstan/phpstan": "2.1.17",
+                "phpstan/phpstan": "2.1.22",
                 "phpstan/phpstan-strict-rules": "^2",
                 "phpunit/phpunit": "9.6.23",
                 "slevomat/coding-standard": "8.16.2",
@@ -1312,7 +1312,7 @@
             ],
             "support": {
                 "issues": "https://github.com/doctrine/dbal/issues",
-                "source": "https://github.com/doctrine/dbal/tree/3.10.1"
+                "source": "https://github.com/doctrine/dbal/tree/3.10.2"
             },
             "funding": [
                 {
@@ -1328,7 +1328,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-05T12:18:06+00:00"
+            "time": "2025-09-04T23:51:27+00:00"
         },
         {
             "name": "doctrine/deprecations",
@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "72446af9cd2ee61515dfc4e4e909d853b65bb5d0"
+                "reference": "a0f8aa125ef6373423928ba0c40883d3971c5f44"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=72446af9cd2ee61515dfc4e4e909d853b65bb5d0",
-                "reference": "72446af9cd2ee61515dfc4e4e909d853b65bb5d0",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=a0f8aa125ef6373423928ba0c40883d3971c5f44",
+                "reference": "a0f8aa125ef6373423928ba0c40883d3971c5f44",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-08-28T10:02:41+00:00"
+            "time": "2025-09-08T06:56:24+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "e46bb05408f4cb9804e4bce9c2ebfcd19b481e66"
+                "reference": "643c59dea9b358a99fc76ede7d10ab38ff7a6ffe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e46bb05408f4cb9804e4bce9c2ebfcd19b481e66",
-                "reference": "e46bb05408f4cb9804e4bce9c2ebfcd19b481e66",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=643c59dea9b358a99fc76ede7d10ab38ff7a6ffe",
+                "reference": "643c59dea9b358a99fc76ede7d10ab38ff7a6ffe",
                 "shasum": ""
             },
             "require": {
@@ -2302,7 +2302,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-08-29T17:26:42+08:00"
+            "time": "2025-09-08T16:47:21+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2572,12 +2572,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "be674427d43ebc95b3c98129ddcc6af31fccd402"
+                "reference": "bd1b774407f46781d8981719dcf41878b3f8b33b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=be674427d43ebc95b3c98129ddcc6af31fccd402",
-                "reference": "be674427d43ebc95b3c98129ddcc6af31fccd402",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=bd1b774407f46781d8981719dcf41878b3f8b33b",
+                "reference": "bd1b774407f46781d8981719dcf41878b3f8b33b",
                 "shasum": ""
             },
             "require": {
@@ -2625,12 +2625,17 @@
                     }
                 },
                 "branch-alias": {
-                    "dev-master": "0.0-dev"
+                    "dev-master": "0.1-dev"
                 }
             },
             "autoload": {
                 "psr-4": {
                     "Dtyq\\SuperMagic\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Dtyq\\SuperMagic\\Tests\\": "tests/"
                 }
             },
             "scripts": {
@@ -2674,7 +2679,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-08-29T18:06:38+08:00"
+            "time": "2025-09-08T23:03:26+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -4368,16 +4373,16 @@
         },
         {
             "name": "hyperf/codec",
-            "version": "v3.1.42",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/codec.git",
-                "reference": "effc71c25e2d53c00fcf41da8bca083ac8a0db0e"
+                "reference": "95cef5a6b4ecdb4d87b912493839b2a081723cbb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/codec/zipball/effc71c25e2d53c00fcf41da8bca083ac8a0db0e",
-                "reference": "effc71c25e2d53c00fcf41da8bca083ac8a0db0e",
+                "url": "https://api.github.com/repos/hyperf/codec/zipball/95cef5a6b4ecdb4d87b912493839b2a081723cbb",
+                "reference": "95cef5a6b4ecdb4d87b912493839b2a081723cbb",
                 "shasum": ""
             },
             "require": {
@@ -4428,20 +4433,20 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2024-09-25T02:54:12+00:00"
+            "time": "2025-09-03T14:27:29+00:00"
         },
         {
             "name": "hyperf/collection",
-            "version": "v3.1.60",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/collection.git",
-                "reference": "78fff13e65c0ee18343b447e3f2c1af948e56714"
+                "reference": "e49707e7f5e33f89250e9a4887065227e2b48947"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/collection/zipball/78fff13e65c0ee18343b447e3f2c1af948e56714",
-                "reference": "78fff13e65c0ee18343b447e3f2c1af948e56714",
+                "url": "https://api.github.com/repos/hyperf/collection/zipball/e49707e7f5e33f89250e9a4887065227e2b48947",
+                "reference": "e49707e7f5e33f89250e9a4887065227e2b48947",
                 "shasum": ""
             },
             "require": {
@@ -4493,7 +4498,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-07-07T02:01:34+00:00"
+            "time": "2025-09-03T13:43:05+00:00"
         },
         {
             "name": "hyperf/command",
@@ -5094,16 +5099,16 @@
         },
         {
             "name": "hyperf/database",
-            "version": "v3.1.60",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/database.git",
-                "reference": "3a511f67fc4d9f7914a2238b94c2e14cbd91b709"
+                "reference": "beffa3a61752c0e463a907bed73d79c15f7986cb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/database/zipball/3a511f67fc4d9f7914a2238b94c2e14cbd91b709",
-                "reference": "3a511f67fc4d9f7914a2238b94c2e14cbd91b709",
+                "url": "https://api.github.com/repos/hyperf/database/zipball/beffa3a61752c0e463a907bed73d79c15f7986cb",
+                "reference": "beffa3a61752c0e463a907bed73d79c15f7986cb",
                 "shasum": ""
             },
             "require": {
@@ -5166,7 +5171,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-07-15T13:57:01+00:00"
+            "time": "2025-09-04T02:14:51+00:00"
         },
         {
             "name": "hyperf/db",
@@ -5309,16 +5314,16 @@
         },
         {
             "name": "hyperf/di",
-            "version": "v3.1.57",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/di.git",
-                "reference": "f9d40858346fe88336211e8e3ac0cc210adb94c7"
+                "reference": "edc8ab67b4a12664329f89b0f145309a332b60d0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/di/zipball/f9d40858346fe88336211e8e3ac0cc210adb94c7",
-                "reference": "f9d40858346fe88336211e8e3ac0cc210adb94c7",
+                "url": "https://api.github.com/repos/hyperf/di/zipball/edc8ab67b4a12664329f89b0f145309a332b60d0",
+                "reference": "edc8ab67b4a12664329f89b0f145309a332b60d0",
                 "shasum": ""
             },
             "require": {
@@ -5386,7 +5391,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-06-06T02:41:30+00:00"
+            "time": "2025-08-29T02:23:17+00:00"
         },
         {
             "name": "hyperf/dispatcher",
@@ -6181,16 +6186,16 @@
         },
         {
             "name": "hyperf/macroable",
-            "version": "v3.1.42",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/macroable.git",
-                "reference": "0be650165b9e8ea073e199fac788ece70f16b6a4"
+                "reference": "14b0a00d3ab6c768aaa5c34222b84000bb75eb29"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/macroable/zipball/0be650165b9e8ea073e199fac788ece70f16b6a4",
-                "reference": "0be650165b9e8ea073e199fac788ece70f16b6a4",
+                "url": "https://api.github.com/repos/hyperf/macroable/zipball/14b0a00d3ab6c768aaa5c34222b84000bb75eb29",
+                "reference": "14b0a00d3ab6c768aaa5c34222b84000bb75eb29",
                 "shasum": ""
             },
             "require": {
@@ -6235,7 +6240,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2024-09-25T02:54:12+00:00"
+            "time": "2025-08-18T08:02:02+00:00"
         },
         {
             "name": "hyperf/migration-generator",
@@ -6447,16 +6452,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.49",
+            "version": "v1.1.52",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "2cdb5a4532089a8272c5573afef935678c1c3a9a"
+                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=2cdb5a4532089a8272c5573afef935678c1c3a9a",
-                "reference": "2cdb5a4532089a8272c5573afef935678c1c3a9a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
+                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
                 "shasum": ""
             },
             "require": {
@@ -6528,9 +6533,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.49"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.52"
             },
-            "time": "2025-08-25T21:45:23+08:00"
+            "time": "2025-09-07T15:34:54+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -6600,19 +6605,20 @@
         },
         {
             "name": "hyperf/pipeline",
-            "version": "v3.1.42",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/pipeline.git",
-                "reference": "096d9a9f87ddea33209f134d30ae8d8867a195c7"
+                "reference": "cc588b9f780ee2cab94e0ef80578bf075e2b0f67"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/pipeline/zipball/096d9a9f87ddea33209f134d30ae8d8867a195c7",
-                "reference": "096d9a9f87ddea33209f134d30ae8d8867a195c7",
+                "url": "https://api.github.com/repos/hyperf/pipeline/zipball/cc588b9f780ee2cab94e0ef80578bf075e2b0f67",
+                "reference": "cc588b9f780ee2cab94e0ef80578bf075e2b0f67",
                 "shasum": ""
             },
             "require": {
+                "hyperf/macroable": "~3.1.0",
                 "php": ">=8.1",
                 "psr/container": "^1.0 || ^2.0"
             },
@@ -6655,7 +6661,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2024-09-25T02:54:12+00:00"
+            "time": "2025-09-03T06:06:36+00:00"
         },
         {
             "name": "hyperf/pool",
@@ -7497,16 +7503,16 @@
         },
         {
             "name": "hyperf/support",
-            "version": "v3.1.60",
+            "version": "v3.1.61",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hyperf/support.git",
-                "reference": "deb522fa9042d1411bcd6b94b1f1cbbdf27e505d"
+                "reference": "6d6c19bb2aa0f6516bd95427725ccb1df1fc65ae"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hyperf/support/zipball/deb522fa9042d1411bcd6b94b1f1cbbdf27e505d",
-                "reference": "deb522fa9042d1411bcd6b94b1f1cbbdf27e505d",
+                "url": "https://api.github.com/repos/hyperf/support/zipball/6d6c19bb2aa0f6516bd95427725ccb1df1fc65ae",
+                "reference": "6d6c19bb2aa0f6516bd95427725ccb1df1fc65ae",
                 "shasum": ""
             },
             "require": {
@@ -7564,7 +7570,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2025-08-02T04:47:05+00:00"
+            "time": "2025-09-03T06:31:57+00:00"
         },
         {
             "name": "hyperf/tappable",
@@ -8149,16 +8155,16 @@
         },
         {
             "name": "justinrainbow/json-schema",
-            "version": "6.5.0",
+            "version": "6.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/jsonrainbow/json-schema.git",
-                "reference": "3916d662058b47fddb07c0c2ec57eb027b9ba21d"
+                "reference": "b5ab21e431594897e5bb86343c01f140ba862c26"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/3916d662058b47fddb07c0c2ec57eb027b9ba21d",
-                "reference": "3916d662058b47fddb07c0c2ec57eb027b9ba21d",
+                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/b5ab21e431594897e5bb86343c01f140ba862c26",
+                "reference": "b5ab21e431594897e5bb86343c01f140ba862c26",
                 "shasum": ""
             },
             "require": {
@@ -8218,9 +8224,9 @@
             ],
             "support": {
                 "issues": "https://github.com/jsonrainbow/json-schema/issues",
-                "source": "https://github.com/jsonrainbow/json-schema/tree/6.5.0"
+                "source": "https://github.com/jsonrainbow/json-schema/tree/6.5.1"
             },
-            "time": "2025-08-29T08:51:57+00:00"
+            "time": "2025-08-29T10:58:11+00:00"
         },
         {
             "name": "kk-erp-service/service-sdk",
@@ -10278,16 +10284,16 @@
         },
         {
             "name": "phpoffice/phpspreadsheet",
-            "version": "2.4.0",
+            "version": "2.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHPOffice/PhpSpreadsheet.git",
-                "reference": "3a3cad86101a77019eb2fc693aab1a8c11b18b94"
+                "reference": "096ae6faf94b49b2cf53e92a0073133c941e1f57"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHPOffice/PhpSpreadsheet/zipball/3a3cad86101a77019eb2fc693aab1a8c11b18b94",
-                "reference": "3a3cad86101a77019eb2fc693aab1a8c11b18b94",
+                "url": "https://api.github.com/repos/PHPOffice/PhpSpreadsheet/zipball/096ae6faf94b49b2cf53e92a0073133c941e1f57",
+                "reference": "096ae6faf94b49b2cf53e92a0073133c941e1f57",
                 "shasum": ""
             },
             "require": {
@@ -10377,9 +10383,9 @@
             ],
             "support": {
                 "issues": "https://github.com/PHPOffice/PhpSpreadsheet/issues",
-                "source": "https://github.com/PHPOffice/PhpSpreadsheet/tree/2.4.0"
+                "source": "https://github.com/PHPOffice/PhpSpreadsheet/tree/2.4.1"
             },
-            "time": "2025-08-10T06:45:13+00:00"
+            "time": "2025-09-01T18:41:37+00:00"
         },
         {
             "name": "phpoffice/phpword",
@@ -11532,20 +11538,20 @@
         },
         {
             "name": "ramsey/uuid",
-            "version": "4.9.0",
+            "version": "4.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/ramsey/uuid.git",
-                "reference": "4e0e23cc785f0724a0e838279a9eb03f28b092a0"
+                "reference": "81f941f6f729b1e3ceea61d9d014f8b6c6800440"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ramsey/uuid/zipball/4e0e23cc785f0724a0e838279a9eb03f28b092a0",
-                "reference": "4e0e23cc785f0724a0e838279a9eb03f28b092a0",
+                "url": "https://api.github.com/repos/ramsey/uuid/zipball/81f941f6f729b1e3ceea61d9d014f8b6c6800440",
+                "reference": "81f941f6f729b1e3ceea61d9d014f8b6c6800440",
                 "shasum": ""
             },
             "require": {
-                "brick/math": "^0.8.8 || ^0.9 || ^0.10 || ^0.11 || ^0.12 || ^0.13",
+                "brick/math": "^0.8.8 || ^0.9 || ^0.10 || ^0.11 || ^0.12 || ^0.13 || ^0.14",
                 "php": "^8.0",
                 "ramsey/collection": "^1.2 || ^2.0"
             },
@@ -11604,9 +11610,9 @@
             ],
             "support": {
                 "issues": "https://github.com/ramsey/uuid/issues",
-                "source": "https://github.com/ramsey/uuid/tree/4.9.0"
+                "source": "https://github.com/ramsey/uuid/tree/4.9.1"
             },
-            "time": "2025-06-25T14:20:11+00:00"
+            "time": "2025-09-04T20:59:21+00:00"
         },
         {
             "name": "scrivo/highlight.php",
@@ -17277,12 +17283,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "1e6dd833087765a9aa80c5c0a6444f4521a63a79"
+                "reference": "dc5c4ede5c331ae21fb68947ff89672df9b7cc7d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1e6dd833087765a9aa80c5c0a6444f4521a63a79",
-                "reference": "1e6dd833087765a9aa80c5c0a6444f4521a63a79",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/dc5c4ede5c331ae21fb68947ff89672df9b7cc7d",
+                "reference": "dc5c4ede5c331ae21fb68947ff89672df9b7cc7d",
                 "shasum": ""
             },
             "conflict": {
@@ -17313,8 +17319,8 @@
                 "aoe/restler": "<1.7.1",
                 "apache-solr-for-typo3/solr": "<2.8.3",
                 "apereo/phpcas": "<1.6",
-                "api-platform/core": "<3.4.17|>=4.0.0.0-alpha1,<4.0.22",
-                "api-platform/graphql": "<3.4.17|>=4.0.0.0-alpha1,<4.0.22",
+                "api-platform/core": "<3.4.17|>=4,<4.0.22|>=4.1,<4.1.5",
+                "api-platform/graphql": "<3.4.17|>=4,<4.0.22|>=4.1,<4.1.5",
                 "appwrite/server-ce": "<=1.2.1",
                 "arc/web": "<3",
                 "area17/twill": "<1.2.5|>=2,<2.5.3",
@@ -17706,7 +17712,7 @@
                 "marshmallow/nova-tiptap": "<5.7",
                 "matomo/matomo": "<1.11",
                 "matyhtf/framework": "<3.0.6",
-                "mautic/core": "<5.2.6|>=6.0.0.0-alpha,<6.0.2",
+                "mautic/core": "<5.2.8|>=6.0.0.0-alpha,<6.0.5",
                 "mautic/core-lib": ">=1.0.0.0-beta,<4.4.13|>=5.0.0.0-alpha,<5.1.1",
                 "maximebf/debugbar": "<1.19",
                 "mdanter/ecc": "<2",
@@ -17852,7 +17858,7 @@
                 "pixelfed/pixelfed": "<0.12.5",
                 "plotly/plotly.js": "<2.25.2",
                 "pocketmine/bedrock-protocol": "<8.0.2",
-                "pocketmine/pocketmine-mp": "<5.25.2",
+                "pocketmine/pocketmine-mp": "<5.32.1",
                 "pocketmine/raklib": ">=0.14,<0.14.6|>=0.15,<0.15.1",
                 "pressbooks/pressbooks": "<5.18",
                 "prestashop/autoupgrade": ">=4,<4.10.1",
@@ -17860,7 +17866,7 @@
                 "prestashop/blockwishlist": ">=2,<2.1.1",
                 "prestashop/contactform": ">=1.0.1,<4.3",
                 "prestashop/gamification": "<2.3.2",
-                "prestashop/prestashop": "<8.1.6",
+                "prestashop/prestashop": "<8.2.3",
                 "prestashop/productcomments": "<5.0.2",
                 "prestashop/ps_contactinfo": "<=3.3.2",
                 "prestashop/ps_emailsubscription": "<2.6.1",
@@ -18234,7 +18240,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-28T15:05:43+00:00"
+            "time": "2025-09-04T20:05:35+00:00"
         },
         {
             "name": "sebastian/cli-parser",
@@ -18406,16 +18412,16 @@
         },
         {
             "name": "sebastian/comparator",
-            "version": "5.0.3",
+            "version": "5.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/comparator.git",
-                "reference": "a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e"
+                "reference": "e8e53097718d2b53cfb2aa859b06a41abf58c62e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e",
-                "reference": "a18251eb0b7a2dcd2f7aa3d6078b18545ef0558e",
+                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/e8e53097718d2b53cfb2aa859b06a41abf58c62e",
+                "reference": "e8e53097718d2b53cfb2aa859b06a41abf58c62e",
                 "shasum": ""
             },
             "require": {
@@ -18471,15 +18477,27 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/comparator/issues",
                 "security": "https://github.com/sebastianbergmann/comparator/security/policy",
-                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.3"
+                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.4"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/comparator",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-10-18T14:56:07+00:00"
+            "time": "2025-09-07T05:25:07+00:00"
         },
         {
             "name": "sebastian/complexity",

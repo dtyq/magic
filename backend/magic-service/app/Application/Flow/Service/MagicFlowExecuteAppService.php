@@ -311,7 +311,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
         ];
     }
 
-    public function apiParamCallByMCPTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO): array
+    public function apiParamCallByRemoteTool(FlowDataIsolation $flowDataIsolation, MagicFlowApiChatDTO $apiChatDTO, string $sourceId = ''): array
     {
         $user = $this->magicUserDomainService->getByUserId($flowDataIsolation->getCurrentUserId());
         if (! $user) {
@@ -323,7 +323,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             ExceptionBuilder::throw(FlowErrorCode::ValidateFailed, 'account not found');
         }
         $operator = $this->createExecutionOperator($flowDataIsolation);
-        $operator->setSourceId('mcp_tool');
+        $operator->setSourceId($sourceId);
 
         $flowData = $this->getFlow(
             $flowDataIsolation,
@@ -398,6 +398,7 @@ class MagicFlowExecuteAppService extends AbstractFlowAppService
             return;
         }
         $dataIsolation->setCurrentOrganizationCode($magicFlow->getOrganizationCode());
+        $dataIsolation->setCurrentUserId($magicFlow->getCreator());
         EnvManager::initDataIsolationEnv($dataIsolation);
 
         $datetime = new DateTime();

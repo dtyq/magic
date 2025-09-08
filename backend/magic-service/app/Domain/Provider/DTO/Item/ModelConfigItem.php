@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 
 class ModelConfigItem extends AbstractDTO
 {
@@ -25,19 +27,19 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?int $maxOutputTokens = null;
 
-    protected float $creativity = 0.5;
+    protected ?float $creativity = null;
 
-    protected float $temperature = 0.7;
+    protected ?float $temperature = null;
 
     protected ?string $billingCurrency = null;
 
-    protected ?float $inputPricing = null;
+    protected ?string $inputPricing = null;
 
-    protected ?float $outputPricing = null;
+    protected ?string $outputPricing = null;
 
-    protected ?float $cacheWritePricing = null;
+    protected ?string $cacheWritePricing = null;
 
-    protected ?float $cacheHitPricing = null;
+    protected ?string $cacheHitPricing = null;
 
     protected bool $officialRecommended = false;
 
@@ -133,17 +135,27 @@ class ModelConfigItem extends AbstractDTO
         }
     }
 
+    public function isRecommended(): bool
+    {
+        return $this->isRecommended;
+    }
+
+    public function setIsRecommended(bool $isRecommended): void
+    {
+        $this->isRecommended = $isRecommended;
+    }
+
     public function getMaxOutputTokens(): ?int
     {
         return $this->maxOutputTokens;
     }
 
-    public function getCreativity(): float
+    public function getCreativity(): ?float
     {
         return $this->creativity;
     }
 
-    public function getTemperature(): float
+    public function getTemperature(): ?float
     {
         return $this->temperature;
     }
@@ -153,22 +165,22 @@ class ModelConfigItem extends AbstractDTO
         return $this->billingCurrency;
     }
 
-    public function getInputPricing(): ?float
+    public function getInputPricing(): ?string
     {
         return $this->inputPricing;
     }
 
-    public function getOutputPricing(): ?float
+    public function getOutputPricing(): ?string
     {
         return $this->outputPricing;
     }
 
-    public function getCacheWritePricing(): ?float
+    public function getCacheWritePricing(): ?string
     {
         return $this->cacheWritePricing;
     }
 
-    public function getCacheHitPricing(): ?float
+    public function getCacheHitPricing(): ?string
     {
         return $this->cacheHitPricing;
     }
@@ -185,24 +197,22 @@ class ModelConfigItem extends AbstractDTO
 
     public function setCreativity(?float $creativity): void
     {
-        if ($creativity === null) {
-            $this->creativity = 0.5;
-        } elseif ($creativity < 0 || $creativity > 2) {
-            $this->creativity = 0.5;
-        } else {
-            $this->creativity = $creativity;
+        if ($creativity !== null && ($creativity < 0 || $creativity > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.creativity_value_range_error');
         }
+
+        $this->creativity = $creativity;
+        $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setTemperature(?float $temperature): void
     {
-        if ($temperature === null) {
-            $this->temperature = 0.7;
-        } elseif ($temperature < 0 || $temperature > 2) {
-            $this->temperature = 0.7;
-        } else {
-            $this->temperature = $temperature;
+        if ($temperature !== null && ($temperature < 0 || $temperature > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.temperature_value_range_error');
         }
+
+        $this->temperature = $temperature;
+        $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setBillingCurrency(?string $billingCurrency): void
@@ -219,52 +229,68 @@ class ModelConfigItem extends AbstractDTO
         }
     }
 
-    public function setInputPricing(?float $inputPricing): void
+    public function setInputPricing(null|float|string $inputPricing): void
     {
         if ($inputPricing === null) {
             $this->inputPricing = null;
-        } elseif ($inputPricing > 0) {
-            $this->inputPricing = $inputPricing;
         } else {
-            $this->inputPricing = null;
+            $pricing = (float) $inputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->inputPricing = (string) $inputPricing;
         }
     }
 
-    public function setOutputPricing(?float $outputPricing): void
+    public function setOutputPricing(null|float|string $outputPricing): void
     {
         if ($outputPricing === null) {
             $this->outputPricing = null;
-        } elseif ($outputPricing > 0) {
-            $this->outputPricing = $outputPricing;
         } else {
-            $this->outputPricing = null;
+            $pricing = (float) $outputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->outputPricing = (string) $outputPricing;
         }
     }
 
-    public function setCacheWritePricing(?float $cacheWritePricing): void
+    public function setCacheWritePricing(null|float|string $cacheWritePricing): void
     {
         if ($cacheWritePricing === null) {
             $this->cacheWritePricing = null;
-        } elseif ($cacheWritePricing > 0) {
-            $this->cacheWritePricing = $cacheWritePricing;
         } else {
-            $this->cacheWritePricing = null;
+            $pricing = (float) $cacheWritePricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheWritePricing = (string) $cacheWritePricing;
         }
     }
 
-    public function setCacheHitPricing(?float $cacheHitPricing): void
+    public function setCacheHitPricing(null|float|string $cacheHitPricing): void
     {
         if ($cacheHitPricing === null) {
             $this->cacheHitPricing = null;
-        } elseif ($cacheHitPricing > 0) {
-            $this->cacheHitPricing = $cacheHitPricing;
         } else {
-            $this->cacheHitPricing = null;
+            $pricing = (float) $cacheHitPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheHitPricing = (string) $cacheHitPricing;
         }
     }
 
     public function setOfficialRecommended(bool $officialRecommended): void
     {
         $this->officialRecommended = $officialRecommended;
+    }
+
+    private function handleCreativityAndTemperatureConflict(): void
+    {
+        if ($this->creativity !== null && $this->temperature !== null) {
+            // 优先保留 temperature，将 creativity 设为 null
+            $this->creativity = null;
+        }
     }
 }

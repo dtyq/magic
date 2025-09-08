@@ -8,12 +8,15 @@ declare(strict_types=1);
 namespace App\Domain\Mode\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\Util\Context\CoContext;
 
 class ModeEntity extends AbstractEntity
 {
     protected ?int $id = null;
 
     protected array $nameI18n = [];
+
+    protected array $placeholderI18n = [];
 
     protected string $identifier = '';
 
@@ -74,6 +77,38 @@ class ModeEntity extends AbstractEntity
     public function getENName(): string
     {
         return $this->nameI18n['en_US'] ?? '';
+    }
+
+    public function getName()
+    {
+        $language = CoContext::getLanguage();
+        return $this->nameI18n[$language] ?? $this->getZHName();
+    }
+
+    public function getPlaceholderI18n(): array
+    {
+        return $this->placeholderI18n;
+    }
+
+    public function setPlaceholderI18n(array $placeholderI18n): void
+    {
+        $this->placeholderI18n = $placeholderI18n;
+    }
+
+    public function getZHPlaceholder(): string
+    {
+        return $this->placeholderI18n['zh_CN'] ?? '';
+    }
+
+    public function getENPlaceholder(): string
+    {
+        return $this->placeholderI18n['en_US'] ?? '';
+    }
+
+    public function getPlaceholder(): string
+    {
+        $language = CoContext::getLanguage();
+        return $this->placeholderI18n[$language] ?? $this->getZHPlaceholder();
     }
 
     public function getIdentifier(): string

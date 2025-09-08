@@ -27,38 +27,47 @@ class ModeAssembler
         $dto = new ModeAggregateDTO();
         $dto->setMode(self::modeToDTO($aggregate->getMode()));
 
-        $groupAggregatesDTOs = array_map(
-            fn ($groupAggregate) => self::groupAggregateToDTO($groupAggregate, $providerModels),
-            $aggregate->getGroupAggregates()
-        );
+        $groupAggregatesDTOs = [];
+        foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
+            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels);
+            // 只有当分组下有模型时才添加（前台过滤空分组）
+            if (! empty($groupDTO->getModels())) {
+                $groupAggregatesDTOs[] = $groupDTO;
+            }
+        }
 
         $dto->setGroups($groupAggregatesDTOs);
 
         return $dto;
     }
 
-    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels)
+    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels): ModeGroupAggregateDTO
     {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));
+        $locale = di(TranslatorInterface::class)->getLocale();
 
         $models = [];
         foreach ($groupAggregate->getRelations() as $relation) {
-            $modelDTO = new ModeGroupModelDTO();
-            $modelDTO->setId($relation->getId());
-            $modelDTO->setGroupId($relation->getGroupId());
-            $modelDTO->setModelId((string) $relation->getModelId());
-            $modelDTO->setSort($relation->getSort());
+            $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
-            // 如果提供了模型信息，则填充模型名称和图标
-            $modelId = (string) $relation->getModelId();
-            if (isset($providerModels[$modelId])) {
-                $providerModel = $providerModels[$modelId];
+            // 过滤掉套餐的情况
+            $providerModelId = $relation->getModelId();
+            if (isset($providerModels[$providerModelId])) {
+                $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getName());
                 $modelDTO->setModelIcon($providerModel->getIcon());
-            }
 
-            $models[] = $modelDTO;
+                $description = '';
+                $translate = $providerModel->getTranslate();
+                if (is_array($translate) && isset($translate['description'][$locale])) {
+                    $description = $translate['description'][$locale];
+                } else {
+                    $description = $providerModel->getDescription();
+                }
+                $modelDTO->setModelDescription($description);
+                $models[] = $modelDTO;
+            }
         }
 
         $dto->setModels($models);
@@ -72,9 +81,10 @@ class ModeAssembler
         $locale = $translator->getLocale();
 
         $array = $modeEntity->toArray();
-        unset($array['name_i18n']);
+        unset($array['name_i18n'], $array['placeholder_i18n']);
         $modeDTO = new ModeDTO($array);
         $modeDTO->setName($modeEntity->getNameI18n()[$locale]);
+        $modeDTO->setPlaceholder($modeEntity->getPlaceholderI18n()[$locale] ?? '');
         return $modeDTO;
     }
 
@@ -92,13 +102,14 @@ class ModeAssembler
             $modeGroupDetailDTO = new ModeGroupDetailDTO($modeGroupEntity->toArray());
             $locale = di(TranslatorInterface::class)->getLocale();
             $modeGroupDetailDTO->setName($modeGroupEntity->getNameI18n()[$locale]);
+
             // 设置模型信息
             $models = [];
             foreach ($groupAggregate->getRelations() as $relation) {
                 $modelDTO = new ModeGroupModelDTO($relation->toArray());
 
                 // 如果提供了模型信息，则填充模型名称和图标
-                $providerModelId = $relation->getProviderModelId();
+                $providerModelId = $relation->getModelId();
                 if (isset($providerModels[$providerModelId])) {
                     $providerModel = $providerModels[$providerModelId];
                     $modelDTO->setModelName($providerModel->getName());
@@ -112,15 +123,16 @@ class ModeAssembler
                         $description = $providerModel->getDescription();
                     }
                     $modelDTO->setModelDescription($description);
+                    $models[] = $modelDTO;
                 }
-
-                $models[] = $modelDTO;
             }
 
-            $modeGroupDetailDTO->setModels($models);
-            $modeGroupDetailDTO->sortModels(); // 对模型排序
-
-            $flatGroups[] = $modeGroupDetailDTO;
+            // 只有当分组下有模型时才添加（前台过滤空分组）
+            if (! empty($models)) {
+                $modeGroupDetailDTO->setModels($models);
+                $modeGroupDetailDTO->sortModels(); // 对模型排序
+                $flatGroups[] = $modeGroupDetailDTO;
+            }
         }
 
         // 对分组排序（降序，越大越前）
@@ -133,6 +145,9 @@ class ModeAssembler
 
     private static function groupEntityToDTO(ModeGroupEntity $getGroup)
     {
-        return new ModeGroupDTO($getGroup->toArray());
+        $dto = new ModeGroupDTO($getGroup->toArray());
+        $locale = di(TranslatorInterface::class)->getLocale();
+        $dto->setName($getGroup->getNameI18n()[$locale]);
+        return $dto;
     }
 }

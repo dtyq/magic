@@ -29,6 +29,10 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
 
     protected string $topicId = '';
 
+    protected string $chatTopicId = '';
+
+    protected string $topicMode = '';
+
     protected string $prompt = '';
 
     protected ?string $params = null;
@@ -52,6 +56,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'project_id' => 'string', // 项目ID
             'project_mode' => 'string', // 项目模式
             'topic_id' => 'string', // 话题ID
+            'topic_mode' => 'string', // 话题模式
             // 'prompt' => 'required_if:task_type,agent|string',//任务提示词,如果是agent模式，则需要传入prompt
             'params' => 'object', // 自定入params
         ];
@@ -69,7 +74,8 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'project_id.integer' => '项目ID不能为空',
             'project_mode.string' => '项目模式不能为空',
             'topic_id.integer' => '话题ID不能为空',
-            // 'prompt.required_if' => '提示词不能为空',
+            'topic_mode.string' => '话题模式不能为空',
+            'prompt.required_if' => '提示词不能为空',
             'params.object' => '参数不能为空',
         ];
     }
@@ -88,7 +94,9 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'workspace_id' => '工作区ID',
             'project_id' => '项目ID',
             'project_mode' => '项目模式',
+            'topic_mode' => '话题模式',
             'topic_id' => '话题ID',
+            'chat_topic_id' => '聊天话题ID',
             'prompt' => '提示词',
             'params' => '参数',
         ];
@@ -159,6 +167,16 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
         $this->topicId = $topicId;
     }
 
+    public function getChatTopicId(): string
+    {
+        return $this->chatTopicId;
+    }
+
+    public function setChatTopicId(string $chatTopicId): void
+    {
+        $this->chatTopicId = $chatTopicId;
+    }
+
     public function getConversationId(): string
     {
         return $this->conversationId;
@@ -167,6 +185,16 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     public function setConversationId(string $conversationId): void
     {
         $this->conversationId = $conversationId;
+    }
+
+    public function getTopicMode(): string
+    {
+        return $this->topicMode;
+    }
+
+    public function setTopicMode(string $topicMode): void
+    {
+        $this->topicMode = $topicMode;
     }
 
     public function getPrompt(): string

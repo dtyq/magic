@@ -10,19 +10,21 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotificationDataValueObject;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\LockKeyManageUtils;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -38,7 +40,8 @@ class SandboxFileNotificationAppService extends AbstractAppService
         protected TaskFileDomainService $taskFileDomainService,
         protected ProjectDomainService $projectDomainService,
         protected LockerInterface $locker,
-        LoggerFactory $loggerFactory
+        protected readonly EventDispatcherInterface $eventDispatcher,
+        LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -71,9 +74,9 @@ class SandboxFileNotificationAppService extends AbstractAppService
         $fileKey = $this->buildFileKey($metadata, $data, $projectEntity->getWorkDir());
 
         // 6. Setup spin lock for file_key to prevent concurrent processing
-        $lockKey = LockKeyManageUtils::getFileKeyLock($fileKey);
-        $lockOwner = IdGenerator::getUniqueId32();
-        $lockExpireSeconds = 5; // 5 seconds timeout as requested
+        $lockKey = WorkDirectoryUtil::getLockerKey($projectEntity->getId());
+        $lockOwner = $dataIsolation->getCurrentUserId();
+        $lockExpireSeconds = 30;
         $lockAcquired = false;
 
         try {
@@ -81,10 +84,11 @@ class SandboxFileNotificationAppService extends AbstractAppService
             $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
             if (! $lockAcquired) {
                 $this->logger->warning(sprintf(
-                    'Failed to acquire lock for file_key processing: %s, operation: %s, project_id: %d',
+                    'Failed to acquire lock for file_key processing: %s, operation: %s, project_id: %d, is_directory: %d',
                     $fileKey,
                     $data->getOperation(),
-                    $projectEntity->getId()
+                    $projectEntity->getId(),
+                    $data->getIsDirectory()
                 ));
                 ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Failed to acquire file processing lock');
             }
@@ -97,23 +101,32 @@ class SandboxFileNotificationAppService extends AbstractAppService
             ));
 
             // 7. Handle file operation based on type
+            $taskFileEntity = null;
             switch ($data->getOperation()) {
                 case 'CREATE':
                 case 'UPDATE':
                     $result = $this->handleCreateOrUpdateFile($dataIsolation, $metadata, $data, $projectEntity, $fileKey);
+                    $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
                     break;
                 case 'DELETE':
+                    $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
                     $result = $this->handleDeleteFile($dataIsolation, $fileKey);
                     break;
                 default:
                     ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'Unsupported operation');
             }
 
+            // Dispatch file operation event
+            if ($taskFileEntity) {
+                $this->dispatchFileOperationEvent($dataIsolation, $data, $taskFileEntity);
+            }
+
             $this->logger->info(sprintf(
-                'File_key processed successfully with lock protection: %s, operation: %s, project_id: %d',
+                'File_key processed successfully with lock protection: %s, operation: %s, project_id: %d, is_directory: %d',
                 $fileKey,
                 $data->getOperation(),
-                $projectEntity->getId()
+                $projectEntity->getId(),
+                $data->getIsDirectory()
             ));
 
             return $result;
@@ -207,7 +220,7 @@ class SandboxFileNotificationAppService extends AbstractAppService
     ): string {
         $organizationCode = $metadata->getOrganizationCode();
         $filePath = $data->getFilePath();
-        if (WorkDirectoryUtil::isValidDirectoryName($filePath)) {
+        if ($data->getIsDirectory()) {
             $filePath = rtrim($filePath, '/') . '/';
         }
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
@@ -240,7 +253,6 @@ class SandboxFileNotificationAppService extends AbstractAppService
             $data,
             $metadata
         );
-
         return [
             'file_id' => $taskFileEntity->getFileId(),
             'operation' => $data->getOperation(),
@@ -264,5 +276,40 @@ class SandboxFileNotificationAppService extends AbstractAppService
             'operation' => 'DELETE',
             'success' => $deleted,
         ];
+    }
+
+    /**
+     * Dispatch file operation event based on operation type.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param SandboxFileNotificationDataValueObject $data File data
+     * @param mixed $taskFileEntity Task file entity (can be null)
+     */
+    private function dispatchFileOperationEvent(
+        DataIsolation $dataIsolation,
+        SandboxFileNotificationDataValueObject $data,
+        $taskFileEntity
+    ): void {
+        if (! $taskFileEntity) {
+            return;
+        }
+
+        $userId = $dataIsolation->getCurrentUserId() ?? '';
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        switch ($data->getOperation()) {
+            case 'CREATE':
+                $event = new FileUploadedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+            case 'UPDATE':
+                $event = new FileContentSavedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+            case 'DELETE':
+                $event = new FileDeletedEvent($taskFileEntity, $userId, $organizationCode);
+                $this->eventDispatcher->dispatch($event);
+                break;
+        }
     }
 }

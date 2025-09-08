@@ -137,9 +137,9 @@ class FileAppService extends AbstractAppService
         return $this->fileDomainService->getLinks($organizationCode, $fileKeys, $bucketType, $downloadNames, $options);
     }
 
-    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile): void
+    public function upload(string $getSenderOrganizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
     {
-        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile);
+        $this->fileDomainService->uploadByCredential($getSenderOrganizationCode, $uploadFile, $storage, $autoDir, $contentType);
     }
 
     public function getFileByBusinessType(DefaultFileBusinessType $businessType, string $organizationCode): array
@@ -166,7 +166,7 @@ class FileAppService extends AbstractAppService
         // 批量获取各组织的文件链接
         $allFileLinks = [];
         foreach ($keysByOrg as $orgCode => $orgKeys) {
-            $links = $this->fileDomainService->getLinks($orgCode, $orgKeys, StorageBucketType::Public);
+            $links = $this->fileDomainService->getLinks($orgCode, $orgKeys);
             $allFileLinks = array_merge($allFileLinks, $links);
         }
 
