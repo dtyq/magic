@@ -197,23 +197,21 @@ class ModelConfigItem extends AbstractDTO
 
     public function setCreativity(?float $creativity): void
     {
-        if ($creativity < 0 || $creativity > 2) {
-            $this->creativity = 0.5;
-        } else {
-            $this->creativity = $creativity;
+        if ($creativity !== null && ($creativity < 0 || $creativity > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.creativity_value_range_error');
         }
 
+        $this->creativity = $creativity;
         $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setTemperature(?float $temperature): void
     {
-        if ($temperature < 0 || $temperature > 2) {
-            $this->temperature = 0.7;
-        } else {
-            $this->temperature = $temperature;
+        if ($temperature !== null && ($temperature < 0 || $temperature > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.temperature_value_range_error');
         }
 
+        $this->temperature = $temperature;
         $this->handleCreativityAndTemperatureConflict();
     }
 
