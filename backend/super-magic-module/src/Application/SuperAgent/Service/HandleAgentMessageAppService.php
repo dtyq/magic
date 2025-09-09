@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
@@ -638,13 +637,10 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         $task = $taskContext->getTask();
 
-        $messageId = $messageData['messageId'] ?? (string) IdGenerator::getSnowId();
-
         $this->clientMessageAppService->sendMessageToClient(
             messageId: $messageId,
             topicId: $task->getTopicId(),
             taskId: (string) $task->getId(),
-            messageId: $messageId,
             chatTopicId: $taskContext->getChatTopicId(),
             chatConversationId: $taskContext->getChatConversationId(),
             content: $messageData['content'],
