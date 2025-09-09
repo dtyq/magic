@@ -16,7 +16,6 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentTool;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentToolType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\EditorJsUtil;
 
 class SuperMagicAgentEntity extends AbstractEntity
 {
@@ -51,7 +50,7 @@ class SuperMagicAgentEntity extends AbstractEntity
 
     /**
      * 系统提示词.
-     * https://editorjs.io/saving-data/.
+     * Format: {"version": "1.0.0", "structure": {"string": "prompt text"}}.
      */
     protected array $prompt = [];
 
@@ -92,7 +91,13 @@ class SuperMagicAgentEntity extends AbstractEntity
         if (empty($this->name)) {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.name']);
         }
-        if (empty($this->prompt)) {
+        if (empty($this->prompt)
+            || ! isset($this->prompt['version'])
+            || ! isset($this->prompt['structure'])) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.prompt']);
+        }
+        // Check if prompt string content is empty
+        if (empty(trim($this->getPromptString()))) {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.prompt']);
         }
         if (empty($this->creator)) {
@@ -119,7 +124,13 @@ class SuperMagicAgentEntity extends AbstractEntity
         if (empty($this->name)) {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.name']);
         }
-        if (empty($this->prompt)) {
+        if (empty($this->prompt)
+            || ! isset($this->prompt['version'])
+            || ! isset($this->prompt['structure'])) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.prompt']);
+        }
+        // Check if prompt string content is empty
+        if (empty(trim($this->getPromptString()))) {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'super_magic.agent.fields.prompt']);
         }
 
@@ -257,6 +268,13 @@ class SuperMagicAgentEntity extends AbstractEntity
 
     public function getPrompt(): array
     {
+        // Validate prompt format: must have version and structure keys
+        if (empty($this->prompt)
+            || ! isset($this->prompt['version'])
+            || ! isset($this->prompt['structure'])) {
+            return [];
+        }
+
         return $this->prompt;
     }
 
@@ -266,33 +284,23 @@ class SuperMagicAgentEntity extends AbstractEntity
     }
 
     /**
-     * Get prompt as plain text string
-     * Converts Editor.js format to readable text.
+     * Get prompt as plain text string.
      *
      * @return string Plain text representation of the prompt
      */
     public function getPromptString(): string
     {
-        if (empty($this->prompt)) {
+        $prompt = $this->getPrompt();
+        if (empty($prompt)) {
             return '';
         }
 
-        return EditorJsUtil::convertToString($this->prompt);
-    }
-
-    /**
-     * Get prompt summary (first N characters).
-     *
-     * @param int $maxLength Maximum length of summary
-     * @return string Truncated prompt text
-     */
-    public function getPromptSummary(int $maxLength = 200): string
-    {
-        if (empty($this->prompt)) {
-            return '';
+        // Handle version 1.0.0 format
+        if (isset($prompt['structure']['string'])) {
+            return $prompt['structure']['string'];
         }
 
-        return EditorJsUtil::getSummary($this->prompt, $maxLength);
+        return '';
     }
 
     public function getType(): SuperMagicAgentType
