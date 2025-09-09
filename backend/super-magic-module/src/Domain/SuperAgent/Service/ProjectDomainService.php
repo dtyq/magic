@@ -107,6 +107,22 @@ class ProjectDomainService
     }
 
     /**
+     * 根据工作区ID获取项目ID列表.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param int $workspaceId 工作区ID
+     * @return array 项目ID列表
+     */
+    public function getProjectIdsByWorkspaceId(DataIsolation $dataIsolation, int $workspaceId): array
+    {
+        return $this->projectRepository->getProjectIdsByWorkspaceId(
+            $workspaceId,
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+    }
+
+    /**
      * Get project details.
      */
     public function getProject(int $projectId, string $userId): ProjectEntity
