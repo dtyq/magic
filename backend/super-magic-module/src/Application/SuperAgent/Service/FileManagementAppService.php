@@ -832,7 +832,7 @@ class FileManagementAppService extends AbstractAppService
      * @param array $options Additional options
      * @return array File URLs
      */
-    public function getFileUrls(RequestContext $requestContext, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
+    public function getFileUrls(RequestContext $requestContext, string $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
     {
         try {
             $userAuthorization = $requestContext->getUserAuthorization();
@@ -840,6 +840,7 @@ class FileManagementAppService extends AbstractAppService
 
             return $this->taskFileDomainService->getFileUrls(
                 $dataIsolation,
+                (int) $projectId,
                 $fileIds,
                 $downloadMode,
                 $options,
