@@ -460,6 +460,8 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		// 将令牌信息存储在请求上下文中
 		r.Header.Set("X-User-Id", claims.ContainerID)
+		r.Header.Set("magic-user-id", claims.MagicUserID)
+		r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
 
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
@@ -722,10 +724,9 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
-		// if userID == "" && magicUserID != "" {
-		// 	userID = magicUserID
-		// }
+		if userID != "" {
+			magicUserID = userID
+		}
 
 		if debugMode {
 			logger.Printf("原始请求头 magic-user-id: %s", r.Header.Get("magic-user-id"))
