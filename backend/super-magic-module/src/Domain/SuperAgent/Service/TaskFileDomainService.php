@@ -1189,20 +1189,15 @@ class TaskFileDomainService
                         $specifiedVersion
                     );
 
-                    if (! empty($versionEntity)) {
-                        $fileEntity->setFileKey($versionEntity->getFileKey());
-                    } else {
-                        // 版本不存在，使用当前版本
-                        $this->logger->warning(sprintf('版本%d不存在，使用当前版本, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                    if (empty($versionEntity)) {
+                        $this->logger->warning(sprintf('版本%d不存在, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                        continue;
                     }
 
-                    $tmpResult = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
-                    $tmpResult['version'] = $specifiedVersion;
-
-                    $result[] = $tmpResult;
-                } else {
-                    $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
+                    $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
+
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1249,19 +1244,12 @@ class TaskFileDomainService
                         $specifiedVersion
                     );
 
-                    if (! empty($versionEntity)) {
-                        $fileEntity->setFileKey($versionEntity->getFileKey());
-                    } else {
-                        // 版本不存在，使用当前版本
-                        $this->logger->warning(sprintf('版本%d不存在，使用当前版本, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                    if (empty($versionEntity)) {
+                        $this->logger->warning(sprintf('版本%d不存在, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                        continue;
                     }
 
-                    $tmpResult = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
-                    $tmpResult['version'] = $specifiedVersion;
-
-                    $result[] = $tmpResult;
-                } else {
-                    $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
+                    $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
                 $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
