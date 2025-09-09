@@ -32,6 +32,7 @@ enum MagicResourceEnum: string
     // ===== 三级：具体资源 (用于具体绑定接口）=====
     case ADMIN_AI_MODEL = 'platform.ai.model_management'; # AI管理-模型管理
     case ADMIN_AI_IMAGE = 'platform.ai.image_generation'; # AI管理-智能绘图管理
+    case ADMIN_AI_MODE = 'platform.ai.mode_management'; # AI管理-模式管理管理
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 安全管控-子管理员
     case PLATFORM_SETTING_MAINTENANCE = 'platform.setting.maintenance'; # 平台管理 - 系统信息 - 维护管理
 
@@ -46,6 +47,7 @@ enum MagicResourceEnum: string
             self::ADMIN_SAFE => 'permission.resource.admin_safe', # 安全与权限
             self::ADMIN_AI_MODEL => 'permission.resource.ai_model',
             self::ADMIN_AI_IMAGE => 'permission.resource.ai_image',
+            self::ADMIN_AI_MODE => 'permission.resource.ai_mode',
             self::SAFE_SUB_ADMIN => 'permission.resource.safe_sub_admin', # 子管理员
             self::PLATFORM => 'permission.resource.platform',
             self::PLATFORM_SETTING => 'permission.resource.platform_setting',
@@ -69,7 +71,8 @@ enum MagicResourceEnum: string
             self::ADMIN_SAFE => self::ADMIN,
             // 操作资源
             self::ADMIN_AI_MODEL,
-            self::ADMIN_AI_IMAGE => self::ADMIN_AI,
+            self::ADMIN_AI_IMAGE,
+            self::ADMIN_AI_MODE => self::ADMIN_AI,
             self::SAFE_SUB_ADMIN => self::ADMIN_SAFE,
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
         };
