@@ -838,9 +838,11 @@ class FileManagementAppService extends AbstractAppService
             $userAuthorization = $requestContext->getUserAuthorization();
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
             return $this->taskFileDomainService->getFileUrls(
                 $dataIsolation,
-                (int) $projectId,
+                $projectEntity->getId(),
                 $fileIds,
                 $downloadMode,
                 $options,
