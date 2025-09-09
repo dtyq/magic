@@ -369,10 +369,10 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 兜底操作，如果当前任务的消息已经是完成
         if ($this->isSendMessage($taskContext)) {
             // 3. Record AI message
-            $this->recordAgentMessage($messageData, $taskContext);
+            $messageEntity = $this->recordAgentMessage($messageData, $taskContext);
 
             // 4. Send message to client
-            $this->sendMessageToClient($messageData, $taskContext);
+            $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
         }
     }
 
@@ -558,7 +558,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Record agent message.
      */
-    private function recordAgentMessage(array $messageData, TaskContext $taskContext): void
+    private function recordAgentMessage(array $messageData, TaskContext $taskContext): TaskMessageEntity
     {
         $task = $taskContext->getTask();
 
@@ -591,42 +591,43 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ->setShowInUi($messageData['showInUi']);
 
             $this->taskMessageDomainService->updateExistingMessage($existingMessage);
-        } else {
-            // 消息不存在，创建新实体并插入新记录
-            $this->logger->info(sprintf(
-                '消息不存在，插入新记录 topic_id: %d, message_id: %s',
-                $task->getTopicId(),
-                $messageData['messageId']
-            ));
 
-            // 创建 TaskMessageDTO for AI message
-            $taskMessageDTO = new TaskMessageDTO(
-                taskId: (string) $task->getId(),
-                role: Role::Assistant->value,
-                senderUid: $taskContext->getAgentUserId(),
-                receiverUid: $task->getUserId(),
-                messageType: $messageData['messageType'],
-                content: $messageData['content'],
-                status: $messageData['status'],
-                steps: $messageData['steps'],
-                tool: $messageData['tool'],
-                topicId: $task->getTopicId(),
-                event: $messageData['event'],
-                attachments: $messageData['attachments'],
-                mentions: null,
-                showInUi: $messageData['showInUi'],
-                messageId: $messageData['messageId']
-            );
-
-            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
-            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
+            return $existingMessage;
         }
+        // 消息不存在，创建新实体并插入新记录
+        $this->logger->info(sprintf(
+            '消息不存在，插入新记录 topic_id: %d, message_id: %s',
+            $task->getTopicId(),
+            $messageData['messageId']
+        ));
+
+        // 创建 TaskMessageDTO for AI message
+        $taskMessageDTO = new TaskMessageDTO(
+            taskId: (string) $task->getId(),
+            role: Role::Assistant->value,
+            senderUid: $taskContext->getAgentUserId(),
+            receiverUid: $task->getUserId(),
+            messageType: $messageData['messageType'],
+            content: $messageData['content'],
+            status: $messageData['status'],
+            steps: $messageData['steps'],
+            tool: $messageData['tool'],
+            topicId: $task->getTopicId(),
+            event: $messageData['event'],
+            attachments: $messageData['attachments'],
+            mentions: null,
+            showInUi: $messageData['showInUi'],
+            messageId: $messageData['messageId']
+        );
+
+        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+        return $this->taskDomainService->recordTaskMessage($taskMessageEntity);
     }
 
     /**
      * Send message to client.
      */
-    private function sendMessageToClient(array $messageData, TaskContext $taskContext): void
+    private function sendMessageToClient(int $messageId, array $messageData, TaskContext $taskContext): void
     {
         if (! $messageData['showInUi']) {
             return;
@@ -635,6 +636,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $task = $taskContext->getTask();
 
         $this->clientMessageAppService->sendMessageToClient(
+            messageId: $messageId,
             topicId: $task->getTopicId(),
             taskId: (string) $task->getId(),
             chatTopicId: $taskContext->getChatTopicId(),

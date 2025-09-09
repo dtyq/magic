@@ -23,4 +23,9 @@ interface MagicMessageRepositoryInterface
     public function updateMessageContent(string $magicMessageId, array $messageContent): void;
 
     public function updateMessageContentAndVersionId(MagicMessageEntity $messageEntity, MagicMessageVersionEntity $magicMessageVersionEntity): void;
+
+    /**
+     * Check if message exists by app_message_id and optional message_type.
+     */
+    public function isMessageExistsByAppMessageId(string $appMessageId, string $messageType = ''): bool;
 }

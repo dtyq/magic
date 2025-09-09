@@ -931,6 +931,45 @@ class MagicChatMessageAppService extends MagicSeqAppService
     }
 
     /**
+     * Check if message has already been sent to avoid duplicate sending.
+     *
+     * @param string $appMessageId Application message ID (should be primary key from external table)
+     * @param string $messageType Optional message type filter (empty string means check all types)
+     * @return bool True if message already sent, false if not sent or check failed
+     */
+    public function isMessageAlreadySent(string $appMessageId, string $messageType = ''): bool
+    {
+        if (empty($appMessageId)) {
+            $this->logger->warning('Empty appMessageId provided for duplicate check');
+            return false;
+        }
+
+        try {
+            $exists = $this->magicChatDomainService->isMessageAlreadySent($appMessageId, $messageType);
+
+            if ($exists) {
+                $this->logger->info(sprintf(
+                    'Message already sent - App Message ID: %s, Message Type: %s',
+                    $appMessageId,
+                    $messageType ?: 'any'
+                ));
+            }
+
+            return $exists;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Error checking message duplication: %s, App Message ID: %s, Message Type: %s',
+                $e->getMessage(),
+                $appMessageId,
+                $messageType ?: 'any'
+            ));
+
+            // Return false to allow sending when check fails (fail-safe approach)
+            return false;
+        }
+    }
+
+    /**
      * Check the legality of editing a message.
      * Verify that the message to be edited meets one of the following conditions:
      * 1. The current user is the message sender

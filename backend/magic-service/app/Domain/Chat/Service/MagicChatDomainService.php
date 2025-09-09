@@ -967,6 +967,34 @@ class MagicChatDomainService extends AbstractDomainService
     }
 
     /**
+     * Check if message has already been sent by app message ID.
+     *
+     * @param string $appMessageId Application message ID (primary key from external table)
+     * @param string $messageType Optional message type filter (empty string means no type filter)
+     * @return bool True if message already exists, false otherwise
+     */
+    public function isMessageAlreadySent(string $appMessageId, string $messageType = ''): bool
+    {
+        if (empty($appMessageId)) {
+            return false;
+        }
+
+        try {
+            return $this->magicMessageRepository->isMessageExistsByAppMessageId($appMessageId, $messageType);
+        } catch (Throwable $e) {
+            // Log error but don't throw exception to avoid affecting main process
+            $this->logger->warning(sprintf(
+                'Failed to check duplicate message: %s, App Message ID: %s, Message Type: %s',
+                $e->getMessage(),
+                $appMessageId,
+                $messageType ?: 'any'
+            ));
+            // Return false to allow sending when check fails
+            return false;
+        }
+    }
+
+    /**
      * 使用本机内存进行消息缓存，提升大 json 读写性能。
      * @todo 如果要对外提供流式 api，需要改为 redis 缓存，以支持断线重连。
      *

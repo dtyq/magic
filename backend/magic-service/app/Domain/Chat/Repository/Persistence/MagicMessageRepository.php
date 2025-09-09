@@ -80,6 +80,27 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         );
     }
 
+    /**
+     * Check if message exists by app_message_id and optional message_type.
+     */
+    public function isMessageExistsByAppMessageId(string $appMessageId, string $messageType = ''): bool
+    {
+        if (empty($appMessageId)) {
+            return false;
+        }
+
+        $query = $this->magicMessage::query()
+            ->where('app_message_id', $appMessageId)
+            ->whereNull('deleted_at');
+
+        // Only add message type filter when messageType is not empty
+        if (! empty($messageType)) {
+            $query->where('message_type', $messageType);
+        }
+
+        return $query->exists();
+    }
+
     #[Cacheable(prefix: 'getMessageByMagicMessageId', value: '_#{magicMessageId}', ttl: 10)]
     private function getMessageDataByMagicMessageId(string $magicMessageId)
     {
