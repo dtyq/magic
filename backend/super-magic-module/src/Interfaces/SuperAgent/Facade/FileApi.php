@@ -451,6 +451,18 @@ class FileApi extends AbstractApi
     }
 
     /**
+     * Get file basic information by file ID.
+     *
+     * @param int $id File ID
+     * @return array File basic information response (file name, current version, organization code)
+     */
+    public function getFileInfo(int $id): array
+    {
+        // Call app service to get file basic information
+        return $this->fileProcessAppService->getFileInfoById($id);
+    }
+
+    /**
      * 获取文件版本列表.
      *
      * @param RequestContext $requestContext 请求上下文

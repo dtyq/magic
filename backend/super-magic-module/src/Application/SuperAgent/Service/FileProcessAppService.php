@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileInfoResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileNameResponseDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
@@ -928,6 +929,33 @@ class FileProcessAppService extends AbstractAppService
 
         // Create response DTO and return
         $responseDTO = new FileNameResponseDTO($taskFileEntity->getFileName());
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * Get file basic information by file ID.
+     *
+     * @param int $fileId File ID
+     * @return array File basic information (file name, current version, organization code)
+     */
+    public function getFileInfoById(int $fileId): array
+    {
+        // Get file entity by ID
+        $taskFileEntity = $this->taskFileDomainService->getById($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Get current version (latest version number) - optimized for performance
+        $currentVersion = $this->taskFileVersionDomainService->getLatestVersionNumber($fileId);
+
+        // Create response DTO and return
+        $responseDTO = new FileInfoResponseDTO(
+            $taskFileEntity->getFileName(),
+            $currentVersion,
+            $taskFileEntity->getOrganizationCode()
+        );
         return $responseDTO->toArray();
     }
 

@@ -229,6 +229,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
 
+        // 根据文件id获取文件基本信息
+        Router::get('/{id}', [FileApi::class, 'getFileInfo']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
         // 批量获取下载链接

@@ -234,6 +234,14 @@ class TaskFileVersionDomainService
     }
 
     /**
+     * 获取文件的最新版本号.
+     */
+    public function getLatestVersionNumber(int $fileId): int
+    {
+        return $this->taskFileVersionRepository->getLatestVersionNumber($fileId);
+    }
+
+    /**
      * 获取下一个版本号.
      */
     private function getNextVersionNumber(int $fileId): int
