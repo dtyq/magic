@@ -222,8 +222,13 @@ readonly class RoleDomainService
      */
     public function hasPermission(PermissionDataIsolation $dataIsolation, string $userId, string $permissionKey): bool
     {
+        $isPlatformOrganization = false;
+        $officialOrganization = config('service_provider.office_organization');
+        if ($officialOrganization === $dataIsolation->getCurrentOrganizationCode()) {
+            $isPlatformOrganization = true;
+        }
         $userPermissions = $this->roleRepository->getUserPermissions($dataIsolation->getCurrentOrganizationCode(), $userId);
-        return $this->permission->checkPermission($permissionKey, $userPermissions);
+        return $this->permission->checkPermission($permissionKey, $userPermissions, $isPlatformOrganization);
     }
 
     /**
