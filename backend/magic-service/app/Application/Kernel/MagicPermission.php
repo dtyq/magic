@@ -311,9 +311,17 @@ class MagicPermission implements MagicPermissionInterface
      *
      * @param string $permissionKey 目标权限键
      * @param string[] $userPermissions 用户已拥有的权限键集合
+     * @param bool $isPlatformOrganization 是否平台组织
      */
-    public function checkPermission(string $permissionKey, array $userPermissions): bool
+    public function checkPermission(string $permissionKey, array $userPermissions, bool $isPlatformOrganization = false): bool
     {
+        // 平台组织校验：非平台组织不允许访问 platform 平台资源
+        $parsed = $this->parsePermission($permissionKey);
+        $platformKey = explode('.', $parsed['resource'])[0];
+        if ($platformKey === MagicResourceEnum::PLATFORM->value && ! $isPlatformOrganization) {
+            return false;
+        }
+
         // 命中全局权限直接放行
         if (in_array(self::ALL_PERMISSIONS, $userPermissions, true)) {
             return true;
