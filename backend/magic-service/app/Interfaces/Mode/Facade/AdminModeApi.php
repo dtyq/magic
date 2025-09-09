@@ -7,14 +7,13 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Mode\Facade;
 
+use App\Application\Kernel\Enum\MagicOperationEnum;
+use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\Service\AdminModeAppService;
-use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\AbstractApi;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
-use App\Infrastructure\Util\Auth\PermissionChecker;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Mode\DTO\Request\CreateModeRequest;
 use App\Interfaces\Mode\DTO\Request\UpdateModeRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -31,10 +30,10 @@ class AdminModeApi extends AbstractApi
     /**
      * 获取模式列表.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
     public function getModes(RequestInterface $request)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         $page = new Page(
             (int) $request->input('page', 1),
             (int) $request->input('page_size', 20)
@@ -46,27 +45,27 @@ class AdminModeApi extends AbstractApi
     /**
      * 获取模式详情.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
     public function getMode(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         return $this->adminModeAppService->getModeById($authorization, $id);
     }
 
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
     public function getOriginMode(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         return $this->adminModeAppService->getOriginMode($authorization, $id);
     }
 
     /**
      * 创建模式.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::EDIT)]
     public function createMode(CreateModeRequest $request)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         $request->validated();
         return $this->adminModeAppService->createMode($authorization, $request);
     }
@@ -74,10 +73,10 @@ class AdminModeApi extends AbstractApi
     /**
      * 更新模式.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::EDIT)]
     public function updateMode(UpdateModeRequest $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         $request->validated();
         return $this->adminModeAppService->updateMode($authorization, $id, $request);
     }
@@ -85,10 +84,10 @@ class AdminModeApi extends AbstractApi
     /**
      * 更新模式状态
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::EDIT)]
     public function updateModeStatus(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         $status = (bool) $request->input('status', 1);
 
         $this->adminModeAppService->updateModeStatus($authorization, $id, $status);
@@ -97,35 +96,19 @@ class AdminModeApi extends AbstractApi
     /**
      * 获取默认模式.
      */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
     public function getDefaultMode()
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         return $this->adminModeAppService->getDefaultMode($authorization);
     }
 
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::EDIT)]
     public function saveModeConfig(RequestInterface $request, string $id)
     {
         $authorization = $this->getAuthorization();
-        $this->checkAuth($authorization);
         $modeAggregateDTO = new AdminModeAggregateDTO($request->all());
         $modeAggregateDTO->getMode()->setId($id);
         return $this->adminModeAppService->saveModeConfig($authorization, $modeAggregateDTO);
-    }
-
-    private function isCurrentOrganizationOfficial(): bool
-    {
-        $officialOrganization = config('service_provider.office_organization');
-        $organizationCode = $this->getAuthorization()->getOrganizationCode();
-        return $officialOrganization === $organizationCode;
-    }
-
-    private function checkAuth(MagicUserAuthorization $authenticatable)
-    {
-        $isCurrentOrganizationOfficial = $this->isCurrentOrganizationOfficial();
-        $isOrganizationAdmin = PermissionChecker::isOrganizationAdmin($authenticatable->getOrganizationCode(), $authenticatable->getMobile());
-        if (! $isCurrentOrganizationOfficial || ! $isOrganizationAdmin) {
-            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
-        }
     }
 }
