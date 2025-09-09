@@ -12,6 +12,7 @@ return [
         'safe_sub_admin' => '子管理员',
         'ai_model' => '大模型',
         'ai_image' => '智能绘图',
+        'ai_mode' => '模式',
         'console' => '控制台',
         'api' => '接口',
         'api_assistant' => '接口助手',
