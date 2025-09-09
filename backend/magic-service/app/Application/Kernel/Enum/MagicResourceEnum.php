@@ -47,6 +47,7 @@ enum MagicResourceEnum: string
             self::ADMIN_SAFE => 'permission.resource.admin_safe', # 安全与权限
             self::ADMIN_AI_MODEL => 'permission.resource.ai_model',
             self::ADMIN_AI_IMAGE => 'permission.resource.ai_image',
+            self::ADMIN_AI_MODE => 'permission.resource.ai_mode',
             self::SAFE_SUB_ADMIN => 'permission.resource.safe_sub_admin', # 子管理员
             self::PLATFORM => 'permission.resource.platform',
             self::PLATFORM_SETTING => 'permission.resource.platform_setting',
@@ -70,7 +71,8 @@ enum MagicResourceEnum: string
             self::ADMIN_SAFE => self::ADMIN,
             // 操作资源
             self::ADMIN_AI_MODEL,
-            self::ADMIN_AI_IMAGE => self::ADMIN_AI,
+            self::ADMIN_AI_IMAGE,
+            self::ADMIN_AI_MODE => self::ADMIN_AI,
             self::SAFE_SUB_ADMIN => self::ADMIN_SAFE,
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
         };
