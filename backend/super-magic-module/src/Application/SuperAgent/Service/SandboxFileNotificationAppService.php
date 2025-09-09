@@ -84,10 +84,11 @@ class SandboxFileNotificationAppService extends AbstractAppService
             $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
             if (! $lockAcquired) {
                 $this->logger->warning(sprintf(
-                    'Failed to acquire lock for file_key processing: %s, operation: %s, project_id: %d',
+                    'Failed to acquire lock for file_key processing: %s, operation: %s, project_id: %d, is_directory: %d',
                     $fileKey,
                     $data->getOperation(),
-                    $projectEntity->getId()
+                    $projectEntity->getId(),
+                    $data->getIsDirectory()
                 ));
                 ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Failed to acquire file processing lock');
             }
@@ -121,10 +122,11 @@ class SandboxFileNotificationAppService extends AbstractAppService
             }
 
             $this->logger->info(sprintf(
-                'File_key processed successfully with lock protection: %s, operation: %s, project_id: %d',
+                'File_key processed successfully with lock protection: %s, operation: %s, project_id: %d, is_directory: %d',
                 $fileKey,
                 $data->getOperation(),
-                $projectEntity->getId()
+                $projectEntity->getId(),
+                $data->getIsDirectory()
             ));
 
             return $result;
