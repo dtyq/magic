@@ -12,7 +12,6 @@ use App\Application\LongTermMemory\DTO\EvaluateConversationRequestDTO;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\LongTermMemory\Service\LongTermMemoryAppService;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
-use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
 use App\Domain\LongTermMemory\DTO\MemoryQueryDTO;
 use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
@@ -62,34 +61,35 @@ class LongTermMemoryAdminApi extends AbstractApi
     {
         $params = $request->all();
         $rules = [
-            'explanation' => 'required|string',
-            'content' => 'required|string|max:65535',
+            'explanation' => 'nullable|string',
+            'content' => 'required|string',
             'status' => ['string', Rule::enum(MemoryStatus::class)],
-            'tags' => 'array',
+            'enabled' => 'nullable|boolean',
+            'tags' => 'array｜nullable',
             'project_id' => 'nullable|integer|string',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
-        $authorization = $this->getAuthorization();
-        $model = $this->modelGatewayMapper->getOrganizationChatModel(LLMModelEnum::DEEPSEEK_V3->value, $authorization->getOrganizationCode());
 
-        // Score the memory
-        $score = $this->longTermMemoryAppService->rateMemory($model, $validatedParams['content']);
-
-        // Generate summary if content is long
-        $summary = null;
-        if (mb_strlen($validatedParams['content']) > 100) {
-            $summary = $this->magicChatMessageAppService->summarizeText($authorization, $validatedParams['content']);
+        // 手动检查内容长度
+        $contentLength = mb_strlen($validatedParams['content']);
+        if ($contentLength > 5000) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                'long_term_memory.api.content_length_exceeded'
+            );
         }
 
+        $authorization = $this->getAuthorization();
         $dto = new CreateMemoryDTO([
             'content' => $validatedParams['content'],
-            'originText' => $summary,
-            'explanation' => $validatedParams['explanation'],
+            'originText' => null,
+            'explanation' => $validatedParams['explanation'] ?? null,
             'memoryType' => 'manual_input',
-            'status' => $validatedParams['status'] ?? MemoryStatus::PENDING->value,
+            'status' => $validatedParams['status'] ?? MemoryStatus::ACTIVE->value,
+            'enabled' => $validatedParams['enabled'] ?? true,
             'confidence' => 0.8,
-            'importance' => $score,
+            'importance' => 0.8,
             'tags' => $validatedParams['tags'] ?? [],
             'metadata' => [],
             'orgId' => $authorization->getOrganizationCode(),
@@ -123,7 +123,10 @@ class LongTermMemoryAdminApi extends AbstractApi
         }
 
         // 3. 处理内容更新并构建DTO
-        $dto = $this->buildUpdateMemoryDTO($validatedParams['content'] ?? null);
+        $dto = $this->buildUpdateMemoryDTO(
+            $validatedParams['content'] ?? null,
+            $validatedParams['pending_content'] ?? null
+        );
         $this->longTermMemoryAppService->updateMemory($memoryId, $dto);
 
         return [
@@ -557,10 +560,29 @@ class LongTermMemoryAdminApi extends AbstractApi
     {
         $params = $request->all();
         $rules = [
-            'content' => 'string|required',
+            'content' => 'nullable|string',
+            'pending_content' => 'nullable|string',
         ];
 
         $validatedParams = $this->checkParams($params, $rules);
+
+        // 验证content和pending_content只能二选一
+        $hasContent = ! empty($validatedParams['content']);
+        $hasPendingContent = ! empty($validatedParams['pending_content']);
+
+        if (! $hasContent && ! $hasPendingContent) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                'long_term_memory.api.at_least_one_content_field_required'
+            );
+        }
+
+        if ($hasContent && $hasPendingContent) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                'long_term_memory.api.cannot_update_both_content_fields'
+            );
+        }
 
         // 手动检查内容长度
         if (isset($validatedParams['content'])) {
@@ -569,6 +591,17 @@ class LongTermMemoryAdminApi extends AbstractApi
                 ExceptionBuilder::throw(
                     GenericErrorCode::ParameterValidationFailed,
                     'long_term_memory.api.content_length_exceeded'
+                );
+            }
+        }
+
+        // 手动检查 pending_content 长度
+        if (isset($validatedParams['pending_content'])) {
+            $contentLength = mb_strlen($validatedParams['pending_content']);
+            if ($contentLength > 5000) {
+                ExceptionBuilder::throw(
+                    GenericErrorCode::ParameterValidationFailed,
+                    'long_term_memory.api.pending_content_length_exceeded'
                 );
             }
         }
@@ -602,26 +635,23 @@ class LongTermMemoryAdminApi extends AbstractApi
     /**
      * 处理内容更新并构建更新记忆的DTO.
      */
-    private function buildUpdateMemoryDTO(?string $inputContent): UpdateMemoryDTO
+    private function buildUpdateMemoryDTO(?string $inputContent, ?string $inputPendingContent = null): UpdateMemoryDTO
     {
-        // 如果没有传入内容，直接返回空值的DTO
-        if ($inputContent === null) {
-            return new UpdateMemoryDTO([
-                'content' => null,
-                'pendingContent' => null, // 清空pending_content
-                'status' => null,
-                'explanation' => null,
-                'originText' => null,
-                'tags' => null,
-            ]);
+        // 构建DTO（长度检查已在参数验证阶段完成，且至少有一个字段不为空）
+        $status = null;
+        $explanation = null;
+
+        // 如果更新了content，设置状态为ACTIVE
+        if ($inputContent !== null) {
+            $status = MemoryStatus::ACTIVE->value;
+            $explanation = trans('long_term_memory.api.user_manual_edit_explanation');
         }
 
-        // 直接处理并构建DTO（长度检查已在参数验证阶段完成）
         return new UpdateMemoryDTO([
             'content' => $inputContent,
-            'pendingContent' => null, // 清空pending_content
-            'status' => MemoryStatus::ACTIVE->value,
-            'explanation' => trans('long_term_memory.api.user_manual_edit_explanation'),
+            'pendingContent' => $inputPendingContent,
+            'status' => $status,
+            'explanation' => $explanation,
             'originText' => null,
             'tags' => null,
         ]);
