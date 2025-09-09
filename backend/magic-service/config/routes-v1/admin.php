@@ -10,6 +10,7 @@ use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
+use App\Interfaces\Provider\Facade\Open\ServiceProviderOpenApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -17,8 +18,8 @@ use Hyperf\HttpServer\Router\Router;
 Router::addGroup('/api/v1', static function () {
     Router::addGroup('/service-providers', static function () {
         // 按分类获取服务商（不校验管理员权限）
-        Router::post('/category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
-        Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
+        Router::post('/category', [ServiceProviderOpenApi::class, 'getProvidersByCategory']);
+        Router::post('/by-category', [ServiceProviderOpenApi::class, 'getProvidersByCategory']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);
 
