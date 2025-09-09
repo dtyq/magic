@@ -16,6 +16,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -81,7 +82,8 @@ class WorkspaceAppService extends AbstractAppService
         protected Producer $producer,
         protected LoggerFactory $loggerFactory,
         protected FileCleanupAppService $fileCleanupAppService,
-        protected FileDomainService $fileDomainService
+        protected FileDomainService $fileDomainService,
+        protected LongTermMemoryDomainService $longTermMemoryDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -389,6 +391,19 @@ class WorkspaceAppService extends AbstractAppService
         // 调用领域服务执行删除
         Db::beginTransaction();
         try {
+            // 先获取工作区下的所有项目ID，用于删除长期记忆
+            $projectIds = $this->projectDomainService->getProjectIdsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // 批量删除项目相关的长期记忆
+            if (! empty($projectIds)) {
+                $this->longTermMemoryDomainService->deleteMemoriesByProjectIds(
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    AgentConstant::SUPER_MAGIC_CODE,
+                    $dataIsolation->getCurrentUserId(),
+                    $projectIds
+                );
+            }
+
             // 删除工作区
             $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 

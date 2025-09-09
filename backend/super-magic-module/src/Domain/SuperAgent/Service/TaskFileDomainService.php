@@ -1188,12 +1188,12 @@ class TaskFileDomainService
                         $specifiedVersion
                     );
 
-                    if (! empty($versionEntity)) {
-                        $fileEntity->setFileKey($versionEntity->getFileKey());
-                    } else {
-                        // 版本不存在，使用当前版本
-                        $this->logger->warning(sprintf('版本%d不存在，使用当前版本, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                    if (empty($versionEntity)) {
+                        $this->logger->warning(sprintf('版本%d不存在, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                        continue;
                     }
+
+                    $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
                 $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
@@ -1243,12 +1243,12 @@ class TaskFileDomainService
                         $specifiedVersion
                     );
 
-                    if (! empty($versionEntity)) {
-                        $fileEntity->setFileKey($versionEntity->getFileKey());
-                    } else {
-                        // 版本不存在，使用当前版本
-                        $this->logger->warning(sprintf('版本%d不存在，使用当前版本, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                    if (empty($versionEntity)) {
+                        $this->logger->warning(sprintf('版本%d不存在, file_id:%d', $specifiedVersion, $fileEntity->getFileId()));
+                        continue;
                     }
+
+                    $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
                 $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());

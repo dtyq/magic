@@ -191,6 +191,28 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
+     * 根据工作区ID获取项目ID列表.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织代码
+     * @return array 项目ID列表
+     */
+    public function getProjectIdsByWorkspaceId(int $workspaceId, string $userId, string $organizationCode): array
+    {
+        return $this->projectModel::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('user_id', $userId)
+            ->where('user_organization_code', $organizationCode)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->map(function ($id) {
+                return (string) $id;
+            })
+            ->toArray();
+    }
+
+    /**
      * 模型转实体.
      */
     protected function modelToEntity(ProjectModel $model): ProjectEntity

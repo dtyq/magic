@@ -68,9 +68,9 @@ class ClientMessageAppService extends AbstractAppService
      * Build message using basic parameters.
      */
     public function sendMessageToClient(
+        int $messageId,
         int $topicId,
         string $taskId,
-        string $messageId,
         string $chatTopicId,
         string $chatConversationId,
         string $content,
@@ -84,9 +84,9 @@ class ClientMessageAppService extends AbstractAppService
     ): void {
         try {
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
-                $messageId,
                 $content,
                 $messageType,
                 $status,
@@ -126,11 +126,11 @@ class ClientMessageAppService extends AbstractAppService
         string $errorMessage
     ): void {
         try {
-            $messageId = (string) IdGenerator::getSnowId();
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
-                $messageId,
                 $errorMessage,
                 MessageType::Error->value,
                 TaskStatus::ERROR->value,
@@ -168,11 +168,11 @@ class ClientMessageAppService extends AbstractAppService
         string $interruptReason = 'Task terminated'
     ): void {
         try {
-            $messageId = (string) IdGenerator::getSnowId();
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
-                $messageId,
                 $interruptReason,
                 MessageType::Finished->value,
                 TaskStatus::Suspended->value,
@@ -207,11 +207,11 @@ class ClientMessageAppService extends AbstractAppService
         string $remindEvent = ''
     ): void {
         try {
-            $messageId = (string) IdGenerator::getSnowId();
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
-                $messageId,
                 $remind,
                 MessageType::Reminder->value,
                 TaskStatus::Suspended->value,
@@ -260,8 +260,19 @@ class ClientMessageAppService extends AbstractAppService
 
         $this->logger->info('[Send to Client] Sending message to client: ' . json_encode($message->toArray(), JSON_UNESCAPED_UNICODE));
 
+        // Check for duplicate messages to avoid re-sending
+        $appMessageId = $message->getMessageId();
+        if ($this->chatMessageAppService->isMessageAlreadySent($appMessageId, ChatMessageType::SuperAgentCard->value)) {
+            $this->logger->info(sprintf(
+                'Duplicate message detected, skipping send - App Message ID: %s, Task ID: %s',
+                $appMessageId,
+                $message->getTaskId()
+            ));
+            return; // Skip sending if message already exists
+        }
+
         // Send message
-        $this->chatMessageAppService->aiSendMessage($seqDTO, (string) IdGenerator::getSnowId());
+        $this->chatMessageAppService->aiSendMessage($seqDTO, $message->getMessageId());
     }
 
     /**
@@ -269,9 +280,9 @@ class ClientMessageAppService extends AbstractAppService
      * Private method migrated from MessageBuilderDomainService::createSuperAgentMessage.
      */
     private function createSuperAgentMessage(
+        int $messageId,
         int $topicId,
         string $taskId,
-        string $messageId,
         ?string $content,
         string $messageType,
         string $status,
@@ -282,7 +293,7 @@ class ClientMessageAppService extends AbstractAppService
         ?string $correlationId = null,
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
-        $message->setMessageId($messageId);
+        $message->setMessageId((string) $messageId);
         $message->setTopicId((string) $topicId);
         $message->setTaskId($taskId);
         $message->setType($messageType);
