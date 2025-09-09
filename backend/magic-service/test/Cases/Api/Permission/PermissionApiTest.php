@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Permission;
 
-use Hyperf\Codec\Json;
 use HyperfTest\Cases\Api\AbstractHttpTest;
 
 /**
