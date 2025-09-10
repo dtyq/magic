@@ -187,17 +187,17 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 尝试从缓存获取
         $redis = di(Redis::class);
-        $cachedData = $redis->get($cacheKey);
-
-        if ($cachedData !== false) {
-            // 从缓存恢复实体对象
-            $modelsArray = Json::decode($cachedData);
-            $allModels = [];
-            foreach ($modelsArray as $modelData) {
-                $allModels[] = new ProviderModelEntity($modelData);
-            }
-            return $allModels;
-        }
+        //        $cachedData = $redis->get($cacheKey);
+        //
+        //        if ($cachedData !== false) {
+        //            // 从缓存恢复实体对象
+        //            $modelsArray = Json::decode($cachedData);
+        //            $allModels = [];
+        //            foreach ($modelsArray as $modelData) {
+        //                $allModels[] = new ProviderModelEntity($modelData);
+        //            }
+        //            return $allModels;
+        //        }
 
         // 缓存未命中，执行原逻辑
         // 1. 先查询组织下启用的服务商配置ID

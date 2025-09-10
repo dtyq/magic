@@ -13,6 +13,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
@@ -46,6 +48,7 @@ class ImageGenerateFactory
             ImageGenerateModelType::AzureOpenAIImageEdit => new AzureOpenAIImageEditModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImageEdit => new QwenImageEditModel($serviceProviderConfig),
+            ImageGenerateModelType::GoogleGemini => new GoogleGeminiModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -62,6 +65,7 @@ class ImageGenerateFactory
             ImageGenerateModelType::AzureOpenAIImageEdit => self::createAzureOpenAIImageEditRequest($data),
             ImageGenerateModelType::QwenImage => self::createQwenImageRequest($data),
             ImageGenerateModelType::QwenImageEdit => self::createQwenImageEditRequest($data),
+            ImageGenerateModelType::GoogleGemini => self::createGoogleGeminiRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -240,6 +244,27 @@ class ImageGenerateFactory
         }
 
         $request->setImageUrls($data['reference_images']);
+
+        return $request;
+    }
+
+    private static function createGoogleGeminiRequest(array $data): GoogleGeminiRequest
+    {
+        $request = new GoogleGeminiRequest(
+            '', // width - Google Gemini不使用
+            '', // height - Google Gemini不使用
+            $data['user_prompt'] ?? '',
+            '', // negative_prompt - Google Gemini不使用
+            $data['model'] ?? 'gemini-2.5-flash-image-preview'
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        if (isset($data['reference_images'])) {
+            $request->setReferImages($data['reference_images']);
+        }
 
         return $request;
     }
