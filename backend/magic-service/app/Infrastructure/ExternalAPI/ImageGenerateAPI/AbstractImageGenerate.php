@@ -56,8 +56,6 @@ abstract class AbstractImageGenerate implements ImageGenerate
      */
     abstract protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse;
 
-
-
     /**
      * 统一的水印处理逻辑
      * 支持URL和base64两种格式的图片水印处理.
