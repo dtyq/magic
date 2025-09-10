@@ -543,6 +543,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'project_id' => $entity->getProjectId(),
             'target_type' => $entity->getTargetType()->value,
             'target_id' => $entity->getTargetId(),
+            'role' => $entity->getRole()->value,
             'organization_code' => $entity->getOrganizationCode(),
             'status' => $entity->getStatus()->value,
             'invited_by' => $entity->getInvitedBy(),
