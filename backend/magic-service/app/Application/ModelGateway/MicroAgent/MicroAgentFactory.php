@@ -23,15 +23,21 @@ class MicroAgentFactory
 
     /**
      * Get or create MicroAgent instance.
+     * 
+     * @param string $name Agent name or cache key
+     * @param string|null $filePath Optional custom agent file path
      */
-    public function getAgent(string $name): MicroAgent
+    public function getAgent(string $name, ?string $filePath = null): MicroAgent
     {
-        if (isset($this->microAgents[$name])) {
-            return $this->microAgents[$name];
+        // Use file path as cache key if provided, otherwise use name
+        $cacheKey = $filePath ?? $name;
+        
+        if (isset($this->microAgents[$cacheKey])) {
+            return $this->microAgents[$cacheKey];
         }
 
-        $agent = $this->createAgent($name);
-        $this->microAgents[$name] = $agent;
+        $agent = $this->createAgent($name, $filePath);
+        $this->microAgents[$cacheKey] = $agent;
 
         return $agent;
     }
@@ -39,17 +45,19 @@ class MicroAgentFactory
     /**
      * Check if agent exists in cache.
      */
-    public function hasAgent(string $name): bool
+    public function hasAgent(string $name, ?string $filePath = null): bool
     {
-        return isset($this->microAgents[$name]);
+        $cacheKey = $filePath ?? $name;
+        return isset($this->microAgents[$cacheKey]);
     }
 
     /**
      * Remove agent from cache.
      */
-    public function removeAgent(string $name): void
+    public function removeAgent(string $name, ?string $filePath = null): void
     {
-        unset($this->microAgents[$name]);
+        $cacheKey = $filePath ?? $name;
+        unset($this->microAgents[$cacheKey]);
     }
 
     /**
@@ -79,19 +87,29 @@ class MicroAgentFactory
     /**
      * Reload agent configuration from file (useful when config file changes).
      */
-    public function reloadAgent(string $name): MicroAgent
+    public function reloadAgent(string $name, ?string $filePath = null): MicroAgent
     {
-        $this->removeAgent($name);
-        return $this->getAgent($name);
+        $this->removeAgent($name, $filePath);
+        return $this->getAgent($name, $filePath);
     }
 
     /**
      * Create a new MicroAgent instance.
+     * 
+     * @param string $name Agent name
+     * @param string|null $filePath Optional custom agent file path
      */
-    private function createAgent(string $name): MicroAgent
+    private function createAgent(string $name, ?string $filePath = null): MicroAgent
     {
         // Parse agent configuration
-        $parsed = $this->agentParserFactory->getAgentContent($name);
+        if ($filePath !== null) {
+            // Use specified file path
+            $parsed = $this->agentParserFactory->getAgentContentFromFile($filePath);
+        } else {
+            // Use original logic with agent name
+            $parsed = $this->agentParserFactory->getAgentContent($name);
+        }
+        
         $config = $parsed['config'];
 
         return new MicroAgent(
