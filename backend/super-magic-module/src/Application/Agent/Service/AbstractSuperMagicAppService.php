@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -17,7 +18,8 @@ use Qbhy\HyperfAuth\Authenticatable;
 abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 {
     public function __construct(
-        protected SuperMagicAgentDomainService $superMagicAgentDomainService
+        protected SuperMagicAgentDomainService $superMagicAgentDomainService,
+        protected MicroAgentFactory $microAgentFactory
     ) {
     }
 
