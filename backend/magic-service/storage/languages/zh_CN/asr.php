@@ -130,6 +130,7 @@ return [
         'original_recording' => '原始录音文件',
         'transcription_prefix' => '录音转文字结果',
         'summary_prefix' => '录音的总结',
+        'note_prefix' => '录音的笔记',
     ],
 
     // Markdown内容相关
@@ -145,5 +146,6 @@ return [
     // 聊天消息相关
     'messages' => [
         'summary_content' => ' 总结内容',
+        'summary_content_with_note' => '请在总结录音时参考同一目录下的录音笔记文件，并结合笔记与录音内容完成总结。',
     ],
 ];
