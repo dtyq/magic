@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectShortcutRequestDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 /**
@@ -90,7 +91,7 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 更新项目置顶状态.
      */
-    public function updateProjectPin(RequestContext $requestContext, string $id): array
+    public function updateProjectPin(RequestContext $requestContext, string $project_id): array
     {
         // Set user authorization and context data
         $userAuthorization = $this->getAuthorization();
@@ -102,7 +103,7 @@ class ProjectMemberApi extends AbstractApi
         $requestDTO = UpdateProjectPinRequestDTO::fromRequest($this->request);
 
         // 2. 委托给Application层处理
-        $this->projectMemberAppService->updateProjectPin($requestContext, (int) $id, $requestDTO);
+        $this->projectMemberAppService->updateProjectPin($requestContext, (int) $project_id, $requestDTO);
 
         return [];
     }
@@ -130,5 +131,25 @@ class ProjectMemberApi extends AbstractApi
 
         // 返回DTO转换后的数组格式
         return $responseDTO->toArray();
+    }
+
+    /**
+     * Update project shortcut.
+     */
+    public function updateProjectShortcut(RequestContext $requestContext, string $project_id): array
+    {
+        // Set user authorization and context data
+        $userAuthorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($userAuthorization);
+        $requestContext->setUserId($userAuthorization->getId());
+        $requestContext->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        // 1. 转换为RequestDTO并自动验证
+        $requestDTO = UpdateProjectShortcutRequestDTO::fromRequest($this->request);
+
+        // 2. 委托给Application层处理
+        $this->projectMemberAppService->updateProjectShortcut($requestContext, (int) $project_id, $requestDTO);
+
+        return [];
     }
 }
