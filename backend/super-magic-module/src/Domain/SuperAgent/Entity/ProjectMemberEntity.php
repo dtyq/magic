@@ -30,7 +30,7 @@ class ProjectMemberEntity extends AbstractEntity
 
     protected string $targetId = '';
 
-    protected ?MemberRole $role = null;
+    protected MemberRole $role;
 
     protected string $organizationCode = '';
 
@@ -50,6 +50,8 @@ class ProjectMemberEntity extends AbstractEntity
         $this->status = MemberStatus::ACTIVE;
         // 设置默认成员类型为用户
         $this->targetType = MemberType::USER;
+        // 设置默认角色为编辑者
+        $this->role = MemberRole::EDITOR;
 
         $this->initProperty($data);
         $this->validateEntity();
@@ -103,12 +105,12 @@ class ProjectMemberEntity extends AbstractEntity
         $this->targetId = $targetId;
     }
 
-    public function getRole(): ?MemberRole
+    public function getRole(): MemberRole
     {
         return $this->role;
     }
 
-    public function setRole(?MemberRole $role): void
+    public function setRole(MemberRole $role): void
     {
         $this->role = $role;
     }
@@ -119,7 +121,8 @@ class ProjectMemberEntity extends AbstractEntity
     public function setRoleFromString(string $role): void
     {
         if (empty($role)) {
-            $this->role = null;
+            // 如果角色为空，设置为默认的编辑者角色，而不是 null
+            $this->role = MemberRole::EDITOR;
         } else {
             $this->role = MemberRole::fromString($role);
         }
@@ -130,7 +133,7 @@ class ProjectMemberEntity extends AbstractEntity
      */
     public function getRoleValue(): string
     {
-        return $this->role?->value ?? '';
+        return $this->role->value;
     }
 
     public function getOrganizationCode(): string

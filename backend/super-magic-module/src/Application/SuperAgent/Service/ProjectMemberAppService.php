@@ -16,6 +16,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
@@ -78,6 +79,7 @@ class ProjectMemberAppService extends AbstractAppService
             $entity->setTargetId($memberData['target_id']);
             $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
             $entity->setInvitedBy($userAuthorization->getId());
+            $entity->setRole(MemberRole::EDITOR);
 
             $memberEntities[] = $entity;
         }
