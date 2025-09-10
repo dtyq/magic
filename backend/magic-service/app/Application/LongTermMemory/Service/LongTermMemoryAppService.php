@@ -28,6 +28,7 @@ use App\Infrastructure\Util\LLMParse\LLMResponseParseUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Hyperf\Odin\Message\SystemMessage;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -46,6 +47,7 @@ class LongTermMemoryAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ModelGatewayMapper $modelGatewayMapper,
         private readonly LoggerInterface $logger,
+        private readonly ProjectDomainService $projectDomainService,
     ) {
     }
 
@@ -57,6 +59,11 @@ class LongTermMemoryAppService
         // 业务逻辑验证
         $this->validateMemoryContent($dto->content);
         $this->validateMemoryPendingContent($dto->pendingContent);
+
+        // 如果传入了项目ID，需要验证项目存在性和用户权限
+        if ($dto->projectId !== null) {
+            $this->validateProjectAccess($dto->projectId, $dto->orgId, $dto->userId);
+        }
 
         return $this->longTermMemoryDomainService->create($dto);
     }
@@ -151,7 +158,7 @@ class LongTermMemoryAppService
             }
         }
 
-        $projectNames = $this->longTermMemoryDomainService->getProjectNamesBatch($projectIds);
+        $projectNames = $this->getProjectNamesBatch($projectIds);
 
         $data = array_map(function (LongTermMemoryEntity $memory) use ($projectNames) {
             $memoryArray = $memory->toArray();
@@ -174,7 +181,43 @@ class LongTermMemoryAppService
      */
     public function getProjectNameById(?string $projectId): ?string
     {
-        return $this->longTermMemoryDomainService->getProjectNameById($projectId);
+        if ($projectId === null || $projectId === '') {
+            return null;
+        }
+
+        try {
+            $project = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+            return $project->getProjectName();
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * 批量获取项目名称.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array 项目ID => 项目名称的映射数组
+     */
+    public function getProjectNamesBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        // 转换为整数数组
+        $intIds = array_map('intval', $projectIds);
+
+        // 批量查询项目
+        $projects = $this->projectDomainService->getProjectsByIds($intIds);
+
+        // 构建项目ID => 项目名称的映射
+        $projectNames = [];
+        foreach ($projects as $project) {
+            $projectNames[(string) $project->getId()] = $project->getProjectName();
+        }
+
+        return $projectNames;
     }
 
     /**
@@ -256,7 +299,7 @@ class LongTermMemoryAppService
             }
         }
 
-        $projectNames = $this->longTermMemoryDomainService->getProjectNamesBatch($projectIds);
+        $projectNames = $this->getProjectNamesBatch($projectIds);
 
         return array_map(function (LongTermMemoryEntity $memory) use ($projectNames) {
             $memoryArray = $memory->toArray();
@@ -478,5 +521,41 @@ class LongTermMemoryAppService
         if ($pendingContent !== null && mb_strlen($pendingContent) > 65535) {
             throw new InvalidArgumentException(trans('long_term_memory.entity.pending_content_too_long'));
         }
+    }
+
+    /**
+     * 验证项目访问权限.
+     * 检查项目是否存在，以及是否属于当前用户.
+     * 注意：只有项目所有者才能创建项目相关的记忆.
+     */
+    private function validateProjectAccess(string $projectId, string $orgId, string $userId): void
+    {
+        // 使用 ProjectDomainService 获取项目
+        $project = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+        if ($project === null) {
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::PROJECT_NOT_FOUND);
+        }
+
+        // 检查组织代码是否匹配
+        if ($project->getUserOrganizationCode() !== $orgId) {
+            $this->logger->warning('Project organization code mismatch', [
+                'projectId' => $projectId,
+                'expected' => $orgId,
+                'actual' => $project->getUserOrganizationCode(),
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        // 检查用户是否是项目所有者
+        if ($project->getUserId() !== $userId) {
+            $this->logger->warning('Project user ID mismatch', [
+                'projectId' => $projectId,
+                'expected' => $userId,
+                'actual' => $project->getUserId(),
+            ]);
+            ExceptionBuilder::throw(LongTermMemoryErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        $this->logger->debug('Project access validation successful', ['projectId' => $projectId]);
     }
 }

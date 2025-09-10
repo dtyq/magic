@@ -150,6 +150,17 @@ class ProjectDomainService
     }
 
     /**
+     * 批量获取项目信息（不验证用户权限）.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array<ProjectEntity> 项目实体数组
+     */
+    public function getProjectsByIds(array $projectIds): array
+    {
+        return $this->projectRepository->findByIds($projectIds);
+    }
+
+    /**
      * Get projects by conditions
      * 根据条件获取项目列表，支持分页和排序.
      */
