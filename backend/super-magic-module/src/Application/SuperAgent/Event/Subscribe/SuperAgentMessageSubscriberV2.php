@@ -13,6 +13,7 @@ use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -70,9 +71,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             if ($messageStruct instanceof TextContentInterface) {
                 // 可能是富文本，需要处理 @
                 $prompt = $messageStruct->getTextContent();
+                $chatMessageType = $userCallAgentEvent->messageEntity?->getMessageType()->value;
             } else {
                 $prompt = '';
+                $chatMessageType = ChatMessageType::Text->value;
             }
+
             // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
             $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
             $mentions = $superAgentExtra?->getMentionsJsonStruct();
@@ -147,6 +151,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 queueId: $queueId,
                 messageId: $messageId,
                 messageSeqId: $messageSeqId,
+                chatMessageType: $chatMessageType,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {
