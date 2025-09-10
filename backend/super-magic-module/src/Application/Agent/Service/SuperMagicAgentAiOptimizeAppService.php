@@ -36,7 +36,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
         }
 
         // 1. 获取优化 Agent（指定文件路径）
-        $agentFilePath = SUPER_MAGIC_MODULE_PATH . '/src/Application/Agent/MicroAgent/AgentOptimizer.agent.yaml';
+        $agentFilePath = SUPER_MAGIC_MODULE_PATH . '/src/Application/Agent/MicroAgent/AgentOptimizer.agent.yaml'; // @phpstan-ignore-line
         $optimizerAgent = $this->microAgentFactory->getAgent('SuperMagicAgentOptimizer', $agentFilePath);
 
         // 2. 设置优化工具
