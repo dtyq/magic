@@ -200,4 +200,79 @@ class ProjectMemberSettingRepository implements ProjectMemberSettingRepositoryIn
             ->where('organization_code', $organizationCode)
             ->delete();
     }
+
+    /**
+     * 设置项目快捷方式（绑定到工作区）.
+     */
+    public function setProjectShortcut(string $userId, int $projectId, int $workspaceId, string $organizationCode): bool
+    {
+        $now = date('Y-m-d H:i:s');
+
+        // 检查记录是否存在
+        $existing = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('project_id', $projectId)
+            ->first();
+
+        if ($existing) {
+            // 更新现有记录
+            return (bool) $this->model::query()
+                ->where('user_id', $userId)
+                ->where('project_id', $projectId)
+                ->update([
+                    'is_bind_workspace' => 1,
+                    'bind_workspace_id' => $workspaceId,
+                    'last_active_at' => $now,
+                    'updated_at' => $now,
+                ]);
+        }
+        // 创建新记录
+        $attributes = [
+            'id' => IdGenerator::getSnowId(),
+            'user_id' => $userId,
+            'project_id' => $projectId,
+            'organization_code' => $organizationCode,
+            'is_pinned' => 0,
+            'pinned_at' => null,
+            'is_bind_workspace' => 1,
+            'bind_workspace_id' => $workspaceId,
+            'last_active_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        $this->model::query()->create($attributes);
+        return true;
+    }
+
+    /**
+     * 取消项目快捷方式（取消工作区绑定）.
+     */
+    public function cancelProjectShortcut(string $userId, int $projectId): bool
+    {
+        $now = date('Y-m-d H:i:s');
+
+        return (bool) $this->model::query()
+            ->where('user_id', $userId)
+            ->where('project_id', $projectId)
+            ->update([
+                'is_bind_workspace' => 0,
+                'bind_workspace_id' => 0,
+                'last_active_at' => $now,
+                'updated_at' => $now,
+            ]);
+    }
+
+    /**
+     * 检查项目是否已设置快捷方式.
+     */
+    public function hasProjectShortcut(string $userId, int $projectId, int $workspaceId): bool
+    {
+        return $this->model::query()
+            ->where('user_id', $userId)
+            ->where('project_id', $projectId)
+            ->where('is_bind_workspace', 1)
+            ->where('bind_workspace_id', $workspaceId)
+            ->exists();
+    }
 }

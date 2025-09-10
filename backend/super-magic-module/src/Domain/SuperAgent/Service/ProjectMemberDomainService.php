@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberSettingEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Hyperf\DbConnection\Db;
@@ -234,5 +235,112 @@ class ProjectMemberDomainService
             $departmentIds,
             $organizationCode
         );
+    }
+
+    /**
+     * 设置项目快捷方式.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @param int $workspaceId 工作区ID
+     * @param string $organizationCode 组织编码
+     * @return bool 设置成功返回true
+     */
+    public function setProjectShortcut(string $userId, int $projectId, int $workspaceId, string $organizationCode): bool
+    {
+        return $this->projectMemberSettingRepository->setProjectShortcut($userId, $projectId, $workspaceId, $organizationCode);
+    }
+
+    /**
+     * 取消项目快捷方式.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @return bool 取消成功返回true
+     */
+    public function cancelProjectShortcut(string $userId, int $projectId): bool
+    {
+        return $this->projectMemberSettingRepository->cancelProjectShortcut($userId, $projectId);
+    }
+
+    /**
+     * 检查项目是否已设置快捷方式.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @param int $workspaceId 工作区ID
+     * @return bool 已设置返回true
+     */
+    public function hasProjectShortcut(string $userId, int $projectId, int $workspaceId): bool
+    {
+        return $this->projectMemberSettingRepository->hasProjectShortcut($userId, $projectId, $workspaceId);
+    }
+
+    /**
+     * 获取用户参与的项目列表（支持协作项目筛选）.
+     *
+     * @param string $userId 用户ID
+     * @param int $workspaceId 工作区ID（0表示不限制工作区）
+     * @param bool $showCollaboration 是否显示协作项目
+     * @param null|string $projectName 项目名称模糊搜索
+     * @param int $page 页码
+     * @param int $pageSize 每页大小
+     * @param string $sortField 排序字段
+     * @param string $sortDirection 排序方向
+     * @return array ['total' => int, 'list' => array]
+     */
+    public function getParticipatedProjectsWithCollaboration(
+        string $userId,
+        int $workspaceId,
+        bool $showCollaboration = true,
+        ?string $projectName = null,
+        int $page = 1,
+        int $pageSize = 10,
+        string $sortField = 'last_active_at',
+        string $sortDirection = 'desc'
+    ): array {
+        // 判断是否限制工作区
+        $limitWorkspace = $workspaceId > 0;
+
+        return $this->projectMemberRepository->getParticipatedProjects(
+            $userId,
+            $limitWorkspace ? $workspaceId : null,
+            $showCollaboration,
+            $projectName,
+            $page,
+            $pageSize,
+            $sortField,
+            $sortDirection
+        );
+    }
+
+    /**
+     * 初始化项目成员和设置.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @param int $workspaceId 工作区ID
+     * @param string $organizationCode 组织编码
+     */
+    public function initializeProjectMemberAndSettings(
+        string $userId,
+        int $projectId,
+        int $workspaceId,
+        string $organizationCode
+    ): void {
+        // 创建项目成员记录（设置为所有者角色）
+        $memberEntity = new ProjectMemberEntity();
+        $memberEntity->setProjectId($projectId);
+        $memberEntity->setTargetTypeFromString('User');
+        $memberEntity->setTargetId($userId);
+        $memberEntity->setRole(MemberRole::OWNER);
+        $memberEntity->setOrganizationCode($organizationCode);
+        $memberEntity->setInvitedBy($userId);
+
+        // 批量插入成员记录
+        $this->projectMemberRepository->insert([$memberEntity]);
+
+        // 创建项目成员设置记录（绑定到工作区）
+        $this->projectMemberSettingRepository->setProjectShortcut($userId, $projectId, $workspaceId, $organizationCode);
     }
 }

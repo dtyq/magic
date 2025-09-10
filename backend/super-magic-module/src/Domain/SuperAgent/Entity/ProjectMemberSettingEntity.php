@@ -33,6 +33,10 @@ class ProjectMemberSettingEntity extends AbstractEntity
 
     protected ?string $pinnedAt = null;
 
+    protected bool $isBindWorkspace = false;
+
+    protected int $bindWorkspaceId = 0;
+
     protected string $lastActiveAt = '';
 
     protected ?string $createdAt = null;
@@ -112,6 +116,44 @@ class ProjectMemberSettingEntity extends AbstractEntity
         $this->pinnedAt = $pinnedAt;
     }
 
+    public function isBindWorkspace(): bool
+    {
+        return $this->isBindWorkspace;
+    }
+
+    public function setIsBindWorkspace(bool $isBindWorkspace): void
+    {
+        $this->isBindWorkspace = $isBindWorkspace;
+    }
+
+    public function getBindWorkspaceId(): int
+    {
+        return $this->bindWorkspaceId;
+    }
+
+    public function setBindWorkspaceId(int $bindWorkspaceId): void
+    {
+        $this->bindWorkspaceId = $bindWorkspaceId;
+    }
+
+    /**
+     * 设置工作区绑定.
+     */
+    public function bindToWorkspace(int $workspaceId): void
+    {
+        $this->isBindWorkspace = true;
+        $this->bindWorkspaceId = $workspaceId;
+    }
+
+    /**
+     * 取消工作区绑定.
+     */
+    public function unbindWorkspace(): void
+    {
+        $this->isBindWorkspace = false;
+        $this->bindWorkspaceId = 0;
+    }
+
     public function getLastActiveAt(): string
     {
         return $this->lastActiveAt;
@@ -167,6 +209,14 @@ class ProjectMemberSettingEntity extends AbstractEntity
             $entity->setPinnedAt($data['pinned_at']);
         }
 
+        // 处理工作区绑定字段
+        if (isset($data['is_bind_workspace'])) {
+            $entity->setIsBindWorkspace((bool) $data['is_bind_workspace']);
+        }
+        if (isset($data['bind_workspace_id'])) {
+            $entity->setBindWorkspaceId((int) $data['bind_workspace_id']);
+        }
+
         // 处理最后活跃时间
         $entity->setLastActiveAt($data['last_active_at']);
 
@@ -188,6 +238,8 @@ class ProjectMemberSettingEntity extends AbstractEntity
             'organization_code' => $this->organizationCode,
             'is_pinned' => $this->isPinned ? 1 : 0,
             'pinned_at' => $this->pinnedAt,
+            'is_bind_workspace' => $this->isBindWorkspace ? 1 : 0,
+            'bind_workspace_id' => $this->bindWorkspaceId,
             'last_active_at' => $this->lastActiveAt,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
@@ -204,6 +256,8 @@ class ProjectMemberSettingEntity extends AbstractEntity
             'project_id' => $this->projectId,
             'organization_code' => $this->organizationCode,
             'is_pinned' => $this->isPinned ? 1 : 0,
+            'is_bind_workspace' => $this->isBindWorkspace ? 1 : 0,
+            'bind_workspace_id' => $this->bindWorkspaceId,
             'last_active_at' => $this->lastActiveAt,
         ];
 
