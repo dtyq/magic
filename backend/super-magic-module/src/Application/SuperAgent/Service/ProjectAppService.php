@@ -178,6 +178,14 @@ class ProjectAppService extends AbstractAppService
                 );
             }
 
+            // 初始化项目成员和设置
+            $this->projectMemberDomainService->initializeProjectMemberAndSettings(
+                $dataIsolation->getCurrentUserId(),
+                $projectEntity->getId(),
+                $workspaceEntity->getId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
             Db::commit();
 
             // 发布项目已创建事件

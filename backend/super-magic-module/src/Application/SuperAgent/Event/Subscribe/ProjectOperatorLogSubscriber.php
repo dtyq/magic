@@ -22,6 +22,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectCreatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicDeletedEvent;
@@ -86,6 +88,10 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
 
             // 项目成员操作事件
             ProjectMembersUpdatedEvent::class,
+
+            // 项目快捷方式操作事件
+            ProjectShortcutSetEvent::class,
+            ProjectShortcutCancelledEvent::class,
         ];
     }
 
@@ -94,6 +100,11 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
      */
     public function process(object $event): void
     {
+        // Debug: 记录接收到的事件
+        $this->logger->info('ProjectOperatorLogSubscriber received event', [
+            'event_class' => get_class($event),
+        ]);
+
         // 使用 defer 延迟处理，避免阻塞主业务流程
         try {
             $ip = IpUtil::getClientIpAddress($this->request);
@@ -171,6 +182,16 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof ProjectMembersUpdatedEvent:
+                $projectId = $event->getProjectEntity()->getId();
+                $userId = $event->getUserAuthorization()->getId();
+                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
+                break;
+            case $event instanceof ProjectShortcutSetEvent:
+                $projectId = $event->getProjectEntity()->getId();
+                $userId = $event->getUserAuthorization()->getId();
+                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
+                break;
+            case $event instanceof ProjectShortcutCancelledEvent:
                 $projectId = $event->getProjectEntity()->getId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
@@ -433,6 +454,37 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $entity->setResourceType(ResourceType::PROJECT);
                 $entity->setResourceId((string) $project->getId());
                 $entity->setOperationDetails(['members' => $members]);
+                break;
+            case $event instanceof ProjectShortcutSetEvent:
+                $project = $event->getProjectEntity();
+                $userAuthorization = $event->getUserAuthorization();
+                $entity->setUserId($userAuthorization->getId());
+                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setOperationStatus('success');
+                $entity->setIpAddress($ip);
+                $entity->setProjectId($project->getId());
+                $entity->setOperationAction(OperationAction::SET_PROJECT_SHORTCUT);
+                $entity->setResourceType(ResourceType::PROJECT);
+                $entity->setResourceId((string) $project->getId());
+                $entity->setOperationDetails([
+                    'workspace_id' => $event->getWorkspaceId(),
+                    'project_name' => $project->getProjectName(),
+                ]);
+                break;
+            case $event instanceof ProjectShortcutCancelledEvent:
+                $project = $event->getProjectEntity();
+                $userAuthorization = $event->getUserAuthorization();
+                $entity->setUserId($userAuthorization->getId());
+                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setOperationStatus('success');
+                $entity->setIpAddress($ip);
+                $entity->setProjectId($project->getId());
+                $entity->setOperationAction(OperationAction::CANCEL_PROJECT_SHORTCUT);
+                $entity->setResourceType(ResourceType::PROJECT);
+                $entity->setResourceId((string) $project->getId());
+                $entity->setOperationDetails([
+                    'project_name' => $project->getProjectName(),
+                ]);
                 break;
             default:
                 $this->logger->warning('未处理的事件类型', ['event_class' => get_class($event)]);

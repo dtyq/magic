@@ -128,4 +128,28 @@ interface ProjectMemberRepositoryInterface
         array $departmentIds,
         string $organizationCode
     ): array;
+
+    /**
+     * 获取用户参与的项目列表（支持协作项目筛选和工作区绑定筛选）.
+     *
+     * @param string $userId 用户ID
+     * @param int $workspaceId 工作区ID
+     * @param bool $showCollaboration 是否显示协作项目
+     * @param null|string $projectName 项目名称模糊搜索
+     * @param int $page 页码
+     * @param int $pageSize 每页大小
+     * @param string $sortField 排序字段
+     * @param string $sortDirection 排序方向
+     * @return array ['total' => int, 'list' => array]
+     */
+    public function getParticipatedProjects(
+        string $userId,
+        ?int $workspaceId,
+        bool $showCollaboration = true,
+        ?string $projectName = null,
+        int $page = 1,
+        int $pageSize = 10,
+        string $sortField = 'last_active_at',
+        string $sortDirection = 'desc'
+    ): array;
 }

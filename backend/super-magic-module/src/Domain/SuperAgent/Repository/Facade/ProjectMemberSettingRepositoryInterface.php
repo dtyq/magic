@@ -96,4 +96,34 @@ interface ProjectMemberSettingRepositoryInterface
      * @return int 删除的记录数
      */
     public function deleteByUser(string $userId, string $organizationCode): int;
+
+    /**
+     * 设置项目快捷方式（绑定到工作区）.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @param int $workspaceId 工作区ID
+     * @param string $organizationCode 组织编码
+     * @return bool 设置成功返回true
+     */
+    public function setProjectShortcut(string $userId, int $projectId, int $workspaceId, string $organizationCode): bool;
+
+    /**
+     * 取消项目快捷方式（取消工作区绑定）.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @return bool 取消成功返回true
+     */
+    public function cancelProjectShortcut(string $userId, int $projectId): bool;
+
+    /**
+     * 检查项目是否已设置快捷方式.
+     *
+     * @param string $userId 用户ID
+     * @param int $projectId 项目ID
+     * @param int $workspaceId 工作区ID
+     * @return bool 已设置返回true
+     */
+    public function hasProjectShortcut(string $userId, int $projectId, int $workspaceId): bool;
 }

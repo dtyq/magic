@@ -21,6 +21,7 @@ class ProjectMemberModel extends AbstractModel
         'project_id',
         'target_type',
         'target_id',
+        'role',
         'organization_code',
         'status',
         'invited_by',
