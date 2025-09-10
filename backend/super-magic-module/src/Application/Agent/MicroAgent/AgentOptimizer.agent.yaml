@@ -1,5 +1,5 @@
 ---
-model_id: deepseek-3
+model_id: deepseek-v3
 temperature: 0.6
 enabled_model_fallback_chain: true
 ---
