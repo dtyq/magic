@@ -13,6 +13,7 @@ Router::addGroup('/api/v1/super-magic', function () {
 
         Router::post('', [SuperMagicAgentAdminApi::class, 'save']);
         Router::post('/queries', [SuperMagicAgentAdminApi::class, 'queries']);
+        Router::post('/ai-optimize', [SuperMagicAgentAdminApi::class, 'aiOptimize']);
         Router::get('/{code}', [SuperMagicAgentAdminApi::class, 'show']);
         Router::delete('/{code}', [SuperMagicAgentAdminApi::class, 'destroy']);
         Router::put('/{code}/enable', [SuperMagicAgentAdminApi::class, 'enable']);

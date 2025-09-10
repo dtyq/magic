@@ -70,6 +70,8 @@ class ConfigProvider
 {
     public function __invoke(): array
     {
+        define('SUPER_MAGIC_MODULE_PATH', BASE_PATH . '/vendor/dtyq/super-magic-module');
+
         $publishConfigs = [];
 
         // 遍历 publish/route 文件夹下的所有文件
