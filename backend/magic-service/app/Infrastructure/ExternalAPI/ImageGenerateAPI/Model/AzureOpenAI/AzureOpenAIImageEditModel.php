@@ -92,7 +92,6 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-
         return $this->processAzureOpenAIEditRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
