@@ -34,7 +34,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
 class KnowledgeBaseFragmentsModel extends AbstractModel
 {
     use Snowflake;
-    use SoftDeletes;
+    //    use SoftDeletes;
 
     protected ?string $table = 'magic_flow_knowledge_fragment';
 
