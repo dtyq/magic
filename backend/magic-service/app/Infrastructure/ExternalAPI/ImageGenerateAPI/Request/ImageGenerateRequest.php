@@ -36,6 +36,12 @@ class ImageGenerateRequest
     // 有效期
     protected ?int $validityPeriod = null;
 
+    // 用户ID（用于PGP签名）
+    protected ?string $userId = null;
+
+    // 组织编码（用于PGP签名）
+    protected ?string $organizationCode = null;
+
     public function __construct(
         string $width = '',
         string $height = '',
@@ -143,5 +149,30 @@ class ImageGenerateRequest
     public function setValidityPeriod(?int $validityPeriod): void
     {
         $this->validityPeriod = $validityPeriod;
+    }
+
+    public function getUserId(): ?string
+    {
+        return $this->userId;
+    }
+
+    public function setUserId(?string $userId): void
+    {
+        $this->userId = $userId;
+    }
+
+    public function getOrganizationCode(): ?string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(?string $organizationCode): void
+    {
+        $this->organizationCode = $organizationCode;
+    }
+
+    public function isAddWatermark(): bool
+    {
+        return $this->getWatermarkConfig() !== null;
     }
 }

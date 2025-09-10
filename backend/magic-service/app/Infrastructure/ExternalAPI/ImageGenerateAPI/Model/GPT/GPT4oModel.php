@@ -62,10 +62,6 @@ class GPT4oModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
-
         return $this->processGPT4oRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 

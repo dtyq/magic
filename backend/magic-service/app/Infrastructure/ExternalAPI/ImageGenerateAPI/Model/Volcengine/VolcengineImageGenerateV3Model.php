@@ -56,9 +56,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
+
         return $this->processVolcengineV3RawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 

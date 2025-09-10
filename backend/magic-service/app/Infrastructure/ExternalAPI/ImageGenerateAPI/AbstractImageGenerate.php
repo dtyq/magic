@@ -39,19 +39,7 @@ abstract class AbstractImageGenerate implements ImageGenerate
      */
     final public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        // 1. 调用子类的原始生成方法
         $originalResponse = $this->generateImageInternal($imageGenerateRequest);
-
-        // 2. 获取水印配置（所有图片都必须加水印）
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $originalResponse;
-        }
-
-        // 3. 统一添加水印
-        $this->logger->info('图片生成：开始添加统一水印', [
-            'imageCount' => count($originalResponse->getData()),
-            'imageType' => $originalResponse->getImageGenerateType()->value,
-        ]);
 
         return $this->applyWatermark($originalResponse, $imageGenerateRequest);
     }
@@ -67,11 +55,6 @@ abstract class AbstractImageGenerate implements ImageGenerate
      * 只负责调用各自API生成图片，不用关心水印处理.
      */
     abstract protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse;
-
-    protected function isWatermark(ImageGenerateRequest $imageGenerateRequest): bool
-    {
-        return $imageGenerateRequest->getWatermarkConfig() === null;
-    }
 
     /**
      * 统一的水印处理逻辑

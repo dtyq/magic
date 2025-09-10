@@ -357,9 +357,8 @@ class LLMAppService extends AbstractLLMAppService
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
-        $creator = $accessTokenEntity->getCreator();
         $organizationCode = $accessTokenEntity->getOrganizationCode();
-
+        $creator = $accessTokenEntity->getCreator();
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -371,11 +370,16 @@ class LLMAppService extends AbstractLLMAppService
         $data = $imageGenerateParamsVO->toArray();
         $data['organization_code'] = $organizationCode;
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
 
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
 
