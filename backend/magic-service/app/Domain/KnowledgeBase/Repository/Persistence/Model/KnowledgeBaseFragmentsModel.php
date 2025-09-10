@@ -9,7 +9,6 @@ namespace App\Domain\KnowledgeBase\Repository\Persistence\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use DateTime;
-use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\Snowflake\Concern\Snowflake;
 
 /**
@@ -34,7 +33,6 @@ use Hyperf\Snowflake\Concern\Snowflake;
 class KnowledgeBaseFragmentsModel extends AbstractModel
 {
     use Snowflake;
-    //    use SoftDeletes;
 
     protected ?string $table = 'magic_flow_knowledge_fragment';
 
