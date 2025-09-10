@@ -79,6 +79,7 @@ return [
             'project_access_denied_organization' => '项目不属于当前组织，无访问权限',
             'project_access_denied_user' => '无权限访问该项目',
             'project_access_validation_failed' => '项目权限验证失败: :error',
+            'note_content_too_long' => 'Note内容过长，最大支持10000字符，当前:length字符',
         ],
         'upload' => [
             'start_log' => 'ASR文件上传开始',

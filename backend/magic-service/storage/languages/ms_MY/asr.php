@@ -73,6 +73,7 @@ return [
             'task_not_found' => 'Tugas tidak dijumpai atau telah tamat tempoh',
             'task_not_exist' => 'Tugas tidak wujud atau telah tamat tempoh',
             'upload_audio_first' => 'Sila muat naik fail audio terlebih dahulu',
+            'note_content_too_long' => 'Kandungan nota terlalu panjang, maksimum 10000 aksara disokong, semasa :length aksara',
         ],
         'upload' => [
             'start_log' => 'Mula muat naik fail ASR',

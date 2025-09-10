@@ -79,6 +79,7 @@ return [
             'project_access_denied_organization' => 'Project does not belong to current organization, access denied',
             'project_access_denied_user' => 'No permission to access this project',
             'project_access_validation_failed' => 'Project permission validation failed: :error',
+            'note_content_too_long' => 'Note content is too long, maximum 10000 characters supported, current :length characters',
         ],
         'upload' => [
             'start_log' => 'ASR file upload started',
