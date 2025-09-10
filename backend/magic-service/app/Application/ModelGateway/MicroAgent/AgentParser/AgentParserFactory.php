@@ -40,6 +40,24 @@ readonly class AgentParserFactory
     }
 
     /**
+     * Get agent content from specified file path.
+     */
+    public function getAgentContentFromFile(string $filePath): array
+    {
+        if (! file_exists($filePath)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.file_not_found', [
+                'file' => $filePath,
+            ]);
+        }
+
+        // Get appropriate parser for the file
+        $parser = $this->getParserForFile($filePath);
+
+        // Parse and return content
+        return $parser->loadFromFile($filePath);
+    }
+
+    /**
      * Find agent file by trying different supported extensions.
      * Supports both flat structure (agent) and directory structure (directory.agent).
      */
