@@ -9,11 +9,14 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Admin;
 
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAiOptimizeAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinToolAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentAiOptimizeFormRequest;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentOrderFormRequest;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentQueryFormRequest;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentSaveFormRequest;
@@ -24,6 +27,9 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
 {
     #[Inject]
     protected SuperMagicAgentAppService $superMagicAgentAppService;
+
+    #[Inject]
+    protected SuperMagicAgentAiOptimizeAppService $superMagicAgentAiOptimizeAppService;
 
     public function save(SuperMagicAgentSaveFormRequest $request)
     {
@@ -128,5 +134,33 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
     public function tools()
     {
         return BuiltinToolAssembler::createToolCategoryListDTO();
+    }
+
+    /**
+     * AI优化智能体.
+     */
+    public function aiOptimize(SuperMagicAgentAiOptimizeFormRequest $request)
+    {
+        $authorization = $this->getAuthorization();
+        $requestData = $request->validated();
+
+        // 创建优化类型枚举实例（FormRequest 验证确保有效性）
+        $optimizationType = SuperMagicAgentOptimizationType::fromString($requestData['optimization_type']);
+
+        // 使用 SuperMagicAgentAssembler 创建实体
+        $DTO = new SuperMagicAgentDTO($requestData['agent']);
+        $agentEntity = SuperMagicAgentAssembler::createDO($DTO);
+
+        // 调用优化服务
+        $optimizedEntity = $this->superMagicAgentAiOptimizeAppService->optimizeAgent(
+            $authorization,
+            $optimizationType,
+            $agentEntity
+        );
+
+        return [
+            'optimization_type' => $optimizationType->value,
+            'agent' => SuperMagicAgentAssembler::createDTO($optimizedEntity),
+        ];
     }
 }
