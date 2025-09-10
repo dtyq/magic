@@ -338,29 +338,22 @@ class ProjectAppService extends AbstractAppService
             'desc'
         );
 
-        // 提取所有项目ID
-        // $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
-
-        // 提取所有工作区ID
+        // 提取所有项目ID和工作区ID
+        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $result['list'] ?? []));
 
         // 批量获取项目状态
-        // $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds);
+        $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds, $dataIsolation->getCurrentUserId());
 
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
-        $projectIds = [];
-        foreach ($result['list'] as $projectEntity) {
-            $projectIds[] = $projectEntity->getId();
-        }
-
-        // 新增方法，根据$projectIds，判断是否存在数据，如果存在则返回存在的projectIds
+        // 批量获取项目成员数量，判断是否存在协作成员
         $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
         $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap);
 
         return $listResponseDTO->toArray();
     }
