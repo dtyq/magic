@@ -11,11 +11,14 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SetProjectShortcutRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -30,6 +33,7 @@ class ProjectApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         private readonly ProjectAppService $projectAppService,
+        private readonly ProjectMemberAppService $projectMemberAppService,
     ) {
         parent::__construct($request);
     }
@@ -194,5 +198,50 @@ class ProjectApi extends AbstractApi
         $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
 
         return $this->projectAppService->moveProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Set project shortcut.
+     */
+    public function setProjectShortcut(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = SetProjectShortcutRequestDTO::fromRequest($this->request);
+
+        $this->projectMemberAppService->setProjectShortcut($requestContext, (int) $id, $requestDTO);
+
+        return [
+            'success' => true,
+        ];
+    }
+
+    /**
+     * Cancel project shortcut.
+     */
+    public function cancelProjectShortcut(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $this->projectMemberAppService->cancelProjectShortcut($requestContext, (int) $id);
+
+        return [
+            'success' => true,
+        ];
+    }
+
+    /**
+     * Get participated projects.
+     */
+    public function getParticipatedProjects(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetParticipatedProjectsRequestDTO::fromRequest($this->request);
+
+        return $this->projectMemberAppService->getParticipatedProjects($requestContext, $requestDTO);
     }
 }

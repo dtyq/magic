@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -28,6 +29,8 @@ class ProjectMemberEntity extends AbstractEntity
     protected MemberType $targetType;
 
     protected string $targetId = '';
+
+    protected ?MemberRole $role = null;
 
     protected string $organizationCode = '';
 
@@ -100,6 +103,36 @@ class ProjectMemberEntity extends AbstractEntity
         $this->targetId = $targetId;
     }
 
+    public function getRole(): ?MemberRole
+    {
+        return $this->role;
+    }
+
+    public function setRole(?MemberRole $role): void
+    {
+        $this->role = $role;
+    }
+
+    /**
+     * 从字符串设置成员角色.
+     */
+    public function setRoleFromString(string $role): void
+    {
+        if (empty($role)) {
+            $this->role = null;
+        } else {
+            $this->role = MemberRole::fromString($role);
+        }
+    }
+
+    /**
+     * 获取角色的字符串值.
+     */
+    public function getRoleValue(): string
+    {
+        return $this->role?->value ?? '';
+    }
+
     public function getOrganizationCode(): string
     {
         return $this->organizationCode;
@@ -167,6 +200,7 @@ class ProjectMemberEntity extends AbstractEntity
         $entity->setProjectId($data['project_id']);
         $entity->setTargetTypeFromString($data['target_type']);
         $entity->setTargetId($data['target_id']);
+        $entity->setRoleFromString($data['role']);
         $entity->setOrganizationCode($data['organization_code']);
         $entity->setStatus(MemberStatus::from((int) $data['status'])); // 转换为MemberStatus枚举
         $entity->setInvitedBy($data['invited_by']);
@@ -186,6 +220,7 @@ class ProjectMemberEntity extends AbstractEntity
             'project_id' => $this->projectId,
             'target_type' => $this->targetType->value,
             'target_id' => $this->targetId,
+            'role' => $this->getRoleValue(),
             'organization_code' => $this->organizationCode,
             'status' => $this->status->value,
             'invited_by' => $this->invitedBy,

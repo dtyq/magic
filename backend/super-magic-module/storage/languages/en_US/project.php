@@ -17,6 +17,7 @@ return [
     ],
     'department_not_found' => 'Department not found',
     'invalid_member_type' => 'Invalid member type',
+    'invalid_member_role' => 'Invalid member role',
     'update_members_failed' => 'Failed to update members',
     'member_validation_failed' => 'Member validation failed',
 
@@ -31,9 +32,16 @@ return [
         'department' => 'Department',
     ],
 
-    // 成员状态描述
+    // Member status descriptions
     'member_status' => [
         'active' => 'Active',
         'inactive' => 'Inactive',
+    ],
+
+    // Member role descriptions
+    'member_role' => [
+        'owner' => 'Owner',
+        'editor' => 'Editor',
+        'viewer' => 'Viewer',
     ],
 ];
