@@ -18,7 +18,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsReq
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SetProjectShortcutRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -76,6 +76,26 @@ class ProjectApi extends AbstractApi
         $this->projectAppService->deleteProject($requestContext, (int) $id);
 
         return ['id' => $id];
+    }
+
+    /**
+     * Pin project.
+     */
+    public function pin(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization and context data
+        $userAuthorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($userAuthorization);
+        $requestContext->setUserId($userAuthorization->getId());
+        $requestContext->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        // 1. 转换为RequestDTO并自动验证
+        $requestDTO = UpdateProjectPinRequestDTO::fromRequest($this->request);
+
+        // 2. 委托给Application层处理
+        $this->projectMemberAppService->updateProjectPin($requestContext, (int) $id, $requestDTO);
+
+        return [];
     }
 
     /**
@@ -198,38 +218,6 @@ class ProjectApi extends AbstractApi
         $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
 
         return $this->projectAppService->moveProject($requestContext, $requestDTO);
-    }
-
-    /**
-     * Set project shortcut.
-     */
-    public function setProjectShortcut(RequestContext $requestContext, string $id): array
-    {
-        // Set user authorization
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        $requestDTO = SetProjectShortcutRequestDTO::fromRequest($this->request);
-
-        $this->projectMemberAppService->setProjectShortcut($requestContext, (int) $id, $requestDTO);
-
-        return [
-            'success' => true,
-        ];
-    }
-
-    /**
-     * Cancel project shortcut.
-     */
-    public function cancelProjectShortcut(RequestContext $requestContext, string $id): array
-    {
-        // Set user authorization
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        $this->projectMemberAppService->cancelProjectShortcut($requestContext, (int) $id);
-
-        return [
-            'success' => true,
-        ];
     }
 
     /**

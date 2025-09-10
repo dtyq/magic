@@ -20,6 +20,7 @@ return [
     'invalid_member_role' => 'Invalid member role',
     'update_members_failed' => 'Failed to update members',
     'member_validation_failed' => 'Member validation failed',
+    'cannot_set_shortcut_for_own_project' => 'Cannot set shortcut for your own project',
 
     // Operation log related
     'operation_log' => [

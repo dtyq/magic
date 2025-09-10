@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
@@ -217,6 +218,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         // 使用单次查询优化N+1问题
         $results = $this->projectMemberModel::query()
             ->whereIn('project_id', $projectIds)
+            ->whereIn('role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->groupBy('project_id')
             ->selectRaw('project_id, COUNT(*) as total_count')
             ->get()

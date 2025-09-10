@@ -16,7 +16,6 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
@@ -26,9 +25,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SetProjectShortcutRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectShortcutRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationCreatorListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
@@ -79,7 +78,6 @@ class ProjectMemberAppService extends AbstractAppService
             $entity->setTargetId($memberData['target_id']);
             $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
             $entity->setInvitedBy($userAuthorization->getId());
-            $entity->setRole(MemberRole::EDITOR);
 
             $memberEntities[] = $entity;
         }
@@ -262,6 +260,54 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
+     * Update project shortcut.
+     */
+    public function updateProjectShortcut(
+        RequestContext $requestContext,
+        int $projectId,
+        UpdateProjectShortcutRequestDTO $requestDTO
+    ): void {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 1. 验证并获取可访问的项目
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        if ($projectEntity->getUserId() === $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT);
+        }
+        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
+        if (! $workspaceEntity || $workspaceEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
+        }
+
+        // 2. 根据参数决定是设置还是取消快捷方式
+        if ($requestDTO->getIsBindWorkspace() === 1) {
+            // 设置快捷方式
+            // 3. 委托给Domain层处理设置快捷方式
+            $this->projectMemberDomainService->setProjectShortcut(
+                $userAuthorization->getId(),
+                $projectId,
+                (int) $requestDTO->getWorkspaceId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 4. 发布项目快捷方式设置事件
+            $projectShortcutSetEvent = new ProjectShortcutSetEvent($projectEntity, (int) $requestDTO->getWorkspaceId(), $userAuthorization);
+            $this->eventDispatcher->dispatch($projectShortcutSetEvent);
+        } else {
+            // 取消快捷方式
+            // 3. 委托给Domain层处理取消快捷方式
+            $this->projectMemberDomainService->cancelProjectShortcut(
+                $userAuthorization->getId(),
+                $projectId
+            );
+
+            // 4. 发布项目快捷方式取消事件
+            $projectShortcutCancelledEvent = new ProjectShortcutCancelledEvent($projectEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($projectShortcutCancelledEvent);
+        }
+    }
+
+    /**
      * 获取协作项目创建者列表.
      */
     public function getCollaborationProjectCreators(RequestContext $requestContext): CollaborationCreatorListResponseDTO
@@ -295,85 +341,6 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 5. 创建响应DTO并返回
         return CollaborationCreatorListResponseDTO::fromUserEntities($userEntities);
-    }
-
-    /**
-     * 设置项目快捷方式.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param int $projectId 项目ID
-     * @param SetProjectShortcutRequestDTO $requestDTO 请求DTO
-     */
-    public function setProjectShortcut(
-        RequestContext $requestContext,
-        int $projectId,
-        SetProjectShortcutRequestDTO $requestDTO
-    ): void {
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 1. 验证并获取可访问的项目
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-        // 自己的项目不允许设置快捷方式
-        if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-        }
-
-        // 2. 委托给Domain层处理业务逻辑
-        $this->projectMemberDomainService->setProjectShortcut(
-            $userAuthorization->getId(),
-            $projectId,
-            $requestDTO->getWorkspaceId(),
-            $userAuthorization->getOrganizationCode()
-        );
-
-        // 4. 发布项目快捷方式设置事件
-        $projectShortcutSetEvent = new ProjectShortcutSetEvent($projectEntity, $requestDTO->getWorkspaceId(), $userAuthorization);
-        $this->eventDispatcher->dispatch($projectShortcutSetEvent);
-
-        // 5. 记录成功日志
-        $this->logger->info('Project shortcut set successfully', [
-            'project_id' => $projectId,
-            'workspace_id' => $requestDTO->getWorkspaceId(),
-            'operator_id' => $userAuthorization->getId(),
-            'timestamp' => time(),
-        ]);
-    }
-
-    /**
-     * 取消项目快捷方式.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param int $projectId 项目ID
-     */
-    public function cancelProjectShortcut(
-        RequestContext $requestContext,
-        int $projectId
-    ): void {
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 1. 验证并获取可访问的项目
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-        // 自己的项目不允许设置快捷方式
-        if ($projectEntity->getUserId() !== $userAuthorization->getId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-        }
-
-        // 2. 委托给Domain层处理业务逻辑
-        $this->projectMemberDomainService->cancelProjectShortcut(
-            $userAuthorization->getId(),
-            $projectId
-        );
-
-        // 3. 发布项目快捷方式取消事件
-        $projectShortcutCancelledEvent = new ProjectShortcutCancelledEvent($projectEntity, $userAuthorization);
-        $this->eventDispatcher->dispatch($projectShortcutCancelledEvent);
-
-        // 5. 记录成功日志
-        $this->logger->info('Project shortcut cancelled successfully', [
-            'project_id' => $projectId,
-            'operator_id' => $userAuthorization->getId(),
-            'timestamp' => time(),
-        ]);
     }
 
     /**
