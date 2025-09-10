@@ -131,6 +131,7 @@ return [
         'original_recording' => 'Original Recording',
         'transcription_prefix' => 'Transcription Result',
         'summary_prefix' => 'Recording Summary',
+        'note_prefix' => 'Recording Note',
     ],
 
     // Markdown content related
@@ -146,5 +147,6 @@ return [
     // Chat messages related
     'messages' => [
         'summary_content' => ' Summarize content',
+        'summary_content_with_note' => 'When summarizing the recording, please refer to the recording note file in the same directory and base the summary on both the note and the recording.',
     ],
 ];

@@ -125,6 +125,7 @@ return [
         'original_recording' => 'Fail Rakaman Asal',
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
+        'note_prefix' => 'Nota Rakaman',
     ],
 
     // Kandungan Markdown berkaitan
@@ -140,5 +141,6 @@ return [
     // Berkaitan dengan mesej sembang
     'messages' => [
         'summary_content' => ' Ringkaskan kandungan',
+        'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
     ],
 ];

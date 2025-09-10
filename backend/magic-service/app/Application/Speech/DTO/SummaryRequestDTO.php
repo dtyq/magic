@@ -18,7 +18,8 @@ readonly class SummaryRequestDTO
         public string $projectId,
         public string $topicId,
         public string $modelId,
-        public ?string $workspaceFilePath = null
+        public ?string $workspaceFilePath = null,
+        public ?NoteDTO $note = null
     ) {
     }
 
@@ -52,5 +53,25 @@ readonly class SummaryRequestDTO
         }
 
         return basename($this->workspaceFilePath);
+    }
+
+    /**
+     * 是否有笔记.
+     */
+    public function hasNote(): bool
+    {
+        return $this->note !== null && $this->note->hasContent();
+    }
+
+    /**
+     * 获取笔记的文件名.
+     */
+    public function getNoteFileName(): ?string
+    {
+        if (! $this->hasNote()) {
+            return null;
+        }
+
+        return $this->note->generateFileName();
     }
 }

@@ -21,7 +21,7 @@ Router::addGroup('/api/v1/asr', function () {
     Router::post('/upload', [AsrTokenApi::class, 'uploadFile']); // ASR专用服务端代理文件上传
 
     // 录音总结服务
-    Router::get('/summary', [AsrTokenApi::class, 'summary']); // 查询录音总结状态（包含处理逻辑）
+    Router::post('/summary', [AsrTokenApi::class, 'summary']); // 查询录音总结状态（包含处理逻辑）
     // 合并录音文件下载服务
     Router::get('/download-url', [AsrTokenApi::class, 'downloadMergedAudio']); // 获取合并后录音文件的下载链接
 
