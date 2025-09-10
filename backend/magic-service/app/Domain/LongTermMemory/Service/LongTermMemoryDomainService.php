@@ -25,7 +25,6 @@ use DateTime;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -42,7 +41,6 @@ readonly class LongTermMemoryDomainService
         private LoggerInterface $logger,
         private LockerInterface $locker,
         private MagicMessageRepositoryInterface $messageRepository,
-        private ProjectRepositoryInterface $projectRepository,
     ) {
     }
 
@@ -595,40 +593,6 @@ readonly class LongTermMemoryDomainService
         }
 
         return false;
-    }
-
-    /**
-     * 批量获取项目名称.
-     *
-     * @param array $projectIds 项目ID数组
-     * @return array 项目ID => 项目名称的映射数组
-     */
-    public function getProjectNamesBatch(array $projectIds): array
-    {
-        if (empty($projectIds)) {
-            return [];
-        }
-
-        $projects = $this->projectRepository->findByIds($projectIds);
-
-        $projectNames = [];
-        foreach ($projects as $project) {
-            $projectNames[(string) $project->getId()] = $project->getProjectName();
-        }
-
-        return $projectNames;
-    }
-
-    /**
-     * 根据项目ID获取项目名称.
-     */
-    public function getProjectNameById(?string $projectId): ?string
-    {
-        if ($projectId === null || $projectId === '') {
-            return null;
-        }
-
-        return $this->projectRepository->findById((int) $projectId)?->getProjectName();
     }
 
     /**

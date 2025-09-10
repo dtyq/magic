@@ -43,4 +43,10 @@ enum LongTermMemoryErrorCode: int
 
     #[ErrorMessage('long_term_memory.enabled_memory_limit_exceeded')]
     case ENABLED_MEMORY_LIMIT_EXCEEDED = 45014;
+
+    #[ErrorMessage('long_term_memory.project_not_found')]
+    case PROJECT_NOT_FOUND = 45015;
+
+    #[ErrorMessage('long_term_memory.project_access_denied')]
+    case PROJECT_ACCESS_DENIED = 45016;
 }
