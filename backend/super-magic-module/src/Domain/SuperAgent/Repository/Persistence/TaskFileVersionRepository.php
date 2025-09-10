@@ -75,21 +75,19 @@ class TaskFileVersionRepository implements TaskFileVersionRepositoryInterface
 
     public function deleteOldVersionsByFileId(int $fileId, int $keepCount): int
     {
-        // 获取需要删除的版本ID列表（保留最新的keepCount个版本）
-        $versionsToDelete = $this->model::query()
-            ->where('file_id', $fileId)
-            ->orderBy('version', 'desc')
-            ->skip($keepCount)  // 跳过最新的keepCount个版本
-            ->pluck('id')
-            ->toArray();
+        // 获取需要清理的版本实体列表
+        $versionsToDelete = $this->getVersionsToCleanup($fileId, $keepCount);
 
         if (empty($versionsToDelete)) {
             return 0;
         }
 
+        // 提取版本ID用于批量删除
+        $idsToDelete = array_map(fn ($version) => $version->getId(), $versionsToDelete);
+
         // 批量删除旧版本
         return $this->model::query()
-            ->whereIn('id', $versionsToDelete)
+            ->whereIn('id', $idsToDelete)
             ->delete();
     }
 
@@ -105,11 +103,26 @@ class TaskFileVersionRepository implements TaskFileVersionRepositoryInterface
      */
     public function getVersionsToCleanup(int $fileId, int $keepCount): array
     {
-        $models = $this->model::query()
+        // 第一步：获取需要保留的版本ID（最新的keepCount个版本）
+        $idsToKeep = $this->model::query()
             ->where('file_id', $fileId)
             ->orderBy('version', 'desc')
-            ->skip($keepCount)
-            ->get();
+            ->limit($keepCount)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($idsToKeep)) {
+            // 如果没有要保留的版本，返回所有版本用于清理
+            $models = $this->model::query()
+                ->where('file_id', $fileId)
+                ->get();
+        } else {
+            // 第二步：获取需要删除的版本记录
+            $models = $this->model::query()
+                ->where('file_id', $fileId)
+                ->whereNotIn('id', $idsToKeep)
+                ->get();
+        }
 
         $entities = [];
         foreach ($models as $model) {
