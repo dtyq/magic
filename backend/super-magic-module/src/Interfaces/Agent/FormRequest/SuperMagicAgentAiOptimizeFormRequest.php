@@ -21,7 +21,7 @@ class SuperMagicAgentAiOptimizeFormRequest extends FormRequest
     {
         return [
             'optimization_type' => ['required', 'string', function ($attribute, $value, $fail) {
-                if (SuperMagicAgentOptimizationType::fromString($value) === null) {
+                if (SuperMagicAgentOptimizationType::fromString($value)->isNone()) {
                     $fail('The ' . $attribute . ' is invalid.');
                 }
             }],
