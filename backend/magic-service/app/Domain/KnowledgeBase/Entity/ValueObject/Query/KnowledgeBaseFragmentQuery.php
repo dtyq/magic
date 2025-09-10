@@ -19,8 +19,6 @@ class KnowledgeBaseFragmentQuery extends Query
 
     public ?int $maxSyncTimes = null;
 
-    public bool $withTrashed = false;
-
     public bool $isDefaultDocumentCode = false;
 
     public ?int $version = null;
@@ -74,17 +72,6 @@ class KnowledgeBaseFragmentQuery extends Query
     public function setDocumentCode(string $documentCode): KnowledgeBaseFragmentQuery
     {
         $this->documentCode = $documentCode;
-        return $this;
-    }
-
-    public function isWithTrashed(): bool
-    {
-        return $this->withTrashed;
-    }
-
-    public function setWithTrashed(bool $withTrashed): self
-    {
-        $this->withTrashed = $withTrashed;
         return $this;
     }
 
