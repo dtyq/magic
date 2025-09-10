@@ -100,10 +100,6 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
-
         return $this->processAzureOpenAIRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 

@@ -368,13 +368,19 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
         $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
 
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
-
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
 
