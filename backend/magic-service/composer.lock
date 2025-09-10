@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a06247d59146ced824937e90b4a9377f",
+    "content-hash": "0dbc3544a8ff5d7dcf9ed2f4b344802c",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1884,16 +1884,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.58",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "fcd0466435509d6d10f2a7e0b29dc1f10cc6dc59"
+                "reference": "f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=fcd0466435509d6d10f2a7e0b29dc1f10cc6dc59",
-                "reference": "fcd0466435509d6d10f2a7e0b29dc1f10cc6dc59",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a",
+                "reference": "f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a",
                 "shasum": ""
             },
             "require": {
@@ -1927,6 +1927,7 @@
                 "phpstan/phpstan": "^1.0",
                 "phpunit/phpunit": "^10.0"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -1971,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.58"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-10T18:16:41+08:00"
+            "time": "2025-09-10T10:08:47+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2192,17 +2193,17 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "395a16c99276de9eb4d810d3a6ee11002fdec646"
+                "reference": "b18a3e96725233b2305a10c09250b238dceb69b4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=395a16c99276de9eb4d810d3a6ee11002fdec646",
-                "reference": "395a16c99276de9eb4d810d3a6ee11002fdec646",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b18a3e96725233b2305a10c09250b238dceb69b4",
+                "reference": "b18a3e96725233b2305a10c09250b238dceb69b4",
                 "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
-                "dtyq/billing-manager": "^1.0.1",
+                "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
@@ -2302,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-10T19:56:53+08:00"
+            "time": "2025-09-10T12:08:14+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -16331,16 +16332,16 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.1.23",
+            "version": "2.1.22",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan.git",
-                "reference": "a34502adbbd5c2366b5a97679848a5ace4f6f2f5"
+                "reference": "41600c8379eb5aee63e9413fe9e97273e25d57e4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/a34502adbbd5c2366b5a97679848a5ace4f6f2f5",
-                "reference": "a34502adbbd5c2366b5a97679848a5ace4f6f2f5",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/41600c8379eb5aee63e9413fe9e97273e25d57e4",
+                "reference": "41600c8379eb5aee63e9413fe9e97273e25d57e4",
                 "shasum": ""
             },
             "require": {
@@ -16385,7 +16386,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-09-10T11:42:22+00:00"
+            "time": "2025-08-04T19:17:37+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
@@ -19711,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19729,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
