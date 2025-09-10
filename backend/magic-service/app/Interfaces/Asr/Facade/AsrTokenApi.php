@@ -9,6 +9,7 @@ namespace App\Interfaces\Asr\Facade;
 
 use App\Application\Asr\DTO\DownloadMergedAudioResponseDTO;
 use App\Application\File\Service\FileAppService;
+use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
@@ -172,9 +173,9 @@ class AsrTokenApi extends AbstractApi
 
     /**
      * 查询录音总结状态
-     * GET /api/v1/asr/summary.
+     * POST /api/v1/asr/summary.
      *
-     * @param RequestInterface $request 包含 task_key、project_id 和 chat_topic_id 参数
+     * @param RequestInterface $request 包含 task_key、project_id、chat_topic_id、model_id、workspace_file_path 和 note 参数
      */
     public function summary(RequestInterface $request): array
     {
@@ -539,6 +540,8 @@ class AsrTokenApi extends AbstractApi
         $modelId = $request->input('model_id', '');
         // 获取workspace_file_path参数（可选参数）
         $workspaceFilePath = $request->input('workspace_file_path', null);
+        // 获取note参数（可选参数）
+        $noteData = $request->input('note', null);
 
         // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
         if (! empty($workspaceFilePath) && empty($taskKey)) {
@@ -562,6 +565,22 @@ class AsrTokenApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.model_id_required'));
         }
 
-        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath);
+        // 处理note参数
+        $note = null;
+        if (! empty($noteData) && is_array($noteData)) {
+            $noteContent = $noteData['content'] ?? '';
+            $noteFileType = $noteData['file_type'] ?? 'txt';
+
+            if (! empty(trim($noteContent))) {
+                $note = new NoteDTO($noteContent, $noteFileType);
+
+                // 验证文件类型是否有效
+                if (! $note->isValidFileType()) {
+                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, sprintf('不支持的文件类型: %s，支持的类型: txt, md, json', $noteFileType));
+                }
+            }
+        }
+
+        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath, $note);
     }
 }

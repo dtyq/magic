@@ -57,7 +57,7 @@ class ChatMessageAssembler
         // 提取工作区下的相对路径
         $workspaceRelativePath = $this->extractWorkspaceRelativePath($fullFilePath);
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($fileId, $fileName, $workspaceRelativePath, $dto->modelId);
+        $messageContent = $this->buildMessageContent($fileId, $fileName, $workspaceRelativePath, $dto->modelId, $dto->taskStatus->hasNoteFile);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -85,9 +85,10 @@ class ChatMessageAssembler
      * @param string $fileName 文件名
      * @param string $filePath 文件路径
      * @param string $modelId 模型ID
+     * @param bool $hasNoteFile 是否存在note文件
      * @return array 消息内容数组
      */
-    private function buildMessageContent(string $fileId, string $fileName, string $filePath, string $modelId): array
+    private function buildMessageContent(string $fileId, string $fileName, string $filePath, string $modelId, bool $hasNoteFile = false): array
     {
         $fileData = [
             'file_id' => $fileId,
@@ -117,7 +118,9 @@ class ChatMessageAssembler
                             ],
                             [
                                 'type' => 'text',
-                                'text' => $this->translator->trans('asr.messages.summary_content'),
+                                'text' => $hasNoteFile
+                                    ? $this->translator->trans('asr.messages.summary_content_with_note')
+                                    : $this->translator->trans('asr.messages.summary_content'),
                             ],
                         ],
                     ],

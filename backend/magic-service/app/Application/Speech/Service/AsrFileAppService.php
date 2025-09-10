@@ -37,6 +37,7 @@ use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -97,6 +98,11 @@ readonly class AsrFileAppService
             if ($taskStatus && ! $summaryRequest->hasWorkspaceFilePath() && ! $taskStatus->isTaskSubmitted()) {
                 // 处理音频文件上传
                 $this->updateAudioToWorkspace($taskStatus, $organizationCode, $summaryRequest->projectId, $userId);
+            }
+
+            // 4.5. 处理note文件（如果有）
+            if ($summaryRequest->hasNote() && $taskStatus) {
+                $this->processNoteFile($summaryRequest, $taskStatus, $organizationCode, $userId);
             }
 
             // 5. 构建处理总结任务DTO用于发送聊天消息
@@ -449,12 +455,6 @@ readonly class AsrFileAppService
     {
         $processStartTime = microtime(true);
 
-        $this->logger->info('开始ASR音频下载合并流程', [
-            'task_key' => $taskKey,
-            'organization_code' => $organizationCode,
-            'business_directory' => $businessDirectory,
-        ]);
-
         try {
             // 1. 获取音频文件列表，用于格式检测
             $allAudioFiles = $this->getAudioFileList($organizationCode, $businessDirectory);
@@ -482,17 +482,6 @@ readonly class AsrFileAppService
             // 记录流程完成
             $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
             $outputSize = file_exists($mergedFile) ? filesize($mergedFile) : 0;
-
-            $this->logger->info('ASR音频下载合并流程完成', [
-                'task_key' => $taskKey,
-                'organization_code' => $organizationCode,
-                'business_directory' => $businessDirectory,
-                'merged_file' => $mergedFile,
-                'output_size_bytes' => $outputSize,
-                'total_duration_ms' => $totalDuration,
-                'downloaded_files_count' => count($localAudioFiles),
-                'detected_format' => $dominantFormat,
-            ]);
 
             return ['file_path' => $mergedFile, 'format' => $dominantFormat];
         } catch (Throwable $e) {
@@ -586,15 +575,6 @@ readonly class AsrFileAppService
                 ];
             }
 
-            $this->logger->info('开始下载ASR音频文件', [
-                'task_key' => $taskKey,
-                'organization_code' => $organizationCode,
-                'remote_directory' => $remoteDirectory,
-                'local_directory' => $runtimeDir,
-                'audio_files_count' => count($audioFiles),
-                'audio_files' => $audioFileInfos,
-            ]);
-
             // 下载所有音频文件
             $downloadedFiles = [];
             foreach ($audioFiles as $audioFile) {
@@ -642,15 +622,6 @@ readonly class AsrFileAppService
             }
 
             // 记录下载完成的详细信息
-            $this->logger->info('ASR音频文件下载完成', [
-                'task_key' => $taskKey,
-                'organization_code' => $organizationCode,
-                'remote_directory' => $remoteDirectory,
-                'local_directory' => $runtimeDir,
-                'downloaded_files_count' => count($downloadedFiles),
-                'total_size_bytes' => array_sum(array_column($downloadedFiles, 'file_size')),
-                'downloaded_files' => $downloadedFiles,
-            ]);
 
             return $localFiles;
         } catch (Throwable $e) {
@@ -730,12 +701,6 @@ readonly class AsrFileAppService
 
         $mergeStartTime = microtime(true);
 
-        $this->logger->info('开始音频文件二进制合并处理', [
-            'task_key' => $taskKey,
-            'files_count' => count($audioFiles),
-            'audio_files' => array_map('basename', $audioFiles),
-        ]);
-
         $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
         $outputFile = sprintf('%s/merged_audio.%s', $runtimeDir, $format);
 
@@ -747,22 +712,11 @@ readonly class AsrFileAppService
         });
 
         // 记录排序后的文件列表
-        $this->logger->info('音频文件排序完成', [
-            'task_key' => $taskKey,
-            'sorted_files' => array_map('basename', $audioFiles),
-        ]);
 
         // 如果只有一个文件，直接复制
         if (count($audioFiles) === 1) {
             $sourceFile = $audioFiles[0];
             $sourceSize = file_exists($sourceFile) ? filesize($sourceFile) : 0;
-
-            $this->logger->info('单个音频文件直接复制', [
-                'task_key' => $taskKey,
-                'source_file' => basename($sourceFile),
-                'target_file' => basename($outputFile),
-                'file_size_bytes' => $sourceSize,
-            ]);
 
             if (! copy($sourceFile, $outputFile)) {
                 throw new InvalidArgumentException('复制单个音频文件失败');
@@ -778,11 +732,14 @@ readonly class AsrFileAppService
     /**
      * 保存文件记录到项目文件表.
      */
-    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto, string $timestamp): void
+    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto): void
     {
         try {
-            // 使用ASR录音目录作为父目录
-            $parentId = $this->ensureAsrRecordingsDirectoryExists($dto->organizationCode, $dto->projectId, $dto->userId, $timestamp);
+            // 从文件key中提取目录路径
+            $directoryPath = dirname($dto->fileKey);
+
+            // 确保目录在数据库中存在，获取目录ID
+            $parentId = $this->ensureAsrRecordingsDirectoryExists($dto->organizationCode, $dto->projectId, $dto->userId, $directoryPath);
 
             // 创建文件实体
             $taskFileEntity = new TaskFileEntity([
@@ -849,14 +806,6 @@ readonly class AsrFileAppService
             $totalInputSize += $fileSize;
         }
 
-        $this->logger->info('开始二进制合并音频文件', [
-            'task_key' => $taskKey,
-            'input_files_count' => count($audioFiles),
-            'total_input_size_bytes' => $totalInputSize,
-            'output_file' => basename($outputFile),
-            'input_files' => $inputFileInfos,
-        ]);
-
         try {
             // 删除可能存在的输出文件
             if (file_exists($outputFile)) {
@@ -909,13 +858,6 @@ readonly class AsrFileAppService
 
                 fclose($inputHandle);
                 ++$processedFiles;
-
-                $this->logger->debug('文件合并完成', [
-                    'task_key' => $taskKey,
-                    'input_file' => basename($inputFile),
-                    'bytes_written' => $fileSize,
-                    'processed_files' => $processedFiles,
-                ]);
             }
 
             fclose($outputHandle);
@@ -927,16 +869,6 @@ readonly class AsrFileAppService
 
             $outputFileSize = filesize($outputFile);
             $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
-
-            $this->logger->info('二进制音频合并成功', [
-                'task_key' => $taskKey,
-                'processed_files_count' => $processedFiles,
-                'total_input_size_bytes' => $totalInputSize,
-                'output_file' => basename($outputFile),
-                'output_file_size_bytes' => $outputFileSize,
-                'total_merge_duration_ms' => $totalMergeDuration,
-                'bytes_written' => $totalWritten,
-            ]);
 
             return $outputFile;
         } catch (Throwable $e) {
@@ -1038,52 +970,29 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 构建ASR录音目录路径信息（提取公共逻辑）.
+     * 生成ASR文件的工作区相对目录.
      *
      * @param string $userId 用户ID
      * @param string $projectId 项目ID
      * @param string $organizationCode 组织编码
-     * @param string $timestamp 时间戳
-     * @return array 包含目录路径信息的数组
+     * @return string 工作区相对目录路径
      */
-    private function buildAsrDirectoryPath(string $userId, string $projectId, string $organizationCode, string $timestamp): array
+    private function getFileRelativeDir(string $userId, string $projectId, string $organizationCode): string
     {
         // 获取项目实体 (如果项目不存在会自动抛出 PROJECT_NOT_FOUND 异常)
         $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+
         // 从项目实体获取工作区目录
         $workDir = $projectEntity->getWorkDir();
         if (empty($workDir)) {
             throw new InvalidArgumentException(sprintf('项目 %s 的工作区目录为空', $projectId));
         }
 
-        // 获取完整的工作区目录路径（包含组织编码前缀）
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
-        $fullWorkDir = sprintf('%s%s', rtrim($fullPrefix, '/'), $workDir);
-
         // 生成动态目录名：{录音纪要国际化名称}_Ymd_His
-        $asrDirectoryName = sprintf('%s_%s', trans('asr.directory.recordings_summary_folder'), $timestamp);
+        $asrDirectoryName = sprintf('%s_%s', trans('asr.directory.recordings_summary_folder'), date('Ymd_His'));
 
-        return [
-            'full_work_dir' => trim($fullWorkDir, '/'),
-            'file_relative_dir' => trim($workDir . '/' . $asrDirectoryName, '/'),
-            'asr_directory_name' => $asrDirectoryName,
-            'asr_directory_key' => sprintf('%s/%s/', trim($fullWorkDir, '/'), $asrDirectoryName),
-        ];
-    }
-
-    /**
-     * 构建工作区文件键 - 通过项目实体获取正确的工作区目录.
-     *
-     * @param string $userId 用户ID
-     * @param string $projectId 项目ID
-     * @param string $organizationCode 组织编码
-     * @param null|string $timestamp 时间戳，如果为null则使用当前时间
-     */
-    private function getFileRelativeDir(string $userId, string $projectId, string $organizationCode, ?string $timestamp = null): string
-    {
-        $timestamp = $timestamp ?: date('Ymd_His');
-        $pathInfo = $this->buildAsrDirectoryPath($userId, $projectId, $organizationCode, $timestamp);
-        return $pathInfo['file_relative_dir'];
+        // 返回工作区相对目录
+        return trim($workDir . '/' . $asrDirectoryName, '/');
     }
 
     /**
@@ -1175,14 +1084,14 @@ readonly class AsrFileAppService
      * @param string $organizationCode 组织代码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
-     * @param string $timestamp 时间戳，用于生成动态目录名
+     * @param string $directoryPath 目录路径
      * @return int ASR录音目录的实际file_id
      */
-    private function ensureAsrRecordingsDirectoryExists(string $organizationCode, string $projectId, string $userId, string $timestamp): int
+    private function ensureAsrRecordingsDirectoryExists(string $organizationCode, string $projectId, string $userId, string $directoryPath): int
     {
-        $pathInfo = $this->buildAsrDirectoryPath($userId, $projectId, $organizationCode, $timestamp);
-        $asrDirKey = $pathInfo['asr_directory_key'];
-        $asrDirName = $pathInfo['asr_directory_name'];
+        // 直接使用传入的目录路径作为key
+        $asrDirKey = $directoryPath;
+        $asrDirName = basename($directoryPath);
 
         // 先查找是否已存在该目录
         $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $asrDirKey);
@@ -1282,9 +1191,8 @@ readonly class AsrFileAppService
             $audioFormat = $mergedResult['format'];
 
             // 2. 准备上传到工作区指定目录（动态ASR录音目录）
-            $timestamp = date('Ymd_His');
             $fileName = sprintf('%s.%s', trans('asr.file_names.original_recording'), $audioFormat);
-            $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId, $organizationCode, $timestamp);
+            $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId, $organizationCode);
 
             // 3. 直接上传合并文件到工作区的动态ASR录音目录
             $uploadFile = new UploadFile($mergedLocalAudioFile, $fileRelativeDir, $fileName, false);
@@ -1302,7 +1210,7 @@ readonly class AsrFileAppService
                 pathinfo($fileName, PATHINFO_EXTENSION),
                 $userId
             );
-            $this->saveFileRecordToProject($saveDto, $timestamp);
+            $this->saveFileRecordToProject($saveDto);
 
             // 5. 获取文件访问URL
             $fileLink = $this->fileAppService->getLink($organizationCode, $actualWorkspaceFileKey, StorageBucketType::SandBox);
@@ -1317,6 +1225,7 @@ readonly class AsrFileAppService
             $taskStatus->workspaceFileKey = $actualWorkspaceFileKey; // 工作区中的合并文件
             $taskStatus->workspaceFileUrl = $workspaceFileUrl;
             $taskStatus->filePath = $fileWorkspaceRelativePath; // 保存工作区文件路径
+            $taskStatus->workspaceRelativeDir = $fileRelativeDir; // 保存工作区相对目录，供note文件使用
             // 8. 清理本地临时文件和远程小文件
             $this->cleanupTaskFiles($taskStatus->taskKey, $organizationCode, $taskStatus->businessDirectory);
 
@@ -1387,6 +1296,93 @@ readonly class AsrFileAppService
                 'user_id' => $dto->userId,
             ]);
             return;
+        }
+    }
+
+    /**
+     * 处理note文件生成和上传.
+     *
+     * @param SummaryRequestDTO $summaryRequest 总结请求DTO
+     * @param AsrTaskStatusDTO $taskStatus 任务状态DTO
+     * @param string $organizationCode 组织编码
+     * @param string $userId 用户ID
+     */
+    private function processNoteFile(
+        SummaryRequestDTO $summaryRequest,
+        AsrTaskStatusDTO $taskStatus,
+        string $organizationCode,
+        string $userId
+    ): void {
+        try {
+            // 1. 生成临时文件
+            $tempDir = sys_get_temp_dir();
+            $noteFileName = $summaryRequest->getNoteFileName();
+            $tempFilePath = sprintf('%s/%s', rtrim($tempDir, '/'), $noteFileName);
+
+            // 2. 写入note内容到临时文件
+            $bytesWritten = file_put_contents($tempFilePath, $summaryRequest->note->content);
+
+            if ($bytesWritten === false) {
+                throw new RuntimeException(sprintf('写入note文件失败: %s', $tempFilePath));
+            }
+
+            // 3. 获取工作区相对目录（与音频文件保持一致）
+            $fileRelativeDir = $taskStatus->workspaceRelativeDir;
+            if (empty($fileRelativeDir)) {
+                // 如果任务状态中没有保存目录，尝试从已有的音频文件路径中提取
+                if (! empty($taskStatus->filePath)) {
+                    // 从已有的工作区文件路径中提取目录
+                    $fileRelativeDir = dirname($taskStatus->filePath);
+                } else {
+                    // 如果没有已有路径，则生成新的（fallback逻辑）
+                    $fileRelativeDir = $this->getFileRelativeDir($userId, $summaryRequest->projectId, $organizationCode);
+                }
+                $taskStatus->workspaceRelativeDir = $fileRelativeDir; // 保存到DTO中
+            }
+
+            // 4. 构建上传文件对象，上传到工作区
+            $uploadFile = new UploadFile($tempFilePath, $fileRelativeDir, $noteFileName, false);
+
+            // 5. 上传文件到工作区
+            $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
+            $actualWorkspaceFileKey = $uploadFile->getKey();
+
+            // 6. 保存文件记录到项目 task_files 表
+            $saveDto = new SaveFileRecordToProjectDTO(
+                $organizationCode,
+                $summaryRequest->projectId,
+                $actualWorkspaceFileKey,
+                $noteFileName,
+                $bytesWritten,
+                $summaryRequest->note->getFileExtension(),
+                $userId
+            );
+            $this->saveFileRecordToProject($saveDto);
+
+            // 标记任务状态中存在note文件
+            $taskStatus->hasNoteFile = true;
+
+            // 7. 删除本地临时文件
+            if (file_exists($tempFilePath)) {
+                $deleted = unlink($tempFilePath);
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('处理note文件失败', [
+                'task_key' => $summaryRequest->taskKey,
+                'error' => $e->getMessage(),
+                'organization_code' => $organizationCode,
+            ]);
+
+            // 确保删除可能创建的临时文件
+            if (isset($tempFilePath) && file_exists($tempFilePath)) {
+                try {
+                    unlink($tempFilePath);
+                } catch (Throwable) {
+                    // 静默处理删除失败
+                }
+            }
+
+            throw new RuntimeException(sprintf('处理note文件失败: %s', $e->getMessage()));
         }
     }
 }

@@ -125,6 +125,7 @@ return [
         'original_recording' => 'Tệp ghi âm gốc',
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
+        'note_prefix' => 'Ghi chú ghi âm',
     ],
 
     // Liên quan đến nội dung Markdown
@@ -140,5 +141,6 @@ return [
     // Liên quan đến tin nhắn chat
     'messages' => [
         'summary_content' => ' Tóm tắt nội dung',
+        'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
     ],
 ];
