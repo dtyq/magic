@@ -52,29 +52,15 @@ class ImageWatermarkProcessor
         $detectedFormat = $this->detectImageFormat($imageData);
         $targetFormat = $originalFormat !== 'jpeg' ? $originalFormat : $detectedFormat;
 
-        $image = imagecreatefromstring($imageData);
-        if ($image === false) {
-            throw new Exception('无法解析base64图片数据');
+        // 使用统一的水印处理方法
+        if ($imageGenerateRequest->isAddWatermark()) {
+            $imageData = $this->addWaterMarkHandler($imageData, $imageGenerateRequest, $targetFormat);
         }
-
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-        // 添加视觉水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
-
-        // 使用检测到的格式进行无损输出
-        ob_start();
-        $this->outputImage($watermarkedImage, $targetFormat);
-        $watermarkedData = ob_get_contents();
-        ob_end_clean();
-
-        // 清理内存
-        imagedestroy($image);
-        imagedestroy($watermarkedImage);
 
         // 立即添加XMP隐式水印
         $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
         $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
-            $watermarkedData,
+            $imageData,
             $implicitWatermark
         );
 
@@ -89,39 +75,21 @@ class ImageWatermarkProcessor
      */
     public function addWatermarkToUrl(string $imageUrl, ImageGenerateRequest $imageGenerateRequest): string
     {
-        // 下载图片
         $imageData = $this->downloadImage($imageUrl);
 
-        // 检测图片格式
-        $detectedFormat = $this->detectImageFormat($imageData);
-
-        $image = imagecreatefromstring($imageData);
-        if ($image === false) {
-            throw new Exception('无法解析URL图片数据: ' . $imageUrl);
+        if ($imageGenerateRequest->isAddWatermark()) {
+            $imageData = $this->addWaterMarkHandler($imageData, $imageGenerateRequest);
         }
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-        // 添加视觉水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
-
-        // 使用检测到的格式进行无损输出
-        ob_start();
-        $this->outputImage($watermarkedImage, $detectedFormat);
-        $watermarkedData = ob_get_contents();
-        ob_end_clean();
-
-        // 清理内存
-        imagedestroy($image);
-        imagedestroy($watermarkedImage);
 
         // 立即添加XMP隐式水印
         $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
         $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
-            $watermarkedData,
+            $imageData,
             $implicitWatermark
         );
 
         // 根据实际输出格式生成正确的base64前缀
-        $outputPrefix = $this->generateBase64Prefix($detectedFormat);
+        $outputPrefix = $this->generateBase64Prefix($imageData);
         return $this->processBase64Images($outputPrefix . base64_encode($xmpWatermarkedData), $imageGenerateRequest);
     }
 
@@ -137,6 +105,31 @@ class ImageWatermarkProcessor
             ]);
             return null;
         }
+    }
+
+    protected function addWaterMarkHandler(string $imageData, ImageGenerateRequest $imageGenerateRequest, ?string $format = null): string
+    {
+        // 检测图片格式，优先使用传入的格式
+        $detectedFormat = $format ?? $this->detectImageFormat($imageData);
+
+        $image = imagecreatefromstring($imageData);
+        if ($image === false) {
+            throw new Exception('无法解析URL图片数据: ');
+        }
+        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
+        // 添加视觉水印
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
+
+        // 使用检测到的格式进行无损输出
+        ob_start();
+        $this->outputImage($watermarkedImage, $detectedFormat);
+        $watermarkedData = ob_get_contents();
+        ob_end_clean();
+
+        // 清理内存
+        imagedestroy($image);
+        imagedestroy($watermarkedImage);
+        return $watermarkedData;
     }
 
     /**

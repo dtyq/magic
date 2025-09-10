@@ -355,7 +355,8 @@ class LLMAppService extends AbstractLLMAppService
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
-
+        $organizationCode = $accessTokenEntity->getOrganizationCode();
+        $creator = $accessTokenEntity->getCreator();
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -364,18 +365,24 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
         $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
 
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
-
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     // 发布图片生成事件
                     $imageGeneratedEntity = new ImageGeneratedEntity();
-                    $imageGeneratedEntity->setOrganizationCode($accessTokenEntity->getOrganizationCode());
-                    $imageGeneratedEntity->setUserId($accessTokenEntity->getCreator());
+                    $imageGeneratedEntity->setOrganizationCode($organizationCode);
+                    $imageGeneratedEntity->setUserId($creator);
                     $imageGeneratedEntity->setModel($modelVersion);
                     $imageGeneratedEntity->setImageCount(1); // 图生图默认为1张
                     $imageGeneratedEntity->setCreatedAt(new DateTime());

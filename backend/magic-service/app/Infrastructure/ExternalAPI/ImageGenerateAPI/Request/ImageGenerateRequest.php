@@ -170,4 +170,9 @@ class ImageGenerateRequest
     {
         $this->organizationCode = $organizationCode;
     }
+
+    public function isAddWatermark(): bool
+    {
+        return $this->getWatermarkConfig() !== null;
+    }
 }

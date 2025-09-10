@@ -67,9 +67,7 @@ class QwenImageModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
+
 
         return $this->processQwenRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
