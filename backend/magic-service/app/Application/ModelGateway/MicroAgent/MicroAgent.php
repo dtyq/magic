@@ -11,10 +11,11 @@ use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\ModelConfigAppService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
 
-readonly class MicroAgent
+class MicroAgent
 {
     public function __construct(
         protected string $name,
@@ -22,13 +23,14 @@ readonly class MicroAgent
         protected string $systemTemplate = '',
         protected float $temperature = 0.7,
         protected bool $enabledModelFallbackChain = true,
+        protected array $tools = [],
     ) {
     }
 
     /**
      * Execute agent with given parameters.
      */
-    public function easyCall(string $organizationCode, array $systemReplace = [], string $userPrompt = '', array $businessParams = []): string
+    public function easyCall(string $organizationCode, array $systemReplace = [], string $userPrompt = '', array $businessParams = []): ChatCompletionResponse
     {
         // Replace variables in system content
         $systemContent = $this->replaceSystemVariables($systemReplace);
@@ -52,13 +54,12 @@ readonly class MicroAgent
         $modelGatewayMapper = di(ModelGatewayMapper::class);
 
         $model = $modelGatewayMapper->getChatModelProxy($modelId, $organizationCode);
-        $chatCompletionResponse = $model->chat(
+        return $model->chat(
             messages: $messages,
             temperature: $this->temperature,
+            tools: $this->tools,
             businessParams: $businessParams,
         );
-
-        return $chatCompletionResponse->getFirstChoice()?->getMessage()->getContent() ?? '';
     }
 
     public function getName(): string
@@ -84,6 +85,44 @@ readonly class MicroAgent
     public function isEnabledModelFallbackChain(): bool
     {
         return $this->enabledModelFallbackChain;
+    }
+
+    public function getTools(): array
+    {
+        return $this->tools;
+    }
+
+    /**
+     * Set tools for the agent.
+     */
+    public function setTools(array $tools): void
+    {
+        $this->tools = $tools;
+    }
+
+    /**
+     * Add a tool to the agent.
+     */
+    public function addTool(array $tool): void
+    {
+        $this->tools[] = $tool;
+    }
+
+    /**
+     * Clear all tools.
+     */
+    public function clearTools(): void
+    {
+        $this->tools = [];
+    }
+
+    /**
+     * Set tools and return self for method chaining.
+     */
+    public function withTools(array $tools): self
+    {
+        $this->tools = $tools;
+        return $this;
     }
 
     /**

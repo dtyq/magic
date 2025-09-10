@@ -23,15 +23,15 @@ class MicroAgentFactory
 
     /**
      * Get or create MicroAgent instance.
-     * 
+     *
      * @param string $name Agent name or cache key
-     * @param string|null $filePath Optional custom agent file path
+     * @param null|string $filePath Optional custom agent file path
      */
     public function getAgent(string $name, ?string $filePath = null): MicroAgent
     {
         // Use file path as cache key if provided, otherwise use name
         $cacheKey = $filePath ?? $name;
-        
+
         if (isset($this->microAgents[$cacheKey])) {
             return $this->microAgents[$cacheKey];
         }
@@ -95,9 +95,9 @@ class MicroAgentFactory
 
     /**
      * Create a new MicroAgent instance.
-     * 
+     *
      * @param string $name Agent name
-     * @param string|null $filePath Optional custom agent file path
+     * @param null|string $filePath Optional custom agent file path
      */
     private function createAgent(string $name, ?string $filePath = null): MicroAgent
     {
@@ -109,7 +109,7 @@ class MicroAgentFactory
             // Use original logic with agent name
             $parsed = $this->agentParserFactory->getAgentContent($name);
         }
-        
+
         $config = $parsed['config'];
 
         return new MicroAgent(

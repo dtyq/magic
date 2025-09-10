@@ -1,35 +1,44 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace HyperfTest\Cases\Application\ModelGateway\MicroAgent;
 
 use App\Application\ModelGateway\MicroAgent\AgentParser\AgentParserFactory;
 use App\Infrastructure\Core\Exception\BusinessException;
+use Exception;
 use HyperfTest\HttpTestCase;
 
+/**
+ * @internal
+ */
 class AgentParserFactoryCustomFileTest extends HttpTestCase
 {
     private AgentParserFactory $agentParserFactory;
+
     private string $testAgentFile;
+
     private string $testInvalidFile;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->agentParserFactory = new AgentParserFactory();
-        
+
         // Create test files
         $this->testAgentFile = BASE_PATH . '/runtime/test_parser_agent.agent.yaml';
         $this->testInvalidFile = BASE_PATH . '/runtime/test_invalid.unknown';
-        
+
         // Ensure runtime directory exists
-        if (!is_dir(BASE_PATH . '/runtime')) {
+        if (! is_dir(BASE_PATH . '/runtime')) {
             mkdir(BASE_PATH . '/runtime', 0755, true);
         }
-        
-        $testContent = <<<YAML
+
+        $testContent = <<<'YAML'
 ---
 model_id: gpt-3.5-turbo
 temperature: 0.6
@@ -46,7 +55,7 @@ system: |
   3. Test functionality: {{test_feature}}
 YAML;
         file_put_contents($this->testAgentFile, $testContent);
-        
+
         // Create invalid file with unknown extension
         file_put_contents($this->testInvalidFile, 'Invalid content');
     }
@@ -60,18 +69,18 @@ YAML;
         if (file_exists($this->testInvalidFile)) {
             unlink($this->testInvalidFile);
         }
-        
+
         parent::tearDown();
     }
 
     public function testGetAgentContentFromFileSuccess()
     {
         $content = $this->agentParserFactory->getAgentContentFromFile($this->testAgentFile);
-        
+
         $this->assertIsArray($content);
         $this->assertArrayHasKey('config', $content);
         $this->assertArrayHasKey('system', $content);
-        
+
         // Verify config section
         $config = $content['config'];
         $this->assertEquals('gpt-3.5-turbo', $config['model_id']);
@@ -83,7 +92,7 @@ YAML;
         } else {
             $this->markTestSkipped('custom_param not found in config, YAML parsing may have issues');
         }
-        
+
         // Verify system section
         $system = $content['system'];
         $this->assertStringContainsString('test agent for AgentParserFactory testing', $system);
@@ -95,7 +104,7 @@ YAML;
     public function testGetAgentContentFromFileNonExistent()
     {
         $this->expectException(BusinessException::class);
-        
+
         $nonExistentFile = BASE_PATH . '/runtime/non_existent_parser_test.agent.yaml';
         $this->agentParserFactory->getAgentContentFromFile($nonExistentFile);
     }
@@ -103,7 +112,7 @@ YAML;
     public function testGetAgentContentFromFileUnsupportedExtension()
     {
         $this->expectException(BusinessException::class);
-        
+
         $this->agentParserFactory->getAgentContentFromFile($this->testInvalidFile);
     }
 
@@ -111,8 +120,8 @@ YAML;
     {
         // Create a test file with .agent.yml extension
         $ymlFile = BASE_PATH . '/runtime/test_yml_agent.agent.yml';
-        
-        $testContent = <<<YAML
+
+        $testContent = <<<'YAML'
 ---
 model_id: claude-3-sonnet
 temperature: 0.3
@@ -123,23 +132,22 @@ system: |
   Task: {{task_description}}
 YAML;
         file_put_contents($ymlFile, $testContent);
-        
+
         try {
             $content = $this->agentParserFactory->getAgentContentFromFile($ymlFile);
-            
+
             $this->assertIsArray($content);
             $this->assertArrayHasKey('config', $content);
             $this->assertArrayHasKey('system', $content);
-            
+
             $config = $content['config'];
             $this->assertEquals('claude-3-sonnet', $config['model_id']);
             $this->assertEquals(0.3, $config['temperature']);
             $this->assertFalse($config['enabled_model_fallback_chain']);
-            
+
             $system = $content['system'];
             $this->assertStringContainsString('YML test agent', $system);
             $this->assertStringContainsString('{{task_description}}', $system);
-            
         } finally {
             // Clean up
             if (file_exists($ymlFile)) {
@@ -151,13 +159,13 @@ YAML;
     public function testGetAgentContentFromFileWithAbsolutePath()
     {
         $absolutePath = realpath($this->testAgentFile);
-        
+
         $content = $this->agentParserFactory->getAgentContentFromFile($absolutePath);
-        
+
         $this->assertIsArray($content);
         $this->assertArrayHasKey('config', $content);
         $this->assertArrayHasKey('system', $content);
-        
+
         $config = $content['config'];
         $this->assertEquals('gpt-3.5-turbo', $config['model_id']);
     }
@@ -165,9 +173,9 @@ YAML;
     public function testGetAgentContentFromFileWithInvalidYamlFormat()
     {
         $invalidYamlFile = BASE_PATH . '/runtime/invalid_yaml.agent.yaml';
-        
+
         // Create file with values that YAML parser may convert
-        $invalidContent = <<<YAML
+        $invalidContent = <<<'YAML'
 ---
 model_id: gpt-4
 temperature: invalid_float
@@ -177,15 +185,15 @@ system: |
   This is a test with invalid config values.
 YAML;
         file_put_contents($invalidYamlFile, $invalidContent);
-        
+
         try {
             $content = $this->agentParserFactory->getAgentContentFromFile($invalidYamlFile);
-            
+
             // Should still parse, YAML parser may convert types
             $this->assertIsArray($content);
             $this->assertArrayHasKey('config', $content);
             $this->assertArrayHasKey('system', $content);
-            
+
             $config = $content['config'];
             // YAML parser might convert invalid_float to 0.0 or keep as string
             $this->assertTrue(
@@ -197,7 +205,6 @@ YAML;
                 $config['enabled_model_fallback_chain'] === 'not_boolean' || is_bool($config['enabled_model_fallback_chain']),
                 'enabled_model_fallback_chain should be either original string or converted to boolean'
             );
-            
         } finally {
             // Clean up
             if (file_exists($invalidYamlFile)) {
@@ -209,9 +216,9 @@ YAML;
     public function testGetAgentContentFromFileWithMalformedYaml()
     {
         $malformedYamlFile = BASE_PATH . '/runtime/malformed.agent.yaml';
-        
+
         // Create file with malformed YAML syntax
-        $malformedContent = <<<YAML
+        $malformedContent = <<<'YAML'
 ---
 model_id: gpt-4
   temperature: 0.5
@@ -222,7 +229,7 @@ system: |
   This should fail due to YAML syntax errors.
 YAML;
         file_put_contents($malformedYamlFile, $malformedContent);
-        
+
         try {
             // Some YAML parsers are more lenient and may not throw exceptions
             // We'll test if it throws an exception OR returns invalid/partial data
@@ -237,11 +244,10 @@ YAML;
                 } else {
                     $this->fail('Expected either exception or incomplete config due to malformed YAML');
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Exception is expected for malformed YAML
                 $this->addToAssertionCount(1);
             }
-            
         } finally {
             // Clean up
             if (file_exists($malformedYamlFile)) {
@@ -254,16 +260,16 @@ YAML;
     {
         // Test that getAgentContentFromFile produces the same result as getAgentContent
         // when using the example agent
-        
+
         $exampleFilePath = BASE_PATH . '/app/Application/ModelGateway/MicroAgent/Prompt/example.agent.yaml';
-        
-        if (!file_exists($exampleFilePath)) {
+
+        if (! file_exists($exampleFilePath)) {
             $this->markTestSkipped('Example agent file not found');
         }
-        
+
         $contentFromFile = $this->agentParserFactory->getAgentContentFromFile($exampleFilePath);
         $contentFromName = $this->agentParserFactory->getAgentContent('example');
-        
+
         $this->assertEquals($contentFromName, $contentFromFile);
     }
 }
