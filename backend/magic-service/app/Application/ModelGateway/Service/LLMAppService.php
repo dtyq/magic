@@ -370,6 +370,7 @@ class LLMAppService extends AbstractLLMAppService
         $data = $imageGenerateParamsVO->toArray();
         $data['organization_code'] = $organizationCode;
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
         $implicitWatermark = new ImplicitWatermark();
         $implicitWatermark->setOrganizationCode($organizationCode)
             ->setUserId($creator)

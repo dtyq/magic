@@ -25,6 +25,7 @@ enum ProviderCode: string
     case TTAPI = 'TTAPI';
     case MiracleVision = 'MiracleVision';
     case AWSBedrock = 'AWSBedrock';
+    case Google = 'Google-Image';
 
     public function getImplementation(): string
     {
