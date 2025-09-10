@@ -18,15 +18,15 @@ class ProjectListResponseDTO
     ) {
     }
 
-    public static function fromResult(array $result, array $projectStatusMap = [], array $workspaceNameMap = [], array $projectIdsWithMember = []): self
+    public static function fromResult(array $result, array $workspaceNameMap = [], array $projectIdsWithMember = [], array $projectStatusMap = []): self
     {
         $projects = $result['list'] ?? $result;
         $total = $result['total'] ?? count($projects);
 
-        $list = array_map(function ($project) use ($projectStatusMap, $workspaceNameMap, $projectIdsWithMember) {
-            $projectStatus = $projectStatusMap[$project->getId()] ?? null;
+        $list = array_map(function ($project) use ($workspaceNameMap, $projectIdsWithMember, $projectStatusMap) {
             $workspaceName = $workspaceNameMap[$project->getWorkspaceId()] ?? null;
             $hasProjectMember = in_array($project->getId(), $projectIdsWithMember);
+            $projectStatus = $projectStatusMap[$project->getId()] ?? null;
             return ProjectItemDTO::fromEntity($project, $projectStatus, $workspaceName, $hasProjectMember)->toArray();
         }, $projects);
 
