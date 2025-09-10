@@ -21,6 +21,7 @@ enum ImageGenerateModelType: string
     case AzureOpenAIImageEdit = 'AzureOpenAI-ImageEdit';
     case QwenImage = 'Qwen-Image';
     case QwenImageEdit = 'Qwen-ImageEdit';
+    case GoogleGemini = 'GoogleGemini';
 
     // 目前美图ai超清的model_id
     case MiracleVisionHightModelId = 'miracleVision_mtlab';
@@ -40,6 +41,7 @@ enum ImageGenerateModelType: string
             in_array($model, self::getAzureOpenAIEditModes()) => self::AzureOpenAIImageEdit,
             in_array($model, self::getQwenImageModes()) => self::QwenImage,
             in_array($model, self::getQwenImageEditModes()) => self::QwenImageEdit,
+            in_array($model, self::getGoogleGeminiModes()) => self::GoogleGemini,
             default => $throw ? throw new InvalidArgumentException('Unsupported model type: ' . $model) : self::Volcengine,
         };
     }
@@ -107,5 +109,10 @@ enum ImageGenerateModelType: string
     public static function getQwenImageEditModes(): array
     {
         return [self::QwenImageEdit->value, 'qwen-image-edit'];
+    }
+
+    public static function getGoogleGeminiModes(): array
+    {
+        return ['gemini-2.5-flash-image-preview', 'GoogleGemini'];
     }
 }
