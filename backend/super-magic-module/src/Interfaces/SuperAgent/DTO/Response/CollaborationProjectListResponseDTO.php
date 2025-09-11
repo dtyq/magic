@@ -48,6 +48,8 @@ class CollaborationProjectListResponseDTO
             $collaboratorsInfo = $collaboratorsInfoMap[$projectId] ?? ['members' => [], 'member_count' => 0];
             $isPinned = (bool) ($collaborationProject['is_pinned'] ?? false);
             $lastActiveAt = $collaborationProject['last_active_at'] ?? null;
+            $isBindWorkspace = (bool) ($collaborationProject['is_bind_workspace'] ?? false);
+            $bindWorkspaceId = (int) ($collaborationProject['bind_workspace_id'] ?? 0);
 
             return CollaborationProjectItemDTO::fromEntityWithExtendedInfo(
                 $projectEntity,
@@ -57,7 +59,9 @@ class CollaborationProjectListResponseDTO
                 null,
                 $workspaceName,
                 $isPinned,
-                $lastActiveAt
+                $lastActiveAt,
+                $isBindWorkspace,
+                $bindWorkspaceId
             )->toArray();
         }, $collaborationProjects);
 
