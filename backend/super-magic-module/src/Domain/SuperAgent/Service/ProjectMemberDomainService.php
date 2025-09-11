@@ -282,7 +282,7 @@ class ProjectMemberDomainService
      * @param string $userId 用户ID
      * @param int $workspaceId 工作区ID（0表示不限制工作区）
      * @param bool $showCollaboration 是否显示协作项目
-     * @param null|string $projectName 项目名称模糊搜索
+     * @param string|null $projectName 项目名称模糊搜索
      * @param int $page 页码
      * @param int $pageSize 每页大小
      * @param string $sortField 排序字段
@@ -301,7 +301,7 @@ class ProjectMemberDomainService
     ): array {
         // 判断是否限制工作区
         $limitWorkspace = $workspaceId > 0;
-
+        
         return $this->projectMemberRepository->getParticipatedProjects(
             $userId,
             $limitWorkspace ? $workspaceId : null,
@@ -321,6 +321,7 @@ class ProjectMemberDomainService
      * @param int $projectId 项目ID
      * @param int $workspaceId 工作区ID
      * @param string $organizationCode 组织编码
+     * @return void
      */
     public function initializeProjectMemberAndSettings(
         string $userId,

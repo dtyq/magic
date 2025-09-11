@@ -49,7 +49,7 @@ class CollaborationProjectListResponseDTO
             $isPinned = (bool) ($collaborationProject['is_pinned'] ?? false);
             $lastActiveAt = $collaborationProject['last_active_at'] ?? null;
             $isBindWorkspace = (bool) ($collaborationProject['is_bind_workspace'] ?? false);
-            $bindWorkspaceId = (int) ($collaborationProject['bind_workspace_id'] ?? 0);
+            $bindWorkspaceId = (string) ($collaborationProject['bind_workspace_id'] ?? '');
 
             return CollaborationProjectItemDTO::fromEntityWithExtendedInfo(
                 $projectEntity,
