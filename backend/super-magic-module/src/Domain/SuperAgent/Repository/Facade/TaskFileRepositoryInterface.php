@@ -266,7 +266,6 @@ interface TaskFileRepositoryInterface
      * 恢复被删除的文件.
      *
      * @param int $fileId 文件ID
-     * @return bool 是否恢复成功
      */
-    public function restoreFile(int $fileId): bool;
+    public function restoreFile(int $fileId): void;
 }

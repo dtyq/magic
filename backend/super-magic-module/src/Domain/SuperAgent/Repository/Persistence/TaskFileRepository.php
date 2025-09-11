@@ -836,9 +836,9 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     /**
      * 恢复被删除的文件.
      */
-    public function restoreFile(int $fileId): bool
+    public function restoreFile(int $fileId): void
     {
-        return $this->model::withTrashed()
+        $this->model::withTrashed()
             ->where('file_id', $fileId)
             ->restore();
     }
