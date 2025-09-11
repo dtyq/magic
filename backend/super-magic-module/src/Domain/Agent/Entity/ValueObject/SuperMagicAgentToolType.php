@@ -39,4 +39,9 @@ enum SuperMagicAgentToolType: int
     {
         return in_array($this, [self::Official, self::Custom], true);
     }
+
+    public function isBuiltIn(): bool
+    {
+        return $this === self::BuiltIn;
+    }
 }
