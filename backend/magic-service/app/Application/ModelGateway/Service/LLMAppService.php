@@ -1255,7 +1255,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setTopicId($requestDTO->getTopicId());
         $imageGeneratedEntity->setTaskId($requestDTO->getTaskId());
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        if ($requestDTO->getTopicId() !== null) {
+        if (! empty($requestDTO->getTopicId())) {
             $imageGeneratedEntity->setSourceType(ImageGenerateSourceEnum::SUPER_MAGIC);
         } else {
             $imageGeneratedEntity->setSourceType(ImageGenerateSourceEnum::API);
