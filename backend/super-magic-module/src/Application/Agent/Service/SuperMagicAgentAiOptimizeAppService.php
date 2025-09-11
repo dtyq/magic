@@ -27,11 +27,13 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
         $agentEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
         if ($optimizationType->isNone()) {
+            $this->logger->info('No optimization type selected, returning original entity.');
             return $agentEntity;
         }
 
         // 检查优化前提条件，不满足条件时直接返回原实体
-        if (! $this->checkOptimizationPreconditions($optimizationType, $agentEntity)) {
+        if ($this->checkOptimizationPreconditions($optimizationType, $agentEntity)) {
+            $this->logger->info('Optimization preconditions not met, returning original entity.');
             return $agentEntity;
         }
 
@@ -74,11 +76,11 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                         'properties' => [
                             'name' => [
                                 'type' => 'string',
-                                'description' => '智能体名称（2-10个字符）',
+                                'description' => '智能体名称（必须是2-10个字符的简洁名称，如：小红书大师、文案专家）',
                             ],
                             'description' => [
                                 'type' => 'string',
-                                'description' => '智能体描述（20-100个字符）',
+                                'description' => '智能体描述（20-100个字符的功能描述）',
                             ],
                         ],
                         'required' => ['name', 'description'],
@@ -116,7 +118,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                         'properties' => [
                             'name' => [
                                 'type' => 'string',
-                                'description' => '优化后的智能体名称',
+                                'description' => '优化后的智能体名称（必须是2-10个字符的简洁名称，不能是完整句子）',
                             ],
                         ],
                         'required' => ['name'],
@@ -154,14 +156,35 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             'tools' => $agentEntity->getTools(),
         ];
 
+        // 语言提示：若包含中文字符，则提示中文，否则自动
+        $combined = (string) ($agentData['name'] . $agentData['description'] . $agentData['prompt']);
+        $languageHint = preg_match('/\\p{Han}/u', $combined) ? 'zh' : 'auto';
+
         $requestData = [
-            'optimization_type' => $optimizationType->value,
-            'agent_data' => $agentData,
+            'ot' => $optimizationType->value,
+            'data' => $agentData,
+            'rules' => [
+                'tool' => 'single_call_match_type',
+                'name' => '2-10_chars_no_punct_no_sentence',
+                'desc' => '20-100_chars_value_focus',
+                'content' => 'markdown_sections_required',
+                'ignore' => 'basic_tools_ignored',
+                'diverse' => 'must_diff_prev',
+                'no_copy' => 'forbidden_output_same_as_input',
+                'lang' => 'match_input'
+            ],
+            'meta' => [
+                'ts' => time(),
+                'lang_hint' => $languageHint,
+                'src' => 'super_magic_agent_optimizer'
+            ],
         ];
 
-        $jsonString = json_encode($requestData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $jsonString = json_encode($requestData, JSON_UNESCAPED_UNICODE);
 
-        return "请根据以下信息进行智能体优化：\n\n" . $jsonString;
+        $instruction = "按 rules 进行一次优化，仅调用与 ot 对应的单一工具。输入(JSON)：";
+
+        return $instruction . $jsonString;
     }
 
     private function extractToolCallResult(ChatCompletionResponse $response, SuperMagicAgentEntity $agentEntity): SuperMagicAgentEntity
@@ -174,10 +197,12 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             return $agentEntity;
         }
         if (! $assistantMessage->hasToolCalls()) {
+            $this->logger->info('No assistant message selected, returning original entity.');
             return $agentEntity;
         }
 
         foreach ($assistantMessage->getToolCalls() as $toolCall) {
+            $this->logger->info('tool_call', $toolCall->toArray());
             $toolName = $toolCall->getName();
             $arguments = $toolCall->getArguments();
 
@@ -222,12 +247,10 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
      */
     private function checkOptimizationPreconditions(SuperMagicAgentOptimizationType $optimizationType, SuperMagicAgentEntity $agentEntity): bool
     {
-        return match ($optimizationType) {
-            SuperMagicAgentOptimizationType::OptimizeNameDescription => ! empty($agentEntity->getPromptString()),
-            SuperMagicAgentOptimizationType::OptimizeContent => ! empty($agentEntity->getName()) && ! empty($agentEntity->getDescription()),
-            SuperMagicAgentOptimizationType::OptimizeName => ! empty($agentEntity->getDescription()) || ! empty($agentEntity->getPromptString()),
-            SuperMagicAgentOptimizationType::OptimizeDescription => ! empty($agentEntity->getName()) || ! empty($agentEntity->getPromptString()),
-            default => false,
-        };
+        // 如果全部内容为空，则不进行优化
+        if (empty($agentEntity->getName()) && empty($agentEntity->getDescription()) && empty($agentEntity->getPromptString())) {
+            return true;
+        }
+        return false;
     }
 }
