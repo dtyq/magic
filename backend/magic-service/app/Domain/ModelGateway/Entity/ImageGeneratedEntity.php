@@ -26,7 +26,7 @@ class ImageGeneratedEntity
 
     protected DateTime $createdAt;
 
-    protected string $sourceId;
+    protected ?string $sourceId = null;
 
     protected ImageGenerateSourceEnum $sourceType;
 
@@ -100,12 +100,12 @@ class ImageGeneratedEntity
         $this->createdAt = $createdAt;
     }
 
-    public function getSourceId(): string
+    public function getSourceId(): ?string
     {
         return $this->sourceId;
     }
 
-    public function setSourceId(string $sourceId): void
+    public function setSourceId(?string $sourceId): void
     {
         $this->sourceId = $sourceId;
     }
