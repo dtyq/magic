@@ -171,7 +171,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'magic_super_agent_project.updated_at',
             'magic_super_agent_project.created_at',
             'magic_super_agent_project_member_settings.is_pinned',
-            'magic_super_agent_project_member_settings.last_active_at'
+            'magic_super_agent_project_member_settings.last_active_at',
+            'magic_super_agent_project_member_settings.is_bind_workspace',
+            'magic_super_agent_project_member_settings.bind_workspace_id'
         )
             ->distinct()
             ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
@@ -300,6 +302,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                 $join->on('magic_super_agent_project_member_settings.project_id', '=', 'magic_super_agent_project.id')
                     ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
             })
+            ->whereIn('magic_super_agent_project_members.role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->where('magic_super_agent_project.user_id', '=', $userId)
             ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
             ->whereNull('magic_super_agent_project.deleted_at');
@@ -324,7 +327,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'magic_super_agent_project.updated_at',
             'magic_super_agent_project.created_at',
             'magic_super_agent_project_member_settings.is_pinned',
-            'magic_super_agent_project_member_settings.last_active_at'
+            'magic_super_agent_project_member_settings.last_active_at',
+            'magic_super_agent_project_member_settings.is_bind_workspace',
+            'magic_super_agent_project_member_settings.bind_workspace_id'
         )
             ->distinct()
             ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
