@@ -167,11 +167,11 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                 'tool' => 'single_call_match_type',
                 'name' => '2-10_chars_no_punct_no_sentence',
                 'desc' => '20-100_chars_value_focus',
-                'content' => 'markdown_sections_required',
+                'content' => 'markdown_sections_adaptive_lang',
                 'ignore' => 'basic_tools_ignored',
                 'diverse' => 'must_diff_prev',
                 'no_copy' => 'forbidden_output_same_as_input',
-                'lang' => 'match_input',
+                'lang' => 'match_input_and_headers',
             ],
             'meta' => [
                 'ts' => time(),
