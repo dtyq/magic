@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "38d39faeca5834648b0b0dc7f9a18097b2e98e11"
+                "reference": "31a91741ba2deb6742d6945858d625f92b95551f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=38d39faeca5834648b0b0dc7f9a18097b2e98e11",
-                "reference": "38d39faeca5834648b0b0dc7f9a18097b2e98e11",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=31a91741ba2deb6742d6945858d625f92b95551f",
+                "reference": "31a91741ba2deb6742d6945858d625f92b95551f",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-11T14:27:46+08:00"
+            "time": "2025-09-11T14:46:25+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
