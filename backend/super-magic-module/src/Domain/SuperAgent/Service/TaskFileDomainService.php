@@ -323,7 +323,7 @@ class TaskFileDomainService
         try {
             // 查找文件是否存在
             $fileEntity = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey(), withTrash: $withTrash);
-            if ($withTrash && $fileEntity->getDeletedAt() !== null) {
+            if ($withTrash && $fileEntity?->getDeletedAt() !== null) {
                 $this->taskFileRepository->restoreFile($fileEntity->getFileId());
                 $fileEntity->setDeletedAt(null);
             }
@@ -2062,37 +2062,5 @@ class TaskFileDomainService
         });
 
         return $children;
-    }
-
-    /**
-     * 恢复已删除的文件（如果需要的话）.
-     *
-     * @param TaskFileEntity $existingFile 现有文件实体
-     */
-    private function recoverDeletedFileIfNeeded(TaskFileEntity $existingFile): void
-    {
-        // 检查文件是否被删除
-        if ($existingFile->getDeletedAt() === null) {
-            return; // 文件未被删除，无需恢复
-        }
-
-        // 使用专用的恢复方法恢复已删除的文件
-        $restored = $this->taskFileRepository->restoreFile($existingFile->getFileId());
-
-        if (! $restored) {
-            $this->logger->warning('Failed to recover deleted file', [
-                'file_id' => $existingFile->getFileId(),
-                'file_key' => $existingFile->getFileKey(),
-            ]);
-        } else {
-            // 同步更新实体对象状态
-            $existingFile->setDeletedAt(null);
-
-            $this->logger->info('Recovered deleted file', [
-                'file_id' => $existingFile->getFileId(),
-                'file_key' => $existingFile->getFileKey(),
-                'project_id' => $existingFile->getProjectId(),
-            ]);
-        }
     }
 }

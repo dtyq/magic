@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "af8027c8afed39c118b92defe25899cf2b8de535"
+                "reference": "1ecafba35443423cdc8382db3684008eb5b40a12"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=af8027c8afed39c118b92defe25899cf2b8de535",
-                "reference": "af8027c8afed39c118b92defe25899cf2b8de535",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=1ecafba35443423cdc8382db3684008eb5b40a12",
+                "reference": "1ecafba35443423cdc8382db3684008eb5b40a12",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-11T11:33:36+08:00"
+            "time": "2025-09-11T11:14:16+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "dtyq/magic-enterprise-service": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
+    "platform-dev": [],
     "plugin-api-version": "2.6.0"
 }
