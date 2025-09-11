@@ -13,14 +13,20 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
 
 abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 {
+    protected readonly LoggerInterface $logger;
+
     public function __construct(
         protected SuperMagicAgentDomainService $superMagicAgentDomainService,
-        protected MicroAgentFactory $microAgentFactory
+        protected MicroAgentFactory $microAgentFactory,
+        protected LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $this->loggerFactory->get(get_class($this));
     }
 
     protected function createSuperMagicDataIsolation(Authenticatable|BaseDataIsolation $authorization): SuperMagicAgentDataIsolation

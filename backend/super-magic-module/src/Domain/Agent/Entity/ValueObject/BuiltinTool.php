@@ -23,35 +23,17 @@ enum BuiltinTool: string
 
     // 搜索提取 (SearchExtraction)
     case WebSearch = 'web_search';
-    case ImageSearch = 'image_search';
     case ReadWebpagesAsMarkdown = 'read_webpages_as_markdown';
-    case UseBrowser = 'use_browser';
     case DownloadFromUrls = 'download_from_urls';
     case DownloadFromMarkdown = 'download_from_markdown';
 
     // 内容处理 (ContentProcessing)
     case VisualUnderstanding = 'visual_understanding';
-    case ConvertPdf = 'convert_pdf';
-    case VoiceUnderstanding = 'voice_understanding';
-    case Summarize = 'summarize';
     case GenerateImage = 'generate_image';
-    case CreateSlide = 'create_slide';
-    case CreateSlideProject = 'create_slide_project';
-    case CreateDashboardProject = 'create_dashboard_project';
-    case UpdateDashboardTemplate = 'update_dashboard_template';
-    case BackupDashboardTemplate = 'backup_dashboard_template';
-    case FinishDashboardTask = 'finish_dashboard_task';
 
     // 系统执行 (SystemExecution)
     case ShellExec = 'shell_exec';
     case PythonExecute = 'python_execute';
-
-    // AI协作 (AIAssistance)
-    case CreateMemory = 'create_memory';
-    case UpdateMemory = 'update_memory';
-    case DeleteMemory = 'delete_memory';
-    case FinishTask = 'finish_task';
-    case CompactChatHistory = 'compact_chat_history';
 
     /**
      * 获取工具的用户友好名称.
@@ -89,19 +71,14 @@ enum BuiltinTool: string
             self::DeleteFile, self::FileSearch, self::GrepSearch => BuiltinToolCategory::FileOperations,
 
             // 搜索提取
-            self::WebSearch, self::ImageSearch, self::ReadWebpagesAsMarkdown, self::UseBrowser,
+            self::WebSearch, self::ReadWebpagesAsMarkdown,
             self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
-            self::VisualUnderstanding, self::ConvertPdf, self::VoiceUnderstanding, self::Summarize,
-            self::GenerateImage, self::CreateSlide, self::CreateSlideProject,
-            self::CreateDashboardProject, self::UpdateDashboardTemplate, self::BackupDashboardTemplate, self::FinishDashboardTask => BuiltinToolCategory::ContentProcessing,
+            self::VisualUnderstanding, self::GenerateImage => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
             self::ShellExec, self::PythonExecute => BuiltinToolCategory::SystemExecution,
-
-            // AI协作
-            self::CreateMemory, self::UpdateMemory, self::DeleteMemory, self::FinishTask, self::CompactChatHistory => BuiltinToolCategory::AIAssistance,
         };
     }
 
@@ -120,28 +97,22 @@ enum BuiltinTool: string
     public static function getRequiredTools(): array
     {
         return [
-            // 文件操作
+            // 基础文件增删查改 + 目录查看
             self::ListDir,
             self::ReadFiles,
-            self::GrepSearch,
             self::WriteFile,
             self::EditFile,
             self::MultiEditFile,
             self::DeleteFile,
-            // 搜索提取
+            self::FileSearch,
+            self::GrepSearch,
+            // 互联网搜索和阅读
             self::WebSearch,
             self::ReadWebpagesAsMarkdown,
-            self::DownloadFromUrls,
-            // 内容处理
+            // 视觉理解
             self::VisualUnderstanding,
-            // 系统执行
+            // 命令行执行
             self::ShellExec,
-            // AI协作
-            self::CreateMemory,
-            self::UpdateMemory,
-            self::DeleteMemory,
-            self::FinishTask,
-            self::CompactChatHistory,
         ];
     }
 
