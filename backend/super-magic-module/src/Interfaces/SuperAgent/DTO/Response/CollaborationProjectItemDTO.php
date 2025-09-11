@@ -38,7 +38,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         public readonly bool $isPinned = false,
         public readonly ?string $lastActiveAt = null,
         public readonly bool $isBindWorkspace = false,
-        public readonly int $bindWorkspaceId = 0,
+        public readonly string $bindWorkspaceId = '',
     ) {
         parent::__construct(
             $id,
@@ -71,7 +71,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         bool $isPinned = false,
         ?string $lastActiveAt = null,
         bool $isBindWorkspace = false,
-        int $bindWorkspaceId = 0
+        string $bindWorkspaceId = ''
     ): self {
         return new self(
             id: (string) $project->getId(),
