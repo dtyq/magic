@@ -125,7 +125,7 @@ class GoogleGeminiAPI
 
     protected function makeRequest(string $endpoint, array $payload): array
     {
-        $url = "{$this->apiUrl}:{$endpoint}";
+        $url = "{$this->apiUrl}/models/{$this->modelId}:{$endpoint}";
 
         $headers = [
             'Content-Type' => 'application/json',
