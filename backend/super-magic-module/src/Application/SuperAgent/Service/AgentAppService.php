@@ -609,7 +609,7 @@ readonly class AgentAppService
             sandboxId: $sandboxId,
             taskId: $topicEntity->getCurrentTaskId() ? (string) $topicEntity->getCurrentTaskId() : '',
             instruction: ChatInstruction::Normal,
-            agentMode: $topicEntity->getTopicMode() ? $topicEntity->getTopicMode()->value : 'general',
+            agentMode: $topicEntity->getTopicMode() ?: 'general',
             workspaceId: (string) $topicEntity->getWorkspaceId(),
         );
 
