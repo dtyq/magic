@@ -96,7 +96,15 @@ class GoogleGeminiAPI
             ],
         ];
 
-        return $this->generateContent($contents);
+        // 为图像编辑设置正确的生成配置
+        $generationConfig = [
+            'temperature' => 1,
+            'maxOutputTokens' => 32768,
+            'responseModalities' => ['TEXT', 'IMAGE'], // 关键：指定我们需要图像响应
+            'topP' => 0.95,
+        ];
+
+        return $this->generateContent($contents, $generationConfig);
     }
 
     public function generateContent(array $contents, ?array $generationConfig = null, ?array $safetySettings = null): array
@@ -121,6 +129,36 @@ class GoogleGeminiAPI
         ];
 
         return $this->makeRequest('generateContent', $payload);
+    }
+
+    public function editBase64Image(string $imageBase64, string $mimeType, string $instructions): array
+    {
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [
+                    [
+                        'inlineData' => [
+                            'mimeType' => $mimeType,
+                            'data' => $imageBase64,
+                        ],
+                    ],
+                    [
+                        'text' => $instructions,
+                    ],
+                ],
+            ],
+        ];
+
+        // 为图像编辑设置正确的生成配置
+        $generationConfig = [
+            'temperature' => 1,
+            'maxOutputTokens' => 32768,
+            'responseModalities' => ['TEXT', 'IMAGE'], // 关键：指定我们需要图像响应
+            'topP' => 0.95,
+        ];
+
+        return $this->generateContent($contents, $generationConfig);
     }
 
     protected function makeRequest(string $endpoint, array $payload): array

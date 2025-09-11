@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
+use GuzzleHttp\Client;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Engine\Coroutine;
 use Hyperf\Retry\Annotation\Retry;
@@ -80,11 +81,6 @@ class GoogleGeminiModel extends AbstractImageGenerate
         ksort($imageData);
         $imageData = array_values($imageData);
 
-        $this->logger->info('Google Gemini文生图：生成结束', [
-            'totalImages' => count($imageData),
-            'requestedImages' => $imageGenerateRequest->getGenerateNum(),
-        ]);
-
         return new ImageGenerateResponse(ImageGenerateType::BASE_64, $imageData);
     }
 
@@ -107,33 +103,79 @@ class GoogleGeminiModel extends AbstractImageGenerate
     {
         $prompt = $imageGenerateRequest->getPrompt();
         $modelId = $imageGenerateRequest->getModel();
+        $referImages = $imageGenerateRequest->getReferImages();
 
         // 如果请求中指定了模型，则动态设置
         if (! empty($modelId)) {
             $this->api->setModelId($modelId);
         }
 
-        $this->logger->info('Google Gemini文生图：开始生图', [
-            'prompt' => $prompt,
-            'model' => $modelId,
-        ]);
-
         try {
-            $result = $this->api->generateImageFromText($prompt, [
-                'temperature' => $imageGenerateRequest->getTemperature(),
-                'candidateCount' => $imageGenerateRequest->getCandidateCount(),
-                'maxOutputTokens' => $imageGenerateRequest->getMaxOutputTokens(),
-            ]);
-
-            $this->logger->info('Google Gemini文生图：生成成功', [
-                'hasResult' => ! empty($result),
-            ]);
+            // 如果有参考图像，则执行图像编辑
+            if (! empty($referImages)) {
+                // 取第一张参考图像进行编辑
+                $referImage = $referImages[0];
+                $result = $this->processImageEdit($referImage, $prompt);
+            } else {
+                $result = $this->api->generateImageFromText($prompt, [
+                    'temperature' => $imageGenerateRequest->getTemperature(),
+                    'candidateCount' => $imageGenerateRequest->getCandidateCount(),
+                    'maxOutputTokens' => $imageGenerateRequest->getMaxOutputTokens(),
+                ]);
+            }
 
             return $result;
         } catch (Exception $e) {
-            $this->logger->warning('Google Gemini文生图：调用图片生成接口失败', ['error' => $e->getMessage()]);
+            $this->logger->warning('Google Gemini图片生成：调用图片生成接口失败', ['error' => $e->getMessage()]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
         }
+    }
+
+    private function processImageEdit(string $referImageUrl, string $instructions): array
+    {
+        // 直接处理URL图像
+        $imageBase64 = $this->downloadImageAsBase64($referImageUrl);
+        $mimeType = $this->detectMimeTypeFromUrl($referImageUrl);
+
+        return $this->api->editBase64Image($imageBase64, $mimeType, $instructions);
+    }
+
+    private function downloadImageAsBase64(string $url): string
+    {
+        try {
+            $client = new Client(['timeout' => 30]);
+            $response = $client->get($url);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new Exception("无法下载图像，HTTP状态码: {$response->getStatusCode()}");
+            }
+
+            $imageContent = $response->getBody()->getContents();
+            if (empty($imageContent)) {
+                throw new Exception('下载的图像内容为空');
+            }
+
+            return base64_encode($imageContent);
+        } catch (Exception $e) {
+            $this->logger->error('Google Gemini图生图：图像下载失败', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+            throw new Exception("下载图像失败: {$e->getMessage()}");
+        }
+    }
+
+    private function detectMimeTypeFromUrl(string $url): string
+    {
+        $extension = strtolower(pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            default => 'image/jpeg'
+        };
     }
 
     private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
