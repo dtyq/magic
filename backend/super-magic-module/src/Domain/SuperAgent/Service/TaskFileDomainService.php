@@ -315,7 +315,7 @@ class TaskFileDomainService
         try {
             // 查找文件是否存在
             $fileEntity = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey(), withTrash: $withTrash);
-            if ($withTrash && $fileEntity->getDeletedAt() !== null) {
+            if ($withTrash && $fileEntity?->getDeletedAt() !== null) {
                 $this->taskFileRepository->restoreFile($fileEntity->getFileId());
                 $fileEntity->setDeletedAt(null);
             }
