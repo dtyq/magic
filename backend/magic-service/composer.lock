@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "f3da9c51712c3520882bd6ce87c409398613fb99"
+                "reference": "e5cc805c383a8d37629e4eac69836270b3281a14"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f3da9c51712c3520882bd6ce87c409398613fb99",
-                "reference": "f3da9c51712c3520882bd6ce87c409398613fb99",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e5cc805c383a8d37629e4eac69836270b3281a14",
+                "reference": "e5cc805c383a8d37629e4eac69836270b3281a14",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-11T15:06:53+08:00"
+            "time": "2025-09-11T18:52:20+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "118f34254da2ce69fa3d03c2d82c179b418db8e4"
+                "reference": "0c9ad0485c6e755ed484bb47f016016d49718cf6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=118f34254da2ce69fa3d03c2d82c179b418db8e4",
-                "reference": "118f34254da2ce69fa3d03c2d82c179b418db8e4",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=0c9ad0485c6e755ed484bb47f016016d49718cf6",
+                "reference": "0c9ad0485c6e755ed484bb47f016016d49718cf6",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-11T18:12:02+08:00"
+            "time": "2025-09-11T22:35:31+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "dtyq/magic-enterprise-service": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "platform-dev": [],
+    "plugin-api-version": "2.3.0"
 }
