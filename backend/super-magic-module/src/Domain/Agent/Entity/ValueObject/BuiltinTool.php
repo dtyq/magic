@@ -34,8 +34,7 @@ enum BuiltinTool: string
     case ConvertPdf = 'convert_pdf';
     case VoiceUnderstanding = 'voice_understanding';
     case Summarize = 'summarize';
-    case TextToImage = 'text_to_image';
-    case ImageEdit = 'image_edit';
+    case GenerateImage = 'generate_image';
     case CreateSlide = 'create_slide';
     case CreateSlideProject = 'create_slide_project';
     case CreateDashboardProject = 'create_dashboard_project';
@@ -95,7 +94,7 @@ enum BuiltinTool: string
 
             // 内容处理
             self::VisualUnderstanding, self::ConvertPdf, self::VoiceUnderstanding, self::Summarize,
-            self::TextToImage, self::ImageEdit, self::CreateSlide, self::CreateSlideProject,
+            self::GenerateImage, self::CreateSlide, self::CreateSlideProject,
             self::CreateDashboardProject, self::UpdateDashboardTemplate, self::BackupDashboardTemplate, self::FinishDashboardTask => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
