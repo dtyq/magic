@@ -149,7 +149,7 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
 
         // 使用 SuperMagicAgentAssembler 创建实体
         $DTO = new SuperMagicAgentDTO($requestData['agent']);
-        $promptShadow = $request->input('prompt_shadow');
+        $promptShadow = $request->input('agent.prompt_shadow');
         if ($promptShadow) {
             $promptShadow = json_decode(ShadowCode::unShadow($promptShadow), true);
             $DTO->setPrompt($promptShadow);
