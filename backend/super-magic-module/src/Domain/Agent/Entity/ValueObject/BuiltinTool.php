@@ -52,6 +52,7 @@ enum BuiltinTool: string
     case UpdateMemory = 'update_memory';
     case DeleteMemory = 'delete_memory';
     case FinishTask = 'finish_task';
+    case CompactChatHistory = 'compact_chat_history';
 
     /**
      * 获取工具的用户友好名称.
@@ -101,7 +102,7 @@ enum BuiltinTool: string
             self::ShellExec, self::PythonExecute => BuiltinToolCategory::SystemExecution,
 
             // AI协作
-            self::CreateMemory, self::UpdateMemory, self::DeleteMemory, self::FinishTask => BuiltinToolCategory::AIAssistance,
+            self::CreateMemory, self::UpdateMemory, self::DeleteMemory, self::FinishTask, self::CompactChatHistory => BuiltinToolCategory::AIAssistance,
         };
     }
 
@@ -141,6 +142,7 @@ enum BuiltinTool: string
             self::UpdateMemory,
             self::DeleteMemory,
             self::FinishTask,
+            self::CompactChatHistory,
         ];
     }
 

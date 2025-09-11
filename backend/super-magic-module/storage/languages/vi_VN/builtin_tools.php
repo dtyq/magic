@@ -47,6 +47,7 @@ return [
         'update_memory' => 'Cập nhật bộ nhớ',
         'delete_memory' => 'Xóa bộ nhớ',
         'finish_task' => 'Hoàn thành tác vụ',
+        'compact_chat_history' => 'Nén lịch sử trò chuyện',
     ],
 
     'descriptions' => [
@@ -91,5 +92,6 @@ return [
         'update_memory' => 'Công cụ cập nhật bộ nhớ dài hạn, sửa đổi nội dung bộ nhớ hiện có hoặc thông tin thẻ, định vị và cập nhật bộ nhớ được chỉ định thông qua ID bộ nhớ',
         'delete_memory' => 'Công cụ xóa bộ nhớ dài hạn, loại bỏ hoàn toàn thông tin bộ nhớ không cần thiết thông qua ID bộ nhớ, dùng để dọn dẹp dữ liệu bộ nhớ lỗi thời hoặc sai',
         'finish_task' => 'Công cụ hoàn thành tác vụ, được gọi khi tất cả các tác vụ cần thiết đã hoàn thành, cung cấp phản hồi cuối cùng hoặc tạm dừng tác vụ để phản hồi người dùng, vào trạng thái dừng sau khi gọi',
+        'compact_chat_history' => 'Công cụ nén lịch sử trò chuyện, được sử dụng để nén và tối ưu hóa lịch sử trò chuyện khi cuộc hội thoại trở nên quá dài, phân tích quá trình hội thoại và tạo tóm tắt để giảm độ dài ngữ cảnh và cải thiện hiệu quả hội thoại tiếp theo',
     ],
 ];
