@@ -47,6 +47,7 @@ return [
         'update_memory' => 'Update Memory',
         'delete_memory' => 'Delete Memory',
         'finish_task' => 'Finish Task',
+        'compact_chat_history' => 'Compact Chat History',
     ],
 
     'descriptions' => [
@@ -91,5 +92,6 @@ return [
         'update_memory' => 'Long-term memory update tool, modifies existing memory content or tag information, locates and updates specified memory through memory ID',
         'delete_memory' => 'Long-term memory deletion tool, completely removes unnecessary memory information through memory ID, used to clean up outdated or incorrect memory data',
         'finish_task' => 'Task completion tool, called when all required tasks are completed, provides final reply or pauses task to give user feedback, enters stop state after calling',
+        'compact_chat_history' => 'Chat history compression tool, used to compress and optimize chat history when conversations become too long, analyzes conversation process and generates summary to reduce context length and improve subsequent conversation efficiency',
     ],
 ];

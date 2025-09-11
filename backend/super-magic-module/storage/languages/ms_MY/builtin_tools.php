@@ -47,6 +47,7 @@ return [
         'update_memory' => 'Kemas Kini Memori',
         'delete_memory' => 'Padam Memori',
         'finish_task' => 'Selesaikan Tugas',
+        'compact_chat_history' => 'Mampatkan Sejarah Chat',
     ],
 
     'descriptions' => [
@@ -91,5 +92,6 @@ return [
         'update_memory' => 'Alat kemas kini memori jangka panjang, mengubah suai kandungan memori sedia ada atau maklumat tag, mengesan dan mengemas kini memori yang ditentukan melalui ID memori',
         'delete_memory' => 'Alat pemadaman memori jangka panjang, menghapuskan maklumat memori yang tidak diperlukan sepenuhnya melalui ID memori, digunakan untuk membersihkan data memori yang lapuk atau salah',
         'finish_task' => 'Alat penyiapan tugas, dipanggil apabila semua tugas yang diperlukan selesai, memberikan balasan akhir atau menjeda tugas untuk memberikan maklum balas kepada pengguna, memasuki keadaan berhenti selepas panggilan',
+        'compact_chat_history' => 'Alat mampatan sejarah chat, digunakan untuk memampatkan dan mengoptimumkan sejarah chat apabila perbualan menjadi terlalu panjang, menganalisis proses perbualan dan menghasilkan ringkasan untuk mengurangkan panjang konteks dan meningkatkan kecekapan perbualan seterusnya',
     ],
 ];
