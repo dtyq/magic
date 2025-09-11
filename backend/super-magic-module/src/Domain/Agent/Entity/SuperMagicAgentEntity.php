@@ -237,6 +237,12 @@ class SuperMagicAgentEntity extends AbstractEntity
 
         // 2. 再添加原始工具列表中的其他工具（跳过已存在的必填工具）
         foreach ($this->tools as $tool) {
+            if ($tool->getType()->isBuiltIn()) {
+                // 但是不在目前已有的内置列表中，则跳过
+                if (! BuiltinTool::isValidTool($tool->getCode())) {
+                    continue;
+                }
+            }
             if (! isset($result[$tool->getCode()])) {
                 $result[$tool->getCode()] = $tool;
             }

@@ -145,6 +145,11 @@ enum BuiltinTool: string
         ];
     }
 
+    public static function isValidTool(string $tool): bool
+    {
+        return (bool) self::tryFrom($tool);
+    }
+
     /**
      * 判断工具是否为必须工具.
      */
