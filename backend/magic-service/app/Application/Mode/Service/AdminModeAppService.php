@@ -50,7 +50,7 @@ class AdminModeAppService extends AbstractModeAppService
             ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
         }
 
-        $providerModels = $this->getModels($modeAggregate);
+        $providerModels = $this->getDetailedModels($modeAggregate);
 
         // 转换为DTO
         $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
@@ -68,7 +68,7 @@ class AdminModeAppService extends AbstractModeAppService
         if (! $modeAggregate) {
             ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
         }
-        $providerModels = $this->getModels($modeAggregate);
+        $providerModels = $this->getDetailedModels($modeAggregate);
         // 转换为DTO
         $modeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($modeAggregate, $providerModels);
 
@@ -157,7 +157,7 @@ class AdminModeAppService extends AbstractModeAppService
     {
         $dataIsolation = $this->getModeDataIsolation($authorization);
         $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
-        $providerModels = $this->getModels($defaultModeAggregate);
+        $providerModels = $this->getDetailedModels($defaultModeAggregate);
 
         $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate, $providerModels);
 

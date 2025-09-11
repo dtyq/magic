@@ -47,20 +47,4 @@ class ModeAggregate
     {
         $this->groupAggregates = $groupAggregates;
     }
-
-    /**
-     * 获取所有模型ID.
-     *
-     * @return string[]
-     */
-    public function getAllModelIds(): array
-    {
-        $allModelIds = [];
-        foreach ($this->groupAggregates as $groupAggregate) {
-            foreach ($groupAggregate->getRelations() as $relation) {
-                $allModelIds[] = (string) $relation->getProviderModelId();
-            }
-        }
-        return array_unique($allModelIds);
-    }
 }

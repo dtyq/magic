@@ -16,6 +16,7 @@ use App\Domain\Chat\Entity\ValueObject\AIImage\Radio;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Flow\Entity\ValueObject\NodeInput;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -207,9 +208,12 @@ JSON,
             ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId());
         // 设置实际请求的尺寸和比例
         $enumModel = ImageGenerateModelType::fromModel($model, false);
-        $reqDto->getParams()->setRatioForModel($radio, $enumModel);
-        $radio = $reqDto->getParams()->getRatio();
-        $reqDto->getParams()->setSizeFromRadioAndModel($radio, $enumModel)->setModel($model);
+        $imageGenerateParamsVO = $reqDto->getParams();
+        $imageGenerateParamsVO->setSourceId($this->getCode());
+        $imageGenerateParamsVO->setSourceType(ImageGenerateSourceEnum::TOOL);
+        $imageGenerateParamsVO->setRatioForModel($radio, $enumModel);
+        $radio = $imageGenerateParamsVO->getRatio();
+        $imageGenerateParamsVO->setSizeFromRadioAndModel($radio, $enumModel)->setModel($model);
         $this->getMagicChatAIImageAppService()->handleUserMessage($requestContext, $reqDto);
         return [];
     }

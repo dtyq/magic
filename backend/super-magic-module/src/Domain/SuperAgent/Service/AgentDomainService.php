@@ -734,18 +734,19 @@ class AgentDomainService
             'language' => $dataIsolation->getLanguage(),
         ]);
         $messageMetadata = new MessageMetadata(
-            agentUserId: $taskContext->getAgentUserId(),
-            userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: $taskContext->getChatConversationId(),
-            chatTopicId: $taskContext->getChatTopicId(),
-            instruction: $taskContext->getInstruction()->value,
-            sandboxId: $taskContext->getSandboxId(),
-            superMagicTaskId: (string) $taskContext->getTask()->getId(),
-            workspaceId: $taskContext->getWorkspaceId(),
-            projectId: (string) $taskContext->getTask()->getProjectId(),
-            language: $dataIsolation->getLanguage() ?? '',
-            userInfo: $userInfo,
+            $taskContext->getAgentUserId(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $taskContext->getChatConversationId(),
+            $taskContext->getChatTopicId(),
+            (string) $taskContext->getTopicId(),
+            $taskContext->getInstruction()->value,
+            $taskContext->getSandboxId(),
+            (string) $taskContext->getTask()->getId(),
+            $taskContext->getWorkspaceId(),
+            (string) $taskContext->getTask()->getProjectId(),
+            $dataIsolation->getLanguage() ?? '',
+            $userInfo,
         );
 
         // chat history

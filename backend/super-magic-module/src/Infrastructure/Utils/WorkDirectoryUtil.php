@@ -261,90 +261,6 @@ class WorkDirectoryUtil
     }
 
     /**
-     * Validate if a filename (without path) is valid for file operations.
-     *
-     * @param string $fileName Filename to validate (should not contain path separators)
-     * @return bool True if the filename is valid, false otherwise
-     *
-     * Examples of INVALID inputs (will return false):
-     * - '/a'           // Directory path (starts with /)
-     * - '/b/'          // Directory path (starts and ends with /)
-     * - 'dir/'         // Directory path (ends with /)
-     * - 'a/b'          // Nested path
-     * - 'dir\\file'    // Windows path separator
-     * - '../file'      // Path traversal
-     * - 'CON.txt'      // Windows reserved name
-     * - 'file?.txt'    // Invalid characters
-     * - ''             // Empty string
-     * - '.'            // Current directory
-     * - '..'           // Parent directory
-     *
-     * Examples of VALID inputs (will return true):
-     * - 'document.txt'
-     * - 'README.md'
-     * - 'config.json'
-     * - '用户手册.pdf'
-     * - 'data-2024.csv'
-     */
-    public static function isValidFileName(string $fileName): bool
-    {
-        // Check if filename is empty
-        if (empty(trim($fileName))) {
-            return false;
-        }
-
-        // Trim the filename
-        $fileName = trim($fileName);
-
-        // Check for null bytes (security risk)
-        if (strpos($fileName, "\0") !== false) {
-            return false;
-        }
-
-        // Check for path separators (filename should not contain paths)
-        if (strpos($fileName, '/') !== false || strpos($fileName, '\\') !== false) {
-            return false;
-        }
-
-        // Check for dangerous characters that could cause file system issues
-        // Windows forbidden characters: < > : " | ? *
-        // Also check for control characters (ASCII 0-31)
-        if (preg_match('/[<>:"|?*\x00-\x1f]/', $fileName)) {
-            return false;
-        }
-
-        // Prevent path traversal patterns
-        if (strpos($fileName, '..') !== false) {
-            return false;
-        }
-
-        // Check filename length (typical filesystem limit is 255 bytes)
-        if (strlen($fileName) > 255) {
-            return false;
-        }
-
-        // Check for Windows reserved names (case-insensitive)
-        // First, remove extension to check the base name
-        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
-        $reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
-        if (in_array(strtoupper($baseName), $reservedNames)) {
-            return false;
-        }
-
-        // Check for filenames that are just dots
-        if ($fileName === '.' || $fileName === '..') {
-            return false;
-        }
-
-        // Check for filenames starting or ending with spaces or dots (problematic on Windows)
-        if (preg_match('/^[\s.]+|[\s.]+$/', $fileName)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Check if a target path is under or equal to a specified base directory.
      *
      * @param string $basePath Base directory path to check against
@@ -444,8 +360,8 @@ class WorkDirectoryUtil
 
         // Check for dangerous characters that could cause file system issues
         // Windows forbidden characters: < > : " | ? *
-        // Also check for control characters (ASCII 0-31)
-        if (preg_match('/[<>:"|?*\x00-\x1f]/', $directoryName)) {
+        // Also check for control characters (ASCII 0-31) and single quotes
+        if (preg_match('/[<>:"|?*\'\x00-\x1f]/', $directoryName)) {
             return false;
         }
 
@@ -479,56 +395,61 @@ class WorkDirectoryUtil
                 return false;
             }
 
-            // Check for components that are just dots
-            if ($component === '.' || $component === '..') {
+            // Check for components with leading/trailing spaces (always problematic)
+            if (preg_match('/^\s|\s$/', $component)) {
                 return false;
             }
 
-            // Check for components starting or ending with spaces or dots (problematic on Windows)
-            if (preg_match('/^[\s.]+|[\s.]+$/', $component)) {
+            // Check for components that are only dots (., .., ..., etc.)
+            // This allows hidden directories like .git, .visual but rejects dot-only patterns
+            if (preg_match('/^\.+$/', $component)) {
                 return false;
             }
 
-            // Check if component looks like a file (has an extension)
+            // Check for components ending with dots (problematic on Windows)
+            if (preg_match('/\.$/', $component)) {
+                return false;
+            }
+
+            // Check if component looks like a file (has a common file extension)
             // Only check the last component to determine if it's a file
+            // Exclude hidden directories (starting with .) from file extension check
             $pathParts = explode('/', $directoryName);
             $lastComponent = end($pathParts);
-            if ($component === $lastComponent && preg_match('/\.[a-zA-Z0-9]+$/', $component)) {
-                return false;
+            if ($component === $lastComponent && ! str_starts_with($component, '.')) {
+                // Check for Dockerfile patterns (special case)
+                if (preg_match('/^[Dd]ockerfile/', $component)) {
+                    return false;
+                }
+
+                // Check against common file extensions that are definitely files
+                $commonFileExtensions = [
+                    'txt', 'md', 'json', 'xml', 'yml', 'yaml', 'ini', 'conf', 'log', 'lock',
+                    'html', 'htm', 'css', 'js', 'ts', 'jsx', 'tsx', 'vue', 'php', 'py', 'rb', 'go', 'java', 'c', 'cpp', 'h', 'hpp',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
+                    'png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'ico', 'webp',
+                    'mp3', 'mp4', 'avi', 'mkv', 'mov', 'wav', 'flac',
+                    'zip', 'tar', 'gz', 'bz2', 'rar', '7z', 'xz',
+                    'exe', 'dll', 'so', 'dylib', 'app', 'dmg', 'msi',
+                    'sql', 'db', 'sqlite', 'csv',
+                    'prod', 'dev', 'test', 'staging', // Docker/config file suffixes
+                ];
+
+                if (preg_match('/\.([a-zA-Z0-9]+)$/', $component, $matches)) {
+                    $extension = strtolower($matches[1]);
+                    if (in_array($extension, $commonFileExtensions)) {
+                        return false;
+                    }
+                }
             }
         }
 
         return true;
     }
 
-    /**
-     * Check if a file path is a snapshot file.
-     * Snapshot files are located in .webview-reports or .browser_screenshots directories.
-     *
-     * @param string $filePath File path to check
-     * @return bool True if the file is a snapshot file, false otherwise
-     */
-    public static function isSnapshotFile(string $filePath): bool
+    public static function getLockerKey(int $projectId): string
     {
-        // Check if file path is empty
-        if (empty(trim($filePath))) {
-            return false;
-        }
-
-        // Normalize path separators and trim
-        $normalizedPath = str_replace('\\', '/', trim($filePath));
-
-        // Split path into components
-        $components = explode('/', $normalizedPath);
-
-        // Check if any component is exactly .webview-reports or .browser_screenshots
-        foreach ($components as $component) {
-            if ($component === '.webview-reports' || $component === '.browser_screenshots') {
-                return true;
-            }
-        }
-
-        return false;
+        return sprintf('super-magic:workspace:locker:%d', $projectId);
     }
 
     /**

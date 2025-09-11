@@ -178,17 +178,13 @@ readonly class LongTermMemoryDomainService
                 }
 
                 // 批量删除需要删除的记忆
-                if (! empty($memoriesToDelete)) {
-                    if (! $this->repository->deleteBatch($memoriesToDelete)) {
-                        ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
-                    }
+                if (! empty($memoriesToDelete) && ! $this->repository->deleteBatch($memoriesToDelete)) {
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
                 }
 
                 // 批量更新需要清空pending_content的记忆
-                if (! empty($memoriesToUpdate)) {
-                    if (! $this->repository->updateBatch($memoriesToUpdate)) {
-                        ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-                    }
+                if (! empty($memoriesToUpdate) && ! $this->repository->updateBatch($memoriesToUpdate)) {
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
                 }
             }
 
@@ -374,16 +370,27 @@ readonly class LongTermMemoryDomainService
     }
 
     /**
-     * 根据项目ID删除记忆.
+     * 根据项目ID列表批量删除记忆.
      * @param string $orgId 组织ID
      * @param string $appId 应用ID
      * @param string $userId 用户ID
-     * @param string $projectId 项目ID
+     * @param array $projectIds 项目ID列表
      * @return int 删除的记录数量
      */
-    public function deleteMemoriesByProjectId(string $orgId, string $appId, string $userId, string $projectId): int
+    public function deleteMemoriesByProjectIds(string $orgId, string $appId, string $userId, array $projectIds): int
     {
-        return $this->repository->deleteByProjectId($orgId, $appId, $userId, $projectId);
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        // 过滤空的项目ID
+        $validProjectIds = array_filter($projectIds, static fn ($id) => ! empty($id));
+        if (empty($validProjectIds)) {
+            return 0;
+        }
+
+        // 一条SQL批量删除
+        return $this->repository->deleteByProjectIds($orgId, $appId, $userId, $validProjectIds);
     }
 
     /**
@@ -602,12 +609,7 @@ readonly class LongTermMemoryDomainService
             return [];
         }
 
-        $ids = array_values(array_unique(array_map('intval', $projectIds)));
-        if (empty($ids)) {
-            return [];
-        }
-
-        $projects = $this->projectRepository->findByIds($ids);
+        $projects = $this->projectRepository->findByIds($projectIds);
 
         $projectNames = [];
         foreach ($projects as $project) {

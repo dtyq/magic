@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
@@ -25,7 +24,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -35,11 +33,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\LockKeyManageUtils;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskEventUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -132,7 +130,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $this->logger->info(sprintf('开始批量处理topic %d的消息', $topicId));
 
         // 1. 获取待处理的消息列表（按seq_id升序排列）
-        $processableMessages = $this->taskMessageDomainService->findProcessableMessages(topicId: $topicId, taskId: $taskId);
+        $processableMessages = $this->taskMessageDomainService->findProcessableMessages(topicId: $topicId, taskId: $taskId, senderType: 'assistant', timeoutMinutes: 30, maxRetries: 3, limit: 3);
 
         if (empty($processableMessages)) {
             $this->logger->info(sprintf('topic %d 没有待处理的消息', $topicId));
@@ -475,24 +473,55 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process all attachments - Unified attachment processing entry point.
+     * Process all attachments - Unified attachment processing entry point with task-level locking.
      */
     private function processAllAttachments(array &$messageData, TaskContext $taskContext): void
     {
+        // Setup task-level lock for all attachment processing
+        $lockKey = WorkDirectoryUtil::getLockerKey($taskContext->getProjectId());
+        $lockOwner = $taskContext->getCurrentUserId();
+        $lockExpireSeconds = 30; // 30 seconds timeout for task-level processing
+        $lockAcquired = false;
+
         try {
+            // Attempt to acquire distributed task-level lock
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
+            if (! $lockAcquired) {
+                $this->logger->warning(sprintf(
+                    'Failed to acquire task-level attachment lock, task_id: %s',
+                    $taskContext->getTask()->getTaskId()
+                ));
+                return;
+            }
+
+            $this->logger->info(sprintf(
+                'Task-level attachment lock acquired, task_id: %s',
+                $taskContext->getTask()->getTaskId()
+            ));
+
             /** @var TaskFileEntity[] $processedEntities */
             $processedEntities = [];
+
+            // Get project entity once for all attachment processing to avoid repeated database queries
+            $task = $taskContext->getTask();
+            $dataIsolation = $taskContext->getDataIsolation();
+            $projectEntity = $this->getAccessibleProject(
+                $task->getProjectId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
             // Process tool attachments
             if (! empty($messageData['tool']['attachments'])) {
-                $toolProcessedEntities = $this->processToolAttachments($messageData['tool'], $taskContext);
+                $toolProcessedEntities = $this->processToolAttachments($messageData['tool'], $taskContext, $projectEntity);
                 $processedEntities = array_merge($processedEntities, $toolProcessedEntities);
                 // Use tool processor to handle file ID matching
                 ToolProcessor::processToolAttachments($messageData['tool']);
             }
 
-            // Process message attachments and collect processed entities
+            // Process message attachments
             if (! empty($messageData['attachments'])) {
-                $messageProcessedEntities = $this->processMessageAttachments($messageData['attachments'], $taskContext);
+                $messageProcessedEntities = $this->processMessageAttachments($messageData['attachments'], $taskContext, $projectEntity);
                 $processedEntities = array_merge($processedEntities, $messageProcessedEntities);
             }
 
@@ -506,18 +535,23 @@ class HandleAgentMessageAppService extends AbstractAppService
                     $messageData['tool'] = $outputTool;
                 }
             }
-
-            // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
-            if (! empty($processedEntities)) {
-                AsyncEventUtil::dispatch(new AttachmentsProcessedEvent($processedEntities, $taskContext));
-                $this->logger->info(sprintf(
-                    'Dispatched AttachmentsProcessedEvent for %d processed attachments, task_id: %s',
-                    count($processedEntities),
-                    $taskContext->getTask()->getTaskId()
-                ));
-            }
         } catch (Exception $e) {
             $this->logger->error(sprintf('Exception occurred while processing attachments: %s', $e->getMessage()));
+        } finally {
+            // Ensure task-level lock is always released
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf(
+                        'Task-level attachment lock released, task_id: %s',
+                        $taskContext->getTask()->getTaskId()
+                    ));
+                } else {
+                    $this->logger->error(sprintf(
+                        'Failed to release task-level attachment lock, task_id: %s. Manual intervention may be required.',
+                        $taskContext->getTask()->getTaskId()
+                    ));
+                }
+            }
         }
     }
 
@@ -616,26 +650,23 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process tool attachments, save them to task file table and chat file table.
+     * Process tool attachments using saveProjectFile approach.
+     * @param null|array $tool Tool data with attachments
+     * @param TaskContext $taskContext Task context
+     * @param mixed $projectEntity Project entity (passed from parent to avoid repeated queries)
      * @return TaskFileEntity[] Array of successfully processed file entities
      */
-    private function processToolAttachments(?array &$tool, TaskContext $taskContext): array
+    private function processToolAttachments(?array &$tool, TaskContext $taskContext, $projectEntity): array
     {
         if (empty($tool['attachments'])) {
             return [];
         }
 
-        $task = $taskContext->getTask();
-        $dataIsolation = $taskContext->getDataIsolation();
         $processedEntities = [];
+        foreach ($tool['attachments'] as $i => $attachment) {
+            $result = $this->processSingleAttachment($attachment, $taskContext, $projectEntity, 'tool');
 
-        foreach ($tool['attachments'] as $i => $iValue) {
-            $result = $this->processSingleAttachment(
-                $iValue,
-                $task,
-                $dataIsolation
-            );
-
+            // Update the tool attachment array
             $tool['attachments'][$i] = $result['attachment'];
 
             // Collect successfully processed entities
@@ -648,27 +679,23 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process message attachments.
+     * Process message attachments using saveProjectFile approach.
+     * @param null|array $attachments Attachment data array
+     * @param TaskContext $taskContext Task context
+     * @param mixed $projectEntity Project entity (passed from parent to avoid repeated queries)
      * @return TaskFileEntity[] Array of successfully processed file entities
      */
-    private function processMessageAttachments(?array &$attachments, TaskContext $taskContext): array
+    private function processMessageAttachments(?array &$attachments, TaskContext $taskContext, $projectEntity): array
     {
         if (empty($attachments)) {
             return [];
         }
 
-        $task = $taskContext->getTask();
-        $dataIsolation = $taskContext->getDataIsolation();
         $processedEntities = [];
+        foreach ($attachments as $i => $attachment) {
+            $result = $this->processSingleAttachment($attachment, $taskContext, $projectEntity, 'message');
 
-        foreach ($attachments as $i => $iValue) {
-            $result = $this->processSingleAttachment(
-                $iValue,
-                $task,
-                $dataIsolation
-            );
-
-            // Update the attachment array with processed attachment
+            // Update the attachment array
             $attachments[$i] = $result['attachment'];
 
             // Collect successfully processed entities
@@ -681,125 +708,118 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process single attachment, save to task file table and chat file table.
+     * Process single attachment using saveProjectFile approach.
+     * @param array $attachment Attachment data
+     * @param TaskContext $taskContext Task context
+     * @param mixed $projectEntity Project entity (passed from parent to avoid repeated queries)
+     * @param string $type Attachment type: 'tool' or 'message'
      * @return array{attachment: array, taskFileEntity: null|TaskFileEntity}
      */
-    private function processSingleAttachment(array $attachment, TaskEntity $task, DataIsolation $dataIsolation): array
+    private function processSingleAttachment(array $attachment, TaskContext $taskContext, $projectEntity, string $type): array
     {
+        $task = $taskContext->getTask();
+        $dataIsolation = $taskContext->getDataIsolation();
+
         // Check required fields
         if (empty($attachment['file_key']) || empty($attachment['file_extension']) || empty($attachment['filename'])) {
             $this->logger->warning(sprintf(
-                'Attachment information incomplete, skipping processing, task_id: %s, attachment content: %s',
+                'Attachment information incomplete, skipping processing, task_id: %s, type: %s, attachment content: %s',
                 $task->getTaskId(),
+                $type,
                 json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ));
             return ['attachment' => [], 'taskFileEntity' => null];
         }
 
-        // Setup spin lock for file_key to prevent concurrent processing
-        $lockKey = LockKeyManageUtils::getFileKeyLock($attachment['file_key']);
-        $lockOwner = IdGenerator::getUniqueId32();
-        $lockExpireSeconds = 5; // 5 seconds timeout as requested
-        $lockAcquired = false;
-
         try {
-            // Attempt to acquire distributed spin lock
-            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
-            if (! $lockAcquired) {
-                $this->logger->warning(sprintf(
-                    'Failed to acquire lock for file_key processing: %s, task_id: %s, filename: %s',
-                    $attachment['file_key'],
-                    $task->getTaskId(),
-                    $attachment['filename']
-                ));
-                return ['attachment' => $attachment, 'taskFileEntity' => null];
-            }
+            // Save the file and move it to the sandbox, which is temporarily abandoned
+            //             Determine storage type
+            //            $storageType = WorkFileUtil::isSnapshotFile($attachment['file_key'])
+            //                ? StorageType::SNAPSHOT->value
+            //                : StorageType::WORKSPACE->value;
+            //
+            //            // Convert attachment to TaskFileEntity
+            //            $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
+            //
+            //             Use saveProjectFile to save the file
+            //            $savedEntity = $this->taskFileDomainService->saveProjectFile(
+            //                $dataIsolation,
+            //                $projectEntity,
+            //                $taskFileEntity,
+            //                $storageType,
+            //                true // isUpdated = false for new files
+            //            );
+            $savedEntity = $this->taskFileDomainService->getByFileKey($attachment['file_key']);
 
-            $this->logger->info(sprintf(
-                'Lock acquired for file_key processing: %s, task_id: %s, filename: %s',
-                $attachment['file_key'],
-                $task->getTaskId(),
-                $attachment['filename']
-            ));
-
-            // 1. Get context information for directory creation
-            $projectId = $task->getProjectId();
-            $workDir = $task->getWorkDir();
-
-            // 2. Call domain service to get correct parent_id
-            $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
-                $projectId,
-                $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode(),
-                $attachment['file_key'],
-                $workDir
-            );
-
-            // 3. Call FileProcessAppService with parentId
-            if (WorkDirectoryUtil::isSnapshotFile($attachment['file_key'])) {
-                $storageType = StorageType::SNAPSHOT->value;
-            } else {
-                $storageType = StorageType::WORKSPACE->value;
-            }
-            /** @var TaskFileEntity $taskFileEntity */
-            [$fileId, $taskFileEntity] = $this->fileProcessAppService->processFileByFileKey(
-                $attachment['file_key'],
-                $dataIsolation,
-                $attachment,
-                $task->getProjectId(),
-                $task->getTopicId(),
-                (int) $task->getId(),
-                $attachment['file_tag'] ?? FileType::PROCESS->value,
-                $storageType, // Default storage type
-                TaskFileSource::AGENT->value,  // Default source
-                $parentId // Pass the parent_id
-            );
-
-            // Save file ID to attachment information
-            $attachment['file_id'] = (string) $fileId;
+            // Update attachment information (maintain compatibility)
+            $attachment['file_id'] = (string) $savedEntity->getFileId();
             $attachment['topic_id'] = $task->getTopicId();
-            $attachment['updated_at'] = $taskFileEntity->getUpdatedAt();
-            $attachment['metadata'] = FileMetadataUtil::getMetadataObject($taskFileEntity->getMetadata());
+            $attachment['updated_at'] = $savedEntity->getUpdatedAt();
+            $attachment['metadata'] = FileMetadataUtil::getMetadataObject($savedEntity->getMetadata());
 
             $this->logger->info(sprintf(
-                'Attachment processed successfully with lock protection, file_id: %s, task_id: %s, filename: %s',
-                $fileId,
+                'Attachment processed successfully using saveProjectFile, file_id: %s, task_id: %s, type: %s, filename: %s',
+                $savedEntity->getFileId(),
                 $task->getTaskId(),
+                $type,
                 $attachment['filename']
             ));
 
-            return ['attachment' => $attachment, 'taskFileEntity' => $taskFileEntity];
+            return ['attachment' => $attachment, 'taskFileEntity' => $savedEntity];
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Exception processing attachment with lock protection: %s, filename: %s, task_id: %s, file_key: %s',
+                'Exception processing attachment with saveProjectFile: %s, filename: %s, task_id: %s, type: %s, file_key: %s',
                 $e->getMessage(),
                 $attachment['filename'] ?? 'unknown',
                 $task->getTaskId(),
+                $type,
                 $attachment['file_key']
             ));
 
             return ['attachment' => $attachment, 'taskFileEntity' => null];
-        } finally {
-            // Ensure lock is always released
-            if ($lockAcquired) {
-                if ($this->locker->release($lockKey, $lockOwner)) {
-                    $this->logger->debug(sprintf(
-                        'Lock released for file_key processing: %s, task_id: %s, filename: %s',
-                        $attachment['file_key'],
-                        $task->getTaskId(),
-                        $attachment['filename']
-                    ));
-                } else {
-                    $this->logger->error(sprintf(
-                        'Failed to release lock for file_key processing: %s, task_id: %s, filename: %s. Manual intervention may be required.',
-                        $attachment['file_key'],
-                        $task->getTaskId(),
-                        $attachment['filename']
-                    ));
-                }
-            }
         }
     }
+
+    //    /**
+    //     * Convert attachment array to TaskFileEntity based on type.
+    //     * @param array $attachment Attachment data
+    //     * @param TaskEntity $task Task entity
+    //     * @param DataIsolation $dataIsolation Data isolation object
+    //     * @param string $type Attachment type: 'tool' or 'message'
+    //     */
+    //    private function convertAttachmentToTaskFileEntity(array $attachment, TaskEntity $task, DataIsolation $dataIsolation, string $type): TaskFileEntity
+    //    {
+    //        $taskFileEntity = new TaskFileEntity();
+    //        $taskFileEntity->setProjectId($task->getProjectId());
+    //        $taskFileEntity->setTopicId($task->getTopicId());
+    //        $taskFileEntity->setTaskId($task->getId());
+    //
+    //        // Set basic file information
+    //        $taskFileEntity->setFileKey($attachment['file_key']);
+    //        $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
+    //        $taskFileEntity->setFileExtension($attachment['file_extension']);
+    //        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+    //
+    //        // Set file type based on attachment type and file_tag
+    //        if ($type === 'tool') {
+    //            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+    //            $taskFileEntity->setSource(TaskFileSource::AGENT);
+    //        } else {
+    //            // message type
+    //            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+    //            $taskFileEntity->setSource(TaskFileSource::AGENT);
+    //        }
+    //
+    //        // Set storage type (will be overridden by saveProjectFile parameter)
+    //        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
+    //
+    //        if (WorkDirectoryUtil::isValidDirectoryName($attachment['file_key'])) {
+    //            $taskFileEntity->setIsDirectory(true);
+    //        } else {
+    //            $taskFileEntity->setIsDirectory(false);
+    //        }
+    //        return $taskFileEntity;
+    //    }
 
     /**
      * Process tool content storage to object storage.

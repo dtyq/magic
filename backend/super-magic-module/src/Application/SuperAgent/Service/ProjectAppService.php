@@ -252,11 +252,11 @@ class ProjectAppService extends AbstractAppService
 
         if ($result) {
             // 删除项目相关的长期记忆
-            $this->longTermMemoryDomainService->deleteMemoriesByProjectId(
+            $this->longTermMemoryDomainService->deleteMemoriesByProjectIds(
                 $dataIsolation->getCurrentOrganizationCode(),
                 AgentConstant::SUPER_MAGIC_CODE, // app_id 固定为 super-magic
                 $dataIsolation->getCurrentUserId(),
-                (string) $projectId
+                [(string) $projectId]
             );
 
             // 发布项目已删除事件
@@ -323,6 +323,11 @@ class ProjectAppService extends AbstractAppService
 
         if ($requestDTO->getWorkspaceId()) {
             $conditions['workspace_id'] = $requestDTO->getWorkspaceId();
+        }
+
+        // Add project name fuzzy search condition
+        if (! empty($requestDTO->getProjectName())) {
+            $conditions['project_name_like'] = $requestDTO->getProjectName();
         }
 
         $result = $this->projectDomainService->getProjectsByConditions(

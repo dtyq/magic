@@ -149,6 +149,9 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             if (is_array($value)) {
                 // 支持project_ids数组查询
                 $query->whereIn('id', $value);
+            } elseif ($field === 'project_name_like') {
+                // Support fuzzy search for project name
+                $query->where('project_name', 'like', '%' . $value . '%');
             } else {
                 // 默认等于查询
                 $query->where($field, $value);
@@ -185,6 +188,28 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         $conditions = ['id' => $projectId];
         $data = ['updated_at' => date('Y-m-d H:i:s')];
         return $this->updateProjectByCondition($conditions, $data);
+    }
+
+    /**
+     * 根据工作区ID获取项目ID列表.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织代码
+     * @return array 项目ID列表
+     */
+    public function getProjectIdsByWorkspaceId(int $workspaceId, string $userId, string $organizationCode): array
+    {
+        return $this->projectModel::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('user_id', $userId)
+            ->where('user_organization_code', $organizationCode)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->map(function ($id) {
+                return (string) $id;
+            })
+            ->toArray();
     }
 
     /**

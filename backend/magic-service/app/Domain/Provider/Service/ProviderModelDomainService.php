@@ -128,4 +128,16 @@ readonly class ProviderModelDomainService
     {
         return $this->providerModelRepository->getModelByIdWithoutOrgFilter($id);
     }
+
+    /**
+     * 批量根据ModelID获取模型.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param string[] $modelIds 模型标识数组
+     * @return array<string, ProviderModelEntity[]> 模型实体数组，以model_id为键，值为对应的模型列表
+     */
+    public function getModelsByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
+    {
+        return $this->providerModelRepository->getByModelIds($dataIsolation, $modelIds);
+    }
 }

@@ -9,6 +9,7 @@ namespace App\Domain\Permission\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
+use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\Permission\Entity\OrganizationAdminEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
@@ -16,15 +17,22 @@ use App\ErrorCode\PermissionErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class OrganizationAdminDomainService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         private readonly OrganizationAdminRepositoryInterface $organizationAdminRepository,
         private readonly MagicUserRepositoryInterface $userRepository,
-        private readonly RoleDomainService $roleDomainService
+        private readonly RoleDomainService $roleDomainService,
+        private readonly OrganizationRepositoryInterface $organizationRepository
     ) {
+        $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(static::class);
     }
 
     /**
@@ -97,8 +105,9 @@ class OrganizationAdminDomainService
 
             $this->roleDomainService->removeOrganizationAdmin($permissionIsolation, $organizationAdminEntity->getUserId());
         } catch (Throwable $e) {
-            // 记录日志，但不中断删除流程
-            error_log('Failed to remove organization admin role when destroying admin: ' . $e->getMessage());
+            $this->logger->error('Failed to remove organization admin role when destroying admin', [
+                'exception' => $e,
+            ]);
         }
 
         // 删除组织管理员记录
@@ -118,6 +127,18 @@ class OrganizationAdminDomainService
      */
     public function grant(DataIsolation $dataIsolation, string $userId, ?string $grantorUserId, ?string $remarks = null, bool $isOrganizationCreator = false): OrganizationAdminEntity
     {
+        // 组织校验与限制
+        $orgCode = $dataIsolation->getCurrentOrganizationCode();
+        $organization = $this->organizationRepository->getByCode($orgCode);
+        if (! $organization) {
+            $this->logger->warning('找不到组织代码', ['organizationCode' => $orgCode]);
+            ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NOT_EXISTS);
+        }
+        // 个人组织不允许授予组织管理员
+        if ($organization->getType() === 1) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.error.personal_organization_cannot_grant_admin');
+        }
+
         // 检查用户是否已经是组织管理员
         if ($this->isOrganizationAdmin($dataIsolation, $userId)) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.error.user_already_organization_admin', ['userId' => $userId]);
@@ -139,8 +160,11 @@ class OrganizationAdminDomainService
             );
             $this->roleDomainService->addOrganizationAdmin($permissionIsolation, [$userId]);
         } catch (Throwable $e) {
-            // 记录日志，但不影响授予流程
-            error_log('Failed to add organization admin role: ' . $e->getMessage());
+            $this->logger->warning('Failed to add organization admin role', [
+                'exception' => $e,
+                'userId' => $userId,
+                'organizationCode' => $dataIsolation->getCurrentOrganizationCode(),
+            ]);
         }
 
         return $organizationAdmin;
@@ -172,8 +196,11 @@ class OrganizationAdminDomainService
             );
             $this->roleDomainService->removeOrganizationAdmin($permissionIsolation, $userId);
         } catch (Throwable $e) {
-            // 记录日志，但不影响撤销流程
-            error_log('Failed to remove organization admin role: ' . $e->getMessage());
+            $this->logger->warning('Failed to remove organization admin role', [
+                'exception' => $e,
+                'userId' => $userId,
+                'organizationCode' => $dataIsolation->getCurrentOrganizationCode(),
+            ]);
         }
     }
 

@@ -7,15 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
-
 class AttachmentsProcessedEvent
 {
     public function __construct(
-        /** @var TaskFileEntity[] Array of processed file entities */
-        public array $processedAttachments,
-        public TaskContext $taskContext
+        public int $parentFileId,
+        public int $projectId,
+        public int $taskId = 0
     ) {
     }
 }

@@ -22,6 +22,7 @@ class MessageMetadata
      * @param string $organizationCode 组织代码
      * @param string $chatConversationId 聊天会话ID
      * @param string $chatTopicId 聊天话题ID
+     * @param string $topicId 话题ID
      * @param string $instruction 指令
      * @param string $sandboxId 沙箱ID
      * @param string $superMagicTaskId 超级助手任务ID
@@ -36,6 +37,7 @@ class MessageMetadata
         private string $organizationCode = '',
         private string $chatConversationId = '',
         private string $chatTopicId = '',
+        private string $topicId = '',
         private string $instruction = '',
         private string $sandboxId = '',
         private string $superMagicTaskId = '',
@@ -65,6 +67,7 @@ class MessageMetadata
             $data['organization_code'] ?? '',
             $data['chat_conversation_id'] ?? '',
             $data['chat_topic_id'] ?? '',
+            $data['topic_id'] ?? '',
             $data['instruction'] ?? '',
             $data['sandbox_id'] ?? '',
             $data['super_magic_task_id'] ?? '',
@@ -88,6 +91,7 @@ class MessageMetadata
             'organization_code' => $this->organizationCode,
             'chat_conversation_id' => $this->chatConversationId,
             'chat_topic_id' => $this->chatTopicId,
+            'topic_id' => $this->topicId,
             'instruction' => $this->instruction,
             'sandbox_id' => $this->sandboxId,
             'super_magic_task_id' => $this->superMagicTaskId,
@@ -128,6 +132,11 @@ class MessageMetadata
     public function getChatTopicId(): string
     {
         return $this->chatTopicId;
+    }
+
+    public function getTopicId(): string
+    {
+        return $this->topicId;
     }
 
     public function getInstruction(): string
@@ -209,6 +218,13 @@ class MessageMetadata
     {
         $clone = clone $this;
         $clone->chatTopicId = $chatTopicId;
+        return $clone;
+    }
+
+    public function withTopicId(string $topicId): self
+    {
+        $clone = clone $this;
+        $clone->topicId = $topicId;
         return $clone;
     }
 

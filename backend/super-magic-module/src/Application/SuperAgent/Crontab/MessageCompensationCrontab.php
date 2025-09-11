@@ -33,7 +33,8 @@ use Throwable;
     mutexExpires: 60,                         // Mutex lock expires in 60 seconds
     onOneServer: true,                        // Execute on only one server
     callback: 'execute',
-    memo: 'Message compensation scheduled task for handling missed messages'
+    memo: 'Message compensation scheduled task for handling missed messages',
+    enable: false
 )]
 readonly class MessageCompensationCrontab
 {

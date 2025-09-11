@@ -287,6 +287,33 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         return $modelsById;
     }
 
+    public function getByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
+    {
+        if (empty($modelIds)) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query())
+            ->whereIn('model_id', $modelIds)
+            ->orderBy('status', 'desc') // 优先排序：启用状态在前
+            ->orderBy('id'); // 其次按ID排序，保证结果一致性
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+        $entities = ProviderModelAssembler::toEntities($result);
+
+        // 转换为以model_id为键的数组，保留所有模型
+        $modelsByModelId = [];
+        foreach ($entities as $entity) {
+            $modelId = $entity->getModelId();
+            if (! isset($modelsByModelId[$modelId])) {
+                $modelsByModelId[$modelId] = [];
+            }
+            $modelsByModelId[$modelId][] = $entity;
+        }
+
+        return $modelsByModelId;
+    }
+
     /**
      * 根据ID查询模型（不限制组织）.
      */

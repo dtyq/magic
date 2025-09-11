@@ -178,4 +178,10 @@ readonly class OrganizationDomainService
     {
         return ! $this->organizationRepository->existsByCode($code, $excludeId);
     }
+
+    public function isPersonOrganization(string $code): bool
+    {
+        $organizationEntity = $this->organizationRepository->getByCode($code);
+        return $organizationEntity->getType() == 1;
+    }
 }

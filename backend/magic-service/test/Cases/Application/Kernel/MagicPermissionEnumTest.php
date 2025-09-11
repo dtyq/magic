@@ -38,7 +38,7 @@ class MagicPermissionEnumTest extends HttpTestCase
 
     public function testParsePermissionWithValidKey()
     {
-        $permissionKey = 'Admin.ai.model_management.query';
+        $permissionKey = 'admin.ai.model_management.query';
 
         $parsed = $this->permissionEnum->parsePermission($permissionKey);
 
@@ -94,10 +94,10 @@ class MagicPermissionEnumTest extends HttpTestCase
 
         // 检查特定权限是否存在
         $permissionKeys = array_column($permissions, 'permission_key');
-        $this->assertContains('Admin.ai.model_management.query', $permissionKeys);
-        $this->assertContains('Admin.ai.model_management.manage', $permissionKeys);
-        $this->assertContains('Admin.ai.image_generation.query', $permissionKeys);
-        $this->assertContains('Admin.ai.image_generation.manage', $permissionKeys);
+        $this->assertContains('admin.ai.model_management.query', $permissionKeys);
+        $this->assertContains('admin.ai.model_management.manage', $permissionKeys);
+        $this->assertContains('admin.ai.image_generation.query', $permissionKeys);
+        $this->assertContains('admin.ai.image_generation.manage', $permissionKeys);
     }
 
     public function testIsValidPermissionWithValidKeys()
@@ -106,10 +106,10 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertTrue($this->permissionEnum->isValidPermission(MagicPermission::ALL_PERMISSIONS));
 
         // 测试有效的权限组合
-        $this->assertTrue($this->permissionEnum->isValidPermission('Admin.ai.model_management.query'));
-        $this->assertTrue($this->permissionEnum->isValidPermission('Admin.ai.model_management.manage'));
-        $this->assertTrue($this->permissionEnum->isValidPermission('Admin.ai.image_generation.query'));
-        $this->assertTrue($this->permissionEnum->isValidPermission('Admin.ai.image_generation.manage'));
+        $this->assertTrue($this->permissionEnum->isValidPermission('admin.ai.model_management.query'));
+        $this->assertTrue($this->permissionEnum->isValidPermission('admin.ai.model_management.manage'));
+        $this->assertTrue($this->permissionEnum->isValidPermission('admin.ai.image_generation.query'));
+        $this->assertTrue($this->permissionEnum->isValidPermission('admin.ai.image_generation.manage'));
     }
 
     public function testIsValidPermissionWithInvalidKeys()
@@ -125,17 +125,18 @@ class MagicPermissionEnumTest extends HttpTestCase
     {
         $tree = $this->permissionEnum->getPermissionTree();
 
-        // 顶层应至少包含 Admin 与 Console 两个平台节点
+        // 默认情况下（非平台组织）不包含 platform 平台节点
         $this->assertIsArray($tree);
-        $this->assertGreaterThanOrEqual(2, count($tree));
+        $this->assertGreaterThanOrEqual(1, count($tree));
 
         // 找到 Admin 平台节点进行进一步校验
         $platformsByKey = [];
         foreach ($tree as $node) {
             $platformsByKey[$node['permission_key']] = $node;
         }
-        $this->assertArrayHasKey('Admin', $platformsByKey);
-        $platform = $platformsByKey['Admin'];
+        $this->assertArrayHasKey('admin', $platformsByKey);
+        $this->assertArrayNotHasKey('platform', $platformsByKey);
+        $platform = $platformsByKey['admin'];
 
         $this->assertEquals('管理后台', $platform['label']);
         $this->assertArrayHasKey('children', $platform);

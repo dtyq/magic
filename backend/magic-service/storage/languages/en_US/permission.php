@@ -15,6 +15,9 @@ return [
         'console' => 'Console',
         'api' => 'API',
         'api_assistant' => 'API Assistant',
+        'platform' => 'Platform',
+        'platform_setting' => 'System Settings',
+        'platform_setting_maintenance' => 'Maintenance',
     ],
     'operation' => [
         'query' => 'Query',
@@ -30,5 +33,6 @@ return [
         'organization_creator_cannot_be_revoked' => 'Organization creator cannot be revoked',
         'organization_creator_cannot_be_disabled' => 'Organization creator cannot be disabled',
         'current_user_not_organization_creator' => 'Current user is not the organization creator',
+        'personal_organization_cannot_grant_admin' => 'Cannot grant organization admin in a personal organization',
     ],
 ];

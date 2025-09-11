@@ -32,11 +32,11 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
             $errorMessage = $previous->getMessage();
         } elseif ($previous instanceof BusinessException) {
             $statusCode = 400;
-            $errorCode = 400;
+            $errorCode = $previous->getCode();
             $errorMessage = $previous->getMessage();
         } elseif ($throwable instanceof BusinessException) {
             $statusCode = 400;
-            $errorCode = 400;
+            $errorCode = $throwable->getCode();
             $errorMessage = $throwable->getMessage();
         }
 

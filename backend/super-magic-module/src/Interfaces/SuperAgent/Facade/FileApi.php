@@ -20,7 +20,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileVersionAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
@@ -234,8 +234,8 @@ class FileApi extends AbstractApi
 
         $targetName = $this->request->input('target_name', '');
 
-        // Validate target_name parameter using WorkDirectoryUtil
-        if (! WorkDirectoryUtil::isValidFileName($targetName)) {
+        // Validate target_name parameter using WorkFileUtil
+        if (! WorkFileUtil::isValidFileName($targetName)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_NAME, 'file.illegal_file_name');
         }
         return $this->fileManagementAppService->renameFile($requestContext, (int) $id, $targetName);
