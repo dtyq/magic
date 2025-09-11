@@ -1,6 +1,6 @@
 ---
-model_id: gpt-4.1
-temperature: 0.9
+model_id: auto
+temperature: 0.8
 enabled_model_fallback_chain: true
 ---
 system: |
