@@ -231,7 +231,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setImageCount($data['generate_num'] ?? 4);
         $imageGeneratedEntity->setCreatedAt(new DateTime());
         $imageGeneratedEntity->setSourceType($data['source_type'] ?? ImageGenerateSourceEnum::NONE);
-        $imageGeneratedEntity->setCreatedAt($data['source_id']);
+        $imageGeneratedEntity->setSourceId($data['source_id']);
 
         $event = new ImageGeneratedEvent($imageGeneratedEntity);
         AsyncEventUtil::dispatch($event);
