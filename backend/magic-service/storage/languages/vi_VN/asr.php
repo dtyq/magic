@@ -73,6 +73,7 @@ return [
             'task_not_found' => 'Không tìm thấy nhiệm vụ hoặc đã hết hạn',
             'task_not_exist' => 'Nhiệm vụ không tồn tại hoặc đã hết hạn',
             'upload_audio_first' => 'Vui lòng tải lên tệp âm thanh trước',
+            'note_content_too_long' => 'Nội dung ghi chú quá dài, tối đa hỗ trợ 10000 ký tự, hiện tại :length ký tự',
         ],
         'upload' => [
             'start_log' => 'Bắt đầu tải lên tệp ASR',
