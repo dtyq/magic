@@ -97,11 +97,7 @@ class KnowledgeBaseFragmentRepository extends KnowledgeBaseAbstractRepository im
 
     public function queries(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseFragmentQuery $query, Page $page): array
     {
-        if ($query->isWithTrashed()) {
-            $builder = KnowledgeBaseFragmentsModel::withTrashed();
-        } else {
-            $builder = KnowledgeBaseFragmentsModel::query();
-        }
+        $builder = KnowledgeBaseFragmentsModel::query();
 
         $builder = $this->createBuilder($dataIsolation, $builder);
 
@@ -188,9 +184,9 @@ class KnowledgeBaseFragmentRepository extends KnowledgeBaseAbstractRepository im
         }
 
         if (in_array($entity->getSyncStatus(), [KnowledgeSyncStatus::Synced, KnowledgeSyncStatus::SyncFailed])) {
-            KnowledgeBaseFragmentsModel::withTrashed()->where('id', $entity->getId())->increment('sync_times', 1, $update);
+            KnowledgeBaseFragmentsModel::where('id', $entity->getId())->increment('sync_times', 1, $update);
         } else {
-            KnowledgeBaseFragmentsModel::withTrashed()->where('id', $entity->getId())->update($update);
+            KnowledgeBaseFragmentsModel::where('id', $entity->getId())->update($update);
         }
     }
 
@@ -205,9 +201,9 @@ class KnowledgeBaseFragmentRepository extends KnowledgeBaseAbstractRepository im
         }
 
         if (in_array($syncStatus, [KnowledgeSyncStatus::Synced, KnowledgeSyncStatus::SyncFailed])) {
-            KnowledgeBaseFragmentsModel::withTrashed()->whereIn('id', $ids)->increment('sync_times', 1, $update);
+            KnowledgeBaseFragmentsModel::whereIn('id', $ids)->increment('sync_times', 1, $update);
         } else {
-            KnowledgeBaseFragmentsModel::withTrashed()->whereIn('id', $ids)->update($update);
+            KnowledgeBaseFragmentsModel::whereIn('id', $ids)->update($update);
         }
     }
 

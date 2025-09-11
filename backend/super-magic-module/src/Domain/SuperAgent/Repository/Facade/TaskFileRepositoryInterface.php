@@ -31,8 +31,12 @@ interface TaskFileRepositoryInterface
 
     /**
      * 根据fileKey获取文件.
+     *
+     * @param string $fileKey 文件键
+     * @param null|int $topicId 话题ID，默认为0
+     * @param bool $withTrash 是否包含已删除的文件，默认为false
      */
-    public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity;
+    public function getByFileKey(string $fileKey, ?int $topicId = 0, bool $withTrash = false): ?TaskFileEntity;
 
     /**
      * 根据fileKey数组批量获取文件.
@@ -257,4 +261,12 @@ interface TaskFileRepositoryInterface
     public function lockDirectChildrenForUpdate(int $parentId): array;
 
     public function getAllChildrenByParentId(int $parentId): array;
+
+    /**
+     * 恢复被删除的文件.
+     *
+     * @param int $fileId 文件ID
+     * @return bool 是否恢复成功
+     */
+    public function restoreFile(int $fileId): bool;
 }

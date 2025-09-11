@@ -417,7 +417,7 @@ class HandleUserMessageAppService extends AbstractAppService
             role: Role::User->value,
             senderUid: $dataIsolation->getCurrentUserId(),
             receiverUid: $userMessageDTO->getAgentUserId(),
-            messageType: 'chat',
+            messageType: $userMessageDTO->getChatMessageType(),
             content: $taskEntity->getPrompt(),
             rawContent: $userMessageDTO->getRawContent() ?? '',
             status: null,
