@@ -250,8 +250,23 @@ class LongTermMemoryAdminApi extends AbstractApi
         ]);
         // 解析 pageToken
         $dto->parsePageToken();
+        $result = $this->longTermMemoryAppService->findMemories($dto);
 
-        return $this->longTermMemoryAppService->findMemories($dto);
+        // 按更新时间降序排序（PHP 排序）
+        if (isset($result['data']) && is_array($result['data'])) {
+            usort($result['data'], static function (array $a, array $b) {
+                $timeB = isset($b['updated_at']) && ! empty($b['updated_at']) ? strtotime($b['updated_at']) : 0;
+                $timeA = isset($a['updated_at']) && ! empty($a['updated_at']) ? strtotime($a['updated_at']) : 0;
+
+                if ($timeB === $timeA) {
+                    return strcmp((string) ($b['id'] ?? ''), (string) ($a['id'] ?? ''));
+                }
+
+                return $timeB <=> $timeA;
+            });
+        }
+
+        return $result;
     }
 
     /**
