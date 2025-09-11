@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a"
+                "reference": "4433debf13a01aa2d40ecafb23fb59213a63cfcf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a",
-                "reference": "f6b670a8d9b3cd2a526c8fe91f387b6b2aec318a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=4433debf13a01aa2d40ecafb23fb59213a63cfcf",
+                "reference": "4433debf13a01aa2d40ecafb23fb59213a63cfcf",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-10T10:08:47+00:00"
+            "time": "2025-09-11T02:53:23+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "b18a3e96725233b2305a10c09250b238dceb69b4"
+                "reference": "af8027c8afed39c118b92defe25899cf2b8de535"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=b18a3e96725233b2305a10c09250b238dceb69b4",
-                "reference": "b18a3e96725233b2305a10c09250b238dceb69b4",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=af8027c8afed39c118b92defe25899cf2b8de535",
+                "reference": "af8027c8afed39c118b92defe25899cf2b8de535",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-10T12:08:14+00:00"
+            "time": "2025-09-11T11:33:36+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "3bc3f46871c8f602af3ca270ba1c60eb2987a3f5"
+                "reference": "cc4e0f7766522e7985b63c9a8563bf6209d18140"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=3bc3f46871c8f602af3ca270ba1c60eb2987a3f5",
-                "reference": "3bc3f46871c8f602af3ca270ba1c60eb2987a3f5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=cc4e0f7766522e7985b63c9a8563bf6209d18140",
+                "reference": "cc4e0f7766522e7985b63c9a8563bf6209d18140",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-11T10:42:13+08:00"
+            "time": "2025-09-11T11:20:17+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
