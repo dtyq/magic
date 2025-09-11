@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "1ecafba35443423cdc8382db3684008eb5b40a12"
+                "reference": "7eace7fd45e5dd4917fc503ede6e5557fd327ce6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=1ecafba35443423cdc8382db3684008eb5b40a12",
-                "reference": "1ecafba35443423cdc8382db3684008eb5b40a12",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=7eace7fd45e5dd4917fc503ede6e5557fd327ce6",
+                "reference": "7eace7fd45e5dd4917fc503ede6e5557fd327ce6",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-11T11:14:16+08:00"
+            "time": "2025-09-11T11:51:18+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "cc4e0f7766522e7985b63c9a8563bf6209d18140"
+                "reference": "218b4ebb3dec1847c459b427336664c01ba04cc4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=cc4e0f7766522e7985b63c9a8563bf6209d18140",
-                "reference": "cc4e0f7766522e7985b63c9a8563bf6209d18140",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=218b4ebb3dec1847c459b427336664c01ba04cc4",
+                "reference": "218b4ebb3dec1847c459b427336664c01ba04cc4",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-11T11:20:17+08:00"
+            "time": "2025-09-11T11:53:32+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6453,16 +6453,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.52",
+            "version": "v1.1.53",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d"
+                "reference": "f480e290f28e9bf22fa0ed2311cfed5dcb87d617"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
-                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=f480e290f28e9bf22fa0ed2311cfed5dcb87d617",
+                "reference": "f480e290f28e9bf22fa0ed2311cfed5dcb87d617",
                 "shasum": ""
             },
             "require": {
@@ -6534,9 +6534,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.52"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.53"
             },
-            "time": "2025-09-07T15:34:54+08:00"
+            "time": "2025-09-11T11:42:53+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
