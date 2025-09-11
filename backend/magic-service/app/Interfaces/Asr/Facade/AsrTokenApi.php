@@ -569,7 +569,7 @@ class AsrTokenApi extends AbstractApi
         $note = null;
         if (! empty($noteData) && is_array($noteData)) {
             $noteContent = $noteData['content'] ?? '';
-            $noteFileType = $noteData['file_type'] ?? 'txt';
+            $noteFileType = $noteData['file_extension'] ?? 'txt';
 
             if (! empty(trim($noteContent))) {
                 // 验证note内容长度，最大10000字符

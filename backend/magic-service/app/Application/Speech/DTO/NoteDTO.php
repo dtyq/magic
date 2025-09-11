@@ -17,7 +17,7 @@ readonly class NoteDTO
 {
     public function __construct(
         public string $content,
-        public string $fileType
+        public string $fileExtension
     ) {
     }
 
@@ -28,7 +28,7 @@ readonly class NoteDTO
     {
         // 支持的文件类型
         $supportedTypes = ['txt', 'md', 'json'];
-        return in_array(strtolower($this->fileType), $supportedTypes, true);
+        return in_array(strtolower($this->fileExtension), $supportedTypes, true);
     }
 
     /**
@@ -36,7 +36,7 @@ readonly class NoteDTO
      */
     public function getFileExtension(): string
     {
-        return strtolower($this->fileType);
+        return strtolower($this->fileExtension);
     }
 
     /**
@@ -62,7 +62,7 @@ readonly class NoteDTO
     {
         return new self(
             $data['content'] ?? '',
-            $data['file_type'] ?? 'txt'
+            $data['file_extension'] ?? 'txt'
         );
     }
 
@@ -73,7 +73,7 @@ readonly class NoteDTO
     {
         return [
             'content' => $this->content,
-            'file_type' => $this->fileType,
+            'file_extension' => $this->fileExtension,
         ];
     }
 }
