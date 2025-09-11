@@ -37,6 +37,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         public readonly int $memberCount,
         public readonly bool $isPinned = false,
         public readonly ?string $lastActiveAt = null,
+        public readonly bool $isBindWorkspace = false,
+        public readonly int $bindWorkspaceId = 0,
     ) {
         parent::__construct(
             $id,
@@ -67,7 +69,9 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         ?string $projectStatus = null,
         ?string $workspaceName = null,
         bool $isPinned = false,
-        ?string $lastActiveAt = null
+        ?string $lastActiveAt = null,
+        bool $isBindWorkspace = false,
+        int $bindWorkspaceId = 0
     ): self {
         return new self(
             id: (string) $project->getId(),
@@ -87,6 +91,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             memberCount: $memberCount,
             isPinned: $isPinned,
             lastActiveAt: $lastActiveAt,
+            isBindWorkspace: $isBindWorkspace,
+            bindWorkspaceId: $bindWorkspaceId,
             tag: 'collaboration',
             userId: $project->getUserId(),
         );
@@ -104,6 +110,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             'member_count' => $this->memberCount,
             'is_pinned' => $this->isPinned,
             'last_active_at' => $this->lastActiveAt,
+            'is_bind_workspace' => $this->isBindWorkspace,
+            'bind_workspace_id' => $this->bindWorkspaceId,
         ]);
     }
 }
