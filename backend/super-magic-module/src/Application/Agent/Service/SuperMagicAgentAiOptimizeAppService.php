@@ -182,7 +182,8 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
 
         $jsonString = json_encode($requestData, JSON_UNESCAPED_UNICODE);
 
-        $instruction = "按 rules 进行一次优化，仅调用与 ot 对应的单一工具。输入(JSON)：";
+        $currentTime = date('Y-m-d H:i:s');
+        $instruction = "当前时间：{$currentTime}\n按 rules 进行一次优化，仅调用与 ot 对应的单一工具。输入(JSON)：";
 
         return $instruction . $jsonString;
     }
