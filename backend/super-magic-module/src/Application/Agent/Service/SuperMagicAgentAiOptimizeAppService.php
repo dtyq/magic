@@ -158,7 +158,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
 
         // 语言提示：若包含中文字符，则提示中文，否则自动
         $combined = (string) ($agentData['name'] . $agentData['description'] . $agentData['prompt']);
-        $languageHint = preg_match('/\\p{Han}/u', $combined) ? 'zh' : 'auto';
+        $languageHint = preg_match('/\p{Han}/u', $combined) ? 'zh' : 'auto';
 
         $requestData = [
             'ot' => $optimizationType->value,
@@ -171,12 +171,12 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                 'ignore' => 'basic_tools_ignored',
                 'diverse' => 'must_diff_prev',
                 'no_copy' => 'forbidden_output_same_as_input',
-                'lang' => 'match_input'
+                'lang' => 'match_input',
             ],
             'meta' => [
                 'ts' => time(),
                 'lang_hint' => $languageHint,
-                'src' => 'super_magic_agent_optimizer'
+                'src' => 'super_magic_agent_optimizer',
             ],
         ];
 
