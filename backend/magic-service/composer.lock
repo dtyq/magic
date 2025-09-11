@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "af8027c8afed39c118b92defe25899cf2b8de535"
+                "reference": "7e063b45bc8bfab79dafba3474ea0a2903d24664"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=af8027c8afed39c118b92defe25899cf2b8de535",
-                "reference": "af8027c8afed39c118b92defe25899cf2b8de535",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=7e063b45bc8bfab79dafba3474ea0a2903d24664",
+                "reference": "7e063b45bc8bfab79dafba3474ea0a2903d24664",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-11T11:33:36+08:00"
+            "time": "2025-09-11T03:43:46+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -6453,16 +6453,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.52",
+            "version": "v1.1.53",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d"
+                "reference": "f480e290f28e9bf22fa0ed2311cfed5dcb87d617"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
-                "reference": "5d6a9572c0b5364dcca0db6ced6af1f8edbcc44d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=f480e290f28e9bf22fa0ed2311cfed5dcb87d617",
+                "reference": "f480e290f28e9bf22fa0ed2311cfed5dcb87d617",
                 "shasum": ""
             },
             "require": {
@@ -6534,9 +6534,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.52"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.53"
             },
-            "time": "2025-09-07T15:34:54+08:00"
+            "time": "2025-09-11T11:42:53+08:00"
         },
         {
             "name": "hyperf/phar",
