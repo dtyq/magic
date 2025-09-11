@@ -30,6 +30,7 @@ enum BuiltinTool: string
     // 内容处理 (ContentProcessing)
     case VisualUnderstanding = 'visual_understanding';
     case GenerateImage = 'generate_image';
+    case ConvertPdf = 'convert_pdf';
 
     // 系统执行 (SystemExecution)
     case ShellExec = 'shell_exec';
@@ -75,7 +76,7 @@ enum BuiltinTool: string
             self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
-            self::VisualUnderstanding, self::GenerateImage => BuiltinToolCategory::ContentProcessing,
+            self::VisualUnderstanding, self::GenerateImage, self::ConvertPdf => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
             self::ShellExec, self::PythonExecute => BuiltinToolCategory::SystemExecution,
