@@ -102,7 +102,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $headerConfigs = [];
         foreach ($request->getHeaders() as $key => $value) {
             $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
+            $headerConfigs[$key] = $request->getHeader($key)[0] ?? '';
         }
         $abstractRequestDTO->setHeaderConfigs($headerConfigs);
     }
