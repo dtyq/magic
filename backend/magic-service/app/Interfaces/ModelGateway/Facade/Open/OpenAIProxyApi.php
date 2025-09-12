@@ -90,7 +90,12 @@ class OpenAIProxyApi extends AbstractOpenApi
         $textGenerateImageDTO->setIps($this->getClientIps());
 
         $textGenerateImageDTO->valid();
-
+        $headerConfigs = [];
+        foreach ($request->getHeaders() as $key => $value) {
+            $key = strtolower((string) $key);
+            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
+        }
+        $textGenerateImageDTO->setHeaderConfigs($headerConfigs);
         return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
     }
 
@@ -103,7 +108,12 @@ class OpenAIProxyApi extends AbstractOpenApi
         $imageEditDTO->setIps($this->getClientIps());
 
         $imageEditDTO->valid();
-
+        $headerConfigs = [];
+        foreach ($request->getHeaders() as $key => $value) {
+            $key = strtolower((string) $key);
+            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
+        }
+        $imageEditDTO->setHeaderConfigs($headerConfigs);
         return $this->llmAppService->imageEdit($imageEditDTO);
     }
 }
