@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
@@ -31,12 +32,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $sendMsgGPTDTO->setAccessToken($this->getAccessToken());
         $sendMsgGPTDTO->setIps($this->getClientIps());
 
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
-        }
-        $sendMsgGPTDTO->setHeaderConfigs($headerConfigs);
+        $this->setHeaderConfigs($sendMsgGPTDTO, $request);
 
         $response = $this->llmAppService->chatCompletion($sendMsgGPTDTO);
         if ($response instanceof ChatCompletionStreamResponse) {
@@ -60,13 +56,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $embeddingDTO->setAccessToken($this->getAccessToken());
         $embeddingDTO->setIps($this->getClientIps());
 
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
-        }
-        $embeddingDTO->setHeaderConfigs($headerConfigs);
-
+        $this->setHeaderConfigs($embeddingDTO, $request);
         $response = $this->llmAppService->embeddings($embeddingDTO);
         if ($response instanceof EmbeddingResponse) {
             return LLMAssembler::createEmbeddingsResponse($response);
@@ -90,12 +80,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $textGenerateImageDTO->setIps($this->getClientIps());
 
         $textGenerateImageDTO->valid();
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
-        }
-        $textGenerateImageDTO->setHeaderConfigs($headerConfigs);
+        $this->setHeaderConfigs($textGenerateImageDTO, $request);
         return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
     }
 
@@ -108,12 +93,17 @@ class OpenAIProxyApi extends AbstractOpenApi
         $imageEditDTO->setIps($this->getClientIps());
 
         $imageEditDTO->valid();
+        $this->setHeaderConfigs($imageEditDTO, $request);
+        return $this->llmAppService->imageEdit($imageEditDTO);
+    }
+
+    private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
+    {
         $headerConfigs = [];
         foreach ($request->getHeaders() as $key => $value) {
             $key = strtolower((string) $key);
             $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
         }
-        $imageEditDTO->setHeaderConfigs($headerConfigs);
-        return $this->llmAppService->imageEdit($imageEditDTO);
+        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
     }
 }
