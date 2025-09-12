@@ -10,13 +10,14 @@ namespace Dtyq\SuperMagic\Application\Agent\Service;
 use DateTime;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentTool;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Message\AssistantMessage;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
 {
-    public function optimizeAgent(Authenticatable $authorization, SuperMagicAgentOptimizationType $optimizationType, SuperMagicAgentEntity $agentEntity): SuperMagicAgentEntity
+    public function optimizeAgent(Authenticatable $authorization, SuperMagicAgentOptimizationType $optimizationType, SuperMagicAgentEntity $agentEntity, array $availableTools): SuperMagicAgentEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
@@ -45,7 +46,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
         $optimizerAgent->setTools($this->getAgentOptimizerTools());
 
         // 3. 构建用户提示词
-        $userPrompt = $this->buildUserPrompt($optimizationType, $agentEntity);
+        $userPrompt = $this->buildUserPrompt($optimizationType, $agentEntity, $availableTools);
 
         // 4. 调用 AI 进行优化
         $response = $optimizerAgent->easyCall(
@@ -59,7 +60,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
         );
 
         // 5. 提取工具调用结果并更新实体
-        return $this->extractToolCallResult($response, $agentEntity);
+        return $this->extractToolCallResult($response, $agentEntity, $availableTools);
     }
 
     private function getAgentOptimizerTools(): array
@@ -100,6 +101,13 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                             'prompt' => [
                                 'type' => 'string',
                                 'description' => '系统提示词内容',
+                            ],
+                            'tools' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'string',
+                                ],
+                                'description' => '推荐的工具代码列表，只返回工具的code字段',
                             ],
                         ],
                         'required' => ['prompt'],
@@ -147,7 +155,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
         ];
     }
 
-    private function buildUserPrompt(SuperMagicAgentOptimizationType $optimizationType, SuperMagicAgentEntity $agentEntity): string
+    private function buildUserPrompt(SuperMagicAgentOptimizationType $optimizationType, SuperMagicAgentEntity $agentEntity, array $availableTools): string
     {
         $agentData = [
             'name' => $agentEntity->getName(),
@@ -167,7 +175,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                 'tool' => 'single_call_match_type',
                 'name' => '2-10_chars_no_punct_no_sentence',
                 'desc' => '20-100_chars_value_focus',
-                'content' => 'markdown_sections_adaptive_lang',
+                'content' => 'preserve_depth_format_supplement_sections',
                 'ignore' => 'basic_tools_ignored',
                 'diverse' => 'must_diff_prev',
                 'no_copy' => 'forbidden_output_same_as_input',
@@ -180,15 +188,19 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             ],
         ];
 
+        // 如果是优化内容且有可用工具，添加到请求数据中
+        if ($optimizationType === SuperMagicAgentOptimizationType::OptimizeContent && ! empty($availableTools)) {
+            $requestData['available_tools'] = array_values($availableTools);
+        }
+
         $jsonString = json_encode($requestData, JSON_UNESCAPED_UNICODE);
 
-        $currentTime = date('Y-m-d H:i:s');
-        $instruction = "当前时间：{$currentTime}\n按 rules 进行一次优化，仅调用与 ot 对应的单一工具。输入(JSON)：";
+        $instruction = '按 rules 进行一次优化，仅调用与 ot 对应的单一工具。输入(JSON)：';
 
         return $instruction . $jsonString;
     }
 
-    private function extractToolCallResult(ChatCompletionResponse $response, SuperMagicAgentEntity $agentEntity): SuperMagicAgentEntity
+    private function extractToolCallResult(ChatCompletionResponse $response, SuperMagicAgentEntity $agentEntity, array $availableTools): SuperMagicAgentEntity
     {
         // 解析 response 中的工具调用
         // 如果没有工具调用或解析失败，返回原始实体
@@ -226,6 +238,17 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                         ];
                         $agentEntity->setPrompt($promptData);
                     }
+
+                    // 处理工具推荐：只添加新工具，不修改或删除原有工具
+                    if (isset($arguments['tools']) && is_array($arguments['tools'])) {
+                        foreach ($arguments['tools'] as $toolCode) {
+                            $tool = $this->createToolFromAvailableTools($toolCode, $availableTools);
+                            if ($tool) {
+                                var_dump($tool);
+                                $agentEntity->addTool($tool);
+                            }
+                        }
+                    }
                     break;
                 case SuperMagicAgentOptimizationType::OptimizeName->value:
                     if (isset($arguments['name'])) {
@@ -253,5 +276,25 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             return true;
         }
         return false;
+    }
+
+    /**
+     * 从可用工具列表中创建 SuperMagicAgentTool 对象
+     */
+    private function createToolFromAvailableTools(string $toolCode, array $availableTools): ?SuperMagicAgentTool
+    {
+        // 在可用工具中查找匹配的工具
+        if (isset($availableTools[$toolCode])) {
+            $toolInfo = $availableTools[$toolCode];
+            return new SuperMagicAgentTool([
+                'code' => $toolInfo['code'],
+                'name' => $toolInfo['name'] ?? '',
+                'description' => $toolInfo['description'] ?? '',
+                'type' => $toolInfo['type'] === 'builtin' ? 1 : 3,
+            ]);
+        }
+
+        // 如果在可用工具中找不到，返回 null
+        return null;
     }
 }

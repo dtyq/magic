@@ -272,6 +272,17 @@ class SuperMagicAgentEntity extends AbstractEntity
         }
     }
 
+    /**
+     * 添加工具，如果工具已存在则不添加.
+     */
+    public function addTool(SuperMagicAgentTool $tool): void
+    {
+        if (array_any($this->tools, fn ($existingTool) => $existingTool->getCode() === $tool->getCode())) {
+            return;
+        }
+        $this->tools[] = $tool;
+    }
+
     public function getPrompt(): array
     {
         // Validate prompt format: must have version and structure keys
