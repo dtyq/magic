@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "cdbfe162fa1dbf0a150e2fb2efbeb64a02208510"
+                "reference": "75898bf56824117ee0ed88b2a378b160000172fe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cdbfe162fa1dbf0a150e2fb2efbeb64a02208510",
-                "reference": "cdbfe162fa1dbf0a150e2fb2efbeb64a02208510",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=75898bf56824117ee0ed88b2a378b160000172fe",
+                "reference": "75898bf56824117ee0ed88b2a378b160000172fe",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-12T03:04:22+00:00"
+            "time": "2025-09-12T07:22:12+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
+        "dtyq/magic-enterprise-service": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": {},
+    "platform-dev": [],
     "plugin-api-version": "2.6.0"
 }
