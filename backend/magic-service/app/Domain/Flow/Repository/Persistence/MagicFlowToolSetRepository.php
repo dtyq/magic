@@ -52,14 +52,14 @@ class MagicFlowToolSetRepository extends MagicFlowAbstractRepository implements 
 
         if ($query->withToolsSimpleInfo) {
             $builder->with(['tools' => function (HasMany $hasMany) {
-                $hasMany->select(['tool_set_id', 'code', 'name', 'description', 'icon', 'enabled']);
+                $hasMany->select(['tool_set_id', 'code', 'name', 'description', 'icon', 'enabled', 'updated_at'])->orderBy('updated_at', 'desc');
             }]);
         }
         if (! empty($query->name)) {
             $builder->where('name', 'like', "%{$query->name}%");
         }
 
-        $data = $this->getByPage($builder, $page);
+        $data = $this->getByPage($builder, $page, $query);
         if (! empty($data['list'])) {
             $list = [];
             foreach ($data['list'] as $model) {
