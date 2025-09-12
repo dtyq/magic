@@ -22,6 +22,7 @@ enum ImageGenerateModelType: string
     case QwenImage = 'Qwen-Image';
     case QwenImageEdit = 'Qwen-ImageEdit';
     case GoogleGemini = 'GoogleGemini';
+    case VolcengineArk = 'VolcengineArk';
 
     // 目前美图ai超清的model_id
     case MiracleVisionHightModelId = 'miracleVision_mtlab';
@@ -42,6 +43,7 @@ enum ImageGenerateModelType: string
             in_array($model, self::getQwenImageModes()) => self::QwenImage,
             in_array($model, self::getQwenImageEditModes()) => self::QwenImageEdit,
             in_array($model, self::getGoogleGeminiModes()) => self::GoogleGemini,
+            in_array($model, self::getVolcengineArkModes()) => self::VolcengineArk,
             default => $throw ? throw new InvalidArgumentException('Unsupported model type: ' . $model) : self::Volcengine,
         };
     }
@@ -114,5 +116,10 @@ enum ImageGenerateModelType: string
     public static function getGoogleGeminiModes(): array
     {
         return ['gemini-2.5-flash-image-preview', 'GoogleGemini'];
+    }
+
+    public static function getVolcengineArkModes(): array
+    {
+        return ['doubao-seedream-4-0-250828', 'VolcengineArk'];
     }
 }
