@@ -284,7 +284,7 @@ class MagicFlowAppService extends AbstractFlowAppService
     /**
      * @return array{total: int, list: array<MagicFlowToolSetEntity>, icons: array<string, FileLink>, users: array<string, MagicUserEntity>}
      */
-    public function queryToolSets(Authenticatable $authorization, bool $withBuiltInTools = true): array
+    public function queryToolSets(Authenticatable $authorization, bool $withBuiltInTools = true, bool $withIcons = true): array
     {
         /** @var MagicUserAuthorization $authorization */
         $page = Page::createNoPage();
@@ -369,7 +369,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         $toolSetData['list'] = array_filter($toolSetData['list'], fn (MagicFlowToolSetEntity $toolSet) => ! empty($toolSet->getTools()));
         $toolSetData['total'] = count($toolSetData['list']);
 
-        $toolSetData['icons'] = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths);
+        $toolSetData['icons'] = $withIcons ? $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths) : [];
         //        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
         //            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
         //            $userIds

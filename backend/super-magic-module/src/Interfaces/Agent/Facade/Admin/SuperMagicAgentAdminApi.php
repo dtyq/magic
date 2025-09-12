@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Facade\Admin;
 
+use App\Application\Flow\Service\MagicFlowAppService;
+use App\Domain\Flow\Entity\MagicFlowToolSetEntity;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAiOptimizeAppService;
@@ -15,6 +17,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinToolAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\BuiltinToolDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentAiOptimizeFormRequest;
 use Dtyq\SuperMagic\Interfaces\Agent\FormRequest\SuperMagicAgentOrderFormRequest;
@@ -30,6 +33,9 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
 
     #[Inject]
     protected SuperMagicAgentAiOptimizeAppService $superMagicAgentAiOptimizeAppService;
+
+    #[Inject]
+    protected MagicFlowAppService $magicFlowAppService;
 
     public function save(SuperMagicAgentSaveFormRequest $request)
     {
@@ -156,16 +162,64 @@ class SuperMagicAgentAdminApi extends AbstractSuperMagicAdminApi
         }
         $agentEntity = SuperMagicAgentAssembler::createDO($DTO);
 
+        // 只有在优化内容时才查询工具信息
+        $availableTools = [];
+        if ($optimizationType === SuperMagicAgentOptimizationType::OptimizeContent) {
+            // 当前用户可用的工具列表
+            $builtinTools = BuiltinToolAssembler::createToolListDTO();
+            $customToolSets = $this->magicFlowAppService->queryToolSets($authorization, false, false)['list'] ?? [];
+
+            // 合并内置工具和自定义工具为统一格式
+            $availableTools = $this->mergeAvailableTools($builtinTools, $customToolSets);
+        }
+
         // 调用优化服务
         $optimizedEntity = $this->superMagicAgentAiOptimizeAppService->optimizeAgent(
             $authorization,
             $optimizationType,
-            $agentEntity
+            $agentEntity,
+            $availableTools
         );
 
         return [
             'optimization_type' => $optimizationType->value,
             'agent' => SuperMagicAgentAssembler::createDTO($optimizedEntity),
         ];
+    }
+
+    /**
+     * 合并内置工具和自定义工具为统一格式.
+     * @param array<BuiltinToolDTO> $builtinTools
+     * @param array<MagicFlowToolSetEntity> $customToolSets
+     */
+    private function mergeAvailableTools(array $builtinTools, array $customToolSets): array
+    {
+        $tools = [];
+
+        // 处理内置工具
+        foreach ($builtinTools as $tool) {
+            $tools[$tool->getCode()] = [
+                'code' => $tool->getCode(),
+                'name' => $tool->getName(),
+                'description' => $tool->getDescription(),
+                'required' => $tool->isRequired(),
+                'type' => 'builtin',
+            ];
+        }
+
+        // 处理自定义工具
+        foreach ($customToolSets as $customToolSet) {
+            foreach ($customToolSet->getTools() as $tool) {
+                $tools[$tool['code']] = [
+                    'code' => $tool['code'],
+                    'name' => $tool['name'],
+                    'description' => $tool['description'],
+                    'required' => false,
+                    'type' => 'custom',
+                ];
+            }
+        }
+
+        return $tools;
     }
 }

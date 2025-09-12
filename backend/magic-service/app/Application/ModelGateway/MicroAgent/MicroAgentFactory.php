@@ -111,7 +111,6 @@ class MicroAgentFactory
         }
 
         $config = $parsed['config'];
-        var_dump($config);
 
         return new MicroAgent(
             name: $name,
