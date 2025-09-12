@@ -22,6 +22,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageEditMode
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineImageGenerateV3Model;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
@@ -49,6 +51,7 @@ class ImageGenerateFactory
             ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImageEdit => new QwenImageEditModel($serviceProviderConfig),
             ImageGenerateModelType::GoogleGemini => new GoogleGeminiModel($serviceProviderConfig),
+            ImageGenerateModelType::VolcengineArk => new VolcengineArkModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -66,6 +69,7 @@ class ImageGenerateFactory
             ImageGenerateModelType::QwenImage => self::createQwenImageRequest($data),
             ImageGenerateModelType::QwenImageEdit => self::createQwenImageEditRequest($data),
             ImageGenerateModelType::GoogleGemini => self::createGoogleGeminiRequest($data),
+            ImageGenerateModelType::VolcengineArk => self::createVolcengineArkRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -264,6 +268,37 @@ class ImageGenerateFactory
 
         if (isset($data['reference_images'])) {
             $request->setReferImages($data['reference_images']);
+        }
+
+        return $request;
+    }
+
+    private static function createVolcengineArkRequest(array $data): VolcengineArkRequest
+    {
+        $request = new VolcengineArkRequest(
+            (string) $data['width'],
+            (string) $data['height'],
+            $data['user_prompt'],
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        if (isset($data['reference_images'])) {
+            $request->setReferImages($data['reference_images']);
+        }
+
+        if (isset($data['model'])) {
+            $request->setModel($data['model']);
+        }
+
+        if (isset($data['organization_code'])) {
+            $request->setOrganizationCode($data['organization_code']);
+        }
+
+        if (isset($data['response_format'])) {
+            $request->setResponseFormat($data['response_format']);
         }
 
         return $request;
