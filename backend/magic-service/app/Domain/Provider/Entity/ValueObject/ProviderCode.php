@@ -26,6 +26,7 @@ enum ProviderCode: string
     case MiracleVision = 'MiracleVision';
     case AWSBedrock = 'AWSBedrock';
     case Google = 'Google-Image';
+    case VolcengineArk = 'VolcengineArk';
 
     public function getImplementation(): string
     {

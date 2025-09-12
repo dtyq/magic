@@ -89,7 +89,8 @@ class ImageEditDTO extends AbstractRequestDTO
             ImageGenerateModelType::getVolcengineModes(),
             ImageGenerateModelType::getAzureOpenAIEditModes(),
             ImageGenerateModelType::getQwenImageEditModes(),
-            ImageGenerateModelType::getGoogleGeminiModes()
+            ImageGenerateModelType::getGoogleGeminiModes(),
+            ImageGenerateModelType::getVolcengineArkModes()
         );
 
         if (! in_array($this->model, $supportedModels)) {
