@@ -42,6 +42,7 @@ class MicroAgentFactoryTest extends HttpTestCase
         // Verify it loaded the correct configuration from example.agent.yaml
         $this->assertEquals('gpt-4o', $agent->getModelId());
         $this->assertEquals(0.7, $agent->getTemperature());
+        $this->assertEquals(16384, $agent->getMaxTokens());
     }
 
     public function testGetAgentReturnsCachedAgent(): void
@@ -63,6 +64,7 @@ class MicroAgentFactoryTest extends HttpTestCase
         $this->assertEquals('example', $agent->getName());
         $this->assertEquals('gpt-4o', $agent->getModelId());
         $this->assertEquals(0.7, $agent->getTemperature());
+        $this->assertEquals(16384, $agent->getMaxTokens());
         $this->assertTrue($agent->isEnabledModelFallbackChain());
 
         $systemContent = $agent->getSystemTemplate();
@@ -137,10 +139,69 @@ class MicroAgentFactoryTest extends HttpTestCase
 
         // Both should have same configuration from example.agent.yaml
         $this->assertEquals('gpt-4o', $reloadedAgent->getModelId());
+        $this->assertEquals(16384, $reloadedAgent->getMaxTokens());
 
         // The reloaded agent should be the new cached instance
         $cachedAgent = $this->factory->getAgent('example');
         $this->assertSame($reloadedAgent, $cachedAgent);
+    }
+
+    public function testMaxTokensFromConfiguration(): void
+    {
+        // Test that maxTokens is correctly parsed from configuration
+        $agent = $this->factory->getAgent('example');
+
+        // Should get maxTokens from example.agent.yaml
+        $this->assertEquals(16384, $agent->getMaxTokens());
+        $this->assertIsInt($agent->getMaxTokens());
+    }
+
+    public function testMaxTokensDefaultAndBoundaryValues(): void
+    {
+        // Create temporary YAML files to test different max_tokens scenarios
+        $testCases = [
+            // [yamlContent, expectedMaxTokens, description]
+            ['max_tokens: 0', 0, 'zero value'],
+            ['max_tokens: 8192', 8192, 'positive value'],
+            ['max_tokens: -100', 0, 'negative value (should be clamped to 0)'],
+            ['max_tokens: "2048"', 2048, 'string number'],
+            ['', 0, 'missing max_tokens (should use factory default)'],
+        ];
+
+        foreach ($testCases as [$maxTokensLine, $expectedValue, $description]) {
+            $yamlContent = <<<YAML
+---
+model_id: test-model
+temperature: 0.7
+{$maxTokensLine}
+enabled_model_fallback_chain: true
+---
+system: |
+  Test system content
+YAML;
+
+            $tempFile = tempnam(sys_get_temp_dir(), 'test_agent_') . '.agent.yaml';
+            file_put_contents($tempFile, $yamlContent);
+
+            try {
+                $agent = $this->agentParserFactory->getAgentContentFromFile($tempFile);
+                $testAgent = new MicroAgent(
+                    name: 'test',
+                    modelId: $agent['config']['model_id'] ?? '',
+                    systemTemplate: $agent['system'],
+                    temperature: $agent['config']['temperature'] ?? 0.7,
+                    maxTokens: max(0, (int) ($agent['config']['max_tokens'] ?? 0)),
+                    enabledModelFallbackChain: $agent['config']['enabled_model_fallback_chain'] ?? true,
+                );
+
+                $this->assertEquals($expectedValue, $testAgent->getMaxTokens(), "Failed for case: {$description}");
+                $this->assertGreaterThanOrEqual(0, $testAgent->getMaxTokens(), 'maxTokens should never be negative');
+            } finally {
+                if (file_exists($tempFile)) {
+                    unlink($tempFile);
+                }
+            }
+        }
     }
 
     public function testEasyCall()

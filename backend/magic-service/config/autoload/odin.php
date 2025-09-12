@@ -244,6 +244,7 @@ return [
                     'options.json.model',
                     'options.json.temperature',
                     'options.json.max_tokens',
+                    'options.json.max_completion_tokens',
                     'options.json.stop',
                     'options.json.frequency_penalty',
                     'options.json.presence_penalty',
@@ -259,6 +260,7 @@ return [
                     // 请求参数（排除敏感内容）
                     'args.temperature',            // 温度参数
                     'args.max_tokens',             // 最大token限制
+                    'args.max_completion_tokens',             // 最大token限制
                     'args.top_p',                  // Top-p参数
                     'args.top_k',                  // Top-k参数
                     'args.frequency_penalty',      // 频率惩罚
