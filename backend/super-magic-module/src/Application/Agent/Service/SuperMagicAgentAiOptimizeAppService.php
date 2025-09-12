@@ -244,7 +244,6 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                         foreach ($arguments['tools'] as $toolCode) {
                             $tool = $this->createToolFromAvailableTools($toolCode, $availableTools);
                             if ($tool) {
-                                var_dump($tool);
                                 $agentEntity->addTool($tool);
                             }
                         }
