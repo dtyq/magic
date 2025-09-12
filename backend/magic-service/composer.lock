@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "b8b3305f698cce231bc01f70598211b76eda1260"
+                "reference": "3977f5092916be61f11387adf311fa42454c2ac0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=b8b3305f698cce231bc01f70598211b76eda1260",
-                "reference": "b8b3305f698cce231bc01f70598211b76eda1260",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=3977f5092916be61f11387adf311fa42454c2ac0",
+                "reference": "3977f5092916be61f11387adf311fa42454c2ac0",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-12T16:11:36+08:00"
+            "time": "2025-09-12T16:35:40+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -19712,8 +19712,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/super-magic-module": 20,
         "dtyq/magic-enterprise-service": 20,
+        "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
     "prefer-stable": true,
@@ -19730,6 +19730,6 @@
         "ext-zend-opcache": "*",
         "ext-zlib": "*"
     },
-    "platform-dev": [],
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
