@@ -19,6 +19,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
@@ -68,6 +70,8 @@ class ConfigProvider
 {
     public function __invoke(): array
     {
+        define('SUPER_MAGIC_MODULE_PATH', BASE_PATH . '/vendor/dtyq/super-magic-module');
+
         $publishConfigs = [];
 
         // 遍历 publish/route 文件夹下的所有文件
@@ -132,6 +136,9 @@ class ConfigProvider
                 WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
                 ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
                 MessageQueueRepositoryInterface::class => MessageQueueRepository::class,
+
+                // agent 管理
+                SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,

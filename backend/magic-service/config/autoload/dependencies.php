@@ -114,6 +114,7 @@ use App\Domain\Flow\Repository\Persistence\MagicFlowWaitMessageRepository;
 use App\Domain\Group\Repository\Facade\MagicGroupRepositoryInterface;
 use App\Domain\Group\Repository\Persistence\MagicGroupRepository;
 use App\Domain\ImageGenerate\Contract\FontProviderInterface;
+use App\Domain\ImageGenerate\Contract\ImageEnhancementProcessorInterface;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
@@ -216,6 +217,7 @@ use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
 use App\Infrastructure\ImageGenerate\DefaultFontProvider;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
+use App\Infrastructure\ImageGenerate\NullImageEnhancementProcessor;
 use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
@@ -423,6 +425,7 @@ $dependencies = [
     PackageFilterInterface::class => DefaultPackageFilter::class,
 
     FontProviderInterface::class => DefaultFontProvider::class,
+    ImageEnhancementProcessorInterface::class => NullImageEnhancementProcessor::class,
 
     // mode
     ModeRepositoryInterface::class => ModeRepository::class,

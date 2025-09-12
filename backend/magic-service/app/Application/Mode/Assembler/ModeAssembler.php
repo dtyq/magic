@@ -41,7 +41,7 @@ class ModeAssembler
         return $dto;
     }
 
-    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels)
+    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels): ModeGroupAggregateDTO
     {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));

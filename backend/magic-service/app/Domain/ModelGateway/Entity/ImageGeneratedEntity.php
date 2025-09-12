@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity;
 
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use DateTime;
 
 class ImageGeneratedEntity
@@ -24,6 +25,10 @@ class ImageGeneratedEntity
     protected ?string $taskId = null;
 
     protected DateTime $createdAt;
+
+    protected ?string $sourceId = null;
+
+    protected ImageGenerateSourceEnum $sourceType;
 
     public function getOrganizationCode(): string
     {
@@ -93,5 +98,25 @@ class ImageGeneratedEntity
     public function setCreatedAt(DateTime $createdAt): void
     {
         $this->createdAt = $createdAt;
+    }
+
+    public function getSourceId(): ?string
+    {
+        return $this->sourceId;
+    }
+
+    public function setSourceId(?string $sourceId): void
+    {
+        $this->sourceId = $sourceId;
+    }
+
+    public function getSourceType(): ImageGenerateSourceEnum
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(ImageGenerateSourceEnum $sourceType): void
+    {
+        $this->sourceType = $sourceType;
     }
 }

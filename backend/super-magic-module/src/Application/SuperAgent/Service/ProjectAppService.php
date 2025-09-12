@@ -252,11 +252,11 @@ class ProjectAppService extends AbstractAppService
 
         if ($result) {
             // 删除项目相关的长期记忆
-            $this->longTermMemoryDomainService->deleteMemoriesByProjectId(
+            $this->longTermMemoryDomainService->deleteMemoriesByProjectIds(
                 $dataIsolation->getCurrentOrganizationCode(),
                 AgentConstant::SUPER_MAGIC_CODE, // app_id 固定为 super-magic
                 $dataIsolation->getCurrentUserId(),
-                (string) $projectId
+                [(string) $projectId]
             );
 
             // 发布项目已删除事件

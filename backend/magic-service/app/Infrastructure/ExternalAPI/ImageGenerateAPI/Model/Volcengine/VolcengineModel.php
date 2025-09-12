@@ -75,10 +75,6 @@ class VolcengineModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
-
         return $this->processVolcengineRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 

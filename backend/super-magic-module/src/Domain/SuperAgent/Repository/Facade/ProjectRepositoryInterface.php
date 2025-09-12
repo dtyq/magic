@@ -54,4 +54,14 @@ interface ProjectRepositoryInterface
      * 更新项目的updated_at为当前时间.
      */
     public function updateUpdatedAtToNow(int $projectId): bool;
+
+    /**
+     * 根据工作区ID获取项目ID列表.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织代码
+     * @return array 项目ID列表
+     */
+    public function getProjectIdsByWorkspaceId(int $workspaceId, string $userId, string $organizationCode): array;
 }
