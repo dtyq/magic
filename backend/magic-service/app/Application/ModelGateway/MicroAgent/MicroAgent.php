@@ -22,6 +22,7 @@ class MicroAgent
         protected string $modelId = '',
         protected string $systemTemplate = '',
         protected float $temperature = 0.7,
+        protected int $maxTokens = 0,
         protected bool $enabledModelFallbackChain = true,
         protected array $tools = [],
     ) {
@@ -57,8 +58,9 @@ class MicroAgent
         return $model->chat(
             messages: $messages,
             temperature: $this->temperature,
+            maxTokens: $this->maxTokens,
             tools: $this->tools,
-            businessParams: $businessParams,
+            businessParams: $businessParams
         );
     }
 
@@ -80,6 +82,11 @@ class MicroAgent
     public function getTemperature(): float
     {
         return $this->temperature;
+    }
+
+    public function getMaxTokens(): int
+    {
+        return $this->maxTokens;
     }
 
     public function isEnabledModelFallbackChain(): bool
