@@ -274,13 +274,13 @@ class ProjectMemberAppService extends AbstractAppService
         if ($projectEntity->getUserId() === $userAuthorization->getId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT);
         }
-        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
-        if (! $workspaceEntity || $workspaceEntity->getUserId() !== $userAuthorization->getId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
-        }
 
         // 2. 根据参数决定是设置还是取消快捷方式
         if ($requestDTO->getIsBindWorkspace() === 1) {
+            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
+            if (! $workspaceEntity || $workspaceEntity->getUserId() !== $userAuthorization->getId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
+            }
             // 设置快捷方式
             // 3. 委托给Domain层处理设置快捷方式
             $this->projectMemberDomainService->setProjectShortcut(
