@@ -283,7 +283,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
      */
     private function createToolFromAvailableTools(string $toolCode, array $availableTools): ?SuperMagicAgentTool
     {
-        // 在可用工具中查找匹配的工具
+        // 第一次查找：通过 code 字段匹配
         if (isset($availableTools[$toolCode])) {
             $toolInfo = $availableTools[$toolCode];
             return new SuperMagicAgentTool([
@@ -294,7 +294,19 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             ]);
         }
 
-        // 如果在可用工具中找不到，返回 null
+        // 第二次查找：通过 name 字段匹配（容错机制）
+        foreach ($availableTools as $tool) {
+            if (($tool['name'] ?? '') === $toolCode) {
+                return new SuperMagicAgentTool([
+                    'code' => $tool['code'],
+                    'name' => $tool['name'] ?? '',
+                    'description' => $tool['description'] ?? '',
+                    'type' => $tool['type'] === 'builtin' ? 1 : 3,
+                ]);
+            }
+        }
+
+        // 如果两次查找都没有找到，返回 null
         return null;
     }
 }
