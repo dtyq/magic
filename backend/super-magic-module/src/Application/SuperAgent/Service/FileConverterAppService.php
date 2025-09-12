@@ -230,7 +230,16 @@ class FileConverterAppService extends AbstractAppService
             $this->sandboxGateway->setUserContext($userId, $userAuthorization->getOrganizationCode());
             $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId, $fullWorkdir);
             // Create file conversion request
-            $fileRequest = new FileConverterRequest($actualSandboxId, $convertType, $fileKeys, $stsTemporaryCredential, $requestDTO->options, $taskKey);
+            $fileRequest = new FileConverterRequest(
+                $actualSandboxId,
+                $convertType,
+                $fileKeys,
+                $stsTemporaryCredential,
+                $requestDTO->options,
+                $taskKey,
+                $userId,
+                $userAuthorization->getOrganizationCode()
+            );
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
             go(function () use ($taskKey, $userAuthorization, $fileRequest, $projectId, $requestId, $fullWorkdir) {
