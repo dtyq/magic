@@ -111,12 +111,14 @@ class MicroAgentFactory
         }
 
         $config = $parsed['config'];
+        var_dump($config);
 
         return new MicroAgent(
             name: $name,
             modelId: $config['model_id'] ?? '',
             systemTemplate: $parsed['system'],
             temperature: $config['temperature'] ?? 0.7,
+            maxTokens: max(0, (int) ($config['max_tokens'] ?? 0)),
             enabledModelFallbackChain: $config['enabled_model_fallback_chain'] ?? true,
         );
     }

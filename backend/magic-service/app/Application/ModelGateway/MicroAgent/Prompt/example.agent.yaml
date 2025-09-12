@@ -1,6 +1,7 @@
 ---
 model_id: gpt-4o
 temperature: 0.7
+max_tokens: 16384
 enabled_model_fallback_chain: true
 ---
 system: |

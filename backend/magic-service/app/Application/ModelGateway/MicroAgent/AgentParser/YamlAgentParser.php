@@ -66,11 +66,7 @@ readonly class YamlAgentParser implements AgentParserInterface
      */
     private function parseConfiguration(string $configSection): array
     {
-        $config = [
-            'model_id' => '',
-            'temperature' => 0.7,
-            'enabled_model_fallback_chain' => true,
-        ];
+        $config = [];
 
         if (empty($configSection)) {
             return $config;
@@ -86,20 +82,38 @@ readonly class YamlAgentParser implements AgentParserInterface
 
             [$key, $value] = array_map('trim', explode(':', $line, 2));
 
-            switch ($key) {
-                case 'model_id':
-                    $config['model_id'] = $value;
-                    break;
-                case 'temperature':
-                    $config['temperature'] = (float) $value;
-                    break;
-                case 'enabled_model_fallback_chain':
-                    $config['enabled_model_fallback_chain'] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
-                    break;
-            }
+            // Auto-detect and convert value types
+            $config[$key] = $this->convertValueType($value);
         }
 
         return $config;
+    }
+
+    /**
+     * Convert string value to appropriate type.
+     */
+    private function convertValueType(string $value): mixed
+    {
+        // Trim whitespace and remove surrounding quotes if present
+        $trimmedValue = trim($value, " \t\n\r\0\x0B\"'");
+
+        // Handle boolean values
+        if (in_array(strtolower($trimmedValue), ['true', 'false'], true)) {
+            return filter_var($trimmedValue, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Handle numeric values (after removing quotes)
+        if (is_numeric($trimmedValue)) {
+            // Check if it contains a decimal point or is a float
+            if (str_contains($trimmedValue, '.')) {
+                return (float) $trimmedValue;
+            }
+            // Otherwise treat as integer
+            return (int) $trimmedValue;
+        }
+
+        // Return as string (original value without quote removal for non-numeric strings)
+        return $value;
     }
 
     /**
