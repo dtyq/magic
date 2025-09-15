@@ -187,7 +187,6 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
-
         $providerConfigItem = $providerConfigEntity->getConfig();
         if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -212,6 +211,7 @@ class LLMAppService extends AbstractLLMAppService
             ->setUserId($authorization->getId())
             ->setAgentId($data['agent_id'] ?? '');
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setModel($providerConfigItem->getModelVersion());
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
@@ -266,7 +266,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setUserId($userAuthorization->getId());
         $imageGeneratedEntity->setImageCount(1);
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        $imageGeneratedEntity->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEntity->setModel($miracleVisionServiceProviderConfig->getConfig()->getModelVersion());
         $imageGeneratedEntity->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEntity->setSourceId($reqDTO->getSourceId());
 
@@ -337,6 +337,7 @@ class LLMAppService extends AbstractLLMAppService
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
+                $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
@@ -385,9 +386,18 @@ class LLMAppService extends AbstractLLMAppService
             ->setTopicId($imageEditDTO->getTopicId());
 
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $size = $imageEditDTO->getSize();
+
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $imageGenerateRequest->setWidth($width);
+        $imageGenerateRequest->setHeight($height);
+
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
+                $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);

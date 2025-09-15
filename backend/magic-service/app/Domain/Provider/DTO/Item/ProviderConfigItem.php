@@ -27,6 +27,8 @@ class ProviderConfigItem extends AbstractDTO
 
     protected string $region = '';
 
+    protected string $modelVersion = '';
+
     public function getAk(): string
     {
         return $this->ak;
@@ -137,5 +139,15 @@ class ProviderConfigItem extends AbstractDTO
         } else {
             $this->region = (string) $region;
         }
+    }
+
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    public function setModelVersion(string $modelVersion): void
+    {
+        $this->modelVersion = $modelVersion;
     }
 }
