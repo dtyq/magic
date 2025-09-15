@@ -13,27 +13,27 @@ import (
 
 // SignHandler handles signing operations
 type SignHandler struct {
-	gpgService *service.GPGService
-	logger     *log.Logger
+	ed25519Service *service.Ed25519Service
+	logger         *log.Logger
 }
 
-// NewSignHandler creates a new sign handler with GPG service initialization
+// NewSignHandler creates a new sign handler with Ed25519 service initialization
 func NewSignHandler(logger *log.Logger) (*SignHandler, error) {
-	// Get GPG private key from environment
-	gpgPrivateKey := os.Getenv("GPG_PRIVATE_KEY")
-	if gpgPrivateKey == "" {
-		return nil, fmt.Errorf("GPG_PRIVATE_KEY environment variable is required")
+	// Get Ed25519 private key from environment
+	ed25519PrivateKey := os.Getenv("ED25519_PRIVATE_KEY")
+	if ed25519PrivateKey == "" {
+		return nil, fmt.Errorf("ED25519_PRIVATE_KEY environment variable is required")
 	}
 
-	// Initialize GPG service
-	gpgService, err := service.NewGPGService(gpgPrivateKey)
+	// Initialize Ed25519 service
+	ed25519Service, err := service.NewEd25519Service(ed25519PrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize GPG service: %w", err)
+		return nil, fmt.Errorf("failed to initialize Ed25519 service: %w", err)
 	}
 
 	return &SignHandler{
-		gpgService: gpgService,
-		logger:     logger,
+		ed25519Service: ed25519Service,
+		logger:         logger,
 	}, nil
 }
 
@@ -61,10 +61,10 @@ func (h *SignHandler) Sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sign the data directly
-	signature, err := h.gpgService.SignData(req.Data)
-
+	// Sign the data using Ed25519
+	signature, err := h.ed25519Service.SignData(req.Data)
 	if err != nil {
+		h.logger.Printf("Failed to sign data: %v", err)
 		http.Error(w, "Failed to sign data", http.StatusInternalServerError)
 		return
 	}
@@ -75,5 +75,9 @@ func (h *SignHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Printf("Failed to encode response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
