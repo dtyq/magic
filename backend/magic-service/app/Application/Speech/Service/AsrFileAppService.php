@@ -15,6 +15,8 @@ use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Application\Speech\DTO\SaveFileRecordToProjectDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Domain\Chat\DTO\Request\ChatRequest;
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -28,9 +30,12 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
@@ -60,6 +65,8 @@ readonly class AsrFileAppService
         private ChatMessageAssembler $chatMessageAssembler,
         private MagicChatMessageAppService $magicChatMessageAppService,
         private MagicChatDomainService $magicChatDomainService,
+        private TopicDomainService $topicDomainService,
+        private MessageQueueDomainService $messageQueueDomainService,
         private Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -101,7 +108,7 @@ readonly class AsrFileAppService
             }
 
             // 4.5. 处理note文件（如果有）
-            if ($summaryRequest->hasNote() && $taskStatus) {
+            if ($taskStatus && $summaryRequest->hasNote()) {
                 $this->processNoteFile($summaryRequest, $taskStatus, $organizationCode, $userId);
             }
 
@@ -449,7 +456,7 @@ readonly class AsrFileAppService
      * @param string $businessDirectory 业务目录
      * @param string $taskKey 任务键
      * @return array 包含合并文件路径和格式的数组 ['file_path' => string, 'format' => string]
-     * @throws InvalidArgumentException
+     * @throws InvalidArgumentException|Throwable
      */
     protected function downloadAndMergeAudio(string $organizationCode, string $businessDirectory, string $taskKey): array
     {
@@ -478,10 +485,6 @@ readonly class AsrFileAppService
 
             // 4. 合并音频文件
             $mergedFile = $this->mergeAudioFiles($localAudioFiles, $taskKey, $dominantFormat);
-
-            // 记录流程完成
-            $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
-            $outputSize = file_exists($mergedFile) ? filesize($mergedFile) : 0;
 
             return ['file_path' => $mergedFile, 'format' => $dominantFormat];
         } catch (Throwable $e) {
@@ -564,27 +567,13 @@ readonly class AsrFileAppService
                 ));
             }
 
-            // 记录找到的音频文件信息
-            $audioFileInfos = [];
-            foreach ($audioFiles as $audioFile) {
-                $audioFileInfos[] = [
-                    'filename' => $audioFile->getFilename(),
-                    'key' => $audioFile->getKey(),
-                    'size' => $audioFile->getSize(),
-                    'last_modified' => $audioFile->getLastModified(),
-                ];
-            }
-
             // 下载所有音频文件
-            $downloadedFiles = [];
             foreach ($audioFiles as $audioFile) {
                 $objectKey = $audioFile->getKey();
                 $filename = $audioFile->getFilename();
                 $localFilePath = sprintf('%s/%s', $runtimeDir, $filename);
 
                 try {
-                    $downloadStartTime = microtime(true);
-
                     // 使用fileAppService下载文件
                     $this->fileAppService->downloadByChunks(
                         $organizationCode,
@@ -596,13 +585,6 @@ readonly class AsrFileAppService
                     // 验证文件下载成功且不为空
                     if (file_exists($localFilePath) && filesize($localFilePath) > 0) {
                         $localFiles[] = $localFilePath;
-                        $downloadedFiles[] = [
-                            'filename' => $filename,
-                            'object_key' => $objectKey,
-                            'local_path' => $localFilePath,
-                            'file_size' => filesize($localFilePath),
-                            'download_time_ms' => round((microtime(true) - $downloadStartTime) * 1000, 2),
-                        ];
                     } else {
                         throw new InvalidArgumentException(sprintf('下载的文件为空: %s', $filename));
                     }
@@ -620,8 +602,6 @@ readonly class AsrFileAppService
                     );
                 }
             }
-
-            // 记录下载完成的详细信息
 
             return $localFiles;
         } catch (Throwable $e) {
@@ -699,8 +679,6 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException('没有音频文件可合并');
         }
 
-        $mergeStartTime = microtime(true);
-
         $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
         $outputFile = sprintf('%s/merged_audio.%s', $runtimeDir, $format);
 
@@ -711,12 +689,9 @@ readonly class AsrFileAppService
             return $aNum <=> $bNum;
         });
 
-        // 记录排序后的文件列表
-
         // 如果只有一个文件，直接复制
         if (count($audioFiles) === 1) {
             $sourceFile = $audioFiles[0];
-            $sourceSize = file_exists($sourceFile) ? filesize($sourceFile) : 0;
 
             if (! copy($sourceFile, $outputFile)) {
                 throw new InvalidArgumentException('复制单个音频文件失败');
@@ -726,7 +701,7 @@ readonly class AsrFileAppService
         }
 
         // 多个文件直接二进制合并
-        return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile, $mergeStartTime);
+        return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile);
     }
 
     /**
@@ -787,25 +762,10 @@ readonly class AsrFileAppService
      * @param array $audioFiles 音频文件路径列表
      * @param string $taskKey 任务键
      * @param string $outputFile 输出文件路径
-     * @param float $mergeStartTime 合并开始时间
-     * @return string 合并后文件路径
      * @throws InvalidArgumentException
      */
-    private function mergeAudioFilesBinary(array $audioFiles, string $taskKey, string $outputFile, float $mergeStartTime): string
+    private function mergeAudioFilesBinary(array $audioFiles, string $taskKey, string $outputFile): string
     {
-        // 记录合并前的文件信息
-        $inputFileInfos = [];
-        $totalInputSize = 0;
-        foreach ($audioFiles as $file) {
-            $fileSize = file_exists($file) ? filesize($file) : 0;
-            $inputFileInfos[] = [
-                'file_path' => basename($file),
-                'filename' => basename($file),
-                'size_bytes' => $fileSize,
-            ];
-            $totalInputSize += $fileSize;
-        }
-
         try {
             // 删除可能存在的输出文件
             if (file_exists($outputFile)) {
@@ -819,7 +779,6 @@ readonly class AsrFileAppService
             }
 
             $processedFiles = 0;
-            $totalWritten = 0;
 
             // 逐个读取并写入文件
             foreach ($audioFiles as $inputFile) {
@@ -841,7 +800,6 @@ readonly class AsrFileAppService
                 }
 
                 // 以块的方式复制文件内容
-                $fileSize = 0;
                 while (! feof($inputHandle)) {
                     $chunk = fread($inputHandle, 8192); // 8KB chunks
                     if ($chunk !== false) {
@@ -851,13 +809,10 @@ readonly class AsrFileAppService
                             fclose($outputHandle);
                             throw new InvalidArgumentException('写入输出文件失败');
                         }
-                        $fileSize += $written;
-                        $totalWritten += $written;
                     }
                 }
 
                 fclose($inputHandle);
-                ++$processedFiles;
             }
 
             fclose($outputHandle);
@@ -866,9 +821,6 @@ readonly class AsrFileAppService
             if (! file_exists($outputFile) || filesize($outputFile) === 0) {
                 throw new InvalidArgumentException('合并后的文件为空或不存在');
             }
-
-            $outputFileSize = filesize($outputFile);
-            $totalMergeDuration = round((microtime(true) - $mergeStartTime) * 1000, 2);
 
             return $outputFile;
         } catch (Throwable $e) {
@@ -974,10 +926,9 @@ readonly class AsrFileAppService
      *
      * @param string $userId 用户ID
      * @param string $projectId 项目ID
-     * @param string $organizationCode 组织编码
      * @return string 工作区相对目录路径
      */
-    private function getFileRelativeDir(string $userId, string $projectId, string $organizationCode): string
+    private function getFileRelativeDir(string $userId, string $projectId): string
     {
         // 获取项目实体 (如果项目不存在会自动抛出 PROJECT_NOT_FOUND 异常)
         $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
@@ -1192,7 +1143,7 @@ readonly class AsrFileAppService
 
             // 2. 准备上传到工作区指定目录（动态ASR录音目录）
             $fileName = sprintf('%s.%s', trans('asr.file_names.original_recording'), $audioFormat);
-            $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId, $organizationCode);
+            $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId);
 
             // 3. 直接上传合并文件到工作区的动态ASR录音目录
             $uploadFile = new UploadFile($mergedLocalAudioFile, $fileRelativeDir, $fileName, false);
@@ -1285,8 +1236,15 @@ readonly class AsrFileAppService
             // 构建聊天请求
             $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto);
 
-            // 发送聊天消息
-            $this->magicChatMessageAppService->onChatMessage($chatRequest, $userAuthorization);
+            // 检查话题状态，决定是直接发送消息还是写入队列
+            $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId, $userAuthorization);
+            if ($shouldQueueMessage) {
+                // 话题状态为waiting或running，将消息写入队列
+                $this->queueChatMessage($dto, $chatRequest, $userAuthorization);
+            } else {
+                // 话题状态不是waiting/running，直接发送聊天消息
+                $this->magicChatMessageAppService->onChatMessage($chatRequest, $userAuthorization);
+            }
         } catch (Throwable $e) {
             $this->logger->error('发送聊天消息失败', [
                 'task_key' => $dto->taskStatus->taskKey,
@@ -1335,7 +1293,7 @@ readonly class AsrFileAppService
                     $fileRelativeDir = dirname($taskStatus->filePath);
                 } else {
                     // 如果没有已有路径，则生成新的（fallback逻辑）
-                    $fileRelativeDir = $this->getFileRelativeDir($userId, $summaryRequest->projectId, $organizationCode);
+                    $fileRelativeDir = $this->getFileRelativeDir($userId, $summaryRequest->projectId);
                 }
                 $taskStatus->workspaceRelativeDir = $fileRelativeDir; // 保存到DTO中
             }
@@ -1364,7 +1322,7 @@ readonly class AsrFileAppService
 
             // 7. 删除本地临时文件
             if (file_exists($tempFilePath)) {
-                $deleted = unlink($tempFilePath);
+                unlink($tempFilePath);
             }
         } catch (Throwable $e) {
             $this->logger->error('处理note文件失败', [
@@ -1384,5 +1342,80 @@ readonly class AsrFileAppService
 
             throw new RuntimeException(sprintf('处理note文件失败: %s', $e->getMessage()));
         }
+    }
+
+    /**
+     * 检查是否应该将消息写入队列.
+     *
+     * 当话题状态为WAITING或RUNNING时，消息需要写入队列处理
+     *
+     * @param string $topicId 话题ID
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @return bool 是否应该队列处理
+     * @throws InvalidArgumentException 当找不到话题时
+     */
+    private function shouldQueueMessage(string $topicId, MagicUserAuthorization $userAuthorization): bool
+    {
+        // 创建数据隔离对象
+        $dataIsolation = DataIsolation::create(
+            $userAuthorization->getOrganizationCode(),
+            $userAuthorization->getId()
+        );
+
+        // 通过Chat话题ID获取SuperAgent话题实体
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $topicId);
+
+        if ($topicEntity === null) {
+            // 如果找不到话题，抛出异常终止流程
+            $this->logger->error('未找到对应的SuperAgent话题，终止ASR总结流程', [
+                'chat_topic_id' => $topicId,
+                'user_id' => $userAuthorization->getId(),
+            ]);
+            throw new InvalidArgumentException(sprintf('未找到对应的SuperAgent话题: %s', $topicId));
+        }
+
+        // 检查话题的当前任务状态是否为waiting或running（需要队列处理）
+        $currentStatus = $topicEntity->getCurrentTaskStatus();
+        return $currentStatus !== null && ($currentStatus === TaskStatus::WAITING || $currentStatus === TaskStatus::RUNNING);
+    }
+
+    /**
+     * 将聊天消息写入消息队列.
+     *
+     * @param ProcessSummaryTaskDTO $dto 处理总结任务DTO
+     * @param ChatRequest $chatRequest 聊天请求对象（在队列情况下不使用，保留参数用于兼容）
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     */
+    private function queueChatMessage(ProcessSummaryTaskDTO $dto, ChatRequest $chatRequest, MagicUserAuthorization $userAuthorization): void
+    {
+        // 创建数据隔离对象
+        $dataIsolation = DataIsolation::create(
+            $userAuthorization->getOrganizationCode(),
+            $userAuthorization->getId()
+        );
+
+        // 通过Chat话题ID获取SuperAgent话题实体，获取话题的数据库ID
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->topicId);
+        if ($topicEntity === null) {
+            throw new InvalidArgumentException(sprintf('未找到话题ID: %s', $dto->topicId));
+        }
+        $messageContent = $chatRequest->getData()->getMessage()->getMagicMessage()->toArray();
+        // 写入消息队列
+        $messageEntity = $this->messageQueueDomainService->createMessage(
+            $dataIsolation,
+            (int) $dto->projectId, // 转换为int类型
+            $topicEntity->getId(), // 使用SuperAgent话题的数据库ID
+            $messageContent,
+            ChatMessageType::RichText // ASR总结消息使用富文本类型
+        );
+
+        $this->logger->info('ASR总结消息已写入队列', [
+            'task_key' => $dto->taskStatus->taskKey,
+            'chat_topic_id' => $dto->topicId,
+            'topic_id' => $topicEntity->getId(),
+            'message_queue_id' => $messageEntity->getId(),
+            'project_id' => $dto->projectId,
+            'user_id' => $dto->userId,
+        ]);
     }
 }
