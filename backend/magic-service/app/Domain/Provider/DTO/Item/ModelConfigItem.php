@@ -295,9 +295,9 @@ class ModelConfigItem extends AbstractDTO
         return $this->billingType;
     }
 
-    public function setBillingType(BillingType $billingType): void
+    public function setBillingType(BillingType|string $billingType): void
     {
-        $this->billingType = $billingType;
+        $this->billingType = $billingType instanceof BillingType ? $billingType : BillingType::tryFrom($billingType);
     }
 
     public function getTimePricing(): ?string
