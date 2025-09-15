@@ -276,7 +276,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setUserId($userAuthorization->getId());
         $imageGeneratedEvent->setImageCount(1);
         $imageGeneratedEvent->setCreatedAt(new DateTime());
-        $imageGeneratedEvent->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEvent->setModel($providerConfigItem->getModelVersion());
+        $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEvent->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEvent->setSourceId($reqDTO->getSourceId());
         $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
@@ -286,6 +287,7 @@ class LLMAppService extends AbstractLLMAppService
 
         return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
     }
+
 
     /**
      * @throws Exception
