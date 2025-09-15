@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -211,7 +212,7 @@ class TopicTaskAppService extends AbstractAppService
                 $messageEntity->setTopicId($topicId);
                 $this->processToolContentStorage($dataIsolation, $taskEntity, $messageEntity);
                 $this->taskMessageDomainService->processMessageAttachment($messageEntity);
-                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
+                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
             // 3. 推送消息给客户端（异步处理）
