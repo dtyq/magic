@@ -13,27 +13,27 @@ import (
 
 // SignHandler handles signing operations
 type SignHandler struct {
-	ed25519Service *service.Ed25519Service
-	logger         *log.Logger
+	blake3Service *service.Blake3Service
+	logger        *log.Logger
 }
 
-// NewSignHandler creates a new sign handler with Ed25519 service initialization
+// NewSignHandler creates a new sign handler with Blake3 service initialization
 func NewSignHandler(logger *log.Logger) (*SignHandler, error) {
-	// Get Ed25519 private key from environment
-	ed25519PrivateKey := os.Getenv("AI_DATA_SIGNING_KEY")
-	if ed25519PrivateKey == "" {
+	// Get Blake3 key from environment
+	blake3Key := os.Getenv("AI_DATA_SIGNING_KEY")
+	if blake3Key == "" {
 		return nil, fmt.Errorf("AI_DATA_SIGNING_KEY environment variable is required")
 	}
 
-	// Initialize Ed25519 service
-	ed25519Service, err := service.NewEd25519Service(ed25519PrivateKey)
+	// Initialize Blake3 service
+	blake3Service, err := service.NewBlake3Service(blake3Key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Ed25519 service: %w", err)
+		return nil, fmt.Errorf("failed to initialize Blake3 service: %w", err)
 	}
 
 	return &SignHandler{
-		ed25519Service: ed25519Service,
-		logger:         logger,
+		blake3Service: blake3Service,
+		logger:        logger,
 	}, nil
 }
 
@@ -61,8 +61,8 @@ func (h *SignHandler) Sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sign the data using Ed25519
-	signature, err := h.ed25519Service.SignData(req.Data)
+	// Sign the data using Blake3
+	signature, err := h.blake3Service.SignData(req.Data)
 	if err != nil {
 		h.logger.Printf("Failed to sign data: %v", err)
 		http.Error(w, "Failed to sign data", http.StatusInternalServerError)
