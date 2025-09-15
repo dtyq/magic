@@ -409,10 +409,14 @@ class AsrTokenApi extends AbstractApi
         // 保存更新的任务状态
         $this->saveTaskStatusToRedis($taskStatus);
 
+        // 生成工作区目录名（调用统一的目录名生成方法）
+        $workspaceDirectoryName = $this->asrFileAppService->generateAsrDirectoryName();
+
         return [
             'sts_token' => $tokenData,
             'task_key' => $taskKey,
             'upload_directory' => $stsFullDirectory,  // 使用STS完整路径
+            'workspace_directory_name' => $workspaceDirectoryName,  // 新增：工作区目录名
             'expires_in' => $expires,
             'storage_type' => $storageType,
             'user' => [
