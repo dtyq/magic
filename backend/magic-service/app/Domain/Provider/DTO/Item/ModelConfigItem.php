@@ -297,7 +297,11 @@ class ModelConfigItem extends AbstractDTO
 
     public function setBillingType(BillingType|string $billingType): void
     {
-        $this->billingType = $billingType instanceof BillingType ? $billingType : BillingType::tryFrom($billingType);
+        if ($billingType instanceof BillingType) {
+            $this->billingType = $billingType;
+        } else {
+            $this->billingType = BillingType::tryFrom($billingType) ?? BillingType::Token;
+        }
     }
 
     public function getTimePricing(): ?string
