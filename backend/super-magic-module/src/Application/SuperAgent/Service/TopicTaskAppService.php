@@ -17,7 +17,9 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicMessageProcessPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
@@ -41,6 +43,8 @@ class TopicTaskAppService extends AbstractAppService
     private readonly LoggerInterface $logger;
 
     public function __construct(
+        private readonly FileProcessAppService $fileProcessAppService,
+        private readonly ClientMessageAppService $clientMessageAppService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -112,6 +116,7 @@ class TopicTaskAppService extends AbstractAppService
                 $dataIsolation = DataIsolation::simpleMake($topicEntity->getUserOrganizationCode(), $topicEntity->getUserId());
                 $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
                 $messageEntity = $messageDTO->toTaskMessageEntity($topicId, $aiUserEntity->getUserId(), $topicEntity->getUserId());
+                $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_PENDING);
 
                 // 3. 存储消息到数据库（调用领域层服务）
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
@@ -152,6 +157,114 @@ class TopicTaskAppService extends AbstractAppService
                 } else {
                     // Log lock release failure, may require manual intervention
                     $this->logger->error(sprintf('Failed to release lock for sandbox %s held by %s. Manual intervention may be required.', $sandboxId, $lockOwner));
+                }
+            }
+        }
+
+        return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
+    }
+
+    public function handleTopicTaskMessage(TopicTaskMessageDTO $messageDTO): array
+    {
+        // 1，初始化数据
+        $taskId = $messageDTO->getMetadata()->getSuperMagicTaskId();
+        $taskEntity = $this->taskDomainService->getTaskById((int) $taskId);
+        if (! $taskEntity) {
+            $this->logger->warning('无效的task_id，无法处理消息', ['messageData' => $taskId]);
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_missing_task_id');
+        }
+
+        $metadata = $messageDTO->getMetadata();
+        $language = $this->translator->getLocale();
+        $metadata->setLanguage($language);
+        $messageDTO->setMetadata($metadata);
+        $dataIsolation = DataIsolation::simpleMake($metadata->getOrganizationCode(), $metadata->getUserId());
+        $messageId = $messageDTO->getPayload()->getMessageId();
+        $topicId = $taskEntity->getTopicId();
+
+        $this->logger->info('开始处理话题任务消息', [
+            'topic_id' => $topicId,
+            'task_id' => $taskId,
+            'message_id' => $messageId,
+        ]);
+
+        // 获取话题级别的锁
+        $lockKey = 'handle_topic_message_lock:' . $topicId;
+        $lockOwner = IdGenerator::getUniqueId32();
+        $lockExpireSeconds = 15; // 锁过期时间
+        $lockAcquired = false;
+
+        try {
+            // 尝试获取分布式锁
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
+            if (! $lockAcquired) {
+                $this->logger->warning('无法获取话题锁，消息处理跳过', [
+                    'topic_id' => $topicId,
+                    'message_id' => $messageId,
+                ]);
+                ExceptionBuilder::throw(GenericErrorCode::SystemError, 'unable_to_acquire_topic_lock');
+            }
+
+            // 2，存储消息
+            $messageEntity = $this->taskMessageDomainService->findByTopicIdAndMessageId($topicId, $messageId);
+            if (is_null($messageEntity)) {
+                $messageEntity = $this->parseMessageContent($messageDTO);
+                $messageEntity->setTopicId($topicId);
+                $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
+                $this->processToolContentStorage($dataIsolation, $taskEntity, $messageEntity);
+                $this->taskMessageDomainService->processMessageAttachment($messageEntity);
+                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
+            }
+
+            // 3. 推送消息给客户端（异步处理）
+            if ($messageEntity->getShowInUi()) {
+                $this->clientMessageAppService->sendMessageToClient(
+                    messageId: $messageEntity->getId(),
+                    topicId: $topicId,
+                    taskId: (string) $taskEntity->getId(),
+                    chatTopicId: $metadata->getChatTopicId(),
+                    chatConversationId: $metadata->getChatConversationId(),
+                    content: $messageEntity->getContent(),
+                    messageType: $messageEntity->getType(),
+                    status: $messageEntity->getStatus(),
+                    event: $messageEntity->getEvent(),
+                    steps: $messageEntity->getSteps() ?? [],
+                    tool: $messageEntity->getTool() ?? [],
+                    attachments: $messageEntity->getAttachments() ?? []
+                );
+            }
+
+            // 4. 更新话题状态
+            $status = $messageDTO->getPayload()->getStatus();
+            $taskStatus = TaskStatus::tryFrom($status) ?? TaskStatus::ERROR;
+            if (TaskStatus::tryFrom($status)) {
+                $this->updateTaskStatus(
+                    dataIsolation: $dataIsolation,
+                    task: $taskEntity,
+                    status: $taskStatus,
+                    errMsg: ''
+                );
+            }
+
+            $this->logger->info('话题任务消息处理完成', [
+                'topic_id' => $topicId,
+                'task_id' => $taskId,
+                'message_id' => $messageId,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('话题任务消息处理失败', [
+                'topic_id' => $topicId,
+                'task_id' => $taskId,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        } finally {
+            if ($lockAcquired) {
+                if ($this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->debug(sprintf('已释放话题锁 topic_id: %d, owner: %s', $topicId, $lockOwner));
+                } else {
+                    $this->logger->error(sprintf('释放话题锁失败 topic_id: %d, owner: %s，可能需要人工干预', $topicId, $lockOwner));
                 }
             }
         }
@@ -253,5 +366,118 @@ class TopicTaskAppService extends AbstractAppService
         $this->logger->info(sprintf('结束检查任务状态: topic_id=%s, status=%s, error_msg=%s', $topicEntity->getId(), TaskStatus::ERROR->value, $errMsg));
 
         return TaskStatus::ERROR;
+    }
+
+    private function parseMessageContent(TopicTaskMessageDTO $messageDTO): TaskMessageEntity
+    {
+        $payload = $messageDTO->getPayload();
+        $metadata = $messageDTO->getMetadata();
+
+        // Create TaskMessageEntity with messageId
+        $taskMessageEntity = new TaskMessageEntity([
+            'message_id' => $payload->getMessageId(),
+        ]);
+
+        // Set basic message information
+        $messageType = $payload->getType() ?: 'unknown';
+        $taskMessageEntity->setType($messageType);
+        $taskMessageEntity->setContent($payload->getContent() ?? '');
+        $taskMessageEntity->setStatus($payload->getStatus() ?: TaskStatus::RUNNING->value);
+        $taskMessageEntity->setEvent($payload->getEvent() ?? '');
+        $taskMessageEntity->setShowInUi($payload->getShowInUi() ?? true);
+
+        // Set array fields
+        $taskMessageEntity->setSteps($payload->getSteps() ?? []);
+        $taskMessageEntity->setTool($payload->getTool() ?? []);
+        $taskMessageEntity->setAttachments($payload->getAttachments() ?? []);
+
+        // Set task and topic information
+        $taskMessageEntity->setTaskId($payload->getTaskId() ?? '');
+
+        // Set sender/receiver information (will be set properly when we have task context)
+        $taskMessageEntity->setSenderType('assistant');
+        $taskMessageEntity->setSenderUid($metadata->getAgentUserId() ?? '');
+        $taskMessageEntity->setReceiverUid($metadata->getUserId() ?? '');
+        $taskMessageEntity->setSeqId($messageDTO->getPayload()->getSeqId());
+
+        // Validate message type
+        if (! MessageType::isValid($messageType)) {
+            $this->logger->warning(sprintf(
+                'Received unknown message type: %s, task_id: %s',
+                $messageType,
+                $payload->getTaskId()
+            ));
+        }
+
+        return $taskMessageEntity;
+    }
+
+    private function processToolContentStorage(DataIsolation $dataIsolation, TaskEntity $taskEntity, TaskMessageEntity $taskMessageEntity): void
+    {
+        // 检查是否启用对象存储
+        $objectStorageEnabled = config('super-magic.task.tool_message.object_storage_enabled', true);
+        if (! $objectStorageEnabled) {
+            return;
+        }
+
+        // 检查工具内容
+        $tool = $taskMessageEntity->getTool();
+        $content = $tool['detail']['data']['content'] ?? '';
+        if (empty($content)) {
+            return;
+        }
+
+        // 检查内容长度是否达到阈值
+        $minContentLength = config('super-magic.task.tool_message.min_content_length', 500);
+        if (strlen($content) < $minContentLength) {
+            return;
+        }
+
+        $this->logger->info(sprintf(
+            '开始处理工具内容存储，工具ID: %s，内容长度: %d',
+            $tool['id'] ?? 'unknown',
+            strlen($content)
+        ));
+
+        try {
+            // 构建参数
+            $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
+            $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
+            $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
+            $workDir = rtrim($taskEntity->getWorkdir(), '/') . '/task_' . $taskEntity->getId() . '/.chat/';
+
+            // 调用FileProcessAppService保存内容
+            $fileId = $this->fileProcessAppService->saveToolMessageContent(
+                fileName: $fileName,
+                workDir: $workDir,
+                fileKey: $fileKey,
+                content: $content,
+                dataIsolation: $dataIsolation,
+                projectId: $taskEntity->getProjectId(),
+                topicId: $taskEntity->getTopicId(),
+                taskId: (int) $taskEntity->getId()
+            );
+
+            // 修改工具数据结构
+            $tool['detail']['data']['file_id'] = (string) $fileId;
+            $tool['detail']['data']['content'] = ''; // 清空内容
+
+            $taskMessageEntity->setTool($tool);
+
+            $this->logger->info(sprintf(
+                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',
+                $tool['id'] ?? 'unknown',
+                $fileId,
+                strlen($content)
+            ));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                '工具内容存储失败: %s，工具ID: %s，内容长度: %d',
+                $e->getMessage(),
+                $tool['id'] ?? 'unknown',
+                strlen($content)
+            ));
+            // 存储失败不影响主流程，只记录错误
+        }
     }
 }
