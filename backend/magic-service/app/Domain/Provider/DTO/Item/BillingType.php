@@ -9,6 +9,6 @@ namespace App\Domain\Provider\DTO\Item;
 
 enum BillingType: string
 {
-    case Token = 'Tokens'; // token 计价
-    case Time = 'Times'; // 次数计价
+    case Tokens = 'Tokens'; // token 计价
+    case Times = 'Times'; // 次数计价
 }
