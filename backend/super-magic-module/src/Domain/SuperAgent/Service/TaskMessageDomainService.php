@@ -11,6 +11,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Hyperf\Contract\StdoutLoggerInterface;
 use InvalidArgumentException;
@@ -117,9 +118,10 @@ class TaskMessageDomainService
      *
      * @param TaskMessageEntity $messageEntity 消息实体
      * @param array $rawData 原始消息数据
+     * @param string $processStatus 处理状态
      * @return TaskMessageEntity 存储后的消息实体
      */
-    public function storeTopicTaskMessage(TaskMessageEntity $messageEntity, array $rawData): TaskMessageEntity
+    public function storeTopicTaskMessage(TaskMessageEntity $messageEntity, array $rawData, string $processStatus = TaskMessageModel::PROCESSING_STATUS_PENDING): TaskMessageEntity
     {
         $this->logger->info('开始存储话题任务消息', [
             'topic_id' => $messageEntity->getTopicId(),
@@ -153,7 +155,8 @@ class TaskMessageDomainService
         $messageEntity->setRetryCount(0);
         $this->messageRepository->saveWithRawData(
             $rawData, // 原始数据
-            $messageEntity
+            $messageEntity,
+            $processStatus
         );
 
         $this->logger->info('话题任务消息存储完成', [
