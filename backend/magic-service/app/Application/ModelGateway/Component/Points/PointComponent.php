@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Component\Points;
 
+use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
+
 class PointComponent implements PointComponentInterface
 {
-    public function checkPointsSufficient(string $organizationCode, string $userId): void
+    public function checkPointsSufficient(ProxyModelRequestInterface $proxyModelRequest, string $organizationCode, string $userId): void
     {
     }
 }
