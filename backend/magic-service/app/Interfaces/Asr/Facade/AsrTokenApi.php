@@ -18,6 +18,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -43,6 +44,7 @@ class AsrTokenApi extends AbstractApi
         protected FileAppService $fileAppService,
         protected Redis $redis,
         protected AsrFileAppService $asrFileAppService,
+        protected LockerInterface $locker,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
     ) {
@@ -183,30 +185,79 @@ class AsrTokenApi extends AbstractApi
         // 验证并获取请求参数
         $summaryRequest = $this->validateSummaryParams($request);
 
-        // 处理ASR总结任务的完整流程（包含聊天消息发送）
-        $result = $this->asrFileAppService->processSummaryWithChat(
-            $summaryRequest,
-            $userAuthorization
-        );
+        // 生成锁名称和拥有者标识
+        $lockName = sprintf('asr:summary:topic:%s', $summaryRequest->topicId);
+        $lockOwner = sprintf('%s:%s:%s', $userAuthorization->getId(), $summaryRequest->taskKey, microtime(true));
 
-        // 如果处理失败，直接返回错误
-        if (! $result['success']) {
+        // 获取自旋锁，最多等待 30 秒
+        $lockAcquired = false;
+        try {
+            $lockAcquired = $this->locker->spinLock($lockName, $lockOwner, 30);
+
+            if (! $lockAcquired) {
+                // 获取锁失败，返回错误
+                return [
+                    'success' => false,
+                    'error' => trans('asr.api.lock.acquire_failed'),
+                    'task_key' => $summaryRequest->taskKey,
+                    'project_id' => $summaryRequest->projectId,
+                    'chat_topic_id' => $summaryRequest->topicId,
+                ];
+            }
+
+            // 处理ASR总结任务的完整流程（包含聊天消息发送）
+            $result = $this->asrFileAppService->processSummaryWithChat(
+                $summaryRequest,
+                $userAuthorization
+            );
+
+            // 如果处理失败，直接返回错误
+            if (! $result['success']) {
+                return [
+                    'success' => false,
+                    'error' => $result['error'],
+                    'task_key' => $summaryRequest->taskKey,
+                    'project_id' => $summaryRequest->projectId,
+                    'chat_topic_id' => $summaryRequest->topicId,
+                ];
+            }
+
+            return [
+                'success' => true,
+                'task_key' => $summaryRequest->taskKey,
+                'project_id' => $summaryRequest->projectId,
+                'chat_topic_id' => $summaryRequest->topicId,
+                'conversation_id' => $result['conversation_id'],
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error('ASR总结处理异常', [
+                'task_key' => $summaryRequest->taskKey,
+                'topic_id' => $summaryRequest->topicId,
+                'error' => $e->getMessage(),
+                'user_id' => $userAuthorization->getId(),
+            ]);
+
             return [
                 'success' => false,
-                'error' => $result['error'],
+                'error' => sprintf('处理异常: %s', $e->getMessage()),
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
                 'chat_topic_id' => $summaryRequest->topicId,
             ];
+        } finally {
+            // 确保释放锁
+            if ($lockAcquired) {
+                try {
+                    $this->locker->release($lockName, $lockOwner);
+                } catch (Throwable $e) {
+                    $this->logger->warning('释放ASR总结锁失败', [
+                        'lock_name' => $lockName,
+                        'lock_owner' => $lockOwner,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
-
-        return [
-            'success' => true,
-            'task_key' => $summaryRequest->taskKey,
-            'project_id' => $summaryRequest->projectId,
-            'chat_topic_id' => $summaryRequest->topicId,
-            'conversation_id' => $result['conversation_id'],
-        ];
     }
 
     /**

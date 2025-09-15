@@ -118,6 +118,9 @@ return [
         'redis' => [
             'save_task_status_failed' => 'Redis任务状态保存失败',
         ],
+        'lock' => [
+            'acquire_failed' => '获取锁失败，另一个总结任务正在进行中，请稍后再试',
+        ],
     ],
 
     // 目录相关

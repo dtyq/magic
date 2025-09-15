@@ -118,6 +118,9 @@ return [
         'redis' => [
             'save_task_status_failed' => 'Redis task status save failed',
         ],
+        'lock' => [
+            'acquire_failed' => 'Failed to acquire lock, another summary task is in progress, please try again later',
+        ],
     ],
 
     // Directory related
