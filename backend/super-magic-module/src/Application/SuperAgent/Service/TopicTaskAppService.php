@@ -116,7 +116,6 @@ class TopicTaskAppService extends AbstractAppService
                 $dataIsolation = DataIsolation::simpleMake($topicEntity->getUserOrganizationCode(), $topicEntity->getUserId());
                 $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
                 $messageEntity = $messageDTO->toTaskMessageEntity($topicId, $aiUserEntity->getUserId(), $topicEntity->getUserId());
-                $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_PENDING);
 
                 // 3. 存储消息到数据库（调用领域层服务）
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
@@ -210,7 +209,6 @@ class TopicTaskAppService extends AbstractAppService
             if (is_null($messageEntity)) {
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_COMPLETED);
                 $this->processToolContentStorage($dataIsolation, $taskEntity, $messageEntity);
                 $this->taskMessageDomainService->processMessageAttachment($messageEntity);
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray());
