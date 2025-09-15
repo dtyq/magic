@@ -90,6 +90,9 @@ class TaskApi extends AbstractApi
         // 从请求中创建DTO
         $messageDTO = TopicTaskMessageDTO::fromArray($requestData);
         // 调用应用服务进行消息投递
+        if (config('super-magic.message.process_mode') === 'direct') {
+            return $this->topicTaskAppService->handleTopicTaskMessage($messageDTO);
+        }
         return $this->topicTaskAppService->deliverTopicTaskMessage($messageDTO);
     }
 

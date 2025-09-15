@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Hyperf\Contract\StdoutLoggerInterface;
 use InvalidArgumentException;
 
@@ -16,6 +19,7 @@ class TaskMessageDomainService
 {
     public function __construct(
         protected TaskMessageRepositoryInterface $messageRepository,
+        protected TaskFileRepositoryInterface $taskFileRepository,
         private readonly StdoutLoggerInterface $logger
     ) {
     }
@@ -43,6 +47,69 @@ class TaskMessageDomainService
     public function updateExistingMessage(TaskMessageEntity $message): void
     {
         $this->messageRepository->updateExistingMessage($message);
+    }
+
+    public function processMessageAttachment(TaskMessageEntity $message): void
+    {
+        $fileKeys = [];
+        // 获取消息附件
+        if (! empty($message->getAttachments())) {
+            foreach ($message->getAttachments() as $attachment) {
+                if (! empty($attachment['file_key'])) {
+                    $fileKeys[] = $attachment['file_key'];
+                }
+            }
+        }
+        // 获取消息里，工具的附件
+        if (! empty($message->getTool()) && ! empty($message->getTool()['attachments'])) {
+            foreach ($message->getTool()['attachments'] as $attachment) {
+                if (! empty($attachment['file_key'])) {
+                    $fileKeys[] = $attachment['file_key'];
+                }
+            }
+        }
+        if (empty($fileKeys)) {
+            return;
+        }
+        // 通过 file_key 查找文件 id
+        $fileEntities = $this->taskFileRepository->getByFileKeys($fileKeys);
+        $fileIdMap = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIdMap[$fileEntity->getFileKey()] = $fileEntity->getFileId();
+        }
+
+        // 将 file_id 赋值到 消息的附件和消息工具的附件里
+        if (! empty($fileIdMap)) {
+            // 处理消息附件
+            $attachments = $message->getAttachments();
+            if (! empty($attachments)) {
+                foreach ($attachments as &$attachment) {
+                    if (! empty($attachment['file_key']) && isset($fileIdMap[$attachment['file_key']])) {
+                        $attachment['file_id'] = (string) $fileIdMap[$attachment['file_key']];
+                    }
+                }
+                $message->setAttachments($attachments);
+            }
+
+            // 处理工具附件
+            $tool = $message->getTool();
+            if (! empty($tool) && ! empty($tool['attachments'])) {
+                foreach ($tool['attachments'] as &$attachment) {
+                    if (! empty($attachment['file_key']) && isset($fileIdMap[$attachment['file_key']])) {
+                        $attachment['file_id'] = (string) $fileIdMap[$attachment['file_key']];
+                    }
+                }
+                $message->setTool($tool);
+            }
+        }
+
+        // Special status handling: generate output content tool when task is finished
+        if ($message->getStatus() === TaskStatus::FINISHED->value) {
+            $outputTool = ToolProcessor::generateOutputContentTool($message->getAttachments());
+            if ($outputTool !== null) {
+                $message->setTool($outputTool);
+            }
+        }
     }
 
     /**
@@ -83,7 +150,6 @@ class TaskMessageDomainService
         }
 
         // 3. 消息不存在，进行存储
-        $messageEntity->setStatus(TaskMessageEntity::PROCESSING_STATUS_PENDING);
         $messageEntity->setRetryCount(0);
         $this->messageRepository->saveWithRawData(
             $rawData, // 原始数据

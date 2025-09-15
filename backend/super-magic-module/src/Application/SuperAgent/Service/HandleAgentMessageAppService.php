@@ -841,7 +841,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
 
         // Check if content length reaches threshold
-        $minContentLength = config('super-magic.task.tool_message.min_content_length', 200);
+        $minContentLength = config('super-magic.task.tool_message.min_content_length', 500);
         if (strlen($content) < $minContentLength) {
             return;
         }
