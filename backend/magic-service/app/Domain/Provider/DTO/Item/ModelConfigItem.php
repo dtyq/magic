@@ -27,11 +27,13 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?int $maxOutputTokens = null;
 
-    protected float $creativity = 0.5;
+    protected ?float $creativity = null;
 
-    protected float $temperature = 0.7;
+    protected ?float $temperature = null;
 
     protected ?string $billingCurrency = null;
+
+    protected BillingType $billingType = BillingType::Token;
 
     protected ?string $inputPricing = null;
 
@@ -42,6 +44,8 @@ class ModelConfigItem extends AbstractDTO
     protected ?string $cacheHitPricing = null;
 
     protected bool $officialRecommended = false;
+
+    protected ?string $timePricing = null;
 
     public function getMaxTokens(): ?int
     {
@@ -150,12 +154,12 @@ class ModelConfigItem extends AbstractDTO
         return $this->maxOutputTokens;
     }
 
-    public function getCreativity(): float
+    public function getCreativity(): ?float
     {
         return $this->creativity;
     }
 
-    public function getTemperature(): float
+    public function getTemperature(): ?float
     {
         return $this->temperature;
     }
@@ -197,24 +201,22 @@ class ModelConfigItem extends AbstractDTO
 
     public function setCreativity(?float $creativity): void
     {
-        if ($creativity === null) {
-            $this->creativity = 0.5;
-        } elseif ($creativity < 0 || $creativity > 2) {
-            $this->creativity = 0.5;
-        } else {
-            $this->creativity = $creativity;
+        if ($creativity !== null && ($creativity < 0 || $creativity > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.creativity_value_range_error');
         }
+
+        $this->creativity = $creativity;
+        $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setTemperature(?float $temperature): void
     {
-        if ($temperature === null) {
-            $this->temperature = 0.7;
-        } elseif ($temperature < 0 || $temperature > 2) {
-            $this->temperature = 0.7;
-        } else {
-            $this->temperature = $temperature;
+        if ($temperature !== null && ($temperature < 0 || $temperature > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.temperature_value_range_error');
         }
+
+        $this->temperature = $temperature;
+        $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setBillingCurrency(?string $billingCurrency): void
@@ -286,5 +288,33 @@ class ModelConfigItem extends AbstractDTO
     public function setOfficialRecommended(bool $officialRecommended): void
     {
         $this->officialRecommended = $officialRecommended;
+    }
+
+    public function getBillingType(): BillingType
+    {
+        return $this->billingType;
+    }
+
+    public function setBillingType(BillingType $billingType): void
+    {
+        $this->billingType = $billingType;
+    }
+
+    public function getTimePricing(): ?string
+    {
+        return $this->timePricing;
+    }
+
+    public function setTimePricing(?string $timePricing): void
+    {
+        $this->timePricing = $timePricing;
+    }
+
+    private function handleCreativityAndTemperatureConflict(): void
+    {
+        if ($this->creativity !== null && $this->temperature !== null) {
+            // 优先保留 temperature，将 creativity 设为 null
+            $this->creativity = null;
+        }
     }
 }

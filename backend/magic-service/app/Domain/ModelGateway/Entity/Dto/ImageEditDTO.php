@@ -18,6 +18,8 @@ class ImageEditDTO extends AbstractRequestDTO
 
     protected array $images = [];
 
+    protected string $size = '1024x1024';
+
     public function __construct(array $requestData = [])
     {
         parent::__construct($requestData);
@@ -78,6 +80,21 @@ class ImageEditDTO extends AbstractRequestDTO
         if (empty($this->images)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'common.empty', ['label' => 'images_field']);
         }
+    }
+
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
+    public function getSize(): string
+    {
+        return $this->size;
+    }
+
+    public function setSize(string $size): void
+    {
+        $this->size = $size;
     }
 
     /**
