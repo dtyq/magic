@@ -107,15 +107,15 @@ readonly class AsrFileAppService
                 $this->updateAudioToWorkspace($taskStatus, $organizationCode, $summaryRequest->projectId, $userId);
             }
 
-            // 4.5. 处理note文件（如果有）
-            if ($taskStatus && $summaryRequest->hasNote()) {
-                $this->processNoteFile($summaryRequest, $taskStatus, $organizationCode, $userId);
-            }
-
             // 5. 构建处理总结任务DTO用于发送聊天消息
             if ($summaryRequest->hasWorkspaceFilePath()) {
                 // 使用workspace_file_path构建虚拟任务状态
                 $taskStatus = $this->createVirtualTaskStatusFromWorkspaceFile($summaryRequest);
+            }
+
+            // 5.5. 处理note文件（如果有）- 放在任务状态确定之后
+            if ($taskStatus && $summaryRequest->hasNote()) {
+                $this->processNoteFile($summaryRequest, $taskStatus, $organizationCode, $userId);
             }
             $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
                 $taskStatus,
