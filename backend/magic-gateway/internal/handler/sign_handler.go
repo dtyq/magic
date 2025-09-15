@@ -20,9 +20,9 @@ type SignHandler struct {
 // NewSignHandler creates a new sign handler with Ed25519 service initialization
 func NewSignHandler(logger *log.Logger) (*SignHandler, error) {
 	// Get Ed25519 private key from environment
-	ed25519PrivateKey := os.Getenv("ED25519_PRIVATE_KEY")
+	ed25519PrivateKey := os.Getenv("AI_DATA_SIGNING_KEY")
 	if ed25519PrivateKey == "" {
-		return nil, fmt.Errorf("ED25519_PRIVATE_KEY environment variable is required")
+		return nil, fmt.Errorf("AI_DATA_SIGNING_KEY environment variable is required")
 	}
 
 	// Initialize Ed25519 service
