@@ -33,6 +33,8 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $billingCurrency = null;
 
+    protected BillingType $billingType = BillingType::Tokens;
+
     protected ?string $inputPricing = null;
 
     protected ?string $outputPricing = null;
@@ -42,6 +44,8 @@ class ModelConfigItem extends AbstractDTO
     protected ?string $cacheHitPricing = null;
 
     protected bool $officialRecommended = false;
+
+    protected ?string $timePricing = null;
 
     protected ?string $inputCost = null;
 
@@ -236,6 +240,26 @@ class ModelConfigItem extends AbstractDTO
     public function setOfficialRecommended(bool $officialRecommended): void
     {
         $this->officialRecommended = $officialRecommended;
+    }
+
+    public function getBillingType(): BillingType
+    {
+        return $this->billingType;
+    }
+
+    public function setBillingType(BillingType|string $billingType): void
+    {
+        $this->billingType = $billingType instanceof BillingType ? $billingType : BillingType::tryFrom($billingType) ?? BillingType::Tokens;
+    }
+
+    public function getTimePricing(): ?string
+    {
+        return $this->timePricing;
+    }
+
+    public function setTimePricing(?string $timePricing): void
+    {
+        $this->timePricing = $timePricing;
     }
 
     public function getInputCost(): ?string

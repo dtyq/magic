@@ -77,7 +77,7 @@ class ProviderModelSyncAppService
                 return;
             }
 
-            $proxyUrl = $config->getProxyUrl(); // proxy_url 存在 url 字段中
+            $proxyUrl = $config->getUrl(); // proxy_url 存在 url 字段中
             $apiKey = $config->getApiKey();
             if (! $proxyUrl || ! $apiKey) {
                 $this->logger->warning('配置不完整，缺少proxy_url或api_key', [

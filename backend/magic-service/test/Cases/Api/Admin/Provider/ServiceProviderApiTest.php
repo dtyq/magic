@@ -72,6 +72,8 @@ class ServiceProviderApiTest extends BaseTest
                 'support_multi_modal' => false,
                 'support_deep_think' => false,
                 'creativity' => 0.7,
+                'billing_type' => 'Times',
+                'time_pricing' => '100',
             ],
             'category' => 'llm',
             'service_provider_config_id' => $serviceProviderConfigId,
@@ -222,10 +224,10 @@ class ServiceProviderApiTest extends BaseTest
             'alias' => '官方服务商单元测试',
             'config' => [
                 // 国际接入点
-                'proxy_url' => 'international_access_point',
+                'url' => 'international_access_point',
                 // 国内接入点
-                //                'proxy_url' => 'domestic_access_points',
-                'api_key' => 'sk-83649403db42583df484142dc9745bab',
+                //                'url' => 'domestic_access_points',
+                'api_key' => '****',
                 'priority' => 100,
             ],
             'service_provider_id' => '766765753990443008',
@@ -244,7 +246,7 @@ class ServiceProviderApiTest extends BaseTest
         $detail = $response['data'];
         $this->assertEquals('官方服务商单元测试', $detail['alias']);
         $this->assertEquals('international_access_point', $detail['config']['proxy_url']);
-        $this->assertEquals('sk-*****************************bab', $detail['config']['api_key']);
+        $this->assertEquals('****', $detail['config']['api_key']);
         $this->assertEquals('100', $detail['config']['priority']);
     }
 
