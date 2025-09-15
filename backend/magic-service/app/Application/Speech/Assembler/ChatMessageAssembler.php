@@ -88,7 +88,7 @@ class ChatMessageAssembler
      * @param bool $hasNoteFile 是否存在note文件
      * @return array 消息内容数组
      */
-    private function buildMessageContent(string $fileId, string $fileName, string $filePath, string $modelId, bool $hasNoteFile = false): array
+    public function buildMessageContent(string $fileId, string $fileName, string $filePath, string $modelId, bool $hasNoteFile = false): array
     {
         $fileData = [
             'file_id' => $fileId,
@@ -164,7 +164,7 @@ class ChatMessageAssembler
      * @param string $fullPath 完整文件路径或相对路径
      * @return string 工作区相对路径或原始路径
      */
-    private function extractWorkspaceRelativePath(string $fullPath): string
+    public function extractWorkspaceRelativePath(string $fullPath): string
     {
         // 标准化路径分隔符
         $normalizedPath = str_replace('\\', '/', trim($fullPath, '/'));
