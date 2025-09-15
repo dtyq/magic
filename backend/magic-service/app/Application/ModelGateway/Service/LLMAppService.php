@@ -261,6 +261,8 @@ class LLMAppService extends AbstractLLMAppService
         $url = $reqDTO->getOriginImageUrl();
         $url = SSRFUtil::getSafeUrl($url, replaceIp: false);
         $miracleVisionServiceProviderConfig = $this->serviceProviderDomainService->getMiracleVisionServiceProviderConfig(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getOrganizationCode());
+        $providerConfigItem = $miracleVisionServiceProviderConfig->getConfig();
+
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
@@ -272,9 +274,11 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setUserId($userAuthorization->getId());
         $imageGeneratedEvent->setImageCount(1);
         $imageGeneratedEvent->setCreatedAt(new DateTime());
-        $imageGeneratedEvent->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEvent->setModel($providerConfigItem->getModelVersion());
+        $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEvent->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEvent->setSourceId($reqDTO->getSourceId());
+        $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
 
         $event = new ImageGeneratedEvent();
         AsyncEventUtil::dispatch($event);

@@ -135,14 +135,14 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * 获取服务商配置（综合方法）
      * 根据模型版本、模型ID和组织编码获取服务商配置.
      *
-     * @param string $modelVersion 模型版本
+     * @param string $modelOriginId 模型版本
      * @param string $modelId 模型ID
      * @param string $organizationCode 组织编码
      * @return ?ProviderConfigEntity 服务商配置响应
      * @throws Exception
      */
     public function getServiceProviderConfig(
-        string $modelVersion,
+        string $modelOriginId,
         string $modelId,
         string $organizationCode,
         bool $throw = true,
@@ -152,13 +152,13 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             return $this->getServiceProviderConfigByModelId($modelId, $organizationCode, $throw);
         }
 
-        // 2. 如果只有 modelVersion，先尝试查找对应的模型
-        if (! empty($modelVersion)) {
-            $models = $this->getModelsByVersionAndOrganization($modelVersion, $organizationCode);
+        // 2. 如果只有 modelOriginId，先尝试查找对应的模型
+        if (! empty($modelOriginId)) {
+            $models = $this->getModelsByVersionAndOrganization($modelOriginId, $organizationCode);
             if (! empty($models)) {
                 // 如果找到模型，不直接返回官方服务商配置，而是进行进一步判断
                 $this->logger->info('找到对应模型，判断服务商配置', [
-                    'modelVersion' => $modelVersion,
+                    'modelVersion' => $modelOriginId,
                     'organizationCode' => $organizationCode,
                 ]);
 
@@ -221,7 +221,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         ) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotActive);
         }
-
+        $serviceProviderConfigEntity->getConfig()->setModelVersion($serviceProviderModelEntity->getModelVersion());
         return $serviceProviderConfigEntity;
     }
 
@@ -348,15 +348,15 @@ class AdminProviderDomainService extends AbstractProviderDomainService
 
     /**
      * 获取官方的激活模型配置（支持返回多个）.
-     * @param string $modelVersion 模型
+     * @param string $modelOriginId 模型
      * @return ProviderConfigItem[] 服务商配置数组
      */
-    public function getOfficeAndActiveModel(string $modelVersion, Category $category): array
+    public function getOfficeAndActiveModel(string $modelOriginId, Category $category): array
     {
         $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
         $serviceProviderConfigEntities = $this->providerConfigRepository->getsByServiceProviderIdsAndOffice(array_column($serviceProviderEntities, 'id'));
 
-        $filteredModels = $this->getModelsByVersionAndOrganization($modelVersion, OfficialOrganizationUtil::getOfficialOrganizationCode());
+        $filteredModels = $this->getModelsByVersionAndOrganization($modelOriginId, OfficialOrganizationUtil::getOfficialOrganizationCode());
 
         if (empty($filteredModels)) {
             // 如果没有找到匹配的激活模型，返回空数组
@@ -376,6 +376,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             if (isset($configMap[$targetConfigId])) {
                 $config = $configMap[$targetConfigId]->getConfig();
                 if ($config) {
+                    $config->setModelVersion($activeModel->getModelVersion());
                     $config->setProviderModelId((string) $activeModel->getId());
                     $result[] = $config;
                 }
@@ -492,7 +493,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 continue;
             }
             $serviceProviderConfigEntity = $configMap[$configId];
-
+            $serviceProviderConfigEntity->getConfig()->setModelVersion($model->getModelVersion());
             // 检查服务商是否存在
             $serviceProviderId = $serviceProviderConfigEntity->getServiceProviderId();
             if (! isset($providerMap[$serviceProviderId])) {
@@ -530,11 +531,11 @@ class AdminProviderDomainService extends AbstractProviderDomainService
 
     /**
      * 根据模型版本和组织获取模型列表.
-     * @param string $modelVersion 模型版本
+     * @param string $modelOriginId 模型id
      * @param string $organizationCode 组织代码
      * @return ProviderModelEntity[] 过滤后的模型列表
      */
-    private function getModelsByVersionAndOrganization(string $modelVersion, string $organizationCode): array
+    private function getModelsByVersionAndOrganization(string $modelOriginId, string $organizationCode): array
     {
         // 创建数据隔离对象
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
@@ -545,7 +546,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         // 按model_version过滤
         $filteredModels = [];
         foreach ($allModels as $model) {
-            if ($model->getModelVersion() === $modelVersion) {
+            if ($model->getModelId() === $modelOriginId) {
                 $filteredModels[] = $model;
             }
         }
