@@ -1,6 +1,6 @@
 module api-gateway
 
-go 1.22.0
+go 1.24
 
 toolchain go1.24.0
 
