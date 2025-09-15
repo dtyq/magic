@@ -15,8 +15,8 @@ type GPGService struct {
 // NewGPGService creates a new GPG service instance
 func NewGPGService(privateKeyArmored string) (*GPGService, error) {
 	// Validate private key format
-	if !strings.Contains(privateKeyArmored, "-----BEGIN PGP PRIVATE KEY-----") {
-		return nil, fmt.Errorf("invalid private key format: missing PGP header")
+	if !strings.Contains(privateKeyArmored, "-----BEGIN PGP PRIVATE KEY BLOCK-----") {
+		return nil, fmt.Errorf("invalid private key format: missing PGP PRIVATE KEY BLOCK header")
 	}
 
 	// Parse private key
