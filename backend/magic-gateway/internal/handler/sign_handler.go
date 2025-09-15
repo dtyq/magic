@@ -37,8 +37,8 @@ func NewSignHandler(logger *log.Logger) (*SignHandler, error) {
 	}, nil
 }
 
-// SignMetadata handles metadata signing requests
-func (h *SignHandler) SignMetadata(w http.ResponseWriter, r *http.Request) {
+// Sign handles unified signing requests
+func (h *SignHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	// Set response headers
 	w.Header().Set("Content-Type", "application/json")
 
@@ -49,88 +49,29 @@ func (h *SignHandler) SignMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse request body
-	var req model.MetadataSignRequest
+	var req model.SignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
-	if req.Metadata == nil {
-		http.Error(w, "metadata is required", http.StatusBadRequest)
+	if req.Data == "" {
+		http.Error(w, "data is required", http.StatusBadRequest)
 		return
 	}
 
-	// Get user information from withAuth middleware
-	userID := r.Header.Get("magic-user-id")
-	orgCode := r.Header.Get("magic-organization-code")
+	// Sign the data directly
+	signature, err := h.gpgService.SignData(req.Data)
 
-	if userID == "" || orgCode == "" {
-		http.Error(w, "user authentication required", http.StatusBadRequest)
-		return
-	}
-
-	// Add user information to metadata
-	req.Metadata["user_id"] = userID
-	req.Metadata["organization_code"] = orgCode
-
-	// Convert metadata to JSON for signing
-	metadataBytes, err := json.Marshal(req.Metadata)
 	if err != nil {
-		http.Error(w, "Failed to process metadata", http.StatusInternalServerError)
-		return
-	}
-
-	// Sign metadata
-	metadataSignature, err := h.gpgService.SignData(string(metadataBytes))
-	if err != nil {
-		http.Error(w, "Failed to sign metadata", http.StatusInternalServerError)
+		http.Error(w, "Failed to sign data", http.StatusInternalServerError)
 		return
 	}
 
 	// Return success response
-	response := model.MetadataSignResponse{
-		Signature: metadataSignature,
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
-}
-
-// SignPayload handles payload signing requests
-func (h *SignHandler) SignPayload(w http.ResponseWriter, r *http.Request) {
-	// Set response headers
-	w.Header().Set("Content-Type", "application/json")
-
-	// Only allow POST method
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Parse request body
-	var req model.PayloadSignRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if req.Payload == "" {
-		http.Error(w, "payload is required", http.StatusBadRequest)
-		return
-	}
-
-	// Sign payload directly
-	payloadSignature, err := h.gpgService.SignData(req.Payload)
-	if err != nil {
-		http.Error(w, "Failed to sign payload", http.StatusInternalServerError)
-		return
-	}
-
-	// Return success response
-	response := model.PayloadSignResponse{
-		Signature: payloadSignature,
+	response := model.SignResponse{
+		Signature: signature,
 	}
 
 	w.WriteHeader(http.StatusOK)

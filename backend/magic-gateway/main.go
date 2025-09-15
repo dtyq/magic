@@ -165,12 +165,18 @@ func main() {
 		logger.Fatalf("Failed to initialize GPG sign handler: %v", err)
 	}
 
+	// 初始化用户信息处理器
+	userHandler := handler.NewUserHandler(logger)
+
 	// 注册签名路由 (需要认证)
-	http.HandleFunc("/api/ai-generated/sign-metadata", withAuth(signHandler.SignMetadata))
-	http.HandleFunc("/api/ai-generated/sign-payload", withAuth(signHandler.SignPayload))
+	http.HandleFunc("/api/ai-generated/sign", withAuth(signHandler.Sign))
 	logger.Println("GPG signing service enabled:")
-	logger.Println("  - Metadata signing at: /api/ai-generated/sign-metadata")
-	logger.Println("  - Payload signing at: /api/ai-generated/sign-payload")
+	logger.Println("  - Unified signing at: /api/ai-generated/sign")
+
+	// 注册用户信息路由 (需要认证)
+	http.HandleFunc("/api/user/info", withAuth(userHandler.GetUserInfo))
+	logger.Println("User info service enabled:")
+	logger.Println("  - User info at: /api/user/info")
 
 	// 注册路由
 	http.HandleFunc("/auth", authHandler)
