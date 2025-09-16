@@ -30,6 +30,8 @@ class ImageGeneratedEntity
 
     protected ImageGenerateSourceEnum $sourceType;
 
+    protected string $providerModelId;
+
     public function getOrganizationCode(): string
     {
         return $this->organizationCode;
@@ -118,5 +120,15 @@ class ImageGeneratedEntity
     public function setSourceType(ImageGenerateSourceEnum $sourceType): void
     {
         $this->sourceType = $sourceType;
+    }
+
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(string $providerModelId): void
+    {
+        $this->providerModelId = $providerModelId;
     }
 }
