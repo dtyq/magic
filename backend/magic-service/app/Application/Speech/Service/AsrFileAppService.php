@@ -450,6 +450,41 @@ readonly class AsrFileAppService
     }
 
     /**
+     * 生成ASR目录名（统一的目录名生成规则）.
+     *
+     * @return string ASR目录名
+     */
+    public function generateAsrDirectoryName(): string
+    {
+        return sprintf('%s_%s', trans('asr.directory.recordings_summary_folder'), date('Ymd_His'));
+    }
+
+    /**
+     * 生成ASR文件的工作区相对目录.
+     *
+     * @param string $userId 用户ID
+     * @param string $projectId 项目ID
+     * @return string 工作区相对目录路径
+     */
+    public function getFileRelativeDir(string $userId, string $projectId): string
+    {
+        // 获取项目实体 (如果项目不存在会自动抛出 PROJECT_NOT_FOUND 异常)
+        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+
+        // 从项目实体获取工作区目录
+        $workDir = $projectEntity->getWorkDir();
+        if (empty($workDir)) {
+            throw new InvalidArgumentException(sprintf('项目 %s 的工作区目录为空', $projectId));
+        }
+
+        // 使用统一的目录名生成规则
+        $asrDirectoryName = $this->generateAsrDirectoryName();
+
+        // 返回工作区相对目录
+        return trim($workDir . '/' . $asrDirectoryName, '/');
+    }
+
+    /**
      * 下载并合并音频文件（公共方法）.
      *
      * @param string $organizationCode 组织编码
@@ -919,31 +954,6 @@ readonly class AsrFileAppService
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * 生成ASR文件的工作区相对目录.
-     *
-     * @param string $userId 用户ID
-     * @param string $projectId 项目ID
-     * @return string 工作区相对目录路径
-     */
-    private function getFileRelativeDir(string $userId, string $projectId): string
-    {
-        // 获取项目实体 (如果项目不存在会自动抛出 PROJECT_NOT_FOUND 异常)
-        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-
-        // 从项目实体获取工作区目录
-        $workDir = $projectEntity->getWorkDir();
-        if (empty($workDir)) {
-            throw new InvalidArgumentException(sprintf('项目 %s 的工作区目录为空', $projectId));
-        }
-
-        // 生成动态目录名：{录音纪要国际化名称}_Ymd_His
-        $asrDirectoryName = sprintf('%s_%s', trans('asr.directory.recordings_summary_folder'), date('Ymd_His'));
-
-        // 返回工作区相对目录
-        return trim($workDir . '/' . $asrDirectoryName, '/');
     }
 
     /**

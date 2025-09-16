@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 
 interface TaskMessageRepositoryInterface
 {
@@ -82,8 +83,9 @@ interface TaskMessageRepositoryInterface
      * 保存原始消息数据并生成seq_id.
      * @param array $rawData 原始消息数据
      * @param TaskMessageEntity $message 消息实体
+     * @param string $processStatus 处理状态
      */
-    public function saveWithRawData(array $rawData, TaskMessageEntity $message): void;
+    public function saveWithRawData(array $rawData, TaskMessageEntity $message, string $processStatus = TaskMessageModel::PROCESSING_STATUS_PENDING): void;
 
     /**
      * 根据seq_id和topic_id查询消息.
