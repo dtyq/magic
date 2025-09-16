@@ -8,3 +8,6 @@ redis_data
 magic-gateway
 api-gateway
 redis_data
+.cursor/
+docs/
+debug/
