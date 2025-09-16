@@ -154,11 +154,6 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?int $imStatus = null;
 
-    /**
-     * @var null|string 关联ID，用于消息追踪和关联
-     */
-    protected ?string $correlationId = null;
-
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -446,17 +441,6 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
-    public function getCorrelationId(): ?string
-    {
-        return $this->correlationId;
-    }
-
-    public function setCorrelationId(?string $correlationId): self
-    {
-        $this->correlationId = $correlationId;
-        return $this;
-    }
-
     public function toArray(): array
     {
         $result = [
@@ -486,7 +470,6 @@ class TaskMessageEntity extends AbstractEntity
             'retry_count' => $this->retryCount,
             'processed_at' => $this->processedAt,
             'im_seq_id' => $this->imSeqId,
-            'correlation_id' => $this->correlationId,
             'im_status' => $this->imStatus,
             'correlation_id' => $this->correlationId,
         ];
