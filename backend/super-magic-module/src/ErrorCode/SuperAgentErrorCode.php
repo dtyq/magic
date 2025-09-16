@@ -182,6 +182,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.member_validation_failed')]
     case MEMBER_VALIDATION_FAILED = 51214;
 
+    #[ErrorMessage('project.invalid_member_role')]
+    case INVALID_MEMBER_ROLE = 51215;
+
+    #[ErrorMessage('project.cannot_set_shortcut_for_own_project')]
+    case CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT = 51216;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;

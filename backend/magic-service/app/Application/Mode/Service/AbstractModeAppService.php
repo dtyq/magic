@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\Service;
 
+use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\ModeAggregateDTO;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
@@ -27,7 +28,7 @@ use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Psr\Log\LoggerInterface;
 
-abstract class AbstractModeAppService
+abstract class AbstractModeAppService extends AbstractKernelAppService
 {
     public function __construct(
         protected ModeDomainService $modeDomainService,
@@ -135,7 +136,7 @@ abstract class AbstractModeAppService
      */
     protected function getModeDataIsolation(MagicUserAuthorization $authorization): ModeDataIsolation
     {
-        return new ModeDataIsolation($authorization->getOrganizationCode(), $authorization->getId());
+        return $this->createModeDataIsolation($authorization);
     }
 
     /**

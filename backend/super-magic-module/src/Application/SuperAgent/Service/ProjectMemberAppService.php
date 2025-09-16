@@ -13,19 +13,26 @@ use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectShortcutRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationCreatorListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaborationProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorMemberDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreatorInfoDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ParticipatedProjectListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectMembersResponseDTO;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -253,6 +260,54 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
+     * Update project shortcut.
+     */
+    public function updateProjectShortcut(
+        RequestContext $requestContext,
+        int $projectId,
+        UpdateProjectShortcutRequestDTO $requestDTO
+    ): void {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 1. 验证并获取可访问的项目
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        if ($projectEntity->getUserId() === $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT);
+        }
+
+        // 2. 根据参数决定是设置还是取消快捷方式
+        if ($requestDTO->getIsBindWorkspace() === 1) {
+            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail((int) $requestDTO->getWorkspaceId());
+            if (! $workspaceEntity || $workspaceEntity->getUserId() !== $userAuthorization->getId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND);
+            }
+            // 设置快捷方式
+            // 3. 委托给Domain层处理设置快捷方式
+            $this->projectMemberDomainService->setProjectShortcut(
+                $userAuthorization->getId(),
+                $projectId,
+                (int) $requestDTO->getWorkspaceId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 4. 发布项目快捷方式设置事件
+            $projectShortcutSetEvent = new ProjectShortcutSetEvent($projectEntity, (int) $requestDTO->getWorkspaceId(), $userAuthorization);
+            $this->eventDispatcher->dispatch($projectShortcutSetEvent);
+        } else {
+            // 取消快捷方式
+            // 3. 委托给Domain层处理取消快捷方式
+            $this->projectMemberDomainService->cancelProjectShortcut(
+                $userAuthorization->getId(),
+                $projectId
+            );
+
+            // 4. 发布项目快捷方式取消事件
+            $projectShortcutCancelledEvent = new ProjectShortcutCancelledEvent($projectEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($projectShortcutCancelledEvent);
+        }
+    }
+
+    /**
      * 获取协作项目创建者列表.
      */
     public function getCollaborationProjectCreators(RequestContext $requestContext): CollaborationCreatorListResponseDTO
@@ -286,6 +341,47 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 5. 创建响应DTO并返回
         return CollaborationCreatorListResponseDTO::fromUserEntities($userEntities);
+    }
+
+    /**
+     * 获取用户参与的项目列表（包含协作项目）.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param GetParticipatedProjectsRequestDTO $requestDTO 请求DTO
+     */
+    public function getParticipatedProjects(
+        RequestContext $requestContext,
+        GetParticipatedProjectsRequestDTO $requestDTO
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 1. 获取用户参与的项目列表
+        $result = $this->projectMemberDomainService->getParticipatedProjectsWithCollaboration(
+            $dataIsolation->getCurrentUserId(),
+            $requestDTO->getWorkspaceId(),
+            $requestDTO->getShowCollaboration(),
+            $requestDTO->getProjectName(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize()
+        );
+
+        // 2. 提取工作区ID并获取名称
+        $workspaceIds = array_unique(array_map(fn ($project) => $project['workspace_id'], $result['list'] ?? []));
+        $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
+
+        // 新增方法，根据$projectIds，判断是否存在数据，如果存在则返回存在的projectIds
+        $projectIds = [];
+        foreach ($result['list'] as $projectData) {
+            $projectIds[] = $projectData['id'];
+        }
+        $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
+        $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
+
+        // 3. 使用统一的响应DTO处理方式
+        $listResponseDTO = ParticipatedProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember);
+
+        return $listResponseDTO->toArray();
     }
 
     /**

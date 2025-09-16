@@ -21,6 +21,7 @@ use App\Infrastructure\Util\Text\TextPreprocess\TextPreprocessUtil;
 use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
 use Exception;
 use Psr\SimpleCache\CacheInterface;
+use Throwable;
 
 class FileParser
 {
@@ -79,6 +80,8 @@ class FileParser
             // 设置缓存
             $this->cache->set($cacheKey, $res, 600);
             return $res;
+        } catch (Throwable $throwable) {
+            ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, "[{$fileUrl}] fail to parse: {$throwable->getMessage()}");
         } finally {
             if (isset($tempFile) && file_exists($tempFile)) {
                 unlink($tempFile); // 确保临时文件被删除

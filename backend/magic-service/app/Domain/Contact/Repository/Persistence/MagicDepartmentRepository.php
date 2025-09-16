@@ -407,7 +407,7 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
     private function getAllDepartmentsForCalculation(string $organizationCode): array
     {
         $query = $this->model::query()
-            ->select(['department_id', 'path', 'employee_sum'])
+            ->select(['department_id', 'parent_department_id', 'path', 'employee_sum', 'level'])
             ->where('organization_code', $organizationCode);
 
         return Db::select($query->toSql(), $query->getBindings());
@@ -420,19 +420,34 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
     {
         $departmentSums = [];
 
-        // 为每个部门计算员工总数
+        // 1) 初始化：每个部门先放入自身直属人数
         foreach ($allDepartments as $department) {
-            $departmentId = $department['department_id'];
-            $employeeSum = 0;
+            $deptId = (string) $department['department_id'];
+            $departmentSums[$deptId] = (int) ($department['employee_sum'] ?? 0);
+        }
 
-            // 计算包含当前部门及其所有子部门的员工总数
-            foreach ($allDepartments as $checkDept) {
-                if (str_contains($checkDept['path'], $departmentId)) {
-                    $employeeSum += $checkDept['employee_sum'] ?? 0;
-                }
+        // 2) 自底向上：按 level 从大到小，把子部门累计值加到父部门
+        usort($allDepartments, static function (array $a, array $b): int {
+            return (int) ($b['level'] ?? 0) <=> (int) ($a['level'] ?? 0);
+        });
+
+        foreach ($allDepartments as $department) {
+            $deptId = (string) $department['department_id'];
+            $parentId = (string) ($department['parent_department_id'] ?? '');
+
+            if ($parentId === '' || $parentId === '-1') {
+                continue; // 跳过无父级或根节点
             }
 
-            $departmentSums[$departmentId] = $employeeSum;
+            $childSum = (int) ($departmentSums[$deptId] ?? 0);
+            if ($childSum === 0) {
+                continue;
+            }
+
+            if (! isset($departmentSums[$parentId])) {
+                $departmentSums[$parentId] = 0;
+            }
+            $departmentSums[$parentId] += $childSum;
         }
 
         // 批量写入 Redis 缓存
@@ -443,7 +458,6 @@ class MagicDepartmentRepository implements MagicDepartmentRepositoryInterface
                 foreach ($departmentSums as $deptId => $sum) {
                     $stringDepartmentSums[$deptId] = (string) $sum;
                 }
-
                 $this->redis->multi();
                 // 使用 hmset 一次性设置多个 hash 字段
                 $this->redis->hmset($cacheKey, $stringDepartmentSums);

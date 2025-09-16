@@ -60,9 +60,6 @@ class FluxModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
         return $this->processFluxRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 

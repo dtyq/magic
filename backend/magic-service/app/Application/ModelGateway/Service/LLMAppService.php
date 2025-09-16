@@ -230,8 +230,16 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setModel($modelVersion);
         $imageGeneratedEntity->setImageCount($data['generate_num'] ?? 4);
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        $imageGeneratedEntity->setSourceType($data['source_type'] ?? ImageGenerateSourceEnum::NONE);
-        $imageGeneratedEntity->setCreatedAt($data['source_id']);
+        $sourceType = ImageGenerateSourceEnum::NONE;
+        if (isset($data['source_type'])) {
+            if ($data['source_type'] instanceof ImageGenerateSourceEnum) {
+                $sourceType = $data['source_type'];
+            } elseif (is_string($data['source_type'])) {
+                $sourceType = ImageGenerateSourceEnum::from($data['source_type']);
+            }
+        }
+        $imageGeneratedEntity->setSourceType($sourceType);
+        $imageGeneratedEntity->setSourceId($data['source_id'] ?? '');
 
         $event = new ImageGeneratedEvent($imageGeneratedEntity);
         AsyncEventUtil::dispatch($event);
@@ -368,13 +376,20 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
         $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
 
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
-
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
 
@@ -1249,7 +1264,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setTopicId($requestDTO->getTopicId());
         $imageGeneratedEntity->setTaskId($requestDTO->getTaskId());
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        if ($requestDTO->getTopicId() !== null) {
+        if (! empty($requestDTO->getTopicId())) {
             $imageGeneratedEntity->setSourceType(ImageGenerateSourceEnum::SUPER_MAGIC);
         } else {
             $imageGeneratedEntity->setSourceType(ImageGenerateSourceEnum::API);

@@ -14,7 +14,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -150,6 +149,17 @@ class ProjectDomainService
     }
 
     /**
+     * 批量获取项目信息（不验证用户权限）.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array<ProjectEntity> 项目实体数组
+     */
+    public function getProjectsByIds(array $projectIds): array
+    {
+        return $this->projectRepository->findByIds($projectIds);
+    }
+
+    /**
      * Get projects by conditions
      * 根据条件获取项目列表，支持分页和排序.
      */
@@ -188,13 +198,13 @@ class ProjectDomainService
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
     }
 
-    public function updateProjectMode(int $id, TopicMode $topicMode): bool
+    public function updateProjectMode(int $id, string $topicMode): bool
     {
         $projectEntity = $this->projectRepository->findById($id);
         if (! $projectEntity || ! empty($projectEntity->getProjectMode())) {
             return false;
         }
-        $projectEntity->setProjectMode($topicMode->value);
+        $projectEntity->setProjectMode($topicMode);
         $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $this->projectRepository->save($projectEntity);
         return true;

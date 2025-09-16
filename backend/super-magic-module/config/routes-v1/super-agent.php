@@ -45,6 +45,8 @@ Router::addGroup(
         Router::addGroup('/projects', static function () {
             // 获取项目列表
             Router::get('/queries', [ProjectApi::class, 'index']);
+            // 获取用户参与的项目列表（支持协作项目过滤）
+            Router::post('/participated', [ProjectApi::class, 'getParticipatedProjects']);
             // 获取项目详情
             Router::get('/{id}', [ProjectApi::class, 'show']);
             // 创建项目
@@ -53,6 +55,8 @@ Router::addGroup(
             Router::put('/{id}', [ProjectApi::class, 'update']);
             // 删除项目
             Router::delete('/{id}', [ProjectApi::class, 'destroy']);
+            // 置顶项目
+            Router::put('/{id}/pin', [ProjectApi::class, 'pin']);
             // 获取项目下的话题列表
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
             // 检查是否需要更新项目文件列表
@@ -77,7 +81,9 @@ Router::addGroup(
             // 获取协作项目创建者列表
             Router::get('/creators', [ProjectMemberApi::class, 'getCollaborationProjectCreators']);
             // 更新项目置顶状态
-            Router::put('/{id}/pin', [ProjectMemberApi::class, 'updateProjectPin']);
+            Router::put('/{project_id}/pin', [ProjectMemberApi::class, 'updateProjectPin']);
+            // 更新项目快捷方式状态
+            Router::put('/{project_id}/shortcut', [ProjectMemberApi::class, 'updateProjectShortcut']);
         });
 
         // 话题相关
