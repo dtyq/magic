@@ -145,9 +145,14 @@ class TaskMessageEntity extends AbstractEntity
     protected ?int $imSeqId = null;
 
     /**
-     * @var null|int IM 状态
+     * @var null|int IM 状态（来自magic_chat_sequences表的status字段）
      */
     protected ?int $imStatus = null;
+
+    /**
+     * @var null|string 关联ID，用于消息追踪和关联
+     */
+    protected ?string $correlationId = null;
 
     public function __construct(array $data = [])
     {
