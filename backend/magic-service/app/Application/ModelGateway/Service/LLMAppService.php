@@ -240,6 +240,7 @@ class LLMAppService extends AbstractLLMAppService
         }
         $imageGeneratedEntity->setSourceType($sourceType);
         $imageGeneratedEntity->setSourceId($data['source_id'] ?? '');
+        $imageGeneratedEntity->setProviderModelId($providerConfigItem->getProviderModelId());
 
         $event = new ImageGeneratedEvent($imageGeneratedEntity);
         AsyncEventUtil::dispatch($event);
@@ -255,10 +256,12 @@ class LLMAppService extends AbstractLLMAppService
         $url = $reqDTO->getOriginImageUrl();
         $url = SSRFUtil::getSafeUrl($url, replaceIp: false);
         $miracleVisionServiceProviderConfig = $this->serviceProviderDomainService->getMiracleVisionServiceProviderConfig(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getOrganizationCode());
+        $providerConfigItem = $miracleVisionServiceProviderConfig->getConfig();
+
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
+        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $providerConfigItem);
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         $imageGeneratedEntity = new ImageGeneratedEntity();
@@ -266,7 +269,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setUserId($userAuthorization->getId());
         $imageGeneratedEntity->setImageCount(1);
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        $imageGeneratedEntity->setModel($miracleVisionServiceProviderConfig->getConfig()->getModelVersion());
+        $imageGeneratedEntity->setModel($providerConfigItem->getModelVersion());
+        $imageGeneratedEntity->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEntity->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEntity->setSourceId($reqDTO->getSourceId());
 
@@ -350,7 +354,7 @@ class LLMAppService extends AbstractLLMAppService
                     if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
                         $n = 1;
                     }
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
+                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n, $serviceProviderConfig->getProviderModelId());
                     $event = new ImageGeneratedEvent($imageGeneratedEntity);
                     AsyncEventUtil::dispatch($event);
 
@@ -409,7 +413,7 @@ class LLMAppService extends AbstractLLMAppService
                 $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
+                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1, $serviceProviderConfig->getProviderModelId());
 
                     $event = new ImageGeneratedEvent($imageGeneratedEntity);
                     AsyncEventUtil::dispatch($event);
@@ -1270,7 +1274,7 @@ class LLMAppService extends AbstractLLMAppService
         return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 
-    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n): ImageGeneratedEntity
+    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n, string $providerModelId): ImageGeneratedEntity
     {
         $model = $requestDTO->getModel();
         // 发布图片生成事件
@@ -1278,6 +1282,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setOrganizationCode($organizationCode);
         $imageGeneratedEntity->setUserId($creator);
         $imageGeneratedEntity->setModel($model);
+        $imageGeneratedEntity->setProviderModelId($providerModelId);
         $imageGeneratedEntity->setImageCount($n);
         $imageGeneratedEntity->setTopicId($requestDTO->getTopicId());
         $imageGeneratedEntity->setTaskId($requestDTO->getTaskId());

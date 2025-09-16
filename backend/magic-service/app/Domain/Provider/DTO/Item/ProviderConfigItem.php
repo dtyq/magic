@@ -29,6 +29,8 @@ class ProviderConfigItem extends AbstractDTO
 
     protected string $modelVersion = '';
 
+    protected string $providerModelId;
+
     public function getAk(): string
     {
         return $this->ak;
@@ -149,5 +151,15 @@ class ProviderConfigItem extends AbstractDTO
     public function setModelVersion(string $modelVersion): void
     {
         $this->modelVersion = $modelVersion;
+    }
+
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(string $providerModelId): void
+    {
+        $this->providerModelId = $providerModelId;
     }
 }
