@@ -145,11 +145,6 @@ class TaskMessageEntity extends AbstractEntity
     protected ?int $imSeqId = null;
 
     /**
-     * @var null|string 关联ID，用于消息追踪和关联
-     */
-    protected ?string $correlationId = null;
-
-    /**
      * @var null|int IM 状态
      */
     protected ?int $imStatus = null;
@@ -416,17 +411,6 @@ class TaskMessageEntity extends AbstractEntity
     public function setImSeqId(?int $imSeqId): self
     {
         $this->imSeqId = $imSeqId;
-        return $this;
-    }
-
-    public function getCorrelationId(): ?string
-    {
-        return $this->correlationId;
-    }
-
-    public function setCorrelationId(?string $correlationId): self
-    {
-        $this->correlationId = $correlationId;
         return $this;
     }
 
