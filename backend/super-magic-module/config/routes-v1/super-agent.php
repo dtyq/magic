@@ -149,6 +149,10 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 获取文件版本列表
+            Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
+            // 文件回滚到指定版本
+            Router::post('/{id}/rollback', [FileApi::class, 'rollbackFileToVersion']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
@@ -229,10 +233,8 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // 新增话题附件列表(git 管理)
         Router::post('/workspace-attachments', [FileApi::class, 'workspaceAttachments']);
 
-        // 获取文件版本列表
-        Router::post('/versions', [FileApi::class, 'getFileVersions']);
-        // 获取文件版本内容
-        Router::post('/version/content', [FileApi::class, 'getFileVersionContent']);
+        // 根据文件id获取文件基本信息
+        Router::get('/{id}', [FileApi::class, 'getFileInfo']);
         // 根据文件id获取文件名称
         Router::get('/{id}/file-name', [FileApi::class, 'getFileByName']);
         // 批量获取下载链接

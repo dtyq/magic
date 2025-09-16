@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepo
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectOperationLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TokenUsageRecordRepositoryInterface;
@@ -44,6 +45,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettin
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectOperationLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileVersionRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRepository;
@@ -51,6 +53,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
@@ -104,6 +107,7 @@ class ConfigProvider
             'dependencies' => [
                 // 添加接口到实现类的映射
                 TaskFileRepositoryInterface::class => TaskFileRepository::class,
+                TaskFileVersionRepositoryInterface::class => TaskFileVersionRepository::class,
                 TopicRepositoryInterface::class => TopicRepository::class,
                 TaskRepositoryInterface::class => TaskRepository::class,
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
@@ -139,6 +143,7 @@ class ConfigProvider
 
                 // agent 管理
                 SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
+                TaskFileVersionDomainService::class => TaskFileVersionDomainService::class,
             ],
             'listeners' => [
                 AddRouteListener::class,
