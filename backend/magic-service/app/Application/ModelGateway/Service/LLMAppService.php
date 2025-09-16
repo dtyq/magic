@@ -293,8 +293,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
 
-        $organizationCode = $accessTokenEntity->getOrganizationCode();
-        $creator = $accessTokenEntity->getCreator();
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $textGenerateImageDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
+
         $modelVersion = $textGenerateImageDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -365,8 +369,12 @@ class LLMAppService extends AbstractLLMAppService
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
-        $creator = $accessTokenEntity->getCreator();
-        $organizationCode = $accessTokenEntity->getOrganizationCode();
+
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $imageEditDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
 
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
