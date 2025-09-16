@@ -145,7 +145,7 @@ class TaskMessageEntity extends AbstractEntity
     protected ?int $imSeqId = null;
 
     /**
-     * @var null|int IM 状态
+     * @var null|int IM 状态（来自magic_chat_sequences表的status字段）
      */
     protected ?int $imStatus = null;
 
@@ -427,17 +427,6 @@ class TaskMessageEntity extends AbstractEntity
     public function setImStatus(?int $imStatus): self
     {
         $this->imStatus = $imStatus;
-        return $this;
-    }
-
-    public function getCorrelationId(): ?string
-    {
-        return $this->correlationId;
-    }
-
-    public function setCorrelationId(?string $correlationId): self
-    {
-        $this->correlationId = $correlationId;
         return $this;
     }
 
