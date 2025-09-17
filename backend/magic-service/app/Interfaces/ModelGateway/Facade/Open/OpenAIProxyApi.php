@@ -81,7 +81,7 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $textGenerateImageDTO->valid();
         $this->setHeaderConfigs($textGenerateImageDTO, $request);
-        return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
+        return $this->llmAppService->textGenerateImage($textGenerateImageDTO)->toArray();
     }
 
     public function imageEdit(RequestInterface $request)
@@ -94,7 +94,7 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $imageEditDTO->valid();
         $this->setHeaderConfigs($imageEditDTO, $request);
-        return $this->llmAppService->imageEdit($imageEditDTO);
+        return $this->llmAppService->imageEdit($imageEditDTO)->toArray();
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
