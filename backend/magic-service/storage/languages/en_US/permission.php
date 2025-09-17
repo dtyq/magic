@@ -17,6 +17,7 @@ return [
         'api' => 'API',
         'api_assistant' => 'API Assistant',
         'platform' => 'Platform',
+        'platform_ai' => 'Platform AI',
         'platform_setting' => 'System Settings',
         'platform_setting_maintenance' => 'Maintenance',
     ],
