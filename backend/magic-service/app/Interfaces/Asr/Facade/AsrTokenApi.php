@@ -177,7 +177,7 @@ class AsrTokenApi extends AbstractApi
      * 查询录音总结状态
      * POST /api/v1/asr/summary.
      *
-     * @param RequestInterface $request 包含 task_key、project_id、chat_topic_id、model_id、workspace_file_path 和 note 参数
+     * @param RequestInterface $request 包含 task_key、project_id、topic_id、model_id、workspace_file_path 和 note 参数
      */
     public function summary(RequestInterface $request): array
     {
@@ -201,7 +201,7 @@ class AsrTokenApi extends AbstractApi
                     'error' => trans('asr.api.lock.acquire_failed'),
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
-                    'chat_topic_id' => $summaryRequest->topicId,
+                    'topic_id' => $summaryRequest->topicId,
                 ];
             }
 
@@ -218,7 +218,7 @@ class AsrTokenApi extends AbstractApi
                     'error' => $result['error'],
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
-                    'chat_topic_id' => $summaryRequest->topicId,
+                    'topic_id' => $summaryRequest->topicId,
                 ];
             }
 
@@ -226,7 +226,7 @@ class AsrTokenApi extends AbstractApi
                 'success' => true,
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
-                'chat_topic_id' => $summaryRequest->topicId,
+                'topic_id' => $summaryRequest->topicId,
                 'conversation_id' => $result['conversation_id'],
             ];
         } catch (Throwable $e) {
@@ -242,7 +242,7 @@ class AsrTokenApi extends AbstractApi
                 'error' => sprintf('处理异常: %s', $e->getMessage()),
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
-                'chat_topic_id' => $summaryRequest->topicId,
+                'topic_id' => $summaryRequest->topicId,
             ];
         } finally {
             // 确保释放锁
@@ -307,15 +307,6 @@ class AsrTokenApi extends AbstractApi
                 )->toArray();
             }
 
-            return DownloadMergedAudioResponseDTO::createFailureResponse(
-                $taskKey,
-                $userId,
-                $organizationCode,
-                'asr.download.get_link_error',
-                null,
-                ['error' => $e->getMessage()]
-            )->toArray();
-        } catch (Throwable $e) {
             return DownloadMergedAudioResponseDTO::createFailureResponse(
                 $taskKey,
                 $userId,
@@ -589,14 +580,14 @@ class AsrTokenApi extends AbstractApi
         $taskKey = $request->input('task_key', '');
         // 获取project_id参数（必传参数）
         $projectId = $request->input('project_id', '');
-        // 获取chat_topic_id参数（新增：必传参数）
-        $topicId = $request->input('chat_topic_id', '');
+        // 获取topic_id参数（必传参数）
+        $topicId = $request->input('topic_id', '');
         // 获取model_id参数（必传参数）
         $modelId = $request->input('model_id', '');
         // 获取workspace_file_path参数（可选参数）
-        $workspaceFilePath = $request->input('workspace_file_path', null);
+        $workspaceFilePath = $request->input('workspace_file_path');
         // 获取note参数（可选参数）
-        $noteData = $request->input('note', null);
+        $noteData = $request->input('note');
 
         // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
         if (! empty($workspaceFilePath) && empty($taskKey)) {
@@ -613,7 +604,7 @@ class AsrTokenApi extends AbstractApi
         }
 
         if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.chat_topic_id_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.topic_id_required'));
         }
 
         if (empty($modelId)) {

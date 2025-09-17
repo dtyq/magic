@@ -89,8 +89,20 @@ readonly class AsrFileAppService
             $userId = $userAuthorization->getId();
             $organizationCode = $userAuthorization->getOrganizationCode();
 
-            // 1. 通过话题ID获取对话ID
-            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($summaryRequest->topicId);
+            // 1. 通过SuperAgent话题ID获取话题实体，再获取对话ID
+            $topicEntity = $this->topicDomainService->getTopicById((int) $summaryRequest->topicId);
+
+            if ($topicEntity === null) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+            }
+
+            // 验证话题权限
+            if ($topicEntity->getUserId() !== $userId) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+            }
+
+            $chatTopicId = $topicEntity->getChatTopicId();
+            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
 
             // 2. 获取并验证任务状态（如果有workspace_file_path则跳过此步骤）
             $taskStatus = null;
@@ -122,7 +134,8 @@ readonly class AsrFileAppService
                 $organizationCode,
                 $summaryRequest->projectId,
                 $userId,
-                $summaryRequest->topicId,
+                $summaryRequest->topicId, // SuperAgent话题ID
+                $chatTopicId, // Chat话题ID
                 $conversationId,
                 $summaryRequest->modelId
             );
@@ -1430,7 +1443,7 @@ readonly class AsrFileAppService
             $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto);
 
             // 检查话题状态，决定是直接发送消息还是写入队列
-            $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId, $userAuthorization);
+            $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId);
             if ($shouldQueueMessage) {
                 // 话题状态为waiting或running，将消息写入队列
                 $this->queueChatMessage($dto, $chatRequest, $userAuthorization);
@@ -1442,7 +1455,8 @@ readonly class AsrFileAppService
             $this->logger->error('发送聊天消息失败', [
                 'task_key' => $dto->taskStatus->taskKey,
                 'conversation_id' => $dto->conversationId,
-                'chat_topic_id' => $dto->topicId,
+                'topic_id' => $dto->topicId, // SuperAgent话题ID
+                'chat_topic_id' => $dto->chatTopicId, // Chat话题ID
                 'error' => $e->getMessage(),
                 'user_id' => $dto->userId,
             ]);
@@ -1543,28 +1557,17 @@ readonly class AsrFileAppService
      * 当话题状态为WAITING或RUNNING时，消息需要写入队列处理
      *
      * @param string $topicId 话题ID
-     * @param MagicUserAuthorization $userAuthorization 用户授权信息
      * @return bool 是否应该队列处理
      * @throws InvalidArgumentException 当找不到话题时
      */
-    private function shouldQueueMessage(string $topicId, MagicUserAuthorization $userAuthorization): bool
+    private function shouldQueueMessage(string $topicId): bool
     {
         // 创建数据隔离对象
-        $dataIsolation = DataIsolation::create(
-            $userAuthorization->getOrganizationCode(),
-            $userAuthorization->getId()
-        );
-
-        // 通过Chat话题ID获取SuperAgent话题实体
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $topicId);
+        // 通过SuperAgent话题ID获取话题实体
+        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
 
         if ($topicEntity === null) {
-            // 如果找不到话题，抛出异常终止流程
-            $this->logger->error('未找到对应的SuperAgent话题，终止ASR总结流程', [
-                'chat_topic_id' => $topicId,
-                'user_id' => $userAuthorization->getId(),
-            ]);
-            throw new InvalidArgumentException(sprintf('未找到对应的SuperAgent话题: %s', $topicId));
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
 
         // 检查话题的当前任务状态是否为waiting或running（需要队列处理）
@@ -1587,8 +1590,8 @@ readonly class AsrFileAppService
             $userAuthorization->getId()
         );
 
-        // 通过Chat话题ID获取SuperAgent话题实体，获取话题的数据库ID
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->topicId);
+        // 通过SuperAgent话题ID获取话题实体
+        $topicEntity = $this->topicDomainService->getTopicById((int) $dto->topicId);
         if ($topicEntity === null) {
             throw new InvalidArgumentException(sprintf('未找到话题ID: %s', $dto->topicId));
         }
@@ -1604,8 +1607,9 @@ readonly class AsrFileAppService
 
         $this->logger->info('ASR总结消息已写入队列', [
             'task_key' => $dto->taskStatus->taskKey,
-            'chat_topic_id' => $dto->topicId,
-            'topic_id' => $topicEntity->getId(),
+            'topic_id' => $dto->topicId, // SuperAgent话题ID
+            'chat_topic_id' => $dto->chatTopicId, // Chat话题ID
+            'topic_entity_id' => $topicEntity->getId(), // 话题数据库ID
             'message_queue_id' => $messageEntity->getId(),
             'project_id' => $dto->projectId,
             'user_id' => $dto->userId,
