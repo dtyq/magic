@@ -18,9 +18,9 @@ class AIImageGenerateParamsVO extends AbstractValueObject
 {
     public string $model;
 
-    public string $height = '512';
+    public string $height = '1024';
 
-    public string $width = '512';
+    public string $width = '1024';
 
     public string $ratio = '1:1';
 

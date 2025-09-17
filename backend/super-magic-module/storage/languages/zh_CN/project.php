@@ -17,8 +17,10 @@ return [
     ],
     'department_not_found' => '部门不存在',
     'invalid_member_type' => '无效的成员类型',
+    'invalid_member_role' => '无效的成员角色',
     'update_members_failed' => '更新成员失败',
     'member_validation_failed' => '成员验证失败',
+    'cannot_set_shortcut_for_own_project' => '不能为自己的项目设置快捷方式',
 
     // 操作日志相关
     'operation_log' => [
@@ -35,5 +37,12 @@ return [
     'member_status' => [
         'active' => '激活',
         'inactive' => '非激活',
+    ],
+
+    // 成员角色描述
+    'member_role' => [
+        'owner' => '所有者',
+        'editor' => '编辑者',
+        'viewer' => '查看者',
     ],
 ];

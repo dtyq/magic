@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
@@ -170,7 +171,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'magic_super_agent_project.updated_at',
             'magic_super_agent_project.created_at',
             'magic_super_agent_project_member_settings.is_pinned',
-            'magic_super_agent_project_member_settings.last_active_at'
+            'magic_super_agent_project_member_settings.last_active_at',
+            'magic_super_agent_project_member_settings.is_bind_workspace',
+            'magic_super_agent_project_member_settings.bind_workspace_id'
         )
             ->distinct()
             ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
@@ -217,6 +220,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         // 使用单次查询优化N+1问题
         $results = $this->projectMemberModel::query()
             ->whereIn('project_id', $projectIds)
+            ->whereIn('role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->groupBy('project_id')
             ->selectRaw('project_id, COUNT(*) as total_count')
             ->get()
@@ -298,6 +302,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                 $join->on('magic_super_agent_project_member_settings.project_id', '=', 'magic_super_agent_project.id')
                     ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
             })
+            ->whereIn('magic_super_agent_project_members.role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->where('magic_super_agent_project.user_id', '=', $userId)
             ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
             ->whereNull('magic_super_agent_project.deleted_at');
@@ -322,7 +327,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'magic_super_agent_project.updated_at',
             'magic_super_agent_project.created_at',
             'magic_super_agent_project_member_settings.is_pinned',
-            'magic_super_agent_project_member_settings.last_active_at'
+            'magic_super_agent_project_member_settings.last_active_at',
+            'magic_super_agent_project_member_settings.is_bind_workspace',
+            'magic_super_agent_project_member_settings.bind_workspace_id'
         )
             ->distinct()
             ->orderByRaw('COALESCE(magic_super_agent_project_member_settings.is_pinned, 0) DESC'); // 置顶的在前
@@ -398,6 +405,118 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
+     * 获取用户参与的项目列表（支持协作项目筛选和工作区绑定筛选）.
+     */
+    public function getParticipatedProjects(
+        string $userId,
+        ?int $workspaceId,
+        bool $showCollaboration = true,
+        ?string $projectName = null,
+        int $page = 1,
+        int $pageSize = 10,
+        string $sortField = 'last_active_at',
+        string $sortDirection = 'desc'
+    ): array {
+        // 构建基础查询
+        $query = $this->projectMemberModel::query()
+            ->from('magic_super_agent_project_members as pm')
+            ->join('magic_super_agent_project as p', 'pm.project_id', '=', 'p.id')
+            ->leftJoin('magic_super_agent_project_member_settings as pms', function ($join) use ($userId) {
+                $join->on('p.id', '=', 'pms.project_id')
+                    ->where('pms.user_id', '=', $userId);
+            })
+            ->where('pm.target_type', MemberType::USER->value)
+            ->where('pm.target_id', $userId)
+            ->where('pm.status', 1)
+            ->where('p.project_status', 1) // 只查询激活状态的项目
+            ->whereNull('p.deleted_at');
+
+        // 工作区限制（可选）
+        if ($workspaceId !== null) {
+            $query->where(function ($subQuery) use ($workspaceId, $userId) {
+                $subQuery
+                    // 情况1：用户自己创建的项目，在指定工作区
+                    ->where(function ($q) use ($workspaceId, $userId) {
+                        $q->where('p.user_id', $userId)
+                            ->where('p.workspace_id', $workspaceId);
+                    })
+                    // 情况2：协作项目，用户绑定到指定工作区
+                    ->orWhere(function ($q) use ($workspaceId, $userId) {
+                        $q->where('p.user_id', '!=', $userId)
+                            ->where('pms.is_bind_workspace', 1)
+                            ->where('pms.bind_workspace_id', $workspaceId);
+                    });
+            });
+        }
+
+        // 项目名称模糊搜索
+        if (! empty($projectName)) {
+            $query->where('p.project_name', 'like', '%' . $projectName . '%');
+        }
+
+        // 协作项目筛选逻辑
+        if (! $showCollaboration) {
+            // showCollaboration = 0 时，只显示已设置快捷方式的项目
+            $query->where('pms.is_bind_workspace', 1);
+
+            // 如果指定了工作区，则进一步限制为绑定到该工作区的项目
+            if ($workspaceId !== null) {
+                $query->where('pms.bind_workspace_id', $workspaceId);
+            }
+        }
+        // showCollaboration = 1 时，显示所有参与的项目（默认情况）
+
+        // 获取总数
+        $totalQuery = clone $query;
+        $total = $totalQuery->select('p.id')->distinct()->count();
+
+        // 构建查询字段
+        $query->select([
+            'p.id',
+            'p.workspace_id',
+            'p.project_name',
+            'p.project_description',
+            'p.work_dir',
+            'p.current_topic_id',
+            'p.current_topic_status',
+            'p.project_status',
+            'p.project_mode',
+            'p.user_id',
+            'p.user_organization_code as organization_code',
+            'p.created_at',
+            'p.updated_at',
+            'pm.role as user_role',
+            Db::raw('COALESCE(pms.is_pinned, 0) as is_pinned'),
+            Db::raw('COALESCE(pms.is_bind_workspace, 0) as is_bind_workspace'),
+            Db::raw('COALESCE(pms.bind_workspace_id, 0) as bind_workspace_id'),
+            Db::raw('COALESCE(pms.last_active_at, p.created_at) as last_active_at'),
+            'pms.pinned_at',
+            Db::raw('CASE WHEN p.user_id != ? THEN 1 ELSE 0 END as is_collaborator'),
+        ])
+            ->addBinding($userId, 'select');
+
+        // 去重
+        $query->distinct();
+
+        // 排序逻辑：置顶优先，置顶项目按置顶时间排序，最后按活跃时间排序
+        $query->orderByRaw('COALESCE(pms.is_pinned, 0) DESC'); // 1. 置顶的在前
+        $query->orderByRaw('pms.pinned_at DESC'); // 2. 置顶项目按置顶时间排序（最后置顶的在前）
+        $query->orderByRaw('COALESCE(pms.last_active_at, p.created_at) DESC'); // 3. 按活跃时间排序
+
+        // 分页
+        $offset = ($page - 1) * $pageSize;
+        $projects = $query->offset($offset)
+            ->limit($pageSize)
+            ->get()
+            ->toArray();
+
+        return [
+            'total' => $total,
+            'list' => $projects,
+        ];
+    }
+
+    /**
      * 准备批量插入的属性数组.
      */
     private function prepareBatchInsertAttributes(array $projectMemberEntities): array
@@ -431,6 +550,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'project_id' => $entity->getProjectId(),
             'target_type' => $entity->getTargetType()->value,
             'target_id' => $entity->getTargetId(),
+            'role' => $entity->getRole()->value,
             'organization_code' => $entity->getOrganizationCode(),
             'status' => $entity->getStatus()->value,
             'invited_by' => $entity->getInvitedBy(),

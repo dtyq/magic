@@ -34,6 +34,7 @@ class MicroAgentTest extends HttpTestCase
             modelId: 'gpt-4',
             systemTemplate: 'You are a {{role}} assistant. Your task is to {{task}}.',
             temperature: 0.8,
+            maxTokens: 8192,
             enabledModelFallbackChain: true
         );
 
@@ -48,6 +49,7 @@ class MicroAgentTest extends HttpTestCase
             modelId: 'gpt-3.5-turbo',
             systemTemplate: 'Test template',
             temperature: 0.5,
+            maxTokens: 4096,
             enabledModelFallbackChain: false
         );
 
@@ -55,6 +57,7 @@ class MicroAgentTest extends HttpTestCase
         $this->assertEquals('test', $agent->getName());
         $this->assertEquals('gpt-3.5-turbo', $agent->getModelId());
         $this->assertEquals(0.5, $agent->getTemperature());
+        $this->assertEquals(4096, $agent->getMaxTokens());
         $this->assertFalse($agent->isEnabledModelFallbackChain());
     }
 
@@ -182,6 +185,7 @@ class MicroAgentTest extends HttpTestCase
         $this->assertEquals('minimal_test', $agent->getName());
         $this->assertEquals('', $agent->getModelId());
         $this->assertEquals(0.7, $agent->getTemperature());
+        $this->assertEquals(0, $agent->getMaxTokens());
         $this->assertTrue($agent->isEnabledModelFallbackChain());
         $this->assertEquals('', $agent->getSystemTemplate());
     }
@@ -217,6 +221,20 @@ class MicroAgentTest extends HttpTestCase
         $this->assertStringNotContainsString('{{context}}', $result);
     }
 
+    public function testMaxTokensConfiguration(): void
+    {
+        // Test maxTokens with different values
+        $agent1 = new MicroAgent(name: 'test1', maxTokens: 2048);
+        $this->assertEquals(2048, $agent1->getMaxTokens());
+
+        $agent2 = new MicroAgent(name: 'test2', maxTokens: 0);
+        $this->assertEquals(0, $agent2->getMaxTokens());
+
+        // Test with default value
+        $agent3 = new MicroAgent(name: 'test3');
+        $this->assertEquals(0, $agent3->getMaxTokens());
+    }
+
     public function testExampleAgentConfiguration(): void
     {
         // Test that example agent loads with correct configuration
@@ -225,6 +243,7 @@ class MicroAgentTest extends HttpTestCase
         $this->assertEquals('example', $exampleAgent->getName());
         $this->assertEquals('gpt-4o', $exampleAgent->getModelId());
         $this->assertEquals(0.7, $exampleAgent->getTemperature());
+        $this->assertEquals(16384, $exampleAgent->getMaxTokens()); // From example.agent.yaml
         $this->assertTrue($exampleAgent->isEnabledModelFallbackChain());
 
         // Test system template contains expected variables

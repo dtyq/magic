@@ -88,7 +88,9 @@ class ImageEditDTO extends AbstractRequestDTO
         $supportedModels = array_merge(
             ImageGenerateModelType::getVolcengineModes(),
             ImageGenerateModelType::getAzureOpenAIEditModes(),
-            ImageGenerateModelType::getQwenImageEditModes()
+            ImageGenerateModelType::getQwenImageEditModes(),
+            ImageGenerateModelType::getGoogleGeminiModes(),
+            ImageGenerateModelType::getVolcengineArkModes()
         );
 
         if (! in_array($this->model, $supportedModels)) {

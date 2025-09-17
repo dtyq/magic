@@ -33,6 +33,12 @@ class GetFileUrlsRequestDTO
     private bool $cache;
 
     /**
+     * 文件版本号映射，格式：[file_id => version_number]
+     * 如果某个文件未指定版本号，则使用当前版本.
+     */
+    private array $fileVersions;
+
+    /**
      * Constructor.
      */
     public function __construct(array $params)
@@ -43,6 +49,7 @@ class GetFileUrlsRequestDTO
         $this->topicId = $params['topic_id'] ?? '';
         $this->projectId = $params['project_id'] ?? '';
         $this->cache = $params['cache'] ?? true;
+        $this->fileVersions = $params['file_versions'] ?? [];
 
         $this->validate();
     }
@@ -94,6 +101,33 @@ class GetFileUrlsRequestDTO
     }
 
     /**
+     * 获取文件版本号映射.
+     */
+    public function getFileVersions(): array
+    {
+        return $this->fileVersions;
+    }
+
+    /**
+     * 设置文件版本号映射.
+     */
+    public function setFileVersions(array $fileVersions): void
+    {
+        $this->fileVersions = $fileVersions;
+    }
+
+    /**
+     * 获取指定文件的版本号.
+     *
+     * @param int $fileId 文件ID
+     * @return null|int 版本号，未指定则返回null
+     */
+    public function getFileVersion(int $fileId): ?int
+    {
+        return $this->fileVersions[$fileId] ?? null;
+    }
+
+    /**
      * 验证请求数据.
      *
      * @throws BusinessException 如果验证失败则抛出异常
@@ -107,6 +141,18 @@ class GetFileUrlsRequestDTO
 
         if (empty($this->projectId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id.required');
+        }
+
+        // 验证文件版本号格式
+        if (! empty($this->fileVersions)) {
+            foreach ($this->fileVersions as $fileId => $version) {
+                if (! is_numeric($fileId) || ! is_numeric($version) || (int) $version < 1) {
+                    ExceptionBuilder::throw(
+                        GenericErrorCode::ParameterValidationFailed,
+                        'file_versions.invalid_format'
+                    );
+                }
+            }
         }
     }
 }

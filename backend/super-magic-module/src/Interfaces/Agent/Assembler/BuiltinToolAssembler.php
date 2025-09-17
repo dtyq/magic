@@ -49,4 +49,23 @@ class BuiltinToolAssembler
 
         return array_values($categoryDTOs);
     }
+
+    /**
+     * 创建工具列表DTO（平铺格式）.
+     * @return array<BuiltinToolDTO>
+     */
+    public static function createToolListDTO(): array
+    {
+        $tools = [];
+        foreach (BuiltinTool::cases() as $toolEnum) {
+            $tools[] = new BuiltinToolDTO([
+                'code' => $toolEnum->value,
+                'name' => $toolEnum->getToolName(),
+                'description' => $toolEnum->getToolDescription(),
+                'icon' => $toolEnum->getToolIcon(),
+                'required' => $toolEnum->isRequired(),
+            ]);
+        }
+        return $tools;
+    }
 }

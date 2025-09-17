@@ -72,13 +72,26 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     /**
      * 根据fileKey获取文件.
+     *
+     * @param string $fileKey 文件键
+     * @param null|int $topicId 话题ID，默认为0
+     * @param bool $withTrash 是否包含已删除的文件，默认为false
      */
-    public function getByFileKey(string $fileKey, ?int $topicId = 0): ?TaskFileEntity
+    public function getByFileKey(string $fileKey, ?int $topicId = 0, bool $withTrash = false): ?TaskFileEntity
     {
-        $query = $this->model::query()->where('file_key', $fileKey);
+        // 根据withTrash参数决定查询范围
+        if ($withTrash) {
+            $query = $this->model::withTrashed();
+        } else {
+            $query = $this->model::query();
+        }
+
+        $query = $query->where('file_key', $fileKey);
+
         if ($topicId) {
             $query = $query->where('topic_id', $topicId);
         }
+
         $model = $query->first();
 
         if (! $model) {
@@ -818,5 +831,15 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->orderBy('file_id', 'ASC')
             ->get()
             ->toArray();
+    }
+
+    /**
+     * 恢复被删除的文件.
+     */
+    public function restoreFile(int $fileId): void
+    {
+        $this->model::withTrashed()
+            ->where('file_id', $fileId)
+            ->restore();
     }
 }

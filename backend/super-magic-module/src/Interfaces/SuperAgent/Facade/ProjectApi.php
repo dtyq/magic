@@ -11,11 +11,14 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -30,6 +33,7 @@ class ProjectApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         private readonly ProjectAppService $projectAppService,
+        private readonly ProjectMemberAppService $projectMemberAppService,
     ) {
         parent::__construct($request);
     }
@@ -72,6 +76,26 @@ class ProjectApi extends AbstractApi
         $this->projectAppService->deleteProject($requestContext, (int) $id);
 
         return ['id' => $id];
+    }
+
+    /**
+     * Pin project.
+     */
+    public function pin(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization and context data
+        $userAuthorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($userAuthorization);
+        $requestContext->setUserId($userAuthorization->getId());
+        $requestContext->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        // 1. 转换为RequestDTO并自动验证
+        $requestDTO = UpdateProjectPinRequestDTO::fromRequest($this->request);
+
+        // 2. 委托给Application层处理
+        $this->projectMemberAppService->updateProjectPin($requestContext, (int) $id, $requestDTO);
+
+        return [];
     }
 
     /**
@@ -194,5 +218,18 @@ class ProjectApi extends AbstractApi
         $requestDTO = MoveProjectRequestDTO::fromRequest($this->request);
 
         return $this->projectAppService->moveProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get participated projects.
+     */
+    public function getParticipatedProjects(RequestContext $requestContext): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetParticipatedProjectsRequestDTO::fromRequest($this->request);
+
+        return $this->projectMemberAppService->getParticipatedProjects($requestContext, $requestDTO);
     }
 }
