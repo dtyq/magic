@@ -70,7 +70,7 @@ class ChatMessageAssembler
                     'type' => 'rich_text',
                     'app_message_id' => (string) IdGenerator::getSnowId(),
                     'send_time' => time() * 1000,
-                    'topic_id' => $dto->topicId,
+                    'topic_id' => $dto->chatTopicId,
                     'rich_text' => $messageContent,
                 ],
             ],
