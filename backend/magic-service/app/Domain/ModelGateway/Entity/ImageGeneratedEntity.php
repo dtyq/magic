@@ -7,10 +7,11 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity;
 
+use App\Domain\Authentication\Entity\AbstractEntity;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use DateTime;
 
-class ImageGeneratedEntity
+class ImageGeneratedEntity extends AbstractEntity
 {
     protected string $organizationCode;
 
