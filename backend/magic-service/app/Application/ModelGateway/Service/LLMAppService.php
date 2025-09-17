@@ -44,6 +44,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
@@ -79,6 +80,7 @@ use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
+use function Hyperf\Translation\__;
 
 class LLMAppService extends AbstractLLMAppService
 {
@@ -494,6 +496,115 @@ class LLMAppService extends AbstractLLMAppService
             ]);
             return null;
         }
+    }
+
+    public function textGenerateImageV2(TextGenerateImageDTO $textGenerateImageDTO): OpenAIFormatResponse
+    {
+        $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
+
+        $organizationCode = $accessTokenEntity->getOrganizationCode();
+        $creator = $accessTokenEntity->getCreator();
+        $modelVersion = $textGenerateImageDTO->getModel();
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
+        $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
+
+        $size = $textGenerateImageDTO->getSize();
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $ratio = $this->calculateRatio((int) $width, (int) $height);
+        $imageGenerateParamsVO->setRatio($ratio);
+        $imageGenerateParamsVO->setWidth($width);
+        $imageGenerateParamsVO->setHeight($height);
+
+        // 从服务商配置数组中取第一个进行处理
+        if (empty($serviceProviderConfigs)) {
+            return OpenAIFormatResponse::buildError(ServiceProviderErrorCode::ModelNotFound->value, __('service_provider.model_not_found'));
+        }
+
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+
+        $imageGenerateRequest->setWatermarkConfig($textGenerateImageDTO->getWatermark());
+
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($textGenerateImageDTO->getTopicId());
+
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setValidityPeriod(1);
+
+        $errorMessage = '';
+        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
+            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+            try {
+                $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+                $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+                $n = $textGenerateImageDTO->getN();
+                // 除了 mj 是 1 次之外，其他都按张数算
+                if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
+                    $n = 1;
+                }
+                $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
+                $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                AsyncEventUtil::dispatch($event);
+
+                return $generateImageOpenAIFormat;
+            } catch (Exception $e) {
+                $errorMessage = $e->getMessage();
+                $this->logger->warning('text generate image error:' . $e->getMessage());
+            }
+        }
+        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $errorMessage);
+    }
+
+    public function imageEditV2(ImageEditDTO $imageEditDTO): OpenAIFormatResponse
+    {
+        $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
+        $creator = $accessTokenEntity->getCreator();
+        $organizationCode = $accessTokenEntity->getOrganizationCode();
+
+        $modelVersion = $imageEditDTO->getModel();
+        $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
+        $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
+
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        foreach ($serviceProviderConfigs as $serviceProviderConfig) {
+            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
+            try {
+                $openAIFormatResponse = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+                $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
+
+                $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                AsyncEventUtil::dispatch($event);
+
+                return $openAIFormatResponse;
+            } catch (Exception $e) {
+                $this->logger->warning('text generate image error:' . $e->getMessage());
+            }
+        }
+        ExceptionBuilder::throw(ImageGenerateErrorCode::NOT_FOUND_ERROR_CODE);
     }
 
     /**

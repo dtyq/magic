@@ -157,6 +157,11 @@ class MiracleVisionModel extends AbstractImageGenerate
         throw new BadMethodCallException('该方法暂不支持');
     }
 
+    public function getProviderName(): string
+    {
+        return 'miracle';
+    }
+
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         throw new BadMethodCallException('该方法暂不支持');
