@@ -437,6 +437,53 @@ class MagicUserDomainService extends AbstractContactDomainService
     }
 
     /**
+     * Batch get user phones by user IDs.
+     * 
+     * @param array $userIds Array of user IDs
+     * @return array Array with structure [user_id => phone]
+     */
+    public function batchGetUserPhonesByIds(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        // 1. Batch get user info to get magic_ids
+        $users = $this->userRepository->getUserByIdsAndOrganizations($userIds);
+        if (empty($users)) {
+            return [];
+        }
+
+        // 2. Extract magic_ids and create user_id => magic_id mapping
+        $magicIds = [];
+        $userIdToMagicIdMap = [];
+        foreach ($users as $user) {
+            $magicIds[] = $user->getMagicId();
+            $userIdToMagicIdMap[$user->getUserId()] = $user->getMagicId();
+        }
+
+        // 3. Batch get account info by magic_ids
+        $accounts = $this->accountRepository->getAccountInfoByMagicIds($magicIds);
+        if (empty($accounts)) {
+            return [];
+        }
+
+        // 4. Create magic_id => phone mapping
+        $magicIdToPhoneMap = [];
+        foreach ($accounts as $account) {
+            $magicIdToPhoneMap[$account->getMagicId()] = $account->getPhone();
+        }
+
+        // 5. Build final user_id => phone mapping
+        $result = [];
+        foreach ($userIdToMagicIdMap as $userId => $magicId) {
+            $result[$userId] = $magicIdToPhoneMap[$magicId] ?? '';
+        }
+
+        return $result;
+    }
+
+    /**
      * Get user details for all organizations under the account from authorization token.
      *
      * @param string $authorization Authorization token

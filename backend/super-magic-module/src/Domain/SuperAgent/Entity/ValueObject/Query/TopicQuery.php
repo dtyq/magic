@@ -45,6 +45,11 @@ class TopicQuery
     private ?array $userIds = null;
 
     /**
+     * @var null|string 项目ID
+     */
+    private ?string $projectId = null;
+
+    /**
      * @var int 页码
      */
     private int $page = 1;
@@ -164,6 +169,23 @@ class TopicQuery
     }
 
     /**
+     * 获取项目ID.
+     */
+    public function getProjectId(): ?string
+    {
+        return $this->projectId;
+    }
+
+    /**
+     * 设置项目ID.
+     */
+    public function setProjectId(?string $projectId): self
+    {
+        $this->projectId = $projectId;
+        return $this;
+    }
+
+    /**
      * 获取页码
      */
     public function getPage(): int
@@ -250,6 +272,10 @@ class TopicQuery
 
         if ($this->userIds !== null && ! empty($this->userIds)) {
             $conditions['user_id'] = $this->userIds;
+        }
+
+        if ($this->projectId !== null) {
+            $conditions['project_id'] = (int) $this->projectId;
         }
 
         return $conditions;
