@@ -13,6 +13,7 @@ use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use BackedEnum;
 use Exception;
 use InvalidArgumentException;
 
@@ -359,8 +360,15 @@ class MagicPermission implements MagicPermissionInterface
         if (! enum_exists($opEnumClass)) {
             throw new InvalidArgumentException('Operation enum not found for resource: ' . $resource);
         }
+        // 仅支持 BackedEnum，因为后续需要读取 ->value
+        if (! is_subclass_of($opEnumClass, BackedEnum::class)) {
+            throw new InvalidArgumentException('Operation enum for resource must be BackedEnum: ' . $opEnumClass);
+        }
+
+        /** @var class-string<BackedEnum> $opEnumClass */
         $cases = $opEnumClass::cases();
-        return array_map(static fn ($case) => $case->value, $cases);
+        /* @var array<int, \BackedEnum> $cases */
+        return array_map(static fn (BackedEnum $case) => $case->value, $cases);
     }
 
     /**
