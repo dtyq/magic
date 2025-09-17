@@ -129,4 +129,15 @@ class OpenAIFormatResponse
     {
         return ! $this->hasError() && ! empty($this->data);
     }
+
+    public static function buildError(int $code, string $message): OpenAIFormatResponse
+    {
+        $openAIFormatResponse = new OpenAIFormatResponse();
+        $openAIFormatResponse->setCreated(time());
+        $openAIFormatResponse->setData([]);
+        $openAIFormatResponse->setUsage(null);
+        $openAIFormatResponse->setProviderErrorMessage($message);
+        $openAIFormatResponse->setProviderErrorCode($code);
+        return $openAIFormatResponse;
+    }
 }

@@ -13,6 +13,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatRespons
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
+use Hyperf\Engine\Channel;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 
@@ -33,6 +34,12 @@ abstract class AbstractImageGenerate implements ImageGenerate
     protected Redis $redis;
 
     protected static string $watermarkText = '麦吉 AI 生成';
+
+    /**
+     * 响应对象锁的映射表.
+     * @var array<string, Channel>
+     */
+    private static array $responseLocks = [];
 
     /**
      * 统一的图片生成入口方法
@@ -61,6 +68,37 @@ abstract class AbstractImageGenerate implements ImageGenerate
      * 只负责调用各自API生成图片，不用关心水印处理.
      */
     abstract protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse;
+
+    /**
+     * 获取响应对象的锁，用于并发安全地操作 OpenAIFormatResponse.
+     */
+    protected function lockResponse(OpenAIFormatResponse $response): void
+    {
+        $lockKey = spl_object_hash($response);
+
+        if (! isset(self::$responseLocks[$lockKey])) {
+            // 创建容量为1的Channel作为互斥锁
+            self::$responseLocks[$lockKey] = new Channel(1);
+            // 初始放入一个令牌
+            self::$responseLocks[$lockKey]->push(true);
+        }
+
+        // 获取锁（从Channel中取出令牌）
+        self::$responseLocks[$lockKey]->pop();
+    }
+
+    /**
+     * 释放响应对象的锁
+     */
+    protected function unlockResponse(OpenAIFormatResponse $response): void
+    {
+        $lockKey = spl_object_hash($response);
+
+        if (isset(self::$responseLocks[$lockKey])) {
+            // 释放锁（放回令牌到Channel）
+            self::$responseLocks[$lockKey]->push(true);
+        }
+    }
 
     /**
      * 统一的水印处理逻辑

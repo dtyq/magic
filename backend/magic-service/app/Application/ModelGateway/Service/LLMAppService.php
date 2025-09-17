@@ -80,6 +80,7 @@ use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
+use function Hyperf\Translation\__;
 
 class LLMAppService extends AbstractLLMAppService
 {
@@ -320,7 +321,7 @@ class LLMAppService extends AbstractLLMAppService
 
         // 从服务商配置数组中取第一个进行处理
         if (empty($serviceProviderConfigs)) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
+            return OpenAIFormatResponse::buildError(ServiceProviderErrorCode::ModelNotFound->value, __('service_provider.model_not_found'));
         }
 
         $data = $imageGenerateParamsVO->toArray();

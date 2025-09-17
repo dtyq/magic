@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use Exception;
@@ -76,6 +77,70 @@ class VolcengineModel extends AbstractImageGenerate
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
         return $this->processVolcengineRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - V2一体化版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => 'volcengine',
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof VolcengineModelRequest) {
+            $this->logger->error('Volcengine OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        // 3. 判断是图生图还是文生图
+        $isImageToImage = ! empty($imageGenerateRequest->getReferenceImage());
+        $count = $isImageToImage ? self::IMAGE_TO_IMAGE_IMAGE_COUNT : $imageGenerateRequest->getGenerateNum();
+
+        // 4. 并发处理 - 直接操作响应对象
+        $parallel = new Parallel();
+        $fromCoroutineId = Coroutine::id();
+
+        for ($i = 0; $i < $count; ++$i) {
+            $parallel->add(function () use ($imageGenerateRequest, $isImageToImage, $response, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    $result = $this->requestImageGenerationV2($imageGenerateRequest, $isImageToImage);
+                    $this->validateVolcengineResponse($result);
+
+                    // 成功：设置图片数据到响应对象
+                    $this->addImageDataToResponse($response, $result, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    // 失败：设置错误信息到响应对象（只设置第一个错误）
+                    if (! $response->hasError()) {
+                        $response->setProviderErrorCode($e->getCode());
+                        $response->setProviderErrorMessage($e->getMessage());
+                    }
+
+                    $this->logger->error('Volcengine OpenAI格式生图：单个请求失败', [
+                        'error_code' => $e->getCode(),
+                        'error_message' => $e->getMessage(),
+                    ]);
+                }
+            });
+        }
+
+        $parallel->wait();
+
+        // 5. 记录最终结果
+        $this->logger->info('Volcengine OpenAI格式生图：并发处理完成', [
+            '总请求数' => $count,
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
     }
 
     /**
@@ -468,6 +533,119 @@ class VolcengineModel extends AbstractImageGenerate
 
         $this->logger->error('火山文生图：任务查询超时', ['taskId' => $taskId]);
         ExceptionBuilder::throw(ImageGenerateErrorCode::TASK_TIMEOUT);
+    }
+
+    /**
+     * V2版本：组合提交任务和轮询结果，用于OpenAI格式生成.
+     */
+    private function requestImageGenerationV2(VolcengineModelRequest $imageGenerateRequest, bool $isImageToImage): array
+    {
+        // 提交任务
+        $taskId = $this->submitAsyncTask($imageGenerateRequest, $isImageToImage);
+
+        // 轮询结果
+        return $this->pollTaskResult($taskId, $imageGenerateRequest);
+    }
+
+    /**
+     * 验证火山引擎API响应数据格式.
+     */
+    private function validateVolcengineResponse(array $result): void
+    {
+        if (empty($result['data']) || ! is_array($result['data'])) {
+            throw new Exception('火山引擎响应数据格式错误：缺少data字段');
+        }
+
+        $data = $result['data'];
+        // 优先检查 image_urls，然后检查 binary_data_base64
+        $hasValidImageData = (! empty($data['image_urls']) && ! empty($data['image_urls'][0]))
+                            || (! empty($data['binary_data_base64']) && ! empty($data['binary_data_base64'][0]));
+
+        if (! $hasValidImageData) {
+            throw new Exception('火山引擎响应数据格式错误：缺少图片数据');
+        }
+    }
+
+    /**
+     * 将火山引擎图片数据添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponse(
+        OpenAIFormatResponse $response,
+        array $volcengineResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 使用锁确保并发安全
+        $this->lockResponse($response);
+        try {
+            // 从火山引擎响应中提取数据
+            if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
+                return;
+            }
+
+            $data = $volcengineResult['data'];
+            $currentData = $response->getData();
+            $currentUsage = $response->getUsage() ?? [
+                'generated_images' => 0,
+                'output_tokens' => 0,
+                'total_tokens' => 0,
+            ];
+
+            // 优先处理 URL 格式图片，参考现有逻辑只取第一个图片
+            if (! empty($data['image_urls']) && ! empty($data['image_urls'][0])) {
+                $imageUrl = $data['image_urls'][0];
+                try {
+                    // 处理水印
+                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+                    $currentData[] = [
+                        'url' => $processedUrl,
+                    ];
+                } catch (Exception $e) {
+                    $this->logger->error('Volcengine添加图片数据：URL水印处理失败', [
+                        'error' => $e->getMessage(),
+                        'url' => $imageUrl,
+                    ]);
+                    // 水印处理失败时使用原始URL
+                    $currentData[] = [
+                        'url' => $imageUrl,
+                    ];
+                }
+            } elseif (! empty($data['binary_data_base64']) && ! empty($data['binary_data_base64'][0])) {
+                // 备选：处理 base64 格式图片，只取第一个图片
+                $base64Image = $data['binary_data_base64'][0];
+                try {
+                    // 处理水印
+                    $processedImage = $this->watermarkProcessor->addWatermarkToBase64($base64Image, $imageGenerateRequest);
+                    $currentData[] = [
+                        'b64_json' => $processedImage,
+                    ];
+                } catch (Exception $e) {
+                    $this->logger->error('Volcengine添加图片数据：base64水印处理失败', [
+                        'error' => $e->getMessage(),
+                    ]);
+                    // 水印处理失败时使用原始数据
+                    $currentData[] = [
+                        'b64_json' => $base64Image,
+                    ];
+                }
+            }
+
+            // 累计usage信息（如果有的话）
+            if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
+                $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 1;
+                $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
+                $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
+            } else {
+                // 如果没有usage信息，默认增加1张图片
+                ++$currentUsage['generated_images'];
+            }
+
+            // 更新响应对象
+            $response->setData($currentData);
+            $response->setUsage($currentUsage);
+        } finally {
+            // 确保锁一定会被释放
+            $this->unlockResponse($response);
+        }
     }
 
     private function validateImageToImageAspectRatio(array $referenceImages)
