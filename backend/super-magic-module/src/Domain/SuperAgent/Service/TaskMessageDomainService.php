@@ -52,6 +52,7 @@ class TaskMessageDomainService
 
     public function processMessageAttachment(TaskMessageEntity $message): void
     {
+        $this->logger->info(sprintf('开始处理消息附件，file_keys: %s', json_encode($message->toArray())));
         $fileKeys = [];
         // 获取消息附件
         if (! empty($message->getAttachments())) {
@@ -81,6 +82,7 @@ class TaskMessageDomainService
 
         // 将 file_id 赋值到 消息的附件和消息工具的附件里
         if (! empty($fileIdMap)) {
+            $this->logger->info(sprintf('开始处理消息附件，file_id_map: %s', json_encode($fileIdMap)));
             // 处理消息附件
             $attachments = $message->getAttachments();
             if (! empty($attachments)) {
