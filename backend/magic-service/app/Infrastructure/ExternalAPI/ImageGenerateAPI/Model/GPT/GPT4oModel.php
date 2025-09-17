@@ -430,8 +430,8 @@ class GPT4oModel extends AbstractImageGenerate
         array $gpt4oResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
-        // 使用锁确保并发安全
-        $this->lockResponse($response);
+        // 使用Redis锁确保并发安全
+        $lockOwner = $this->lockResponse($response);
         try {
             // 从GPT4o轮询结果中提取图片URL
             if (empty($gpt4oResult['imageUrl'])) {
@@ -471,7 +471,7 @@ class GPT4oModel extends AbstractImageGenerate
             $response->setUsage($currentUsage);
         } finally {
             // 确保锁一定会被释放
-            $this->unlockResponse($response);
+            $this->unlockResponse($response, $lockOwner);
         }
     }
 }

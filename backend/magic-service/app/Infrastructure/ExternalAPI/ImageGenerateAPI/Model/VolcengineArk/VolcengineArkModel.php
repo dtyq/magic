@@ -258,8 +258,8 @@ class VolcengineArkModel extends AbstractImageGenerate
         array $volcengineResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
-        // 使用锁确保并发安全
-        $this->lockResponse($response);
+        // 使用Redis锁确保并发安全
+        $lockOwner = $this->lockResponse($response);
         try {
             // 从火山方舟响应中提取数据
             if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
@@ -306,7 +306,7 @@ class VolcengineArkModel extends AbstractImageGenerate
             $response->setUsage($currentUsage);
         } finally {
             // 确保锁一定会被释放
-            $this->unlockResponse($response);
+            $this->unlockResponse($response, $lockOwner);
         }
     }
 
