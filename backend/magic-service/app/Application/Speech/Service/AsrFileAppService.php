@@ -554,7 +554,7 @@ readonly class AsrFileAppService
             foreach (array_slice($localAudioFiles, 0, 5) as $lf) {
                 $localSamples[] = [
                     'name' => basename($lf),
-                    'size' => file_exists($lf) ? filesize($lf) : 0,
+                    'size' => filesize($lf),
                     'head_hex' => substr($this->getHeadHexForLog($lf, 16), 0, 32),
                 ];
             }
@@ -571,7 +571,7 @@ readonly class AsrFileAppService
             $this->logger->info('MergeAudio 合并完成', [
                 'task_key' => $taskKey,
                 'output_file' => $mergedFile,
-                'output_size' => file_exists($mergedFile) ? filesize($mergedFile) : 0,
+                'output_size' => filesize($mergedFile),
                 'output_head_hex' => substr($this->getHeadHexForLog($mergedFile, 16), 0, 32),
                 'total_duration_ms' => $totalDuration,
             ]);
@@ -705,7 +705,7 @@ readonly class AsrFileAppService
             foreach (array_slice($localFiles, 0, 5) as $lf) {
                 $downloadedSamples[] = [
                     'name' => basename($lf),
-                    'size' => file_exists($lf) ? filesize($lf) : 0,
+                    'size' => filesize($lf),
                     'head_hex' => substr($this->getHeadHexForLog($lf, 16), 0, 32),
                 ];
             }
@@ -830,7 +830,7 @@ readonly class AsrFileAppService
                 'task_key' => $taskKey,
                 'source' => basename($sourceFile),
                 'output_file' => $outputFile,
-                'output_size' => file_exists($outputFile) ? filesize($outputFile) : 0,
+                'output_size' => filesize($outputFile),
                 'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
             ]);
 
@@ -866,7 +866,7 @@ readonly class AsrFileAppService
                     'task_key' => $taskKey,
                     'source' => basename($single),
                     'output_file' => $outputFile,
-                    'output_size' => file_exists($outputFile) ? filesize($outputFile) : 0,
+                    'output_size' => filesize($outputFile),
                     'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
                 ]);
 
@@ -965,7 +965,7 @@ readonly class AsrFileAppService
             foreach (array_slice($audioFiles, 0, 5) as $in) {
                 $inputSamples[] = [
                     'name' => basename($in),
-                    'size' => file_exists($in) ? filesize($in) : 0,
+                    'size' => filesize($in),
                     'head_hex' => file_exists($in) ? substr($this->getHeadHexForLog($in, 16), 0, 32) : '',
                 ];
             }
@@ -1033,7 +1033,7 @@ readonly class AsrFileAppService
             $this->logger->info('MergeAudio 二进制拼接完成', [
                 'task_key' => $taskKey,
                 'output_file' => $outputFile,
-                'output_size' => file_exists($outputFile) ? filesize($outputFile) : 0,
+                'output_size' => filesize($outputFile),
                 'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
             ]);
 
@@ -1115,7 +1115,7 @@ readonly class AsrFileAppService
             $this->logger->info('MergeAudio  ffmpeg合并完成', [
                 'task_key' => $taskKey,
                 'output_file' => $outputFile,
-                'output_size' => file_exists($outputFile) ? filesize($outputFile) : 0,
+                'output_size' => filesize($outputFile),
                 'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
             ]);
 
@@ -1217,7 +1217,7 @@ readonly class AsrFileAppService
                     'group_index' => $groupIndex,
                     'segment_count' => count($currentGroup),
                     'output' => basename($tempOut),
-                    'output_size' => file_exists($tempOut) ? filesize($tempOut) : 0,
+                    'output_size' => filesize($tempOut),
                     'output_head_hex' => substr($this->getHeadHexForLog($tempOut, 16), 0, 32),
                 ]);
             }
@@ -1541,7 +1541,7 @@ readonly class AsrFileAppService
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
             // 4. 保存文件记录到项目
-            $fileSize = file_exists($mergedLocalAudioFile) ? filesize($mergedLocalAudioFile) : 0;
+            $fileSize = filesize($mergedLocalAudioFile);
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
                 $projectId,
