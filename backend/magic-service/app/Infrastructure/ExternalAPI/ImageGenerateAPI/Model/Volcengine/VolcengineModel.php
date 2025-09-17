@@ -87,7 +87,7 @@ class VolcengineModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'volcengine',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -141,6 +141,11 @@ class VolcengineModel extends AbstractImageGenerate
         ]);
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'volcengine';
     }
 
     /**

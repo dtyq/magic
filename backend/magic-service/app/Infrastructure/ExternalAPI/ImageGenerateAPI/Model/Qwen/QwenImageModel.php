@@ -79,7 +79,7 @@ class QwenImageModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'qwen',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -133,6 +133,11 @@ class QwenImageModel extends AbstractImageGenerate
         ]);
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'qwen';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

@@ -74,7 +74,7 @@ class GPT4oModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'gpt4o',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -128,6 +128,11 @@ class GPT4oModel extends AbstractImageGenerate
         ]);
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'gpt-image';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

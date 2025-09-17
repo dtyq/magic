@@ -47,4 +47,6 @@ interface ImageGenerate
     public function setSK(string $sk);
 
     public function setApiKey(string $apiKey);
+
+    public function getProviderName(): string;
 }

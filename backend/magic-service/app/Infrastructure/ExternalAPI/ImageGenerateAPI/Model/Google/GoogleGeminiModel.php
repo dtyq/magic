@@ -71,7 +71,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'google_gemini',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -122,6 +122,11 @@ class GoogleGeminiModel extends AbstractImageGenerate
         ]);
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'google_gemini';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

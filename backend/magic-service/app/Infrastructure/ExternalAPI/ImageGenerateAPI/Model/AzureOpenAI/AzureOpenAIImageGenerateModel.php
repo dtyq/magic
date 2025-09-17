@@ -18,7 +18,6 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGene
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
-use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
 
@@ -113,7 +112,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'azure_openai',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -154,6 +153,11 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         }
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'azure_openai';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

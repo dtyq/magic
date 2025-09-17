@@ -104,7 +104,7 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'azure_openai_edit',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -137,6 +137,11 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
         }
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'azure_openai';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
