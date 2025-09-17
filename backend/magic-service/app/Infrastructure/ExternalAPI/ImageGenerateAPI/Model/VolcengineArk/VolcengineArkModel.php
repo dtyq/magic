@@ -253,49 +253,56 @@ class VolcengineArkModel extends AbstractImageGenerate
         array $volcengineResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
-        // 从火山方舟响应中提取数据
-        if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
-            return;
-        }
-
-        $currentData = $response->getData();
-        $currentUsage = $response->getUsage() ?? [
-            'generated_images' => 0,
-            'output_tokens' => 0,
-            'total_tokens' => 0,
-        ];
-
-        foreach ($volcengineResult['data'] as $item) {
-            if (! empty($item['url'])) {
-                // 处理水印
-                $processedUrl = $item['url'];
-                try {
-                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($item['url'], $imageGenerateRequest);
-                } catch (Exception $e) {
-                    $this->logger->error('VolcengineArk添加图片数据：水印处理失败', [
-                        'error' => $e->getMessage(),
-                        'url' => $item['url'],
-                    ]);
-                    // 水印处理失败时使用原始URL
-                }
-
-                $currentData[] = [
-                    'url' => $processedUrl,
-                    'size' => $item['size'] ?? null,
-                ];
+        // 使用锁确保并发安全
+        $this->lockResponse($response);
+        try {
+            // 从火山方舟响应中提取数据
+            if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
+                return;
             }
-        }
 
-        // 累计usage信息
-        if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
-            $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 0;
-            $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
-            $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
-        }
+            $currentData = $response->getData();
+            $currentUsage = $response->getUsage() ?? [
+                'generated_images' => 0,
+                'output_tokens' => 0,
+                'total_tokens' => 0,
+            ];
 
-        // 更新响应对象
-        $response->setData($currentData);
-        $response->setUsage($currentUsage);
+            foreach ($volcengineResult['data'] as $item) {
+                if (! empty($item['url'])) {
+                    // 处理水印
+                    $processedUrl = $item['url'];
+                    try {
+                        $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($item['url'], $imageGenerateRequest);
+                    } catch (Exception $e) {
+                        $this->logger->error('VolcengineArk添加图片数据：水印处理失败', [
+                            'error' => $e->getMessage(),
+                            'url' => $item['url'],
+                        ]);
+                        // 水印处理失败时使用原始URL
+                    }
+
+                    $currentData[] = [
+                        'url' => $processedUrl,
+                        'size' => $item['size'] ?? null,
+                    ];
+                }
+            }
+
+            // 累计usage信息
+            if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
+                $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 0;
+                $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
+                $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
+            }
+
+            // 更新响应对象
+            $response->setData($currentData);
+            $response->setUsage($currentUsage);
+        } finally {
+            // 确保锁一定会被释放
+            $this->unlockResponse($response);
+        }
     }
 
     private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
