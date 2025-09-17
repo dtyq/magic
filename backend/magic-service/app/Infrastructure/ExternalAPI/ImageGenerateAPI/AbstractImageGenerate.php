@@ -9,6 +9,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
@@ -49,6 +50,11 @@ abstract class AbstractImageGenerate implements ImageGenerate
      * 各子类必须根据自己的数据格式实现此方法.
      */
     abstract public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array;
+
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        return $this->generateImageOpenAIFormat($imageGenerateRequest);
+    }
 
     /**
      * 子类实现的原始图片生成方法

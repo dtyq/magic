@@ -14,6 +14,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
@@ -68,6 +69,67 @@ class VolcengineArkModel extends AbstractImageGenerate
         return $this->processVolcengineArkRawDataWithWatermark($rawData, $imageGenerateRequest);
     }
 
+    /**
+     * 生成图像并返回OpenAI格式响应 - V2一体化版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => 'volcengine_ark',
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof VolcengineArkRequest) {
+            $this->logger->error('VolcengineArk OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        // 3. 并发处理 - 直接操作响应对象
+        $count = $imageGenerateRequest->getGenerateNum();
+        $parallel = new Parallel();
+        $fromCoroutineId = Coroutine::id();
+
+        for ($i = 0; $i < $count; ++$i) {
+            $parallel->add(function () use ($imageGenerateRequest, $response, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    $result = $this->requestImageGenerationV2($imageGenerateRequest);
+                    $this->validateVolcengineArkResponse($result);
+
+                    // 成功：设置图片数据到响应对象
+                    $this->addImageDataToResponse($response, $result, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    // 失败：设置错误信息到响应对象（只设置第一个错误）
+                    if (! $response->hasError()) {
+                        $response->setProviderErrorCode($e->getCode());
+                        $response->setProviderErrorMessage($e->getMessage());
+                    }
+
+                    $this->logger->error('VolcengineArk OpenAI格式生图：单个请求失败', [
+                        'error_code' => $e->getCode(),
+                        'error_message' => $e->getMessage(),
+                    ]);
+                }
+            });
+        }
+
+        $parallel->wait();
+
+        // 4. 记录最终结果
+        $this->logger->info('VolcengineArk OpenAI格式生图：并发处理完成', [
+            '总请求数' => $count,
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
+    }
+
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         $rawResults = $this->generateImageRawInternal($imageGenerateRequest);
@@ -114,7 +176,38 @@ class VolcengineArkModel extends AbstractImageGenerate
 
         // 构建API payload
         $payload = [
-            'model' => 'doubao-seedream-4-0-250828',
+            'model' => $imageGenerateRequest->getModel(),
+            'prompt' => $prompt,
+            'size' => $this->formatSize($imageGenerateRequest->getWidth(), $imageGenerateRequest->getHeight()),
+            'response_format' => $imageGenerateRequest->getResponseFormat(),
+            'watermark' => $imageGenerateRequest->getWatermark(),
+            'sequential_image_generation' => $imageGenerateRequest->getSequentialImageGeneration(),
+            'stream' => $imageGenerateRequest->getStream(),
+        ];
+
+        // 如果有参考图像，则添加image字段
+        if (! empty($referImages)) {
+            $payload['image'] = $referImages[0];
+        }
+        try {
+            return $this->api->generateImage($payload);
+        } catch (Exception $e) {
+            $this->logger->warning('VolcengineArk图片生成：调用图片生成接口失败', ['error' => $e->getMessage()]);
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
+        }
+    }
+
+    /**
+     * V2版本：纯粹的API调用，不处理异常.
+     */
+    protected function requestImageGenerationV2(VolcengineArkRequest $imageGenerateRequest): array
+    {
+        $prompt = $imageGenerateRequest->getPrompt();
+        $referImages = $imageGenerateRequest->getReferImages();
+
+        // 构建API payload
+        $payload = [
+            'model' => $imageGenerateRequest->getModel(),
             'prompt' => $prompt,
             'size' => $this->formatSize($imageGenerateRequest->getWidth(), $imageGenerateRequest->getHeight()),
             'response_format' => $imageGenerateRequest->getResponseFormat(),
@@ -128,12 +221,8 @@ class VolcengineArkModel extends AbstractImageGenerate
             $payload['image'] = $referImages[0];
         }
 
-        try {
-            return $this->api->generateImage($payload);
-        } catch (Exception $e) {
-            $this->logger->warning('VolcengineArk图片生成：调用图片生成接口失败', ['error' => $e->getMessage()]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
-        }
+        // 直接调用API，异常自然向上抛
+        return $this->api->generateImage($payload);
     }
 
     /**
@@ -144,6 +233,69 @@ class VolcengineArkModel extends AbstractImageGenerate
         $w = (int) $width;
         $h = (int) $height;
         return "{$w}x{$h}";
+    }
+
+    /**
+     * 验证火山方舟API响应数据格式.
+     */
+    private function validateVolcengineArkResponse(array $result): void
+    {
+        if (empty($result['data']) || ! is_array($result['data']) || empty($result['data'][0]['url'])) {
+            throw new Exception('火山方舟响应数据格式错误');
+        }
+    }
+
+    /**
+     * 将火山方舟图片数据添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponse(
+        OpenAIFormatResponse $response,
+        array $volcengineResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 从火山方舟响应中提取数据
+        if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
+            return;
+        }
+
+        $currentData = $response->getData();
+        $currentUsage = $response->getUsage() ?? [
+            'generated_images' => 0,
+            'output_tokens' => 0,
+            'total_tokens' => 0,
+        ];
+
+        foreach ($volcengineResult['data'] as $item) {
+            if (! empty($item['url'])) {
+                // 处理水印
+                $processedUrl = $item['url'];
+                try {
+                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($item['url'], $imageGenerateRequest);
+                } catch (Exception $e) {
+                    $this->logger->error('VolcengineArk添加图片数据：水印处理失败', [
+                        'error' => $e->getMessage(),
+                        'url' => $item['url'],
+                    ]);
+                    // 水印处理失败时使用原始URL
+                }
+
+                $currentData[] = [
+                    'url' => $processedUrl,
+                    'size' => $item['size'] ?? null,
+                ];
+            }
+        }
+
+        // 累计usage信息
+        if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
+            $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 0;
+            $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
+            $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
+        }
+
+        // 更新响应对象
+        $response->setData($currentData);
+        $response->setUsage($currentUsage);
     }
 
     private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array

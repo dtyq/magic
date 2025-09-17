@@ -9,6 +9,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 
 interface ImageGenerate
 {
@@ -35,6 +36,11 @@ interface ImageGenerate
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array;
 
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array;
+
+    /**
+     * 生成图像并返回OpenAI格式响应.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse;
 
     public function setAK(string $ak);
 

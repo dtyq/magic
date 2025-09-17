@@ -44,6 +44,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
@@ -289,7 +290,7 @@ class LLMAppService extends AbstractLLMAppService
         return $imageGenerateService->queryTask($taskId);
     }
 
-    public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
+    public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): OpenAIFormatResponse
     {
         $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
 
@@ -341,20 +342,18 @@ class LLMAppService extends AbstractLLMAppService
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
-                if (! empty($generateImageRaw)) {
-                    $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
-                    $n = $textGenerateImageDTO->getN();
-                    // 除了 mj 是 1 次之外，其他都按张数算
-                    if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
-                        $n = 1;
-                    }
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
-                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
-                    AsyncEventUtil::dispatch($event);
-
-                    return $generateImageRaw;
+                $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+                $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+                $n = $textGenerateImageDTO->getN();
+                // 除了 mj 是 1 次之外，其他都按张数算
+                if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
+                    $n = 1;
                 }
+                $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
+                $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                AsyncEventUtil::dispatch($event);
+
+                return $generateImageOpenAIFormat;
             } catch (Exception $e) {
                 $errorMessage = $e->getMessage();
                 $this->logger->warning('text generate image error:' . $e->getMessage());
@@ -366,7 +365,7 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * Image editing with uploaded files using volcano image generation models.
      */
-    public function imageEdit(ImageEditDTO $imageEditDTO): array
+    public function imageEdit(ImageEditDTO $imageEditDTO): OpenAIFormatResponse
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
 
@@ -397,15 +396,13 @@ class LLMAppService extends AbstractLLMAppService
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
-                if (! empty($generateImageRaw)) {
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
+                $openAIFormatResponse = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+                $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
 
-                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
-                    AsyncEventUtil::dispatch($event);
+                $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                AsyncEventUtil::dispatch($event);
 
-                    return $generateImageRaw;
-                }
+                return $openAIFormatResponse;
             } catch (Exception $e) {
                 $this->logger->warning('text generate image error:' . $e->getMessage());
             }
