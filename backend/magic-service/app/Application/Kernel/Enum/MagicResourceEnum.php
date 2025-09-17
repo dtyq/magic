@@ -25,8 +25,9 @@ enum MagicResourceEnum: string
     case PLATFORM = 'platform'; # 平台管理后台
 
     // ===== 二级：模块 =====
-    case ADMIN_AI = 'platform.ai'; # 平台管理后台-AI管理
+    case ADMIN_AI = 'admin.ai'; # 平台管理后台-AI管理
     case ADMIN_SAFE = 'admin.safe'; # 安全管控
+    case PLATFORM_AI = 'platform.ai'; # 平台管理后台-AI管理
     case PLATFORM_SETTING = 'platform.setting'; # 系统设置
 
     // ===== 三级：具体资源 (用于具体绑定接口）=====
@@ -50,6 +51,7 @@ enum MagicResourceEnum: string
             self::ADMIN_AI_MODE => 'permission.resource.ai_mode',
             self::SAFE_SUB_ADMIN => 'permission.resource.safe_sub_admin', # 子管理员
             self::PLATFORM => 'permission.resource.platform',
+            self::PLATFORM_AI => 'permission.resource.platform_ai',
             self::PLATFORM_SETTING => 'permission.resource.platform_setting',
             self::PLATFORM_SETTING_MAINTENANCE => 'permission.resource.platform_setting_maintenance',
         };
@@ -66,13 +68,14 @@ enum MagicResourceEnum: string
             self::ADMIN,
             self::PLATFORM => null,
             // 模块
-            self::ADMIN_AI,
+            self::PLATFORM_AI,
             self::PLATFORM_SETTING => self::PLATFORM,
+            self::ADMIN_AI,
             self::ADMIN_SAFE => self::ADMIN,
             // 操作资源
             self::ADMIN_AI_MODEL,
             self::ADMIN_AI_IMAGE,
-            self::ADMIN_AI_MODE => self::ADMIN_AI,
+            self::ADMIN_AI_MODE => self::PLATFORM_AI,
             self::SAFE_SUB_ADMIN => self::ADMIN_SAFE,
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
         };
@@ -81,5 +84,15 @@ enum MagicResourceEnum: string
     public function label(): string
     {
         return __($this->translationKey());
+    }
+
+    /**
+     * 返回与该资源绑定的 Operation Enum 类名。
+     * 默认使用 MagicOperationEnum。
+     * 如需为特定资源自定义操作集，可在此返回自定义 Enum::class。
+     */
+    public function operationEnumClass(): string
+    {
+        return MagicOperationEnum::class;
     }
 }
