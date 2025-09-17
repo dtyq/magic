@@ -14,7 +14,6 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceCreationParams;
@@ -676,47 +675,6 @@ class WorkspaceDomainService
     public function getUniqueOrganizationCodes(): array
     {
         return $this->workspaceRepository->getUniqueOrganizationCodes();
-    }
-
-    /**
-     * 根据话题查询对象获取话题列表.
-     *
-     * @param TopicQuery $query 话题查询对象
-     * @return array{total: int, list: array<TopicEntity>} 话题列表和总数
-     */
-    public function getTopicsByQuery(TopicQuery $query): array
-    {
-        $conditions = $query->toConditions();
-
-        // 查询话题
-        return $this->topicRepository->getTopicsByConditions(
-            $conditions,
-            true,
-            $query->getPageSize(),
-            $query->getPage(),
-            $query->getOrderBy(),
-            $query->getOrder()
-        );
-    }
-
-    /**
-     * 获取话题状态统计指标.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param string $organizationCode 可选的组织代码过滤
-     * @return array 话题状态统计指标数据
-     */
-    public function getTopicStatusMetrics(DataIsolation $dataIsolation, string $organizationCode = ''): array
-    {
-        // 构建查询条件
-        $conditions = [];
-        // 如果提供了组织代码，添加到查询条件
-        if (! empty($organizationCode)) {
-            $conditions['user_organization_code'] = $organizationCode;
-        }
-
-        // 使用仓储层查询统计数据
-        return $this->topicRepository->getTopicStatusMetrics($conditions);
     }
 
     /**
