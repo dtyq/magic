@@ -33,8 +33,6 @@ abstract class AbstractImageGenerate implements ImageGenerate
     #[Inject]
     protected Redis $redis;
 
-    protected static string $watermarkText = '麦吉 AI 生成';
-
     /**
      * 响应对象锁的映射表.
      * @var array<string, Channel>

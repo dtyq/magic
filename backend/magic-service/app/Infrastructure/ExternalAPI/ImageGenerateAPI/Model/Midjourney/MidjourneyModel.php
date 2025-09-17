@@ -68,7 +68,7 @@ class MidjourneyModel extends AbstractImageGenerate
         // 1. 预先创建响应对象
         $response = new OpenAIFormatResponse([
             'created' => time(),
-            'provider' => 'midjourney',
+            'provider' => $this->getProviderName(),
             'data' => [],
         ]);
 
@@ -105,6 +105,11 @@ class MidjourneyModel extends AbstractImageGenerate
         ]);
 
         return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'midjourney';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
