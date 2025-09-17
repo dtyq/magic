@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 use Hyperf\RateLimit\Annotation\RateLimit;
 use Hyperf\Retry\Annotation\Retry;
@@ -60,6 +61,53 @@ class QwenImageEditModel extends AbstractImageGenerate
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
         return $this->processQwenEditRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - QwenEdit版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => 'qwen_edit',
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof QwenImageEditRequest) {
+            $this->logger->error('QwenEdit OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        // 3. 同步处理图像编辑（单图）
+        try {
+            $result = $this->callSyncEditAPI($imageGenerateRequest);
+            $this->validateQwenEditResponse($result);
+
+            // 成功：设置图片数据到响应对象
+            $this->addImageDataToResponseQwenEdit($response, $result, $imageGenerateRequest);
+        } catch (Exception $e) {
+            // 失败：设置错误信息到响应对象
+            $response->setProviderErrorCode($e->getCode());
+            $response->setProviderErrorMessage($e->getMessage());
+
+            $this->logger->error('QwenEdit OpenAI格式生图：请求失败', [
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+
+        // 4. 记录最终结果
+        $this->logger->info('QwenEdit OpenAI格式生图：处理完成', [
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -219,5 +267,93 @@ class QwenImageEditModel extends AbstractImageGenerate
         }
 
         return $rawData;
+    }
+
+    /**
+     * 验证通义千问编辑API响应数据格式.
+     */
+    private function validateQwenEditResponse(array $result): void
+    {
+        if (empty($result['output']['choices']) || ! is_array($result['output']['choices'])) {
+            throw new Exception('通义千问编辑响应数据格式错误：缺少choices数据');
+        }
+
+        $hasValidImage = false;
+        foreach ($result['output']['choices'] as $choice) {
+            if (! empty($choice['message']['content']) && is_array($choice['message']['content'])) {
+                foreach ($choice['message']['content'] as $content) {
+                    if (! empty($content['image'])) {
+                        $hasValidImage = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if (! $hasValidImage) {
+            throw new Exception('通义千问编辑响应数据格式错误：缺少图像数据');
+        }
+    }
+
+    /**
+     * 将通义千问编辑图片数据添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponseQwenEdit(
+        OpenAIFormatResponse $response,
+        array $qwenResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 从通义千问编辑响应中提取数据
+        if (empty($qwenResult['output']['choices']) || ! is_array($qwenResult['output']['choices'])) {
+            return;
+        }
+
+        $currentData = $response->getData();
+        $currentUsage = $response->getUsage() ?? [
+            'generated_images' => 0,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'total_tokens' => 0,
+        ];
+
+        foreach ($qwenResult['output']['choices'] as $choice) {
+            if (empty($choice['message']['content']) || ! is_array($choice['message']['content'])) {
+                continue;
+            }
+
+            foreach ($choice['message']['content'] as $content) {
+                if (empty($content['image'])) {
+                    continue;
+                }
+
+                // 处理水印
+                $processedUrl = $content['image'];
+                try {
+                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($content['image'], $imageGenerateRequest);
+                } catch (Exception $e) {
+                    $this->logger->error('QwenEdit添加图片数据：水印处理失败', [
+                        'error' => $e->getMessage(),
+                        'url' => $content['image'],
+                    ]);
+                    // 水印处理失败时使用原始URL
+                }
+
+                $currentData[] = [
+                    'url' => $processedUrl,
+                ];
+            }
+        }
+
+        // 累计usage信息 - 通义千问编辑的usage格式适配
+        if (! empty($qwenResult['usage']) && is_array($qwenResult['usage'])) {
+            ++$currentUsage['generated_images']; // 编辑生成1张图片
+            $currentUsage['input_tokens'] += $qwenResult['usage']['input_tokens'] ?? 0;
+            $currentUsage['output_tokens'] += $qwenResult['usage']['output_tokens'] ?? 0;
+            $currentUsage['total_tokens'] += $qwenResult['usage']['total_tokens'] ?? 0;
+        }
+
+        // 更新响应对象
+        $response->setData($currentData);
+        $response->setUsage($currentUsage);
     }
 }

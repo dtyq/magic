@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
@@ -68,6 +69,70 @@ class QwenImageModel extends AbstractImageGenerate
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
         return $this->processQwenRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - Qwen版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => 'qwen',
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof QwenImageModelRequest) {
+            $this->logger->error('Qwen OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        // 3. 并发处理 - 直接操作响应对象
+        $count = $imageGenerateRequest->getGenerateNum();
+        $parallel = new Parallel();
+        $fromCoroutineId = Coroutine::id();
+
+        for ($i = 0; $i < $count; ++$i) {
+            $parallel->add(function () use ($imageGenerateRequest, $response, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    // 提交任务并轮询结果
+                    $taskId = $this->submitAsyncTask($imageGenerateRequest);
+                    $result = $this->pollTaskResult($taskId, $imageGenerateRequest);
+
+                    $this->validateQwenResponse($result);
+
+                    // 成功：设置图片数据到响应对象
+                    $this->addImageDataToResponseQwen($response, $result, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    // 失败：设置错误信息到响应对象（只设置第一个错误）
+                    if (! $response->hasError()) {
+                        $response->setProviderErrorCode($e->getCode());
+                        $response->setProviderErrorMessage($e->getMessage());
+                    }
+
+                    $this->logger->error('Qwen OpenAI格式生图：单个请求失败', [
+                        'error_code' => $e->getCode(),
+                        'error_message' => $e->getMessage(),
+                    ]);
+                }
+            });
+        }
+
+        $parallel->wait();
+
+        // 4. 记录最终结果
+        $this->logger->info('Qwen OpenAI格式生图：并发处理完成', [
+            '总请求数' => $count,
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -430,5 +495,90 @@ class QwenImageModel extends AbstractImageGenerate
         }
 
         return $rawData;
+    }
+
+    /**
+     * 验证通义千问API响应数据格式.
+     */
+    private function validateQwenResponse(array $result): void
+    {
+        if (empty($result['output']) || ! is_array($result['output'])) {
+            throw new Exception('通义千问响应数据格式错误：缺少output字段');
+        }
+
+        $output = $result['output'];
+        if (empty($output['results']) || ! is_array($output['results'])) {
+            throw new Exception('通义千问响应数据格式错误：缺少results字段');
+        }
+
+        // 检查第一个结果是否有URL
+        if (empty($output['results'][0]['url'])) {
+            throw new Exception('通义千问响应数据格式错误：缺少图片URL');
+        }
+    }
+
+    /**
+     * 将通义千问图片数据添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponseQwen(
+        OpenAIFormatResponse $response,
+        array $qwenResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 使用锁确保并发安全
+        $this->lockResponse($response);
+        try {
+            // 从通义千问响应中提取数据
+            if (empty($qwenResult['output']['results']) || ! is_array($qwenResult['output']['results'])) {
+                return;
+            }
+
+            $results = $qwenResult['output']['results'];
+            $currentData = $response->getData();
+            $currentUsage = $response->getUsage() ?? [
+                'generated_images' => 0,
+                'output_tokens' => 0,
+                'total_tokens' => 0,
+            ];
+
+            // 处理 results 数组中的第一个图片URL
+            foreach ($results as $resultItem) {
+                if (! empty($resultItem['url'])) {
+                    try {
+                        // 处理水印
+                        $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($resultItem['url'], $imageGenerateRequest);
+                        $currentData[] = [
+                            'url' => $processedUrl,
+                        ];
+                    } catch (Exception $e) {
+                        $this->logger->error('Qwen添加图片数据：URL水印处理失败', [
+                            'error' => $e->getMessage(),
+                            'url' => $resultItem['url'],
+                        ]);
+                        // 水印处理失败时使用原始URL
+                        $currentData[] = [
+                            'url' => $resultItem['url'],
+                        ];
+                    }
+                    break; // 只取第一个图片
+                }
+            }
+
+            // 累计usage信息
+            if (! empty($qwenResult['usage']) && is_array($qwenResult['usage'])) {
+                $currentUsage['generated_images'] += $qwenResult['usage']['image_count'] ?? 1;
+            // 通义千问没有token信息，保持默认值
+            } else {
+                // 如果没有usage信息，默认增加1张图片
+                ++$currentUsage['generated_images'];
+            }
+
+            // 更新响应对象
+            $response->setData($currentData);
+            $response->setUsage($currentUsage);
+        } finally {
+            // 确保锁一定会被释放
+            $this->unlockResponse($response);
+        }
     }
 }
