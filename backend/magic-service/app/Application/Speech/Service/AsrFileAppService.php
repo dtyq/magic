@@ -89,8 +89,20 @@ readonly class AsrFileAppService
             $userId = $userAuthorization->getId();
             $organizationCode = $userAuthorization->getOrganizationCode();
 
-            // 1. 通过话题ID获取对话ID
-            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($summaryRequest->topicId);
+            // 1. 通过SuperAgent话题ID获取话题实体，再获取对话ID
+            $topicEntity = $this->topicDomainService->getTopicById((int) $summaryRequest->topicId);
+
+            if ($topicEntity === null) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+            }
+
+            // 验证话题权限
+            if ($topicEntity->getUserId() !== $userId) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
+            }
+
+            $chatTopicId = $topicEntity->getChatTopicId();
+            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
 
             // 2. 获取并验证任务状态（如果有workspace_file_path则跳过此步骤）
             $taskStatus = null;
@@ -122,7 +134,8 @@ readonly class AsrFileAppService
                 $organizationCode,
                 $summaryRequest->projectId,
                 $userId,
-                $summaryRequest->topicId,
+                $summaryRequest->topicId, // SuperAgent话题ID
+                $chatTopicId, // Chat话题ID
                 $conversationId,
                 $summaryRequest->modelId
             );
@@ -499,6 +512,11 @@ readonly class AsrFileAppService
         $processStartTime = microtime(true);
 
         try {
+            $this->logger->info('MergeAudio 下载合并流程开始', [
+                'task_key' => $taskKey,
+                'organization_code' => $organizationCode,
+                'business_directory' => $businessDirectory,
+            ]);
             // 1. 获取音频文件列表，用于格式检测
             $allAudioFiles = $this->getAudioFileList($organizationCode, $businessDirectory);
             $audioFiles = array_filter($allAudioFiles, static function (CloudFileInfoDTO $file) {
@@ -510,8 +528,21 @@ readonly class AsrFileAppService
                 throw new InvalidArgumentException('audio_file_not_found');
             }
 
+            $audioSamples = array_slice(array_map(static function (CloudFileInfoDTO $f) {
+                return $f->getFilename();
+            }, $audioFiles), 0, 5);
+            $this->logger->info('MergeAudio 发现可用音频分片', [
+                'task_key' => $taskKey,
+                'count' => count($audioFiles),
+                'samples' => $audioSamples,
+            ]);
+
             // 2. 检测主要音频格式
             $dominantFormat = $this->detectDominantAudioFormat($audioFiles);
+            $this->logger->info('MergeAudio 主要音频格式确定', [
+                'task_key' => $taskKey,
+                'dominant_format' => $dominantFormat,
+            ]);
 
             // 3. 下载所有音频文件到本地
             $localAudioFiles = $this->downloadAudioFiles($organizationCode, $businessDirectory, $taskKey);
@@ -519,14 +550,37 @@ readonly class AsrFileAppService
                 throw new InvalidArgumentException('audio_file_not_found');
             }
 
+            $localSamples = [];
+            foreach (array_slice($localAudioFiles, 0, 5) as $lf) {
+                $localSamples[] = [
+                    'name' => basename($lf),
+                    'size' => filesize($lf),
+                    'head_hex' => substr($this->getHeadHexForLog($lf, 16), 0, 32),
+                ];
+            }
+            $this->logger->info('MergeAudio 分片下载完成', [
+                'task_key' => $taskKey,
+                'downloaded_count' => count($localAudioFiles),
+                'samples' => $localSamples,
+            ]);
+
             // 4. 合并音频文件
             $mergedFile = $this->mergeAudioFiles($localAudioFiles, $taskKey, $dominantFormat);
+
+            $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
+            $this->logger->info('MergeAudio 合并完成', [
+                'task_key' => $taskKey,
+                'output_file' => $mergedFile,
+                'output_size' => filesize($mergedFile),
+                'output_head_hex' => substr($this->getHeadHexForLog($mergedFile, 16), 0, 32),
+                'total_duration_ms' => $totalDuration,
+            ]);
 
             return ['file_path' => $mergedFile, 'format' => $dominantFormat];
         } catch (Throwable $e) {
             $totalDuration = round((microtime(true) - $processStartTime) * 1000, 2);
 
-            $this->logger->error('ASR音频下载合并流程失败', [
+            $this->logger->error('MergeAudio 音频下载合并流程失败', [
                 'task_key' => $taskKey,
                 'organization_code' => $organizationCode,
                 'business_directory' => $businessDirectory,
@@ -558,12 +612,20 @@ readonly class AsrFileAppService
         }
 
         if (empty($formatCount)) {
+            $this->logger->info('MergeAudio 主要格式检测为空，使用默认格式', [
+                'default' => 'webm',
+            ]);
             return 'webm'; // 默认格式
         }
 
         // 返回出现次数最多的格式
         arsort($formatCount);
-        return array_key_first($formatCount);
+        $dominant = array_key_first($formatCount);
+        $this->logger->info('MergeAudio 主要格式检测结果', [
+            'format_counts' => $formatCount,
+            'dominant' => $dominant,
+        ]);
+        return $dominant;
     }
 
     /**
@@ -639,6 +701,22 @@ readonly class AsrFileAppService
                 }
             }
 
+            $downloadedSamples = [];
+            foreach (array_slice($localFiles, 0, 5) as $lf) {
+                $downloadedSamples[] = [
+                    'name' => basename($lf),
+                    'size' => filesize($lf),
+                    'head_hex' => substr($this->getHeadHexForLog($lf, 16), 0, 32),
+                ];
+            }
+            $this->logger->info('MergeAudio 分片本地下载摘要', [
+                'task_key' => $taskKey,
+                'expect_count' => count($audioFiles),
+                'downloaded_count' => count($localFiles),
+                'samples' => $downloadedSamples,
+                'runtime_dir' => $runtimeDir,
+            ]);
+
             return $localFiles;
         } catch (Throwable $e) {
             throw new InvalidArgumentException(sprintf('下载音频文件失败: %s', $e->getMessage()));
@@ -664,7 +742,7 @@ readonly class AsrFileAppService
                 return preg_match('/\.(webm|mp3|wav|m4a|ogg|aac|flac)$/i', $filename);
             });
         } catch (Throwable $e) {
-            $this->logger->warning('ASR音频文件列表查询失败', [
+            $this->logger->warning('MergeAudio 音频文件列表查询失败', [
                 'organization_code' => $organizationCode,
                 'business_directory' => $businessDirectory,
                 'error' => $e->getMessage(),
@@ -718,12 +796,27 @@ readonly class AsrFileAppService
         $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
         $outputFile = sprintf('%s/merged_audio.%s', $runtimeDir, $format);
 
+        $this->logger->info('MergeAudio 开始合并音频', [
+            'task_key' => $taskKey,
+            'segment_count' => count($audioFiles),
+            'target_format' => $format,
+            'output_file' => $outputFile,
+        ]);
+
         // 按文件名数字顺序排序
         usort($audioFiles, static function (string $a, string $b): int {
             $aNum = (int) pathinfo(basename($a), PATHINFO_FILENAME);
             $bNum = (int) pathinfo(basename($b), PATHINFO_FILENAME);
             return $aNum <=> $bNum;
         });
+
+        $sortedSamples = array_slice(array_map(static function (string $p) {
+            return basename($p);
+        }, $audioFiles), 0, 10);
+        $this->logger->info('MergeAudio 分片排序完成', [
+            'task_key' => $taskKey,
+            'sorted_samples' => $sortedSamples,
+        ]);
 
         // 如果只有一个文件，直接复制
         if (count($audioFiles) === 1) {
@@ -732,6 +825,14 @@ readonly class AsrFileAppService
             if (! copy($sourceFile, $outputFile)) {
                 throw new InvalidArgumentException('复制单个音频文件失败');
             }
+
+            $this->logger->info('MergeAudio 单文件直接输出', [
+                'task_key' => $taskKey,
+                'source' => basename($sourceFile),
+                'output_file' => $outputFile,
+                'output_size' => filesize($outputFile),
+                'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
+            ]);
 
             return $outputFile;
         }
@@ -745,6 +846,15 @@ readonly class AsrFileAppService
                 throw new InvalidArgumentException('没有可用于合并的有效音频片段');
             }
 
+            $normalizedSamples = array_slice(array_map(static function (string $p) {
+                return basename($p);
+            }, $normalizedParts), 0, 10);
+            $this->logger->info('MergeAudio 规范化分段完成', [
+                'task_key' => $taskKey,
+                'normalized_count' => count($normalizedParts),
+                'samples' => $normalizedSamples,
+            ]);
+
             if (count($normalizedParts) === 1) {
                 // 只有一个完整文件，直接复制为输出
                 $single = $normalizedParts[0];
@@ -752,10 +862,23 @@ readonly class AsrFileAppService
                     throw new InvalidArgumentException('复制单个规范化音频失败');
                 }
 
+                $this->logger->info('MergeAudio 规范化后单文件直接输出', [
+                    'task_key' => $taskKey,
+                    'source' => basename($single),
+                    'output_file' => $outputFile,
+                    'output_size' => filesize($outputFile),
+                    'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
+                ]);
+
                 return $outputFile;
             }
 
             // 使用无损remux进行合并
+            $this->logger->info('MergeAudio 尝试ffmpeg无损合并', [
+                'task_key' => $taskKey,
+                'part_count' => count($normalizedParts),
+                'output_file' => $outputFile,
+            ]);
             $ffmpegMerged = $this->mergeAudioFilesWithFfmpeg($normalizedParts, $taskKey, $outputFile);
             if ($ffmpegMerged !== null) {
                 return $ffmpegMerged;
@@ -767,7 +890,7 @@ readonly class AsrFileAppService
             ]);
             return $this->mergeAudioFilesBinary($normalizedParts, $taskKey, $outputFile);
         } catch (Throwable $e) {
-            $this->logger->warning('分组规范化/ffmpeg流程异常，兜底使用二进制拼接原始片段', [
+            $this->logger->warning('MergeAudio 分组规范化/ffmpeg流程异常，兜底使用二进制拼接原始片段', [
                 'task_key' => $taskKey,
                 'error' => $e->getMessage(),
             ]);
@@ -838,6 +961,20 @@ readonly class AsrFileAppService
     private function mergeAudioFilesBinary(array $audioFiles, string $taskKey, string $outputFile): string
     {
         try {
+            $inputSamples = [];
+            foreach (array_slice($audioFiles, 0, 5) as $in) {
+                $inputSamples[] = [
+                    'name' => basename($in),
+                    'size' => filesize($in),
+                    'head_hex' => file_exists($in) ? substr($this->getHeadHexForLog($in, 16), 0, 32) : '',
+                ];
+            }
+            $this->logger->info('MergeAudio 开始二进制拼接', [
+                'task_key' => $taskKey,
+                'input_count' => count($audioFiles),
+                'samples' => $inputSamples,
+                'target' => $outputFile,
+            ]);
             // 删除可能存在的输出文件
             if (file_exists($outputFile)) {
                 unlink($outputFile);
@@ -893,9 +1030,16 @@ readonly class AsrFileAppService
                 throw new InvalidArgumentException('合并后的文件为空或不存在');
             }
 
+            $this->logger->info('MergeAudio 二进制拼接完成', [
+                'task_key' => $taskKey,
+                'output_file' => $outputFile,
+                'output_size' => filesize($outputFile),
+                'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
+            ]);
+
             return $outputFile;
         } catch (Throwable $e) {
-            $this->logger->error('二进制合并失败', [
+            $this->logger->error('MergeAudio 二进制合并失败', [
                 'task_key' => $taskKey,
                 'error' => $e->getMessage(),
                 'output_file' => basename($outputFile),
@@ -935,7 +1079,7 @@ readonly class AsrFileAppService
             }
             $content = implode("\n", $lines);
             if (file_put_contents($listFile, $content) === false) {
-                $this->logger->warning('写入ffmpeg列表文件失败', [
+                $this->logger->warning('MergeAudio 写入ffmpeg列表文件失败', [
                     'task_key' => $taskKey,
                     'list_file' => $listFile,
                 ]);
@@ -947,12 +1091,20 @@ readonly class AsrFileAppService
                 escapeshellarg($outputFile)
             );
 
+            $this->logger->info('MergeAudio 执行ffmpeg合并', [
+                'task_key' => $taskKey,
+                'parts' => count($audioFiles),
+                'list_file' => $listFile,
+                'output_file' => $outputFile,
+                'cmd' => $cmd,
+            ]);
+
             $output = [];
             $returnVar = 0;
             exec($cmd . ' 2>&1', $output, $returnVar);
 
             if ($returnVar !== 0 || ! file_exists($outputFile) || filesize($outputFile) === 0) {
-                $this->logger->warning('ffmpeg合并失败', [
+                $this->logger->warning('MergeAudio ffmpeg合并失败', [
                     'task_key' => $taskKey,
                     'code' => $returnVar,
                     'output' => implode("\n", array_slice($output, -10)),
@@ -960,9 +1112,16 @@ readonly class AsrFileAppService
                 return null;
             }
 
+            $this->logger->info('MergeAudio  ffmpeg合并完成', [
+                'task_key' => $taskKey,
+                'output_file' => $outputFile,
+                'output_size' => filesize($outputFile),
+                'output_head_hex' => substr($this->getHeadHexForLog($outputFile, 16), 0, 32),
+            ]);
+
             return $outputFile;
         } catch (Throwable $e) {
-            $this->logger->warning('ffmpeg合并异常', [
+            $this->logger->warning('MergeAudio ffmpeg合并异常', [
                 'task_key' => $taskKey,
                 'error' => $e->getMessage(),
             ]);
@@ -982,6 +1141,24 @@ readonly class AsrFileAppService
         $data = fread($handle, 4) ?: '';
         fclose($handle);
         return $data;
+    }
+
+    /**
+     * 获取文件头部若干字节的十六进制字符串（用于日志排查）。
+     */
+    private function getHeadHexForLog(string $path, int $bytes = 16): string
+    {
+        $hex = '';
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return $hex;
+        }
+        $data = fread($handle, $bytes) ?: '';
+        fclose($handle);
+        if ($data !== '') {
+            $hex = bin2hex($data);
+        }
+        return $hex;
     }
 
     // 旧的按容器判断方法已统一到 canBinaryConcat()，已移除容器类型探测
@@ -1024,12 +1201,25 @@ readonly class AsrFileAppService
             if (count($currentGroup) === 1) {
                 // 只有一个片段，直接加入
                 $result[] = $currentGroup[0];
+                $this->logger->info('MergeAudio 规范化分组（单片段转发）', [
+                    'task_key' => $taskKey,
+                    'group_index' => $groupIndex,
+                    'segment' => basename($currentGroup[0]),
+                ]);
             } else {
                 // 多个片段：默认用二进制拼接（适配"第一段有元数据，其余为续段"的场景）
                 $tempOut = sprintf('%s/normalized_%s_%d.%s', $runtimeDir, $taskKey, $groupIndex, $format);
 
                 $this->mergeAudioFilesBinary($currentGroup, $taskKey, $tempOut);
                 $result[] = $tempOut;
+                $this->logger->info('MergeAudio 规范化分组（二进制拼接）', [
+                    'task_key' => $taskKey,
+                    'group_index' => $groupIndex,
+                    'segment_count' => count($currentGroup),
+                    'output' => basename($tempOut),
+                    'output_size' => filesize($tempOut),
+                    'output_head_hex' => substr($this->getHeadHexForLog($tempOut, 16), 0, 32),
+                ]);
             }
             $currentGroup = [];
             ++$groupIndex;
@@ -1057,6 +1247,13 @@ readonly class AsrFileAppService
 
         // 冲掉最后一组
         $flushGroup();
+
+        $this->logger->info('MergeAudio 规范化分段汇总', [
+            'task_key' => $taskKey,
+            'input_segments' => count($segments),
+            'normalized_count' => count($result),
+            'samples' => array_slice(array_map(static function (string $p) { return basename($p); }, $result), 0, 10),
+        ]);
 
         return $result;
     }
@@ -1344,7 +1541,7 @@ readonly class AsrFileAppService
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
             // 4. 保存文件记录到项目
-            $fileSize = file_exists($mergedLocalAudioFile) ? filesize($mergedLocalAudioFile) : 0;
+            $fileSize = filesize($mergedLocalAudioFile);
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
                 $projectId,
@@ -1430,7 +1627,7 @@ readonly class AsrFileAppService
             $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto);
 
             // 检查话题状态，决定是直接发送消息还是写入队列
-            $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId, $userAuthorization);
+            $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId);
             if ($shouldQueueMessage) {
                 // 话题状态为waiting或running，将消息写入队列
                 $this->queueChatMessage($dto, $chatRequest, $userAuthorization);
@@ -1442,7 +1639,8 @@ readonly class AsrFileAppService
             $this->logger->error('发送聊天消息失败', [
                 'task_key' => $dto->taskStatus->taskKey,
                 'conversation_id' => $dto->conversationId,
-                'chat_topic_id' => $dto->topicId,
+                'topic_id' => $dto->topicId, // SuperAgent话题ID
+                'chat_topic_id' => $dto->chatTopicId, // Chat话题ID
                 'error' => $e->getMessage(),
                 'user_id' => $dto->userId,
             ]);
@@ -1543,28 +1741,17 @@ readonly class AsrFileAppService
      * 当话题状态为WAITING或RUNNING时，消息需要写入队列处理
      *
      * @param string $topicId 话题ID
-     * @param MagicUserAuthorization $userAuthorization 用户授权信息
      * @return bool 是否应该队列处理
      * @throws InvalidArgumentException 当找不到话题时
      */
-    private function shouldQueueMessage(string $topicId, MagicUserAuthorization $userAuthorization): bool
+    private function shouldQueueMessage(string $topicId): bool
     {
         // 创建数据隔离对象
-        $dataIsolation = DataIsolation::create(
-            $userAuthorization->getOrganizationCode(),
-            $userAuthorization->getId()
-        );
-
-        // 通过Chat话题ID获取SuperAgent话题实体
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $topicId);
+        // 通过SuperAgent话题ID获取话题实体
+        $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
 
         if ($topicEntity === null) {
-            // 如果找不到话题，抛出异常终止流程
-            $this->logger->error('未找到对应的SuperAgent话题，终止ASR总结流程', [
-                'chat_topic_id' => $topicId,
-                'user_id' => $userAuthorization->getId(),
-            ]);
-            throw new InvalidArgumentException(sprintf('未找到对应的SuperAgent话题: %s', $topicId));
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
 
         // 检查话题的当前任务状态是否为waiting或running（需要队列处理）
@@ -1587,28 +1774,19 @@ readonly class AsrFileAppService
             $userAuthorization->getId()
         );
 
-        // 通过Chat话题ID获取SuperAgent话题实体，获取话题的数据库ID
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $dto->topicId);
+        // 通过SuperAgent话题ID获取话题实体
+        $topicEntity = $this->topicDomainService->getTopicById((int) $dto->topicId);
         if ($topicEntity === null) {
             throw new InvalidArgumentException(sprintf('未找到话题ID: %s', $dto->topicId));
         }
         $messageContent = $chatRequest->getData()->getMessage()->getMagicMessage()->toArray();
         // 写入消息队列
-        $messageEntity = $this->messageQueueDomainService->createMessage(
+        $this->messageQueueDomainService->createMessage(
             $dataIsolation,
             (int) $dto->projectId, // 转换为int类型
             $topicEntity->getId(), // 使用SuperAgent话题的数据库ID
             $messageContent,
             ChatMessageType::RichText // ASR总结消息使用富文本类型
         );
-
-        $this->logger->info('ASR总结消息已写入队列', [
-            'task_key' => $dto->taskStatus->taskKey,
-            'chat_topic_id' => $dto->topicId,
-            'topic_id' => $topicEntity->getId(),
-            'message_queue_id' => $messageEntity->getId(),
-            'project_id' => $dto->projectId,
-            'user_id' => $dto->userId,
-        ]);
     }
 }
