@@ -1597,22 +1597,12 @@ readonly class AsrFileAppService
         }
         $messageContent = $chatRequest->getData()->getMessage()->getMagicMessage()->toArray();
         // 写入消息队列
-        $messageEntity = $this->messageQueueDomainService->createMessage(
+        $this->messageQueueDomainService->createMessage(
             $dataIsolation,
             (int) $dto->projectId, // 转换为int类型
             $topicEntity->getId(), // 使用SuperAgent话题的数据库ID
             $messageContent,
             ChatMessageType::RichText // ASR总结消息使用富文本类型
         );
-
-        $this->logger->info('ASR总结消息已写入队列', [
-            'task_key' => $dto->taskStatus->taskKey,
-            'topic_id' => $dto->topicId, // SuperAgent话题ID
-            'chat_topic_id' => $dto->chatTopicId, // Chat话题ID
-            'topic_entity_id' => $topicEntity->getId(), // 话题数据库ID
-            'message_queue_id' => $messageEntity->getId(),
-            'project_id' => $dto->projectId,
-            'user_id' => $dto->userId,
-        ]);
     }
 }
