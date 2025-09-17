@@ -408,7 +408,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
         ImageGenerateRequest $imageGenerateRequest
     ): void {
         // 使用锁确保并发安全（虽然V3使用同步，但保持一致性）
-        $this->lockResponse($response);
+        $lockOwner = $this->lockResponse($response);
         try {
             // 从火山引擎V3响应中提取数据
             if (empty($volcengineResult['data']) || ! is_array($volcengineResult['data'])) {
@@ -477,7 +477,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
             $response->setUsage($currentUsage);
         } finally {
             // 确保锁一定会被释放
-            $this->unlockResponse($response);
+            $this->unlockResponse($response, $lockOwner);
         }
     }
 

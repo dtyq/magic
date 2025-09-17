@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Mapper;
 
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ImageGenerationModelWrapper;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
@@ -192,6 +193,18 @@ class ModelGatewayMapper extends ModelMapper
         return $odinModels;
     }
 
+    public function getOrganizationImageModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?ImageGenerationModelWrapper
+    {
+        $result = $this->getByAdmin($model, $orgCode, $filter, Category::VLM);
+
+        // 只返回 ImageGenerationModelWrapper 类型的结果
+        if ($result instanceof ImageGenerationModelWrapper) {
+            return $result;
+        }
+
+        return null;
+    }
+
     protected function loadEnvModels(): void
     {
         // env 添加的模型增加上 attributes
@@ -333,7 +346,7 @@ class ModelGatewayMapper extends ModelMapper
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
         ModelFilter $filter
-    ): ?OdinModel {
+    ): null|ImageGenerationModelWrapper|OdinModel {
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
         $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
 
@@ -425,6 +438,29 @@ class ModelGatewayMapper extends ModelMapper
             $iconUrl = '';
         }
 
+        $key = $providerModelEntity->getModelId();
+
+        // 根据模型类型返回不同的包装对象
+        if ($providerModelEntity->getModelType()->isVLM()) {
+            // 对于VLM模型，获取服务商配置并返回 ImageGenerationModelWrapper
+            $serviceProviderConfigs = di(AdminProviderDomainService::class)->getOfficeAndActiveModel(
+                $providerModelEntity->getModelVersion(),
+                Category::VLM
+            );
+
+            if (empty($serviceProviderConfigs)) {
+                return null;
+            }
+
+            return new ImageGenerationModelWrapper(
+                $providerModelEntity->getModelId(),
+                $providerModelEntity->getModelVersion(),
+                $serviceProviderConfigs,
+                $providerDataIsolation->getCurrentOrganizationCode()
+            );
+        }
+
+        // 对于LLM/Embedding模型，保持原有逻辑
         return new OdinModel(
             key: $key,
             model: $this->createModel($providerModelEntity->getModelVersion(), [
@@ -454,7 +490,7 @@ class ModelGatewayMapper extends ModelMapper
         );
     }
 
-    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?OdinModel
+    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null, Category $category = Category::LLM): null|ImageGenerationModelWrapper|OdinModel
     {
         if (! $filter) {
             $filter = new ModelFilter();
@@ -468,10 +504,11 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 直接调用仓储层获取所有可用模型（已包含套餐可见性过滤）
-        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
+        $modelsForOrganization = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, $category);
+
         // 在可用模型中查找指定模型
         $providerModelEntity = null;
-        foreach ($allModels as $availableModel) {
+        foreach ($modelsForOrganization as $availableModel) {
             if ($availableModel->getModelId() === $model || (string) $availableModel->getId() === $model) {
                 $providerModelEntity = $availableModel;
                 break;
