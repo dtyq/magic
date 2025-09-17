@@ -23,7 +23,7 @@ class AgentFileAppService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private SandboxGatewayInterface $gateway,
+        private readonly SandboxGatewayInterface $gateway,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -57,10 +57,5 @@ class AgentFileAppService
         ]);
 
         return $result;
-    }
-
-    public function getWorkspaceDir()
-    {
-        return '.workspace';
     }
 }
