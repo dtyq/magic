@@ -1389,6 +1389,7 @@ class TaskAppService extends AbstractAppService
             // 修改工具数据结构
             $tool['detail']['data']['file_id'] = (string) $fileId;
             $tool['detail']['data']['content'] = ''; // 清空内容
+            $tool['detail']['data']['file_extension'] = $fileExtension;
 
             $this->logger->info(sprintf(
                 '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',
