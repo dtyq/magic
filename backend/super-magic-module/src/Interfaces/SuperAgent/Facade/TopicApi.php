@@ -150,13 +150,13 @@ class TopicApi extends AbstractApi
         $dto = GetTopicAttachmentsRequestDTO::fromRequest($this->request);
         if (! empty($dto->getToken())) {
             // 走令牌校验的逻辑
-            return $this->workspaceAppService->getTopicAttachmentsByAccessToken($dto);
+            return $this->topicAppService->getTopicAttachmentsByAccessToken($dto);
         }
         // 登录用户使用的场景
         $requestContext->setUserAuthorization(di(AuthManager::class)->guard(name: 'web')->user());
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        return $this->workspaceAppService->getTopicAttachments($userAuthorization, $dto);
+        return $this->topicAppService->getTopicAttachments($userAuthorization, $dto);
     }
 
     /**

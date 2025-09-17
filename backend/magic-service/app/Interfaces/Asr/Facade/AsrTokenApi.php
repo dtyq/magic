@@ -18,6 +18,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -43,6 +44,7 @@ class AsrTokenApi extends AbstractApi
         protected FileAppService $fileAppService,
         protected Redis $redis,
         protected AsrFileAppService $asrFileAppService,
+        protected LockerInterface $locker,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
     ) {
@@ -175,7 +177,7 @@ class AsrTokenApi extends AbstractApi
      * 查询录音总结状态
      * POST /api/v1/asr/summary.
      *
-     * @param RequestInterface $request 包含 task_key、project_id、chat_topic_id、model_id、workspace_file_path 和 note 参数
+     * @param RequestInterface $request 包含 task_key、project_id、topic_id、model_id、workspace_file_path 和 note 参数
      */
     public function summary(RequestInterface $request): array
     {
@@ -183,30 +185,79 @@ class AsrTokenApi extends AbstractApi
         // 验证并获取请求参数
         $summaryRequest = $this->validateSummaryParams($request);
 
-        // 处理ASR总结任务的完整流程（包含聊天消息发送）
-        $result = $this->asrFileAppService->processSummaryWithChat(
-            $summaryRequest,
-            $userAuthorization
-        );
+        // 生成锁名称和拥有者标识
+        $lockName = sprintf('asr:summary:topic:%s', $summaryRequest->topicId);
+        $lockOwner = sprintf('%s:%s:%s', $userAuthorization->getId(), $summaryRequest->taskKey, microtime(true));
 
-        // 如果处理失败，直接返回错误
-        if (! $result['success']) {
+        // 获取自旋锁，最多等待 30 秒
+        $lockAcquired = false;
+        try {
+            $lockAcquired = $this->locker->spinLock($lockName, $lockOwner, 30);
+
+            if (! $lockAcquired) {
+                // 获取锁失败，返回错误
+                return [
+                    'success' => false,
+                    'error' => trans('asr.api.lock.acquire_failed'),
+                    'task_key' => $summaryRequest->taskKey,
+                    'project_id' => $summaryRequest->projectId,
+                    'topic_id' => $summaryRequest->topicId,
+                ];
+            }
+
+            // 处理ASR总结任务的完整流程（包含聊天消息发送）
+            $result = $this->asrFileAppService->processSummaryWithChat(
+                $summaryRequest,
+                $userAuthorization
+            );
+
+            // 如果处理失败，直接返回错误
+            if (! $result['success']) {
+                return [
+                    'success' => false,
+                    'error' => $result['error'],
+                    'task_key' => $summaryRequest->taskKey,
+                    'project_id' => $summaryRequest->projectId,
+                    'topic_id' => $summaryRequest->topicId,
+                ];
+            }
+
             return [
-                'success' => false,
-                'error' => $result['error'],
+                'success' => true,
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
-                'chat_topic_id' => $summaryRequest->topicId,
+                'topic_id' => $summaryRequest->topicId,
+                'conversation_id' => $result['conversation_id'],
             ];
-        }
+        } catch (Throwable $e) {
+            $this->logger->error('ASR总结处理异常', [
+                'task_key' => $summaryRequest->taskKey,
+                'topic_id' => $summaryRequest->topicId,
+                'error' => $e->getMessage(),
+                'user_id' => $userAuthorization->getId(),
+            ]);
 
-        return [
-            'success' => true,
-            'task_key' => $summaryRequest->taskKey,
-            'project_id' => $summaryRequest->projectId,
-            'chat_topic_id' => $summaryRequest->topicId,
-            'conversation_id' => $result['conversation_id'],
-        ];
+            return [
+                'success' => false,
+                'error' => sprintf('处理异常: %s', $e->getMessage()),
+                'task_key' => $summaryRequest->taskKey,
+                'project_id' => $summaryRequest->projectId,
+                'topic_id' => $summaryRequest->topicId,
+            ];
+        } finally {
+            // 确保释放锁
+            if ($lockAcquired) {
+                try {
+                    $this->locker->release($lockName, $lockOwner);
+                } catch (Throwable $e) {
+                    $this->logger->warning('释放ASR总结锁失败', [
+                        'lock_name' => $lockName,
+                        'lock_owner' => $lockOwner,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
     }
 
     /**
@@ -256,15 +307,6 @@ class AsrTokenApi extends AbstractApi
                 )->toArray();
             }
 
-            return DownloadMergedAudioResponseDTO::createFailureResponse(
-                $taskKey,
-                $userId,
-                $organizationCode,
-                'asr.download.get_link_error',
-                null,
-                ['error' => $e->getMessage()]
-            )->toArray();
-        } catch (Throwable $e) {
             return DownloadMergedAudioResponseDTO::createFailureResponse(
                 $taskKey,
                 $userId,
@@ -358,10 +400,14 @@ class AsrTokenApi extends AbstractApi
         // 保存更新的任务状态
         $this->saveTaskStatusToRedis($taskStatus);
 
+        // 生成工作区目录名（调用统一的目录名生成方法）
+        $workspaceDirectoryName = $this->asrFileAppService->generateAsrDirectoryName();
+
         return [
             'sts_token' => $tokenData,
             'task_key' => $taskKey,
             'upload_directory' => $stsFullDirectory,  // 使用STS完整路径
+            'workspace_directory_name' => $workspaceDirectoryName,  // 新增：工作区目录名
             'expires_in' => $expires,
             'storage_type' => $storageType,
             'user' => [
@@ -534,14 +580,14 @@ class AsrTokenApi extends AbstractApi
         $taskKey = $request->input('task_key', '');
         // 获取project_id参数（必传参数）
         $projectId = $request->input('project_id', '');
-        // 获取chat_topic_id参数（新增：必传参数）
-        $topicId = $request->input('chat_topic_id', '');
+        // 获取topic_id参数（必传参数）
+        $topicId = $request->input('topic_id', '');
         // 获取model_id参数（必传参数）
         $modelId = $request->input('model_id', '');
         // 获取workspace_file_path参数（可选参数）
-        $workspaceFilePath = $request->input('workspace_file_path', null);
+        $workspaceFilePath = $request->input('workspace_file_path');
         // 获取note参数（可选参数）
-        $noteData = $request->input('note', null);
+        $noteData = $request->input('note');
 
         // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
         if (! empty($workspaceFilePath) && empty($taskKey)) {
@@ -558,7 +604,7 @@ class AsrTokenApi extends AbstractApi
         }
 
         if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.chat_topic_id_required'));
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.topic_id_required'));
         }
 
         if (empty($modelId)) {
@@ -572,9 +618,9 @@ class AsrTokenApi extends AbstractApi
             $noteFileType = $noteData['file_extension'] ?? 'txt';
 
             if (! empty(trim($noteContent))) {
-                // 验证note内容长度，最大10000字符
+                // 验证note内容长度，最大25000字符
                 $contentLength = mb_strlen($noteContent);
-                if ($contentLength > 10000) {
+                if ($contentLength > 25000) {
                     ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.note_content_too_long', ['length' => $contentLength]));
                 }
 

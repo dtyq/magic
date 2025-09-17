@@ -29,8 +29,8 @@ class TaskMessageDTO
         private readonly ?array $mentions = null,
         private readonly bool $showInUi = true,
         private readonly ?string $messageId = null,
+        private readonly ?int $imSeqId = null,
         private readonly ?string $correlationId = null,
-        private readonly ?int $imSeqId = null
     ) {
     }
 
@@ -147,8 +147,8 @@ class TaskMessageDTO
             mentions: $data['mentions'] ?? null,
             showInUi: $data['show_in_ui'] ?? $data['showInUi'] ?? true,
             messageId: $data['message_id'] ?? $data['messageId'] ?? null,
+            imSeqId: isset($data['im_seq_id']) ? (int) $data['im_seq_id'] : (isset($data['imSeqId']) ? (int) $data['imSeqId'] : null),
             correlationId: $data['correlation_id'] ?? null,
-            imSeqId: isset($data['im_seq_id']) ? (int) $data['im_seq_id'] : (isset($data['imSeqId']) ? (int) $data['imSeqId'] : null)
         );
     }
 

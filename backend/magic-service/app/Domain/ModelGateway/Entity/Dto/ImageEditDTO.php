@@ -18,6 +18,8 @@ class ImageEditDTO extends AbstractRequestDTO
 
     protected array $images = [];
 
+    protected string $size = '1024x1024';
+
     public function __construct(array $requestData = [])
     {
         parent::__construct($requestData);
@@ -80,6 +82,21 @@ class ImageEditDTO extends AbstractRequestDTO
         }
     }
 
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
+    public function getSize(): string
+    {
+        return $this->size;
+    }
+
+    public function setSize(string $size): void
+    {
+        $this->size = $size;
+    }
+
     /**
      * Validate that the model supports image editing functionality.
      */
@@ -89,7 +106,8 @@ class ImageEditDTO extends AbstractRequestDTO
             ImageGenerateModelType::getVolcengineModes(),
             ImageGenerateModelType::getAzureOpenAIEditModes(),
             ImageGenerateModelType::getQwenImageEditModes(),
-            ImageGenerateModelType::getGoogleGeminiModes()
+            ImageGenerateModelType::getGoogleGeminiModes(),
+            ImageGenerateModelType::getVolcengineArkModes()
         );
 
         if (! in_array($this->model, $supportedModels)) {

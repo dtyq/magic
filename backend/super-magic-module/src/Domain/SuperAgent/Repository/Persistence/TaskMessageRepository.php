@@ -189,7 +189,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         return ($maxSeqId ?? 0) + 1;
     }
 
-    public function saveWithRawData(array $rawData, TaskMessageEntity $message): void
+    public function saveWithRawData(array $rawData, TaskMessageEntity $message, string $processStatus = TaskMessageModel::PROCESSING_STATUS_PENDING): void
     {
         $messageArray = $message->toArray();
 
@@ -202,7 +202,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $messageArray['raw_data'] = json_encode($rawData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         // 设置初始处理状态
-        $messageArray['processing_status'] = TaskMessageModel::PROCESSING_STATUS_PENDING;
+        $messageArray['processing_status'] = $processStatus;
         $messageArray['retry_count'] = 0;
 
         $this->model::query()->create($messageArray);

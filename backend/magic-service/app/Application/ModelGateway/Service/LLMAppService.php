@@ -187,7 +187,6 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
         $imageGenerateRequest->setGenerateNum($data['generate_num'] ?? 4);
-
         $providerConfigItem = $providerConfigEntity->getConfig();
         if ($providerConfigItem === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -212,6 +211,7 @@ class LLMAppService extends AbstractLLMAppService
             ->setUserId($authorization->getId())
             ->setAgentId($data['agent_id'] ?? '');
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setModel($providerConfigItem->getModelVersion());
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
@@ -240,6 +240,7 @@ class LLMAppService extends AbstractLLMAppService
         }
         $imageGeneratedEntity->setSourceType($sourceType);
         $imageGeneratedEntity->setSourceId($data['source_id'] ?? '');
+        $imageGeneratedEntity->setProviderModelId($providerConfigItem->getProviderModelId());
 
         $event = new ImageGeneratedEvent($imageGeneratedEntity);
         AsyncEventUtil::dispatch($event);
@@ -255,10 +256,12 @@ class LLMAppService extends AbstractLLMAppService
         $url = $reqDTO->getOriginImageUrl();
         $url = SSRFUtil::getSafeUrl($url, replaceIp: false);
         $miracleVisionServiceProviderConfig = $this->serviceProviderDomainService->getMiracleVisionServiceProviderConfig(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getOrganizationCode());
+        $providerConfigItem = $miracleVisionServiceProviderConfig->getConfig();
+
         /**
          * @var MiracleVisionModel $imageGenerateService
          */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
+        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $providerConfigItem);
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         $imageGeneratedEntity = new ImageGeneratedEntity();
@@ -266,7 +269,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setUserId($userAuthorization->getId());
         $imageGeneratedEntity->setImageCount(1);
         $imageGeneratedEntity->setCreatedAt(new DateTime());
-        $imageGeneratedEntity->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEntity->setModel($providerConfigItem->getModelVersion());
+        $imageGeneratedEntity->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEntity->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEntity->setSourceId($reqDTO->getSourceId());
 
@@ -293,8 +297,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
 
-        $organizationCode = $accessTokenEntity->getOrganizationCode();
-        $creator = $accessTokenEntity->getCreator();
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $textGenerateImageDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
+
         $modelVersion = $textGenerateImageDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -337,6 +345,7 @@ class LLMAppService extends AbstractLLMAppService
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
+                $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
@@ -345,7 +354,7 @@ class LLMAppService extends AbstractLLMAppService
                     if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
                         $n = 1;
                     }
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
+                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n, $serviceProviderConfig->getProviderModelId());
                     $event = new ImageGeneratedEvent($imageGeneratedEntity);
                     AsyncEventUtil::dispatch($event);
 
@@ -365,8 +374,13 @@ class LLMAppService extends AbstractLLMAppService
     public function imageEdit(ImageEditDTO $imageEditDTO): array
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
-        $organizationCode = $accessTokenEntity->getOrganizationCode();
-        $creator = $accessTokenEntity->getCreator();
+
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $imageEditDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
+
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -378,19 +392,28 @@ class LLMAppService extends AbstractLLMAppService
         $data = $imageGenerateParamsVO->toArray();
         $data['organization_code'] = $organizationCode;
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
-        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
         $implicitWatermark = new ImplicitWatermark();
+        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
         $implicitWatermark->setOrganizationCode($organizationCode)
             ->setUserId($creator)
             ->setTopicId($imageEditDTO->getTopicId());
 
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $size = $imageEditDTO->getSize();
+
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $imageGenerateRequest->setWidth($width);
+        $imageGenerateRequest->setHeight($height);
+
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
+                $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
-                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
+                    $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1, $serviceProviderConfig->getProviderModelId());
 
                     $event = new ImageGeneratedEvent($imageGeneratedEntity);
                     AsyncEventUtil::dispatch($event);
@@ -492,7 +515,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // Parse business parameters
             $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
-            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
+            $this->pointComponent->checkPointsSufficient($proxyModelRequest, $contextData['organization_code'], $contextData['user_id']);
 
             // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;
@@ -1251,7 +1274,7 @@ class LLMAppService extends AbstractLLMAppService
         return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 
-    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n): ImageGeneratedEntity
+    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n, string $providerModelId): ImageGeneratedEntity
     {
         $model = $requestDTO->getModel();
         // 发布图片生成事件
@@ -1259,6 +1282,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEntity->setOrganizationCode($organizationCode);
         $imageGeneratedEntity->setUserId($creator);
         $imageGeneratedEntity->setModel($model);
+        $imageGeneratedEntity->setProviderModelId($providerModelId);
         $imageGeneratedEntity->setImageCount($n);
         $imageGeneratedEntity->setTopicId($requestDTO->getTopicId());
         $imageGeneratedEntity->setTaskId($requestDTO->getTaskId());

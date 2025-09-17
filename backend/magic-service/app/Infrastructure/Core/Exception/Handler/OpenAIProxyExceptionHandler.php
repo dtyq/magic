@@ -9,6 +9,7 @@ namespace App\Infrastructure\Core\Exception\Handler;
 
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\Odin\Exception\OdinException;
@@ -30,7 +31,7 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
             $statusCode = $previous->getStatusCode();
             $errorCode = $previous->getErrorCode();
             $errorMessage = $previous->getMessage();
-        } elseif ($previous instanceof BusinessException) {
+        } elseif ($previous instanceof BusinessException || $previous instanceof EventException) {
             $statusCode = 400;
             $errorCode = $previous->getCode();
             $errorMessage = $previous->getMessage();

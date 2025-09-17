@@ -606,6 +606,14 @@ class ProjectAppService extends AbstractAppService
             $this->projectDomainService->saveProjectEntity($forkProjectEntity);
             $this->logger->info(sprintf('项目%s已设置当前话题%s', $forkProjectEntity->getId(), $topicEntity->getId()));
 
+            // 初始化项目成员和设置
+            $this->projectMemberDomainService->initializeProjectMemberAndSettings(
+                $dataIsolation->getCurrentUserId(),
+                $forkProjectEntity->getId(),
+                $workspaceEntity->getId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
             // Publish fork event for file migration
             $event = new ProjectForkEvent(
                 $requestDTO->getSourceProjectId(),
