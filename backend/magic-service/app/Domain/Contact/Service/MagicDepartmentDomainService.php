@@ -225,7 +225,7 @@ class MagicDepartmentDomainService extends AbstractContactDomainService
 
     /**
      * Batch get organization names by organization codes.
-     * 
+     *
      * @param array $organizationCodes Array of organization codes
      * @return array Array with structure [code => name]
      */
