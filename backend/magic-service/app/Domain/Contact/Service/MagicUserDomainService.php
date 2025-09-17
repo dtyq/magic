@@ -438,7 +438,7 @@ class MagicUserDomainService extends AbstractContactDomainService
 
     /**
      * Batch get user phones by user IDs.
-     * 
+     *
      * @param array $userIds Array of user IDs
      * @return array Array with structure [user_id => phone]
      */
