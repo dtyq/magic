@@ -16,6 +16,14 @@ WORKDIR /opt/www
 
 COPY . /opt/www
 
+# 安装系统依赖
+# - git: 版本控制工具
+# - openssh-client: SSH客户端
+# - ffmpeg: 音频/视频处理工具，用于ASR录音文件合并
+RUN apk add --no-cache ffmpeg && \
+    ffmpeg -version | head -1 && \
+    echo "✅ FFmpeg installed successfully"
+
 ## dockerfile 中修改源,并安装所需的posix依赖,用于爬取duckduckgo内容
 #RUN sed -i 's/mirrors.cloud.aliyuncs.com/mirrors.aliyun.com/g' /etc/apk/repositories && \
 #    apk update && \
@@ -26,7 +34,7 @@ COPY . /opt/www
 # 要解决这个问题，你需要将所有需要访问 secret 文件的操作放在 同一个 RUN 指令中
 RUN --mount=type=secret,id=composer,target=/root/.composer/auth.json \
     --mount=type=cache,id=magic-service-composer,target=/root/.cache/composer \
-    # 注意把下面的id改成你自己的项目名 防止和别人重复
+    # 注意把下面的id改成你自己的项目名 防止和别人重复 \
     --mount=type=cache,id=magic-service-phpstan,target=/tmp/phpstan \
     export COMPOSER_ALLOW_SUPERUSER=1 ; \
     # 安装依赖
