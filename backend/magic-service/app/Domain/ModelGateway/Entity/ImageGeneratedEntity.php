@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity;
 
-use App\Domain\Authentication\Entity\AbstractEntity;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
+use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
 
 class ImageGeneratedEntity extends AbstractEntity
