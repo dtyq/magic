@@ -239,7 +239,8 @@ readonly class AsrFileAppService
             }
 
             // 生成云存储中的文件键 - 与原始录音文件在同一目录下
-            $filename = sprintf('merged_%s.webm', $taskKey);
+            $ext = strtolower(pathinfo($localAudioFile, PATHINFO_EXTENSION)) ?: 'webm';
+            $filename = sprintf('merged_%s.%s', $taskKey, $ext);
             // 确保 businessDirectory 以 / 结尾
             $businessDirectory = sprintf('%s/', rtrim($businessDirectory, '/'));
             $remoteKey = sprintf('%s%s', ltrim($businessDirectory, '/'), $filename);
@@ -735,8 +736,43 @@ readonly class AsrFileAppService
             return $outputFile;
         }
 
-        // 多个文件直接二进制合并
-        return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile);
+        // 分组并规范化：先将 WebM 容器 + 其 Cluster 续段二进制拼接为完整文件，再用 ffmpeg 无损合并
+        try {
+            $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
+            $normalizedParts = $this->normalizeSegmentsToValidContainers($audioFiles, $taskKey, $format, $runtimeDir);
+
+            if (empty($normalizedParts)) {
+                throw new InvalidArgumentException('没有可用于合并的有效音频片段');
+            }
+
+            if (count($normalizedParts) === 1) {
+                // 只有一个完整文件，直接复制为输出
+                $single = $normalizedParts[0];
+                if (! copy($single, $outputFile)) {
+                    throw new InvalidArgumentException('复制单个规范化音频失败');
+                }
+
+                return $outputFile;
+            }
+
+            // 使用无损remux进行合并
+            $ffmpegMerged = $this->mergeAudioFilesWithFfmpeg($normalizedParts, $taskKey, $outputFile);
+            if ($ffmpegMerged !== null) {
+                return $ffmpegMerged;
+            }
+
+            // 最后兜底：二进制合并（注意：仅当所有片段原本可直接二进制拼接时才可播放）
+            $this->logger->warning('ffmpeg合并失败，兜底尝试二进制拼接所有规范化文件', [
+                'task_key' => $taskKey,
+            ]);
+            return $this->mergeAudioFilesBinary($normalizedParts, $taskKey, $outputFile);
+        } catch (Throwable $e) {
+            $this->logger->warning('分组规范化/ffmpeg流程异常，兜底使用二进制拼接原始片段', [
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->mergeAudioFilesBinary($audioFiles, $taskKey, $outputFile);
+        }
     }
 
     /**
@@ -876,6 +912,153 @@ readonly class AsrFileAppService
 
             throw new InvalidArgumentException(sprintf('音频文件二进制合并失败: %s', $e->getMessage()));
         }
+    }
+
+    /**
+     * 使用ffmpeg进行容器级合并。
+     * @param array $audioFiles 已排序的分段
+     * @param string $taskKey 任务键
+     * @param string $outputFile 最终输出文件路径（扩展名应与format匹配）
+     * @return null|string 合并成功返回输出文件路径，失败返回null
+     */
+    private function mergeAudioFilesWithFfmpeg(array $audioFiles, string $taskKey, string $outputFile): ?string
+    {
+        try {
+            $runtimeDir = sprintf('%s/runtime/asr/%s', BASE_PATH, $taskKey);
+
+            // 使用无损concat demuxer合并
+            $listFile = sprintf('%s/concat_list.txt', $runtimeDir);
+            $lines = [];
+            foreach ($audioFiles as $path) {
+                $real = realpath($path) ?: $path;
+                $lines[] = sprintf("file '%s'", str_replace("'", "'\\''", $real));
+            }
+            $content = implode("\n", $lines);
+            if (file_put_contents($listFile, $content) === false) {
+                $this->logger->warning('写入ffmpeg列表文件失败', [
+                    'task_key' => $taskKey,
+                    'list_file' => $listFile,
+                ]);
+                return null;
+            }
+            $cmd = sprintf(
+                'ffmpeg -y -loglevel error -fflags +genpts -f concat -safe 0 -i %s -c copy %s',
+                escapeshellarg($listFile),
+                escapeshellarg($outputFile)
+            );
+
+            $output = [];
+            $returnVar = 0;
+            exec($cmd . ' 2>&1', $output, $returnVar);
+
+            if ($returnVar !== 0 || ! file_exists($outputFile) || filesize($outputFile) === 0) {
+                $this->logger->warning('ffmpeg合并失败', [
+                    'task_key' => $taskKey,
+                    'code' => $returnVar,
+                    'output' => implode("\n", array_slice($output, -10)),
+                ]);
+                return null;
+            }
+
+            return $outputFile;
+        } catch (Throwable $e) {
+            $this->logger->warning('ffmpeg合并异常', [
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 读取文件头若干字节。
+     */
+    private function readHeadBytes(string $path): string
+    {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return '';
+        }
+        $data = fread($handle, 4) ?: '';
+        fclose($handle);
+        return $data;
+    }
+
+    // 旧的按容器判断方法已统一到 canBinaryConcat()，已移除容器类型探测
+
+    /**
+     * WebM/Matroska EBML Header: 1A 45 DF A3.
+     */
+    private function isWebmContainerStart(string $path): bool
+    {
+        $head = $this->readHeadBytes($path);
+        return $head !== '' && $head === hex2bin('1A45DFA3');
+    }
+
+    /**
+     * WebM Cluster Element: 1F 43 B6 75.
+     */
+    private function isWebmClusterStart(string $path): bool
+    {
+        $head = $this->readHeadBytes($path);
+        return $head !== '' && $head === hex2bin('1F43B675');
+    }
+
+    /**
+     * 将片段规范化为一组"可独立播放"的容器文件：
+     * - WebM: 以 EBML 头开头的文件作为新容器起点，之后连续的 Cluster 续段拼接到该容器；
+     * - 其它：暂不做续段拼接，作为独立文件参与最终 ffmpeg 合并。
+     */
+    private function normalizeSegmentsToValidContainers(array $segments, string $taskKey, string $format, string $runtimeDir): array
+    {
+        $result = [];
+
+        // 当前容器累积缓冲
+        $currentGroup = [];
+        $groupIndex = 0;
+
+        $flushGroup = function () use (&$currentGroup, &$result, $taskKey, $runtimeDir, $format, &$groupIndex): void {
+            if (count($currentGroup) === 0) {
+                return;
+            }
+            if (count($currentGroup) === 1) {
+                // 只有一个片段，直接加入
+                $result[] = $currentGroup[0];
+            } else {
+                // 多个片段：默认用二进制拼接（适配"第一段有元数据，其余为续段"的场景）
+                $tempOut = sprintf('%s/normalized_%s_%d.%s', $runtimeDir, $taskKey, $groupIndex, $format);
+
+                $this->mergeAudioFilesBinary($currentGroup, $taskKey, $tempOut);
+                $result[] = $tempOut;
+            }
+            $currentGroup = [];
+            ++$groupIndex;
+        };
+
+        foreach ($segments as $index => $path) {
+            $isContainer = $this->isWebmContainerStart($path);
+            $isCluster = $this->isWebmClusterStart($path);
+
+            if ($index === 0) {
+                // 第一个片段：容器或非容器均作为起点
+                $currentGroup[] = $path;
+            } elseif ($isContainer) {
+                // 新容器起点：先冲掉上一组
+                $flushGroup();
+                $currentGroup[] = $path;
+            } elseif ($isCluster) {
+                // WebM 续段：加入当前组
+                $currentGroup[] = $path;
+            } else {
+                // 其它未知：默认视为续段，加入当前组（更贴近浏览器分段续写的实际情况）
+                $currentGroup[] = $path;
+            }
+        }
+
+        // 冲掉最后一组
+        $flushGroup();
+
+        return $result;
     }
 
     /**
