@@ -10,14 +10,17 @@ namespace App\Domain\ModelGateway\Entity\Dto;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 
 class TextGenerateImageDTO extends AbstractRequestDTO
 {
     protected string $prompt = '';
 
-    protected string $size = '';
+    protected string $size = '1024x1024';
 
     protected int $n = 1;
+
+    protected array $images = [];
 
     protected ?WatermarkConfig $watermark = null;
 
@@ -87,5 +90,21 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         }
 
         $this->watermark = $watermark;
+    }
+
+    public function validateSupportedImageEditModel(): bool
+    {
+        $supportedModels = array_merge(
+            ImageGenerateModelType::getVolcengineModes(),
+            ImageGenerateModelType::getAzureOpenAIEditModes(),
+            ImageGenerateModelType::getQwenImageEditModes(),
+            ImageGenerateModelType::getGoogleGeminiModes(),
+            ImageGenerateModelType::getVolcengineArkModes()
+        );
+
+        if (! in_array($this->model, $supportedModels)) {
+            return false;
+        }
+        return true;
     }
 }

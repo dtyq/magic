@@ -35,4 +35,9 @@ enum ModelType: int
     {
         return $this === self::EMBEDDING;
     }
+
+    public function isVLM(): bool
+    {
+        return $this === self::TEXT_TO_IMAGE || $this === self::IMAGE_TO_IMAGE;
+    }
 }
