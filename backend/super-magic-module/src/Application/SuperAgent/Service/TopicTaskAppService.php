@@ -229,7 +229,8 @@ class TopicTaskAppService extends AbstractAppService
                     event: $messageEntity->getEvent(),
                     steps: $messageEntity->getSteps() ?? [],
                     tool: $messageEntity->getTool() ?? [],
-                    attachments: $messageEntity->getAttachments() ?? []
+                    attachments: $messageEntity->getAttachments() ?? [],
+                    correlationId: $messageDTO->getPayload()->getCorrelationId() ?? null,
                 );
             }
 

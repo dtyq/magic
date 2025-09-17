@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.17",
+            "version": "3.356.19",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "d0357fbe2535bb7d832e594a4ff2ff8da29d229c"
+                "reference": "4dbc87e689c4e4a6655d6b7e3d02ce2f4e87aa5c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d0357fbe2535bb7d832e594a4ff2ff8da29d229c",
-                "reference": "d0357fbe2535bb7d832e594a4ff2ff8da29d229c",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/4dbc87e689c4e4a6655d6b7e3d02ce2f4e87aa5c",
+                "reference": "4dbc87e689c4e4a6655d6b7e3d02ce2f4e87aa5c",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.17"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.19"
             },
-            "time": "2025-09-12T18:07:37+00:00"
+            "time": "2025-09-16T18:17:04+00:00"
         },
         {
             "name": "brick/math",
@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "4bf7c850c9979f1b7b4f9c1b27e010227c481f00"
+                "reference": "e5fb457279e9681d092824e955ca3f99372280b2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=4bf7c850c9979f1b7b4f9c1b27e010227c481f00",
-                "reference": "4bf7c850c9979f1b7b4f9c1b27e010227c481f00",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e5fb457279e9681d092824e955ca3f99372280b2",
+                "reference": "e5fb457279e9681d092824e955ca3f99372280b2",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-15T07:54:37+00:00"
+            "time": "2025-09-17T03:12:25+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "d4de02dce1d0325811fbb27ed0080371d99e1f2b"
+                "reference": "74a85a1940b9a1a1fb9a5a90f9eef5e873b9ba1c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=d4de02dce1d0325811fbb27ed0080371d99e1f2b",
-                "reference": "d4de02dce1d0325811fbb27ed0080371d99e1f2b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=74a85a1940b9a1a1fb9a5a90f9eef5e873b9ba1c",
+                "reference": "74a85a1940b9a1a1fb9a5a90f9eef5e873b9ba1c",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-15T17:30:20+08:00"
+            "time": "2025-09-17T03:13:38+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2573,12 +2573,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "9f4e42819440c63963aaef8bcaafaf110e16297b"
+                "reference": "175a28b96b2b3127fb05cf3049e59b5c07cd9d0e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=9f4e42819440c63963aaef8bcaafaf110e16297b",
-                "reference": "9f4e42819440c63963aaef8bcaafaf110e16297b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=175a28b96b2b3127fb05cf3049e59b5c07cd9d0e",
+                "reference": "175a28b96b2b3127fb05cf3049e59b5c07cd9d0e",
                 "shasum": ""
             },
             "require": {
@@ -2680,7 +2680,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-15T19:58:47+08:00"
+            "time": "2025-09-16T18:08:49+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -3334,23 +3334,23 @@
         },
         {
             "name": "google/auth",
-            "version": "v1.47.1",
+            "version": "v1.48.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/google-auth-library-php.git",
-                "reference": "d7a0a215ec42ca0c8cb40e9ae0c5960aa9a024b7"
+                "reference": "3053a5bfe284538419d4fee8c9df148488db6d30"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/google-auth-library-php/zipball/d7a0a215ec42ca0c8cb40e9ae0c5960aa9a024b7",
-                "reference": "d7a0a215ec42ca0c8cb40e9ae0c5960aa9a024b7",
+                "url": "https://api.github.com/repos/googleapis/google-auth-library-php/zipball/3053a5bfe284538419d4fee8c9df148488db6d30",
+                "reference": "3053a5bfe284538419d4fee8c9df148488db6d30",
                 "shasum": ""
             },
             "require": {
                 "firebase/php-jwt": "^6.0",
                 "guzzlehttp/guzzle": "^7.4.5",
                 "guzzlehttp/psr7": "^2.4.5",
-                "php": "^8.0",
+                "php": "^8.1",
                 "psr/cache": "^2.0||^3.0",
                 "psr/http-message": "^1.1||^2.0",
                 "psr/log": "^3.0"
@@ -3362,7 +3362,7 @@
                 "phpspec/prophecy-phpunit": "^2.1",
                 "phpunit/phpunit": "^9.6",
                 "sebastian/comparator": ">=1.2.3",
-                "squizlabs/php_codesniffer": "^3.5",
+                "squizlabs/php_codesniffer": "^4.0",
                 "symfony/process": "^6.0||^7.0",
                 "webmozart/assert": "^1.11"
             },
@@ -3389,9 +3389,9 @@
             "support": {
                 "docs": "https://cloud.google.com/php/docs/reference/auth/latest",
                 "issues": "https://github.com/googleapis/google-auth-library-php/issues",
-                "source": "https://github.com/googleapis/google-auth-library-php/tree/v1.47.1"
+                "source": "https://github.com/googleapis/google-auth-library-php/tree/v1.48.0"
             },
-            "time": "2025-07-09T15:26:02+00:00"
+            "time": "2025-09-16T22:09:18+00:00"
         },
         {
             "name": "google/common-protos",
@@ -6450,16 +6450,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.54",
+            "version": "v1.1.57",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "bbd9663f0106b21b61d72641f4512df04de450e5"
+                "reference": "cf3ce2499a9dbba1be73c14805d668af1a0d1b4d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=bbd9663f0106b21b61d72641f4512df04de450e5",
-                "reference": "bbd9663f0106b21b61d72641f4512df04de450e5",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=cf3ce2499a9dbba1be73c14805d668af1a0d1b4d",
+                "reference": "cf3ce2499a9dbba1be73c14805d668af1a0d1b4d",
                 "shasum": ""
             },
             "require": {
@@ -6531,9 +6531,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.54"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.57"
             },
-            "time": "2025-09-11T14:13:17+08:00"
+            "time": "2025-09-16T17:52:23+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -17347,12 +17347,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "9e809d3a8829a5b870ae1c2f57706f46bb181093"
+                "reference": "662d5ecfaab913d8ce0de4521fc40ce92aa14e75"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/9e809d3a8829a5b870ae1c2f57706f46bb181093",
-                "reference": "9e809d3a8829a5b870ae1c2f57706f46bb181093",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/662d5ecfaab913d8ce0de4521fc40ce92aa14e75",
+                "reference": "662d5ecfaab913d8ce0de4521fc40ce92aa14e75",
                 "shasum": ""
             },
             "conflict": {
@@ -17741,6 +17741,7 @@
                 "laravel/socialite": ">=1,<2.0.10",
                 "latte/latte": "<2.10.8",
                 "lavalite/cms": "<=9|==10.1",
+                "lavitto/typo3-form-to-database": "<2.2.5|>=3,<3.2.2|>=4,<4.2.3|>=5,<5.0.2",
                 "lcobucci/jwt": ">=3.4,<3.4.6|>=4,<4.0.4|>=4.1,<4.1.5",
                 "league/commonmark": "<2.7",
                 "league/flysystem": "<1.1.4|>=2,<2.1.1",
@@ -18309,7 +18310,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-09-11T17:05:04+00:00"
+            "time": "2025-09-16T20:05:44+00:00"
         },
         {
             "name": "sebastian/cli-parser",

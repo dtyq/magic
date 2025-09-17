@@ -222,6 +222,8 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotActive);
         }
         $serviceProviderConfigEntity->getConfig()->setModelVersion($serviceProviderModelEntity->getModelVersion());
+        $serviceProviderConfigEntity->getConfig()->setProviderModelId((string) $serviceProviderModelEntity->getId());
+
         return $serviceProviderConfigEntity;
     }
 
@@ -367,6 +369,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
                 $config = $configMap[$targetConfigId]->getConfig();
                 if ($config) {
                     $config->setModelVersion($activeModel->getModelVersion());
+                    $config->setProviderModelId((string) $activeModel->getId());
                     $result[] = $config;
                 }
             }
@@ -483,6 +486,8 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             }
             $serviceProviderConfigEntity = $configMap[$configId];
             $serviceProviderConfigEntity->getConfig()->setModelVersion($model->getModelVersion());
+            $serviceProviderConfigEntity->getConfig()->setProviderModelId((string) $model->getId());
+
             // 检查服务商是否存在
             $serviceProviderId = $serviceProviderConfigEntity->getServiceProviderId();
             if (! isset($providerMap[$serviceProviderId])) {
