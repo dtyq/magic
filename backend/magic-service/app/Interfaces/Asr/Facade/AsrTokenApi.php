@@ -627,9 +627,9 @@ class AsrTokenApi extends AbstractApi
             $noteFileType = $noteData['file_extension'] ?? 'txt';
 
             if (! empty(trim($noteContent))) {
-                // 验证note内容长度，最大20000字符
+                // 验证note内容长度，最大25000字符
                 $contentLength = mb_strlen($noteContent);
-                if ($contentLength > 20000) {
+                if ($contentLength > 25000) {
                     ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.note_content_too_long', ['length' => $contentLength]));
                 }
 
