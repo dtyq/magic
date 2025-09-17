@@ -11,9 +11,9 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
+use App\Infrastructure\Util\Locker\RedisLocker;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
-use Hyperf\Engine\Channel;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 
@@ -33,11 +33,8 @@ abstract class AbstractImageGenerate implements ImageGenerate
     #[Inject]
     protected Redis $redis;
 
-    /**
-     * 响应对象锁的映射表.
-     * @var array<string, Channel>
-     */
-    private static array $responseLocks = [];
+    #[Inject]
+    protected RedisLocker $redisLocker;
 
     /**
      * 统一的图片生成入口方法
@@ -69,32 +66,55 @@ abstract class AbstractImageGenerate implements ImageGenerate
 
     /**
      * 获取响应对象的锁，用于并发安全地操作 OpenAIFormatResponse.
+     * 使用Redis自旋锁实现排队等待.
+     *
+     * @return string 返回锁的owner，用于释放锁
      */
-    protected function lockResponse(OpenAIFormatResponse $response): void
+    protected function lockResponse(OpenAIFormatResponse $response): string
     {
-        $lockKey = spl_object_hash($response);
+        $lockKey = 'img_response_' . spl_object_id($response);
+        $owner = bin2hex(random_bytes(8)); // 16位随机字符串作为owner
 
-        if (! isset(self::$responseLocks[$lockKey])) {
-            // 创建容量为1的Channel作为互斥锁
-            self::$responseLocks[$lockKey] = new Channel(1);
-            // 初始放入一个令牌
-            self::$responseLocks[$lockKey]->push(true);
+        // spinLock会自动等待，直到获取成功或超时（30秒）
+        if (! $this->redisLocker->spinLock($lockKey, $owner, 30)) {
+            $this->logger->error('获取图像响应Redis锁超时', [
+                'lock_key' => $lockKey,
+                'timeout' => 30,
+            ]);
+            throw new Exception('获取图像响应锁超时，请稍后重试');
         }
 
-        // 获取锁（从Channel中取出令牌）
-        self::$responseLocks[$lockKey]->pop();
+        $this->logger->debug('Redis锁获取成功', ['lock_key' => $lockKey, 'owner' => $owner]);
+        return $owner;
     }
 
     /**
-     * 释放响应对象的锁
+     * 释放响应对象的锁.
+     *
+     * @param OpenAIFormatResponse $response 响应对象
+     * @param string $owner 锁的owner
      */
-    protected function unlockResponse(OpenAIFormatResponse $response): void
+    protected function unlockResponse(OpenAIFormatResponse $response, string $owner): void
     {
-        $lockKey = spl_object_hash($response);
+        $lockKey = 'img_response_' . spl_object_id($response);
 
-        if (isset(self::$responseLocks[$lockKey])) {
-            // 释放锁（放回令牌到Channel）
-            self::$responseLocks[$lockKey]->push(true);
+        try {
+            $result = $this->redisLocker->release($lockKey, $owner);
+            if (! $result) {
+                $this->logger->warning('Redis锁释放失败，可能已被其他进程释放', [
+                    'lock_key' => $lockKey,
+                    'owner' => $owner,
+                ]);
+            } else {
+                $this->logger->debug('Redis锁释放成功', ['lock_key' => $lockKey, 'owner' => $owner]);
+            }
+        } catch (Exception $e) {
+            $this->logger->error('Redis锁释放异常', [
+                'lock_key' => $lockKey,
+                'owner' => $owner,
+                'error' => $e->getMessage(),
+            ]);
+            // 锁释放失败不影响业务逻辑，但要记录日志
         }
     }
 

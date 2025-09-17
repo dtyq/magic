@@ -381,8 +381,8 @@ class GoogleGeminiModel extends AbstractImageGenerate
         array $geminiResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
-        // 使用锁确保并发安全
-        $this->lockResponse($response);
+        // 使用Redis锁确保并发安全
+        $lockOwner = $this->lockResponse($response);
         try {
             // 使用现有方法提取图像数据
             $imageBase64 = $this->extractImageDataFromResponse($geminiResult);
@@ -428,7 +428,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
             $response->setUsage($currentUsage);
         } finally {
             // 确保锁一定会被释放
-            $this->unlockResponse($response);
+            $this->unlockResponse($response, $lockOwner);
         }
     }
 }
