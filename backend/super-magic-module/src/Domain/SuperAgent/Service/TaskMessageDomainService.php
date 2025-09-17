@@ -78,7 +78,11 @@ class TaskMessageDomainService
         foreach ($fileEntities as $fileEntity) {
             $fileIdMap[$fileEntity->getFileKey()] = $fileEntity->getFileId();
         }
-
+        $this->logger->info('获取fileIdMap', [
+            'fileIdMap' => $fileIdMap,
+            'message' => $message->getAttachments(),
+            'tool' => $message->getTool(),
+        ]);
         // 将 file_id 赋值到 消息的附件和消息工具的附件里
         if (! empty($fileIdMap)) {
             // 处理消息附件
