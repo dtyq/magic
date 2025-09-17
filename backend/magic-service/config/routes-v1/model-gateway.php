@@ -20,6 +20,11 @@ Router::addGroup('/v1', function () {
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEdit']);
 });
 
+Router::addGroup('/v2', function () {
+    Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
+    Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
+});
+
 // 前台模型接口
 Router::addGroup('/api/v1', static function () {
     // 超级麦吉显示模型

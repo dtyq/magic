@@ -81,7 +81,7 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $textGenerateImageDTO->valid();
         $this->setHeaderConfigs($textGenerateImageDTO, $request);
-        return $this->llmAppService->textGenerateImage($textGenerateImageDTO)->toArray();
+        return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
     }
 
     public function imageEdit(RequestInterface $request)
@@ -94,7 +94,32 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $imageEditDTO->valid();
         $this->setHeaderConfigs($imageEditDTO, $request);
-        return $this->llmAppService->imageEdit($imageEditDTO)->toArray();
+        return $this->llmAppService->imageEdit($imageEditDTO);
+    }
+
+    public function textGenerateImageV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+        $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
+        $textGenerateImageDTO->setAccessToken($this->getAccessToken());
+        $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+        $this->setHeaderConfigs($textGenerateImageDTO, $request);
+        return $this->llmAppService->textGenerateImageV2($textGenerateImageDTO)->toArray();
+    }
+
+    public function imageEditV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+
+        $imageEditDTO = new ImageEditDTO($requestData);
+        $imageEditDTO->setAccessToken($this->getAccessToken());
+        $imageEditDTO->setIps($this->getClientIps());
+
+        $imageEditDTO->valid();
+        $this->setHeaderConfigs($imageEditDTO, $request);
+        return $this->llmAppService->imageEditV2($imageEditDTO)->toArray();
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
