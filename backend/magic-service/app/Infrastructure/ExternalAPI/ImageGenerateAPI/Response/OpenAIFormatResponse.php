@@ -13,7 +13,7 @@ class OpenAIFormatResponse
 
     private array $data;
 
-    private ?array $usage;
+    private ?ImageUsage $usage;
 
     private ?string $provider_error_message;
 
@@ -25,7 +25,9 @@ class OpenAIFormatResponse
     {
         $this->created = $params['created'] ?? time();
         $this->data = $params['data'] ?? [];
-        $this->usage = $params['usage'] ?? null;
+        $this->usage = isset($params['usage'])
+            ? (is_array($params['usage']) ? ImageUsage::fromArray($params['usage']) : $params['usage'])
+            : null;
         $this->provider_error_message = $params['provider_error_message'] ?? null;
         $this->provider_error_code = $params['provider_error_code'] ?? null;
         $this->provider = $params['provider'] ?? null;
@@ -53,12 +55,12 @@ class OpenAIFormatResponse
         return $this;
     }
 
-    public function getUsage(): ?array
+    public function getUsage(): ?ImageUsage
     {
         return $this->usage;
     }
 
-    public function setUsage(?array $usage): self
+    public function setUsage(?ImageUsage $usage): self
     {
         $this->usage = $usage;
         return $this;
@@ -102,7 +104,7 @@ class OpenAIFormatResponse
         $result = [
             'created' => $this->created,
             'data' => $this->data,
-            'usage' => $this->usage,
+            'usage' => $this->usage?->toArray(),
         ];
 
         if ($this->provider_error_message !== null) {

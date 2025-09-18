@@ -21,6 +21,8 @@ class VolcengineArkRequest extends ImageGenerateRequest
 
     protected array $referImages = [];
 
+    protected array $sequentialImageGenerationOptions = [];
+
     public function getResponseFormat(): string
     {
         return $this->responseFormat;
@@ -69,5 +71,15 @@ class VolcengineArkRequest extends ImageGenerateRequest
     public function setReferImages(array $referImages): void
     {
         $this->referImages = $referImages;
+    }
+
+    public function getSequentialImageGenerationOptions(): array
+    {
+        return $this->sequentialImageGenerationOptions;
+    }
+
+    public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
+    {
+        $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
     }
 }

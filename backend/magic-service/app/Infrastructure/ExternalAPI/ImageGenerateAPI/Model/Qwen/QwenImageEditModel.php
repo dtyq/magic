@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 use Hyperf\RateLimit\Annotation\RateLimit;
@@ -314,12 +315,7 @@ class QwenImageEditModel extends AbstractImageGenerate
         }
 
         $currentData = $response->getData();
-        $currentUsage = $response->getUsage() ?? [
-            'generated_images' => 0,
-            'input_tokens' => 0,
-            'output_tokens' => 0,
-            'total_tokens' => 0,
-        ];
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
 
         foreach ($qwenResult['output']['choices'] as $choice) {
             if (empty($choice['message']['content']) || ! is_array($choice['message']['content'])) {
@@ -351,10 +347,10 @@ class QwenImageEditModel extends AbstractImageGenerate
 
         // 累计usage信息 - 通义千问编辑的usage格式适配
         if (! empty($qwenResult['usage']) && is_array($qwenResult['usage'])) {
-            ++$currentUsage['generated_images']; // 编辑生成1张图片
-            $currentUsage['input_tokens'] += $qwenResult['usage']['input_tokens'] ?? 0;
-            $currentUsage['output_tokens'] += $qwenResult['usage']['output_tokens'] ?? 0;
-            $currentUsage['total_tokens'] += $qwenResult['usage']['total_tokens'] ?? 0;
+            $currentUsage->addGeneratedImages(1); // 编辑生成1张图片
+            $currentUsage->promptTokens += $qwenResult['usage']['input_tokens'] ?? 0;
+            $currentUsage->completionTokens += $qwenResult['usage']['output_tokens'] ?? 0;
+            $currentUsage->totalTokens += $qwenResult['usage']['total_tokens'] ?? 0;
         }
 
         // 更新响应对象
