@@ -16,6 +16,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
@@ -63,6 +65,75 @@ class GPT4oModel extends AbstractImageGenerate
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
         return $this->processGPT4oRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - GPT4o版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => $this->getProviderName(),
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof GPT4oModelRequest) {
+            $this->logger->error('GPT4o OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        // 3. 并发处理 - 直接操作响应对象
+        $count = $imageGenerateRequest->getGenerateNum();
+        $parallel = new Parallel();
+        $fromCoroutineId = Coroutine::id();
+
+        for ($i = 0; $i < $count; ++$i) {
+            $parallel->add(function () use ($imageGenerateRequest, $response, $fromCoroutineId) {
+                CoContext::copy($fromCoroutineId);
+                try {
+                    // 提交任务并轮询结果
+                    $jobId = $this->requestImageGeneration($imageGenerateRequest);
+                    $result = $this->pollTaskResultForRaw($jobId);
+
+                    $this->validateGPT4oResponse($result);
+
+                    // 成功：设置图片数据到响应对象
+                    $this->addImageDataToResponseGPT4o($response, $result, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    // 失败：设置错误信息到响应对象（只设置第一个错误）
+                    if (! $response->hasError()) {
+                        $response->setProviderErrorCode($e->getCode());
+                        $response->setProviderErrorMessage($e->getMessage());
+                    }
+
+                    $this->logger->error('GPT4o OpenAI格式生图：单个请求失败', [
+                        'error_code' => $e->getCode(),
+                        'error_message' => $e->getMessage(),
+                    ]);
+                }
+            });
+        }
+
+        $parallel->wait();
+
+        // 4. 记录最终结果
+        $this->logger->info('GPT4o OpenAI格式生图：并发处理完成', [
+            '总请求数' => $count,
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'gpt-image';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -340,5 +411,64 @@ class GPT4oModel extends AbstractImageGenerate
         }
 
         return $rawData;
+    }
+
+    /**
+     * 验证GPT4o API轮询响应数据格式.
+     */
+    private function validateGPT4oResponse(array $result): void
+    {
+        if (empty($result['imageUrl'])) {
+            throw new Exception('GPT4o响应数据格式错误：缺少imageUrl字段');
+        }
+    }
+
+    /**
+     * 将GPT4o图片数据添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponseGPT4o(
+        OpenAIFormatResponse $response,
+        array $gpt4oResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 使用Redis锁确保并发安全
+        $lockOwner = $this->lockResponse($response);
+        try {
+            // 从GPT4o轮询结果中提取图片URL
+            if (empty($gpt4oResult['imageUrl'])) {
+                return;
+            }
+
+            $currentData = $response->getData();
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
+
+            $imageUrl = $gpt4oResult['imageUrl'];
+
+            // 处理水印
+            $processedUrl = $imageUrl;
+            try {
+                $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+            } catch (Exception $e) {
+                $this->logger->error('GPT4o添加图片数据：水印处理失败', [
+                    'error' => $e->getMessage(),
+                    'url' => $imageUrl,
+                ]);
+                // 水印处理失败时使用原始URL
+            }
+
+            $currentData[] = [
+                'url' => $processedUrl,
+            ];
+
+            // 累计usage信息 - GPT4o没有详细的token统计
+            $currentUsage->addGeneratedImages(1);
+
+            // 更新响应对象
+            $response->setData($currentData);
+            $response->setUsage($currentUsage);
+        } finally {
+            // 确保锁一定会被释放
+            $this->unlockResponse($response, $lockOwner);
+        }
     }
 }

@@ -443,7 +443,7 @@ class ImageWatermarkProcessor
             $validityPeriod = $imageGenerateRequest->getValidityPeriod();
             $metadataContent = [];
             if ($validityPeriod !== null) {
-                $metadataContent['validity_period'] = $validityPeriod;
+                $metadataContent['validity_period'] = (string) $validityPeriod;
             }
             $metadata = ['metadata' => Json::encode($metadataContent)];
 

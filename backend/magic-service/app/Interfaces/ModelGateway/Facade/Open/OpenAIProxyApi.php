@@ -13,12 +13,16 @@ use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\ErrorCode\ImageGenerateErrorCode;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
+
+use function Hyperf\Translation\__;
 
 class OpenAIProxyApi extends AbstractOpenApi
 {
@@ -95,6 +99,34 @@ class OpenAIProxyApi extends AbstractOpenApi
         $imageEditDTO->valid();
         $this->setHeaderConfigs($imageEditDTO, $request);
         return $this->llmAppService->imageEdit($imageEditDTO);
+    }
+
+    public function textGenerateImageV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+        $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
+        $textGenerateImageDTO->setAccessToken($this->getAccessToken());
+        $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+        $this->setHeaderConfigs($textGenerateImageDTO, $request);
+        return $this->llmAppService->textGenerateImageV2($textGenerateImageDTO)->toArray();
+    }
+
+    public function imageEditV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+
+        $imageEditDTO = new TextGenerateImageDTO($requestData);
+        $imageEditDTO->setAccessToken($this->getAccessToken());
+        $imageEditDTO->setIps($this->getClientIps());
+
+        $imageEditDTO->valid();
+        if (! $imageEditDTO->validateSupportedImageEditModel()) {
+            return OpenAIFormatResponse::buildError(ImageGenerateErrorCode::MODEL_NOT_SUPPORT_EDIT->value, __('image_generate.model_not_support_edit'))->toArray();
+        }
+        $this->setHeaderConfigs($imageEditDTO, $request);
+        return $this->llmAppService->textGenerateImageV2($imageEditDTO)->toArray();
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
