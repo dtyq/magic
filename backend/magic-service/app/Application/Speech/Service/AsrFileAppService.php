@@ -11,12 +11,10 @@ use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\File\Service\FileCleanupAppService;
 use App\Application\Speech\Assembler\ChatMessageAssembler;
-use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Application\Speech\DTO\SaveFileRecordToProjectDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
-use App\Application\Speech\Event\AsrSummaryRequestedEvent;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Service\MagicChatDomainService;
@@ -30,7 +28,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -42,6 +39,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Codec\Json;
+use Hyperf\Engine\Coroutine;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
 use InvalidArgumentException;
@@ -129,20 +127,17 @@ readonly class AsrFileAppService
                 );
             }
 
-            // 4. 抛出录音总结异步事件，由 async_event 接管（失败则入库、定时重试），对外直接返回
-            $event = new AsrSummaryRequestedEvent(
-                taskKey: $summaryRequest->taskKey,
-                projectId: $summaryRequest->projectId,
-                topicId: $summaryRequest->topicId,
-                modelId: $summaryRequest->modelId,
-                userId: $userId,
-                organizationCode: $organizationCode,
-                workspaceFilePath: $summaryRequest->workspaceFilePath,
-                note: $summaryRequest->hasNote() ? $summaryRequest->note->toArray() : null,
-                asrStreamContent: $summaryRequest->asrStreamContent,
-                generatedTitle: $summaryRequest->generatedTitle
-            );
-            AsyncEventUtil::dispatch($event);
+            // 4. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
+            Coroutine::create(function () use ($summaryRequest, $userAuthorization) {
+                try {
+                    $this->handleAsrSummary($summaryRequest, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+                } catch (Throwable $e) {
+                    $this->logger->error('协程执行ASR总结流程失败', [
+                        'task_key' => $summaryRequest->taskKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
 
             return [
                 'success' => true,
@@ -166,32 +161,20 @@ readonly class AsrFileAppService
      * 处理异步事件：执行下载、合并、上传、清理并发送总结消息（支持重复执行）。
      * @throws Throwable
      */
-    public function handleAsrSummaryEvent(AsrSummaryRequestedEvent $event): void
-    {
-        // 从事件中还原必要上下文
-        $userId = $event->userId;
-        $organizationCode = $event->organizationCode;
-
+    public function handleAsrSummary(
+        SummaryRequestDTO $summaryRequest,
+        string $userId,
+        string $organizationCode
+    ): void {
         // 1. 根据 SuperAgent 话题获取 Chat 话题及会话
-        $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $event->topicId);
+        $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $summaryRequest->topicId);
         if ($topicEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
         $chatTopicId = $topicEntity->getChatTopicId();
         $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
 
-        // 2. 构造 SummaryRequestDTO（note 从数组还原）
-        $noteDTO = $event->note ? NoteDTO::fromArray($event->note) : null;
-        $summaryRequest = new SummaryRequestDTO(
-            $event->taskKey,
-            $event->projectId,
-            $event->topicId,
-            $event->modelId,
-            $event->workspaceFilePath,
-            $noteDTO,
-            $event->asrStreamContent,
-            $event->generatedTitle
-        );
+        // 2. 使用传入的 SummaryRequestDTO
 
         // 3. 任务状态准备
         if ($summaryRequest->hasWorkspaceFilePath()) {
