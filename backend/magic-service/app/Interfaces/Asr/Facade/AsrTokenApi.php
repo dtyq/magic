@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Asr\Facade;
 
 use App\Application\Asr\DTO\DownloadMergedAudioResponseDTO;
+use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
@@ -23,6 +24,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -45,6 +47,7 @@ class AsrTokenApi extends AbstractApi
         protected Redis $redis,
         protected AsrFileAppService $asrFileAppService,
         protected LockerInterface $locker,
+        protected MagicChatMessageAppService $magicChatMessageAppService,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
     ) {
@@ -183,7 +186,7 @@ class AsrTokenApi extends AbstractApi
     {
         $userAuthorization = $this->getAuthorization();
         // 验证并获取请求参数
-        $summaryRequest = $this->validateSummaryParams($request);
+        $summaryRequest = $this->validateSummaryParams($request, $userAuthorization);
 
         // 生成锁名称和拥有者标识
         $lockName = sprintf('asr:summary:topic:%s', $summaryRequest->topicId);
@@ -228,6 +231,7 @@ class AsrTokenApi extends AbstractApi
                 'project_id' => $summaryRequest->projectId,
                 'topic_id' => $summaryRequest->topicId,
                 'conversation_id' => $result['conversation_id'],
+                'generated_title' => $result['generated_title'] ?? null,
             ];
         } catch (Throwable $e) {
             $this->logger->error('ASR总结处理异常', [
@@ -574,7 +578,7 @@ class AsrTokenApi extends AbstractApi
     /**
      * 验证 summary 请求参数.
      */
-    private function validateSummaryParams(RequestInterface $request): SummaryRequestDTO
+    private function validateSummaryParams(RequestInterface $request, MagicUserAuthorization $userAuthorization): SummaryRequestDTO
     {
         // 获取task_key参数
         $taskKey = $request->input('task_key', '');
@@ -588,6 +592,13 @@ class AsrTokenApi extends AbstractApi
         $workspaceFilePath = $request->input('workspace_file_path');
         // 获取note参数（可选参数）
         $noteData = $request->input('note');
+        // 获取asr_stream_content（可选参数）
+        $asrStreamContent = $request->input('asr_stream_content', '');
+
+        // 限制 asr_stream_content 最大长度为 10000 字符
+        if (! empty($asrStreamContent) && mb_strlen($asrStreamContent) > 10000) {
+            $asrStreamContent = mb_substr($asrStreamContent, 0, 10000);
+        }
 
         // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
         if (! empty($workspaceFilePath) && empty($taskKey)) {
@@ -633,6 +644,38 @@ class AsrTokenApi extends AbstractApi
             }
         }
 
-        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath, $note);
+        // 生成标题（如果有流式识别文本）
+        $generatedTitle = null;
+        if (! empty($asrStreamContent)) {
+            try {
+                $language = di(TranslatorInterface::class)->getLocale();
+                $title = $this->magicChatMessageAppService->summarizeText($userAuthorization, (string) $asrStreamContent, $language ?: 'zh_CN');
+                $generatedTitle = $this->sanitizeTitleForPath($title);
+            } catch (Throwable $e) {
+                $this->logger->warning('ASR 流式文本生成标题失败', [
+                    'task_key' => $taskKey,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath, $note, $asrStreamContent ?: null, $generatedTitle);
+    }
+
+    /**
+     * 生成安全的标题，移除文件/目录不允许的字符并截断长度.
+     */
+    private function sanitizeTitleForPath(string $title): ?string
+    {
+        $title = trim($title);
+        // 移除非法字符 \/:*?"<>|
+        $title = preg_replace('/[\\\\\/\:\*\?\"\<\>\|]/u', '', $title) ?? '';
+        // 压缩空白
+        $title = preg_replace('/\s+/u', ' ', $title) ?? '';
+        // 限制长度，避免过长路径
+        if (mb_strlen($title) > 50) {
+            $title = mb_substr($title, 0, 50);
+        }
+        return $title ?: null;
     }
 }

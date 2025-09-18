@@ -143,5 +143,6 @@ return [
     'messages' => [
         'summary_content' => ' Tóm tắt nội dung',
         'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
+        'waiting_ai_process' => 'Đang chuẩn bị xử lý tóm tắt ghi âm của bạn, vui lòng chờ...',
     ],
 ];

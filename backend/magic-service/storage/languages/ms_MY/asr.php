@@ -143,5 +143,6 @@ return [
     'messages' => [
         'summary_content' => ' Ringkaskan kandungan',
         'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
+        'waiting_ai_process' => 'Sedang menyediakan untuk memproses ringkasan rakaman anda, sila tunggu...',
     ],
 ];
