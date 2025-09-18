@@ -31,7 +31,7 @@ class ImageGeneratedEntity extends AbstractEntity
 
     protected ImageGenerateSourceEnum $sourceType;
 
-    protected string $providerModelId = "";
+    protected string $providerModelId = '';
 
     public function getProviderModelId(): string
     {
@@ -42,7 +42,6 @@ class ImageGeneratedEntity extends AbstractEntity
     {
         $this->providerModelId = $providerModelId;
     }
-
 
     public function getOrganizationCode(): string
     {

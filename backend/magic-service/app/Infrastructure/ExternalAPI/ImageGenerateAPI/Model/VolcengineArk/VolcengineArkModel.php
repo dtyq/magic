@@ -14,6 +14,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
@@ -279,11 +280,7 @@ class VolcengineArkModel extends AbstractImageGenerate
             }
 
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             foreach ($volcengineResult['data'] as $item) {
                 if (! empty($item['url'])) {
@@ -308,9 +305,9 @@ class VolcengineArkModel extends AbstractImageGenerate
 
             // 累计usage信息
             if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
-                $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 0;
-                $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
-                $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
+                $currentUsage->addGeneratedImages($volcengineResult['usage']['generated_images'] ?? 0);
+                $currentUsage->completionTokens += $volcengineResult['usage']['output_tokens'] ?? 0;
+                $currentUsage->totalTokens += $volcengineResult['usage']['total_tokens'] ?? 0;
             }
 
             // 更新响应对象

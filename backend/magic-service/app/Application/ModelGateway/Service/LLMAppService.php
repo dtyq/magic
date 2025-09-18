@@ -22,11 +22,11 @@ use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ImageGeneratedEntity;
-use App\Domain\ModelGateway\Entity\ImageGenerationModelWrapper;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
@@ -489,7 +489,7 @@ class LLMAppService extends AbstractLLMAppService
     public function textGenerateImageV2(ImageEditDTO|TextGenerateImageDTO $textGenerateImageDTO): OpenAIFormatResponse|ResponseInterface
     {
         // 使用统一的 processRequest 处理流程
-        return $this->processRequest($textGenerateImageDTO, function (ImageGenerationModelWrapper $imageModelWrapper, ImageEditDTO|TextGenerateImageDTO $request) {
+        return $this->processRequest($textGenerateImageDTO, function (ProviderConfigItem $imageModelWrapper, ImageEditDTO|TextGenerateImageDTO $request) {
             return $this->callImageModel($imageModelWrapper, $request);
         }, new ModelFilter());
     }
@@ -585,12 +585,8 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('access_token_id', $accessToken->getId());
 
             // Call LLM model to get response
-            /** @var ResponseInterface $response */
+            /** @var OpenAIFormatResponse|ResponseInterface $response */
             $response = $modelCallFunction($model, $proxyModelRequest);
-
-            if ($model instanceof ImageGenerationModelWrapper) {
-                return $response;
-            }
 
             // Calculate response time (milliseconds)
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -770,17 +766,12 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * 调用图片生成模型.
      */
-    protected function callImageModel(ImageGenerationModelWrapper $imageModelWrapper, ImageEditDTO|TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
+    protected function callImageModel(ProviderConfigItem $providerConfigItem, ImageEditDTO|TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
     {
-        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($proxyModelRequest->getAccessToken());
+        $organizationCode = $proxyModelRequest->getBusinessParam('organization_id');
+        $creator = $proxyModelRequest->getBusinessParam('user_id');
 
-        $dataIsolation = LLMDataIsolation::create()->disabled();
-
-        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $proxyModelRequest);
-        $organizationCode = $contextData['organization_code'];
-        $creator = $contextData['user_id'];
-
-        $modelVersion = $imageModelWrapper->getModelVersion();
+        $modelVersion = $providerConfigItem->getModelVersion();
 
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
 
@@ -815,36 +806,33 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateRequest->setValidityPeriod(1);
 
-        // 遍历服务提供商配置进行重试
-        $errorMessage = '';
-        foreach ($imageModelWrapper->getServiceProviderConfigs() as $serviceProviderConfig) {
-            $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
-            try {
-                $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $providerConfigItem);
+        $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
 
-                // 记录日志
-                $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+        try {
+            // 记录日志
+            $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
 
-                // 计算计费数量
-                $n = $proxyModelRequest->getN();
-                // 除了 mj和 图生图 是 1 次之外，其他都按张数算
-                if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes()) || $proxyModelRequest instanceof ImageEditDTO) {
-                    $n = 1;
-                }
-
-                // 发布事件
-                $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n);
-                $event = new ImageGeneratedEvent($imageGeneratedEntity);
-                AsyncEventUtil::dispatch($event);
-
-                return $generateImageOpenAIFormat;
-            } catch (Exception $e) {
-                $errorMessage = $e->getMessage();
-                $this->logger->warning('text generate image error:' . $e->getMessage());
+            // 计算计费数量
+            $n = $proxyModelRequest->getN();
+            // 除了 mj和 图生图 是 1 次之外，其他都按张数算
+            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes()) || $proxyModelRequest instanceof ImageEditDTO) {
+                $n = 1;
             }
+
+            // 发布事件
+            $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n);
+            $event = new ImageGeneratedEvent($imageGeneratedEntity);
+            AsyncEventUtil::dispatch($event);
+        } catch (Exception $e) {
+            $errorMessage = $e->getMessage();
+            $generateImageOpenAIFormat->setProviderErrorMessage($errorMessage);
+            $generateImageOpenAIFormat->setProviderErrorCode($e->getCode());
+            $generateImageOpenAIFormat->setProvider('magic');
+            $this->logger->warning('text generate image error:' . $e->getMessage());
         }
 
-        throw new Exception($errorMessage ?: 'All service providers failed');
+        return $generateImageOpenAIFormat;
     }
 
     /**

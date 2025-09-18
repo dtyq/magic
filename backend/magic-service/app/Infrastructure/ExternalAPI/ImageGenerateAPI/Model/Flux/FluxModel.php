@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
@@ -415,11 +416,7 @@ class FluxModel extends AbstractImageGenerate
             }
 
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             $imageUrl = $fluxResult['data']['imageUrl'];
 
@@ -440,7 +437,7 @@ class FluxModel extends AbstractImageGenerate
             ];
 
             // 累计usage信息
-            ++$currentUsage['generated_images'];
+            $currentUsage->addGeneratedImages(1);
 
             // 更新响应对象
             $response->setData($currentData);

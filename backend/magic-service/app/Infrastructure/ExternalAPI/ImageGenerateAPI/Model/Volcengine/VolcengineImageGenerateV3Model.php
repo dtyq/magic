@@ -15,6 +15,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 use Hyperf\Codec\Json;
@@ -417,11 +418,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 
             $data = $volcengineResult['data'];
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             // 优先处理 URL 格式图片，参考现有逻辑只取第一个图片
             if (! empty($data['image_urls']) && ! empty($data['image_urls'][0])) {
@@ -464,12 +461,12 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 
             // 累计usage信息（如果有的话）
             if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
-                $currentUsage['generated_images'] += $volcengineResult['usage']['generated_images'] ?? 1;
-                $currentUsage['output_tokens'] += $volcengineResult['usage']['output_tokens'] ?? 0;
-                $currentUsage['total_tokens'] += $volcengineResult['usage']['total_tokens'] ?? 0;
+                $currentUsage->addGeneratedImages($volcengineResult['usage']['generated_images'] ?? 1);
+                $currentUsage->completionTokens += $volcengineResult['usage']['output_tokens'] ?? 0;
+                $currentUsage->totalTokens += $volcengineResult['usage']['total_tokens'] ?? 0;
             } else {
                 // 如果没有usage信息，默认增加1张图片
-                ++$currentUsage['generated_images'];
+                $currentUsage->addGeneratedImages(1);
             }
 
             // 更新响应对象

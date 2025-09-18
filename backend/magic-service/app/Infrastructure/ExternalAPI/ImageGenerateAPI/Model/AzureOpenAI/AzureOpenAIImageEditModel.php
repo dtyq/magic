@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
@@ -327,12 +328,7 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
         }
 
         $currentData = $response->getData();
-        $currentUsage = $response->getUsage() ?? [
-            'generated_images' => 0,
-            'input_tokens' => 0,
-            'output_tokens' => 0,
-            'total_tokens' => 0,
-        ];
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
 
         foreach ($azureResult['data'] as $item) {
             if (! isset($item['b64_json']) || empty($item['b64_json'])) {
@@ -356,15 +352,15 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
             ];
 
             // 累计usage信息
-            ++$currentUsage['generated_images'];
+            $currentUsage->addGeneratedImages(1);
         }
 
         // 如果Azure OpenAI响应包含usage信息，则使用它
         if (! empty($azureResult['usage']) && is_array($azureResult['usage'])) {
             $usage = $azureResult['usage'];
-            $currentUsage['input_tokens'] += $usage['input_tokens'] ?? 0;
-            $currentUsage['output_tokens'] += $usage['output_tokens'] ?? 0;
-            $currentUsage['total_tokens'] += $usage['total_tokens'] ?? 0;
+            $currentUsage->promptTokens += $usage['input_tokens'] ?? 0;
+            $currentUsage->completionTokens += $usage['output_tokens'] ?? 0;
+            $currentUsage->totalTokens += $usage['total_tokens'] ?? 0;
         }
 
         // 更新响应对象

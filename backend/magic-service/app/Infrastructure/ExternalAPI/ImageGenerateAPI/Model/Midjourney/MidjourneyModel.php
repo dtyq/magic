@@ -15,6 +15,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 
@@ -410,11 +411,7 @@ class MidjourneyModel extends AbstractImageGenerate
         }
 
         $currentData = $response->getData();
-        $currentUsage = $response->getUsage() ?? [
-            'generated_images' => 0,
-            'output_tokens' => 0,
-            'total_tokens' => 0,
-        ];
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
 
         // 仅处理 images 数组中的URL
         foreach ($midjourneyResult['data']['images'] as $imageUrl) {
@@ -439,7 +436,7 @@ class MidjourneyModel extends AbstractImageGenerate
 
         // 累计usage信息
         $imageCount = count($midjourneyResult['data']['images']);
-        $currentUsage['generated_images'] += $imageCount;
+        $currentUsage->addGeneratedImages($imageCount);
 
         // 更新响应对象
         $response->setData($currentData);

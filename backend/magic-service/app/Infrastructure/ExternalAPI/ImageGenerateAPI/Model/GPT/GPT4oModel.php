@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
@@ -439,11 +440,7 @@ class GPT4oModel extends AbstractImageGenerate
             }
 
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             $imageUrl = $gpt4oResult['imageUrl'];
 
@@ -464,7 +461,7 @@ class GPT4oModel extends AbstractImageGenerate
             ];
 
             // 累计usage信息 - GPT4o没有详细的token统计
-            ++$currentUsage['generated_images'];
+            $currentUsage->addGeneratedImages(1);
 
             // 更新响应对象
             $response->setData($currentData);
