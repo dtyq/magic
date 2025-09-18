@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
@@ -43,9 +42,9 @@ class MiracleVisionModel extends AbstractImageGenerate
 
     private MiracleVisionAPI $api;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $this->api = new MiracleVisionAPI($serviceProviderConfig->getAk(), $serviceProviderConfig->getSk());
+        $this->api = new MiracleVisionAPI($serviceProviderConfig['ak'], $serviceProviderConfig['sk']);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
@@ -155,6 +154,11 @@ class MiracleVisionModel extends AbstractImageGenerate
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
     {
         throw new BadMethodCallException('该方法暂不支持');
+    }
+
+    public function getProviderName(): string
+    {
+        return 'miracle';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse

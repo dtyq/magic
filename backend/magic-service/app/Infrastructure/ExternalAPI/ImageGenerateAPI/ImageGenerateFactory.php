@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
@@ -37,7 +36,7 @@ use InvalidArgumentException;
 
 class ImageGenerateFactory
 {
-    public static function create(ImageGenerateModelType $imageGenerateType, ProviderConfigItem $serviceProviderConfig): ImageGenerate
+    public static function create(ImageGenerateModelType $imageGenerateType, array $serviceProviderConfig): ImageGenerate
     {
         return match ($imageGenerateType) {
             ImageGenerateModelType::Midjourney => new MidjourneyModel($serviceProviderConfig),
@@ -299,6 +298,16 @@ class ImageGenerateFactory
 
         if (isset($data['response_format'])) {
             $request->setResponseFormat($data['response_format']);
+        }
+
+        // 处理组图功能参数
+        if (isset($data['sequential_image_generation'])) {
+            $request->setSequentialImageGeneration($data['sequential_image_generation']);
+        }
+
+        // 处理组图功能选项参数
+        if (isset($data['sequential_image_generation_options']) && is_array($data['sequential_image_generation_options'])) {
+            $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
         }
 
         return $request;
