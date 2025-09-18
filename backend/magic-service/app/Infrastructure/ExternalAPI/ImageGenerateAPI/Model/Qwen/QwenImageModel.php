@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
@@ -540,11 +541,7 @@ class QwenImageModel extends AbstractImageGenerate
 
             $results = $qwenResult['output']['results'];
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             // 处理 results 数组中的第一个图片URL
             foreach ($results as $resultItem) {
@@ -571,11 +568,11 @@ class QwenImageModel extends AbstractImageGenerate
 
             // 累计usage信息
             if (! empty($qwenResult['usage']) && is_array($qwenResult['usage'])) {
-                $currentUsage['generated_images'] += $qwenResult['usage']['image_count'] ?? 1;
+                $currentUsage->addGeneratedImages($qwenResult['usage']['image_count'] ?? 1);
             // 通义千问没有token信息，保持默认值
             } else {
                 // 如果没有usage信息，默认增加1张图片
-                ++$currentUsage['generated_images'];
+                $currentUsage->addGeneratedImages(1);
             }
 
             // 更新响应对象

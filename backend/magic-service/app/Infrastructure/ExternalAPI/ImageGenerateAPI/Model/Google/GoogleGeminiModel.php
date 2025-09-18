@@ -14,6 +14,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
@@ -388,12 +389,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
             $imageBase64 = $this->extractImageDataFromResponse($geminiResult);
 
             $currentData = $response->getData();
-            $currentUsage = $response->getUsage() ?? [
-                'generated_images' => 0,
-                'input_tokens' => 0,
-                'output_tokens' => 0,
-                'total_tokens' => 0,
-            ];
+            $currentUsage = $response->getUsage() ?? new ImageUsage();
 
             // 水印处理（会将base64转换为URL）
             $processedUrl = $imageBase64;
@@ -414,13 +410,13 @@ class GoogleGeminiModel extends AbstractImageGenerate
             // 累计usage信息 - 从usageMetadata中提取
             if (! empty($geminiResult['usageMetadata']) && is_array($geminiResult['usageMetadata'])) {
                 $usageMetadata = $geminiResult['usageMetadata'];
-                ++$currentUsage['generated_images'];
-                $currentUsage['input_tokens'] += $usageMetadata['promptTokenCount'] ?? 0;
-                $currentUsage['output_tokens'] += $usageMetadata['candidatesTokenCount'] ?? 0;
-                $currentUsage['total_tokens'] += $usageMetadata['totalTokenCount'] ?? 0;
+                $currentUsage->addGeneratedImages(1);
+                $currentUsage->promptTokens += $usageMetadata['promptTokenCount'] ?? 0;
+                $currentUsage->completionTokens += $usageMetadata['candidatesTokenCount'] ?? 0;
+                $currentUsage->totalTokens += $usageMetadata['totalTokenCount'] ?? 0;
             } else {
                 // 如果没有usage信息，默认增加1张图片
-                ++$currentUsage['generated_images'];
+                $currentUsage->addGeneratedImages(1);
             }
 
             // 更新响应对象
