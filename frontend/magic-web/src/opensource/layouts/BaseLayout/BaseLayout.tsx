@@ -51,7 +51,7 @@ const BaseLayout = observer(() => {
 		<Flex vertical className={styles.global} onClick={handleClick}>
 			<Header className={styles.header} />
 			<NetworkTip />
-			<Flex className={styles.global}>
+			<Flex className={styles.globalWrapper}>
 				<Sider ref={siderRef} className={styles.sider} menuItems={pageMenuItems} />
 				<div className={styles.content}>{Content}</div>
 			</Flex>
