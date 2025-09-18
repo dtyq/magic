@@ -152,5 +152,12 @@ return [
     'messages' => [
         'summary_content' => ' Summarize content',
         'summary_content_with_note' => 'When summarizing the recording, please refer to the recording note file in the same directory and base the summary on both the note and the recording.',
+        // New prefix/suffix i18n (without note)
+        'summary_prefix' => 'Please help summarize the recording in ',
+        'summary_suffix' => ' into a minutes document.',
+        // New prefix/suffix i18n (with note)
+        'summary_prefix_with_note' => 'With reference to the note in the same directory, please help summarize the recording in ',
+        'summary_suffix_with_note' => ' into a minutes document.',
+        'waiting_ai_process' => 'Preparing to process your recording summary, please wait...',
     ],
 ];

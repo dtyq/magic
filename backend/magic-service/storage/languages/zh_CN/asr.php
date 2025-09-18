@@ -152,5 +152,12 @@ return [
     'messages' => [
         'summary_content' => ' 总结内容',
         'summary_content_with_note' => '请在总结录音时参考同一目录下的录音笔记文件，并结合笔记与录音内容完成总结。',
+        // 新的前后缀国际化（无笔记）
+        'summary_prefix' => '请帮我把 ',
+        'summary_suffix' => ' 中的录音内容整理成一份纪要文档。',
+        // 新的前后缀国际化（有笔记）
+        'summary_prefix_with_note' => '请在参考同目录下的笔记基础上，帮我把 ',
+        'summary_suffix_with_note' => ' 中的录音内容整理成一份纪要文档。',
+        'waiting_ai_process' => '正在准备为您处理录音总结，请稍候...',
     ],
 ];
