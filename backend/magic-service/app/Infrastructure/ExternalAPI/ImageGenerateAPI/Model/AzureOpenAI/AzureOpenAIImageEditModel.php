@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -25,14 +24,14 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
 {
     private AzureOpenAIAPI $api;
 
-    private ProviderConfigItem $config;
+    private array $configItem;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $config)
     {
-        $this->config = $serviceProviderConfig;
-        $baseUrl = $this->config->getUrl();
-        $apiVersion = $this->config->getApiVersion();
-        $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
+        $this->configItem = $config;
+        $baseUrl = $config['url'];
+        $apiVersion = $config['api_version'];
+        $this->api = new AzureOpenAIAPI($config['api_key'], $baseUrl, $apiVersion);
     }
 
     #[Retry(
@@ -85,9 +84,6 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
 
     public function setApiKey(string $apiKey): void
     {
-        $baseUrl = $this->config->getUrl();
-        $apiVersion = $this->config->getApiVersion();
-        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
     }
 
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
@@ -143,6 +139,11 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
     public function getProviderName(): string
     {
         return 'azure_openai';
+    }
+
+    public function getConfigItem(): array
+    {
+        return $this->configItem;
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
