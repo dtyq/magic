@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
@@ -27,15 +26,15 @@ class GoogleGeminiModel extends AbstractImageGenerate
 {
     protected GoogleGeminiAPI $api;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $apiUrl = $serviceProviderConfig->getUrl();
+        $apiUrl = $serviceProviderConfig['url'];
 
         if (empty($apiUrl)) {
             throw new Exception('Google Gemini API URL 配置缺失');
         }
 
-        $this->api = new GoogleGeminiAPI($serviceProviderConfig->getApiKey(), $apiUrl);
+        $this->api = new GoogleGeminiAPI($serviceProviderConfig['api_key'], $apiUrl);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array

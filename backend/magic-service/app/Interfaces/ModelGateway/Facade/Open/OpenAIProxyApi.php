@@ -110,7 +110,11 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $textGenerateImageDTO->valid();
         $this->setHeaderConfigs($textGenerateImageDTO, $request);
-        return $this->llmAppService->textGenerateImageV2($textGenerateImageDTO)->toArray();
+        $response = $this->llmAppService->textGenerateImageV2($textGenerateImageDTO);
+        if ($response instanceof OpenAIFormatResponse) {
+            return $response->toArray();
+        }
+        return null;
     }
 
     public function imageEditV2(RequestInterface $request)
@@ -126,7 +130,11 @@ class OpenAIProxyApi extends AbstractOpenApi
             return OpenAIFormatResponse::buildError(ImageGenerateErrorCode::MODEL_NOT_SUPPORT_EDIT->value, __('image_generate.model_not_support_edit'))->toArray();
         }
         $this->setHeaderConfigs($imageEditDTO, $request);
-        return $this->llmAppService->textGenerateImageV2($imageEditDTO)->toArray();
+        $response = $this->llmAppService->textGenerateImageV2($imageEditDTO);
+        if ($response instanceof OpenAIFormatResponse) {
+            return $response->toArray();
+        }
+        return null;
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)

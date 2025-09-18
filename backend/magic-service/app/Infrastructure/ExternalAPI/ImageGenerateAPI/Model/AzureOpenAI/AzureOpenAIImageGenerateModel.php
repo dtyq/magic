@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -26,14 +25,14 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 {
     private AzureOpenAIAPI $api;
 
-    private ProviderConfigItem $config;
+    private array $configItem;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $this->config = $serviceProviderConfig;
-        $baseUrl = $this->config->getUrl();
-        $apiVersion = $this->config->getApiVersion();
-        $this->api = new AzureOpenAIAPI($this->config->getApiKey(), $baseUrl, $apiVersion);
+        $this->configItem = $serviceProviderConfig;
+        $baseUrl = $serviceProviderConfig['url'];
+        $apiVersion = $serviceProviderConfig['api_version'];
+        $this->api = new AzureOpenAIAPI($serviceProviderConfig['api_key'], $baseUrl, $apiVersion);
     }
 
     #[Retry(
@@ -126,7 +125,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         try {
             // 3. 图像生成（同步处理，Azure OpenAI API 支持 n 参数一次性生成多张图片）
             if (! empty($imageGenerateRequest->getReferenceImages())) {
-                $editModel = new AzureOpenAIImageEditModel($this->config);
+                $editModel = new AzureOpenAIImageEditModel($this->configItem);
                 $editRequest = $this->convertToEditRequest($imageGenerateRequest);
                 $result = $editModel->generateImageRaw($editRequest);
             } else {
@@ -159,6 +158,11 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     public function getProviderName(): string
     {
         return 'azure_openai';
+    }
+
+    public function getConfigItem(): array
+    {
+        return $this->configItem;
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
