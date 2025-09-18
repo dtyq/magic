@@ -2014,9 +2014,9 @@ readonly class AsrFileAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND);
         }
 
-        // 检查话题的当前任务状态是否为waiting或running（需要队列处理）
+        // 检查话题的当前任务状态是否为 running（需要队列处理）
         $currentStatus = $topicEntity->getCurrentTaskStatus();
-        return $currentStatus !== null && ($currentStatus === SuperAgentTaskStatus::WAITING || $currentStatus === SuperAgentTaskStatus::RUNNING);
+        return $currentStatus !== null && ($currentStatus === SuperAgentTaskStatus::RUNNING);
     }
 
     /**
