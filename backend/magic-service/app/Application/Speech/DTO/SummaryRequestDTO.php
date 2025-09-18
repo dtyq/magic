@@ -19,7 +19,9 @@ readonly class SummaryRequestDTO
         public string $topicId,
         public string $modelId,
         public ?string $workspaceFilePath = null,
-        public ?NoteDTO $note = null
+        public ?NoteDTO $note = null,
+        public ?string $asrStreamContent = null,
+        public ?string $generatedTitle = null
     ) {
     }
 
@@ -61,6 +63,14 @@ readonly class SummaryRequestDTO
     public function hasNote(): bool
     {
         return $this->note !== null && $this->note->hasContent();
+    }
+
+    /**
+     * 是否包含流式识别文本.
+     */
+    public function hasAsrStreamContent(): bool
+    {
+        return ! empty($this->asrStreamContent);
     }
 
     /**

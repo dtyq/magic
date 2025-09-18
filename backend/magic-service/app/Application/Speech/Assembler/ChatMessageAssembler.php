@@ -107,6 +107,12 @@ class ChatMessageAssembler
                         'attrs' => ['suggestion' => ''],
                         'content' => [
                             [
+                                'type' => 'text',
+                                'text' => $hasNoteFile
+                                    ? $this->translator->trans('asr.messages.summary_prefix_with_note')
+                                    : $this->translator->trans('asr.messages.summary_prefix'),
+                            ],
+                            [
                                 'type' => 'mention',
                                 'attrs' => [
                                     'id' => null,
@@ -119,8 +125,8 @@ class ChatMessageAssembler
                             [
                                 'type' => 'text',
                                 'text' => $hasNoteFile
-                                    ? $this->translator->trans('asr.messages.summary_content_with_note')
-                                    : $this->translator->trans('asr.messages.summary_content'),
+                                    ? $this->translator->trans('asr.messages.summary_suffix_with_note')
+                                    : $this->translator->trans('asr.messages.summary_suffix'),
                             ],
                         ],
                     ],
