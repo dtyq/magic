@@ -364,7 +364,7 @@ class LLMAppService extends AbstractLLMAppService
                     if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
                         $n = 1;
                     }
-                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n,$serviceProviderConfig->getProviderModelId());
+                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n, $serviceProviderConfig->getProviderModelId());
                     AsyncEventUtil::dispatch($event);
 
                     return $generateImageRaw;
@@ -423,7 +423,7 @@ class LLMAppService extends AbstractLLMAppService
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1, $serviceProviderConfig->getProviderModelId());
-                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1,$serviceProviderConfig->getProviderModelId());
+                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1, $serviceProviderConfig->getProviderModelId());
 
                     AsyncEventUtil::dispatch($event);
 
@@ -832,7 +832,7 @@ class LLMAppService extends AbstractLLMAppService
             }
 
             // 发布事件
-            $event = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n,$imageModel->getProviderModelId());
+            $event = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n, $imageModel->getProviderModelId());
             AsyncEventUtil::dispatch($event);
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
