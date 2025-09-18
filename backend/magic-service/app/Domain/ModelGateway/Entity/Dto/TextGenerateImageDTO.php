@@ -24,6 +24,10 @@ class TextGenerateImageDTO extends AbstractRequestDTO
 
     protected ?WatermarkConfig $watermark = null;
 
+    protected string $sequentialImageGeneration = 'disabled';
+
+    protected array $sequentialImageGenerationOptions = [];
+
     public function getPrompt(): string
     {
         return $this->prompt;
@@ -106,5 +110,25 @@ class TextGenerateImageDTO extends AbstractRequestDTO
             return false;
         }
         return true;
+    }
+
+    public function getSequentialImageGeneration(): string
+    {
+        return $this->sequentialImageGeneration;
+    }
+
+    public function setSequentialImageGeneration(string $sequentialImageGeneration): void
+    {
+        $this->sequentialImageGeneration = $sequentialImageGeneration;
+    }
+
+    public function getSequentialImageGenerationOptions(): array
+    {
+        return $this->sequentialImageGenerationOptions;
+    }
+
+    public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
+    {
+        $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
     }
 }
