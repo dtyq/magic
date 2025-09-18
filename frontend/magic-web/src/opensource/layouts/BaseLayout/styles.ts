@@ -22,6 +22,11 @@ export const useStyles = createStyles(
 					isDarkMode ? token.magicColorScales.grey[1] : token.colorBorder
 				}`,
 			},
+			globalWrapper: {
+				width: "100%",
+				height: `calc(100vh - ${token.titleBarHeight}px)`,
+				overflow: "hidden",
+			},
 			wrapper: {
 				height: `calc(100vh - ${token.titleBarHeight}px)`,
 			},
@@ -35,7 +40,6 @@ export const useStyles = createStyles(
 			subSider: {},
 			content: css`
 				width: calc(100% - var(--sider-width));
-				height: 100%;
 			`,
 		}
 	},
