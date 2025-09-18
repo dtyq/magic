@@ -304,9 +304,7 @@ class TopicTaskAppService extends AbstractAppService
             );
             $this->topicDomainService->updateTopicStatusAndSandboxId($task->getTopicId(), $task->getId(), $status, $task->getSandboxId());
 
-            $topicEntity = $this->topicDomainService->getTopicById($task->getTopicId());
-
-            $this->projectDomainService->updateProjectStatus($topicEntity->getProjectId(), $topicEntity->getId(), $status);
+            $this->projectDomainService->updateProjectStatus($task->getProjectId(), $task->getTopicId(), $status);
             // Log success
             $this->logger->info('Task status update completed', [
                 'task_id' => $taskId,
