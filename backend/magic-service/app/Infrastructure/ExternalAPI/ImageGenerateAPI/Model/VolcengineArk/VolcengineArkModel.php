@@ -190,6 +190,12 @@ class VolcengineArkModel extends AbstractImageGenerate
             'stream' => $imageGenerateRequest->getStream(),
         ];
 
+        // 如果设置了组图功能选项，则添加 sequential_image_generation_options
+        $sequentialOptions = $imageGenerateRequest->getSequentialImageGenerationOptions();
+        if (! empty($sequentialOptions)) {
+            $payload['sequential_image_generation_options'] = $sequentialOptions;
+        }
+
         // 如果有参考图像，则添加image字段
         if (! empty($referImages)) {
             $payload['image'] = $referImages[0];
@@ -220,6 +226,12 @@ class VolcengineArkModel extends AbstractImageGenerate
             'sequential_image_generation' => $imageGenerateRequest->getSequentialImageGeneration(),
             'stream' => $imageGenerateRequest->getStream(),
         ];
+
+        // 如果设置了组图功能选项，则添加 sequential_image_generation_options
+        $sequentialOptions = $imageGenerateRequest->getSequentialImageGenerationOptions();
+        if (! empty($sequentialOptions)) {
+            $payload['sequential_image_generation_options'] = $sequentialOptions;
+        }
 
         // 如果有参考图像，则添加image字段
         if (! empty($referImages)) {

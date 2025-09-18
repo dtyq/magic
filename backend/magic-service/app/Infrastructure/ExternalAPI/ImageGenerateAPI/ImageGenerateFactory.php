@@ -301,6 +301,16 @@ class ImageGenerateFactory
             $request->setResponseFormat($data['response_format']);
         }
 
+        // 处理组图功能参数
+        if (isset($data['sequential_image_generation'])) {
+            $request->setSequentialImageGeneration($data['sequential_image_generation']);
+        }
+
+        // 处理组图功能选项参数
+        if (isset($data['sequential_image_generation_options']) && is_array($data['sequential_image_generation_options'])) {
+            $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
+        }
+
         return $request;
     }
 }

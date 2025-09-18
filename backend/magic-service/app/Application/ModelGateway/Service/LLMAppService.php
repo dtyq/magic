@@ -305,6 +305,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
+        $imageGenerateParamsVO->setSequentialImageGeneration($textGenerateImageDTO->getSequentialImageGeneration());
+        $imageGenerateParamsVO->setSequentialImageGenerationOptions($textGenerateImageDTO->getSequentialImageGenerationOptions());
 
         $size = $textGenerateImageDTO->getSize();
         [$width, $height] = explode('x', $size);
@@ -542,7 +544,6 @@ class LLMAppService extends AbstractLLMAppService
                     $model = match ($proxyModelRequest->getType()) {
                         'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode, $modelFilter),
                         'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode, $modelFilter),
-                        'image' => $this->modelGatewayMapper->getOrganizationImageModel($modelId, $orgCode, $modelFilter),
                         default => null
                     };
                     if ($model instanceof OdinModel) {
@@ -780,6 +781,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($proxyModelRequest->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
+        $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
+        $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
 
         $size = $proxyModelRequest->getSize();
         [$width, $height] = explode('x', $size);

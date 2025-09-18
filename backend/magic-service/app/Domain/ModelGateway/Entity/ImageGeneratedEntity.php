@@ -8,9 +8,10 @@ declare(strict_types=1);
 namespace App\Domain\ModelGateway\Entity;
 
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
+use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
 
-class ImageGeneratedEntity
+class ImageGeneratedEntity extends AbstractEntity
 {
     protected string $organizationCode;
 
@@ -29,6 +30,19 @@ class ImageGeneratedEntity
     protected ?string $sourceId = null;
 
     protected ImageGenerateSourceEnum $sourceType;
+
+    protected string $providerModelId = "";
+
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
+    public function setProviderModelId(string $providerModelId): void
+    {
+        $this->providerModelId = $providerModelId;
+    }
+
 
     public function getOrganizationCode(): string
     {
