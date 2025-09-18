@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
@@ -35,9 +34,9 @@ class GPT4oModel extends AbstractImageGenerate
 
     protected GPTAPI $api;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $this->api = new GPTAPI($serviceProviderConfig->getApiKey());
+        $this->api = new GPTAPI($serviceProviderConfig['api_key']);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array

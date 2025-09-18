@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
@@ -26,10 +25,10 @@ class VolcengineArkModel extends AbstractImageGenerate
 {
     protected VolcengineArkAPI $api;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $apiUrl = $serviceProviderConfig->getUrl();
-        $apiKey = $serviceProviderConfig->getApiKey();
+        $apiUrl = $serviceProviderConfig['url'];
+        $apiKey = $serviceProviderConfig['api_key'];
 
         if (empty($apiKey)) {
             throw new Exception('VolcengineArk API Key 配置缺失');

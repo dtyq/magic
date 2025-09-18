@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response;
 
-class OpenAIFormatResponse
+use Hyperf\Odin\Contract\Api\Response\ResponseInterface;
+
+class OpenAIFormatResponse implements ResponseInterface
 {
     private int $created;
 

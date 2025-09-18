@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux;
 
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
@@ -33,9 +32,9 @@ class FluxModel extends AbstractImageGenerate
 
     protected FluxAPI $api;
 
-    public function __construct(ProviderConfigItem $serviceProviderConfig)
+    public function __construct(array $serviceProviderConfig)
     {
-        $this->api = new FluxAPI($serviceProviderConfig->getApiKey());
+        $this->api = new FluxAPI($serviceProviderConfig['api_key']);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array

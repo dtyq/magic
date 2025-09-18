@@ -9,7 +9,6 @@ namespace App\Application\ModelGateway\Mapper;
 
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\ImageGenerationModelWrapper;
-use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
@@ -22,6 +21,7 @@ use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
@@ -135,6 +135,18 @@ class ModelGatewayMapper extends ModelMapper
         return $this->getEmbeddingModel($model);
     }
 
+    public function getOrganizationImageModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?ImageModel
+    {
+        $result = $this->getByAdmin($model, $orgCode, $filter, Category::VLM);
+
+        // 只返回 ImageGenerationModelWrapper 类型的结果
+        if ($result instanceof ImageModel) {
+            return $result;
+        }
+
+        return null;
+    }
+
     /**
      * 获取当前组织下的所有可用 chat 模型.
      * @return OdinModel[]
@@ -192,18 +204,6 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         return $odinModels;
-    }
-
-    public function getOrganizationImageModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?ProviderConfigItem
-    {
-        $result = $this->getByAdmin($model, $orgCode, $filter, Category::VLM);
-
-        // 只返回 ImageGenerationModelWrapper 类型的结果
-        if ($result instanceof ProviderConfigItem) {
-            return $result;
-        }
-
-        return null;
     }
 
     protected function loadEnvModels(): void
@@ -347,7 +347,7 @@ class ModelGatewayMapper extends ModelMapper
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
         ModelFilter $filter
-    ): null|OdinModel|ProviderConfigItem {
+    ): null|ImageModel|OdinModel {
         $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
         $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
 
@@ -440,13 +440,9 @@ class ModelGatewayMapper extends ModelMapper
             $iconUrl = '';
         }
 
-        $key = $providerModelEntity->getModelId();
-
         // 根据模型类型返回不同的包装对象
         if ($providerModelEntity->getModelType()->isVLM()) {
-            $providerConfigItem->setProviderModelId((string) $providerModelEntity->getId());
-            $providerConfigItem->setModelVersion($providerModelEntity->getModelVersion());
-            return $providerConfigItem;
+            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId());
         }
 
         // 对于LLM/Embedding模型，保持原有逻辑
@@ -479,7 +475,7 @@ class ModelGatewayMapper extends ModelMapper
         );
     }
 
-    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null, Category $category = Category::LLM): null|OdinModel|ProviderConfigItem
+    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null, Category $category = Category::LLM): null|ImageModel|OdinModel
     {
         if (! $filter) {
             $filter = new ModelFilter();
