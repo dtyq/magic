@@ -835,7 +835,7 @@ class LLMAppService extends AbstractLLMAppService
             }
 
             // 发布事件
-            $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n,$providerConfigItem->getProviderModelId());
+            $imageGeneratedEntity = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n, $providerConfigItem->getProviderModelId());
             $event = new ImageGeneratedEvent($imageGeneratedEntity);
             AsyncEventUtil::dispatch($event);
         } catch (Exception $e) {
