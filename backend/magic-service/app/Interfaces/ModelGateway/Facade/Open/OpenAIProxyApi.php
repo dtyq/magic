@@ -137,7 +137,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         return null;
     }
 
-    private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
+    private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request): void
     {
         $headerConfigs = [];
         foreach ($request->getHeaders() as $key => $value) {

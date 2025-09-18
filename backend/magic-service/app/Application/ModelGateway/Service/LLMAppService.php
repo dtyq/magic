@@ -166,6 +166,14 @@ class LLMAppService extends AbstractLLMAppService
         }, $modelFilter ?? new ModelFilter());
     }
 
+    public function textGenerateImageV2(TextGenerateImageDTO $textGenerateImageDTO): ResponseInterface
+    {
+        // 使用统一的 processRequest 处理流程
+        return $this->processRequest($textGenerateImageDTO, function (ImageModel $imageModel, TextGenerateImageDTO $request) {
+            return $this->callImageModel($imageModel, $request);
+        }, new ModelFilter());
+    }
+
     /**
      * @throws Exception
      */
@@ -482,21 +490,13 @@ class LLMAppService extends AbstractLLMAppService
         }
     }
 
-    public function textGenerateImageV2(TextGenerateImageDTO $textGenerateImageDTO): ResponseInterface
-    {
-        // 使用统一的 processRequest 处理流程
-        return $this->processRequest($textGenerateImageDTO, function (ImageModel $imageModel, TextGenerateImageDTO $request) {
-            return $this->callImageModel($imageModel, $request);
-        }, new ModelFilter());
-    }
-
     /**
      * General request processing workflow.
      *
      * @param ProxyModelRequestInterface $proxyModelRequest Request object
      * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
-    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): OpenAIFormatResponse|ResponseInterface
+    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): ResponseInterface
     {
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
@@ -762,9 +762,8 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * 调用图片生成模型.
      */
-    protected function callImageModel(ImageModel $imageModel, ImageEditDTO|TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
+    protected function callImageModel(ImageModel $imageModel, TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
     {
-        //        ImageModel: model_version、
         $organizationCode = $proxyModelRequest->getBusinessParam('organization_id');
         $creator = $proxyModelRequest->getBusinessParam('user_id');
 
@@ -813,7 +812,7 @@ class LLMAppService extends AbstractLLMAppService
             // 计算计费数量
             $n = $proxyModelRequest->getN();
             // 除了 mj和 图生图 是 1 次之外，其他都按张数算
-            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes()) || $proxyModelRequest instanceof ImageEditDTO) {
+            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
                 $n = 1;
             }
 
