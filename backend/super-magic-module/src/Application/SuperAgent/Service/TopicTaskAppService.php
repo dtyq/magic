@@ -397,6 +397,7 @@ class TopicTaskAppService extends AbstractAppService
         $taskMessageEntity->setSenderUid($metadata->getAgentUserId() ?? '');
         $taskMessageEntity->setReceiverUid($metadata->getUserId() ?? '');
         $taskMessageEntity->setSeqId($messageDTO->getPayload()->getSeqId());
+        $taskMessageEntity->setCorrelationId($payload->getCorrelationId());
 
         // Validate message type
         if (! MessageType::isValid($messageType)) {

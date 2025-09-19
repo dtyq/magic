@@ -92,6 +92,11 @@ class MessageItemDTO implements JsonSerializable
     protected ?string $imStatus;
 
     /**
+     * @var null|string 关联ID，用于消息追踪和关联
+     */
+    protected ?string $correlationId;
+
+    /**
      * 构造函数.
      */
     public function __construct(array $data = [])
@@ -120,6 +125,7 @@ class MessageItemDTO implements JsonSerializable
         $this->event = (string) ($data['event'] ?? '');
         $this->attachments = $data['attachments'] ?? [];
         $this->imStatus = isset($data['im_status']) ? $this->convertImStatusToString((int) $data['im_status']) : null;
+        $this->correlationId = $data['correlation_id'] ?? null;
     }
 
     /**
@@ -144,6 +150,7 @@ class MessageItemDTO implements JsonSerializable
             'event' => $this->event,
             'attachments' => $this->attachments,
             'im_status' => $this->imStatus,
+            'correlation_id' => $this->correlationId,
         ];
     }
 

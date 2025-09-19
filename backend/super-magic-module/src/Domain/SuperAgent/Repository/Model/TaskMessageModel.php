@@ -53,6 +53,7 @@ class TaskMessageModel extends AbstractModel
         'retry_count',
         'processed_at',
         'im_seq_id',
+        'correlation_id',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -74,5 +75,6 @@ class TaskMessageModel extends AbstractModel
         'retry_count' => 'integer',
         'processed_at' => 'datetime',
         'im_seq_id' => 'integer',
+        'correlation_id' => 'string',
     ];
 }
