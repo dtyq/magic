@@ -284,7 +284,7 @@ class TopicTaskAppService extends AbstractAppService
             // Use utility class to validate status transition
             if (! TaskStatusValidator::isTransitionAllowed($currentStatus, $status)) {
                 $reason = TaskStatusValidator::getRejectReason($currentStatus, $status);
-                $this->logger->warning('Rejected status update', [
+                $this->logger->info('Rejected status update', [
                     'task_id' => $taskId,
                     'current_status' => $currentStatus->value ?? 'null',
                     'new_status' => $status->value,
@@ -397,6 +397,7 @@ class TopicTaskAppService extends AbstractAppService
         $taskMessageEntity->setSenderUid($metadata->getAgentUserId() ?? '');
         $taskMessageEntity->setReceiverUid($metadata->getUserId() ?? '');
         $taskMessageEntity->setSeqId($messageDTO->getPayload()->getSeqId());
+        $taskMessageEntity->setCorrelationId($payload->getCorrelationId());
 
         // Validate message type
         if (! MessageType::isValid($messageType)) {
