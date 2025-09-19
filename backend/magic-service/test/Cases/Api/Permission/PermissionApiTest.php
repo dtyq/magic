@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Permission;
 
-use Hyperf\Codec\Json;
 use HyperfTest\Cases\Api\AbstractHttpTest;
 
 /**
@@ -17,10 +16,10 @@ class PermissionApiTest extends AbstractHttpTest
 {
     public const string API = '/api/v1/admin/roles/permissions/tree';
 
-    public function testGetPermissionTree(): void
+    public function testAPIGetPermissionTree(): void
     {
         $response = $this->get(self::API, [], $this->getCommonHeaders());
-        var_dump(Json::encode($response));
+        var_dump($response);
 
         // 如果返回认证错误，跳过测试（仅验证路由可用）
         if (isset($response['code']) && in_array($response['code'], [401, 403, 2179, 3035, 4001, 4003])) {

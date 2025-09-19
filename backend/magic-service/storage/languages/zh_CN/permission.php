@@ -12,9 +12,14 @@ return [
         'safe_sub_admin' => '子管理员',
         'ai_model' => '大模型',
         'ai_image' => '智能绘图',
+        'ai_mode' => '模式',
+        'ai_content_audit' => 'AI内容审核',
         'console' => '控制台',
         'api' => '接口',
         'api_assistant' => '接口助手',
+        'platform' => '平台管理',
+        'platform_setting' => '系统设置',
+        'platform_setting_maintenance' => '维护管理',
     ],
     'operation' => [
         'query' => '查询',
@@ -30,5 +35,6 @@ return [
         'organization_creator_cannot_be_revoked' => '组织创建人不可撤销',
         'organization_creator_cannot_be_disabled' => '组织创建人不可禁用',
         'current_user_not_organization_creator' => '当前用户不是组织创建人',
+        'personal_organization_cannot_grant_admin' => '个人组织不可设置组织管理员',
     ],
 ];

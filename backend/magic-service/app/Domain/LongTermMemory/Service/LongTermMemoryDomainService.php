@@ -25,7 +25,6 @@ use DateTime;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -42,7 +41,6 @@ readonly class LongTermMemoryDomainService
         private LoggerInterface $logger,
         private LockerInterface $locker,
         private MagicMessageRepositoryInterface $messageRepository,
-        private ProjectRepositoryInterface $projectRepository,
     ) {
     }
 
@@ -178,17 +176,13 @@ readonly class LongTermMemoryDomainService
                 }
 
                 // 批量删除需要删除的记忆
-                if (! empty($memoriesToDelete)) {
-                    if (! $this->repository->deleteBatch($memoriesToDelete)) {
-                        ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
-                    }
+                if (! empty($memoriesToDelete) && ! $this->repository->deleteBatch($memoriesToDelete)) {
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::DELETION_FAILED);
                 }
 
                 // 批量更新需要清空pending_content的记忆
-                if (! empty($memoriesToUpdate)) {
-                    if (! $this->repository->updateBatch($memoriesToUpdate)) {
-                        ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
-                    }
+                if (! empty($memoriesToUpdate) && ! $this->repository->updateBatch($memoriesToUpdate)) {
+                    ExceptionBuilder::throw(LongTermMemoryErrorCode::UPDATE_FAILED);
                 }
             }
 
@@ -374,16 +368,27 @@ readonly class LongTermMemoryDomainService
     }
 
     /**
-     * 根据项目ID删除记忆.
+     * 根据项目ID列表批量删除记忆.
      * @param string $orgId 组织ID
      * @param string $appId 应用ID
      * @param string $userId 用户ID
-     * @param string $projectId 项目ID
+     * @param array $projectIds 项目ID列表
      * @return int 删除的记录数量
      */
-    public function deleteMemoriesByProjectId(string $orgId, string $appId, string $userId, string $projectId): int
+    public function deleteMemoriesByProjectIds(string $orgId, string $appId, string $userId, array $projectIds): int
     {
-        return $this->repository->deleteByProjectId($orgId, $appId, $userId, $projectId);
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        // 过滤空的项目ID
+        $validProjectIds = array_filter($projectIds, static fn ($id) => ! empty($id));
+        if (empty($validProjectIds)) {
+            return 0;
+        }
+
+        // 一条SQL批量删除
+        return $this->repository->deleteByProjectIds($orgId, $appId, $userId, $validProjectIds);
     }
 
     /**
@@ -588,45 +593,6 @@ readonly class LongTermMemoryDomainService
         }
 
         return false;
-    }
-
-    /**
-     * 批量获取项目名称.
-     *
-     * @param array $projectIds 项目ID数组
-     * @return array 项目ID => 项目名称的映射数组
-     */
-    public function getProjectNamesBatch(array $projectIds): array
-    {
-        if (empty($projectIds)) {
-            return [];
-        }
-
-        $ids = array_values(array_unique(array_map('intval', $projectIds)));
-        if (empty($ids)) {
-            return [];
-        }
-
-        $projects = $this->projectRepository->findByIds($ids);
-
-        $projectNames = [];
-        foreach ($projects as $project) {
-            $projectNames[(string) $project->getId()] = $project->getProjectName();
-        }
-
-        return $projectNames;
-    }
-
-    /**
-     * 根据项目ID获取项目名称.
-     */
-    public function getProjectNameById(?string $projectId): ?string
-    {
-        if ($projectId === null || $projectId === '') {
-            return null;
-        }
-
-        return $this->projectRepository->findById((int) $projectId)?->getProjectName();
     }
 
     /**

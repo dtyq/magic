@@ -111,8 +111,7 @@ readonly class OCRService
             'content' => $result,
         ];
 
-        // 缓存新数据，设置过期时间为 30 天（2592000 秒）
-        $this->cache->set($cacheKey, Json::encode($newCacheData), 2592000);
+        $this->cache->set($cacheKey, Json::encode($newCacheData), 1800);
 
         return $result;
     }

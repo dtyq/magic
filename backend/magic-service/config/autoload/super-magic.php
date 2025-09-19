@@ -37,4 +37,7 @@ return [
         'enabled' => \Hyperf\Support\env('USER_MESSAGE_QUEUE_ENABLED', true),
         'whitelist' => array_filter(explode(',', \Hyperf\Support\env('USER_MESSAGE_QUEUE_WHITELIST', ''))),
     ],
+    'file_version' => [
+        'max_versions' => \Hyperf\Support\env('FILE_VERSION_MAX_VERSIONS', 10),
+    ],
 ];

@@ -222,17 +222,24 @@ readonly class RoleDomainService
      */
     public function hasPermission(PermissionDataIsolation $dataIsolation, string $userId, string $permissionKey): bool
     {
+        $isPlatformOrganization = false;
+        $officialOrganization = config('service_provider.office_organization');
+        if ($officialOrganization === $dataIsolation->getCurrentOrganizationCode()) {
+            $isPlatformOrganization = true;
+        }
         $userPermissions = $this->roleRepository->getUserPermissions($dataIsolation->getCurrentOrganizationCode(), $userId);
-        return $this->permission->checkPermission($permissionKey, $userPermissions);
+        return $this->permission->checkPermission($permissionKey, $userPermissions, $isPlatformOrganization);
     }
 
     /**
      * 获取权限资源树结构.
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
      */
-    public function getPermissionTree(): array
+    public function getPermissionTree(bool $isPlatformOrganization = false): array
     {
         $permissionEnum = di(MagicPermissionInterface::class);
-        return $permissionEnum->getPermissionTree();
+        return $permissionEnum->getPermissionTree($isPlatformOrganization);
     }
 
     /**

@@ -9,7 +9,9 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
+use App\Infrastructure\Util\Locker\RedisLocker;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\Redis\Redis;
@@ -31,7 +33,8 @@ abstract class AbstractImageGenerate implements ImageGenerate
     #[Inject]
     protected Redis $redis;
 
-    protected static string $watermarkText = '麦吉 AI 生成';
+    #[Inject]
+    protected RedisLocker $redisLocker;
 
     /**
      * 统一的图片生成入口方法
@@ -39,19 +42,7 @@ abstract class AbstractImageGenerate implements ImageGenerate
      */
     final public function generateImage(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
-        // 1. 调用子类的原始生成方法
         $originalResponse = $this->generateImageInternal($imageGenerateRequest);
-
-        // 2. 获取水印配置（所有图片都必须加水印）
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $originalResponse;
-        }
-
-        // 3. 统一添加水印
-        $this->logger->info('图片生成：开始添加统一水印', [
-            'imageCount' => count($originalResponse->getData()),
-            'imageType' => $originalResponse->getImageGenerateType()->value,
-        ]);
 
         return $this->applyWatermark($originalResponse, $imageGenerateRequest);
     }
@@ -62,15 +53,69 @@ abstract class AbstractImageGenerate implements ImageGenerate
      */
     abstract public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array;
 
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        return $this->generateImageOpenAIFormat($imageGenerateRequest);
+    }
+
     /**
      * 子类实现的原始图片生成方法
      * 只负责调用各自API生成图片，不用关心水印处理.
      */
     abstract protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse;
 
-    protected function isWatermark(ImageGenerateRequest $imageGenerateRequest): bool
+    /**
+     * 获取响应对象的锁，用于并发安全地操作 OpenAIFormatResponse.
+     * 使用Redis自旋锁实现排队等待.
+     *
+     * @return string 返回锁的owner，用于释放锁
+     */
+    protected function lockResponse(OpenAIFormatResponse $response): string
     {
-        return $imageGenerateRequest->getWatermarkConfig() === null;
+        $lockKey = 'img_response_' . spl_object_id($response);
+        $owner = bin2hex(random_bytes(8)); // 16位随机字符串作为owner
+
+        // spinLock会自动等待，直到获取成功或超时（30秒）
+        if (! $this->redisLocker->spinLock($lockKey, $owner, 30)) {
+            $this->logger->error('获取图像响应Redis锁超时', [
+                'lock_key' => $lockKey,
+                'timeout' => 30,
+            ]);
+            throw new Exception('获取图像响应锁超时，请稍后重试');
+        }
+
+        $this->logger->debug('Redis锁获取成功', ['lock_key' => $lockKey, 'owner' => $owner]);
+        return $owner;
+    }
+
+    /**
+     * 释放响应对象的锁.
+     *
+     * @param OpenAIFormatResponse $response 响应对象
+     * @param string $owner 锁的owner
+     */
+    protected function unlockResponse(OpenAIFormatResponse $response, string $owner): void
+    {
+        $lockKey = 'img_response_' . spl_object_id($response);
+
+        try {
+            $result = $this->redisLocker->release($lockKey, $owner);
+            if (! $result) {
+                $this->logger->warning('Redis锁释放失败，可能已被其他进程释放', [
+                    'lock_key' => $lockKey,
+                    'owner' => $owner,
+                ]);
+            } else {
+                $this->logger->debug('Redis锁释放成功', ['lock_key' => $lockKey, 'owner' => $owner]);
+            }
+        } catch (Exception $e) {
+            $this->logger->error('Redis锁释放异常', [
+                'lock_key' => $lockKey,
+                'owner' => $owner,
+                'error' => $e->getMessage(),
+            ]);
+            // 锁释放失败不影响业务逻辑，但要记录日志
+        }
     }
 
     /**

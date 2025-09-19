@@ -801,17 +801,21 @@ class FileManagementAppService extends AbstractAppService
      * @param array $options Additional options
      * @return array File URLs
      */
-    public function getFileUrls(RequestContext $requestContext, array $fileIds, string $downloadMode, array $options = []): array
+    public function getFileUrls(RequestContext $requestContext, string $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
     {
         try {
             $userAuthorization = $requestContext->getUserAuthorization();
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
             return $this->taskFileDomainService->getFileUrls(
                 $dataIsolation,
+                $projectEntity->getId(),
                 $fileIds,
                 $downloadMode,
-                $options
+                $options,
+                $fileVersions
             );
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
@@ -839,9 +843,10 @@ class FileManagementAppService extends AbstractAppService
      * @param array $fileIds Array of file IDs
      * @param string $accessToken Access token for verification
      * @param string $downloadMode Download mode (download, preview)
+     * @param array $fileVersions File version mapping [新增参数]
      * @return array File URLs
      */
-    public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode): array
+    public function getFileUrlsByAccessToken(array $fileIds, string $accessToken, string $downloadMode, array $fileVersions = []): array
     {
         try {
             // 从缓存里获取数据
@@ -875,7 +880,7 @@ class FileManagementAppService extends AbstractAppService
             $organizationCode = AccessTokenUtil::getOrganizationCode($accessToken);
             $dataIsolation = DataIsolation::simpleMake($organizationCode);
 
-            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode);
+            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode, $fileVersions);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',

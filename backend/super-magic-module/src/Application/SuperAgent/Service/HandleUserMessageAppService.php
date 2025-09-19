@@ -163,7 +163,7 @@ class HandleUserMessageAppService extends AbstractAppService
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
-            agentMode: $userMessageDTO->getTopicMode()->value,
+            agentMode: $userMessageDTO->getTopicMode(),
         );
     }
 
@@ -219,7 +219,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 dataIsolation: $dataIsolation,
                 topicEntity: $topicEntity,
                 taskEntity: $taskEntity,
-                topicMode: $userMessageDTO->getTopicMode()->value
+                topicMode: $userMessageDTO->getTopicMode()
             );
             $taskId = (string) $taskEntity->getId();
 
@@ -236,7 +236,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
-                agentMode: $this->topicDomainService->getTopicMode($dataIsolation, $topicEntity->getId()),
+                agentMode: $topicEntity->getTopicMode(),
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
                 messageId: $userMessageDTO->getMessageId(),

@@ -20,9 +20,13 @@ class PermissionApi extends AbstractPermissionApi
 
     public function getPermissionTree(): array
     {
-        // 认证上下文获取（按项目规范）
-        $this->getAuthorization();
-        return $this->roleAppService->getPermissionTree();
+        $isPlatformOrganization = false;
+        $officialOrganization = config('service_provider.office_organization');
+        $organizationCode = $this->getAuthorization()->getOrganizationCode();
+        if ($officialOrganization === $organizationCode) {
+            $isPlatformOrganization = true;
+        }
+        return $this->roleAppService->getPermissionTree($isPlatformOrganization);
     }
 
     public function getUserPermissions(): array

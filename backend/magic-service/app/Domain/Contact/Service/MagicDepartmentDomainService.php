@@ -224,6 +224,27 @@ class MagicDepartmentDomainService extends AbstractContactDomainService
     }
 
     /**
+     * Batch get organization names by organization codes.
+     *
+     * @param array $organizationCodes Array of organization codes
+     * @return array Array with structure [code => name]
+     */
+    public function batchGetOrganizationNamesByCodes(array $organizationCodes): array
+    {
+        if (empty($organizationCodes)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($organizationCodes as $organizationCode) {
+            $entity = $this->departmentRepository->getDepartmentById('-1', $organizationCode);
+            $result[$organizationCode] = $entity ? $entity->getName() : '';
+        }
+
+        return $result;
+    }
+
+    /**
      * 获取部门的所有子部门.
      * @param MagicDepartmentEntity[] $allDepartments
      */

@@ -19,6 +19,7 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
+use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -198,9 +199,20 @@ abstract class AbstractKernelAppService
         return $dataIsolation;
     }
 
-    protected function createMCPDataIsolation(Authenticatable $authorization): MCPDataIsolation
+    protected function createMCPDataIsolation(Authenticatable|BaseDataIsolation $authorization): MCPDataIsolation
     {
         $dataIsolation = new MCPDataIsolation();
+        if ($authorization instanceof BaseDataIsolation) {
+            $dataIsolation->extends($authorization);
+            return $dataIsolation;
+        }
+        $this->handleByAuthorization($authorization, $dataIsolation);
+        return $dataIsolation;
+    }
+
+    protected function createModeDataIsolation(Authenticatable|BaseDataIsolation $authorization): ModeDataIsolation
+    {
+        $dataIsolation = new ModeDataIsolation();
         if ($authorization instanceof BaseDataIsolation) {
             $dataIsolation->extends($authorization);
             return $dataIsolation;

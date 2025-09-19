@@ -8,14 +8,18 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -24,13 +28,20 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveTopicResultDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Exception;
 use Hyperf\Amqp\Producer;
@@ -45,10 +56,13 @@ class TopicAppService extends AbstractAppService
     protected LoggerInterface $logger;
 
     public function __construct(
+        protected TaskDomainService $taskDomainService,
         protected WorkspaceDomainService $workspaceDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
+        protected ResourceShareDomainService $resourceShareDomainService,
         protected MagicChatMessageAppService $magicChatMessageAppService,
+        protected FileAppService $fileAppService,
         protected ChatAppService $chatAppService,
         protected Producer $producer,
         protected EventDispatcherInterface $eventDispatcher,
@@ -304,5 +318,184 @@ class TopicAppService extends AbstractAppService
     public function getTopicByChatTopicId(DataIsolation $dataIsolation, string $chatTopicId): ?TopicEntity
     {
         return $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $chatTopicId);
+    }
+
+    public function getTopicAttachmentsByAccessToken(GetTopicAttachmentsRequestDTO $requestDto): array
+    {
+        $token = $requestDto->getToken();
+        // 从缓存里获取数据
+        if (! AccessTokenUtil::validate($token)) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
+        }
+        // 从token 获取内容
+        $shareId = AccessTokenUtil::getShareId($token);
+        $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+        }
+        if ($shareEntity->getResourceType() != ResourceType::Topic->value) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+        }
+        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
+        $requestDto->setTopicId($shareEntity->getResourceId());
+
+        // 创建DataIsolation
+        $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
+        return $this->getTopicAttachmentList($dataIsolation, $requestDto);
+    }
+
+    public function getTopicAttachmentList(DataIsolation $dataIsolation, GetTopicAttachmentsRequestDTO $requestDto): array
+    {
+        // 判断话题是否存在
+        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDto->getTopicId());
+        if (empty($topicEntity)) {
+            return [];
+        }
+        $sandboxId = $topicEntity->getSandboxId();
+        $workDir = $topicEntity->getWorkDir();
+
+        // 通过领域服务获取话题附件列表
+        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
+            (int) $requestDto->getTopicId(),
+            $dataIsolation,
+            $requestDto->getPage(),
+            $requestDto->getPageSize(),
+            $requestDto->getFileType()
+        );
+
+        // 处理文件 URL
+        $list = [];
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        // 遍历附件列表，使用TaskFileItemDTO处理
+        foreach ($result['list'] as $entity) {
+            // 创建DTO
+            $dto = new TaskFileItemDTO();
+            $dto->fileId = (string) $entity->getFileId();
+            $dto->taskId = (string) $entity->getTaskId();
+            $dto->fileType = $entity->getFileType();
+            $dto->fileName = $entity->getFileName();
+            $dto->fileExtension = $entity->getFileExtension();
+            $dto->fileKey = $entity->getFileKey();
+            $dto->fileSize = $entity->getFileSize();
+            $dto->isHidden = $entity->getIsHidden();
+            $dto->topicId = (string) $entity->getTopicId();
+
+            // Calculate relative file path by removing workDir from fileKey
+            $fileKey = $entity->getFileKey();
+            $workDirPos = strpos($fileKey, $workDir);
+            if ($workDirPos !== false) {
+                $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
+            } else {
+                $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
+            }
+
+            // 添加 file_url 字段
+            $fileKey = $entity->getFileKey();
+            if (! empty($fileKey)) {
+                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
+                if ($fileLink) {
+                    $dto->fileUrl = $fileLink->getUrl();
+                } else {
+                    $dto->fileUrl = '';
+                }
+            } else {
+                $dto->fileUrl = '';
+            }
+
+            $list[] = $dto->toArray();
+        }
+
+        // 构建树状结构
+        $tree = FileTreeUtil::assembleFilesTree($list);
+
+        return [
+            'list' => $list,
+            'tree' => $tree,
+            'total' => $result['total'],
+        ];
+    }
+
+    /**
+     * 获取话题的附件列表.(管理后台使用).
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param GetTopicAttachmentsRequestDTO $requestDto 话题附件请求DTO
+     * @return array 附件列表
+     */
+    public function getTopicAttachments(MagicUserAuthorization $userAuthorization, GetTopicAttachmentsRequestDTO $requestDto): array
+    {
+        // 获取当前话题的创建者
+        $topicEntity = $this->topicDomainService->getTopicById((int) $requestDto->getTopicId());
+        if ($topicEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        return $this->getTopicAttachmentList($dataIsolation, $requestDto);
+    }
+
+    /**
+     * 获取用户话题消息列表.
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param int $topicId 话题ID
+     * @param int $page 页码
+     * @param int $pageSize 每页大小
+     * @param string $sortDirection 排序方向
+     * @return array 消息列表及总数
+     */
+    public function getUserTopicMessage(MagicUserAuthorization $userAuthorization, int $topicId, int $page, int $pageSize, string $sortDirection): array
+    {
+        // 获取消息列表
+        $result = $this->taskDomainService->getMessagesByTopicId($topicId, $page, $pageSize, true, $sortDirection);
+
+        // 转换为响应格式
+        $messages = [];
+        foreach ($result['list'] as $message) {
+            $messages[] = new MessageItemDTO($message->toArray());
+        }
+
+        return [
+            'list' => $messages,
+            'total' => $result['total'],
+        ];
+    }
+
+    /**
+     * 获取用户话题附件 URL. (管理后台使用).
+     *
+     * @param string $topicId 话题 ID
+     * @param MagicUserAuthorization $userAuthorization 用户授权信息
+     * @param array $fileIds 文件ID列表
+     * @return array 包含附件 URL 的数组
+     */
+    public function getTopicAttachmentUrl(MagicUserAuthorization $userAuthorization, string $topicId, array $fileIds, string $downloadMode): array
+    {
+        $result = [];
+        foreach ($fileIds as $fileId) {
+            // 获取文件实体
+            $fileEntity = $this->taskDomainService->getTaskFile((int) $fileId);
+            if (empty($fileEntity)) {
+                // 如果文件不存在，跳过
+                continue;
+            }
+            $downloadNames = [];
+            if ($downloadMode == 'download') {
+                $downloadNames[$fileEntity->getFileKey()] = $fileEntity->getFileName();
+            }
+
+            $fileLink = $this->fileAppService->getLink($fileEntity->getOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox, $downloadNames);
+            if (empty($fileLink)) {
+                // 如果获取链接失败，跳过
+                continue;
+            }
+
+            $result[] = [
+                'file_id' => (string) $fileEntity->getFileId(),
+                'url' => $fileLink->getUrl(),
+            ];
+        }
+        return $result;
     }
 }

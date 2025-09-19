@@ -16,6 +16,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
 
@@ -92,10 +94,55 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
-        }
         return $this->processAzureOpenAIEditRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - Azure OpenAI图像编辑版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => $this->getProviderName(),
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof AzureOpenAIImageEditRequest) {
+            $this->logger->error('Azure OpenAI图像编辑 OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
+        }
+
+        try {
+            // 3. 图像编辑（同步处理）
+            $result = $this->generateImageRaw($imageGenerateRequest);
+            $this->validateAzureOpenAIEditResponse($result);
+
+            // 4. 转换响应格式
+            $this->addImageDataToResponseAzureOpenAIEdit($response, $result, $imageGenerateRequest);
+
+            $this->logger->info('Azure OpenAI图像编辑 OpenAI格式生图：处理完成', [
+                '成功图片数' => count($response->getData()),
+            ]);
+        } catch (Exception $e) {
+            // 设置错误信息到响应对象
+            $response->setProviderErrorCode($e->getCode());
+            $response->setProviderErrorMessage($e->getMessage());
+
+            $this->logger->error('Azure OpenAI图像编辑 OpenAI格式生图：处理失败', [
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+
+        return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'azure_openai';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -240,5 +287,84 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
         }
 
         return $rawData;
+    }
+
+    /**
+     * 验证Azure OpenAI图像编辑API响应数据格式.
+     */
+    private function validateAzureOpenAIEditResponse(array $result): void
+    {
+        if (! isset($result['data'])) {
+            throw new Exception('Azure OpenAI图像编辑响应数据格式错误：缺少data字段');
+        }
+
+        if (empty($result['data']) || ! is_array($result['data'])) {
+            throw new Exception('Azure OpenAI图像编辑响应数据格式错误：data字段为空或不是数组');
+        }
+
+        $hasValidImage = false;
+        foreach ($result['data'] as $item) {
+            if (isset($item['b64_json']) && ! empty($item['b64_json'])) {
+                $hasValidImage = true;
+                break;
+            }
+        }
+
+        if (! $hasValidImage) {
+            throw new Exception('Azure OpenAI图像编辑响应数据格式错误：缺少有效的图像数据');
+        }
+    }
+
+    /**
+     * 将Azure OpenAI图像编辑结果添加到OpenAI响应对象中.
+     */
+    private function addImageDataToResponseAzureOpenAIEdit(
+        OpenAIFormatResponse $response,
+        array $azureResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        if (! isset($azureResult['data']) || ! is_array($azureResult['data'])) {
+            return;
+        }
+
+        $currentData = $response->getData();
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
+
+        foreach ($azureResult['data'] as $item) {
+            if (! isset($item['b64_json']) || empty($item['b64_json'])) {
+                continue;
+            }
+
+            // 处理水印（将base64转换为URL）
+            $processedUrl = $item['b64_json'];
+            try {
+                $processedUrl = $this->watermarkProcessor->addWatermarkToBase64($item['b64_json'], $imageGenerateRequest);
+            } catch (Exception $e) {
+                $this->logger->error('Azure OpenAI图像编辑添加图片数据：水印处理失败', [
+                    'error' => $e->getMessage(),
+                ]);
+                // 水印处理失败时使用原始base64数据
+            }
+
+            // 只返回URL格式，与其他模型保持一致
+            $currentData[] = [
+                'url' => $processedUrl,
+            ];
+
+            // 累计usage信息
+            $currentUsage->addGeneratedImages(1);
+        }
+
+        // 如果Azure OpenAI响应包含usage信息，则使用它
+        if (! empty($azureResult['usage']) && is_array($azureResult['usage'])) {
+            $usage = $azureResult['usage'];
+            $currentUsage->promptTokens += $usage['input_tokens'] ?? 0;
+            $currentUsage->completionTokens += $usage['output_tokens'] ?? 0;
+            $currentUsage->totalTokens += $usage['total_tokens'] ?? 0;
+        }
+
+        // 更新响应对象
+        $response->setData($currentData);
+        $response->setUsage($currentUsage);
     }
 }

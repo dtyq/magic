@@ -14,7 +14,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -107,6 +106,22 @@ class ProjectDomainService
     }
 
     /**
+     * 根据工作区ID获取项目ID列表.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param int $workspaceId 工作区ID
+     * @return array 项目ID列表
+     */
+    public function getProjectIdsByWorkspaceId(DataIsolation $dataIsolation, int $workspaceId): array
+    {
+        return $this->projectRepository->getProjectIdsByWorkspaceId(
+            $workspaceId,
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+    }
+
+    /**
      * Get project details.
      */
     public function getProject(int $projectId, string $userId): ProjectEntity
@@ -131,6 +146,17 @@ class ProjectDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
         }
         return $project;
+    }
+
+    /**
+     * 批量获取项目信息（不验证用户权限）.
+     *
+     * @param array $projectIds 项目ID数组
+     * @return array<ProjectEntity> 项目实体数组
+     */
+    public function getProjectsByIds(array $projectIds): array
+    {
+        return $this->projectRepository->findByIds($projectIds);
     }
 
     /**
@@ -172,13 +198,13 @@ class ProjectDomainService
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
     }
 
-    public function updateProjectMode(int $id, TopicMode $topicMode): bool
+    public function updateProjectMode(int $id, string $topicMode): bool
     {
         $projectEntity = $this->projectRepository->findById($id);
         if (! $projectEntity || ! empty($projectEntity->getProjectMode())) {
             return false;
         }
-        $projectEntity->setProjectMode($topicMode->value);
+        $projectEntity->setProjectMode($topicMode);
         $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $this->projectRepository->save($projectEntity);
         return true;

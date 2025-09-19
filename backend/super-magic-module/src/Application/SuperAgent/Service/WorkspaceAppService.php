@@ -16,6 +16,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
@@ -26,8 +27,6 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
-use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
-use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
@@ -36,13 +35,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
-use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
-use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetWorkspaceTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceListRequestDTO;
@@ -77,11 +72,11 @@ class WorkspaceAppService extends AbstractAppService
         protected ChatAppService $chatAppService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
-        protected ResourceShareDomainService $resourceShareDomainService,
         protected Producer $producer,
         protected LoggerFactory $loggerFactory,
         protected FileCleanupAppService $fileCleanupAppService,
-        protected FileDomainService $fileDomainService
+        protected FileDomainService $fileDomainService,
+        protected LongTermMemoryDomainService $longTermMemoryDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -272,52 +267,6 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
-     * 获取话题的附件列表.
-     *
-     * @param MagicUserAuthorization $userAuthorization 用户授权信息
-     * @param GetTopicAttachmentsRequestDTO $requestDto 话题附件请求DTO
-     * @return array 附件列表
-     */
-    public function getTopicAttachments(MagicUserAuthorization $userAuthorization, GetTopicAttachmentsRequestDTO $requestDto): array
-    {
-        // 获取当前话题的创建者
-        $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
-        if ($topicEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-        }
-        if ($topicEntity->getCreatedUid() != $userAuthorization->getId()) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'topic.access_topic_attachment_denied');
-        }
-        // 创建数据隔离对象
-        $dataIsolation = $this->createDataIsolation($userAuthorization);
-        return $this->getTopicAttachmentList($dataIsolation, $requestDto);
-    }
-
-    public function getTopicAttachmentsByAccessToken(GetTopicAttachmentsRequestDTO $requestDto): array
-    {
-        $token = $requestDto->getToken();
-        // 从缓存里获取数据
-        if (! AccessTokenUtil::validate($token)) {
-            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
-        }
-        // 从token 获取内容
-        $shareId = AccessTokenUtil::getShareId($token);
-        $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
-        if (! $shareEntity) {
-            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
-        }
-        if ($shareEntity->getResourceType() != ResourceType::Topic->value) {
-            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
-        }
-        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
-        $requestDto->setTopicId($shareEntity->getResourceId());
-
-        // 创建DataIsolation
-        $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
-        return $this->getTopicAttachmentList($dataIsolation, $requestDto);
-    }
-
-    /**
      * 获取任务的附件列表.
      */
     public function getTaskAttachments(MagicUserAuthorization $userAuthorization, int $taskId, int $page = 1, int $pageSize = 10): array
@@ -390,6 +339,19 @@ class WorkspaceAppService extends AbstractAppService
         // 调用领域服务执行删除
         Db::beginTransaction();
         try {
+            // 先获取工作区下的所有项目ID，用于删除长期记忆
+            $projectIds = $this->projectDomainService->getProjectIdsByWorkspaceId($dataIsolation, $workspaceId);
+
+            // 批量删除项目相关的长期记忆
+            if (! empty($projectIds)) {
+                $this->longTermMemoryDomainService->deleteMemoriesByProjectIds(
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    AgentConstant::SUPER_MAGIC_CODE,
+                    $dataIsolation->getCurrentUserId(),
+                    $projectIds
+                );
+            }
+
             // 删除工作区
             $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 
@@ -612,88 +574,6 @@ class WorkspaceAppService extends AbstractAppService
 
         // 调用领域服务获取工作区信息
         return $this->workspaceDomainService->getWorkspaceInfoByTopicIds($intTopicIds);
-    }
-
-    public function getTopicAttachmentList(DataIsolation $dataIsolation, GetTopicAttachmentsRequestDTO $requestDto): array
-    {
-        // 判断话题是否存在
-        $topicEntity = $this->workspaceDomainService->getTopicById((int) $requestDto->getTopicId());
-        if (empty($topicEntity)) {
-            return [];
-        }
-        $sandboxId = $topicEntity->getSandboxId();
-        $workDir = $topicEntity->getWorkDir();
-
-        // 通过领域服务获取话题附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByTopicId(
-            (int) $requestDto->getTopicId(),
-            $dataIsolation,
-            $requestDto->getPage(),
-            $requestDto->getPageSize(),
-            $requestDto->getFileType()
-        );
-
-        // $fullWorkDir = $this->fileDomainService->getFullWorkDir(
-        //     $dataIsolation->getCurrentOrganizationCode(),
-        //     $dataIsolation->getCurrentUserId(),
-        //     (int) $topicEntity->getProjectId(),
-        //     AgentConstant::SUPER_MAGIC_CODE,
-        //     AgentConstant::DEFAULT_PROJECT_DIR
-        // );
-
-        $result = $this->workspaceDomainService->filterResultByGitVersion($result, $topicEntity->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
-
-        // 处理文件 URL
-        $list = [];
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-        // 遍历附件列表，使用TaskFileItemDTO处理
-        foreach ($result['list'] as $entity) {
-            // 创建DTO
-            $dto = new TaskFileItemDTO();
-            $dto->fileId = (string) $entity->getFileId();
-            $dto->taskId = (string) $entity->getTaskId();
-            $dto->fileType = $entity->getFileType();
-            $dto->fileName = $entity->getFileName();
-            $dto->fileExtension = $entity->getFileExtension();
-            $dto->fileKey = $entity->getFileKey();
-            $dto->fileSize = $entity->getFileSize();
-            $dto->isHidden = $entity->getIsHidden();
-            $dto->topicId = (string) $entity->getTopicId();
-
-            // Calculate relative file path by removing workDir from fileKey
-            $fileKey = $entity->getFileKey();
-            $workDirPos = strpos($fileKey, $workDir);
-            if ($workDirPos !== false) {
-                $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
-            } else {
-                $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
-            }
-
-            // 添加 file_url 字段
-            $fileKey = $entity->getFileKey();
-            if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
-                if ($fileLink) {
-                    $dto->fileUrl = $fileLink->getUrl();
-                } else {
-                    $dto->fileUrl = '';
-                }
-            } else {
-                $dto->fileUrl = '';
-            }
-
-            $list[] = $dto->toArray();
-        }
-
-        // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($list);
-
-        return [
-            'list' => $list,
-            'tree' => $tree,
-            'total' => $result['total'],
-        ];
     }
 
     /**

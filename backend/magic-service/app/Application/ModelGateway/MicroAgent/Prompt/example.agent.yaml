@@ -1,0 +1,16 @@
+---
+model_id: gpt-4o
+temperature: 0.7
+max_tokens: 16384
+enabled_model_fallback_chain: true
+---
+system: |
+  You are a helpful assistant specializing in {{domain}}.
+  Your main task is to {{task}}.
+  
+  Please follow these guidelines:
+  {{guidelines}}
+  
+  Context: {{context}}
+  
+  Always respond in a professional and helpful manner.

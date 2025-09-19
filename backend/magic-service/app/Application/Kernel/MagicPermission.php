@@ -11,6 +11,8 @@ use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\Enum\MagicAdminResourceEnum;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
+use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Exception;
 use InvalidArgumentException;
 
@@ -48,7 +50,7 @@ class MagicPermission implements MagicPermissionInterface
         $translated = $enum->label();
         // 如果语言包缺失，返回的仍然是原始 key，此时抛出异常提醒
         if ($translated === $enum->translationKey()) {
-            throw new InvalidArgumentException('Missing i18n for key: ' . $enum->translationKey());
+            ExceptionBuilder::throw(PermissionErrorCode::BusinessException, 'Missing i18n for key: ' . $enum->translationKey());
         }
 
         return $translated;
@@ -117,7 +119,7 @@ class MagicPermission implements MagicPermissionInterface
 
         $translated = $enum->label();
         if ($translated === $enum->translationKey()) {
-            throw new InvalidArgumentException('Missing i18n for key: ' . $enum->translationKey());
+            ExceptionBuilder::throw(PermissionErrorCode::BusinessException, 'Missing i18n for key: ' . $enum->translationKey());
         }
 
         return $translated;
@@ -201,8 +203,10 @@ class MagicPermission implements MagicPermissionInterface
      *     'children' => [ ... ]
      *   ],
      * ]
+     *
+     * @param bool $isPlatformOrganization 是否平台组织；仅当为 true 时，包含 platform 平台的资源树
      */
-    public function getPermissionTree(): array
+    public function getPermissionTree(bool $isPlatformOrganization = false): array
     {
         $tree = [];
 
@@ -215,6 +219,11 @@ class MagicPermission implements MagicPermissionInterface
             }
 
             $platformKey = array_shift($segments); // 平台，如 Admin
+
+            // 平台组织独有：非平台组织时，过滤掉 platform 平台的资源
+            if ($platformKey === MagicResourceEnum::PLATFORM->value && ! $isPlatformOrganization) {
+                continue;
+            }
             // 初始化平台根节点
             if (! isset($tree[$platformKey])) {
                 $tree[$platformKey] = [
@@ -302,9 +311,17 @@ class MagicPermission implements MagicPermissionInterface
      *
      * @param string $permissionKey 目标权限键
      * @param string[] $userPermissions 用户已拥有的权限键集合
+     * @param bool $isPlatformOrganization 是否平台组织
      */
-    public function checkPermission(string $permissionKey, array $userPermissions): bool
+    public function checkPermission(string $permissionKey, array $userPermissions, bool $isPlatformOrganization = false): bool
     {
+        // 平台组织校验：非平台组织不允许访问 platform 平台资源
+        $parsed = $this->parsePermission($permissionKey);
+        $platformKey = explode('.', $parsed['resource'])[0];
+        if ($platformKey === MagicResourceEnum::PLATFORM->value && ! $isPlatformOrganization) {
+            return false;
+        }
+
         // 命中全局权限直接放行
         if (in_array(self::ALL_PERMISSIONS, $userPermissions, true)) {
             return true;
@@ -345,9 +362,14 @@ class MagicPermission implements MagicPermissionInterface
      */
     private function getPlatformLabel(string $platformKey): string
     {
-        return match ($platformKey) {
-            MagicResourceEnum::ADMIN->value => MagicResourceEnum::ADMIN->label(),
-            default => ucfirst($platformKey),
-        };
+        $enum = MagicResourceEnum::tryFrom($platformKey);
+        if ($enum) {
+            $label = $enum->label();
+            if ($label !== $enum->translationKey()) {
+                return $label;
+            }
+        }
+
+        return ucfirst($platformKey);
     }
 }

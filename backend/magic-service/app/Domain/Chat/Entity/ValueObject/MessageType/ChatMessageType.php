@@ -75,6 +75,7 @@ enum ChatMessageType: string
     case Unknown = 'unknown';
 
     case TextForm = 'text_form';
+    case Raw = 'raw';
 
     public function getName(): string
     {

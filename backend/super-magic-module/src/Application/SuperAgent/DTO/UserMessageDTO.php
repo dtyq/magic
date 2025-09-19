@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\DTO;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 
 /**
  * User message DTO for initializing agent task.
@@ -24,7 +23,7 @@ class UserMessageDTO
         private readonly ?string $attachments = null,
         private readonly ?string $mentions = null,
         private readonly ChatInstruction $instruction = ChatInstruction::Normal,
-        private readonly TopicMode $topicMode = TopicMode::GENERAL,
+        private readonly string $topicMode = 'general',
         // $taskMode 即将废弃，请勿使用
         private readonly string $taskMode = '',
         private readonly ?string $rawContent = null,
@@ -78,7 +77,7 @@ class UserMessageDTO
         return $this->instruction;
     }
 
-    public function getTopicMode(): TopicMode
+    public function getTopicMode(): string
     {
         return $this->topicMode;
     }
@@ -154,9 +153,7 @@ class UserMessageDTO
             instruction: isset($data['instruction'])
                 ? ChatInstruction::tryFrom($data['instruction']) ?? ChatInstruction::Normal
                 : ChatInstruction::Normal,
-            topicMode: isset($data['topic_mode']) || isset($data['topicMode'])
-                ? TopicMode::tryFrom($data['topic_mode'] ?? $data['topicMode']) ?? TopicMode::GENERAL
-                : TopicMode::GENERAL,
+            topicMode: $data['topic_mode'] ?? $data['topicMode'] ?? 'general',
             taskMode: $data['task_mode'] ?? $data['taskMode'] ?? '',
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
@@ -183,7 +180,7 @@ class UserMessageDTO
             'attachments' => $this->attachments,
             'mentions' => $this->mentions,
             'instruction' => $this->instruction->value,
-            'topic_mode' => $this->topicMode->value,
+            'topic_mode' => $this->topicMode,
             'task_mode' => $this->taskMode,
             'raw_content' => $this->rawContent,
             'mcp_config' => $this->mcpConfig,

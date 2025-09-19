@@ -1,6 +1,7 @@
 package main
 
 import (
+	"api-gateway/internal/handler"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -42,21 +43,21 @@ var (
 
 	// JWT相关安全配置
 	keyRotationInterval = 24 * time.Hour // 密钥轮换间隔
-	lastKeyRotation time.Time
+	lastKeyRotation     time.Time
 )
 
 // JWTClaims 定义JWT的声明 - 增强版
 type JWTClaims struct {
 	jwt.RegisteredClaims
-	ContainerID string `json:"container_id"`
-	MagicUserID string `json:"magic_user_id,omitempty"`
+	ContainerID           string `json:"container_id"`
+	MagicUserID           string `json:"magic_user_id,omitempty"`
 	MagicOrganizationCode string `json:"magic_organization_code,omitempty"`
 	// 添加令牌版本用于吊销
 	TokenVersion int64 `json:"token_version"`
 	// 添加创建时间
 	CreatedAt int64 `json:"created_at"`
 	// 添加安全相关字段
-	KeyID string `json:"kid,omitempty"` // 密钥版本标识
+	KeyID string `json:"kid,omitempty"`   // 密钥版本标识
 	Nonce string `json:"nonce,omitempty"` // 防重放攻击
 	Scope string `json:"scope,omitempty"` // 权限范围
 }
@@ -119,7 +120,7 @@ func init() {
 	err := godotenv.Load()
 	if err != nil {
 		if debugMode {
-			logger.Printf("警告: 无法加载.env文件:", err)
+			logger.Printf("警告: 无法加载.env文件: %v", err)
 		}
 	}
 
@@ -157,6 +158,25 @@ func getEnvWithDefault(key, defaultValue string) string {
 func main() {
 	// 设置服务端口
 	port := getEnvWithDefault("MAGIC_GATEWAY_PORT", "8000")
+
+	// 初始化GPG签名处理器
+	signHandler, err := handler.NewSignHandler(logger)
+	if err != nil {
+		logger.Fatalf("Failed to initialize GPG sign handler: %v", err)
+	}
+
+	// 初始化用户信息处理器
+	userHandler := handler.NewUserHandler(logger)
+
+	// 注册签名路由 (需要认证)
+	http.HandleFunc("/api/ai-generated/sign", withAuth(signHandler.Sign))
+	logger.Println("GPG signing service enabled:")
+	logger.Println("  - Unified signing at: /api/ai-generated/sign")
+
+	// 注册用户信息路由 (需要认证)
+	http.HandleFunc("/api/user/info", withAuth(userHandler.GetUserInfo))
+	logger.Println("User info service enabled:")
+	logger.Println("  - User info at: /api/user/info")
 
 	// 注册路由
 	http.HandleFunc("/auth", authHandler)
@@ -316,16 +336,16 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)), // 30天后过期
-			NotBefore: jwt.NewNumericDate(time.Now()), // 立即生效
+			NotBefore: jwt.NewNumericDate(time.Now()),                          // 立即生效
 		},
-		ContainerID: userID, // 保持字段名不变，但存储用户ID
-		MagicUserID: magicUserID,
+		ContainerID:           userID, // 保持字段名不变，但存储用户ID
+		MagicUserID:           magicUserID,
 		MagicOrganizationCode: magicOrganizationCode,
-		TokenVersion: currentVersion,
-		CreatedAt: time.Now().Unix(),
-		KeyID: jwtSecretID,
-		Nonce: nonce,
-		Scope: "api_gateway", // 定义权限范围
+		TokenVersion:          currentVersion,
+		CreatedAt:             time.Now().Unix(),
+		KeyID:                 jwtSecretID,
+		Nonce:                 nonce,
+		Scope:                 "api_gateway", // 定义权限范围
 	}
 
 	// 创建令牌
@@ -348,10 +368,10 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	// 返回令牌
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"token":   tokenString,
-		"header":  "Magic-Authorization",
-		"example": fmt.Sprintf("Magic-Authorization: Bearer %s", tokenString),
-		"note":    "请确保在使用令牌时添加Bearer前缀，否则网关将自动添加",
+		"token":    tokenString,
+		"header":   "Magic-Authorization",
+		"example":  fmt.Sprintf("Magic-Authorization: Bearer %s", tokenString),
+		"note":     "请确保在使用令牌时添加Bearer前缀，否则网关将自动添加",
 		"security": "令牌包含防重放保护和密钥版本控制",
 	})
 }
@@ -460,6 +480,8 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		// 将令牌信息存储在请求上下文中
 		r.Header.Set("X-User-Id", claims.ContainerID)
+		r.Header.Set("magic-user-id", claims.MagicUserID)
+		r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
 
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
@@ -579,16 +601,16 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 返回状态信息
 	status := map[string]interface{}{
-		"status":             "ok",
-		"version":            getEnvWithDefault("API_GATEWAY_VERSION", "1.0.0"),
-		"auth_mode":          "stateless_jwt",
-		"token_validity":     "30天",
-		"env_vars_available": allowedVarNames,
-		"services_available": availableServices,
-		"current_token_version": atomic.LoadInt64(&tokenVersionCounter),
+		"status":                  "ok",
+		"version":                 getEnvWithDefault("API_GATEWAY_VERSION", "1.0.0"),
+		"auth_mode":               "stateless_jwt",
+		"token_validity":          "30天",
+		"env_vars_available":      allowedVarNames,
+		"services_available":      availableServices,
+		"current_token_version":   atomic.LoadInt64(&tokenVersionCounter),
 		"global_revoke_timestamp": atomic.LoadInt64(&globalRevokeTimestamp),
-		"jwt_key_id": jwtSecretID,
-		"jwt_algorithm": "HS256",
+		"jwt_key_id":              jwtSecretID,
+		"jwt_algorithm":           "HS256",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -658,8 +680,8 @@ func revokeAllTokensHandler(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "所有令牌已被吊销",
+			"success":          true,
+			"message":          "所有令牌已被吊销",
 			"revoke_timestamp": atomic.LoadInt64(&globalRevokeTimestamp),
 		})
 	})
@@ -704,21 +726,36 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 从请求头中获取magic-task-id 和magic-topic-id
 		magicTaskID := r.Header.Get("magic-task-id")
 		magicTopicID := r.Header.Get("magic-topic-id")
+		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
 		magicLanguage := r.Header.Get("magic-language")
-		var magicUserID, magicOrganizationCode string
 
-		// 从请求上下文中获取JWT claims
+		// 优先从原始请求头获取，避免被JWT覆盖
+		magicUserID := r.Header.Get("magic-user-id")
+		magicOrganizationCode := r.Header.Get("magic-organization-code")
+
+		// 从请求上下文中获取JWT claims作为fallback
 		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
-			magicUserID = claims.MagicUserID
-			magicOrganizationCode = claims.MagicOrganizationCode
+			// 只有当原始请求头中没有值时，才使用JWT中的值
+			if magicUserID == "" {
+				magicUserID = claims.MagicUserID
+			}
+			if magicOrganizationCode == "" {
+				magicOrganizationCode = claims.MagicOrganizationCode
+			}
 		}
 
-		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
-		if userID == "" && magicUserID != "" {
-			userID = magicUserID
+		if userID != "" {
+			magicUserID = userID
 		}
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicLanguage)
+		if debugMode {
+			logger.Printf("原始请求头 magic-user-id: %s", r.Header.Get("magic-user-id"))
+			logger.Printf("原始请求头 magic-organization-code: %s", r.Header.Get("magic-organization-code"))
+			logger.Printf("最终使用的 magicUserID: %s", magicUserID)
+			logger.Printf("最终使用的 magicOrganizationCode: %s", magicOrganizationCode)
+		}
+
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 聊天主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicChatTopicID, magicLanguage)
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -742,7 +779,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
 				// 记录原始请求体
 				//if originalJSON, err := json.Marshal(data); err == nil {
-					// logger.Printf("原始请求体: %s", string(originalJSON))
+				// logger.Printf("原始请求体: %s", string(originalJSON))
 				//}
 
 				// 替换环境变量引用
@@ -903,8 +940,6 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-
-
 		// 替换URL中的环境变量
 		targetBase = replaceEnvVarsInString(targetBase)
 
@@ -979,18 +1014,23 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		proxyReq.Header = proxyHeaders
 
 		// 透传magic-user-id和magic-organization-code到目标API
-		if magicUserID != "" {
+		// 只有当原始请求头中没有对应值时，才从JWT中设置，避免覆盖原始值
+		if proxyReq.Header.Get("magic-user-id") == "" && magicUserID != "" {
 			proxyReq.Header.Set("magic-user-id", magicUserID)
 			if debugMode {
-				logger.Printf("透传magic-user-id: %s", magicUserID)
+				logger.Printf("从JWT设置magic-user-id: %s", magicUserID)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-user-id") != "" {
+			logger.Printf("保留原始magic-user-id: %s", proxyReq.Header.Get("magic-user-id"))
 		}
 
-		if magicOrganizationCode != "" {
+		if proxyReq.Header.Get("magic-organization-code") == "" && magicOrganizationCode != "" {
 			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
 			if debugMode {
-				logger.Printf("透传magic-organization-code: %s", magicOrganizationCode)
+				logger.Printf("从JWT设置magic-organization-code: %s", magicOrganizationCode)
 			}
+		} else if debugMode && proxyReq.Header.Get("magic-organization-code") != "" {
+			logger.Printf("保留原始magic-organization-code: %s", proxyReq.Header.Get("magic-organization-code"))
 		}
 
 		if magicTaskID != "" {
@@ -1000,11 +1040,17 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-
 		if magicTopicID != "" {
 			proxyReq.Header.Set("magic-topic-id", magicTopicID)
 			if debugMode {
 				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+			}
+		}
+
+		if magicChatTopicID != "" {
+			proxyReq.Header.Set("magic-chat-topic-id", magicChatTopicID)
+			if debugMode {
+				logger.Printf("透传magic-chat-topic-id: %s", magicChatTopicID)
 			}
 		}
 
@@ -1046,14 +1092,12 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-
 		// 判断respBody 大小，如果超过100kb 则不打印
 		if len(respBody) > 100*1024 {
 			logger.Printf("响应体大小超过100kb，不打印")
 		} else {
 			logger.Printf("响应体内容: %s", string(respBody))
 		}
-
 
 		// 重新构建响应体供后续使用
 		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
@@ -1233,7 +1277,7 @@ func logFullRequest(r *http.Request) {
 	logger.Printf("--- 请求头 ---")
 	for key, values := range r.Header {
 		for _, value := range values {
-			if debugMode{
+			if debugMode {
 				//过滤 Magic-Authorization 、X-Gateway-Api-Key
 				if key != "Magic-Authorization" && key != "X-Gateway-Api-Key" {
 					logger.Printf("%s: %s", key, value)
@@ -1276,9 +1320,9 @@ func logFullRequest(r *http.Request) {
 func processApiKeyInBody(data interface{}, targetBase string) interface{} {
 	// 定义需要检查的特定API_BASE_URL和对应的API_KEY
 	specialApiKeys := map[string]string{
-		"TEXT_TO_IMAGE_API_BASE_URL":     "TEXT_TO_IMAGE_ACCESS_KEY",
+		"TEXT_TO_IMAGE_API_BASE_URL":       "TEXT_TO_IMAGE_ACCESS_KEY",
 		"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
-		"BING_SUBSCRIPTION_ENDPOINT":     "BING_SUBSCRIPTION_KEY",
+		"BING_SUBSCRIPTION_ENDPOINT":       "BING_SUBSCRIPTION_KEY",
 	}
 
 	// 检查目标URL是否匹配特定的API_BASE_URL
@@ -1324,12 +1368,12 @@ func replaceApiKeyInData(data interface{}, apiKey string) interface{} {
 				if strValue, ok := value.(string); ok {
 					// 检查各种占位符格式
 					if strValue == "" ||
-					   strValue == "env:"+key ||
-					   strValue == "${"+key+"}" ||
-					   strValue == "$"+key ||
-					   strValue == "{$"+key+"}" ||
-					   strings.Contains(strValue, "${") ||
-					   strings.Contains(strValue, "$") {
+						strValue == "env:"+key ||
+						strValue == "${"+key+"}" ||
+						strValue == "$"+key ||
+						strValue == "{$"+key+"}" ||
+						strings.Contains(strValue, "${") ||
+						strings.Contains(strValue, "$") {
 						result[key] = apiKey
 						if debugMode {
 							logger.Printf("在请求体中替换API密钥: %s => %s", key, apiKey)

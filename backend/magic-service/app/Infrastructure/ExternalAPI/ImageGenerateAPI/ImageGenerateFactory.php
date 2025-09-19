@@ -13,6 +13,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
@@ -20,6 +22,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageEditMode
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineImageGenerateV3Model;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
@@ -46,6 +50,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::AzureOpenAIImageEdit => new AzureOpenAIImageEditModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImageEdit => new QwenImageEditModel($serviceProviderConfig),
+            ImageGenerateModelType::GoogleGemini => new GoogleGeminiModel($serviceProviderConfig),
+            ImageGenerateModelType::VolcengineArk => new VolcengineArkModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -62,6 +68,8 @@ class ImageGenerateFactory
             ImageGenerateModelType::AzureOpenAIImageEdit => self::createAzureOpenAIImageEditRequest($data),
             ImageGenerateModelType::QwenImage => self::createQwenImageRequest($data),
             ImageGenerateModelType::QwenImageEdit => self::createQwenImageEditRequest($data),
+            ImageGenerateModelType::GoogleGemini => self::createGoogleGeminiRequest($data),
+            ImageGenerateModelType::VolcengineArk => self::createVolcengineArkRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -240,6 +248,68 @@ class ImageGenerateFactory
         }
 
         $request->setImageUrls($data['reference_images']);
+
+        return $request;
+    }
+
+    private static function createGoogleGeminiRequest(array $data): GoogleGeminiRequest
+    {
+        $request = new GoogleGeminiRequest(
+            '', // width - Google Gemini不使用
+            '', // height - Google Gemini不使用
+            $data['user_prompt'] ?? '',
+            '', // negative_prompt - Google Gemini不使用
+            $data['model'] ?? 'gemini-2.5-flash-image-preview'
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        if (isset($data['reference_images'])) {
+            $request->setReferImages($data['reference_images']);
+        }
+
+        return $request;
+    }
+
+    private static function createVolcengineArkRequest(array $data): VolcengineArkRequest
+    {
+        $request = new VolcengineArkRequest(
+            (string) $data['width'],
+            (string) $data['height'],
+            $data['user_prompt'],
+        );
+
+        if (isset($data['generate_num'])) {
+            $request->setGenerateNum($data['generate_num']);
+        }
+
+        if (isset($data['reference_images'])) {
+            $request->setReferImages($data['reference_images']);
+        }
+
+        if (isset($data['model'])) {
+            $request->setModel($data['model']);
+        }
+
+        if (isset($data['organization_code'])) {
+            $request->setOrganizationCode($data['organization_code']);
+        }
+
+        if (isset($data['response_format'])) {
+            $request->setResponseFormat($data['response_format']);
+        }
+
+        // 处理组图功能参数
+        if (isset($data['sequential_image_generation'])) {
+            $request->setSequentialImageGeneration($data['sequential_image_generation']);
+        }
+
+        // 处理组图功能选项参数
+        if (isset($data['sequential_image_generation_options']) && is_array($data['sequential_image_generation_options'])) {
+            $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
+        }
 
         return $request;
     }

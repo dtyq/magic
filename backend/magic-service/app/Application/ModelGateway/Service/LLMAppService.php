@@ -9,7 +9,9 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
+use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\ModelGateway\Entity\AccessTokenEntity;
@@ -19,11 +21,11 @@ use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
-use App\Domain\ModelGateway\Entity\ImageGeneratedEntity;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
+use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
@@ -42,6 +44,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModelResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
@@ -222,15 +225,24 @@ class LLMAppService extends AbstractLLMAppService
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
 
         // 发布图片生成事件
-        $imageGeneratedEntity = new ImageGeneratedEntity();
-        $imageGeneratedEntity->setOrganizationCode($authorization->getOrganizationCode());
-        $imageGeneratedEntity->setUserId($authorization->getId());
-        $imageGeneratedEntity->setModel($modelVersion);
-        $imageGeneratedEntity->setImageCount($data['generate_num'] ?? 4);
-        $imageGeneratedEntity->setCreatedAt(new DateTime());
+        $imageGeneratedEvent = new ImageGeneratedEvent();
+        $imageGeneratedEvent->setOrganizationCode($authorization->getOrganizationCode());
+        $imageGeneratedEvent->setUserId($authorization->getId());
+        $imageGeneratedEvent->setModel($modelVersion);
+        $imageGeneratedEvent->setImageCount($data['generate_num'] ?? 4);
+        $imageGeneratedEvent->setCreatedAt(new DateTime());
+        $sourceType = ImageGenerateSourceEnum::NONE;
+        if (isset($data['source_type'])) {
+            if ($data['source_type'] instanceof ImageGenerateSourceEnum) {
+                $sourceType = $data['source_type'];
+            } elseif (is_string($data['source_type'])) {
+                $sourceType = ImageGenerateSourceEnum::from($data['source_type']);
+            }
+        }
+        $imageGeneratedEvent->setSourceType($sourceType);
+        $imageGeneratedEvent->setSourceId($data['source_id'] ?? '');
 
-        $event = new ImageGeneratedEvent($imageGeneratedEntity);
-        AsyncEventUtil::dispatch($event);
+        AsyncEventUtil::dispatch($imageGeneratedEvent);
 
         return $images;
     }
@@ -238,8 +250,9 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @throws SSRFException
      */
-    public function imageConvertHigh(MagicUserAuthorization $userAuthorization, string $url): string
+    public function imageConvertHigh(MagicUserAuthorization $userAuthorization, MagicChatImageConvertHighReqDTO $reqDTO): string
     {
+        $url = $reqDTO->getOriginImageUrl();
         $url = SSRFUtil::getSafeUrl($url, replaceIp: false);
         $miracleVisionServiceProviderConfig = $this->serviceProviderDomainService->getMiracleVisionServiceProviderConfig(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getOrganizationCode());
         /**
@@ -248,14 +261,16 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
-        $imageGeneratedEntity = new ImageGeneratedEntity();
-        $imageGeneratedEntity->setOrganizationCode($userAuthorization->getOrganizationCode());
-        $imageGeneratedEntity->setUserId($userAuthorization->getId());
-        $imageGeneratedEntity->setImageCount(1);
-        $imageGeneratedEntity->setCreatedAt(new DateTime());
-        $imageGeneratedEntity->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEvent = new ImageGeneratedEvent();
+        $imageGeneratedEvent->setOrganizationCode($userAuthorization->getOrganizationCode());
+        $imageGeneratedEvent->setUserId($userAuthorization->getId());
+        $imageGeneratedEvent->setImageCount(1);
+        $imageGeneratedEvent->setCreatedAt(new DateTime());
+        $imageGeneratedEvent->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEvent->setSourceType($reqDTO->getSourceType());
+        $imageGeneratedEvent->setSourceId($reqDTO->getSourceId());
 
-        $event = new ImageGeneratedEvent($imageGeneratedEntity);
+        $event = new ImageGeneratedEvent();
         AsyncEventUtil::dispatch($event);
 
         return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
@@ -278,8 +293,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($textGenerateImageDTO);
 
-        $organizationCode = $accessTokenEntity->getOrganizationCode();
-        $creator = $accessTokenEntity->getCreator();
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $textGenerateImageDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
+
         $modelVersion = $textGenerateImageDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -288,6 +307,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
+        $imageGenerateParamsVO->setSequentialImageGeneration($textGenerateImageDTO->getSequentialImageGeneration());
+        $imageGenerateParamsVO->setSequentialImageGenerationOptions($textGenerateImageDTO->getSequentialImageGenerationOptions());
 
         $size = $textGenerateImageDTO->getSize();
         [$width, $height] = explode('x', $size);
@@ -325,18 +346,12 @@ class LLMAppService extends AbstractLLMAppService
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
                     $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
-
-                    // 发布图片生成事件
-                    $imageGeneratedEntity = new ImageGeneratedEntity();
-                    $imageGeneratedEntity->setOrganizationCode($organizationCode);
-                    $imageGeneratedEntity->setUserId($creator);
-                    $imageGeneratedEntity->setModel($modelVersion);
-                    $imageGeneratedEntity->setImageCount($textGenerateImageDTO->getN());
-                    $imageGeneratedEntity->setTopicId($textGenerateImageDTO->getTopicId());
-                    $imageGeneratedEntity->setTaskId($textGenerateImageDTO->getTaskId());
-                    $imageGeneratedEntity->setCreatedAt(new DateTime());
-
-                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
+                    $n = $textGenerateImageDTO->getN();
+                    // 除了 mj 是 1 次之外，其他都按张数算
+                    if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
+                        $n = 1;
+                    }
+                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n);
                     AsyncEventUtil::dispatch($event);
 
                     return $generateImageRaw;
@@ -356,6 +371,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
 
+        $dataIsolation = LLMDataIsolation::create()->disabled();
+
+        $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $imageEditDTO);
+        $organizationCode = $contextData['organization_code'];
+        $creator = $contextData['user_id'];
+
         $modelVersion = $imageEditDTO->getModel();
         $serviceProviderConfigs = $this->serviceProviderDomainService->getOfficeAndActiveModel($modelVersion, Category::VLM);
         $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
@@ -364,23 +385,23 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($imageEditDTO->getPrompt());
         $imageGenerateParamsVO->setReferenceImages($imageEditDTO->getImages());
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $implicitWatermark = new ImplicitWatermark();
+        $imageGenerateRequest->setGenerateNum(1); // 图生图默认只能 1
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($imageEditDTO->getTopicId());
 
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $imageGenerateParamsVO->toArray());
-
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig);
             try {
-                $generateImageRaw = $imageGenerateService->generateImageRaw($imageGenerateRequest);
+                $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
-                    // 发布图片生成事件
-                    $imageGeneratedEntity = new ImageGeneratedEntity();
-                    $imageGeneratedEntity->setOrganizationCode($accessTokenEntity->getOrganizationCode());
-                    $imageGeneratedEntity->setUserId($accessTokenEntity->getCreator());
-                    $imageGeneratedEntity->setModel($modelVersion);
-                    $imageGeneratedEntity->setImageCount(1); // 图生图默认为1张
-                    $imageGeneratedEntity->setCreatedAt(new DateTime());
+                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1);
 
-                    $event = new ImageGeneratedEvent($imageGeneratedEntity);
                     AsyncEventUtil::dispatch($event);
 
                     return $generateImageRaw;
@@ -461,13 +482,21 @@ class LLMAppService extends AbstractLLMAppService
         }
     }
 
+    public function textGenerateImageV2(ImageEditDTO|TextGenerateImageDTO $textGenerateImageDTO): OpenAIFormatResponse|ResponseInterface
+    {
+        // 使用统一的 processRequest 处理流程
+        return $this->processRequest($textGenerateImageDTO, function (ProviderConfigItem $imageModelWrapper, ImageEditDTO|TextGenerateImageDTO $request) {
+            return $this->callImageModel($imageModelWrapper, $request);
+        }, new ModelFilter());
+    }
+
     /**
      * General request processing workflow.
      *
      * @param ProxyModelRequestInterface $proxyModelRequest Request object
      * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
-    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): ResponseInterface
+    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): OpenAIFormatResponse|ResponseInterface
     {
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
@@ -480,7 +509,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // Parse business parameters
             $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
-            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
+            //            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
 
             // Try to get high availability model configuration
             $orgCode = $contextData['organization_code'] ?? null;
@@ -506,6 +535,7 @@ class LLMAppService extends AbstractLLMAppService
                 $model = match ($proxyModelRequest->getType()) {
                     'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
                     'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
+                    'image' => $this->modelGatewayMapper->getOrganizationImageModel($modeId, $orgCode, $modelFilter),
                     default => null
                 };
                 if ($model instanceof OdinModel) {
@@ -551,7 +581,7 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('access_token_id', $accessToken->getId());
 
             // Call LLM model to get response
-            /** @var ResponseInterface $response */
+            /** @var OpenAIFormatResponse|ResponseInterface $response */
             $response = $modelCallFunction($model, $proxyModelRequest);
 
             // Calculate response time (milliseconds)
@@ -727,6 +757,77 @@ class LLMAppService extends AbstractLLMAppService
                 'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * 调用图片生成模型.
+     */
+    protected function callImageModel(ProviderConfigItem $providerConfigItem, ImageEditDTO|TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
+    {
+        $organizationCode = $proxyModelRequest->getBusinessParam('organization_id');
+        $creator = $proxyModelRequest->getBusinessParam('user_id');
+
+        $modelVersion = $providerConfigItem->getModelVersion();
+
+        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+
+        // 构建图片生成参数
+        $imageGenerateParamsVO = new AIImageGenerateParamsVO();
+        $imageGenerateParamsVO->setModel($modelVersion);
+        $imageGenerateParamsVO->setUserPrompt($proxyModelRequest->getPrompt());
+        $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
+        $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
+        $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
+
+        $size = $proxyModelRequest->getSize();
+        [$width, $height] = explode('x', $size);
+
+        // 计算字符串格式的比例，如 "1:1", "3:4"
+        $ratio = $this->calculateRatio((int) $width, (int) $height);
+        $imageGenerateParamsVO->setRatio($ratio);
+        $imageGenerateParamsVO->setWidth($width);
+        $imageGenerateParamsVO->setHeight($height);
+
+        $data = $imageGenerateParamsVO->toArray();
+        $data['organization_code'] = $organizationCode;
+
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $data);
+        $imageGenerateRequest->setWatermarkConfig($proxyModelRequest->getWatermark());
+
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($organizationCode)
+            ->setUserId($creator)
+            ->setTopicId($proxyModelRequest->getTopicId());
+
+        $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
+        $imageGenerateRequest->setValidityPeriod(1);
+
+        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $providerConfigItem);
+        $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
+
+        try {
+            // 记录日志
+            $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+
+            // 计算计费数量
+            $n = $proxyModelRequest->getN();
+            // 除了 mj和 图生图 是 1 次之外，其他都按张数算
+            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes()) || $proxyModelRequest instanceof ImageEditDTO) {
+                $n = 1;
+            }
+
+            // 发布事件
+            $event = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n);
+            AsyncEventUtil::dispatch($event);
+        } catch (Exception $e) {
+            $errorMessage = $e->getMessage();
+            $generateImageOpenAIFormat->setProviderErrorMessage($errorMessage);
+            $generateImageOpenAIFormat->setProviderErrorCode($e->getCode());
+            $generateImageOpenAIFormat->setProvider('magic');
+            $this->logger->warning('text generate image error:' . $e->getMessage());
+        }
+
+        return $generateImageOpenAIFormat;
     }
 
     /**
@@ -1237,5 +1338,27 @@ class LLMAppService extends AbstractLLMAppService
         $cacheKey = $messagesHash . ':' . $model;
 
         return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
+    }
+
+    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n): ImageGeneratedEvent
+    {
+        $imageGeneratedEvent = new ImageGeneratedEvent();
+
+        $model = $requestDTO->getModel();
+
+        $imageGeneratedEvent->setOrganizationCode($organizationCode);
+        $imageGeneratedEvent->setUserId($creator);
+        $imageGeneratedEvent->setModel($model);
+        $imageGeneratedEvent->setImageCount($n);
+        $imageGeneratedEvent->setTopicId($requestDTO->getTopicId());
+        $imageGeneratedEvent->setTaskId($requestDTO->getTaskId());
+        $imageGeneratedEvent->setCreatedAt(new DateTime());
+        if (! empty($requestDTO->getTopicId())) {
+            $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::SUPER_MAGIC);
+        } else {
+            $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API);
+        }
+
+        return $imageGeneratedEvent;
     }
 }

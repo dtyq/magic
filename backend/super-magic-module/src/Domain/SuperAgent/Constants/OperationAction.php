@@ -50,6 +50,11 @@ final class OperationAction
     // 项目成员操作
     public const UPDATE_PROJECT_MEMBERS = 'update_project_members';
 
+    // 项目快捷方式操作
+    public const SET_PROJECT_SHORTCUT = 'set_project_shortcut';
+
+    public const CANCEL_PROJECT_SHORTCUT = 'cancel_project_shortcut';
+
     /**
      * 获取所有操作动作.
      */
@@ -73,6 +78,8 @@ final class OperationAction
             self::BATCH_MOVE_FILE,
             self::BATCH_DELETE_FILE,
             self::UPDATE_PROJECT_MEMBERS,
+            self::SET_PROJECT_SHORTCUT,
+            self::CANCEL_PROJECT_SHORTCUT,
         ];
     }
 

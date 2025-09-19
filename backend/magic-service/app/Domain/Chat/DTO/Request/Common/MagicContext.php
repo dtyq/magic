@@ -21,6 +21,10 @@ class MagicContext extends AbstractEntity
      */
     protected string $authorization;
 
+    protected string $language = '';
+
+    protected string $superMagicAgentUserId = '';
+
     public function __construct(array $data)
     {
         parent::__construct($data);
@@ -44,5 +48,20 @@ class MagicContext extends AbstractEntity
     public function setAuthorization(string $authorization): void
     {
         $this->authorization = $authorization;
+    }
+
+    public function getLanguage(): string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(string $language): void
+    {
+        $this->language = $language;
+    }
+
+    public function getSuperMagicAgentUserId(): string
+    {
+        return $this->superMagicAgentUserId;
     }
 }

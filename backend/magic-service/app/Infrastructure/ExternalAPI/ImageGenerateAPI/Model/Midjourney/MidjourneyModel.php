@@ -15,6 +15,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Exception;
 
 class MidjourneyModel extends AbstractImageGenerate
@@ -56,11 +58,59 @@ class MidjourneyModel extends AbstractImageGenerate
     {
         $rawData = $this->generateImageRaw($imageGenerateRequest);
 
-        if ($this->isWatermark($imageGenerateRequest)) {
-            return $rawData;
+        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest);
+    }
+
+    /**
+     * 生成图像并返回OpenAI格式响应 - Midjourney版本.
+     */
+    public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
+    {
+        // 1. 预先创建响应对象
+        $response = new OpenAIFormatResponse([
+            'created' => time(),
+            'provider' => $this->getProviderName(),
+            'data' => [],
+        ]);
+
+        // 2. 参数验证
+        if (! $imageGenerateRequest instanceof MidjourneyModelRequest) {
+            $this->logger->error('Midjourney OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
+            return $response; // 返回空数据响应
         }
 
-        return $this->processMidjourneyRawDataWithWatermark($rawData, $imageGenerateRequest);
+        // 3. 同步处理（Midjourney采用轮询机制）
+        try {
+            $result = $this->generateImageRawInternal($imageGenerateRequest);
+            $this->validateMidjourneyResponse($result);
+
+            // 成功：设置图片数据到响应对象
+            $this->addImageDataToResponse($response, $result, $imageGenerateRequest);
+        } catch (Exception $e) {
+            // 失败：设置错误信息到响应对象
+            $response->setProviderErrorCode($e->getCode());
+            $response->setProviderErrorMessage($e->getMessage());
+
+            $this->logger->error('Midjourney OpenAI格式生图：请求失败', [
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+
+        // 4. 记录最终结果
+        $this->logger->info('Midjourney OpenAI格式生图：处理完成', [
+            '成功图片数' => count($response->getData()),
+            '是否有错误' => $response->hasError(),
+            '错误码' => $response->getProviderErrorCode(),
+            '错误消息' => $response->getProviderErrorMessage(),
+        ]);
+
+        return $response;
+    }
+
+    public function getProviderName(): string
+    {
+        return 'midjourney';
     }
 
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
@@ -327,5 +377,69 @@ class MidjourneyModel extends AbstractImageGenerate
         }
 
         return $rawData;
+    }
+
+    /**
+     * 验证Midjourney API响应数据格式（仅检查images字段）.
+     */
+    private function validateMidjourneyResponse(array $result): void
+    {
+        if (empty($result['data']) || ! is_array($result['data'])) {
+            throw new Exception('Midjourney响应数据格式错误：缺少data字段');
+        }
+
+        if (empty($result['data']['images']) || ! is_array($result['data']['images'])) {
+            throw new Exception('Midjourney响应数据格式错误：缺少images字段或images不是数组');
+        }
+
+        if (count($result['data']['images']) === 0) {
+            throw new Exception('Midjourney响应数据格式错误：images数组为空');
+        }
+    }
+
+    /**
+     * 将Midjourney图片数据添加到OpenAI响应对象中（仅处理images字段）.
+     */
+    private function addImageDataToResponse(
+        OpenAIFormatResponse $response,
+        array $midjourneyResult,
+        ImageGenerateRequest $imageGenerateRequest
+    ): void {
+        // 从Midjourney响应中提取data.images字段
+        if (empty($midjourneyResult['data']['images']) || ! is_array($midjourneyResult['data']['images'])) {
+            return;
+        }
+
+        $currentData = $response->getData();
+        $currentUsage = $response->getUsage() ?? new ImageUsage();
+
+        // 仅处理 images 数组中的URL
+        foreach ($midjourneyResult['data']['images'] as $imageUrl) {
+            if (! empty($imageUrl)) {
+                // 处理水印
+                $processedUrl = $imageUrl;
+                try {
+                    $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
+                } catch (Exception $e) {
+                    $this->logger->error('Midjourney添加图片数据：水印处理失败', [
+                        'error' => $e->getMessage(),
+                        'url' => $imageUrl,
+                    ]);
+                    // 水印处理失败时使用原始URL
+                }
+
+                $currentData[] = [
+                    'url' => $processedUrl,
+                ];
+            }
+        }
+
+        // 累计usage信息
+        $imageCount = count($midjourneyResult['data']['images']);
+        $currentUsage->addGeneratedImages($imageCount);
+
+        // 更新响应对象
+        $response->setData($currentData);
+        $response->setUsage($currentUsage);
     }
 }

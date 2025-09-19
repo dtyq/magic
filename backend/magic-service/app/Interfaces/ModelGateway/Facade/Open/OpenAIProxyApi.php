@@ -8,16 +8,21 @@ declare(strict_types=1);
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\ErrorCode\ImageGenerateErrorCode;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
+
+use function Hyperf\Translation\__;
 
 class OpenAIProxyApi extends AbstractOpenApi
 {
@@ -31,12 +36,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $sendMsgGPTDTO->setAccessToken($this->getAccessToken());
         $sendMsgGPTDTO->setIps($this->getClientIps());
 
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
-        }
-        $sendMsgGPTDTO->setHeaderConfigs($headerConfigs);
+        $this->setHeaderConfigs($sendMsgGPTDTO, $request);
 
         $response = $this->llmAppService->chatCompletion($sendMsgGPTDTO);
         if ($response instanceof ChatCompletionStreamResponse) {
@@ -60,13 +60,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $embeddingDTO->setAccessToken($this->getAccessToken());
         $embeddingDTO->setIps($this->getClientIps());
 
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $key => $value) {
-            $key = strtolower((string) $key);
-            $headerConfigs[strtolower((string) $key)] = $request->getHeader((string) $key)[0] ?? '';
-        }
-        $embeddingDTO->setHeaderConfigs($headerConfigs);
-
+        $this->setHeaderConfigs($embeddingDTO, $request);
         $response = $this->llmAppService->embeddings($embeddingDTO);
         if ($response instanceof EmbeddingResponse) {
             return LLMAssembler::createEmbeddingsResponse($response);
@@ -90,7 +84,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $textGenerateImageDTO->setIps($this->getClientIps());
 
         $textGenerateImageDTO->valid();
-
+        $this->setHeaderConfigs($textGenerateImageDTO, $request);
         return $this->llmAppService->textGenerateImage($textGenerateImageDTO);
     }
 
@@ -103,7 +97,45 @@ class OpenAIProxyApi extends AbstractOpenApi
         $imageEditDTO->setIps($this->getClientIps());
 
         $imageEditDTO->valid();
-
+        $this->setHeaderConfigs($imageEditDTO, $request);
         return $this->llmAppService->imageEdit($imageEditDTO);
+    }
+
+    public function textGenerateImageV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+        $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
+        $textGenerateImageDTO->setAccessToken($this->getAccessToken());
+        $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+        $this->setHeaderConfigs($textGenerateImageDTO, $request);
+        return $this->llmAppService->textGenerateImageV2($textGenerateImageDTO)->toArray();
+    }
+
+    public function imageEditV2(RequestInterface $request)
+    {
+        $requestData = $request->all();
+
+        $imageEditDTO = new TextGenerateImageDTO($requestData);
+        $imageEditDTO->setAccessToken($this->getAccessToken());
+        $imageEditDTO->setIps($this->getClientIps());
+
+        $imageEditDTO->valid();
+        if (! $imageEditDTO->validateSupportedImageEditModel()) {
+            return OpenAIFormatResponse::buildError(ImageGenerateErrorCode::MODEL_NOT_SUPPORT_EDIT->value, __('image_generate.model_not_support_edit'))->toArray();
+        }
+        $this->setHeaderConfigs($imageEditDTO, $request);
+        return $this->llmAppService->textGenerateImageV2($imageEditDTO)->toArray();
+    }
+
+    private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request)
+    {
+        $headerConfigs = [];
+        foreach ($request->getHeaders() as $key => $value) {
+            $key = strtolower((string) $key);
+            $headerConfigs[$key] = $request->getHeader($key)[0] ?? '';
+        }
+        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
     }
 }

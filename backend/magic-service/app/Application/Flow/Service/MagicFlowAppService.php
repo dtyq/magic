@@ -284,7 +284,7 @@ class MagicFlowAppService extends AbstractFlowAppService
     /**
      * @return array{total: int, list: array<MagicFlowToolSetEntity>, icons: array<string, FileLink>, users: array<string, MagicUserEntity>}
      */
-    public function queryToolSets(Authenticatable $authorization, bool $withBuiltInTools = true): array
+    public function queryToolSets(Authenticatable $authorization, bool $withBuiltInTools = true, bool $withIcons = true): array
     {
         /** @var MagicUserAuthorization $authorization */
         $page = Page::createNoPage();
@@ -305,6 +305,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         $toolSetIds = array_keys($toolSetResources);
 
         $toolSetQuery->setCodes($toolSetIds);
+        $toolSetQuery->setOrder(['updated_at' => 'desc']);
         $toolSetData = $this->magicFlowToolSetDomainService->queries($dataIsolation, $toolSetQuery, $page);
 
         // 增加系统内置工具集
@@ -339,6 +340,8 @@ class MagicFlowAppService extends AbstractFlowAppService
 
         $toolQuery->setToolSetIds(array_values($toolSetIds));
 
+        $toolQuery->setSelect(['id', 'code', 'version_code', 'name', 'description', 'type', 'tool_set_id', 'enabled', 'organization_code', 'created_uid', 'created_at', 'updated_uid', 'updated_at']);
+        $toolQuery->setOrder(['updated_at' => 'desc']);
         $toolResult = $this->magicFlowDomainService->queries($dataIsolation, $toolQuery, $page);
 
         // 增加系统内置工具
@@ -366,7 +369,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         $toolSetData['list'] = array_filter($toolSetData['list'], fn (MagicFlowToolSetEntity $toolSet) => ! empty($toolSet->getTools()));
         $toolSetData['total'] = count($toolSetData['list']);
 
-        $toolSetData['icons'] = $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths);
+        $toolSetData['icons'] = $withIcons ? $this->getIcons($dataIsolation->getCurrentOrganizationCode(), $iconPaths) : [];
         //        $toolSetData['users'] = $this->magicUserDomainService->getByUserIds(
         //            ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
         //            $userIds

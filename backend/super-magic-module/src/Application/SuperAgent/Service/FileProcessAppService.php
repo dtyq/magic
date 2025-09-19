@@ -29,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -37,6 +38,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\WorkspaceAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileInfoResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileNameResponseDTO;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Parallel;
@@ -62,6 +64,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly FileDomainService $fileDomainService,
         private readonly LockerInterface $locker,
+        private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -904,20 +907,6 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
-    public function getFileVersions(int $fileId): array
-    {
-        $taskFileEntity = $this->taskDomainService->getTaskFile($fileId);
-        if (empty($taskFileEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
-        }
-
-        $gitDir = $this->getGitDir($taskFileEntity->getFileKey());
-        $sandboxId = $this->topicDomainService->getSandboxIdByTopicId($taskFileEntity->getTopicId());
-
-        return [];
-        // return $this->fileDomainService->getFileVersionList($taskFileEntity->getFileKey());
-    }
-
     public function getGitDir(string $fileKey): string
     {
         return '.workspace';
@@ -940,6 +929,33 @@ class FileProcessAppService extends AbstractAppService
 
         // Create response DTO and return
         $responseDTO = new FileNameResponseDTO($taskFileEntity->getFileName());
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * Get file basic information by file ID.
+     *
+     * @param int $fileId File ID
+     * @return array File basic information (file name, current version, organization code)
+     */
+    public function getFileInfoById(int $fileId): array
+    {
+        // Get file entity by ID
+        $taskFileEntity = $this->taskFileDomainService->getById($fileId);
+
+        if (empty($taskFileEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'file.not_found');
+        }
+
+        // Get current version (latest version number) - optimized for performance
+        $currentVersion = $this->taskFileVersionDomainService->getLatestVersionNumber($fileId);
+
+        // Create response DTO and return
+        $responseDTO = new FileInfoResponseDTO(
+            $taskFileEntity->getFileName(),
+            $currentVersion,
+            $taskFileEntity->getOrganizationCode()
+        );
         return $responseDTO->toArray();
     }
 
@@ -979,6 +995,9 @@ class FileProcessAppService extends AbstractAppService
 
         // 4. Update file metadata
         $this->updateFileMetadata($taskFileEntity, $result);
+
+        // 5. 创建文件版本
+        $this->taskFileVersionDomainService->createFileVersion($taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),
