@@ -11,8 +11,8 @@ use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TopicMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Hyperf\Event\Annotation\Listener;
@@ -83,7 +83,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
             }
 
             // 检查话题模式是否为 summary
-            if ($topicEntity->getTopicMode() !== TopicMode::SUMMARY) {
+            if ($topicEntity->getTopicMode() !== ProjectMode::SUMMARY) {
                 return;
             }
 
