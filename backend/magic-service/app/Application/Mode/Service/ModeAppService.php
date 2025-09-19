@@ -60,29 +60,25 @@ class ModeAppService extends AbstractModeAppService
         // 步骤2：批量查询所有模型和服务商状态
         $allProviderModelsWithStatus = $this->getModelsBatch(array_unique($allModelIds));
 
-        // 步骤3：套餐过滤 + 内存分配
-        $currentPackage = $this->packageFilter->getCurrentPackage($authorization->getOrganizationCode());
+        // 步骤3：组织模型过滤
         $providerModels = [];
 
+        // 首先收集所有需要过滤的模型
+        $allAggregateModels = [];
         foreach ($modeAggregates as $aggregate) {
-            // 从批量结果中提取当前聚合根的模型
             $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
+            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
+        }
 
-            // 根据套餐进一步过滤模型
-            foreach ($aggregateModels as $modelId => $model) {
-                $visiblePackages = $model->getVisiblePackages();
-
-                // 过滤规则：如果没有配置可见套餐，则对所有套餐可见
-                if (empty($visiblePackages)) {
-                    $providerModels[$modelId] = $model;
-                    continue;
-                }
-
-                // 如果配置了可见套餐，检查当前套餐是否在其中
-                if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
-                    $providerModels[$modelId] = $model;
-                }
-            }
+        // 使用组织过滤器进行过滤
+        if ($this->organizationModelFilter) {
+            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateModels
+            );
+        } else {
+            // 如果没有组织过滤器，返回所有模型（开源版本行为）
+            $providerModels = $allAggregateModels;
         }
 
         // 转换为DTO数组
