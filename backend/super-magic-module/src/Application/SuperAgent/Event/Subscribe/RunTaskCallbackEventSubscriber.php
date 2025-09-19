@@ -118,13 +118,15 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
 
             // 准备推送数据
             $pushData = [
-                'workspace_id' => $topicEntity->getWorkspaceId(),
-                'project_id' => $topicEntity->getProjectId(),
-                'topic_id' => $topicEntity->getId(),
-                'organization_code' => $event->getOrganizationCode(),
-                'success' => $taskStatus === TaskStatus::FINISHED,
-                'message_type' => 'recording_summary_result',
-                'timestamp' => time(),
+                'type' => 'recording_summary_result',
+                'recording_summary_result' => [
+                    'workspace_id' => $topicEntity->getWorkspaceId(),
+                    'project_id' => $topicEntity->getProjectId(),
+                    'topic_id' => $topicEntity->getId(),
+                    'organization_code' => $event->getOrganizationCode(),
+                    'success' => $taskStatus === TaskStatus::FINISHED,
+                    'timestamp' => time(),
+                ],
             ];
 
             // 推送消息给客户端
