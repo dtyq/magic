@@ -21,7 +21,7 @@ use App\Domain\Mode\Service\ModeGroupDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
-use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Domain\Provider\Service\ModelFilter\OrganizationBasedModelFilterInterface;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -36,8 +36,8 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         protected ModeGroupDomainService $groupDomainService,
         protected FileDomainService $fileDomainService,
         protected LoggerInterface $logger,
-        protected PackageFilterInterface $packageFilter,
-        protected ProviderConfigDomainService $providerConfigDomainService
+        protected ProviderConfigDomainService $providerConfigDomainService,
+        protected ?OrganizationBasedModelFilterInterface $organizationModelFilter,
     ) {
     }
 

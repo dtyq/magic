@@ -174,7 +174,9 @@ use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderOriginalModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderRepository;
+use App\Domain\Provider\Service\ModelFilter\DefaultOrganizationModelFilter;
 use App\Domain\Provider\Service\ModelFilter\DefaultPackageFilter;
+use App\Domain\Provider\Service\ModelFilter\OrganizationBasedModelFilterInterface;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
@@ -431,6 +433,8 @@ $dependencies = [
     ModeRepositoryInterface::class => ModeRepository::class,
     ModeGroupRepositoryInterface::class => ModeGroupRepository::class,
     ModeGroupRelationRepositoryInterface::class => ModeGroupRelationRepository::class,
+
+    OrganizationBasedModelFilterInterface::class => DefaultOrganizationModelFilter::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
