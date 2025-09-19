@@ -333,7 +333,7 @@ class ImageGenerateFactory
 
     /**
      * 解析各种 size 格式为 [width, height] 数组.
-     * 支持格式：1024x1024, 1024*1024, 2k, 3k, 16:9, 1:1 等
+     * 支持格式：1024x1024, 1024*1024, 2k, 3k, 16:9, 1:1 等.
      */
     private static function parseSizeToWidthHeight(string $size): array
     {
@@ -341,50 +341,41 @@ class ImageGenerateFactory
 
         // 处理标准格式：1024x1024
         if (preg_match('/^(\d+)[x×](\d+)$/i', $size, $matches)) {
-            return [(string)$matches[1], (string)$matches[2]];
+            return [(string) $matches[1], (string) $matches[2]];
         }
 
         // 处理乘号格式：1024*1024
         if (preg_match('/^(\d+)\*(\d+)$/', $size, $matches)) {
-            return [(string)$matches[1], (string)$matches[2]];
+            return [(string) $matches[1], (string) $matches[2]];
         }
 
         // 处理 k 格式：2k, 3k 等
         if (preg_match('/^(\d+)k$/i', $size, $matches)) {
-            $resolution = (int)$matches[1] * 1024;
-            return [(string)$resolution, (string)$resolution];
+            $resolution = (int) $matches[1] * 1024;
+            return [(string) $resolution, (string) $resolution];
         }
 
         // 处理比例格式：16:9, 1:1, 3:4 等
         if (preg_match('/^(\d+):(\d+)$/', $size, $matches)) {
-            $width = (int)$matches[1];
-            $height = (int)$matches[2];
+            $width = (int) $matches[1];
+            $height = (int) $matches[2];
 
             // 根据比例计算实际尺寸，基于1024为基准
             if ($width >= $height) {
                 // 横向
                 $actualWidth = 1024;
-                $actualHeight = (int)(1024 * $height / $width);
+                $actualHeight = (int) (1024 * $height / $width);
             } else {
                 // 纵向
                 $actualHeight = 1024;
-                $actualWidth = (int)(1024 * $width / $height);
+                $actualWidth = (int) (1024 * $width / $height);
             }
 
-            return [(string)$actualWidth, (string)$actualHeight];
+            return [(string) $actualWidth, (string) $actualHeight];
         }
 
         // 如果无法识别，返回默认值
         return ['1024', '1024'];
-    }
-
-    /**
-     * 将各种 size 格式标准化为 "widthxheight" 格式.
-     */
-    private static function normalizeSizeFormat(string $size): string
-    {
-        [$width, $height] = self::parseSizeToWidthHeight($size);
-        return "{$width}x{$height}";
     }
 
     /**

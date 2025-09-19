@@ -183,7 +183,7 @@ class VolcengineArkModel extends AbstractImageGenerate
         $payload = [
             'model' => $imageGenerateRequest->getModel(),
             'prompt' => $prompt,
-            'size' => $this->formatSize($imageGenerateRequest->getWidth(), $imageGenerateRequest->getHeight()),
+            'size' => $imageGenerateRequest->getSize(),
             'response_format' => $imageGenerateRequest->getResponseFormat(),
             'watermark' => $imageGenerateRequest->getWatermark(),
             'sequential_image_generation' => $imageGenerateRequest->getSequentialImageGeneration(),
@@ -196,9 +196,13 @@ class VolcengineArkModel extends AbstractImageGenerate
             $payload['sequential_image_generation_options'] = $sequentialOptions;
         }
 
-        // 如果有参考图像，则添加image字段
+        // 如果有参考图像，则添加image字段（支持多张图片）
         if (! empty($referImages)) {
-            $payload['image'] = $referImages[0];
+            if (count($referImages) === 1) {
+                $payload['image'] = $referImages[0];
+            } else {
+                $payload['image'] = $referImages;
+            }
         }
         try {
             return $this->api->generateImage($payload);
@@ -220,7 +224,7 @@ class VolcengineArkModel extends AbstractImageGenerate
         $payload = [
             'model' => $imageGenerateRequest->getModel(),
             'prompt' => $prompt,
-            'size' => $this->formatSize($imageGenerateRequest->getWidth(), $imageGenerateRequest->getHeight()),
+            'size' => $imageGenerateRequest->getSize(),
             'response_format' => $imageGenerateRequest->getResponseFormat(),
             'watermark' => $imageGenerateRequest->getWatermark(),
             'sequential_image_generation' => $imageGenerateRequest->getSequentialImageGeneration(),
@@ -233,23 +237,17 @@ class VolcengineArkModel extends AbstractImageGenerate
             $payload['sequential_image_generation_options'] = $sequentialOptions;
         }
 
-        // 如果有参考图像，则添加image字段
+        // 如果有参考图像，则添加image字段（支持多张图片）
         if (! empty($referImages)) {
-            $payload['image'] = $referImages[0];
+            if (count($referImages) === 1) {
+                $payload['image'] = $referImages[0];
+            } else {
+                $payload['image'] = $referImages;
+            }
         }
 
         // 直接调用API，异常自然向上抛
         return $this->api->generateImage($payload);
-    }
-
-    /**
-     * 将宽高格式转换为 API 所需的 size 格式.
-     */
-    private function formatSize(string $width, string $height): string
-    {
-        $w = (int) $width;
-        $h = (int) $height;
-        return "{$w}x{$h}";
     }
 
     /**
