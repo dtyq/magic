@@ -57,13 +57,6 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
     {
         // Type check
         if (! $event instanceof RunTaskCallbackEvent) {
-            $this->logger->info('接收到 RunTaskCallbackEvent 事件', [
-                'topic_id' => $event->getTopicId(),
-                'task_id' => $event->getTaskId(),
-                'organization_code' => $event->getOrganizationCode(),
-                'user_id' => $event->getUserId(),
-                'language' => $event->getLanguage(),
-            ]);
             return;
         }
 
@@ -99,9 +92,9 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
             }
 
             // 检查话题模式是否为 summary
-            if ($topicEntity->getTopicMode()?->value !== ProjectMode::SUMMARY->value) {
+            if ($topicEntity->getTopicMode() !== ProjectMode::SUMMARY->value) {
                 $this->logger->warning('checkRecordingSummary Topic mode error', [
-                    'topic_mode' => $topicEntity->getTopicMode()?->value,
+                    'topic_mode' => $topicEntity->getTopicMode(),
                     'want_mode' => ProjectMode::SUMMARY->value,
                 ]);
                 return;
@@ -118,9 +111,10 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
             // 检查任务状态是否为 ERROR 或 FINISHED
-            if ($taskStatus !== TaskStatus::ERROR || $taskStatus !== TaskStatus::FINISHED) {
-                $this->logger->warning('checkRecordingSummary Topic status error', [
-                    '$taskStatus' => $taskStatus->value,
+            if ($taskStatus !== TaskStatus::ERROR && $taskStatus !== TaskStatus::FINISHED) {
+                $this->logger->warning('checkRecordingSummary Task status not ready', [
+                    'taskStatus' => $taskStatus->value,
+                    'expected' => [TaskStatus::ERROR->value, TaskStatus::FINISHED->value],
                 ]);
                 return;
             }
