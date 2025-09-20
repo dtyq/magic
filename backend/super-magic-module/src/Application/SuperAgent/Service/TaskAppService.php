@@ -44,7 +44,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -421,87 +420,6 @@ class TaskAppService extends AbstractAppService
             throw new BusinessException('发送终止任务失败', 500);
         } finally {
             $websocketSession->disconnect();
-        }
-    }
-
-    /**
-     * 处理话题任务消息.
-     *
-     * @param TopicTaskMessageDTO $messageDTO 消息DTO
-     */
-    public function handleTopicTaskMessage(TopicTaskMessageDTO $messageDTO): void
-    {
-        $this->logger->info(sprintf(
-            '开始处理话题任务消息，task_id: %s , 消息内容为: %s',
-            $messageDTO->getPayload()->getTaskId() ?? '',
-            json_encode($messageDTO->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        ));
-        // 创建数据隔离对象
-        $dataIsolation = DataIsolation::create(
-            $messageDTO->getMetadata()->getOrganizationCode(),
-            $messageDTO->getMetadata()->getUserId()
-        );
-        // 处理消息前分发事件
-        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $messageDTO->getMetadata()->getChatTopicId());
-        if (is_null($topicEntity)) {
-            throw new RuntimeException(sprintf('根据chat话题 id: %s 未找到话题信息', $messageDTO->getMetadata()->getChatTopicId()));
-        }
-
-        // 获取任务信息
-        $taskEntity = $this->taskDomainService->getTaskById($topicEntity->getCurrentTaskId());
-        if (is_null($taskEntity)) {
-            throw new RuntimeException(sprintf('根据任务 id: %s 未找到任务信息', $topicEntity->getCurrentTaskId() ?? ''));
-        }
-
-        // 创建任务上下文
-        $taskContext = new TaskContext(
-            task: $taskEntity,
-            dataIsolation: $dataIsolation,
-            chatConversationId: $messageDTO->getMetadata()?->getChatConversationId(),
-            chatTopicId: $messageDTO->getMetadata()?->getChatTopicId(),
-            agentUserId: $messageDTO->getMetadata()?->getAgentUserId(),
-            sandboxId: $messageDTO->getMetadata()?->getSandboxId(),
-            taskId: $messageDTO->getPayload()?->getTaskId(),
-            instruction: ChatInstruction::tryFrom($messageDTO->getMetadata()?->getInstruction()) ?? ChatInstruction::Normal
-        );
-
-        try {
-            // 处理接收到的消息
-            $this->handleReceivedMessage($messageDTO, $taskContext);
-
-            // 处理任务状态
-            $status = $messageDTO->getPayload()->getStatus();
-            $taskStatus = TaskStatus::tryFrom($status) ?? TaskStatus::ERROR;
-            if (TaskStatus::tryFrom($status)) {
-                $this->updateTaskStatus($taskContext->getTask(), $taskContext->getDataIsolation(), $taskContext->getTaskId(), $taskStatus);
-            }
-
-            AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
-                $taskContext->getCurrentOrganizationCode(),
-                $taskContext->getCurrentUserId(),
-                $taskContext->getTopicId(),
-                $topicEntity->getTopicName(),
-                $taskContext->getTask()->getId(),
-                $messageDTO,
-                $messageDTO->getMetadata()->getLanguage()
-            ));
-
-            $this->logger->info(sprintf(
-                '处理话题任务消息完成，message_id: %s',
-                $messageDTO->getPayload()->getMessageId()
-            ));
-        } catch (EventException $e) {
-            $this->logger->error(sprintf('处理消息事件回调的过程出现异常: %s', $e->getMessage()));
-            $this->sendInternalMessageToSandbox($taskContext, $topicEntity, $e->getMessage());
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                '处理话题任务消息异常: %s, message_id: %s',
-                $e->getMessage(),
-                $messageDTO->getPayload()->getMessageId()
-            ), [
-                'exception' => $e,
-                'message' => $messageDTO->toArray(),
-            ]);
         }
     }
 
