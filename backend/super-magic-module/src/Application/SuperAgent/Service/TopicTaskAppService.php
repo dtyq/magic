@@ -22,6 +22,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -245,6 +246,9 @@ class TopicTaskAppService extends AbstractAppService
                     errMsg: ''
                 );
             }
+
+            // 5. 派发回调事件
+            $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
 
             $this->logger->info('话题任务消息处理完成', [
                 'topic_id' => $topicId,
@@ -478,5 +482,26 @@ class TopicTaskAppService extends AbstractAppService
             ));
             // 存储失败不影响主流程，只记录错误
         }
+    }
+
+    /**
+     * 派发回调事件.
+     */
+    private function dispatchCallbackEvent(
+        TopicTaskMessageDTO $messageDTO,
+        DataIsolation $dataIsolation,
+        int $topicId,
+        TaskEntity $taskEntity
+    ): void {
+        // 派发 RunTaskCallbackEvent
+        AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            $topicId,
+            '', // 话题名称传空字符串
+            $taskEntity->getId(),
+            $messageDTO,
+            $messageDTO->getMetadata()->getLanguage()
+        ));
     }
 }
