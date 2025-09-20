@@ -19,29 +19,55 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TopicModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\WorkspaceModel;
 use Hyperf\DbConnection\Db;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 class TopicRepository implements TopicRepositoryInterface
 {
+    private LoggerInterface $logger;
+
     public function __construct(
-        protected TopicModel $model,
-        protected MagicChatSequenceModel $magicChatSequenceModel,
+        protected TopicModel                 $model,
+        protected MagicChatSequenceModel     $magicChatSequenceModel,
         protected MagicChatTopicMessageModel $magicChatTopicMessageModel,
-        protected MagicMessageModel $magicMessageModel
-    ) {
+        protected MagicMessageModel          $magicMessageModel,
+        LoggerFactory                        $loggerFactory
+    )
+    {
+        $this->logger = $loggerFactory->get(static::class);
     }
 
     public function getTopicById(int $id): ?TopicEntity
     {
+        // 先按 id 查询
         $model = $this->model::query()->whereNull('deleted_at')
             ->where('id', $id)
-            ->orWhere('chat_topic_id', $id)
             ->first();
-        if (! $model) {
-            return null;
+
+        if ($model) {
+            $data = $this->convertModelToEntityData($model->toArray());
+            return new TopicEntity($data);
         }
 
-        $data = $this->convertModelToEntityData($model->toArray());
-        return new TopicEntity($data);
+        // 如果按 id 没找到，再按 chat_topic_id 查询
+        $model = $this->model::query()->whereNull('deleted_at')
+            ->where('chat_topic_id', $id)
+            ->first();
+
+        if ($model) {
+            // 按 chat_topic_id 查到数据时，记录错误日志和 trace
+            $this->logger->error('TopicRepository getTopicById 按 chat_topic_id 查到数据，可能存在数据不一致问题', [
+                'search_id' => $id,
+                'found_topic_id' => $model->id,
+                'found_chat_topic_id' => $model->chat_topic_id,
+                'trace' => (new \Exception())->getTraceAsString(),
+            ]);
+
+            $data = $this->convertModelToEntityData($model->toArray());
+            return new TopicEntity($data);
+        }
+
+        return null;
     }
 
     public function getTopicsByIds(array $ids): array
@@ -64,7 +90,7 @@ class TopicRepository implements TopicRepositoryInterface
     public function getTopicWithDeleted(int $id): ?TopicEntity
     {
         $model = $this->model::query()->withTrashed()->find($id);
-        if (! $model) {
+        if (!$model) {
             return null;
         }
 
@@ -75,7 +101,7 @@ class TopicRepository implements TopicRepositoryInterface
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
     {
         $model = $this->model::query()->whereNull('deleted_at')->where('sandbox_id', $sandboxId)->first();
-        if (! $model) {
+        if (!$model) {
             return null;
         }
 
@@ -96,13 +122,14 @@ class TopicRepository implements TopicRepositoryInterface
      * @return array{list: TopicEntity[], total: int} 话题列表和总数
      */
     public function getTopicsByConditions(
-        array $conditions = [],
-        bool $needPagination = true,
-        int $pageSize = 10,
-        int $page = 1,
+        array  $conditions = [],
+        bool   $needPagination = true,
+        int    $pageSize = 10,
+        int    $page = 1,
         string $orderBy = 'id',
         string $orderDirection = 'desc'
-    ): array {
+    ): array
+    {
         // 构建基础查询
         $query = $this->model::query();
 
@@ -170,8 +197,8 @@ class TopicRepository implements TopicRepositoryInterface
         $entityArray = $topicEntity->toArray();
 
         return $this->model::query()
-            ->where('id', $topicEntity->getId())
-            ->update($entityArray) > 0;
+                ->where('id', $topicEntity->getId())
+                ->update($entityArray) > 0;
     }
 
     // 使用updated_at 作为乐观锁
@@ -180,25 +207,25 @@ class TopicRepository implements TopicRepositoryInterface
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $topicEntity->toArray();
         return $this->model::query()
-            ->where('id', $topicEntity->getId())
-            ->where('updated_at', $updatedAt)
-            ->update($entityArray) > 0;
+                ->where('id', $topicEntity->getId())
+                ->where('updated_at', $updatedAt)
+                ->update($entityArray) > 0;
     }
 
     public function updateTopicByCondition(array $condition, array $data): bool
     {
         return $this->model::query()
-            ->where($condition)
-            ->update($data) > 0;
+                ->where($condition)
+                ->update($data) > 0;
     }
 
     public function deleteTopic(int $id): bool
     {
         return $this->model::query()
-            ->where('id', $id)
-            ->update([
-                'deleted_at' => date('Y-m-d H:i:s'),
-            ]) > 0;
+                ->where('id', $id)
+                ->update([
+                    'deleted_at' => date('Y-m-d H:i:s'),
+                ]) > 0;
     }
 
     /**
@@ -230,7 +257,7 @@ class TopicRepository implements TopicRepositoryInterface
         $workspaceInfo = [];
         foreach ($results as $row) {
             $workspaceInfo[$row['topic_id']] = [
-                'workspace_id' => (string) $row['workspace_id'],
+                'workspace_id' => (string)$row['workspace_id'],
                 'workspace_name' => $row['workspace_name'],
             ];
         }
@@ -274,7 +301,7 @@ class TopicRepository implements TopicRepositoryInterface
             ->get()
             ->keyBy('current_task_status')
             ->map(function ($item) {
-                return (int) $item->count;
+                return (int)$item->count;
             })
             ->toArray();
 
@@ -297,24 +324,24 @@ class TopicRepository implements TopicRepositoryInterface
     public function updateTopicStatus(int $id, $taskId, TaskStatus $status): bool
     {
         return $this->model::query()
-            ->where('id', $id)
-            ->update([
-                'current_task_id' => $taskId,
-                'current_task_status' => $status->value,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]) > 0;
+                ->where('id', $id)
+                ->update([
+                    'current_task_id' => $taskId,
+                    'current_task_status' => $status->value,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]) > 0;
     }
 
     public function updateTopicStatusAndSandboxId(int $id, $taskId, TaskStatus $status, string $sandboxId): bool
     {
         return $this->model::query()
-            ->where('id', $id)
-            ->update([
-                'current_task_id' => $taskId,
-                'current_task_status' => $status->value,
-                'sandbox_id' => $sandboxId,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]) > 0;
+                ->where('id', $id)
+                ->update([
+                    'current_task_id' => $taskId,
+                    'current_task_status' => $status->value,
+                    'sandbox_id' => $sandboxId,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]) > 0;
     }
 
     /**
@@ -346,11 +373,11 @@ class TopicRepository implements TopicRepositoryInterface
     public function updateTopicStatusBySandboxIds(array $sandboxIds, string $status): bool
     {
         return $this->model::query()
-            ->whereIn('sandbox_id', $sandboxIds)
-            ->update([
-                'current_task_status' => $status,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]) > 0;
+                ->whereIn('sandbox_id', $sandboxIds)
+                ->update([
+                    'current_task_status' => $status,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]) > 0;
     }
 
     /**
@@ -485,10 +512,10 @@ class TopicRepository implements TopicRepositoryInterface
                 ->pluck('seq_id')
                 ->toArray();
 
-            $allSeqIds = array_merge($allSeqIds, $seqIds);
+            $allSeqIds[] = $seqIds;
         }
-
-        return array_unique($allSeqIds);
+        !empty($allSeqIds) && $allSeqIds = array_merge(...$allSeqIds);
+        return array_values(array_unique($allSeqIds));
     }
 
     /**
@@ -522,7 +549,7 @@ class TopicRepository implements TopicRepositoryInterface
             ->toArray();
 
         // 删除 magic_chat_messages
-        if (! empty($magicMessageIds)) {
+        if (!empty($magicMessageIds)) {
             $this->magicMessageModel::query()
                 ->whereIn('magic_message_id', $magicMessageIds)
                 ->delete();
@@ -546,12 +573,12 @@ class TopicRepository implements TopicRepositoryInterface
             ->where('im_seq_id', $seqId)
             ->first(['id', 'topic_id']);
 
-        if (! $targetMessage) {
+        if (!$targetMessage) {
             return 0;
         }
 
-        $messageId = (int) $targetMessage->id;
-        $topicId = (int) $targetMessage->topic_id;
+        $messageId = (int)$targetMessage->id;
+        $topicId = (int)$targetMessage->topic_id;
 
         // 2. 删除当前话题中 id >= messageId 的所有数据
         return TaskMessageModel::query()
@@ -569,7 +596,7 @@ class TopicRepository implements TopicRepositoryInterface
             return true;
         }
 
-        return (bool) $this->magicChatSequenceModel::query()
+        return (bool)$this->magicChatSequenceModel::query()
             ->whereIn('id', $seqIds)
             ->update(['status' => $status->value]);
     }
@@ -606,10 +633,11 @@ class TopicRepository implements TopicRepositoryInterface
                 ->pluck('seq_id')
                 ->toArray();
 
-            $allSeqIds = array_merge($allSeqIds, $seqIds);
+            $allSeqIds[] = $seqIds;
         }
 
-        return array_unique($allSeqIds);
+        !empty($allSeqIds) && $allSeqIds = array_merge(...$allSeqIds);
+        return array_values(array_unique($allSeqIds));
     }
 
     /**
@@ -619,7 +647,7 @@ class TopicRepository implements TopicRepositoryInterface
     {
         // 先获取SuperAgent话题实体
         $topic = $this->getTopicById($topicId);
-        if (! $topic) {
+        if (!$topic) {
             return [];
         }
 
