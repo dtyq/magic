@@ -205,6 +205,8 @@ class AsrTokenApi extends AbstractApi
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
                     'topic_id' => $summaryRequest->topicId,
+                    'project_name' => null,
+                    'workspace_name' => null,
                 ];
             }
 
@@ -222,6 +224,8 @@ class AsrTokenApi extends AbstractApi
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
                     'topic_id' => $summaryRequest->topicId,
+                    'project_name' => null,
+                    'workspace_name' => null,
                 ];
             }
 
@@ -231,7 +235,8 @@ class AsrTokenApi extends AbstractApi
                 'project_id' => $summaryRequest->projectId,
                 'topic_id' => $summaryRequest->topicId,
                 'conversation_id' => $result['conversation_id'],
-                'generated_title' => $result['generated_title'] ?? null,
+                'project_name' => $result['project_name'] ?? null,
+                'workspace_name' => $result['workspace_name'] ?? null,
             ];
         } catch (Throwable $e) {
             $this->logger->error('ASR总结处理异常', [
@@ -247,6 +252,8 @@ class AsrTokenApi extends AbstractApi
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
                 'topic_id' => $summaryRequest->topicId,
+                'project_name' => null,
+                'workspace_name' => null,
             ];
         } finally {
             // 确保释放锁
@@ -626,7 +633,9 @@ class AsrTokenApi extends AbstractApi
         $note = null;
         if (! empty($noteData) && is_array($noteData)) {
             $noteContent = $noteData['content'] ?? '';
-            $noteFileType = $noteData['file_extension'] ?? 'txt';
+
+            // 只支持file_type字段，默认为md
+            $noteFileType = $noteData['file_type'] ?? 'md';
 
             if (! empty(trim($noteContent))) {
                 // 验证note内容长度，最大25000字符

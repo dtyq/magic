@@ -127,6 +127,7 @@ return [
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
         'note_prefix' => 'Nota Rakaman',
+        'note_suffix' => 'Nota', // Untuk menjana nama fail nota dengan tajuk: {title}-Nota.{ext}
     ],
 
     // Kandungan Markdown berkaitan
@@ -143,6 +144,12 @@ return [
     'messages' => [
         'summary_content' => ' Ringkaskan kandungan',
         'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
-        'waiting_ai_process' => 'Sedang menyediakan untuk memproses ringkasan rakaman anda, sila tunggu...',
+        // Awalan/akhiran i18n baru (tanpa nota)
+        'summary_prefix' => 'Sila bantu saya meringkaskan kandungan rakaman dalam ',
+        'summary_suffix' => ' ke dalam dokumen minit.',
+        // Awalan/akhiran i18n baru (dengan nota)
+        'summary_prefix_with_note' => 'Sila bantu saya menyusun kandungan rakaman dalam ',
+        'summary_middle_with_note' => ' dan kandungan nota saya dalam ',
+        'summary_suffix_with_note' => ' ke dalam dokumen minit.',
     ],
 ];
