@@ -83,7 +83,11 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
             }
 
             // 检查话题模式是否为 summary
-            if ($topicEntity->getTopicMode() !== ProjectMode::SUMMARY) {
+            if ($topicEntity->getTopicMode()?->value !== ProjectMode::SUMMARY->value) {
+                $this->logger->warning('checkRecordingSummary Topic mode error', [
+                    'topic_mode' => $topicEntity->getTopicMode()?->value,
+                    'want_mode' => ProjectMode::SUMMARY->value,
+                ]);
                 return;
             }
 
@@ -98,7 +102,10 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
             // 检查任务状态是否为 ERROR 或 FINISHED
-            if ($taskStatus !== TaskStatus::ERROR && $taskStatus !== TaskStatus::FINISHED) {
+            if ($taskStatus !== TaskStatus::ERROR || $taskStatus !== TaskStatus::FINISHED) {
+                $this->logger->warning('checkRecordingSummary Topic status error', [
+                    '$taskStatus' => $taskStatus->value,
+                ]);
                 return;
             }
 
