@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3ca8446adcf23decbae0c564dd155b01",
+    "content-hash": "0dbc3544a8ff5d7dcf9ed2f4b344802c",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -1884,16 +1884,16 @@
         },
         {
             "name": "dtyq/billing-manager",
-            "version": "1.0.66",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "e615ce851a092ea0606f7bb801a4be83eeb87005"
+                "reference": "ca97ec5b61a62ced19330998a780df7d2be6a054"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e615ce851a092ea0606f7bb801a4be83eeb87005",
-                "reference": "e615ce851a092ea0606f7bb801a4be83eeb87005",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=ca97ec5b61a62ced19330998a780df7d2be6a054",
+                "reference": "ca97ec5b61a62ced19330998a780df7d2be6a054",
                 "shasum": ""
             },
             "require": {
@@ -1927,6 +1927,7 @@
                 "phpstan/phpstan": "^1.0",
                 "phpunit/phpunit": "^10.0"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "hyperf": {
@@ -1971,9 +1972,9 @@
                 "quota"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/1.0.66"
+                "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-19T07:57:38+00:00"
+            "time": "2025-09-19T10:03:09+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2188,21 +2189,21 @@
         },
         {
             "name": "dtyq/magic-enterprise-service",
-            "version": "0.0.116",
+            "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "f8b8174ed3c4f74441774596e8322ceabcbdd99f"
+                "reference": "5f42c66b4e99e6d3add7a46462509feae5523a9b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f8b8174ed3c4f74441774596e8322ceabcbdd99f",
-                "reference": "f8b8174ed3c4f74441774596e8322ceabcbdd99f",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=5f42c66b4e99e6d3add7a46462509feae5523a9b",
+                "reference": "5f42c66b4e99e6d3add7a46462509feae5523a9b",
                 "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
-                "dtyq/billing-manager": "^1.0.1",
+                "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
@@ -2232,6 +2233,7 @@
                 "kkguan-service/user": "6.0.38",
                 "overtrue/chinese-calendar": "^1.0",
                 "promphp/prometheus_client_php": "^2.13",
+                "singpolyma/openpgp-php": "^0.7.0",
                 "stripe/stripe-php": "^17.2"
             },
             "require-dev": {
@@ -2299,9 +2301,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/0.0.116"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-07T20:03:00+08:00"
+            "time": "2025-09-19T09:58:54+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2567,11 +2569,17 @@
         },
         {
             "name": "dtyq/super-magic-module",
-            "version": "dev-master",
+            "version": "dev-enterprise-master",
+            "source": {
+                "type": "git",
+                "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
+                "reference": "dce40017b2ea3b31329a5cd024cc39d67fd29e52"
+            },
             "dist": {
-                "type": "path",
-                "url": "/Users/liangpeng/Documents/kk/magic/backend/super-magic-module",
-                "reference": "c34687cf81aebfd25a48b1058744e2e562056c2c"
+                "type": "zip",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=dce40017b2ea3b31329a5cd024cc39d67fd29e52",
+                "reference": "dce40017b2ea3b31329a5cd024cc39d67fd29e52",
+                "shasum": ""
             },
             "require": {
                 "96qbhy/hyperf-auth": "^3.1",
@@ -2669,9 +2677,10 @@
                     "email": "team@dtyq.com"
                 }
             ],
-            "transport-options": {
-                "relative": false
-            }
+            "support": {
+                "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
+            },
+            "time": "2025-09-20T17:27:36+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -3193,48 +3202,52 @@
         },
         {
             "name": "giggsey/libphonenumber-for-php",
-            "version": "8.13.29",
+            "version": "9.0.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/giggsey/libphonenumber-for-php.git",
-                "reference": "b8fa0daf0c27bb6fdb5940e0288f203be7e5cfd4"
+                "reference": "8c2c1d63c55ce1100701b7a9e760e21421d21453"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/giggsey/libphonenumber-for-php/zipball/b8fa0daf0c27bb6fdb5940e0288f203be7e5cfd4",
-                "reference": "b8fa0daf0c27bb6fdb5940e0288f203be7e5cfd4",
+                "url": "https://api.github.com/repos/giggsey/libphonenumber-for-php/zipball/8c2c1d63c55ce1100701b7a9e760e21421d21453",
+                "reference": "8c2c1d63c55ce1100701b7a9e760e21421d21453",
                 "shasum": ""
             },
             "require": {
-                "giggsey/locale": "^1.7|^2.0",
-                "php": ">=5.3.2",
-                "symfony/polyfill-mbstring": "^1.17"
+                "giggsey/locale": "^2.7",
+                "php": "^8.1",
+                "symfony/polyfill-mbstring": "^1.31"
+            },
+            "replace": {
+                "giggsey/libphonenumber-for-php-lite": "self.version"
             },
             "require-dev": {
-                "pear/pear-core-minimal": "^1.9",
-                "pear/pear_exception": "^1.0",
-                "pear/versioncontrol_git": "^0.5",
-                "phing/phing": "^2.7",
-                "php-coveralls/php-coveralls": "^1.0|^2.0",
-                "symfony/console": "^2.8|^3.0|^v4.4|^v5.2",
-                "symfony/phpunit-bridge": "^4.2 || ^5"
+                "ext-dom": "*",
+                "friendsofphp/php-cs-fixer": "^3.71",
+                "infection/infection": "^0.28.0",
+                "nette/php-generator": "^4.1",
+                "php-coveralls/php-coveralls": "^2.7",
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^2.1.7",
+                "phpstan/phpstan-deprecation-rules": "^2.0.1",
+                "phpstan/phpstan-phpunit": "^2.0.4",
+                "phpstan/phpstan-strict-rules": "^2.0.3",
+                "phpunit/phpunit": "^10.5.45",
+                "symfony/console": "^6.4",
+                "symfony/filesystem": "^6.4",
+                "symfony/process": "^6.4"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "8.x-dev"
+                    "dev-master": "9.x-dev"
                 }
             },
             "autoload": {
                 "psr-4": {
                     "libphonenumber\\": "src/"
-                },
-                "exclude-from-classmap": [
-                    "/src/data/",
-                    "/src/carrier/data/",
-                    "/src/geocoding/data/",
-                    "/src/timezone/data/"
-                ]
+                }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -3247,7 +3260,7 @@
                     "homepage": "https://giggsey.com/"
                 }
             ],
-            "description": "PHP Port of Google's libphonenumber",
+            "description": "A library for parsing, formatting, storing and validating international phone numbers, a PHP Port of Google's libphonenumber.",
             "homepage": "https://github.com/giggsey/libphonenumber-for-php",
             "keywords": [
                 "geocoding",
@@ -3261,7 +3274,7 @@
                 "issues": "https://github.com/giggsey/libphonenumber-for-php/issues",
                 "source": "https://github.com/giggsey/libphonenumber-for-php"
             },
-            "time": "2024-01-26T08:49:18+00:00"
+            "time": "2025-05-08T07:09:59+00:00"
         },
         {
             "name": "giggsey/locale",
@@ -11678,6 +11691,72 @@
             "time": "2022-12-17T21:53:22+00:00"
         },
         {
+            "name": "singpolyma/openpgp-php",
+            "version": "0.7.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/singpolyma/openpgp-php.git",
+                "reference": "b55996c1942bf676d4531c9b4c0ed226f7fe2b60"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/singpolyma/openpgp-php/zipball/b55996c1942bf676d4531c9b4c0ed226f7fe2b60",
+                "reference": "b55996c1942bf676d4531c9b4c0ed226f7fe2b60",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^5.6 || ^7.0 || ^8.0",
+                "phpseclib/phpseclib": "^3.0.14"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.0"
+            },
+            "suggest": {
+                "ext-mcrypt": "required if you use encryption cast5",
+                "ext-openssl": "required if you use encryption cast5"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "lib/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Unlicense"
+            ],
+            "authors": [
+                {
+                    "name": "Arto Bendiken",
+                    "email": "arto.bendiken@gmail.com"
+                },
+                {
+                    "name": "Stephen Paul Weber",
+                    "email": "singpolyma@singpolyma.net"
+                }
+            ],
+            "description": "Pure-PHP implementation of the OpenPGP Message Format (RFC 4880)",
+            "support": {
+                "issues": "https://github.com/singpolyma/openpgp-php/issues",
+                "source": "https://github.com/singpolyma/openpgp-php/tree/0.7.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/singpolyma",
+                    "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/singpolyma",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://www.patreon.com/singpolyma",
+                    "type": "patreon"
+                }
+            ],
+            "time": "2024-08-12T19:00:23+00:00"
+        },
+        {
             "name": "spatie/shiki-php",
             "version": "2.3.2",
             "source": {
@@ -19631,6 +19710,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
+        "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
