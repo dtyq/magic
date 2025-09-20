@@ -493,6 +493,13 @@ class TopicTaskAppService extends AbstractAppService
         int $topicId,
         TaskEntity $taskEntity
     ): void {
+        $this->logger->info('派发 RunTaskCallbackEvent 事件', [
+            'topic_id' => $topicId,
+            'task_id' => $taskEntity->getId(),
+            'message_id' => $messageDTO->getPayload()->getMessageId(),
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+        ]);
         // 派发 RunTaskCallbackEvent
         AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
             $dataIsolation->getCurrentOrganizationCode(),

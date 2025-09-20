@@ -57,8 +57,24 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
     {
         // Type check
         if (! $event instanceof RunTaskCallbackEvent) {
+            $this->logger->info('接收到 RunTaskCallbackEvent 事件', [
+                'topic_id' => $event->getTopicId(),
+                'task_id' => $event->getTaskId(),
+                'organization_code' => $event->getOrganizationCode(),
+                'user_id' => $event->getUserId(),
+                'language' => $event->getLanguage(),
+            ]);
             return;
         }
+
+        // Log event received
+        $this->logger->info('接收到 RunTaskCallbackEvent 事件', [
+            'topic_id' => $event->getTopicId(),
+            'task_id' => $event->getTaskId(),
+            'organization_code' => $event->getOrganizationCode(),
+            'user_id' => $event->getUserId(),
+            'language' => $event->getLanguage(),
+        ]);
 
         // Check recording summary completion
         $this->checkRecordingSummaryCompletion($event);
