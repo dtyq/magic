@@ -127,6 +127,7 @@ return [
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
         'note_prefix' => 'Ghi chú ghi âm',
+        'note_suffix' => 'Ghi chú', // Để tạo tên tệp ghi chú với tiêu đề: {title}-Ghi chú.{ext}
     ],
 
     // Liên quan đến nội dung Markdown
@@ -143,6 +144,12 @@ return [
     'messages' => [
         'summary_content' => ' Tóm tắt nội dung',
         'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
-        'waiting_ai_process' => 'Đang chuẩn bị xử lý tóm tắt ghi âm của bạn, vui lòng chờ...',
+        // Tiền tố/hậu tố i18n mới (không có ghi chú)
+        'summary_prefix' => 'Vui lòng giúp tôi tóm tắt nội dung ghi âm trong ',
+        'summary_suffix' => ' thành một tài liệu biên bản.',
+        // Tiền tố/hậu tố i18n mới (có ghi chú)
+        'summary_prefix_with_note' => 'Vui lòng giúp tôi tổ chức nội dung ghi âm trong ',
+        'summary_middle_with_note' => ' và nội dung ghi chú của tôi trong ',
+        'summary_suffix_with_note' => ' thành một tài liệu biên bản.',
     ],
 ];
