@@ -56,8 +56,44 @@ class ChatMessageAssembler
 
         // 提取工作区下的相对路径
         $workspaceRelativePath = $this->extractWorkspaceRelativePath($fullFilePath);
+
+        // 如果有笔记文件，需要构建笔记文件信息
+        $noteFileName = null;
+        $noteFilePath = null;
+        $noteFileId = null;
+        if ($dto->taskStatus->hasNoteFile()) {
+            $noteFileName = $dto->taskStatus->noteFileName;
+            $noteFileId = $dto->taskStatus->noteFileId;
+            // 笔记文件与音频文件在同一目录，通过音频文件路径构造笔记文件路径
+            $audioFileDirectory = dirname($workspaceRelativePath);
+            $noteFilePath = $audioFileDirectory . '/' . $noteFileName;
+            // 规范化路径，移除多余的斜杠
+            $noteFilePath = ltrim($noteFilePath, './');
+        }
+
+        // 构建文件数据
+        $fileData = [
+            'file_id' => $fileId,
+            'file_name' => $fileName,
+            'file_path' => $workspaceRelativePath,
+            'file_extension' => pathinfo($fileName, PATHINFO_EXTENSION),
+            'file_size' => 0,
+        ];
+
+        // 构建笔记文件数据（如果有）
+        $noteData = null;
+        if ($dto->taskStatus->hasNoteFile() && ! empty($noteFileName) && ! empty($noteFilePath)) {
+            $noteData = [
+                'file_id' => $noteFileId ?: (string) IdGenerator::getSnowId(),
+                'file_name' => $noteFileName,
+                'file_path' => $noteFilePath,
+                'file_extension' => pathinfo($noteFileName, PATHINFO_EXTENSION),
+                'file_size' => 0,
+            ];
+        }
+
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($fileId, $fileName, $workspaceRelativePath, $dto->modelId, $dto->taskStatus->hasNoteFile);
+        $messageContent = $this->buildMessageContent($dto->modelId, $fileData, $noteData);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -81,22 +117,74 @@ class ChatMessageAssembler
     /**
      * 构建rich_text消息内容.
      *
-     * @param string $fileId 文件ID
-     * @param string $fileName 文件名
-     * @param string $filePath 文件路径
      * @param string $modelId 模型ID
-     * @param bool $hasNoteFile 是否存在note文件
+     * @param array $fileData 文件数据（包含file_id, file_name, file_path等）
+     * @param null|array $noteData 笔记文件数据（包含file_id, file_name, file_path等），可选
      * @return array 消息内容数组
      */
-    public function buildMessageContent(string $fileId, string $fileName, string $filePath, string $modelId, bool $hasNoteFile = false): array
+    public function buildMessageContent(string $modelId, array $fileData, ?array $noteData = null): array
     {
-        $fileData = [
-            'file_id' => $fileId,
-            'file_name' => $fileName,
-            'file_path' => $filePath,
-            'file_extension' => pathinfo($fileName, PATHINFO_EXTENSION),
-            'file_size' => 0,
-        ];
+        // 构建消息内容
+        if ($noteData !== null && ! empty($noteData['file_name']) && ! empty($noteData['file_path'])) {
+            // 有笔记时的消息内容：同时提到录音文件和笔记文件
+
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $this->translator->trans('asr.messages.summary_prefix_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData,
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $this->translator->trans('asr.messages.summary_middle_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $noteData,
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $this->translator->trans('asr.messages.summary_suffix_with_note'),
+                ],
+            ];
+        } else {
+            // 无笔记时的消息内容：只提到录音文件
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $this->translator->trans('asr.messages.summary_prefix'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData,
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $this->translator->trans('asr.messages.summary_suffix'),
+                ],
+            ];
+        }
 
         return [
             'content' => json_encode([
@@ -105,30 +193,7 @@ class ChatMessageAssembler
                     [
                         'type' => 'paragraph',
                         'attrs' => ['suggestion' => ''],
-                        'content' => [
-                            [
-                                'type' => 'text',
-                                'text' => $hasNoteFile
-                                    ? $this->translator->trans('asr.messages.summary_prefix_with_note')
-                                    : $this->translator->trans('asr.messages.summary_prefix'),
-                            ],
-                            [
-                                'type' => 'mention',
-                                'attrs' => [
-                                    'id' => null,
-                                    'label' => null,
-                                    'mentionSuggestionChar' => '@',
-                                    'type' => 'project_file',
-                                    'data' => $fileData,
-                                ],
-                            ],
-                            [
-                                'type' => 'text',
-                                'text' => $hasNoteFile
-                                    ? $this->translator->trans('asr.messages.summary_suffix_with_note')
-                                    : $this->translator->trans('asr.messages.summary_suffix'),
-                            ],
-                        ],
+                        'content' => $messageContent,
                     ],
                 ],
             ]),
@@ -138,7 +203,22 @@ class ChatMessageAssembler
             'attachments' => [],
             'extra' => [
                 'super_agent' => [
-                    'mentions' => [
+                    'mentions' => $noteData !== null && ! empty($noteData['file_name']) && ! empty($noteData['file_path']) ? [
+                        [
+                            'type' => 'mention',
+                            'attrs' => [
+                                'type' => 'project_file',
+                                'data' => $fileData,
+                            ],
+                        ],
+                        [
+                            'type' => 'mention',
+                            'attrs' => [
+                                'type' => 'project_file',
+                                'data' => $noteData,
+                            ],
+                        ],
+                    ] : [
                         [
                             'type' => 'mention',
                             'attrs' => [

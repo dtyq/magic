@@ -27,6 +27,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -37,6 +38,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Codec\Json;
 use Hyperf\Engine\Coroutine;
@@ -63,6 +65,7 @@ readonly class AsrFileAppService
         private ProjectDomainService $projectDomainService,
         private ProjectMemberDomainService $projectMemberDomainService,
         private TaskFileDomainService $taskFileDomainService,
+        private WorkspaceDomainService $workspaceDomainService,
         private MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
         private MagicUserDomainService $magicUserDomainService,
         private ChatMessageAssembler $chatMessageAssembler,
@@ -127,7 +130,29 @@ readonly class AsrFileAppService
                 );
             }
 
-            // 4. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
+            // 4. 查询项目和工作区信息
+            $projectName = null;
+            $workspaceName = null;
+            try {
+                $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $summaryRequest->projectId);
+                if ($projectEntity === null) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
+                }
+                $projectName = $projectEntity->getProjectName();
+
+                // 查询工作区信息
+                $workspaceId = $projectEntity->getWorkspaceId();
+                $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+                $workspaceName = $workspaceEntity?->getName();
+            } catch (Throwable $projectError) {
+                // 查询失败时记录日志，但不影响主流程
+                $this->logger->warning('查询项目或工作区信息失败', [
+                    'project_id' => $summaryRequest->projectId,
+                    'error' => $projectError->getMessage(),
+                ]);
+            }
+
+            // 5. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
             Coroutine::create(function () use ($summaryRequest, $userAuthorization) {
                 try {
                     $this->handleAsrSummary($summaryRequest, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
@@ -144,7 +169,8 @@ readonly class AsrFileAppService
                 'task_status' => null,
                 'conversation_id' => $conversationId,
                 'chat_result' => true,
-                'generated_title' => $generatedTitle,
+                'project_name' => $projectName,
+                'workspace_name' => $workspaceName,
             ];
         } catch (Throwable $e) {
             return [
@@ -1923,19 +1949,22 @@ readonly class AsrFileAppService
         string $userId
     ): void {
         try {
-            // 1. 生成临时文件
+            // 1. 生成笔记文件ID
+            $noteFileId = (string) IdGenerator::getSnowId();
+
+            // 2. 生成临时文件
             $tempDir = sys_get_temp_dir();
-            $noteFileName = $summaryRequest->getNoteFileName();
+            $noteFileName = $summaryRequest->getNoteFileName(); // 使用生成的标题
             $tempFilePath = sprintf('%s/%s', rtrim($tempDir, '/'), $noteFileName);
 
-            // 2. 写入note内容到临时文件
+            // 3. 写入note内容到临时文件
             $bytesWritten = file_put_contents($tempFilePath, $summaryRequest->note->content);
 
             if ($bytesWritten === false) {
                 throw new RuntimeException(sprintf('写入note文件失败: %s', $tempFilePath));
             }
 
-            // 3. 获取工作区相对目录（与音频文件保持一致）
+            // 4. 获取工作区相对目录（与音频文件保持一致）
             $fileRelativeDir = $taskStatus->workspaceRelativeDir;
             if (empty($fileRelativeDir)) {
                 // 如果任务状态中没有保存目录，尝试从已有的音频文件路径中提取
@@ -1949,14 +1978,14 @@ readonly class AsrFileAppService
                 $taskStatus->workspaceRelativeDir = $fileRelativeDir; // 保存到DTO中
             }
 
-            // 4. 构建上传文件对象，上传到工作区
+            // 5. 构建上传文件对象，上传到工作区
             $uploadFile = new UploadFile($tempFilePath, $fileRelativeDir, $noteFileName, false);
 
-            // 5. 上传文件到工作区
+            // 6. 上传文件到工作区
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
-            // 6. 保存文件记录到项目 task_files 表
+            // 7. 保存文件记录到项目 task_files 表
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
                 $summaryRequest->projectId,
@@ -1968,10 +1997,11 @@ readonly class AsrFileAppService
             );
             $this->saveFileRecordToProject($saveDto);
 
-            // 标记任务状态中存在note文件
-            $taskStatus->hasNoteFile = true;
+            // 保存笔记文件名和ID（非空表示存在笔记文件）
+            $taskStatus->noteFileName = $noteFileName;
+            $taskStatus->noteFileId = $noteFileId;
 
-            // 7. 删除本地临时文件
+            // 8. 删除本地临时文件
             if (file_exists($tempFilePath)) {
                 unlink($tempFilePath);
             }

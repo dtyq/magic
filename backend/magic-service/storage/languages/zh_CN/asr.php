@@ -136,6 +136,7 @@ return [
         'transcription_prefix' => '录音转文字结果',
         'summary_prefix' => '录音的总结',
         'note_prefix' => '录音的笔记',
+        'note_suffix' => '笔记', // 用于生成带标题的笔记文件名：{title}-笔记.{ext}
     ],
 
     // Markdown内容相关
@@ -156,8 +157,8 @@ return [
         'summary_prefix' => '请帮我把 ',
         'summary_suffix' => ' 中的录音内容整理成一份纪要文档。',
         // 新的前后缀国际化（有笔记）
-        'summary_prefix_with_note' => '请在参考同目录下的笔记基础上，帮我把 ',
-        'summary_suffix_with_note' => ' 中的录音内容整理成一份纪要文档。',
-        'waiting_ai_process' => '正在准备为您处理录音总结，请稍候...',
+        'summary_prefix_with_note' => '帮我把 ',
+        'summary_middle_with_note' => ' 中的录音内容和 ',
+        'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档。',
     ],
 ];

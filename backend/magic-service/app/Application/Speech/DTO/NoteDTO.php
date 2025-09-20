@@ -41,9 +41,17 @@ readonly class NoteDTO
 
     /**
      * 生成文件名.
+     *
+     * @param null|string $generatedTitle 生成的标题，如果提供则使用 {title}-笔记.{ext} 格式
      */
-    public function generateFileName(): string
+    public function generateFileName(?string $generatedTitle = null): string
     {
+        if (! empty($generatedTitle)) {
+            // 使用生成的标题格式：{title}-笔记.{ext}
+            return sprintf('%s-%s.%s', $generatedTitle, trans('asr.file_names.note_suffix'), $this->getFileExtension());
+        }
+
+        // 回退到默认格式
         return sprintf('%s.%s', trans('asr.file_names.note_prefix'), $this->getFileExtension());
     }
 
@@ -57,12 +65,14 @@ readonly class NoteDTO
 
     /**
      * 从数组创建实例.
+     *
+     * @param array $data 包含content和file_type的数组
      */
     public static function fromArray(array $data): self
     {
         return new self(
             $data['content'] ?? '',
-            $data['file_extension'] ?? 'txt'
+            $data['file_type'] ?? 'md'
         );
     }
 
@@ -73,7 +83,7 @@ readonly class NoteDTO
     {
         return [
             'content' => $this->content,
-            'file_extension' => $this->fileExtension,
+            'file_type' => $this->fileExtension,
         ];
     }
 }

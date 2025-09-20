@@ -136,6 +136,7 @@ return [
         'transcription_prefix' => 'Transcription Result',
         'summary_prefix' => 'Recording Summary',
         'note_prefix' => 'Recording Note',
+        'note_suffix' => 'Note', // For generating note filenames with title: {title}-Note.{ext}
     ],
 
     // Markdown content related
@@ -156,8 +157,8 @@ return [
         'summary_prefix' => 'Please help summarize the recording in ',
         'summary_suffix' => ' into a minutes document.',
         // New prefix/suffix i18n (with note)
-        'summary_prefix_with_note' => 'With reference to the note in the same directory, please help summarize the recording in ',
+        'summary_prefix_with_note' => 'Please help me organize the recording content in ',
+        'summary_middle_with_note' => ' and my note content in ',
         'summary_suffix_with_note' => ' into a minutes document.',
-        'waiting_ai_process' => 'Preparing to process your recording summary, please wait...',
     ],
 ];

@@ -75,13 +75,17 @@ readonly class SummaryRequestDTO
 
     /**
      * 获取笔记的文件名.
+     *
+     * @param bool $useGeneratedTitle 是否使用生成的标题，如果为true且存在generatedTitle，则使用 {title}-笔记.{ext} 格式
      */
-    public function getNoteFileName(): ?string
+    public function getNoteFileName(bool $useGeneratedTitle = true): ?string
     {
         if (! $this->hasNote()) {
             return null;
         }
 
-        return $this->note->generateFileName();
+        // 如果需要使用生成标题且存在generatedTitle，则传递给note
+        $titleToUse = ($useGeneratedTitle && ! empty($this->generatedTitle)) ? $this->generatedTitle : null;
+        return $this->note->generateFileName($titleToUse);
     }
 }

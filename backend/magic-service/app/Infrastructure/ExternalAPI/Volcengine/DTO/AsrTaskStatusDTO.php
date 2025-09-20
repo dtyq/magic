@@ -19,10 +19,10 @@ class AsrTaskStatusDTO
 
     public string $userId = '';
 
-    // 类似：/asr/recordings/2025_09_10/usi_1111/38
-    public string $businessDirectory = ''; // 小段音频的业务目录，与task_key绑定
+    // 类似：/asr/recordings/2025_09_10/usi_1111/task_key
+    public string $businessDirectory = ''; // 小段音频的业务目录，与 task_key 绑定
 
-    // 类似：DT001/588417216353927169/asr/recordings/2025_09_10/usi_1111/38/
+    // 类似：DT001/588417216353927169/asr/recordings/2025_09_10/usi_1111/task_key/
     public string $stsFullDirectory = ''; // 小段音频的STS完整目录，用于前端上传
 
     // 类似：project_821749697183776769/workspace/录音总结_20250910_174251/原始录音文件.webm
@@ -31,8 +31,10 @@ class AsrTaskStatusDTO
     // 类似：project_821749697183776769/workspace/录音总结_20250910_174251
     public ?string $workspaceRelativeDir = null; // 工作区相对目录，确保音频和note文件在同一目录
 
-    // note 文件是否存在
-    public bool $hasNoteFile = false; // 标记是否存在note文件
+    // note 文件信息
+    public ?string $noteFileName = null; // note文件名（与音频文件在同一目录，为空表示无笔记文件）
+
+    public ?string $noteFileId = null; // note文件ID（用于聊天消息中的文件引用）
 
     public AsrTaskStatusEnum $status = AsrTaskStatusEnum::FAILED;
 
@@ -55,7 +57,8 @@ class AsrTaskStatusDTO
         $this->workspaceFileUrl = $data['workspace_file_url'] ?? $data['workspaceFileUrl'] ?? null;
         $this->filePath = $data['file_path'] ?? $data['filePath'] ?? $data['file_name'] ?? $data['fileName'] ?? null;
         $this->workspaceRelativeDir = $data['workspace_relative_dir'] ?? $data['workspaceRelativeDir'] ?? null;
-        $this->hasNoteFile = (bool) ($data['has_note_file'] ?? $data['hasNoteFile'] ?? false);
+        $this->noteFileName = $data['note_file_name'] ?? $data['noteFileName'] ?? null;
+        $this->noteFileId = $data['note_file_id'] ?? $data['noteFileId'] ?? null;
     }
 
     /**
@@ -84,7 +87,8 @@ class AsrTaskStatusDTO
             'workspace_file_url' => $this->workspaceFileUrl,
             'file_path' => $this->filePath,
             'workspace_relative_dir' => $this->workspaceRelativeDir,
-            'has_note_file' => $this->hasNoteFile,
+            'note_file_name' => $this->noteFileName,
+            'note_file_id' => $this->noteFileId,
         ];
     }
 
@@ -110,5 +114,13 @@ class AsrTaskStatusDTO
     public function updateStatus(AsrTaskStatusEnum $status): void
     {
         $this->status = $status;
+    }
+
+    /**
+     * 检查是否有笔记文件.
+     */
+    public function hasNoteFile(): bool
+    {
+        return ! empty($this->noteFileName);
     }
 }
