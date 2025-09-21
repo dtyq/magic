@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
@@ -443,7 +444,7 @@ class TopicTaskAppService extends AbstractAppService
             $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
             $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
-            $workDir = rtrim($taskEntity->getWorkdir(), '/') . '/task_' . $taskEntity->getId() . '/.chat/';
+            $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
 
             // 调用FileProcessAppService保存内容
             $fileId = $this->fileProcessAppService->saveToolMessageContent(
