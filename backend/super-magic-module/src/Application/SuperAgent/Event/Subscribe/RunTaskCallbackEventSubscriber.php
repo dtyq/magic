@@ -120,9 +120,9 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
             $pushData = [
                 'type' => 'recording_summary_result',
                 'recording_summary_result' => [
-                    'workspace_id' => $topicEntity->getWorkspaceId(),
-                    'project_id' => $topicEntity->getProjectId(),
-                    'topic_id' => $topicEntity->getId(),
+                    'workspace_id' => (string) $topicEntity->getWorkspaceId(),
+                    'project_id' => (string) $topicEntity->getProjectId(),
+                    'topic_id' => (string) $topicEntity->getId(),
                     'organization_code' => $event->getOrganizationCode(),
                     'success' => $taskStatus === TaskStatus::FINISHED,
                     'timestamp' => time(),
