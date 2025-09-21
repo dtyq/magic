@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
@@ -27,11 +28,14 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
+use Dtyq\SuperMagic\Infrastructure\Utils\ToolProcessor;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
@@ -50,6 +54,7 @@ class TopicTaskAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly TaskMessageDomainService $taskMessageDomainService,
         private readonly SandboxDomainService $sandboxDomainService,
         protected MagicUserDomainService $userDomainService,
@@ -212,7 +217,7 @@ class TopicTaskAppService extends AbstractAppService
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
                 $this->processToolContentStorage($dataIsolation, $taskEntity, $messageEntity);
-                $this->taskMessageDomainService->processMessageAttachment($messageEntity);
+                $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
@@ -365,6 +370,105 @@ class TopicTaskAppService extends AbstractAppService
         $this->logger->info(sprintf('结束检查任务状态: topic_id=%s, status=%s, error_msg=%s', $topicEntity->getId(), TaskStatus::ERROR->value, $errMsg));
 
         return TaskStatus::ERROR;
+    }
+
+    public function processMessageAttachment(DataIsolation $dataIsolation, TaskEntity $task, TaskMessageEntity $message): void
+    {
+        $fileKeys = [];
+        $fileInfoMap = [];
+        // 获取消息附件
+        if (! empty($message->getAttachments())) {
+            foreach ($message->getAttachments() as $attachment) {
+                if (! empty($attachment['file_key'])) {
+                    $fileKeys[] = $attachment['file_key'];
+                    $fileInfoMap[$attachment['file_key']] = $attachment;
+                }
+            }
+        }
+        // 获取消息里，工具的附件
+        if (! empty($message->getTool()) && ! empty($message->getTool()['attachments'])) {
+            foreach ($message->getTool()['attachments'] as $attachment) {
+                if (! empty($attachment['file_key'])) {
+                    $fileKeys[] = $attachment['file_key'];
+                    $fileInfoMap[$attachment['file_key']] = $attachment;
+                }
+            }
+        }
+        if (empty($fileKeys)) {
+            return;
+        }
+        // 通过 file_key 查找文件 id
+        $fileEntities = $this->taskFileDomainService->getByFileKeys($fileKeys);
+        $fileIdMap = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIdMap[$fileEntity->getFileKey()] = $fileEntity->getFileId();
+        }
+
+        // Handle missing file_keys: find which file_keys don't have corresponding records
+        $missingFileKeys = array_diff($fileKeys, array_keys($fileIdMap));
+        if (! empty($missingFileKeys)) {
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($task->getProjectId());
+            if ($projectEntity) {
+                foreach ($missingFileKeys as $missingFileKey) {
+                    if (! isset($fileInfoMap[$missingFileKey])) {
+                        $this->logger->error(sprintf('Missing file_key: %s', $missingFileKey));
+                        continue;
+                    }
+                    $storageType = WorkFileUtil::isSnapshotFile($missingFileKey)
+                        ? StorageType::SNAPSHOT->value
+                        : StorageType::WORKSPACE->value;
+                    $fileInfoMap[$missingFileKey]['storage_type'] = $storageType;
+                    $fallbackFileEntity = $this->taskFileDomainService->convertMessageAttachmentToTaskFileEntity($fileInfoMap[$missingFileKey], $task);
+                    $this->logger->error(sprintf(
+                        'Attachment not found in database, skipping processing, task_id: %s, file_key: %s',
+                        $task->getTaskId(),
+                        $missingFileKey
+                    ));
+                    $savedEntity = $this->taskFileDomainService->saveProjectFile(
+                        $dataIsolation,
+                        $projectEntity,
+                        $fallbackFileEntity,
+                        $storageType
+                    );
+                    $fileIdMap[$missingFileKey] = $savedEntity->getFileId();
+                }
+            } else {
+                $this->logger->error(sprintf('Project not found, project_id: %s', $task->getProjectId()));
+            }
+        }
+
+        // 将 file_id 赋值到 消息的附件和消息工具的附件里
+        if (! empty($fileIdMap)) {
+            // 处理消息附件
+            $attachments = $message->getAttachments();
+            if (! empty($attachments)) {
+                foreach ($attachments as &$attachment) {
+                    if (! empty($attachment['file_key']) && isset($fileIdMap[$attachment['file_key']])) {
+                        $attachment['file_id'] = (string) $fileIdMap[$attachment['file_key']];
+                    }
+                }
+                $message->setAttachments($attachments);
+            }
+
+            // 处理工具附件
+            $tool = $message->getTool();
+            if (! empty($tool) && ! empty($tool['attachments'])) {
+                foreach ($tool['attachments'] as &$attachment) {
+                    if (! empty($attachment['file_key']) && isset($fileIdMap[$attachment['file_key']])) {
+                        $attachment['file_id'] = (string) $fileIdMap[$attachment['file_key']];
+                    }
+                }
+                $message->setTool($tool);
+            }
+        }
+
+        // Special status handling: generate output content tool when task is finished
+        if ($message->getStatus() === TaskStatus::FINISHED->value) {
+            $outputTool = ToolProcessor::generateOutputContentTool($message->getAttachments());
+            if ($outputTool !== null) {
+                $message->setTool($outputTool);
+            }
+        }
     }
 
     private function parseMessageContent(TopicTaskMessageDTO $messageDTO): TaskMessageEntity
