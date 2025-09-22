@@ -27,9 +27,10 @@ interface ProjectMemberRepositoryInterface
      * 根据项目ID删除所有成员.
      *
      * @param int $projectId 项目ID
+     * @param array $roles 角色
      * @return int 删除的记录数
      */
-    public function deleteByProjectId(int $projectId): int;
+    public function deleteByProjectId(int $projectId, array $roles = []): int;
 
     /**
      * 根据ID数组批量删除成员.
@@ -61,9 +62,10 @@ interface ProjectMemberRepositoryInterface
      * 根据项目ID获取所有项目成员.
      *
      * @param int $projectId 项目ID
+     * @param array $roles 角色
      * @return ProjectMemberEntity[] 项目成员实体数组
      */
-    public function findByProjectId(int $projectId): array;
+    public function findByProjectId(int $projectId, array $roles = []): array;
 
     /**
      * 根据用户和部门获取项目ID列表及总数.
