@@ -14,7 +14,9 @@ use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -116,12 +118,34 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
 
+            // 通过领域服务查询项目和工作区名称（只能依赖 domain/app 层）
+            $projectName = '';
+            $workspaceName = '';
+            try {
+                $projectDomainService = di(ProjectDomainService::class);
+                $projectEntity = $projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
+                $projectName = $projectEntity?->getProjectName() ?? '';
+
+                $workspaceDomainService = di(WorkspaceDomainService::class);
+                $workspace = $workspaceDomainService->getWorkspaceDetail($topicEntity->getWorkspaceId());
+                $workspaceName = $workspace?->getName() ?? '';
+            } catch (Throwable $e) {
+                $this->logger->warning('checkRecordingSummary fetch project/workspace name failed', [
+                    'topic_id' => $event->getTopicId(),
+                    'project_id' => $topicEntity->getProjectId(),
+                    'workspace_id' => $topicEntity->getWorkspaceId(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // 准备推送数据
             $pushData = [
                 'type' => 'recording_summary_result',
                 'recording_summary_result' => [
                     'workspace_id' => (string) $topicEntity->getWorkspaceId(),
+                    'workspace_name' => $workspaceName,
                     'project_id' => (string) $topicEntity->getProjectId(),
+                    'project_name' => $projectName,
                     'topic_id' => (string) $topicEntity->getId(),
                     'organization_code' => $event->getOrganizationCode(),
                     'success' => $taskStatus === TaskStatus::FINISHED,
