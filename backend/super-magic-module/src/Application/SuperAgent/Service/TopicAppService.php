@@ -122,7 +122,7 @@ class TopicAppService extends AbstractAppService
             // 2. 创建话题
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
-                (int) $requestDTO->getWorkspaceId(),
+                $projectEntity->getWorkspaceId(),
                 (int) $requestDTO->getProjectId(),
                 $chatConversationId,
                 $chatConversationTopicId, // 会话的话题ID
