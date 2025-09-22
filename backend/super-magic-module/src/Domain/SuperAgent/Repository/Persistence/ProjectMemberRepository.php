@@ -51,11 +51,13 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     /**
      * 根据项目ID删除所有成员.
      */
-    public function deleteByProjectId(int $projectId): int
+    public function deleteByProjectId(int $projectId, array $roles = []): int
     {
-        return $this->projectMemberModel::query()
-            ->where('project_id', $projectId)
-            ->delete();
+        $query = $this->projectMemberModel::query();
+        if (! empty($roles)) {
+            $query = $query->whereIn('role', $roles);
+        }
+        return $query->where('project_id', $projectId)->delete();
     }
 
     /**
@@ -104,15 +106,16 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      * 根据项目ID获取所有项目成员.
      *
      * @param int $projectId 项目ID
+     * @param array $roles 成员角色
      * @return ProjectMemberEntity[] 项目成员实体数组
      */
-    public function findByProjectId(int $projectId): array
+    public function findByProjectId(int $projectId, array $roles = []): array
     {
-        $results = $this->projectMemberModel::query()
-            ->where('project_id', $projectId)
-            ->orderBy('id', 'asc')
-            ->get()
-            ->toArray();
+        $query = $this->projectMemberModel::query()->where('project_id', $projectId);
+        if (! empty($roles)) {
+            $query->whereIn('role', $roles);
+        }
+        $results = $query->orderBy('id', 'asc')->get()->toArray();
 
         $entities = [];
         foreach ($results as $row) {

@@ -38,6 +38,10 @@ class AIImageGenerateParamsVO extends AbstractValueObject
 
     public string $sourceId;
 
+    public string $sequentialImageGeneration = 'disabled';
+
+    public array $sequentialImageGenerationOptions = [];
+
     public function __construct()
     {
         $this->model = ImageGenerateModelType::Volcengine->value;
@@ -206,5 +210,25 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public function setSourceId(string $sourceId): void
     {
         $this->sourceId = $sourceId;
+    }
+
+    public function getSequentialImageGeneration(): string
+    {
+        return $this->sequentialImageGeneration;
+    }
+
+    public function setSequentialImageGeneration(string $sequentialImageGeneration): void
+    {
+        $this->sequentialImageGeneration = $sequentialImageGeneration;
+    }
+
+    public function getSequentialImageGenerationOptions(): array
+    {
+        return $this->sequentialImageGenerationOptions;
+    }
+
+    public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
+    {
+        $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
     }
 }

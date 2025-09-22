@@ -565,6 +565,7 @@ function MainWorkspaceContent() {
 		}
 	}, [updateTopicListStatus])
 
+	console.log("isEmptyStatus-->", isEmptyStatus)
 	return isMobile ? (
 		<SuperMagicMobileWorkSpace
 			workspaces={workspaces}

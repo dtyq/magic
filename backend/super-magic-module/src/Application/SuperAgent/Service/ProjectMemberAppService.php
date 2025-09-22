@@ -16,6 +16,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
@@ -116,7 +117,7 @@ class ProjectMemberAppService extends AbstractAppService
         $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 2. 获取项目成员列表
-        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId);
+        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
 
         if (empty($memberEntities)) {
             return ProjectMembersResponseDTO::fromEmpty();

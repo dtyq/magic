@@ -573,6 +573,48 @@ class TaskDomainService
         return $this->messageRepository->getUserFirstMessageByTopicId($topicId, $userId);
     }
 
+    /**
+     * Batch get task counts by topic IDs.
+     *
+     * @param array $topicIds Array of topic IDs
+     * @return array Array with structure [topic_id => task_count]
+     */
+    public function batchGetTaskNumsByTopicIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($topicIds as $topicId) {
+            $result[$topicId] = $this->taskRepository->getTaskCountByTopicId($topicId);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Batch get user first messages by topic IDs.
+     *
+     * @param array $topicIds Array of topic IDs
+     * @return array Array with structure [topic_id => TaskMessageEntity|null]
+     */
+    public function batchGetUserFirstMessagesByTopicIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $result = [];
+        // Note: This needs user_id which is not available here
+        // We'll need to get this info from the calling service
+        foreach ($topicIds as $topicId) {
+            $result[$topicId] = null; // Will be filled by calling service if needed
+        }
+
+        return $result;
+    }
+
     public function updateTaskStatusBySandboxIds(array $sandboxIds, TaskStatus $taskStatus, ?string $errMsg = null): int
     {
         return $this->taskRepository->updateTaskStatusBySandboxIds($sandboxIds, $taskStatus->value, $errMsg);

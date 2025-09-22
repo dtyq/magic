@@ -28,13 +28,8 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\Util\Context\RequestContext;
-use App\Infrastructure\Util\SSRF\Exception\SSRFException;
-use App\Infrastructure\Util\SSRF\SSRFUtil;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
@@ -114,25 +109,6 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
             // 发生异常时，发送终止消息，并抛出异常
             $this->handleGlobalThrowable($reqDTO, $e);
         }
-    }
-
-    // 转高清
-
-    /**
-     * @throws SSRFException
-     */
-    public function imageConvertHigh(string $url, MagicUserAuthorization $authenticatable): string
-    {
-        $url = SSRFUtil::getSafeUrl($url, replaceIp: false);
-
-        $miracleVisionServiceProviderConfig = $this->serviceProviderDomainService->getMiracleVisionServiceProviderConfig(ImageGenerateModelType::MiracleVisionHightModelId->value, $authenticatable->getOrganizationCode());
-        /**
-         * @var MiracleVisionModel $imageGenerateService
-         */
-        $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig());
-
-        $imageGenerateService->setApiKey($miracleVisionServiceProviderConfig->getConfig()->getApiKey());
-        return $this->magicAIImageDomainService->imageConvertHigh($url, $imageGenerateService);
     }
 
     /**
