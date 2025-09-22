@@ -13,6 +13,7 @@ use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use BackedEnum;
 use Exception;
 use InvalidArgumentException;
 
@@ -65,7 +66,7 @@ class MagicPermission implements MagicPermissionInterface
             return self::ALL_PERMISSIONS . '.' . $operation;
         }
 
-        if (! in_array($resource, $this->getResources()) || ! in_array($operation, $this->getOperations())) {
+        if (! in_array($resource, $this->getResources()) || ! in_array($operation, $this->getOperationsByResource($resource), true)) {
             throw new InvalidArgumentException('Invalid resource or operation type');
         }
 
@@ -176,14 +177,14 @@ class MagicPermission implements MagicPermissionInterface
             if (substr_count($resource, '.') < 2) {
                 continue;
             }
-            foreach ($operations as $operation) {
+            foreach ($this->getOperationsByResource($resource) as $operation) {
                 $permissionKey = $this->buildPermission($resource, $operation);
                 $permissions[] = [
                     'permission_key' => $permissionKey,
                     'resource' => $resource,
                     'operation' => $operation,
                     'resource_label' => $this->getResourceLabel($resource),
-                    'operation_label' => $this->getOperationLabel($operation),
+                    'operation_label' => $this->getOperationLabelByResource($resource, $operation),
                 ];
             }
         }
@@ -292,8 +293,8 @@ class MagicPermission implements MagicPermissionInterface
             // 检查资源是否存在
             $resourceExists = in_array($parsed['resource'], $this->getResources());
 
-            // 检查操作是否存在
-            $operationExists = in_array($parsed['operation'], $this->getOperations());
+            // 检查操作是否存在（按资源）
+            $operationExists = in_array($parsed['operation'], $this->getOperationsByResource($parsed['resource']), true);
 
             return $resourceExists && $operationExists;
         } catch (Exception $e) {
@@ -333,15 +334,86 @@ class MagicPermission implements MagicPermissionInterface
         }
 
         $parsed = $this->parsePermission($permissionKey);
-        if ($parsed['operation'] === MagicOperationEnum::QUERY->value) {
-            // edit 权限隐式包含 query 权限
-            $permissionKey = $this->buildPermission($parsed['resource'], MagicOperationEnum::EDIT->value);
-            if (in_array($permissionKey, $userPermissions, true)) {
-                return true;
+        // 默认隐式：edit -> query（若两操作均存在）
+        $ops = $this->getOperationsByResource($parsed['resource']);
+        if (in_array(MagicOperationEnum::EDIT->value, $ops, true) && in_array(MagicOperationEnum::QUERY->value, $ops, true)) {
+            if ($parsed['operation'] === MagicOperationEnum::QUERY->value) {
+                $permissionKey = $this->buildPermission($parsed['resource'], MagicOperationEnum::EDIT->value);
+                if (in_array($permissionKey, $userPermissions, true)) {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * 解析资源绑定的 Operation Enum，返回该资源可用的操作集合（字符串数组）。
+     */
+    protected function getOperationsByResource(string $resource): array
+    {
+        $enum = MagicResourceEnum::tryFrom($resource);
+        $opEnumClass = $enum
+            ? $this->resolveOperationEnumClass($enum)
+            : $this->resolveOperationEnumClassFromUnknownResource($resource);
+        if (! enum_exists($opEnumClass)) {
+            throw new InvalidArgumentException('Operation enum not found for resource: ' . $resource);
+        }
+        // 仅支持 BackedEnum，因为后续需要读取 ->value
+        if (! is_subclass_of($opEnumClass, BackedEnum::class)) {
+            throw new InvalidArgumentException('Operation enum for resource must be BackedEnum: ' . $opEnumClass);
+        }
+
+        /** @var class-string<BackedEnum> $opEnumClass */
+        $cases = $opEnumClass::cases();
+        /* @var array<int, \BackedEnum> $cases */
+        return array_map(static fn (BackedEnum $case) => $case->value, $cases);
+    }
+
+    /**
+     * 返回资源绑定的 Operation Enum 类名，默认读取 `MagicResourceEnum::operationEnumClass()`。
+     * 企业版可覆盖本方法，将企业资源映射到自定义的 Operation Enum。
+     */
+    protected function resolveOperationEnumClass(MagicResourceEnum $resourceEnum): string
+    {
+        return $resourceEnum->operationEnumClass();
+    }
+
+    /**
+     * 对于非 MagicResourceEnum 定义的资源，子类可覆盖该方法以解析到相应的 Operation Enum。
+     * 开源默认抛错。
+     */
+    protected function resolveOperationEnumClassFromUnknownResource(string $resource): string
+    {
+        throw new InvalidArgumentException('Not a resource type: ' . $resource);
+    }
+
+    /**
+     * 获取按资源的操作标签。
+     */
+    protected function getOperationLabelByResource(string $resource, string $operation): string
+    {
+        $enum = MagicResourceEnum::tryFrom($resource);
+        $opEnumClass = $enum
+            ? $this->resolveOperationEnumClass($enum)
+            : $this->resolveOperationEnumClassFromUnknownResource($resource);
+        if (method_exists($opEnumClass, 'tryFrom')) {
+            $opEnum = $opEnumClass::tryFrom($operation);
+            if (! $opEnum) {
+                throw new InvalidArgumentException('Not an operation type: ' . $operation);
+            }
+            // 要求自定义 OperationEnum 实现 label()/translationKey() 与 MagicOperationEnum 对齐
+            if (method_exists($opEnum, 'label') && method_exists($opEnum, 'translationKey')) {
+                $translated = $opEnum->label();
+                if ($translated === $opEnum->translationKey()) {
+                    ExceptionBuilder::throw(PermissionErrorCode::BusinessException, 'Missing i18n for key: ' . $opEnum->translationKey());
+                }
+                return $translated;
+            }
+            // 兼容：若未实现 label/translationKey，则退回通用 getOperationLabel 逻辑
+        }
+        return $this->getOperationLabel($operation);
     }
 
     /**
