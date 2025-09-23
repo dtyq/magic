@@ -307,7 +307,7 @@ class ResourceShareDomainService
      * @param string $userId 用户ID
      * @return null|ResourceShareEntity 如果存在则返回分享实体，否则返回null
      */
-    protected function findExistingShare(string $resourceId, int $resourceType, string $userId): ?ResourceShareEntity
+    protected function findExistingShare(string $resourceId, int $resourceType, string $userId = ''): ?ResourceShareEntity
     {
         return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
     }
