@@ -1080,11 +1080,6 @@ class TaskFileDomainService
             return true;
         }
 
-        // Check permission
-        if ($existingFile->getUserId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
-        }
-
         try {
             $this->taskFileRepository->deleteById($existingFile->getFileId());
 
