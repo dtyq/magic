@@ -248,9 +248,9 @@ class ResourceShareAppService extends AbstractShareAppService
         // 获取并验证实体
         try {
             $shareEntity = $this->getAndValidateShareEntity($userAuthorization, $shareCode);
-            if ($shareEntity->getCreatedUid() !== $userAuthorization->getId()) {
-                ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.permission_denied', [$shareCode]);
-            }
+            //            if ($shareEntity->getCreatedUid() !== $userAuthorization->getId()) {
+            //                ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.permission_denied', [$shareCode]);
+            //            }
             // 使用装配器创建包含密码的DTO
             return $this->shareAssembler->toDtoWithPassword($shareEntity);
         } catch (BusinessException $e) {

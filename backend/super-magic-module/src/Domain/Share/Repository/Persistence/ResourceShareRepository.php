@@ -209,12 +209,11 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
 
     public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
     {
-        $query = ResourceShareModel::query();
-        $model = $query->withTrashed()
-            ->where('created_uid', $userId)
-            ->where('resource_id', $resourceId)
-            ->where('resource_type', $resourceType)
-            ->first();
+        $query = ResourceShareModel::query()->withTrashed();
+        if (! empty($userId)) {
+            $query = $query->where('created_uid', $userId);
+        }
+        $model = $query->where('resource_id', $resourceId)->where('resource_type', $resourceType)->first();
 
         if (! $model) {
             return null;
