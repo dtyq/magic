@@ -191,7 +191,7 @@ class ResourceShareDomainService
         ?int $expireDays = null
     ): ResourceShareEntity {
         // 1. 查找是否已存在分享
-        $shareEntity = $this->findExistingShare($resourceId, $resourceType, $userId);
+        $shareEntity = $this->findExistingShare($resourceId, $resourceType, '');
 
         // 2. 如果不存在，创建新的分享实体
         if (! $shareEntity) {
