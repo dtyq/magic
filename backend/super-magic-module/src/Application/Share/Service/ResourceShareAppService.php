@@ -122,6 +122,9 @@ class ResourceShareAppService extends AbstractShareAppService
         return $this->shareDomainService->cancelShare($shareId, $userId, $organizationCode);
     }
 
+    /**
+     * @throws Exception
+     */
     public function cancelShareByResourceId(MagicUserAuthorization $userAuthorization, string $resourceId): bool
     {
         $userId = $userAuthorization->getId();
@@ -131,8 +134,29 @@ class ResourceShareAppService extends AbstractShareAppService
         if (is_null($shareEntity)) {
             return false;
         }
+
+        // 验证资源类型
+        $resourceType = ResourceType::from($shareEntity->getResourceType());
+
+        // 1. 获取对应类型的资源工厂
+        try {
+            $factory = $this->resourceFactory->create($resourceType);
+        } catch (RuntimeException $e) {
+            // 使用 ExceptionBuilder 抛出不支持的资源类型异常
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported', [$resourceType->name]);
+        }
+
+        // 2. 验证资源所有者权限
+        if (! $factory->hasSharePermission($resourceId, $userId, $organizationCode)) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission_to_share', [$resourceId]);
+        }
+
+        $shareEntity->setDeletedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($userId);
+
         // 调用领域服务的取消分享方法
-        return $this->shareDomainService->cancelShare($shareEntity->getId(), $userId, $organizationCode);
+        return $this->shareDomainService->saveShareByEntity($shareEntity);
     }
 
     public function checkShare(?MagicUserAuthorization $userAuthorization, string $shareCode): array

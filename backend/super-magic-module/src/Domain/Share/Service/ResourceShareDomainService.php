@@ -25,6 +25,17 @@ class ResourceShareDomainService
     ) {
     }
 
+    public function saveShareByEntity(ResourceShareEntity $shareEntity): bool
+    {
+        try {
+            $this->shareRepository->save($shareEntity);
+            return true;
+        } catch (Exception $e) {
+            // 重新抛出异常
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.cancel_failed: ' . $shareEntity->getId());
+        }
+    }
+
     /**
      * 取消分享（逻辑删除）.
      *
