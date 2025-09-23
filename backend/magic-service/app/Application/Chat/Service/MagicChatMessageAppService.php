@@ -65,6 +65,7 @@ use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
+use Hyperf\Odin\Message\Role;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Redis\Redis;
 use Hyperf\SocketIOServer\Socket;
