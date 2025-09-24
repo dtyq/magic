@@ -178,4 +178,7 @@ return [
     'organization' => [
         'status_disabled' => '组织状态已禁用, 请联系管理员',
     ],
+    'event' => [
+        'delivery_failed' => '事件投递失败',
+    ],
 ];

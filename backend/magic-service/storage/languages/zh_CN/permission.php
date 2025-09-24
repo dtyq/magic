@@ -21,6 +21,18 @@ return [
         'platform_setting' => '系统设置',
         'platform_setting_maintenance' => '维护管理',
     ],
+    // 顶层错误与校验
+    'validate_failed' => '验证失败',
+    'business_exception' => '业务异常',
+    'access_denied' => '无权限访问',
+    // 组织相关错误（PermissionErrorCode 42***）
+    'organization_code_required' => '组织编码必填',
+    'organization_name_required' => '组织名称必填',
+    'organization_industry_type_required' => '组织行业类型必填',
+    'organization_seats_invalid' => '组织席位数无效',
+    'organization_code_exists' => '组织编码已存在',
+    'organization_name_exists' => '组织名称已存在',
+    'organization_not_exists' => '组织不存在',
     'operation' => [
         'query' => '查询',
         'edit' => '编辑',

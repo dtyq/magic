@@ -5,6 +5,9 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'account_not_found' => 'Account not found',
+    'password_error' => 'Password error',
+    'user_not_found' => 'User not found',
     'fields' => [
         'organization_code' => 'Organization Code',
         'rel_code' => 'Relation Code',
