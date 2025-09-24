@@ -100,4 +100,8 @@ return [
     'instruct_display_type_system' => '系统',
     'no_version' => '暂无版本',
     'sandbox_upgrade_failed' => '沙箱镜像升级失败',
+    'sandbox_not_found' => '沙箱未找到',
+    'create_group_user_not_exist' => '创建群聊用户不存在',
+    'create_group_user_account_not_exist' => '创建群聊用户账号不存在',
+    'get_third_platform_user_id_failed' => '获取第三方平台用户ID失败',
 ];

@@ -50,6 +50,7 @@ return [
     ],
     'config_error' => [
         'invalid_config' => '无效的配置',
+        'invalid_magic_id' => '无效的 magic id',
         'invalid_language' => '不支持的语言',
         'unsupported_platform' => '不支持的 ASR 平台 : :platform',
     ],

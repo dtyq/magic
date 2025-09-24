@@ -18,6 +18,8 @@ return [
         'llm_response_parse_failed' => 'Failed to parse memory evaluation response',
         'score_parse_failed' => 'Failed to parse memory evaluation score',
     ],
+    'project_not_found' => 'Project not found',
+    'project_access_denied' => 'Access to the project is denied',
     'entity' => [
         'content_too_long' => 'Memory content length cannot exceed 65535 characters',
         'pending_content_too_long' => 'Pending memory content length cannot exceed 65535 characters',

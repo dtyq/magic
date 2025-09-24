@@ -101,7 +101,10 @@ return [
     'phone_code_expired' => 'phone code expired or invalid phone code.',
     'phone_code_error' => 'phone code error.',
     'password_is_too_simple' => 'password is too simple.',
+    'login_fail_count_too_many' => 'Too many login attempts, please try again later',
+    'no_permission' => 'No permission',
     'only_can_edit_teamshare_staff' => 'only can edit teamshare staff.',
+    'sms_rate_limit' => 'triggered SMS rate limit',
 
     'page' => [
         'only_support_one_form' => 'Only one form is supported in approval',

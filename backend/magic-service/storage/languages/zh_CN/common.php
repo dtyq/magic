@@ -17,4 +17,10 @@ return [
     'invalid_token' => 'token无效',
     'invalid_range' => ':label 必须在 :min 和 :max 之间',
     'recommended' => '推荐',
+    'request_timeout' => '请求超时',
+    'system_exception' => '系统异常',
+    'parameter_missing' => '缺少参数',
+    'illegal_operation' => '非法操作',
+    'parameter_validation_error' => '参数校验错误',
+    'access_denied' => '访问被拒绝',
 ];

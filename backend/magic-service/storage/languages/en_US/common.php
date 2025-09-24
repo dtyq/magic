@@ -16,5 +16,11 @@ return [
     'disabled' => ':label is disabled',
     'invalid_token' => 'Invalid token',
     'invalid_range' => ':label must be between :min and :max',
+    'request_timeout' => 'Request timeout',
+    'system_exception' => 'System exception',
+    'parameter_missing' => 'Parameter missing',
+    'illegal_operation' => 'Illegal operation',
+    'parameter_validation_error' => 'Parameter validation error',
+    'access_denied' => 'Access denied',
     'recommended' => 'Recommended',
 ];

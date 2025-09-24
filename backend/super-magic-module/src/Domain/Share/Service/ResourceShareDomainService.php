@@ -25,6 +25,17 @@ class ResourceShareDomainService
     ) {
     }
 
+    public function saveShareByEntity(ResourceShareEntity $shareEntity): bool
+    {
+        try {
+            $this->shareRepository->save($shareEntity);
+            return true;
+        } catch (Exception $e) {
+            // 重新抛出异常
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.cancel_failed: ' . $shareEntity->getId());
+        }
+    }
+
     /**
      * 取消分享（逻辑删除）.
      *
@@ -191,7 +202,7 @@ class ResourceShareDomainService
         ?int $expireDays = null
     ): ResourceShareEntity {
         // 1. 查找是否已存在分享
-        $shareEntity = $this->findExistingShare($resourceId, $resourceType, $userId);
+        $shareEntity = $this->findExistingShare($resourceId, $resourceType, '');
 
         // 2. 如果不存在，创建新的分享实体
         if (! $shareEntity) {

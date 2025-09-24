@@ -18,6 +18,8 @@ return [
         'llm_response_parse_failed' => '记忆评估响应解析失败',
         'score_parse_failed' => '记忆评估分数解析失败',
     ],
+    'project_not_found' => '项目不存在',
+    'project_access_denied' => '无权限访问该项目',
     'entity' => [
         'content_too_long' => '记忆内容长度不能超过65535个字符',
         'pending_content_too_long' => '待变更记忆内容长度不能超过65535个字符',

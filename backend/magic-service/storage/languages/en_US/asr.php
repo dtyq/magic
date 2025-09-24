@@ -52,6 +52,7 @@ return [
         'invalid_config' => 'Invalid configuration',
         'invalid_language' => 'Unsupported language',
         'unsupported_platform' => 'Unsupported ASR platform : :platform',
+        'invalid_magic_id' => 'Invalid magic id',
     ],
     'uri_error' => [
         'uri_open_failed' => 'Failed to open audio URI',

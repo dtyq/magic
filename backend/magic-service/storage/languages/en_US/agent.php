@@ -100,4 +100,8 @@ return [
     'instruct_display_type_system' => 'System',
     'no_version' => 'no version',
     'sandbox_upgrade_failed' => 'Sandbox image upgrade failed',
+    'sandbox_not_found' => 'Sandbox not found',
+    'create_group_user_not_exist' => 'Creator user not found',
+    'create_group_user_account_not_exist' => 'Creator user account not found',
+    'get_third_platform_user_id_failed' => 'Failed to get third-party platform user ID',
 ];

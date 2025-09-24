@@ -25,6 +25,18 @@ return [
         'query' => 'Query',
         'edit' => 'Edit',
     ],
+    // Top-level generic keys for PermissionErrorCode
+    'validate_failed' => 'Validation failed',
+    'business_exception' => 'Business exception',
+    'access_denied' => 'Access denied',
+    // Organization related
+    'organization_code_required' => 'Organization code is required',
+    'organization_name_required' => 'Organization name is required',
+    'organization_industry_type_required' => 'Organization industry type is required',
+    'organization_seats_invalid' => 'Organization seats is invalid',
+    'organization_code_exists' => 'Organization code already exists',
+    'organization_name_exists' => 'Organization name already exists',
+    'organization_not_exists' => 'Organization does not exist',
     'error' => [
         'role_name_exists' => 'Role name :name already exists',
         'role_not_found' => 'Role not found',
