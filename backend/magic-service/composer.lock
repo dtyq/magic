@@ -1888,12 +1888,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "cea187343d530b8a55d98377c80dca1099a44539"
+                "reference": "e0b76993cf9b4e94526db7feb94c24aa4007cf0f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=cea187343d530b8a55d98377c80dca1099a44539",
-                "reference": "cea187343d530b8a55d98377c80dca1099a44539",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=e0b76993cf9b4e94526db7feb94c24aa4007cf0f",
+                "reference": "e0b76993cf9b4e94526db7feb94c24aa4007cf0f",
                 "shasum": ""
             },
             "require": {
@@ -1974,7 +1974,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-09-22T10:04:51+00:00"
+            "time": "2025-09-25T10:31:19+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2193,12 +2193,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "5f42c66b4e99e6d3add7a46462509feae5523a9b"
+                "reference": "8e23dd12bf4729f7e719e2586727846eae79c643"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=5f42c66b4e99e6d3add7a46462509feae5523a9b",
-                "reference": "5f42c66b4e99e6d3add7a46462509feae5523a9b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=8e23dd12bf4729f7e719e2586727846eae79c643",
+                "reference": "8e23dd12bf4729f7e719e2586727846eae79c643",
                 "shasum": ""
             },
             "require": {
@@ -2303,7 +2303,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-19T09:58:54+00:00"
+            "time": "2025-09-25T10:27:58+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8283,16 +8283,16 @@
         },
         {
             "name": "kkguan-service/keewood-service-open-sdk",
-            "version": "3.2.14",
+            "version": "3.2.15",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:brd/keewood-service-open-sdk.git",
-                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b"
+                "reference": "a5ff9c3aa901b6b14c09e6609c144ab08ac045c4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=7b223c7a04027e69e1037ac6af365f4cd3b5602b",
-                "reference": "7b223c7a04027e69e1037ac6af365f4cd3b5602b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/brd%2Fkeewood-service-open-sdk/repository/archive.zip?sha=a5ff9c3aa901b6b14c09e6609c144ab08ac045c4",
+                "reference": "a5ff9c3aa901b6b14c09e6609c144ab08ac045c4",
                 "shasum": ""
             },
             "require": {
@@ -8327,10 +8327,10 @@
             },
             "description": "sdk",
             "support": {
-                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.14",
+                "source": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/tree/3.2.15",
                 "issues": "https://git.kkgroup.cn/brd/keewood-service-open-sdk/-/issues"
             },
-            "time": "2025-07-10T08:34:07+00:00"
+            "time": "2025-09-15T11:44:48+00:00"
         },
         {
             "name": "kkguan-service/token-sdk",
