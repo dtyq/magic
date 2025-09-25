@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -324,5 +325,63 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }
 
         return $processableMessages;
+    }
+
+    /**
+     * @param int $topicId
+     * @param int $messageId
+     * @return TaskMessageEntity[]
+     */
+    public function findMessagesToCopyByTopicIdAndMessageId(int $topicId, int $messageId): array
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('show_in_ui', true)
+            ->where('id', '<=', $messageId)
+            ->orderBy('id', 'asc');
+
+        $records = $query->get();
+
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages ?? [];
+    }
+
+    public function batchCreateMessages(array $messageEntities): array
+    {
+        if (empty($messageEntities)) {
+            return [];
+        }
+
+        $insertData = [];
+
+        foreach ($messageEntities as $messageEntity) {
+            // 如果ID未设置，则自动生成
+            if (empty($messageEntity->getId())) {
+                $messageEntity->setId(IdGenerator::getSnowId());
+            }
+
+            $insertData[] = $messageEntity->toArray();
+        }
+
+        // 批量插入
+        $this->model::query()->insert($insertData);
+
+        return $messageEntities; // 直接返回传入的entities，因为它们已经包含了正确的ID
+    }
+
+    public function updateMessageSeqId(int $id, ?int $imSeqId): void
+    {
+        // 如果 im_seq_id 为空，则不执行更新
+        if ($imSeqId === null) {
+            return;
+        }
+
+        // 只更新 im_seq_id 字段
+        $this->model::query()
+            ->where('id', $id)
+            ->update(['im_seq_id' => $imSeqId]);
     }
 }

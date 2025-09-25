@@ -36,6 +36,7 @@ class TopicModel extends AbstractModel
         'user_organization_code',
         'workspace_id',
         'project_id',
+        'from_topic_id',
         'chat_topic_id',
         'chat_conversation_id',
         'sandbox_id',

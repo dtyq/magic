@@ -116,6 +116,13 @@ Router::addGroup(
                     Router::post('/undo', [TopicApi::class, 'rollbackCheckpointUndo']);
                 });
             });
+            // 复制话题消息
+            Router::addGroup('/{id}/duplicate-chat', static function () {
+                // 复制话题消息
+                Router::post('', [TopicApi::class, 'duplicateChat']);
+                // 检查复制话题消息是否成功
+                Router::post('/check', [TopicApi::class, 'duplicateChatCheck']);
+            });
         });
 
         // 任务相关

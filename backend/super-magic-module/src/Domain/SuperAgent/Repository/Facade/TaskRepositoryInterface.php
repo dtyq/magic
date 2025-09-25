@@ -141,4 +141,21 @@ interface TaskRepositoryInterface
     public function countTasksByProjectId(int $projectId): int;
 
     public function updateTaskByCondition(array $condition, array $data): bool;
+
+    /**
+     * 根据话题ID和任务ID列表获取任务实体列表
+     *
+     * @param int $topicId 话题ID
+     * @param array $taskIds 任务ID列表
+     * @return TaskEntity[] 任务实体数组
+     */
+    public function getTasksByTopicIdAndTaskIds(int $topicId, array $taskIds): array;
+
+    /**
+     * 批量创建任务
+     *
+     * @param TaskEntity[] $taskEntities 任务实体数组
+     * @return TaskEntity[] 创建成功的任务实体数组（包含生成的ID）
+     */
+    public function batchCreateTasks(array $taskEntities): array;
 }

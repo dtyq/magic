@@ -36,6 +36,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
@@ -497,5 +498,120 @@ class TopicAppService extends AbstractAppService
             ];
         }
         return $result;
+    }
+
+    /**
+     * 复制话题
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $sourceTopicId 源话题ID
+     * @param DuplicateTopicRequestDTO $requestDTO 请求DTO
+     * @return array 复制任务信息
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     */
+    public function duplicateChat(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+        
+        // 创建数据隔离对象
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+        
+        $this->logger->info('Starting topic duplication', [
+            'user_id' => $userAuthorization->getId(),
+            'source_topic_id' => $sourceTopicId,
+            'target_message_id' => $requestDTO->getTargetMessageId(),
+            'new_topic_name' => $requestDTO->getNewTopicName(),
+        ]);
+
+        $sourceTopicEntity = $this->topicDomainService->getTopicById((int) $sourceTopicId);
+        if (!$sourceTopicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // 判断话题是否是本人
+        if ($sourceTopicEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
+        }
+
+        Db::beginTransaction();
+        try {
+            // TODO: 2. 创建新话题，话题名称后面带数字（1），由前端传过来，并初始化话题信息，模式为空
+            // 可以参考 createTopic 方法的实现
+            $this->topicDomainService->duplicateTopic(
+                $dataIsolation,
+                $sourceTopicEntity,
+                (int) $requestDTO->getTargetMessageId(),
+                (int) $requestDTO->getUserSeqId(),
+                $requestDTO->getNewTopicName()
+            );
+            // TODO: 3. 生成任务key并初始化状态
+            $taskKey = 'topic_duplicate_' . time() . '_' . uniqid();
+            
+            // TODO: 4. 异步执行复制任务
+            // - 打开沙箱环境，解压话题文件，重新打包
+            // - 拷贝 IM 的消息数据
+            // - 根据 topic_id 拷贝 magic_super_agent_message 的数据
+            Db::rollBack();
+            // 临时返回，等待具体实现
+            return [
+                'task_key' => $taskKey,
+                'status' => 'running',
+                'topic_id' => 'temp_new_topic_id_' . time(),
+                'message' => 'Topic duplication started',
+            ];
+            
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Failed to start topic duplication', [
+                'user_id' => $userAuthorization->getId(),
+                'source_topic_id' => $sourceTopicId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * 检查话题复制状态
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $taskKey 任务键
+     * @return array 复制状态信息
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     */
+    public function checkDuplicateChatStatus(RequestContext $requestContext, string $taskKey): array
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+        
+        $this->logger->info('Checking topic duplication status', [
+            'user_id' => $userAuthorization->getId(),
+            'task_key' => $taskKey,
+        ]);
+
+        try {
+            // TODO: 1. 验证用户权限
+            // TODO: 2. 获取任务状态
+            // TODO: 3. 返回状态信息
+            
+            // 临时返回，等待具体实现
+            return [
+                'status' => 'running',
+                'progress' => '50%',
+                'topic_id' => 'temp_new_topic_id_' . time(),
+                'message' => 'Topic duplication in progress',
+            ];
+            
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to check topic duplication status', [
+                'user_id' => $userAuthorization->getId(),
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }

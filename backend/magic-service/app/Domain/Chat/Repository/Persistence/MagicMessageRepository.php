@@ -80,6 +80,39 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         );
     }
 
+    /**
+     * Get messages by magic message IDs.
+     * @param array $magicMessageIds Magic message ID数组
+     * @return MagicMessageEntity[] 消息实体数组
+     */
+    public function getMessagesByMagicMessageIds(array $magicMessageIds): array
+    {
+        if (empty($magicMessageIds)) {
+            return [];
+        }
+
+        $query = $this->magicMessage::query()->whereIn('magic_message_id', $magicMessageIds);
+        $messages = Db::select($query->toSql(), $query->getBindings());
+        
+        return array_map(function ($message) {
+            return MessageAssembler::getMessageEntity($message);
+        }, $messages);
+    }
+
+    /**
+     * Batch create messages.
+     * @param array $messagesData 消息数据数组
+     * @return bool 是否创建成功
+     */
+    public function batchCreateMessages(array $messagesData): bool
+    {
+        if (empty($messagesData)) {
+            return true;
+        }
+
+        return $this->magicMessage::query()->insert($messagesData);
+    }
+
     #[Cacheable(prefix: 'getMessageByMagicMessageId', value: '_#{magicMessageId}', ttl: 10)]
     private function getMessageDataByMagicMessageId(string $magicMessageId)
     {

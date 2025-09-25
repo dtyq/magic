@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -369,10 +370,12 @@ class HandleAgentMessageAppService extends AbstractAppService
         // 兜底操作，如果当前任务的消息已经是完成
         if ($this->isSendMessage($taskContext)) {
             // 3. Record AI message
-            $this->recordAgentMessage($messageData, $taskContext);
+            $messageEntity = $this->recordAgentMessage($messageData, $taskContext);
 
             // 4. Send message to client
-            $this->sendMessageToClient($messageData, $taskContext);
+            $seqId = $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
+
+            $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), $seqId);
         }
     }
 
@@ -561,7 +564,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Record agent message.
      */
-    private function recordAgentMessage(array $messageData, TaskContext $taskContext): void
+    private function recordAgentMessage(array $messageData, TaskContext $taskContext): TaskMessageEntity
     {
         $task = $taskContext->getTask();
 
@@ -594,50 +597,52 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ->setShowInUi($messageData['showInUi']);
 
             $this->taskMessageDomainService->updateExistingMessage($existingMessage);
-        } else {
-            // 消息不存在，创建新实体并插入新记录
-            $this->logger->info(sprintf(
-                '消息不存在，插入新记录 topic_id: %d, message_id: %s',
-                $task->getTopicId(),
-                $messageData['messageId']
-            ));
 
-            // 创建 TaskMessageDTO for AI message
-            $taskMessageDTO = new TaskMessageDTO(
-                taskId: (string) $task->getId(),
-                role: Role::Assistant->value,
-                senderUid: $taskContext->getAgentUserId(),
-                receiverUid: $task->getUserId(),
-                messageType: $messageData['messageType'],
-                content: $messageData['content'],
-                status: $messageData['status'],
-                steps: $messageData['steps'],
-                tool: $messageData['tool'],
-                topicId: $task->getTopicId(),
-                event: $messageData['event'],
-                attachments: $messageData['attachments'],
-                mentions: null,
-                showInUi: $messageData['showInUi'],
-                messageId: $messageData['messageId']
-            );
-
-            $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
-            $this->taskDomainService->recordTaskMessage($taskMessageEntity);
+            return $existingMessage;
         }
+        // 消息不存在，创建新实体并插入新记录
+        $this->logger->info(sprintf(
+            '消息不存在，插入新记录 topic_id: %d, message_id: %s',
+            $task->getTopicId(),
+            $messageData['messageId']
+        ));
+
+        // 创建 TaskMessageDTO for AI message
+        $taskMessageDTO = new TaskMessageDTO(
+            taskId: (string) $task->getId(),
+            role: Role::Assistant->value,
+            senderUid: $taskContext->getAgentUserId(),
+            receiverUid: $task->getUserId(),
+            messageType: $messageData['messageType'],
+            content: $messageData['content'],
+            status: $messageData['status'],
+            steps: $messageData['steps'],
+            tool: $messageData['tool'],
+            topicId: $task->getTopicId(),
+            event: $messageData['event'],
+            attachments: $messageData['attachments'],
+            mentions: null,
+            showInUi: $messageData['showInUi'],
+            messageId: $messageData['messageId']
+        );
+
+        $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
+        return $this->taskDomainService->recordTaskMessage($taskMessageEntity);
     }
 
     /**
      * Send message to client.
      */
-    private function sendMessageToClient(array $messageData, TaskContext $taskContext): void
+    private function sendMessageToClient(int $messageId, array $messageData, TaskContext $taskContext): string
     {
         if (! $messageData['showInUi']) {
-            return;
+            return '';
         }
 
         $task = $taskContext->getTask();
 
-        $this->clientMessageAppService->sendMessageToClient(
+        return $this->clientMessageAppService->sendMessageToClient(
+            messageId: $messageId,
             topicId: $task->getTopicId(),
             taskId: (string) $task->getId(),
             chatTopicId: $taskContext->getChatTopicId(),
@@ -715,11 +720,11 @@ class HandleAgentMessageAppService extends AbstractAppService
      * Process single attachment using saveProjectFile approach.
      * @param array $attachment Attachment data
      * @param TaskContext $taskContext Task context
-     * @param mixed $projectEntity Project entity (passed from parent to avoid repeated queries)
+     * @param ProjectEntity $projectEntity Project entity (passed from parent to avoid repeated queries)
      * @param string $type Attachment type: 'tool' or 'message'
      * @return array{attachment: array, taskFileEntity: null|TaskFileEntity}
      */
-    private function processSingleAttachment(array $attachment, TaskContext $taskContext, $projectEntity, string $type): array
+    private function processSingleAttachment(array $attachment, TaskContext $taskContext, ProjectEntity $projectEntity, string $type): array
     {
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();
@@ -845,7 +850,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         }
 
         // Check if content length reaches threshold
-        $minContentLength = config('super-magic.task.tool_message.min_content_length', 200);
+        $minContentLength = config('super-magic.task.tool_message.min_content_length', 500);
         if (strlen($content) < $minContentLength) {
             return;
         }

@@ -41,6 +41,11 @@ class TaskEntity extends AbstractEntity
     protected int $topicId = 0;
 
     /**
+     * @var int|null 复制来源任务ID
+     */
+    protected ?int $fromTaskId = null;
+
+    /**
      * @var string 任务ID（沙箱服务返回的）
      */
     protected string $taskId = '';
@@ -123,6 +128,7 @@ class TaskEntity extends AbstractEntity
             'workspace_id' => $this->workspaceId,
             'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
+            'from_task_id' => $this->fromTaskId,
             'task_id' => $this->taskId,
             'sandbox_id' => $this->sandboxId,
             'prompt' => $this->prompt,
@@ -155,6 +161,7 @@ class TaskEntity extends AbstractEntity
             'workspace_id' => $data['workspace_id'] ?? $data['workspaceId'] ?? 0,
             'project_id' => $data['project_id'] ?? $data['projectId'] ?? 0,
             'topic_id' => $data['topic_id'] ?? $data['topicId'] ?? 0,
+            'from_task_id' => $data['from_task_id'] ?? $data['fromTaskId'] ?? null,
             'task_id' => $data['task_id'] ?? $data['taskId'] ?? '',
             'sandbox_id' => $data['sandbox_id'] ?? $data['sandboxId'] ?? '',
             'prompt' => $data['prompt'] ?? '',
@@ -223,6 +230,17 @@ class TaskEntity extends AbstractEntity
     public function setTopicId(int $topicId): self
     {
         $this->topicId = $topicId;
+        return $this;
+    }
+
+    public function getFromTaskId(): ?int
+    {
+        return $this->fromTaskId;
+    }
+
+    public function setFromTaskId(?int $fromTaskId): self
+    {
+        $this->fromTaskId = $fromTaskId;
         return $this;
     }
 
