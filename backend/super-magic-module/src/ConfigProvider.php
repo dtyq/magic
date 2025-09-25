@@ -19,12 +19,14 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageScheduleAppService;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Persistence\ResourceShareRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
@@ -39,6 +41,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectForkRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettingRepository;
@@ -52,6 +55,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TokenUsageRecordRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TopicRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -129,6 +133,8 @@ class ConfigProvider
                 HandleAgentMessageAppService::class => HandleAgentMessageAppService::class,
                 // 添加MessageQueueAppService的依赖注入
                 MessageQueueAppService::class => MessageQueueAppService::class,
+                // 添加MessageScheduleAppService的依赖注入
+                MessageScheduleAppService::class => MessageScheduleAppService::class,
                 // 添加SandboxFileEditAppService的依赖注入
                 FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
@@ -140,10 +146,12 @@ class ConfigProvider
                 WorkspaceVersionRepositoryInterface::class => WorkspaceVersionRepository::class,
                 ProjectForkRepositoryInterface::class => ProjectForkRepository::class,
                 MessageQueueRepositoryInterface::class => MessageQueueRepository::class,
+                MessageScheduleRepositoryInterface::class => MessageScheduleRepository::class,
 
                 // agent 管理
                 SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
                 TaskFileVersionDomainService::class => TaskFileVersionDomainService::class,
+                MessageScheduleDomainService::class => MessageScheduleDomainService::class,
             ],
             'listeners' => [
                 AddRouteListener::class,
