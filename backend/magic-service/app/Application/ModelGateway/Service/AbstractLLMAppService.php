@@ -26,7 +26,6 @@ use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
