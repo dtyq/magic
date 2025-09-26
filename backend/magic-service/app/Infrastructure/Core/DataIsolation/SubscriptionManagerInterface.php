@@ -14,7 +14,9 @@ interface SubscriptionManagerInterface
     /**
      * 是否启用订阅功能.
      */
-    public function enabled(): bool;
+    public function isEnabled(): bool;
+
+    public function setEnabled(bool $enabled): void;
 
     public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo): void;
 
