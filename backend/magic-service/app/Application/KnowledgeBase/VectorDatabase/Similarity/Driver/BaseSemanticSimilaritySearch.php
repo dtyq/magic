@@ -47,7 +47,7 @@ class BaseSemanticSimilaritySearch implements SemanticSimilaritySearchInterface
 
         $result = [];
         // 根据模型进行向量化
-        $model = $modelGatewayMapper->getEmbeddingModelProxy($knowledgeBaseEntity->getModel(), $dataIsolation->getCurrentOrganizationCode());
+        $model = $modelGatewayMapper->getEmbeddingModelProxy($dataIsolation, $knowledgeBaseEntity->getModel());
         $embeddingGenerator = di(EmbeddingGeneratorInterface::class);
         $queryEmbeddings = $embeddingGenerator->embedText($model, $question, options: [
             'business_params' => [
