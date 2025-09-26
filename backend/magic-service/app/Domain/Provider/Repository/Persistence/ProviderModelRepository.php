@@ -38,6 +38,22 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     ) {
     }
 
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        if (is_numeric($modelId)) {
+            $builder->where('id', $modelId);
+        } else {
+            $builder->where('model_id', $modelId);
+        }
+        $builder->where('status', Status::Enabled->value);
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+        if (! isset($result[0])) {
+            return null;
+        }
+        return ProviderModelAssembler::toEntity($result[0]);
+    }
+
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
