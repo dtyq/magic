@@ -7,7 +7,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Service\ModelFilter;
 
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+
 interface PackageFilterInterface
 {
     public function getCurrentPackage(string $organizationCode): ?string;
+
+    /**
+     * @return array{id: string, info: array}
+     */
+    public function getCurrentSubscription(BaseDataIsolation $dataIsolation): array;
 }

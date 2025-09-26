@@ -14,12 +14,14 @@ use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderConfigQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
@@ -229,6 +231,14 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
 
         // 2. 常规配置查询
         return $this->serviceProviderConfigRepository->getById($dataIsolation, (int) $configId);
+    }
+
+    /**
+     * @return array{total: int, list: array<ProviderConfigEntity>}
+     */
+    public function queries(ProviderDataIsolation $providerDataIsolation, ProviderConfigQuery $query, Page $createNoPage): array
+    {
+        return $this->serviceProviderConfigRepository->queries($providerDataIsolation, $query, $createNoPage);
     }
 
     /**

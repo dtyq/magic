@@ -11,12 +11,16 @@ use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 interface ProviderModelRepositoryInterface
 {
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity;
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity;
 
     /**
      * @return ProviderModelEntity[]
@@ -68,4 +72,9 @@ interface ProviderModelRepositoryInterface
      * @return array<string, ProviderModelEntity[]> 模型实体数组，以model_id为键，值为对应的模型列表
      */
     public function getByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array;
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array;
 }
