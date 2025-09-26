@@ -515,11 +515,11 @@ class LLMAppService extends AbstractLLMAppService
             // Validate access token and model permissions
             $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($proxyModelRequest->getAccessToken(), $proxyModelRequest->getBusinessParams());
 
-            $this->pointComponent->checkPointsSufficient(
-                $proxyModelRequest,
-                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                $modelGatewayDataIsolation->getCurrentUserId()
-            );
+            //            $this->pointComponent->checkPointsSufficient(
+            //                $proxyModelRequest,
+            //                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            //                $modelGatewayDataIsolation->getCurrentUserId()
+            //            );
 
             // Try to get high availability model configuration
             $orgCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
