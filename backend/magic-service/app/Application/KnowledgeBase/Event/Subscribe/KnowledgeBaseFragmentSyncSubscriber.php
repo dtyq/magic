@@ -12,6 +12,7 @@ use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseFragmentSavedEvent;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Infrastructure\Core\Embeddings\EmbeddingGenerator\EmbeddingGeneratorInterface;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Codec\Json;
@@ -58,7 +59,9 @@ readonly class KnowledgeBaseFragmentSyncSubscriber implements ListenerInterface
                 $fragment->setSyncStatus(KnowledgeSyncStatus::Syncing);
                 $magicFlowKnowledgeDomainService->changeSyncStatus($fragment);
 
-                $model = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($knowledge->getModel(), $knowledge->getOrganizationCode());
+                $dataIsolation = ModelGatewayDataIsolation::create($knowledge->getOrganizationCode());
+                $dataIsolation->getSubscriptionManager()->setEnabled(false);
+                $model = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($dataIsolation, $knowledge->getModel());
                 $embeddingGenerator = di(EmbeddingGeneratorInterface::class);
                 $embeddings = $embeddingGenerator->embedText($model, $fragment->getContent(), options: [
                     'business_params' => [

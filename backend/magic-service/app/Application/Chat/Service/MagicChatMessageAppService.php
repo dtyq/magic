@@ -47,6 +47,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
@@ -1018,9 +1019,10 @@ class MagicChatMessageAppService extends MagicSeqAppService
         $dataIsolation = $this->createDataIsolation($authorization);
         $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::DEEPSEEK_V3->value);
 
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
         # 开始请求大模型
         $modelGatewayMapper = di(ModelGatewayMapper::class);
-        $model = $modelGatewayMapper->getChatModelProxy($chatModelName, $orgCode);
+        $model = $modelGatewayMapper->getChatModelProxy($dataIsolation, $chatModelName);
         $memoryManager = $messageHistory->getMemoryManager($conversationId);
         $agent = AgentFactory::create(
             model: $model,

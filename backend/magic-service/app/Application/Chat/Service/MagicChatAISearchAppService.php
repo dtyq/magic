@@ -32,6 +32,7 @@ use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicLLMDomainService;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\CoContext;
@@ -1036,7 +1037,8 @@ class MagicChatAISearchAppService extends AbstractAppService
         // 通过降级链获取模型名称
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $modelName);
         // 获取模型代理
-        return di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $orgCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+        return di(ModelGatewayMapper::class)->getChatModelProxy($dataIsolation, $modelName);
     }
 
     /**

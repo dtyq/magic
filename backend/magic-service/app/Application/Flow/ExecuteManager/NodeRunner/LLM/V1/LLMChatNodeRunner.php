@@ -18,6 +18,7 @@ use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\MagicFlowMessageType;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\ReplyMessage\ReplyMessageNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Domain\Flow\Service\MagicFlowMultiModalLogDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\FlowNodeDefine;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Util\Odin\Agent;
@@ -54,7 +55,8 @@ class LLMChatNodeRunner extends AbstractLLMNodeRunner
 
         $modelName = $paramsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         $orgCode = $executionData->getOperator()->getOrganizationCode();
-        $model = $this->modelGatewayMapper->getChatModelProxy($modelName, $orgCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+        $model = $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
 
         // 默认视觉模型配置就是自己
         if ($paramsConfig->getModelConfig()->getVisionModel() === '') {
