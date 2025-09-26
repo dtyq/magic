@@ -459,7 +459,7 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 获取模型
-        $providerModelEntity = $this->providerManager->getModelByModelIdOrId($providerDataIsolation, $model);
+        $providerModelEntity = $this->providerManager->getAvailableByModelIdOrId($providerDataIsolation, $model);
         if (! $providerModelEntity) {
             $this->logger->info('模型不存在', ['model' => $model]);
             return null;

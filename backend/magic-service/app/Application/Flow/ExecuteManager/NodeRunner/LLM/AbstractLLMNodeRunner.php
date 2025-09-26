@@ -52,6 +52,8 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
 
         $vertexResult->addDebugLog('messages', array_map(fn ($message) => $message->toArray(), $memoryManager->applyPolicy()->getProcessedMessages()));
 
+        $systemPrompt = trim($systemPrompt);
+        $systemPrompt = trim($systemPrompt, "\n");
         // 加载系统提示词
         if ($systemPrompt !== '') {
             $memoryManager->addSystemMessage(new SystemMessage($systemPrompt));

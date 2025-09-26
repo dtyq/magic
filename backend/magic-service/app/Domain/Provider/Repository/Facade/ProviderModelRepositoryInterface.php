@@ -18,6 +18,8 @@ use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 interface ProviderModelRepositoryInterface
 {
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity;
+
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity;
 
     public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity;
