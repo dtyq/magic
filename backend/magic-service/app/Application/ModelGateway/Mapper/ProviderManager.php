@@ -30,12 +30,9 @@ readonly class ProviderManager
     ) {
     }
 
-    public function getModelByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId): ?ProviderModelEntity
     {
-        if (! is_numeric($modelIdOrId)) {
-            return $this->providerModelDomainService->getByModelId($providerDataIsolation, $modelIdOrId);
-        }
-        return $this->providerModelDomainService->getById($providerDataIsolation, $modelIdOrId);
+        return $this->providerModelDomainService->getAvailableByModelIdOrId($providerDataIsolation, $modelIdOrId);
     }
 
     /**
