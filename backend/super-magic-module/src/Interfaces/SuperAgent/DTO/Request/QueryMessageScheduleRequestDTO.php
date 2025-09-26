@@ -142,19 +142,19 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
             'organization_code' => $organizationCode,
         ];
 
-        if (!empty($this->workspaceId)) {
+        if (! empty($this->workspaceId)) {
             $conditions['workspace_id'] = (int) $this->workspaceId;
         }
 
-        if (!empty($this->projectId)) {
+        if (! empty($this->projectId)) {
             $conditions['project_id'] = (int) $this->projectId;
         }
 
-        if (!empty($this->topicId)) {
+        if (! empty($this->topicId)) {
             $conditions['topic_id'] = (int) $this->topicId;
         }
 
-        if (!empty($this->taskName)) {
+        if (! empty($this->taskName)) {
             $conditions['task_name_like'] = $this->taskName;
         }
 

@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
-use DateTime;
-
 /**
  * Message schedule entity.
  */
@@ -50,21 +48,8 @@ class MessageScheduleEntity
 
     public function __construct(array $data = [])
     {
-        if (!empty($data)) {
+        if (! empty($data)) {
             $this->fill($data);
-        }
-    }
-
-    /**
-     * Fill entity with data.
-     */
-    private function fill(array $data): void
-    {
-        foreach ($data as $key => $value) {
-            $method = 'set' . str_replace('_', '', ucwords($key, '_'));
-            if (method_exists($this, $method)) {
-                $this->$method($value);
-            }
         }
     }
 
@@ -309,5 +294,18 @@ class MessageScheduleEntity
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
         ];
+    }
+
+    /**
+     * Fill entity with data.
+     */
+    private function fill(array $data): void
+    {
+        foreach ($data as $key => $value) {
+            $method = 'set' . str_replace('_', '', ucwords($key, '_'));
+            if (method_exists($this, $method)) {
+                $this->{$method}($value);
+            }
+        }
     }
 }

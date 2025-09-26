@@ -201,11 +201,11 @@ enum SuperAgentErrorCode: int
     // Message Queue related error codes (51290-51299) - allocated from highest numbers
     #[ErrorMessage('message_queue.status_not_modifiable')]
     case MESSAGE_STATUS_NOT_MODIFIABLE = 51299;
-    
+
     // Message Schedule related error codes (51297-51298)
     #[ErrorMessage('message_schedule.not_found')]
     case MESSAGE_SCHEDULE_NOT_FOUND = 51297;
-    
+
     #[ErrorMessage('message_schedule.access_denied')]
     case MESSAGE_SCHEDULE_ACCESS_DENIED = 51298;
 }

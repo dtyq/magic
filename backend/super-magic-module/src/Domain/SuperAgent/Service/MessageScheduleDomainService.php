@@ -45,13 +45,13 @@ class MessageScheduleDomainService
     public function getMessageScheduleByIdWithValidation(DataIsolation $dataIsolation, int $id): MessageScheduleEntity
     {
         $messageSchedule = $this->messageScheduleRepository->findById($id);
-        if (!$messageSchedule) {
+        if (! $messageSchedule) {
             ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_SCHEDULE_NOT_FOUND, trans('message_schedule.not_found'));
         }
 
         // Check ownership
-        if ($messageSchedule->getUserId() !== $dataIsolation->getCurrentUserId() ||
-            $messageSchedule->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
+        if ($messageSchedule->getUserId() !== $dataIsolation->getCurrentUserId()
+            || $messageSchedule->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_SCHEDULE_ACCESS_DENIED, trans('message_schedule.access_denied'));
         }
 
@@ -101,8 +101,8 @@ class MessageScheduleDomainService
     public function updateMessageSchedule(DataIsolation $dataIsolation, MessageScheduleEntity $messageSchedule): MessageScheduleEntity
     {
         // Check ownership
-        if ($messageSchedule->getUserId() !== $dataIsolation->getCurrentUserId() ||
-            $messageSchedule->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
+        if ($messageSchedule->getUserId() !== $dataIsolation->getCurrentUserId()
+            || $messageSchedule->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_SCHEDULE_ACCESS_DENIED, trans('message_schedule.access_denied'));
         }
 
@@ -119,11 +119,7 @@ class MessageScheduleDomainService
     {
         $messageSchedule = $this->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        $messageSchedule->setDeletedAt(date('Y-m-d H:i:s'))
-            ->setUpdatedUid($dataIsolation->getCurrentUserId())
-            ->setUpdatedAt(date('Y-m-d H:i:s'));
-
-        return $this->messageScheduleRepository->save($messageSchedule) !== null;
+        return $this->messageScheduleRepository->delete($messageSchedule) !== null;
     }
 
     /**
@@ -150,6 +146,7 @@ class MessageScheduleDomainService
      */
     public function updateTaskSchedulerCrontabId(int $id, ?int $taskSchedulerCrontabId): bool
     {
+        $this->logger->info('Update task scheduler crontab ID', ['id' => $id, 'taskSchedulerCrontabId' => $taskSchedulerCrontabId]);
         return $this->messageScheduleRepository->updateTaskSchedulerCrontabId($id, $taskSchedulerCrontabId);
     }
 
@@ -178,7 +175,7 @@ class MessageScheduleDomainService
     public function enableMessageSchedule(DataIsolation $dataIsolation, int $id): bool
     {
         $messageSchedule = $this->getMessageScheduleByIdWithValidation($dataIsolation, $id);
-        
+
         $messageSchedule->enable()
             ->setUpdatedUid($dataIsolation->getCurrentUserId())
             ->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -192,7 +189,7 @@ class MessageScheduleDomainService
     public function disableMessageSchedule(DataIsolation $dataIsolation, int $id): bool
     {
         $messageSchedule = $this->getMessageScheduleByIdWithValidation($dataIsolation, $id);
-        
+
         $messageSchedule->disable()
             ->setUpdatedUid($dataIsolation->getCurrentUserId())
             ->setUpdatedAt(date('Y-m-d H:i:s'));

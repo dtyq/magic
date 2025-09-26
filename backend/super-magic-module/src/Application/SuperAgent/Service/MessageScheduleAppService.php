@@ -19,17 +19,18 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
-use DateTime;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TimeConfigDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageScheduleRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleItemDTO;
 use Dtyq\TaskScheduler\Entity\TaskScheduler;
 use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
@@ -52,6 +53,7 @@ class MessageScheduleAppService extends AbstractAppService
         private readonly MessageScheduleDomainService $messageScheduleDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
+        private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly TaskSchedulerDomainService $taskSchedulerDomainService,
         private readonly MagicChatMessageAppService $chatMessageAppService,
         private readonly MagicUserDomainService $userDomainService,
@@ -93,83 +95,21 @@ class MessageScheduleAppService extends AbstractAppService
     }
 
     /**
-     * Execute message schedule (internal method).
-     */
-    private function executeMessageSchedule(int $messageScheduleId): array
-    {
-        try {
-            // 1. Get message schedule entity
-            $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
-            if (!$messageScheduleEntity) {
-                $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
-                return [
-                    'success' => false,
-                    'message' => 'Message schedule not found',
-                ];
-            }
-
-            // Check if schedule is enabled
-            if (!$messageScheduleEntity->isEnabled()) {
-                $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
-                return [
-                    'success' => true,
-                    'message' => 'Message schedule is disabled',
-                ];
-            }
-
-            // 2. Get project entity
-            $projectEntity = $this->projectDomainService->getProjectNotUserId($messageScheduleEntity->getProjectId());
-            if (!$projectEntity) {
-                $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
-                return [
-                    'success' => false,
-                    'message' => 'Project not found',
-                ];
-            }
-
-            // 3. Get topic entity
-            $topicEntity = $this->topicDomainService->getTopicById($messageScheduleEntity->getTopicId());
-            if (!$topicEntity) {
-                $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
-                return [
-                    'success' => false,
-                    'message' => 'Topic not found',
-                ];
-            }
-
-            // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
-            $sendResult = $this->sendMessageToAgent($messageScheduleEntity, $topicEntity);
-
-            $this->logger->info('Message schedule execution completed', [
-                'message_schedule_id' => $messageScheduleId,
-                'success' => $sendResult['success'],
-                'error_message' => $sendResult['error_message'],
-            ]);
-
-            return $sendResult;
-        } catch (Throwable $e) {
-            $this->logger->error('Message schedule execution exception', [
-                'message_schedule_id' => $messageScheduleId,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
      * Create schedule.
      */
     public function createSchedule(RequestContext $requestContext, CreateMessageScheduleRequestDTO $requestDTO): array
     {
         return Db::transaction(function () use ($requestContext, $requestDTO) {
-            // 2.1 Create message schedule
+            // Validate resource permissions
             $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+            $this->validateResourcePermissions(
+                $dataIsolation,
+                (int) $requestDTO->getWorkspaceId(),
+                $requestDTO->getProjectId() ? (int) $requestDTO->getProjectId() : null,
+                $requestDTO->getTopicId() ? (int) $requestDTO->getTopicId() : null
+            );
+
+            // 2.1 Create message schedule
             $messageSchedule = $this->messageScheduleDomainService->createMessageSchedule(
                 $dataIsolation,
                 $requestDTO->getTaskName(),
@@ -203,7 +143,7 @@ class MessageScheduleAppService extends AbstractAppService
     public function querySchedules(RequestContext $requestContext, QueryMessageScheduleRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createDataIsolationFromContext($requestContext);
-        
+
         $conditions = $requestDTO->buildConditions(
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
@@ -217,10 +157,10 @@ class MessageScheduleAppService extends AbstractAppService
             $requestDTO->getOrderDirection()
         );
 
-        // Convert entities to arrays
+        // Convert entities to DTOs
         $list = [];
         foreach ($result['list'] as $entity) {
-            $list[] = $entity->toArray();
+            $list[] = MessageScheduleItemDTO::fromEntity($entity)->toArray();
         }
 
         return [
@@ -236,22 +176,58 @@ class MessageScheduleAppService extends AbstractAppService
     {
         return Db::transaction(function () use ($requestContext, $id, $requestDTO) {
             $dataIsolation = $this->createDataIsolationFromContext($requestContext);
-            
+
             // Get existing message schedule
             $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
+
+            // Validate permissions for new resource IDs (if provided)
+            $currentWorkspaceId = $messageSchedule->getWorkspaceId();
+            $currentProjectId = $messageSchedule->getProjectId();
+            $currentTopicId = $messageSchedule->getTopicId();
+
+            $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
+            $newProjectId = ! empty($requestDTO->getProjectId()) ? (int) $requestDTO->getProjectId() : $currentProjectId;
+            $newTopicId = ! empty($requestDTO->getTopicId()) ? (int) $requestDTO->getTopicId() : $currentTopicId;
+
+            // Check if resource IDs have changed, and validate permissions for new resources
+            if ($newWorkspaceId !== $currentWorkspaceId
+                || $newProjectId !== $currentProjectId
+                || $newTopicId !== $currentTopicId) {
+                $this->validateResourcePermissions(
+                    $dataIsolation,
+                    $newWorkspaceId,
+                    $newProjectId > 0 ? $newProjectId : null,
+                    $newTopicId > 0 ? $newTopicId : null
+                );
+            }
 
             $needUpdateTaskScheduler = false;
 
             // Update fields
-            if (!empty($requestDTO->getTaskName())) {
+            if (! empty($requestDTO->getTaskName())) {
                 $messageSchedule->setTaskName($requestDTO->getTaskName());
             }
 
-            if (!empty($requestDTO->getMessageType())) {
+            // Update workspace ID
+            if (! empty($requestDTO->getWorkspaceId()) && $newWorkspaceId !== $currentWorkspaceId) {
+                $messageSchedule->setWorkspaceId($newWorkspaceId);
+            }
+
+            // Update project ID
+            if (! empty($requestDTO->getProjectId()) && $newProjectId !== $currentProjectId) {
+                $messageSchedule->setProjectId($newProjectId);
+            }
+
+            // Update topic ID
+            if (! empty($requestDTO->getTopicId()) && $newTopicId !== $currentTopicId) {
+                $messageSchedule->setTopicId($newTopicId);
+            }
+
+            if (! empty($requestDTO->getMessageType())) {
                 $messageSchedule->setMessageType($requestDTO->getMessageType());
             }
 
-            if (!empty($requestDTO->getMessageContent())) {
+            if (! empty($requestDTO->getMessageContent())) {
                 $messageSchedule->setMessageContent($requestDTO->getMessageContent());
             }
 
@@ -259,7 +235,7 @@ class MessageScheduleAppService extends AbstractAppService
             if ($requestDTO->getStatus() !== null) {
                 $oldStatus = $messageSchedule->getStatus();
                 $messageSchedule->setStatus($requestDTO->getStatus());
-                
+
                 if ($oldStatus !== $requestDTO->getStatus()) {
                     $needUpdateTaskScheduler = true;
                 }
@@ -268,7 +244,7 @@ class MessageScheduleAppService extends AbstractAppService
             // Check if time configuration really changed
             $oldTimeConfig = $messageSchedule->getTimeConfig();
             $newTimeConfig = $requestDTO->getTimeConfig();
-            
+
             if (TimeConfigDTO::isConfigChanged($oldTimeConfig, $newTimeConfig)) {
                 $messageSchedule->setTimeConfig($newTimeConfig);
                 $needUpdateTaskScheduler = true;
@@ -295,7 +271,7 @@ class MessageScheduleAppService extends AbstractAppService
     {
         return Db::transaction(function () use ($requestContext, $id) {
             $dataIsolation = $this->createDataIsolationFromContext($requestContext);
-            
+
             // Get message schedule
             $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
@@ -321,7 +297,77 @@ class MessageScheduleAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolationFromContext($requestContext);
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        return $messageSchedule->toArray();
+        return MessageScheduleItemDTO::fromEntity($messageSchedule)->toArray();
+    }
+
+    /**
+     * Execute message schedule (internal method).
+     */
+    private function executeMessageSchedule(int $messageScheduleId): array
+    {
+        try {
+            // 1. Get message schedule entity
+            $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
+            if (! $messageScheduleEntity) {
+                $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
+                return [
+                    'success' => false,
+                    'message' => 'Message schedule not found',
+                ];
+            }
+
+            // Check if schedule is enabled
+            if (! $messageScheduleEntity->isEnabled()) {
+                $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
+                return [
+                    'success' => true,
+                    'message' => 'Message schedule is disabled',
+                ];
+            }
+
+            // 2. Get project entity
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($messageScheduleEntity->getProjectId());
+            if (! $projectEntity) {
+                $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
+                return [
+                    'success' => false,
+                    'message' => 'Project not found',
+                ];
+            }
+
+            // 3. Get topic entity
+            $topicEntity = $this->topicDomainService->getTopicById($messageScheduleEntity->getTopicId());
+            if (! $topicEntity) {
+                $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
+                return [
+                    'success' => false,
+                    'message' => 'Topic not found',
+                ];
+            }
+
+            // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
+            $sendResult = $this->sendMessageToAgent($messageScheduleEntity, $topicEntity);
+
+            $this->logger->info('Message schedule execution completed', [
+                'message_schedule_id' => $messageScheduleId,
+                'success' => $sendResult['success'],
+                'error_message' => $sendResult['error_message'],
+            ]);
+
+            return $sendResult;
+        } catch (Throwable $e) {
+            $this->logger->error('Message schedule execution exception', [
+                'message_schedule_id' => $messageScheduleId,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     /**
@@ -348,29 +394,28 @@ class MessageScheduleAppService extends AbstractAppService
                 $task->setCallbackMethod($callbackMethod);
                 $task->setCallbackParams($callbackParams);
                 $task->setCreator('system');
-                
+
                 $this->taskSchedulerDomainService->create($task);
                 return null; // No crontab ID for one-time tasks
-            } else {
-                // Recurring task: write to task_scheduler_crontab
-                $crontab = new TaskSchedulerCrontab();
-                $crontab->setExternalId($externalId);
-                $crontab->setName("Message Schedule {$messageScheduleId}");
-                $crontab->setCrontab($taskConfig->getCrontabRule());
-                $crontab->setEnabled($enabled);
-                $crontab->setRetryTimes(3);
-                $crontab->setCallbackMethod($callbackMethod);
-                $crontab->setCallbackParams($callbackParams);
-                $crontab->setDeadline($taskConfig->getDeadline());
-                $crontab->setCreator('system');
-                
-                $this->taskSchedulerDomainService->createCrontab($crontab);
-                
-                // Generate specific execution plans
-                $this->taskSchedulerDomainService->createByCrontab($crontab, 3);
-                
-                return $crontab->getId();
             }
+            // Recurring task: write to task_scheduler_crontab
+            $crontab = new TaskSchedulerCrontab();
+            $crontab->setExternalId($externalId);
+            $crontab->setName("Message Schedule {$messageScheduleId}");
+            $crontab->setCrontab($taskConfig->getCrontabRule());
+            $crontab->setEnabled($enabled);
+            $crontab->setRetryTimes(3);
+            $crontab->setCallbackMethod($callbackMethod);
+            $crontab->setCallbackParams($callbackParams);
+            $crontab->setDeadline($taskConfig->getDeadline());
+            $crontab->setCreator('system');
+
+            $this->taskSchedulerDomainService->createCrontab($crontab);
+
+            // Generate specific execution plans
+            $this->taskSchedulerDomainService->createByCrontab($crontab, 3);
+
+            return $crontab->getId();
         } catch (Throwable $e) {
             $this->logger->error('Failed to create task scheduler', [
                 'message_schedule_id' => $messageScheduleId,
@@ -382,6 +427,7 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Update task scheduler.
+     * @param mixed $messageSchedule
      */
     private function updateTaskScheduler($messageSchedule, UpdateMessageScheduleRequestDTO $requestDTO): void
     {
@@ -399,9 +445,9 @@ class MessageScheduleAppService extends AbstractAppService
                 $timeConfigDTO->day = $timeConfig['day'] ?? '';
                 $timeConfigDTO->time = $timeConfig['time'] ?? '';
                 $timeConfigDTO->value = $timeConfig['value'] ?? [];
-                
+
                 $taskSchedulerId = $this->createTaskScheduler($messageSchedule->getId(), $timeConfigDTO, $messageSchedule->isEnabled());
-                
+
                 if ($taskSchedulerId) {
                     $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
                 }
@@ -432,6 +478,8 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Send message to agent (reference MessageQueueCompensationAppService::sendMessageToAgent).
+     * @param mixed $messageScheduleEntity
+     * @param mixed $topicEntity
      */
     private function sendMessageToAgent($messageScheduleEntity, $topicEntity): array
     {
@@ -463,7 +511,7 @@ class MessageScheduleAppService extends AbstractAppService
 
             if (empty($aiUserEntity)) {
                 $this->logger->error('Agent user not found, skip processing', [
-                    'organization_code' => $messageScheduleEntity->getOrganizationCode()
+                    'organization_code' => $messageScheduleEntity->getOrganizationCode(),
                 ]);
                 return [
                     'success' => false,
@@ -485,7 +533,7 @@ class MessageScheduleAppService extends AbstractAppService
             );
 
             return [
-                'success' => !empty($result),
+                'success' => ! empty($result),
                 'error_message' => null,
                 'result' => $result,
             ];
@@ -506,7 +554,6 @@ class MessageScheduleAppService extends AbstractAppService
         }
     }
 
-
     /**
      * Create DataIsolation from RequestContext.
      */
@@ -517,5 +564,41 @@ class MessageScheduleAppService extends AbstractAppService
         $dataIsolation->setCurrentUserId($authorization->getId());
         $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
         return $dataIsolation;
+    }
+
+    /**
+     * Validate resource permissions for scheduled message creation/update.
+     */
+    private function validateResourcePermissions(DataIsolation $dataIsolation, int $workspaceId, ?int $projectId = null, ?int $topicId = null): void
+    {
+        // 1. Validate workspace access
+        $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+        if (! $workspace) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
+        }
+
+        if ($workspace->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, trans('workspace.workspace_access_denied'));
+        }
+
+        // 2. Validate project access (if project_id is provided)
+        if ($projectId !== null && $projectId > 0) {
+            try {
+                $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
+            } catch (Throwable $e) {
+                // Re-throw the exception from getProject method
+                throw $e;
+            }
+        }
+
+        // 3. Validate topic access (if topic_id is provided)
+        if ($topicId !== null && $topicId > 0) {
+            try {
+                $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
+            } catch (Throwable $e) {
+                // Re-throw the exception from validateTopicForMessageQueue method
+                throw $e;
+            }
+        }
     }
 }

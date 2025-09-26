@@ -21,6 +21,21 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     public string $taskName = '';
 
     /**
+     * Workspace ID.
+     */
+    public string $workspaceId = '';
+
+    /**
+     * Project ID.
+     */
+    public string $projectId = '';
+
+    /**
+     * Topic ID.
+     */
+    public string $topicId = '';
+
+    /**
      * Message type.
      */
     public string $messageType = '';
@@ -46,6 +61,30 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     public function getTaskName(): string
     {
         return $this->taskName;
+    }
+
+    /**
+     * Get workspace ID.
+     */
+    public function getWorkspaceId(): string
+    {
+        return $this->workspaceId;
+    }
+
+    /**
+     * Get project ID.
+     */
+    public function getProjectId(): string
+    {
+        return $this->projectId;
+    }
+
+    /**
+     * Get topic ID.
+     */
+    public function getTopicId(): string
+    {
+        return $this->topicId;
     }
 
     /**
@@ -90,7 +129,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
         $timeConfigDTO->day = $this->timeConfig['day'] ?? '';
         $timeConfigDTO->time = $this->timeConfig['time'] ?? '';
         $timeConfigDTO->value = $this->timeConfig['value'] ?? [];
-        
+
         return $timeConfigDTO;
     }
 
@@ -101,6 +140,9 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     {
         return [
             'task_name' => 'nullable|string|max:255',
+            'workspace_id' => 'nullable|string',
+            'project_id' => 'nullable|string',
+            'topic_id' => 'nullable|string',
             'message_type' => 'nullable|string|max:64',
             'message_content' => 'nullable|array',
             'status' => 'nullable|integer|in:0,1',
@@ -108,7 +150,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
             'time_config.type' => [
                 'required_with:time_config',
                 'string',
-                'in:no_repeat,daily_repeat,weekly_repeat,monthly_repeat,annually_repeat,weekday_repeat,custom_repeat'
+                'in:no_repeat,daily_repeat,weekly_repeat,monthly_repeat,annually_repeat,weekday_repeat,custom_repeat',
             ],
             'time_config.day' => 'nullable|string',
             'time_config.time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
@@ -124,6 +166,9 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
         return [
             'task_name.string' => 'Task name must be a string',
             'task_name.max' => 'Task name cannot exceed 255 characters',
+            'workspace_id.string' => 'Workspace ID must be a string',
+            'project_id.string' => 'Project ID must be a string',
+            'topic_id.string' => 'Topic ID must be a string',
             'message_type.string' => 'Message type must be a string',
             'message_type.max' => 'Message type cannot exceed 64 characters',
             'message_content.array' => 'Message content must be an array',

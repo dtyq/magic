@@ -9,4 +9,5 @@ return [
     'parameter_check_failure' => 'Parameter check failure',
     'access_denied' => 'Access denied',
     'workspace_not_found' => 'Workspace not found',
+    'workspace_access_denied' => 'Access denied to workspace',
 ];

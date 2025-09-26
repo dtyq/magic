@@ -32,7 +32,7 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
     {
         /** @var null|MessageScheduleModel $model */
         $model = $this->messageScheduleModel::query()->find($id);
-        if (!$model) {
+        if (! $model) {
             return null;
         }
         return $this->modelToEntity($model);
@@ -50,7 +50,7 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
              * @var null|MessageScheduleModel $model
              */
             $model = $this->messageScheduleModel::query()->find($messageSchedule->getId());
-            if (!$model) {
+            if (! $model) {
                 throw new RuntimeException('Message schedule not found for update: ' . $messageSchedule->getId());
             }
             $model->fill($attributes);
@@ -88,7 +88,7 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
     {
         /** @var null|MessageScheduleModel $model */
         $model = $this->messageScheduleModel::query()->find($messageSchedule->getId());
-        if (!$model) {
+        if (! $model) {
             return false;
         }
 
@@ -230,7 +230,7 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
             ->whereNull('deleted_at')
             ->first();
 
-        if (!$model) {
+        if (! $model) {
             return null;
         }
 

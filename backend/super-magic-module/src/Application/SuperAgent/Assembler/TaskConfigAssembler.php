@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TimeConfigDTO;
 use Dtyq\TaskScheduler\Entity\ValueObject\IntervalUnit;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
 use Dtyq\TaskScheduler\Service\TaskConfigDomainService;
+use InvalidArgumentException;
 
 /**
  * Task Configuration Assembler.
@@ -21,32 +22,32 @@ class TaskConfigAssembler
 {
     /**
      * Assemble TaskConfigDomainService from TimeConfigDTO.
-     * 
+     *
      * @param TimeConfigDTO $timeConfigDTO Time configuration DTO
      * @return TaskConfigDomainService Domain service for task configuration
-     * @throws \InvalidArgumentException When task type is invalid
+     * @throws InvalidArgumentException When task type is invalid
      */
     public static function assembleFromDTO(TimeConfigDTO $timeConfigDTO): TaskConfigDomainService
     {
         // Validate DTO before assembly
-        if (!$timeConfigDTO->isValid()) {
+        if (! $timeConfigDTO->isValid()) {
             $errors = $timeConfigDTO->getValidationErrors();
-            throw new \InvalidArgumentException('Invalid time configuration: ' . implode(', ', $errors));
+            throw new InvalidArgumentException('Invalid time configuration: ' . implode(', ', $errors));
         }
 
         // Convert task type
         $taskType = TaskType::from($timeConfigDTO->getType());
-        
+
         // Convert interval unit if provided
         $unit = null;
         $value = $timeConfigDTO->getValue();
-        if (!empty($value['unit'])) {
+        if (! empty($value['unit'])) {
             $unit = IntervalUnit::from($value['unit']);
         }
 
         // Convert deadline if provided
         $deadline = null;
-        if (!empty($value['deadline'])) {
+        if (! empty($value['deadline'])) {
             $deadline = new DateTime($value['deadline']);
         }
 
@@ -64,10 +65,10 @@ class TaskConfigAssembler
 
     /**
      * Assemble TaskConfigDomainService from array configuration.
-     * 
+     *
      * @param array $timeConfigArray Time configuration array
      * @return TaskConfigDomainService Domain service for task configuration
-     * @throws \InvalidArgumentException When configuration is invalid
+     * @throws InvalidArgumentException When configuration is invalid
      */
     public static function assembleFromArray(array $timeConfigArray): TaskConfigDomainService
     {
@@ -84,7 +85,7 @@ class TaskConfigAssembler
 
     /**
      * Validate time configuration before assembly.
-     * 
+     *
      * @param TimeConfigDTO $timeConfigDTO Time configuration DTO
      * @return bool True if valid, false otherwise
      */
@@ -95,7 +96,7 @@ class TaskConfigAssembler
 
     /**
      * Get validation errors for time configuration.
-     * 
+     *
      * @param TimeConfigDTO $timeConfigDTO Time configuration DTO
      * @return array Array of validation error messages
      */

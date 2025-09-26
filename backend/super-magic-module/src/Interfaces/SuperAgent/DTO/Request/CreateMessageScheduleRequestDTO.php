@@ -129,7 +129,7 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
         $timeConfigDTO->day = $this->timeConfig['day'] ?? '';
         $timeConfigDTO->time = $this->timeConfig['time'] ?? '';
         $timeConfigDTO->value = $this->timeConfig['value'] ?? [];
-        
+
         return $timeConfigDTO;
     }
 
@@ -150,7 +150,7 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
             'time_config.type' => [
                 'required',
                 'string',
-                'in:no_repeat,daily_repeat,weekly_repeat,monthly_repeat,annually_repeat,weekday_repeat,custom_repeat'
+                'in:no_repeat,daily_repeat,weekly_repeat,monthly_repeat,annually_repeat,weekday_repeat,custom_repeat',
             ],
             'time_config.day' => 'nullable|string',
             'time_config.time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
