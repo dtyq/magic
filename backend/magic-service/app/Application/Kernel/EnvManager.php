@@ -84,8 +84,11 @@ class EnvManager
     private static function initSubscription(BaseDataIsolation $baseDataIsolation): void
     {
         $subscriptionManager = $baseDataIsolation->getSubscriptionManager();
-        if (! $subscriptionManager->enabled()) {
+        if (! $subscriptionManager->isEnabled()) {
             return;
+        }
+        if ($baseDataIsolation->isOfficialOrganization()) {
+            $subscriptionManager->setEnabled(false);
         }
         $subscription = di(PackageFilterInterface::class)->getCurrentSubscription($baseDataIsolation);
         $subscriptionManager->setCurrentSubscription($subscription['id'] ?? '', $subscription['info'] ?? []);
