@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.25",
+            "version": "3.356.26",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "d78bd3b221890aac679ec3b6cb5abcb01fd42699"
+                "reference": "98d100ee08eb5340148cc6010c0443eb346a8486"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/d78bd3b221890aac679ec3b6cb5abcb01fd42699",
-                "reference": "d78bd3b221890aac679ec3b6cb5abcb01fd42699",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/98d100ee08eb5340148cc6010c0443eb346a8486",
+                "reference": "98d100ee08eb5340148cc6010c0443eb346a8486",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.25"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.26"
             },
-            "time": "2025-09-24T18:08:25+00:00"
+            "time": "2025-09-25T18:07:59+00:00"
         },
         {
             "name": "brick/math",
@@ -14627,16 +14627,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.158",
+            "version": "v1.0.159",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "09dae0e1e2b2ab67dbecf679e161d97680ec91d1"
+                "reference": "8873ad6e5caef4306b0ab4a478f95e1e1f9faf8b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/09dae0e1e2b2ab67dbecf679e161d97680ec91d1",
-                "reference": "09dae0e1e2b2ab67dbecf679e161d97680ec91d1",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/8873ad6e5caef4306b0ab4a478f95e1e1f9faf8b",
+                "reference": "8873ad6e5caef4306b0ab4a478f95e1e1f9faf8b",
                 "shasum": ""
             },
             "require": {
@@ -14671,9 +14671,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.158"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.159"
             },
-            "time": "2025-09-18T10:03:34+00:00"
+            "time": "2025-09-25T10:50:03+00:00"
         },
         {
             "name": "w7corp/easywechat",
