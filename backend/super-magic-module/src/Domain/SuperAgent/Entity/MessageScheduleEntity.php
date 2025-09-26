@@ -30,7 +30,13 @@ class MessageScheduleEntity
 
     private int $topicId = 0;
 
-    private int $status = 0;
+    private int $completed = 0;
+
+    private int $enabled = 1;
+
+    private ?string $deadline = null;
+
+    private string $remark = '';
 
     private array $timeConfig = [];
 
@@ -99,9 +105,24 @@ class MessageScheduleEntity
         return $this->topicId;
     }
 
-    public function getStatus(): int
+    public function getCompleted(): int
     {
-        return $this->status;
+        return $this->completed;
+    }
+
+    public function getEnabled(): int
+    {
+        return $this->enabled;
+    }
+
+    public function getDeadline(): ?string
+    {
+        return $this->deadline;
+    }
+
+    public function getRemark(): string
+    {
+        return $this->remark;
     }
 
     public function getTimeConfig(): array
@@ -194,9 +215,27 @@ class MessageScheduleEntity
         return $this;
     }
 
-    public function setStatus(int $status): self
+    public function setCompleted(int $completed): self
     {
-        $this->status = $status;
+        $this->completed = $completed;
+        return $this;
+    }
+
+    public function setEnabled(int $enabled): self
+    {
+        $this->enabled = $enabled;
+        return $this;
+    }
+
+    public function setDeadline(?string $deadline): self
+    {
+        $this->deadline = $deadline;
+        return $this;
+    }
+
+    public function setRemark(string $remark): self
+    {
+        $this->remark = $remark;
         return $this;
     }
 
@@ -245,23 +284,45 @@ class MessageScheduleEntity
     // Business methods
     public function isEnabled(): bool
     {
-        return $this->status === 1;
+        return $this->enabled === 1;
     }
 
     public function isDisabled(): bool
     {
-        return $this->status === 0;
+        return $this->enabled === 0;
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->completed === 1;
+    }
+
+    public function isNotCompleted(): bool
+    {
+        return $this->completed === 0;
     }
 
     public function enable(): self
     {
-        $this->status = 1;
+        $this->enabled = 1;
         return $this;
     }
 
     public function disable(): self
     {
-        $this->status = 0;
+        $this->enabled = 0;
+        return $this;
+    }
+
+    public function complete(): self
+    {
+        $this->completed = 1;
+        return $this;
+    }
+
+    public function incomplete(): self
+    {
+        $this->completed = 0;
         return $this;
     }
 
@@ -285,7 +346,10 @@ class MessageScheduleEntity
             'workspace_id' => $this->workspaceId,
             'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
-            'status' => $this->status,
+            'completed' => $this->completed,
+            'enabled' => $this->enabled,
+            'deadline' => $this->deadline,
+            'remark' => $this->remark,
             'time_config' => $this->timeConfig,
             'task_scheduler_crontab_id' => $this->taskSchedulerCrontabId,
             'created_uid' => $this->createdUid,

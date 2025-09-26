@@ -10,7 +10,11 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 use App\Infrastructure\Core\AbstractDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
 
-class MessageScheduleItemDTO extends AbstractDTO
+/**
+ * Message Schedule List Item DTO.
+ * Lightweight DTO for list queries, contains only essential fields.
+ */
+class MessageScheduleListItemDTO extends AbstractDTO
 {
     /**
      * @var string Message schedule ID
@@ -31,16 +35,6 @@ class MessageScheduleItemDTO extends AbstractDTO
      * @var string Task name
      */
     protected string $taskName = '';
-
-    /**
-     * @var string Message type
-     */
-    protected string $messageType = '';
-
-    /**
-     * @var array Message content
-     */
-    protected array $messageContent = [];
 
     /**
      * @var string Workspace ID
@@ -73,52 +67,57 @@ class MessageScheduleItemDTO extends AbstractDTO
     protected ?string $deadline = null;
 
     /**
-     * @var string Remark
-     */
-    protected string $remark = '';
-
-    /**
-     * @var array Time configuration
-     */
-    protected array $timeConfig = [];
-
-    /**
-     * @var string Task scheduler crontab ID
-     */
-    protected string $taskSchedulerCrontabId = '';
-
-    /**
      * @var string Updated at timestamp
      */
     protected string $updatedAt = '';
 
     /**
-     * Create DTO from entity.
+     * @var string Workspace name
      */
-    public static function fromEntity(MessageScheduleEntity $entity): self
-    {
+    protected string $workspaceName = '';
+
+    /**
+     * @var string Project name
+     */
+    protected string $projectName = '';
+
+    /**
+     * @var string Topic name
+     */
+    protected string $topicName = '';
+
+    /**
+     * Create DTO from entity with additional name fields.
+     */
+    public static function fromEntity(
+        MessageScheduleEntity $entity,
+        string $workspaceName = '',
+        string $projectName = '',
+        string $topicName = ''
+    ): self {
         $dto = new self();
         $dto->setId((string) $entity->getId());
         $dto->setUserId($entity->getUserId());
         $dto->setOrganizationCode($entity->getOrganizationCode());
         $dto->setTaskName($entity->getTaskName());
-        $dto->setMessageType($entity->getMessageType());
-        $dto->setMessageContent($entity->getMessageContent());
         $dto->setWorkspaceId((string) $entity->getWorkspaceId());
         $dto->setProjectId((string) $entity->getProjectId());
         $dto->setTopicId((string) $entity->getTopicId());
         $dto->setCompleted($entity->getCompleted());
         $dto->setEnabled($entity->getEnabled());
         $dto->setDeadline($entity->getDeadline());
-        $dto->setRemark($entity->getRemark());
-        $dto->setTimeConfig($entity->getTimeConfig());
-        $dto->setTaskSchedulerCrontabId($entity->getTaskSchedulerCrontabId() ? (string) $entity->getTaskSchedulerCrontabId() : '');
         $dto->setUpdatedAt($entity->getUpdatedAt() ?? '');
+
+        // Store name fields for toArray method
+        $dto->workspaceName = $workspaceName;
+        $dto->projectName = $projectName;
+        $dto->topicName = $topicName;
+
         return $dto;
     }
 
     /**
-     * Create DTO from array.
+     * Create DTO from array (not used for list queries, kept for compatibility).
      */
     public static function fromArray(array $data): self
     {
@@ -127,17 +126,12 @@ class MessageScheduleItemDTO extends AbstractDTO
         $dto->userId = $data['user_id'] ?? '';
         $dto->organizationCode = $data['organization_code'] ?? '';
         $dto->taskName = $data['task_name'] ?? '';
-        $dto->messageType = $data['message_type'] ?? '';
-        $dto->messageContent = $data['message_content'] ?? [];
         $dto->workspaceId = (string) ($data['workspace_id'] ?? '');
         $dto->projectId = (string) ($data['project_id'] ?? '');
         $dto->topicId = (string) ($data['topic_id'] ?? '');
         $dto->completed = (int) ($data['completed'] ?? 0);
         $dto->enabled = (int) ($data['enabled'] ?? 1);
         $dto->deadline = $data['deadline'] ?? null;
-        $dto->remark = $data['remark'] ?? '';
-        $dto->timeConfig = $data['time_config'] ?? [];
-        $dto->taskSchedulerCrontabId = (string) ($data['task_scheduler_crontab_id'] ?? '');
         $dto->updatedAt = $data['updated_at'] ?? '';
         return $dto;
     }
@@ -184,28 +178,6 @@ class MessageScheduleItemDTO extends AbstractDTO
     public function setTaskName(string $taskName): self
     {
         $this->taskName = $taskName;
-        return $this;
-    }
-
-    public function getMessageType(): string
-    {
-        return $this->messageType;
-    }
-
-    public function setMessageType(string $messageType): self
-    {
-        $this->messageType = $messageType;
-        return $this;
-    }
-
-    public function getMessageContent(): array
-    {
-        return $this->messageContent;
-    }
-
-    public function setMessageContent(array $messageContent): self
-    {
-        $this->messageContent = $messageContent;
         return $this;
     }
 
@@ -275,39 +247,6 @@ class MessageScheduleItemDTO extends AbstractDTO
         return $this;
     }
 
-    public function getRemark(): string
-    {
-        return $this->remark;
-    }
-
-    public function setRemark(string $remark): self
-    {
-        $this->remark = $remark;
-        return $this;
-    }
-
-    public function getTimeConfig(): array
-    {
-        return $this->timeConfig;
-    }
-
-    public function setTimeConfig(array $timeConfig): self
-    {
-        $this->timeConfig = $timeConfig;
-        return $this;
-    }
-
-    public function getTaskSchedulerCrontabId(): string
-    {
-        return $this->taskSchedulerCrontabId;
-    }
-
-    public function setTaskSchedulerCrontabId(string $taskSchedulerCrontabId): self
-    {
-        $this->taskSchedulerCrontabId = $taskSchedulerCrontabId;
-        return $this;
-    }
-
     public function getUpdatedAt(): string
     {
         return $this->updatedAt;
@@ -330,18 +269,16 @@ class MessageScheduleItemDTO extends AbstractDTO
             'user_id' => $this->userId,
             'organization_code' => $this->organizationCode,
             'task_name' => $this->taskName,
-            'message_type' => $this->messageType,
-            'message_content' => $this->messageContent,
             'workspace_id' => $this->workspaceId,
             'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
             'completed' => $this->completed,
             'enabled' => $this->enabled,
             'deadline' => $this->deadline,
-            'remark' => $this->remark,
-            'time_config' => $this->timeConfig,
-            'task_scheduler_crontab_id' => $this->taskSchedulerCrontabId,
             'updated_at' => $this->updatedAt,
+            'workspace_name' => $this->workspaceName,
+            'project_name' => $this->projectName,
+            'topic_name' => $this->topicName,
         ];
     }
 }

@@ -213,6 +213,29 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
+     * Batch get project names by IDs.
+     */
+    public function getProjectNamesBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $results = $this->projectModel::query()
+            ->whereIn('id', $projectIds)
+            ->whereNull('deleted_at')
+            ->select(['id', 'project_name'])
+            ->get();
+
+        $projectNames = [];
+        foreach ($results as $result) {
+            $projectNames[(string) $result->id] = $result->project_name;
+        }
+
+        return $projectNames;
+    }
+
+    /**
      * 模型转实体.
      */
     protected function modelToEntity(ProjectModel $model): ProjectEntity

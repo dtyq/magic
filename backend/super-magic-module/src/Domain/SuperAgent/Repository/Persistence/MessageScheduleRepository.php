@@ -103,7 +103,8 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'updated_at',
-        string $orderDirection = 'desc'
+        string $orderDirection = 'desc',
+        array $selectFields = []
     ): array {
         $query = $this->messageScheduleModel::query();
 
@@ -126,6 +127,11 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
 
         // Get total count
         $total = $query->count();
+
+        // Apply field selection if specified
+        if (! empty($selectFields)) {
+            $query->select($selectFields);
+        }
 
         // Sort and paginate
         $list = $query->orderBy($orderBy, $orderDirection)
@@ -245,7 +251,7 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
         $query = $this->messageScheduleModel::query()
             ->where('user_id', $userId)
             ->where('organization_code', $organizationCode)
-            ->where('status', 1)
+            ->where('enabled', 1)
             ->whereNull('deleted_at')
             ->orderBy('updated_at', 'desc');
 
@@ -291,7 +297,10 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
             'workspace_id' => $model->workspace_id ?? 0,
             'project_id' => $model->project_id ?? 0,
             'topic_id' => $model->topic_id ?? 0,
-            'status' => $model->status ?? 0,
+            'completed' => $model->completed ?? 0,
+            'enabled' => $model->enabled ?? 1,
+            'deadline' => $model->deadline ? $model->deadline->format('Y-m-d H:i:s') : null,
+            'remark' => $model->remark ?? '',
             'time_config' => $model->time_config ?? [],
             'task_scheduler_crontab_id' => $model->task_scheduler_crontab_id,
             'created_uid' => $model->created_uid ?? '',
@@ -329,7 +338,10 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
             'workspace_id' => $data['workspace_id'] ?? 0,
             'project_id' => $data['project_id'] ?? 0,
             'topic_id' => $data['topic_id'] ?? 0,
-            'status' => $data['status'] ?? 0,
+            'completed' => $data['completed'] ?? 0,
+            'enabled' => $data['enabled'] ?? 1,
+            'deadline' => $data['deadline'] ?? null,
+            'remark' => $data['remark'] ?? '',
             'time_config' => is_string($data['time_config'] ?? '') ? json_decode($data['time_config'], true) : ($data['time_config'] ?? []),
             'task_scheduler_crontab_id' => $data['task_scheduler_crontab_id'] ?? null,
             'created_uid' => $data['created_uid'] ?? '',
@@ -354,7 +366,10 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
             'workspace_id' => $entity->getWorkspaceId(),
             'project_id' => $entity->getProjectId(),
             'topic_id' => $entity->getTopicId(),
-            'status' => $entity->getStatus(),
+            'completed' => $entity->getCompleted(),
+            'enabled' => $entity->getEnabled(),
+            'deadline' => $entity->getDeadline(),
+            'remark' => $entity->getRemark(),
             'time_config' => $entity->getTimeConfig(),
             'task_scheduler_crontab_id' => $entity->getTaskSchedulerCrontabId(),
             'created_uid' => $entity->getCreatedUid(),

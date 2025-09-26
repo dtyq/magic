@@ -42,7 +42,8 @@ interface MessageScheduleRepositoryInterface
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'updated_at',
-        string $orderDirection = 'desc'
+        string $orderDirection = 'desc',
+        array $selectFields = []
     ): array;
 
     /**

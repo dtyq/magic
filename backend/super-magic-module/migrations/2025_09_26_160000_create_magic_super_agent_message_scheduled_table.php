@@ -25,13 +25,37 @@ class CreateMagicSuperAgentMessageScheduledTable extends Migration
             $table->bigInteger('workspace_id')->unsigned()->comment('工作区ID');
             $table->bigInteger('project_id')->unsigned()->comment('项目ID');
             $table->bigInteger('topic_id')->unsigned()->comment('话题ID');
-            $table->tinyInteger('status')->default(0)->comment('状态: 0-关闭, 1-开启');
+            $table->tinyInteger('completed')->default(0)->comment('是否完成: 0-未完成, 1-已完成');
+            $table->tinyInteger('enabled')->default(1)->comment('是否启用: 0-禁用, 1-启用');
+            $table->dateTime('deadline')->nullable()->comment('结束时间');
+            $table->string('remark', 500)->default('')->comment('备注');
             $table->json('time_config')->comment('配置信息');
             $table->bigInteger('task_scheduler_crontab_id')->nullable()->comment('任务调度器定时任务ID');
             $table->string('created_uid', 36)->default('')->comment('Creator user ID');
             $table->string('updated_uid', 36)->default('')->comment('Updater user ID');
             $table->timestamp('deleted_at')->nullable()->comment('删除时间');
             $table->timestamps();
+
+            // 添加索引
+            // 1. 主要查询索引（覆盖基础查询 + 排序优化）
+            // 用途：user_id + organization_code + deleted_at + updated_at 排序
+            $table->index(['user_id', 'organization_code', 'deleted_at', 'updated_at'], 'idx_user_org_deleted_updated');
+
+            // 2. 工作区查询索引
+            // 用途：workspace_id + user_id + organization_code + deleted_at 筛选
+            $table->index(['workspace_id', 'user_id', 'organization_code', 'deleted_at'], 'idx_workspace_user_org_deleted');
+
+            // 3. 项目查询索引
+            // 用途：project_id + user_id + organization_code + deleted_at 筛选
+            $table->index(['project_id', 'user_id', 'organization_code', 'deleted_at'], 'idx_project_user_org_deleted');
+
+            // 4. 状态查询索引
+            // 用途：enabled + completed + deleted_at 状态筛选
+            $table->index(['enabled', 'completed', 'deleted_at'], 'idx_enabled_completed_deleted');
+
+            // 5. 截止时间查询索引
+            // 用途：deadline + enabled + deleted_at 定时任务管理
+            $table->index(['deadline', 'enabled', 'deleted_at'], 'idx_deadline_enabled_deleted');
         });
     }
 
