@@ -452,12 +452,6 @@ class ModelGatewayMapper extends ModelMapper
         $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
 
-        // 检查当前套餐是否有这个模型的使用权限
-        if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($model, $modelType)) {
-            $this->logger->info('模型不在可用名单', ['model' => $model, 'model_type' => $modelType?->value]);
-            return null;
-        }
-
         // 获取模型
         $providerModelEntity = $this->providerManager->getAvailableByModelIdOrId($providerDataIsolation, $model);
         if (! $providerModelEntity) {
@@ -466,6 +460,12 @@ class ModelGatewayMapper extends ModelMapper
         }
         if (! $dataIsolation->isOfficialOrganization() && ! $providerModelEntity->getStatus()->isEnabled()) {
             $this->logger->info('模型被禁用', ['model' => $model]);
+            return null;
+        }
+
+        // 检查当前套餐是否有这个模型的使用权限
+        if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($providerModelEntity->getModelId(), $modelType)) {
+            $this->logger->info('模型不在可用名单', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
             return null;
         }
 
