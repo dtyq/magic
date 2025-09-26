@@ -21,6 +21,7 @@ use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Chat\Service\MagicLLMDomainService;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\HTMLReader;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -498,7 +499,8 @@ class MagicAISearchToolAppService extends AbstractAppService
         if ($modelName === '' || $modelName === null) {
             $modelName = LLMModelEnum::DEEPSEEK_V3->value;
         }
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
         // Get the model proxy
-        return di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $orgCode);
+        return di(ModelGatewayMapper::class)->getChatModelProxy($dataIsolation, $modelName);
     }
 }

@@ -21,6 +21,7 @@ use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\ErrorCode\LongTermMemoryErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -421,7 +422,8 @@ class LongTermMemoryAppService
             $authorization->getOrganizationCode(),
             LLMModelEnum::DEEPSEEK_V3->value
         );
-        $chatModel = $this->modelGatewayMapper->getOrganizationChatModel($modelName, $authorization->getOrganizationCode());
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($authorization->getOrganizationCode());
+        $chatModel = $this->modelGatewayMapper->getOrganizationChatModel($dataIsolation, $modelName);
         if ($chatModel instanceof OdinModel) {
             return $chatModel;
         }

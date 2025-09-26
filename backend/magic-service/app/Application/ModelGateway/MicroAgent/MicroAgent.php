@@ -9,6 +9,7 @@ namespace App\Application\ModelGateway\MicroAgent;
 
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\ModelConfigAppService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -54,7 +55,8 @@ class MicroAgent
 
         $modelGatewayMapper = di(ModelGatewayMapper::class);
 
-        $model = $modelGatewayMapper->getChatModelProxy($modelId, $organizationCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($organizationCode);
+        $model = $modelGatewayMapper->getChatModelProxy($dataIsolation, $modelId);
         return $model->chat(
             messages: $messages,
             temperature: $this->temperature,

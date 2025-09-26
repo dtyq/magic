@@ -14,6 +14,7 @@ use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\AbstractLLMNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\ModelConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\OptionTool;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Util\Odin\Agent;
@@ -39,7 +40,8 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         $orgCode = $executionData->getOperator()->getOrganizationCode();
         $modelName = $LLMNodeParamsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         if (! $model) {
-            $model = $this->modelGatewayMapper->getChatModelProxy($modelName, $orgCode);
+            $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+            $model = $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
         }
         $vertexResult->addDebugLog('model', $modelName);
 

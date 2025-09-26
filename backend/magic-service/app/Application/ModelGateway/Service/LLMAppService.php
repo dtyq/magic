@@ -99,7 +99,6 @@ class LLMAppService extends AbstractLLMAppService
     {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
-        $type = 'chat';
         $models = match ($type) {
             'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation),
             'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
