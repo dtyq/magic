@@ -9,39 +9,15 @@ namespace App\Application\ModelGateway\Mapper;
 
 class ModelFilter
 {
-    protected ?string $appId = null;
-
     protected ?string $originModel = null;
 
-    protected ?string $currentPackage = null;
+    protected array $availableModelIds = [];
 
     public function __construct(
         protected bool $checkModelEnabled = true,
         protected bool $checkProviderEnabled = true,
-        protected bool $checkVisibleOrganization = true,
-        protected bool $checkVisibleApplication = true,
         protected bool $checkVisiblePackage = true,
     ) {
-    }
-
-    public function getAppId(): ?string
-    {
-        return $this->appId;
-    }
-
-    public function setAppId(?string $appId): void
-    {
-        $this->appId = $appId;
-    }
-
-    public function getCurrentPackage(): ?string
-    {
-        return $this->currentPackage;
-    }
-
-    public function setCurrentPackage(?string $currentPackage): void
-    {
-        $this->currentPackage = $currentPackage;
     }
 
     public function isCheckModelEnabled(): bool
@@ -64,31 +40,19 @@ class ModelFilter
         $this->checkProviderEnabled = $checkProviderEnabled;
     }
 
-    public function isCheckVisibleOrganization(): bool
-    {
-        // 新版使用套餐过滤器，组织可见性不需要检查了
-        return false;
-    }
-
-    public function setCheckVisibleOrganization(bool $checkVisibleOrganization): void
-    {
-        $this->checkVisibleOrganization = $checkVisibleOrganization;
-    }
-
-    public function isCheckVisibleApplication(): bool
-    {
-        // 新版使用套餐过滤器，应用可见性不需要检查了
-        return false;
-    }
-
-    public function setCheckVisibleApplication(bool $checkVisibleApplication): void
-    {
-        $this->checkVisibleApplication = $checkVisibleApplication;
-    }
-
     public function getOriginModel(): ?string
     {
         return $this->originModel;
+    }
+
+    public function isCheckVisiblePackage(): bool
+    {
+        return $this->checkVisiblePackage;
+    }
+
+    public function setCheckVisiblePackage(bool $checkVisiblePackage): void
+    {
+        $this->checkVisiblePackage = $checkVisiblePackage;
     }
 
     public function setOriginModel(?string $originModel): void
@@ -96,16 +60,13 @@ class ModelFilter
         $this->originModel = $originModel;
     }
 
-    public function isCheckVisiblePackage(): bool
+    public function getAvailableModelIds(): array
     {
-        if (is_null($this->currentPackage)) {
-            return false;
-        }
-        return $this->checkVisiblePackage;
+        return $this->availableModelIds;
     }
 
-    public function setCheckVisiblePackage(bool $checkVisiblePackage): void
+    public function setAvailableModelIds(array $availableModelIds): void
     {
-        $this->checkVisiblePackage = $checkVisiblePackage;
+        $this->availableModelIds = $availableModelIds;
     }
 }

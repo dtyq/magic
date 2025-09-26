@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
-use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
@@ -96,22 +95,20 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @return array<ModelConfigEntity>
      */
-    public function models(string $accessToken, bool $withInfo = false): array
+    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = []): array
     {
-        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
-        if (! $accessTokenEntity) {
-            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
-        }
+        $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
-        $modelFilter = new ModelFilter();
-        $modelFilter->setAppId($accessTokenEntity->getRelationId());
-        $modelFilter->setCurrentPackage($this->packageFilter->getCurrentPackage($accessTokenEntity->getOrganizationCode()));
-
-        $chatModels = $this->modelGatewayMapper->getChatModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
-        $embeddingModels = $this->modelGatewayMapper->getEmbeddingModels($accessTokenEntity->getOrganizationCode(), $modelFilter);
-        $imageModels = $this->modelGatewayMapper->getImageModels($accessTokenEntity->getOrganizationCode());
-
-        $models = array_merge($chatModels, $embeddingModels, $imageModels);
+        $models = match ($type) {
+            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation),
+            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
+            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation),
+            default => array_merge(
+                $this->modelGatewayMapper->getChatModels($dataIsolation),
+                $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
+                $this->modelGatewayMapper->getImageModels($dataIsolation),
+            ),
+        };
 
         $list = [];
         foreach ($models as $name => $odinModel) {
@@ -149,21 +146,21 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * Chat completion.
      */
-    public function chatCompletion(CompletionDTO $sendMsgDTO, ?ModelFilter $modelFilter = null): ResponseInterface
+    public function chatCompletion(CompletionDTO $sendMsgDTO): ResponseInterface
     {
         return $this->processRequest($sendMsgDTO, function (ModelInterface $model, CompletionDTO $request) {
             return $this->callChatModel($model, $request);
-        }, $modelFilter ?? new ModelFilter());
+        });
     }
 
     /**
      * Process embedding requests.
      */
-    public function embeddings(EmbeddingsDTO $proxyModelRequest, ?ModelFilter $modelFilter = null): ResponseInterface
+    public function embeddings(EmbeddingsDTO $proxyModelRequest): ResponseInterface
     {
         return $this->processRequest($proxyModelRequest, function (EmbeddingInterface $model, EmbeddingsDTO $request) {
             return $this->callEmbeddingsModel($model, $request);
-        }, $modelFilter ?? new ModelFilter());
+        });
     }
 
     public function textGenerateImageV2(TextGenerateImageDTO $textGenerateImageDTO): ResponseInterface
@@ -171,7 +168,7 @@ class LLMAppService extends AbstractLLMAppService
         // 使用统一的 processRequest 处理流程
         return $this->processRequest($textGenerateImageDTO, function (ImageModel $imageModel, TextGenerateImageDTO $request) {
             return $this->callImageModel($imageModel, $request);
-        }, new ModelFilter());
+        });
     }
 
     /**
@@ -496,23 +493,21 @@ class LLMAppService extends AbstractLLMAppService
      * @param ProxyModelRequestInterface $proxyModelRequest Request object
      * @param callable $modelCallFunction Model calling function that receives model configuration and request object, returns response
      */
-    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction, ModelFilter $modelFilter): ResponseInterface
+    protected function processRequest(ProxyModelRequestInterface $proxyModelRequest, callable $modelCallFunction): ResponseInterface
     {
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
         try {
             // Validate access token and model permissions
-            $accessToken = $this->validateAccessToken($proxyModelRequest);
+            $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($proxyModelRequest->getAccessToken(), $proxyModelRequest->getBusinessParams());
 
-            // Data isolation handling
-            $dataIsolation = LLMDataIsolation::create()->disabled();
-
-            // Parse business parameters
-            $contextData = $this->parseBusinessContext($dataIsolation, $accessToken, $proxyModelRequest);
-            //            $this->pointComponent->checkPointsSufficient($contextData['organization_code'], $contextData['user_id']);
+            $this->pointComponent->checkPointsSufficient(
+                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                $modelGatewayDataIsolation->getCurrentUserId()
+            );
 
             // Try to get high availability model configuration
-            $orgCode = $contextData['organization_code'] ?? null;
+            $orgCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
 
             // Check if high availability is enabled
             if ($proxyModelRequest->isEnableHighAvailability()) {
@@ -527,15 +522,11 @@ class LLMAppService extends AbstractLLMAppService
 
             $modelAttributes = null;
 
-            $modelFilter->setAppId($accessToken->getRelationId());
-            $modelFilter->setOriginModel($proxyModelRequest->getModel());
-            $modelFilter->setCurrentPackage($this->packageFilter->getCurrentPackage($orgCode ?? ''));
-
             try {
                 $model = match ($proxyModelRequest->getType()) {
-                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modeId, $orgCode, $modelFilter),
-                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modeId, $orgCode, $modelFilter),
-                    'image' => $this->modelGatewayMapper->getOrganizationImageModel($modeId, $orgCode, $modelFilter),
+                    'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelGatewayDataIsolation, $modeId),
+                    'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelGatewayDataIsolation, $modeId),
+                    'image' => $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modeId),
                     default => null
                 };
                 if ($model instanceof OdinModel) {
@@ -546,8 +537,8 @@ class LLMAppService extends AbstractLLMAppService
                 if ($model instanceof MagicAILocalModel) {
                     $modelId = $model->getModelName();
                     $model = match ($proxyModelRequest->getType()) {
-                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelId, $orgCode, $modelFilter),
-                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelId, $orgCode, $modelFilter),
+                        'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelGatewayDataIsolation, $modelId),
+                        'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelGatewayDataIsolation, $modelId),
                         default => null
                     };
                     if ($model instanceof OdinModel) {
@@ -571,14 +562,14 @@ class LLMAppService extends AbstractLLMAppService
             $startTime = microtime(true);
 
             $proxyModelRequest->addBusinessParam('model_id', $proxyModelRequest->getModel());
-            $proxyModelRequest->addBusinessParam('app_id', $contextData['app_code'] ?? '');
+            $proxyModelRequest->addBusinessParam('app_id', $modelGatewayDataIsolation->getAppId());
             $proxyModelRequest->addBusinessParam('service_provider_id', $modelAttributes?->getProviderId() ?? '');
             $proxyModelRequest->addBusinessParam('service_provider_model_id', $modelAttributes?->getProviderModelId() ?? '');
-            $proxyModelRequest->addBusinessParam('source_id', $contextData['source_id'] ?? '');
-            $proxyModelRequest->addBusinessParam('user_name', $contextData['user_name'] ?? '');
-            $proxyModelRequest->addBusinessParam('organization_id', $contextData['organization_code'] ?? '');
-            $proxyModelRequest->addBusinessParam('user_id', $contextData['user_id'] ?? '');
-            $proxyModelRequest->addBusinessParam('access_token_id', $accessToken->getId());
+            $proxyModelRequest->addBusinessParam('source_id', $modelGatewayDataIsolation->getSourceId());
+            $proxyModelRequest->addBusinessParam('user_name', $modelGatewayDataIsolation->getUserName());
+            $proxyModelRequest->addBusinessParam('organization_id', $modelGatewayDataIsolation->getCurrentOrganizationCode());
+            $proxyModelRequest->addBusinessParam('user_id', $modelGatewayDataIsolation->getCurrentUserId());
+            $proxyModelRequest->addBusinessParam('access_token_id', $modelGatewayDataIsolation->getAccessToken()->getId());
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
@@ -594,7 +585,8 @@ class LLMAppService extends AbstractLLMAppService
 
             $this->logger->info('ModelCallSuccess', [
                 'model' => $proxyModelRequest->getModel(),
-                'access_token_id' => $accessToken->getId(),
+                'access_token_id' => $modelGatewayDataIsolation->getAccessToken()->getId(),
+                'access_token_type' => $modelGatewayDataIsolation->getAccessToken()->getType()->value,
                 'used_tokens' => $usageData['tokens'],
                 'used_amount' => $usageData['amount'],
                 'response_time' => $responseTime,

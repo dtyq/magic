@@ -64,4 +64,6 @@ interface DataIsolationInterface
     public function isOfficialOrganization(): bool;
 
     public function getLanguage(): string;
+
+    public function getSubscriptionManager(): SubscriptionManagerInterface;
 }

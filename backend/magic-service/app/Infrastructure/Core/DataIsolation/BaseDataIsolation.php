@@ -56,6 +56,8 @@ class BaseDataIsolation implements DataIsolationInterface
      */
     private array $officialOrganizationCodes = [];
 
+    private SubscriptionManagerInterface $subscriptionManager;
+
     public function __construct(string $currentOrganizationCode = '', string $userId = '', string $magicId = '')
     {
         $this->environment = app_env();
@@ -63,6 +65,7 @@ class BaseDataIsolation implements DataIsolationInterface
         $this->currentUserId = $userId;
         $this->magicId = $magicId;
         $this->thirdPlatformDataIsolationManager = \Hyperf\Support\make(ThirdPlatformDataIsolationManagerInterface::class);
+        $this->subscriptionManager = \Hyperf\Support\make(SubscriptionManagerInterface::class);
 
         if (config('office_organization')) {
             // 目前只有 1 个官方组织
@@ -94,6 +97,7 @@ class BaseDataIsolation implements DataIsolationInterface
         $this->magicId = $parentDataIsolation->getMagicId();
         $this->envId = $parentDataIsolation->getEnvId();
         $this->enabled = $parentDataIsolation->isEnable();
+        $this->subscriptionManager = $parentDataIsolation->getSubscriptionManager();
 
         $this->thirdPlatformOrganizationCode = $parentDataIsolation->getThirdPlatformOrganizationCode();
         $this->thirdPlatformUserId = $parentDataIsolation->getThirdPlatformUserId();
@@ -247,5 +251,10 @@ class BaseDataIsolation implements DataIsolationInterface
     public function getLanguage(): string
     {
         return CoContext::getLanguage();
+    }
+
+    public function getSubscriptionManager(): SubscriptionManagerInterface
+    {
+        return $this->subscriptionManager;
     }
 }

@@ -10,6 +10,7 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderQuery;
 use App\Domain\Provider\Repository\Facade\ProviderRepositoryInterface;
@@ -78,9 +79,9 @@ class ProviderRepository extends AbstractModelRepository implements ProviderRepo
     /**
      * @return array{total: int, list: array<ProviderEntity>}
      */
-    public function queries(ProviderQuery $query, Page $page): array
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderQuery $query, Page $page): array
     {
-        $builder = $this->createProviderQuery();
+        $builder = $this->createBuilder($dataIsolation, ProviderModel::query());
 
         if ($query->getCategory()) {
             $builder->where('category', $query->getCategory()->value);
@@ -98,17 +99,23 @@ class ProviderRepository extends AbstractModelRepository implements ProviderRepo
             $builder->where('provider_type', $query->getProviderType()->value);
         }
 
+        if (! is_null($query->getIds())) {
+            $builder->whereIn('id', $query->getIds());
+        }
+
         $result = $this->getByPage($builder, $page, $query);
 
         $list = [];
         foreach ($result['list'] as $model) {
-            $list[] = ProviderAssembler::toEntity((array) $model);
+            $entity = ProviderAssembler::toEntity($model->toArray());
+            match ($query->getKeyBy()) {
+                'id' => $list[$entity->getId()] = $entity,
+                default => $list[] = $entity,
+            };
         }
+        $result['list'] = $list;
 
-        return [
-            'total' => $result['total'],
-            'list' => $list,
-        ];
+        return $result;
     }
 
     public function getAllNonOfficialProviders(Category $category): array

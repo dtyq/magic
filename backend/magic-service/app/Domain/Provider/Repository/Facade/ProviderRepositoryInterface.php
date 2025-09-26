@@ -10,6 +10,7 @@ namespace App\Domain\Provider\Repository\Facade;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 
@@ -26,7 +27,7 @@ interface ProviderRepositoryInterface
     /**
      * @return array{total: int, list: array<ProviderEntity>}
      */
-    public function queries(ProviderQuery $query, Page $page): array;
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderQuery $query, Page $page): array;
 
     public function getAllNonOfficialProviders(Category $category): array;
 

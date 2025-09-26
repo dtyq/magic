@@ -9,6 +9,7 @@ namespace App\Application\Kernel;
 
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Hyperf\Context\Context;
 
@@ -58,9 +59,12 @@ class EnvManager
         $baseDataIsolation->setEnvId($env->getId());
         $baseDataIsolation->getThirdPlatformDataIsolationManager()->init($baseDataIsolation, $env);
 
+        self::initSubscription($baseDataIsolation);
+
         simple_log('EnvManagerInit', [
             'class' => get_class($baseDataIsolation),
             'env_id' => $baseDataIsolation->getEnvId(),
+            'subscription' => $baseDataIsolation->getSubscriptionManager()->toArray(),
             'third_platform_manager' => $baseDataIsolation->getThirdPlatformDataIsolationManager()->toArray(),
             'third_user_id' => $baseDataIsolation->getThirdPlatformUserId(),
             'third_organization_code' => $baseDataIsolation->getThirdPlatformOrganizationCode(),
@@ -75,5 +79,15 @@ class EnvManager
         $magicUserDomainService = di(MagicUserDomainService::class);
         $magicUser = $magicUserDomainService->getByUserId($userId);
         return $magicUser?->getMagicId();
+    }
+
+    private static function initSubscription(BaseDataIsolation $baseDataIsolation): void
+    {
+        $subscriptionManager = $baseDataIsolation->getSubscriptionManager();
+        if (! $subscriptionManager->enabled()) {
+            return;
+        }
+        $subscription = di(PackageFilterInterface::class)->getCurrentSubscription($baseDataIsolation);
+        $subscriptionManager->setCurrentSubscription($subscription['id'] ?? '', $subscription['info'] ?? []);
     }
 }

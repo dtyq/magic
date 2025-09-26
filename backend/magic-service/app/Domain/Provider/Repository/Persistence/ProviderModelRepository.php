@@ -12,6 +12,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
@@ -19,6 +20,7 @@ use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
@@ -38,13 +40,24 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
-        $builder = $this->createProviderModelQuery()
-            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
-            ->where('id', $id);
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('id', $id);
 
         $result = Db::select($builder->toSql(), $builder->getBindings());
         if (empty($result)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
+        }
+        return ProviderModelAssembler::toEntity($result[0]);
+    }
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('model_id', $modelId);
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+        if (empty($result)) {
+            return null;
         }
         return ProviderModelAssembler::toEntity($result[0]);
     }
@@ -328,6 +341,37 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         }
 
         return ProviderModelAssembler::toEntity($result[0]);
+    }
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        if (! is_null($query->getModelIds())) {
+            $builder->whereIn('model_id', $query->getModelIds());
+        }
+        if (! is_null($query->getStatus())) {
+            $builder->where('status', $query->getStatus()->value);
+        }
+        if (! is_null($query->getModelType())) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
+
+        $data = $this->getByPage($builder, $page, $query);
+        $list = [];
+        /** @var ProviderModelModel $model */
+        foreach ($data['list'] as $model) {
+            $entity = ProviderModelAssembler::toEntity($model->toArray());
+            match ($query->getKeyBy()) {
+                'id' => $list[$entity->getId()] = $entity,
+                'model_id' => $list[$entity->getModelId()] = $entity,
+                default => $list[] = $entity,
+            };
+        }
+        $data['list'] = $list;
+        return $data;
     }
 
     /**
