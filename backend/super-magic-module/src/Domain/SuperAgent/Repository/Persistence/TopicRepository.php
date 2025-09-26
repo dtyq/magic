@@ -18,30 +18,56 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TopicModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\WorkspaceModel;
+use Exception;
 use Hyperf\DbConnection\Db;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 
 class TopicRepository implements TopicRepositoryInterface
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         protected TopicModel $model,
         protected MagicChatSequenceModel $magicChatSequenceModel,
         protected MagicChatTopicMessageModel $magicChatTopicMessageModel,
-        protected MagicMessageModel $magicMessageModel
+        protected MagicMessageModel $magicMessageModel,
+        LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get(static::class);
     }
 
     public function getTopicById(int $id): ?TopicEntity
     {
+        // 先按 id 查询
         $model = $this->model::query()->whereNull('deleted_at')
             ->where('id', $id)
-            ->orWhere('chat_topic_id', $id)
             ->first();
-        if (! $model) {
-            return null;
+
+        if ($model) {
+            $data = $this->convertModelToEntityData($model->toArray());
+            return new TopicEntity($data);
         }
 
-        $data = $this->convertModelToEntityData($model->toArray());
-        return new TopicEntity($data);
+        // 如果按 id 没找到，再按 chat_topic_id 查询
+        $model = $this->model::query()->whereNull('deleted_at')
+            ->where('chat_topic_id', $id)
+            ->first();
+
+        if ($model) {
+            // 按 chat_topic_id 查到数据时，记录错误日志和 trace
+            $this->logger->error('TopicRepository getTopicById 按 chat_topic_id 查到数据，可能存在数据不一致问题', [
+                'search_id' => $id,
+                'found_topic_id' => $model->id,
+                'found_chat_topic_id' => $model->chat_topic_id,
+                'trace' => (new Exception())->getTraceAsString(),
+            ]);
+
+            $data = $this->convertModelToEntityData($model->toArray());
+            return new TopicEntity($data);
+        }
+
+        return null;
     }
 
     public function getTopicsByIds(array $ids): array
@@ -389,18 +415,25 @@ class TopicRepository implements TopicRepositoryInterface
      * 批量获取有运行中话题的工作区ID列表.
      *
      * @param array $workspaceIds 工作区ID数组
+     * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
      * @return array 有运行中话题的工作区ID数组
      */
-    public function getRunningWorkspaceIds(array $workspaceIds): array
+    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array
     {
         if (empty($workspaceIds)) {
             return [];
         }
 
-        return $this->model::query()
+        $query = $this->model::query()
             ->whereIn('workspace_id', $workspaceIds)
             ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
+            ->whereNull('deleted_at');
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        return $query
             ->distinct()
             ->pluck('workspace_id')
             ->toArray();
@@ -410,18 +443,25 @@ class TopicRepository implements TopicRepositoryInterface
      * 批量获取有运行中话题的项目ID列表.
      *
      * @param array $projectIds 项目ID数组
+     * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
      * @return array 有运行中话题的项目ID数组
      */
-    public function getRunningProjectIds(array $projectIds): array
+    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array
     {
         if (empty($projectIds)) {
             return [];
         }
 
-        return $this->model::query()
+        $query = $this->model::query()
             ->whereIn('project_id', $projectIds)
             ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
+            ->whereNull('deleted_at');
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        return $query
             ->distinct()
             ->pluck('project_id')
             ->toArray();
@@ -485,10 +525,10 @@ class TopicRepository implements TopicRepositoryInterface
                 ->pluck('seq_id')
                 ->toArray();
 
-            $allSeqIds = array_merge($allSeqIds, $seqIds);
+            $allSeqIds[] = $seqIds;
         }
-
-        return array_unique($allSeqIds);
+        ! empty($allSeqIds) && $allSeqIds = array_merge(...$allSeqIds);
+        return array_values(array_unique($allSeqIds));
     }
 
     /**
@@ -606,10 +646,11 @@ class TopicRepository implements TopicRepositoryInterface
                 ->pluck('seq_id')
                 ->toArray();
 
-            $allSeqIds = array_merge($allSeqIds, $seqIds);
+            $allSeqIds[] = $seqIds;
         }
 
-        return array_unique($allSeqIds);
+        ! empty($allSeqIds) && $allSeqIds = array_merge(...$allSeqIds);
+        return array_values(array_unique($allSeqIds));
     }
 
     /**

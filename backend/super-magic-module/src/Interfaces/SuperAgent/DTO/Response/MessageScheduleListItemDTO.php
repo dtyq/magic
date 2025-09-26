@@ -87,6 +87,11 @@ class MessageScheduleListItemDTO extends AbstractDTO
     protected string $topicName = '';
 
     /**
+     * @var array Time configuration
+     */
+    protected array $timeConfig = [];
+
+    /**
      * Create DTO from entity with additional name fields.
      */
     public static function fromEntity(
@@ -106,6 +111,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
         $dto->setCompleted($entity->getCompleted());
         $dto->setEnabled($entity->getEnabled());
         $dto->setDeadline($entity->getDeadline());
+        $dto->setTimeConfig($entity->getTimeConfig());
         $dto->setUpdatedAt($entity->getUpdatedAt() ?? '');
 
         // Store name fields for toArray method
@@ -132,6 +138,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
         $dto->completed = (int) ($data['completed'] ?? 0);
         $dto->enabled = (int) ($data['enabled'] ?? 1);
         $dto->deadline = $data['deadline'] ?? null;
+        $dto->timeConfig = $data['time_config'] ?? [];
         $dto->updatedAt = $data['updated_at'] ?? '';
         return $dto;
     }
@@ -252,9 +259,20 @@ class MessageScheduleListItemDTO extends AbstractDTO
         return $this->updatedAt;
     }
 
+    public function getTimeConfig(): array
+    {
+        return $this->timeConfig;
+    }
+
     public function setUpdatedAt(string $updatedAt): self
     {
         $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    public function setTimeConfig(array $timeConfig): self
+    {
+        $this->timeConfig = $timeConfig;
         return $this;
     }
 
@@ -275,6 +293,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
             'completed' => $this->completed,
             'enabled' => $this->enabled,
             'deadline' => $this->deadline,
+            'time_config' => $this->timeConfig,
             'updated_at' => $this->updatedAt,
             'workspace_name' => $this->workspaceName,
             'project_name' => $this->projectName,

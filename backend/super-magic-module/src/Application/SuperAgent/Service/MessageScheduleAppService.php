@@ -22,6 +22,8 @@ use Carbon\Carbon;
 use DateTime;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -164,7 +166,7 @@ class MessageScheduleAppService extends AbstractAppService
         $listFields = [
             'id', 'user_id', 'organization_code', 'task_name',
             'workspace_id', 'project_id', 'topic_id',
-            'completed', 'enabled', 'deadline', 'updated_at',
+            'completed', 'enabled', 'deadline', 'time_config', 'updated_at',
         ];
 
         // Use existing method with specific fields for list queries
@@ -491,9 +493,8 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Update task scheduler.
-     * @param mixed $messageSchedule
      */
-    private function updateTaskScheduler($messageSchedule, UpdateMessageScheduleRequestDTO $requestDTO): void
+    private function updateTaskScheduler(MessageScheduleEntity $messageSchedule, UpdateMessageScheduleRequestDTO $requestDTO): void
     {
         try {
             // Clear old task scheduler
@@ -547,10 +548,8 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Send message to agent (reference MessageQueueCompensationAppService::sendMessageToAgent).
-     * @param mixed $messageScheduleEntity
-     * @param mixed $topicEntity
      */
-    private function sendMessageToAgent($messageScheduleEntity, $topicEntity): array
+    private function sendMessageToAgent(MessageScheduleEntity $messageScheduleEntity, TopicEntity $topicEntity): array
     {
         try {
             // Convert message content

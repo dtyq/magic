@@ -112,9 +112,9 @@ interface TopicRepositoryInterface
      */
     public function countTopicsByProjectId(int $projectId): int;
 
-    public function getRunningWorkspaceIds(array $workspaceIds): array;
+    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array;
 
-    public function getRunningProjectIds(array $projectIds): array;
+    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array;
 
     // ======================= 消息回滚相关方法 =======================
 
