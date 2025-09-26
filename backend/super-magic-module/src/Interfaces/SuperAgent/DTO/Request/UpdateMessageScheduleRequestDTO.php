@@ -48,7 +48,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     /**
      * Status (0-disabled, 1-enabled).
      */
-    public int $status = 0;
+    public ?int $status = null;
 
     /**
      * Time configuration.
@@ -106,7 +106,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     /**
      * Get status.
      */
-    public function getStatus(): int
+    public function getStatus(): ?int
     {
         return $this->status;
     }

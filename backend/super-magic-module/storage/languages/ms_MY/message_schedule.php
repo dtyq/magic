@@ -4,7 +4,6 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-
 return [
     'not_found' => 'Jadual mesej tidak ditemui',
     'access_denied' => 'Anda tidak mempunyai kebenaran untuk mengakses jadual mesej ini',

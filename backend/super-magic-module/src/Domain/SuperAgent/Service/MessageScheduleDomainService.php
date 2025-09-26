@@ -119,7 +119,7 @@ class MessageScheduleDomainService
     {
         $messageSchedule = $this->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        return $this->messageScheduleRepository->delete($messageSchedule) !== null;
+        return $this->messageScheduleRepository->delete($messageSchedule);
     }
 
     /**
@@ -180,7 +180,8 @@ class MessageScheduleDomainService
             ->setUpdatedUid($dataIsolation->getCurrentUserId())
             ->setUpdatedAt(date('Y-m-d H:i:s'));
 
-        return $this->messageScheduleRepository->save($messageSchedule) !== null;
+        $this->messageScheduleRepository->save($messageSchedule);
+        return true;
     }
 
     /**
@@ -194,7 +195,8 @@ class MessageScheduleDomainService
             ->setUpdatedUid($dataIsolation->getCurrentUserId())
             ->setUpdatedAt(date('Y-m-d H:i:s'));
 
-        return $this->messageScheduleRepository->save($messageSchedule) !== null;
+        $this->messageScheduleRepository->save($messageSchedule);
+        return true;
     }
 
     /**

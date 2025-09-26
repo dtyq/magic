@@ -4,7 +4,6 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-
 return [
     'not_found' => '消息定时任务不存在',
     'access_denied' => '您没有权限访问此消息定时任务',
