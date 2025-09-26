@@ -818,6 +818,10 @@ class ProjectAppService extends AbstractAppService
         // 构建树状结构（登录用户模式特有功能）
         $tree = FileTreeUtil::assembleFilesTreeByParentId($list);
 
+        if ($result['total'] > 3000) {
+            $this->logger->error(sprintf('Project attachment list is too large, project ID: %d, total: %d', $requestDTO->getProjectId(), $result['total']));
+        }
+
         return [
             'total' => $result['total'],
             'list' => $list,
