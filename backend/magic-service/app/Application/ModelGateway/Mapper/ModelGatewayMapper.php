@@ -8,18 +8,16 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Mapper;
 
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\ModelGateway\Entity\ImageGenerationModelWrapper;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Service\AdminProviderDomainService;
-use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
-use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
@@ -52,34 +50,36 @@ class ModelGatewayMapper extends ModelMapper
      */
     protected array $rerank = [];
 
+    private ProviderManager $providerManager;
+
     public function __construct(protected ConfigInterface $config, LoggerFactory $loggerFactory)
     {
+        $this->providerManager = di(ProviderManager::class);
         $logger = $loggerFactory->get('ModelGatewayMapper');
         $this->models['chat'] = [];
         $this->models['embedding'] = [];
         parent::__construct($config, $logger);
 
-        // 这里具有优先级的顺序来覆盖配置,后续统一迁移到管理后台
         $this->loadEnvModels();
-        //        $this->loadFlowModels();
-        //        $this->loadApiModels();
     }
 
-    public function exists(string $model, ?string $orgCode = null): bool
+    public function exists(BaseDataIsolation $dataIsolation, string $model): bool
     {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         if (isset($this->models['chat'][$model]) || isset($this->models['embedding'][$model])) {
             return true;
         }
-        return (bool) $this->getByAdmin($model, $orgCode);
+        return (bool) $this->getByAdmin($dataIsolation, $model);
     }
 
     /**
      * 内部使用 chat 时，一定是使用该方法.
      * 会自动替代为本地代理模型.
      */
-    public function getChatModelProxy(string $model, ?string $orgCode = null): MagicAILocalModel
+    public function getChatModelProxy(BaseDataIsolation $dataIsolation, string $model): MagicAILocalModel
     {
-        $odinModel = $this->getOrganizationChatModel($model, $orgCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getOrganizationChatModel($dataIsolation, $model);
         if ($odinModel instanceof OdinModel) {
             $odinModel = $odinModel->getModel();
         }
@@ -93,10 +93,11 @@ class ModelGatewayMapper extends ModelMapper
      * 内部使用 embedding 时，一定是使用该方法.
      * 会自动替代为本地代理模型.
      */
-    public function getEmbeddingModelProxy(string $model, ?string $orgCode = null): MagicAILocalModel
+    public function getEmbeddingModelProxy(BaseDataIsolation $dataIsolation, string $model): MagicAILocalModel
     {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         /** @var AbstractModel $odinModel */
-        $odinModel = $this->getOrganizationEmbeddingModel($model, $orgCode);
+        $odinModel = $this->getOrganizationEmbeddingModel($dataIsolation, $model);
         if ($odinModel instanceof OdinModel) {
             $odinModel = $odinModel->getModel();
         }
@@ -112,9 +113,10 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 预期是管理后台的 model_id，过度阶段接受传入 model_version
      */
-    public function getOrganizationChatModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ModelInterface|OdinModel
+    public function getOrganizationChatModel(BaseDataIsolation $dataIsolation, string $model): ModelInterface|OdinModel
     {
-        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::LLM);
         if ($odinModel) {
             return $odinModel;
         }
@@ -126,18 +128,20 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 模型名称 预期是管理后台的 model_id，过度阶段接受 model_version
      */
-    public function getOrganizationEmbeddingModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): EmbeddingInterface|OdinModel
+    public function getOrganizationEmbeddingModel(BaseDataIsolation $dataIsolation, string $model): EmbeddingInterface|OdinModel
     {
-        $odinModel = $this->getByAdmin($model, $orgCode, $filter);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::EMBEDDING);
         if ($odinModel) {
             return $odinModel;
         }
         return $this->getEmbeddingModel($model);
     }
 
-    public function getOrganizationImageModel(string $model, ?string $orgCode = null, ?ModelFilter $filter = null): ?ImageModel
+    public function getOrganizationImageModel(BaseDataIsolation $dataIsolation, string $model): ?ImageModel
     {
-        $result = $this->getByAdmin($model, $orgCode, $filter, Category::VLM);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $result = $this->getByAdmin($dataIsolation, $model);
 
         // 只返回 ImageGenerationModelWrapper 类型的结果
         if ($result instanceof ImageModel) {
@@ -151,25 +155,27 @@ class ModelGatewayMapper extends ModelMapper
      * 获取当前组织下的所有可用 chat 模型.
      * @return OdinModel[]
      */
-    public function getChatModels(string $organizationCode, ?ModelFilter $filter = null): array
+    public function getChatModels(BaseDataIsolation $dataIsolation): array
     {
-        return $this->getModelsByType($organizationCode, 'chat', ModelType::LLM, $filter);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, ModelType::LLM);
     }
 
     /**
      * 获取当前组织下的所有可用 embedding 模型.
      * @return OdinModel[]
      */
-    public function getEmbeddingModels(string $organizationCode, ?ModelFilter $filter = null): array
+    public function getEmbeddingModels(BaseDataIsolation $dataIsolation): array
     {
-        return $this->getModelsByType($organizationCode, 'embedding', ModelType::EMBEDDING, $filter);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, ModelType::EMBEDDING);
     }
 
     /**
      * get all available image models under the current organization.
      * @return OdinModel[]
      */
-    public function getImageModels(string $organizationCode = ''): array
+    public function getImageModels(BaseDataIsolation $dataIsolation): array
     {
         $serviceProviderDomainService = di(AdminProviderDomainService::class);
         $officeModels = $serviceProviderDomainService->getOfficeModels(Category::VLM);
@@ -192,7 +198,7 @@ class ModelGatewayMapper extends ModelMapper
                 label: $model->getName() ?: 'Image Generation',
                 icon: $model->getIcon() ?: '',
                 tags: [['type' => 1, 'value' => 'Image Generation']],
-                createdAt: $model->getCreatedAt(),
+                createdAt: $model->getCreatedAt() ?? new DateTime(),
                 owner: 'MagicAI',
                 providerAlias: '',
                 providerModelId: (string) $model->getId()
@@ -252,16 +258,14 @@ class ModelGatewayMapper extends ModelMapper
 
     /**
      * 获取当前组织下指定类型的所有可用模型.
-     * @param string $organizationCode 组织代码
-     * @param string $type 模型类型(chat|embedding)
      * @return OdinModel[]
      */
-    private function getModelsByType(string $organizationCode, string $type, ?ModelType $modelType = null, ?ModelFilter $filter = null): array
+    private function getModelsByType(ModelGatewayDataIsolation $dataIsolation, ModelType $modelType): array
     {
         $list = [];
 
         // 获取已持久化的配置
-        $models = $this->getModels($type);
+        $models = $this->getModels($modelType->isLLM() ? 'chat' : 'embedding');
         foreach ($models as $name => $model) {
             switch ($modelType) {
                 case ModelType::LLM:
@@ -281,62 +285,73 @@ class ModelGatewayMapper extends ModelMapper
             $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
         }
 
-        if (! $filter) {
-            $filter = new ModelFilter();
-            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($organizationCode));
-        }
+        // 获取当前套餐下的可用模型
+        $availableModelIds = $dataIsolation->getSubscriptionManager()->getAvailableModelIds($modelType);
 
-        // 加载 provider 配置的所有模型
-        $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
-        $allModels = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, Category::LLM);
+        // 需要包含官方组织的数据
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
 
-        // 按模型类型过滤（如果指定了类型）
-        $providerModelData = [];
-        foreach ($allModels as $model) {
-            if ($modelType && $model->getModelType() !== $modelType) {
-                continue;
-            }
-            if (! $model->getStatus()?->isEnabled()) {
-                continue;
-            }
-            $providerModelData[] = $model;
-        }
+        // 加载 模型
+        $providerModels = $this->providerManager->getModelsByModelIds($providerDataIsolation, $availableModelIds, $modelType);
+
+        $modelLogs = [];
 
         $providerConfigIds = [];
-        foreach ($providerModelData as $providerModel) {
+        foreach ($providerModels as $providerModel) {
             $providerConfigIds[] = $providerModel->getServiceProviderConfigId();
+            $modelLogs[$providerModel->getModelId()] = [
+                'model_id' => $providerModel->getModelId(),
+                'provider_config_id' => (string) $providerModel->getServiceProviderConfigId(),
+                'is_office' => $providerModel->isOffice(),
+            ];
         }
         $providerConfigIds = array_unique($providerConfigIds);
 
-        // 获取 服务商 配置
-        $providerConfigs = di(ProviderConfigDomainService::class)->getConfigByIdsWithoutOrganizationFilter($providerConfigIds);
+        // 加载 服务商配置
+        $providerConfigs = $this->providerManager->getProviderConfigsByIds($providerDataIsolation, $providerConfigIds);
         $providerIds = [];
         foreach ($providerConfigs as $providerConfig) {
             $providerIds[] = $providerConfig->getServiceProviderId();
         }
-        $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
+
         // 获取 服务商
-        $providers = di(ProviderConfigDomainService::class)->getProviderByIds($providerDataIsolation, $providerIds);
+        $providers = $this->providerManager->getProvidersByIds($providerDataIsolation, $providerIds);
 
         // 组装数据
-        foreach ($providerModelData as $providerModel) {
+        foreach ($providerModels as $providerModel) {
             if (! $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig not found';
                 continue;
             }
             if (! $providerConfig->getStatus()->isEnabled()) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig disabled';
                 continue;
             }
             if (! $provider = $providers[$providerConfig->getServiceProviderId()] ?? null) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'Provider not found';
                 continue;
             }
-
-            // 创建配置
-            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider, $filter);
+            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider);
             if (! $model) {
+                $modelLogs[$providerModel->getModelId()]['error'] = 'Model disabled or invalid';
                 continue;
             }
             $list[$model->getAttributes()->getKey()] = $model;
         }
+
+        // 按照 $availableModelIds 排序
+        if ($availableModelIds !== null) {
+            $orderedList = [];
+            foreach ($availableModelIds as $modelId) {
+                if (isset($list[$modelId])) {
+                    $orderedList[$modelId] = $list[$modelId];
+                }
+            }
+            $list = $orderedList;
+        }
+
+        $this->logger->info('检索到模型', $modelLogs);
 
         return $list;
     }
@@ -346,52 +361,9 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
-        ModelFilter $filter
     ): null|ImageModel|OdinModel {
-        $checkVisibleApplication = $filter->isCheckVisibleApplication() ?? true;
-        $checkVisiblePackage = $filter->isCheckVisiblePackage() ?? true;
-
-        // 如果是官方组织的数据隔离，则不需要检查可见性
-        if ($providerDataIsolation->isOfficialOrganization()) {
-            $checkVisibleApplication = false;
-            $checkVisiblePackage = false;
-        }
-
-        // 套餐、应用，采用或的关系
-        $hasVisibleApplications = $checkVisibleApplication && $providerModelEntity->getVisibleApplications();
-        $hasVisiblePackages = $checkVisiblePackage && $providerModelEntity->getVisiblePackages();
-
-        // 如果配置了可见性检查，使用或的关系判断
-        if ($hasVisibleApplications || $hasVisiblePackages) {
-            $applicationMatched = false;
-            $packageMatched = false;
-
-            // 检查应用可见性（只有配置了才检查）
-            if ($hasVisibleApplications) {
-                $applicationMatched = in_array($filter->getAppId(), $providerModelEntity->getVisibleApplications(), true);
-            }
-
-            // 检查套餐可见性（只有配置了才检查）
-            if ($hasVisiblePackages) {
-                $packageMatched = in_array($filter->getCurrentPackage(), $providerModelEntity->getVisiblePackages(), true);
-            }
-
-            // 只要满足其中一个已配置的条件即可通过
-            $shouldAllow = false;
-            if ($hasVisibleApplications && $hasVisiblePackages) {
-                // 两个都配置了，满足任意一个即可
-                $shouldAllow = $applicationMatched || $packageMatched;
-            } elseif ($hasVisibleApplications) {
-                // 只配置了应用可见性
-                $shouldAllow = $applicationMatched;
-            } elseif ($hasVisiblePackages) {
-                // 只配置了套餐可见性
-                $shouldAllow = $packageMatched;
-            }
-
-            if (! $shouldAllow) {
-                return null;
-            }
+        if (! $providerDataIsolation->isOfficialOrganization() && (! $providerModelEntity->getStatus()->isEnabled() || ! $providerConfigEntity->getStatus()->isEnabled())) {
+            return null;
         }
 
         $chat = false;
@@ -475,54 +447,48 @@ class ModelGatewayMapper extends ModelMapper
         );
     }
 
-    private function getByAdmin(string $model, ?string $orgCode = null, ?ModelFilter $filter = null, Category $category = Category::LLM): null|ImageModel|OdinModel
+    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): null|ImageModel|OdinModel
     {
-        if (! $filter) {
-            $filter = new ModelFilter();
-            $filter->setCurrentPackage(di(PackageFilterInterface::class)->getCurrentPackage($orgCode ?? ''));
-        }
-
-        $providerDataIsolation = ProviderDataIsolation::create($orgCode ?? '');
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
-        if (is_null($orgCode)) {
-            $providerDataIsolation->disabled();
+
+        // 检查当前套餐是否有这个模型的使用权限
+        if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($model, $modelType)) {
+            $this->logger->info('模型不在可用名单', ['model' => $model, 'model_type' => $modelType?->value]);
+            return null;
         }
 
-        // 直接调用仓储层获取所有可用模型（已包含套餐可见性过滤）
-        $modelsForOrganization = di(ProviderModelRepositoryInterface::class)->getModelsForOrganization($providerDataIsolation, $category);
-
-        // 在可用模型中查找指定模型
-        $providerModelEntity = null;
-        foreach ($modelsForOrganization as $availableModel) {
-            if ($availableModel->getModelId() === $model || (string) $availableModel->getId() === $model) {
-                $providerModelEntity = $availableModel;
-                break;
-            }
-        }
-
+        // 获取模型
+        $providerModelEntity = $this->providerManager->getModelByModelIdOrId($providerDataIsolation, $model);
         if (! $providerModelEntity) {
+            $this->logger->info('模型不存在', ['model' => $model]);
+            return null;
+        }
+        if (! $dataIsolation->isOfficialOrganization() && ! $providerModelEntity->getStatus()->isEnabled()) {
+            $this->logger->info('模型被禁用', ['model' => $model]);
             return null;
         }
 
-        if (! $providerModelEntity->getStatus()?->isEnabled()) {
-            return null;
-        }
-
-        $providerConfigEntity = di(ProviderConfigDomainService::class)->getConfigByIdWithoutOrganizationFilter($providerModelEntity->getServiceProviderConfigId());
+        // 获取配置
+        $providerConfigEntity = $this->providerManager->getProviderConfigsByIds($providerDataIsolation, [$providerModelEntity->getServiceProviderConfigId()])[$providerModelEntity->getServiceProviderConfigId()] ?? null;
         if (! $providerConfigEntity) {
+            $this->logger->info('服务商配置不存在', ['model' => $model, 'provider_config_id' => $providerModelEntity->getServiceProviderConfigId()]);
+            return null;
+        }
+        if (! $dataIsolation->isOfficialOrganization() && ! $providerConfigEntity->getStatus()->isEnabled()) {
+            $this->logger->info('服务商配置被禁用', ['model' => $model, 'provider_config_id' => $providerModelEntity->getServiceProviderConfigId()]);
             return null;
         }
 
-        if (! $providerConfigEntity->getStatus()->isEnabled()) {
-            return null;
-        }
+        // 获取服务商
+        $providerEntity = $this->providerManager->getProvidersByIds($providerDataIsolation, [$providerConfigEntity->getServiceProviderId()])[$providerConfigEntity->getServiceProviderId()] ?? null;
 
-        $providerEntity = di(ProviderConfigDomainService::class)->getProviderById($providerDataIsolation, $providerConfigEntity->getServiceProviderId());
         if (! $providerEntity) {
+            $this->logger->info('服务商不存在', ['model' => $model, 'provider_id' => $providerConfigEntity->getServiceProviderId()]);
             return null;
         }
 
-        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity, $filter);
+        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
     }
 
     private function createProxy(string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel

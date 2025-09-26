@@ -192,8 +192,10 @@ use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PHPExecutorInterface;
 use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PythonExecutorInterface;
 use App\Infrastructure\Core\Contract\Session\SessionInterface;
 use App\Infrastructure\Core\DataIsolation\BaseHandleDataIsolation;
+use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
 use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
 use App\Infrastructure\Core\DataIsolation\HandleDataIsolationInterface;
+use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
 use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInterface;
 use App\Infrastructure\Core\Embeddings\DocumentSplitter\DocumentSplitterInterface;
 use App\Infrastructure\Core\Embeddings\DocumentSplitter\OdinRecursiveCharacterTextSplitter;
@@ -336,6 +338,7 @@ $dependencies = [
     OrganizationConfigRepositoryInterface::class => OrganizationConfigRepository::class,
     UserConfigRepositoryInterface::class => UserConfigRepository::class,
     MsgLogRepositoryInterface::class => MsgLogRepository::class,
+    SubscriptionManagerInterface::class => BaseSubscriptionManager::class,
 
     // embeddings
     EmbeddingGeneratorInterface::class => OdinEmbeddingGenerator::class,

@@ -84,9 +84,9 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
      */
     public function queries(ProviderDataIsolation $dataIsolation, ProviderConfigQuery $query, Page $page): array
     {
-        $builder = $this->createConfigQuery()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
+        $builder = $this->createBuilder($dataIsolation, ProviderConfigModel::query());
 
-        if ($query->getStatus()) {
+        if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
         if (! is_null($query->getIds())) {
@@ -101,14 +101,16 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
         $list = [];
         /** @var ProviderConfigModel $model */
         foreach ($result['list'] as $model) {
-            $modelArray = $model->toArray();
-            $list[] = ProviderConfigAssembler::toEntity($modelArray);
+            $entity = ProviderConfigAssembler::toEntity($model->toArray());
+            if ($query->getKeyBy() === 'id') {
+                $list[$entity->getId()] = $entity;
+            } else {
+                $list[] = $entity;
+            }
         }
+        $result['list'] = $list;
 
-        return [
-            'total' => $result['total'],
-            'list' => $list,
-        ];
+        return $result;
     }
 
     public function save(ProviderDataIsolation $dataIsolation, ProviderConfigEntity $providerConfigEntity): ProviderConfigEntity
