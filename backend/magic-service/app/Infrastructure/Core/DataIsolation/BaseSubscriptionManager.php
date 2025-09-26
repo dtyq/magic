@@ -14,6 +14,8 @@ use App\Domain\Provider\Entity\ValueObject\ModelType;
  */
 class BaseSubscriptionManager implements SubscriptionManagerInterface
 {
+    protected bool $enabled = false;
+
     private string $currentSubscriptionId;
 
     private array $currentSubscriptionInfo;
@@ -28,9 +30,14 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
         $this->currentSubscriptionInfo = $subscriptionInfo;
     }
 
-    public function enabled(): bool
+    public function isEnabled(): bool
     {
-        return false;
+        return $this->enabled;
+    }
+
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
     }
 
     public function getCurrentSubscriptionInfo(): array
