@@ -22,6 +22,18 @@ class ProviderQuery extends Query
 
     protected ?ProviderType $providerType = null;
 
+    protected ?array $ids = null;
+
+    public function getIds(): ?array
+    {
+        return $this->ids;
+    }
+
+    public function setIds(?array $ids): void
+    {
+        $this->ids = $ids;
+    }
+
     public function getCategory(): ?Category
     {
         return $this->category;

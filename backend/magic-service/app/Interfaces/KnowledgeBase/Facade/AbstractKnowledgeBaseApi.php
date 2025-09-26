@@ -13,6 +13,7 @@ use App\Application\KnowledgeBase\Service\KnowledgeBaseDocumentAppService;
 use App\Application\KnowledgeBase\Service\KnowledgeBaseFragmentAppService;
 use App\Application\KnowledgeBase\Service\Strategy\KnowledgeBase\KnowledgeBaseStrategyInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Application\ModelGateway\Service\LLMAppService;
 use App\Infrastructure\Core\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -26,6 +27,7 @@ abstract class AbstractKnowledgeBaseApi extends AbstractApi
         protected ModelGatewayMapper $modelGatewayMapper,
         protected FileAppService $fileAppService,
         protected KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
+        protected LLMAppService $llmAppService,
     ) {
         parent::__construct($request);
     }

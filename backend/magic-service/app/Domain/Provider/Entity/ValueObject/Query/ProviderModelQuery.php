@@ -27,6 +27,18 @@ class ProviderModelQuery extends Query
 
     protected bool $isModelIdFilter = false;
 
+    protected ?array $modelIds = null;
+
+    public function getModelIds(): ?array
+    {
+        return $this->modelIds;
+    }
+
+    public function setModelIds(?array $modelIds): void
+    {
+        $this->modelIds = $modelIds;
+    }
+
     public function getSuperMagicDisplay(): ?bool
     {
         return $this->superMagicDisplay;

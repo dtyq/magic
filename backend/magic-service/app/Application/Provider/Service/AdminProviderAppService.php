@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Service;
 
-use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
@@ -533,14 +532,7 @@ readonly class AdminProviderAppService
             'source_id' => 'connectivity_test',
         ]);
         try {
-            $modelFilter = new ModelFilter(
-                checkModelEnabled: false,
-                checkProviderEnabled: false,
-                checkVisibleOrganization: false,
-                checkVisibleApplication: false,
-                checkVisiblePackage: false
-            );
-            $llmAppService->embeddings($proxyModelRequest, $modelFilter);
+            $llmAppService->embeddings($proxyModelRequest);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
             $connectResponse->setMessage($exception->getMessage());
@@ -568,14 +560,7 @@ readonly class AdminProviderAppService
         ]);
         /* @var ChatCompletionResponse $response */
         try {
-            $modelFilter = new ModelFilter(
-                checkModelEnabled: false,
-                checkProviderEnabled: false,
-                checkVisibleOrganization: false,
-                checkVisibleApplication: false,
-                checkVisiblePackage: false
-            );
-            $llmAppService->chatCompletion($completionDTO, $modelFilter);
+            $llmAppService->chatCompletion($completionDTO);
         } catch (Exception $exception) {
             $connectResponse->setStatus(false);
             $connectResponse->setMessage($exception->getMessage());

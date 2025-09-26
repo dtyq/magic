@@ -11,11 +11,13 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 readonly class ProviderModelDomainService
@@ -29,6 +31,11 @@ readonly class ProviderModelDomainService
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
         return $this->providerModelRepository->getById($dataIsolation, $id);
+    }
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getByModelId($dataIsolation, $modelId);
     }
 
     /**
@@ -139,5 +146,13 @@ readonly class ProviderModelDomainService
     public function getModelsByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
     {
         return $this->providerModelRepository->getByModelIds($dataIsolation, $modelIds);
+    }
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
+    {
+        return $this->providerModelRepository->queries($dataIsolation, $query, $page);
     }
 }
