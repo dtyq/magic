@@ -182,4 +182,12 @@ interface TopicRepositoryInterface
      * @return array 撤回状态的消息seq_ids
      */
     public function getRevokedSeqIdsByTopicId(int $topicId, string $userId): array;
+
+    /**
+     * Batch get topic names by IDs.
+     *
+     * @param array $topicIds Topic ID array
+     * @return array ['topic_id' => 'topic_name'] key-value pairs
+     */
+    public function getTopicNamesBatch(array $topicIds): array;
 }

@@ -646,4 +646,19 @@ class TopicDomainService
         // 使用仓储层查询统计数据
         return $this->topicRepository->getTopicStatusMetrics($conditions);
     }
+
+    /**
+     * Batch get topic names by IDs.
+     *
+     * @param array $topicIds Topic ID array
+     * @return array ['topic_id' => 'topic_name'] key-value pairs
+     */
+    public function getTopicNamesBatch(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        return $this->topicRepository->getTopicNamesBatch($topicIds);
+    }
 }

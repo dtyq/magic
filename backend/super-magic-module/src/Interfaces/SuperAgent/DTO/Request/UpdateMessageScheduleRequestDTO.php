@@ -46,9 +46,14 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     public array $messageContent = [];
 
     /**
-     * Status (0-disabled, 1-enabled).
+     * Enabled status (0-disabled, 1-enabled).
      */
-    public ?int $status = null;
+    public ?int $enabled = null;
+
+    /**
+     * Deadline time.
+     */
+    public ?string $deadline = null;
 
     /**
      * Time configuration.
@@ -104,11 +109,35 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     }
 
     /**
-     * Get status.
+     * Get completed status (always returns null - not modifiable by client).
      */
-    public function getStatus(): ?int
+    public function getCompleted(): ?int
     {
-        return $this->status;
+        return null; // Always return null - no client modification allowed
+    }
+
+    /**
+     * Get enabled status.
+     */
+    public function getEnabled(): ?int
+    {
+        return $this->enabled;
+    }
+
+    /**
+     * Get deadline.
+     */
+    public function getDeadline(): ?string
+    {
+        return $this->deadline;
+    }
+
+    /**
+     * Get remark (always returns null - not modifiable by client).
+     */
+    public function getRemark(): ?string
+    {
+        return null; // Always return null - no client modification allowed
     }
 
     /**
@@ -145,7 +174,8 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
             'topic_id' => 'nullable|string',
             'message_type' => 'nullable|string|max:64',
             'message_content' => 'nullable|array',
-            'status' => 'nullable|integer|in:0,1',
+            'enabled' => 'nullable|integer|in:0,1',
+            'deadline' => 'nullable|date_format:Y-m-d H:i:s',
             'time_config' => 'nullable|array',
             'time_config.type' => [
                 'required_with:time_config',
@@ -172,8 +202,9 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
             'message_type.string' => 'Message type must be a string',
             'message_type.max' => 'Message type cannot exceed 64 characters',
             'message_content.array' => 'Message content must be an array',
-            'status.integer' => 'Status must be an integer',
-            'status.in' => 'Status must be 0 or 1',
+            'enabled.integer' => 'Enabled must be an integer',
+            'enabled.in' => 'Enabled must be 0 or 1',
+            'deadline.date_format' => 'Deadline must be in Y-m-d H:i:s format',
             'time_config.array' => 'Time configuration must be an array',
             'time_config.type.required_with' => 'Time configuration type is required when time configuration is provided',
             'time_config.type.string' => 'Time configuration type must be a string',

@@ -367,6 +367,21 @@ class ProjectDomainService
     }
 
     /**
+     * Batch get project names by IDs.
+     *
+     * @param array $projectIds Project ID array
+     * @return array ['project_id' => 'project_name'] key-value pairs
+     */
+    public function getProjectNamesBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->projectRepository->getProjectNamesBatch($projectIds);
+    }
+
+    /**
      * Create forked project from source project.
      */
     private function createForkedProjectFromSource(

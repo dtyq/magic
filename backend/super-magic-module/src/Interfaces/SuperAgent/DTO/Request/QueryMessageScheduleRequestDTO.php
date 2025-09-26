@@ -46,9 +46,14 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
     public string $taskName = '';
 
     /**
-     * Status filter.
+     * Completed filter.
      */
-    public ?int $status = null;
+    public ?int $completed = null;
+
+    /**
+     * Enabled filter.
+     */
+    public ?int $enabled = null;
 
     /**
      * Order by field.
@@ -109,11 +114,19 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
     }
 
     /**
-     * Get status.
+     * Get completed.
      */
-    public function getStatus(): ?int
+    public function getCompleted(): ?int
     {
-        return $this->status;
+        return $this->completed;
+    }
+
+    /**
+     * Get enabled.
+     */
+    public function getEnabled(): ?int
+    {
+        return $this->enabled;
     }
 
     /**
@@ -158,8 +171,12 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
             $conditions['task_name_like'] = $this->taskName;
         }
 
-        if ($this->status !== null) {
-            $conditions['status'] = $this->status;
+        if ($this->completed !== null) {
+            $conditions['completed'] = $this->completed;
+        }
+
+        if ($this->enabled !== null) {
+            $conditions['enabled'] = $this->enabled;
         }
 
         return $conditions;
@@ -177,8 +194,9 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
             'project_id' => 'nullable|string',
             'topic_id' => 'nullable|string',
             'task_name' => 'nullable|string|max:255',
-            'status' => 'nullable|integer|in:0,1',
-            'order_by' => 'nullable|string|in:id,task_name,status,created_at,updated_at',
+            'completed' => 'nullable|integer|in:0,1',
+            'enabled' => 'nullable|integer|in:0,1',
+            'order_by' => 'nullable|string|in:id,task_name,completed,enabled,created_at,updated_at',
             'order_direction' => 'nullable|string|in:asc,desc',
         ];
     }
@@ -199,10 +217,12 @@ class QueryMessageScheduleRequestDTO extends AbstractRequestDTO
             'topic_id.string' => 'Topic ID must be a string',
             'task_name.string' => 'Task name must be a string',
             'task_name.max' => 'Task name cannot exceed 255 characters',
-            'status.integer' => 'Status must be an integer',
-            'status.in' => 'Status must be 0 or 1',
+            'completed.integer' => 'Completed must be an integer',
+            'completed.in' => 'Completed must be 0 or 1',
+            'enabled.integer' => 'Enabled must be an integer',
+            'enabled.in' => 'Enabled must be 0 or 1',
             'order_by.string' => 'Order by must be a string',
-            'order_by.in' => 'Order by must be one of: id, task_name, status, created_at, updated_at',
+            'order_by.in' => 'Order by must be one of: id, task_name, completed, enabled, created_at, updated_at',
             'order_direction.string' => 'Order direction must be a string',
             'order_direction.in' => 'Order direction must be asc or desc',
         ];

@@ -69,7 +69,10 @@ class MessageScheduleDomainService
         int $workspaceId,
         int $projectId,
         int $topicId,
-        int $status,
+        int $completed,
+        int $enabled,
+        ?string $deadline,
+        string $remark,
         array $timeConfig
     ): MessageScheduleEntity {
         $currentTime = date('Y-m-d H:i:s');
@@ -85,7 +88,10 @@ class MessageScheduleDomainService
             ->setWorkspaceId($workspaceId)
             ->setProjectId($projectId)
             ->setTopicId($topicId)
-            ->setStatus($status)
+            ->setCompleted($completed)
+            ->setEnabled($enabled)
+            ->setDeadline($deadline)
+            ->setRemark($remark)
             ->setTimeConfig($timeConfig)
             ->setCreatedUid($userId)
             ->setUpdatedUid($userId)
@@ -130,14 +136,16 @@ class MessageScheduleDomainService
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'updated_at',
-        string $orderDirection = 'desc'
+        string $orderDirection = 'desc',
+        array $selectFields = []
     ): array {
         return $this->messageScheduleRepository->getMessageSchedulesByConditions(
             $conditions,
             $page,
             $pageSize,
             $orderBy,
-            $orderDirection
+            $orderDirection,
+            $selectFields
         );
     }
 

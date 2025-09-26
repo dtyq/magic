@@ -19,6 +19,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
+use DateTime;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
@@ -31,6 +32,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleReques
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TimeConfigDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleListItemDTO;
 use Dtyq\TaskScheduler\Entity\TaskScheduler;
 use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
@@ -118,13 +120,22 @@ class MessageScheduleAppService extends AbstractAppService
                 (int) $requestDTO->getWorkspaceId(),
                 (int) $requestDTO->getProjectId(),
                 (int) $requestDTO->getTopicId(),
-                $requestDTO->getStatus(),
+                $requestDTO->getCompleted(),
+                $requestDTO->getEnabled(),
+                $requestDTO->getDeadline(),
+                $requestDTO->getRemark(),
                 $requestDTO->getTimeConfig()
             );
 
             // 2.2 Create task scheduler
             $timeConfigDTO = $requestDTO->createTimeConfigDTO();
-            $taskSchedulerId = $this->createTaskScheduler($messageSchedule->getId(), $timeConfigDTO, $messageSchedule->isEnabled());
+            $taskSchedulerId = $this->createTaskScheduler(
+                $messageSchedule->getId(),
+                $timeConfigDTO,
+                $messageSchedule->isEnabled(),
+                $requestDTO->getDeadline(), // Priority deadline from request
+                $requestDTO->getTaskName() // Task name from request
+            );
 
             // 2.3 Update task_scheduler_crontab_id
             if ($taskSchedulerId) {
@@ -138,7 +149,7 @@ class MessageScheduleAppService extends AbstractAppService
     }
 
     /**
-     * Query schedules.
+     * Query schedules (optimized for list queries with limited fields).
      */
     public function querySchedules(RequestContext $requestContext, QueryMessageScheduleRequestDTO $requestDTO): array
     {
@@ -149,18 +160,57 @@ class MessageScheduleAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode()
         );
 
+        // Define specific fields for list queries to optimize performance
+        $listFields = [
+            'id', 'user_id', 'organization_code', 'task_name',
+            'workspace_id', 'project_id', 'topic_id',
+            'completed', 'enabled', 'deadline', 'updated_at',
+        ];
+
+        // Use existing method with specific fields for list queries
         $result = $this->messageScheduleDomainService->getMessageSchedulesByConditions(
             $conditions,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
             $requestDTO->getOrderBy(),
-            $requestDTO->getOrderDirection()
+            $requestDTO->getOrderDirection(),
+            $listFields
         );
 
-        // Convert entities to DTOs
+        // Extract unique IDs for batch name fetching
+        $workspaceIds = [];
+        $projectIds = [];
+        $topicIds = [];
+
+        foreach ($result['list'] as $entity) {
+            $workspaceIds[] = $entity->getWorkspaceId();
+            if ($entity->getProjectId()) {
+                $projectIds[] = $entity->getProjectId();
+            }
+            if ($entity->getTopicId()) {
+                $topicIds[] = $entity->getTopicId();
+            }
+        }
+
+        // Remove duplicates
+        $workspaceIds = array_unique($workspaceIds);
+        $projectIds = array_unique($projectIds);
+        $topicIds = array_unique($topicIds);
+
+        // Batch get names
+        $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
+        $projectNameMap = $this->projectDomainService->getProjectNamesBatch($projectIds);
+        $topicNameMap = $this->topicDomainService->getTopicNamesBatch($topicIds);
+
+        // Convert entities to DTOs with names
         $list = [];
         foreach ($result['list'] as $entity) {
-            $list[] = MessageScheduleItemDTO::fromEntity($entity)->toArray();
+            $workspaceName = $workspaceNameMap[$entity->getWorkspaceId()] ?? '';
+            $projectName = $entity->getProjectId() ? ($projectNameMap[$entity->getProjectId()] ?? '') : '';
+            $topicName = $entity->getTopicId() ? ($topicNameMap[$entity->getTopicId()] ?? '') : '';
+
+            $dto = MessageScheduleListItemDTO::fromEntity($entity, $workspaceName, $projectName, $topicName);
+            $list[] = $dto->toArray();
         }
 
         return [
@@ -231,15 +281,22 @@ class MessageScheduleAppService extends AbstractAppService
                 $messageSchedule->setMessageContent($requestDTO->getMessageContent());
             }
 
-            // Check if status changed to disabled or time config changed
-            if ($requestDTO->getStatus() !== null) {
-                $oldStatus = $messageSchedule->getStatus();
-                $messageSchedule->setStatus($requestDTO->getStatus());
+            // Check if status fields changed
+            if ($requestDTO->getEnabled() !== null) {
+                $oldEnabled = $messageSchedule->getEnabled();
+                $messageSchedule->setEnabled($requestDTO->getEnabled());
 
-                if ($oldStatus !== $requestDTO->getStatus()) {
+                if ($oldEnabled !== $requestDTO->getEnabled()) {
                     $needUpdateTaskScheduler = true;
                 }
             }
+
+            if ($requestDTO->getDeadline() !== null) {
+                $messageSchedule->setDeadline($requestDTO->getDeadline());
+            }
+
+            // Note: completed and remark fields are not modifiable by client
+            // They always return fixed values (null for updates) and will not be processed
 
             // Check if time configuration really changed
             $oldTimeConfig = $messageSchedule->getTimeConfig();
@@ -373,7 +430,7 @@ class MessageScheduleAppService extends AbstractAppService
     /**
      * Create task scheduler based on time configuration.
      */
-    private function createTaskScheduler(int $messageScheduleId, TimeConfigDTO $timeConfigDTO, bool $enabled = true): ?int
+    private function createTaskScheduler(int $messageScheduleId, TimeConfigDTO $timeConfigDTO, bool $enabled = true, ?string $priorityDeadline = null, ?string $taskName = null): ?int
     {
         try {
             $taskConfig = TaskConfigAssembler::assembleFromDTO($timeConfigDTO);
@@ -387,7 +444,7 @@ class MessageScheduleAppService extends AbstractAppService
                 // One-time task: write directly to task_scheduler
                 $task = new TaskScheduler();
                 $task->setExternalId($externalId);
-                $task->setName("Message Schedule {$messageScheduleId}");
+                $task->setName($taskName ?: "Message Schedule {$messageScheduleId}");
                 $task->setExpectTime($taskConfig->getDatetime());
                 $task->setType(2);
                 $task->setRetryTimes(3);
@@ -401,13 +458,20 @@ class MessageScheduleAppService extends AbstractAppService
             // Recurring task: write to task_scheduler_crontab
             $crontab = new TaskSchedulerCrontab();
             $crontab->setExternalId($externalId);
-            $crontab->setName("Message Schedule {$messageScheduleId}");
+            $crontab->setName($taskName ?: "Message Schedule {$messageScheduleId}");
             $crontab->setCrontab($taskConfig->getCrontabRule());
             $crontab->setEnabled($enabled);
             $crontab->setRetryTimes(3);
             $crontab->setCallbackMethod($callbackMethod);
             $crontab->setCallbackParams($callbackParams);
-            $crontab->setDeadline($taskConfig->getDeadline());
+            // Use priority deadline if provided, otherwise use timeConfig deadline
+            $finalDeadline = null;
+            if (! empty($priorityDeadline)) {
+                $finalDeadline = new DateTime($priorityDeadline);
+            } elseif ($taskConfig->getDeadline()) {
+                $finalDeadline = $taskConfig->getDeadline();
+            }
+            $crontab->setDeadline($finalDeadline);
             $crontab->setCreator('system');
 
             $this->taskSchedulerDomainService->createCrontab($crontab);
@@ -433,6 +497,7 @@ class MessageScheduleAppService extends AbstractAppService
     {
         try {
             // Clear old task scheduler
+            $taskSchedulerId = null;
             if ($messageSchedule->hasTaskScheduler()) {
                 $this->deleteTaskScheduler($messageSchedule->getId());
             }
@@ -446,12 +511,16 @@ class MessageScheduleAppService extends AbstractAppService
                 $timeConfigDTO->time = $timeConfig['time'] ?? '';
                 $timeConfigDTO->value = $timeConfig['value'] ?? [];
 
-                $taskSchedulerId = $this->createTaskScheduler($messageSchedule->getId(), $timeConfigDTO, $messageSchedule->isEnabled());
-
-                if ($taskSchedulerId) {
-                    $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
-                }
+                $taskSchedulerId = $this->createTaskScheduler(
+                    $messageSchedule->getId(),
+                    $timeConfigDTO,
+                    $messageSchedule->isEnabled(),
+                    $messageSchedule->getDeadline(), // Use updated deadline from messageSchedule
+                    $messageSchedule->getTaskName() // Use updated task name from messageSchedule
+                );
             }
+
+            $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
         } catch (Throwable $e) {
             $this->logger->error('Failed to update task scheduler', [
                 'message_schedule_id' => $messageSchedule->getId(),

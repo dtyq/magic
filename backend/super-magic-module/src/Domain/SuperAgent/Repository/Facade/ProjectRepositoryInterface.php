@@ -64,4 +64,12 @@ interface ProjectRepositoryInterface
      * @return array 项目ID列表
      */
     public function getProjectIdsByWorkspaceId(int $workspaceId, string $userId, string $organizationCode): array;
+
+    /**
+     * Batch get project names by IDs.
+     *
+     * @param array $projectIds Project ID array
+     * @return array ['project_id' => 'project_name'] key-value pairs
+     */
+    public function getProjectNamesBatch(array $projectIds): array;
 }

@@ -639,6 +639,29 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
+     * Batch get topic names by IDs.
+     */
+    public function getTopicNamesBatch(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->whereIn('id', $topicIds)
+            ->whereNull('deleted_at')
+            ->select(['id', 'topic_name'])
+            ->get();
+
+        $topicNames = [];
+        foreach ($results as $result) {
+            $topicNames[(string) $result->id] = $result->topic_name;
+        }
+
+        return $topicNames;
+    }
+
+    /**
      * 将数据库模型数据转换为实体数据.
      * @param array $modelData 模型数据
      * @return array 实体数据
