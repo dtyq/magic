@@ -16,9 +16,9 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
 {
     protected bool $enabled = false;
 
-    private string $currentSubscriptionId;
+    private string $currentSubscriptionId = '';
 
-    private array $currentSubscriptionInfo;
+    private array $currentSubscriptionInfo = [];
 
     public function __construct(
     ) {
