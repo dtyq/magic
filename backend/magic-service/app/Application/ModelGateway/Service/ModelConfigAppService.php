@@ -8,9 +8,9 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\Kernel\SuperPermissionEnum;
-use App\Application\ModelGateway\Mapper\ModelFilter;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\Query\ModelConfigQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -68,8 +68,9 @@ class ModelConfigAppService extends AbstractLLMAppService
      */
     public function getChatModelTypeByFallbackChain(string $orgCode, string $modelType = '', array $modelFallbackChain = []): string
     {
+        $dataIsolation = ModelGatewayDataIsolation::create($orgCode);
         // 从组织可用的模型列表中获取所有可聊天的模型
-        $odinModels = di(ModelGatewayMapper::class)->getChatModels($orgCode, new ModelFilter()) ?? [];
+        $odinModels = di(ModelGatewayMapper::class)->getChatModels($dataIsolation) ?? [];
         $chatModelsName = array_keys($odinModels);
         if (empty($chatModelsName)) {
             return '';

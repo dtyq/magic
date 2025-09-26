@@ -64,9 +64,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
             if (! $modelId) {
                 // 优先使用配置的模型
                 $modelId = EmbeddingGenerator::defaultModel();
-                if (! $modelGatewayMapper->exists($modelId, $dataIsolation->getCurrentOrganizationCode())) {
+                if (! $modelGatewayMapper->exists($dataIsolation, $modelId)) {
                     // 获取第一个
-                    $firstEmbeddingModel = $modelGatewayMapper->getEmbeddingModels($dataIsolation->getCurrentOrganizationCode())[0] ?? null;
+                    $firstEmbeddingModel = $modelGatewayMapper->getEmbeddingModels($dataIsolation)[0] ?? null;
                     $modelId = $firstEmbeddingModel?->getKey();
                 }
                 // 更新嵌入配置model_id
@@ -86,7 +86,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $magicFlowKnowledgeEntity->setForceCreateCode(Code::Knowledge->gen());
         // 创建知识库前，先对嵌入模型进行连通性测试
         try {
-            $embeddingModel = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($magicFlowKnowledgeEntity->getModel(), $dataIsolation->getCurrentOrganizationCode());
+            $embeddingModel = di(ModelGatewayMapper::class)->getEmbeddingModelProxy($dataIsolation, $magicFlowKnowledgeEntity->getModel());
             $modelName = $embeddingModel->getModelName();
             $embeddingResult = $embeddingModel->embedding(
                 'test.' . uniqid(),
