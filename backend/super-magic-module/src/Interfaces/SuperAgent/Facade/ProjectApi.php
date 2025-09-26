@@ -166,7 +166,7 @@ class ProjectApi extends AbstractApi
         // 使用 fromRequest 方法从请求中创建 DTO，这样可以从路由参数中获取 project_id
         $dto = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
         // 临时解决用户使用上限问题
-        $dto->setPageSize(3000);
+        $dto->setPageSize(10000);
         if (! empty($dto->getToken())) {
             // 走令牌校验的逻辑
             return $this->projectAppService->getProjectAttachmentsByAccessToken($dto);
