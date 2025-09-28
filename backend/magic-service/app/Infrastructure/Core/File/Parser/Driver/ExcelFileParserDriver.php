@@ -44,7 +44,7 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
                     $csvRow = array_map(fn ($cell) => $this->formatCsvCell((string) $cell), $row);
                     // Check if the entire row is empty (empty strings or #N/A)
                     if ($this->isEmptyRow($csvRow)) {
-                        $consecutiveEmptyRows++;
+                        ++$consecutiveEmptyRows;
                         // If we have 10 consecutive empty rows, stop processing
                         if ($consecutiveEmptyRows >= 10) {
                             break;
@@ -86,17 +86,17 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
                         $cellValue = $worksheet->getCell($col . $row)->getValue();
                         $rowData[] = $this->formatCsvCell(strval($cellValue ?? ''));
                     }
-                    
+
                     // Check if the entire row is empty (empty strings or #N/A)
                     if ($this->isEmptyRow($rowData)) {
-                        $consecutiveEmptyRows++;
+                        ++$consecutiveEmptyRows;
                         // If we have 10 consecutive empty rows, stop processing
                         if ($consecutiveEmptyRows >= 10) {
                             break;
                         }
                         continue;
                     }
-                    
+
                     // Reset consecutive empty row counter
                     $consecutiveEmptyRows = 0;
                     $content .= implode(',', $rowData) . "\n";
