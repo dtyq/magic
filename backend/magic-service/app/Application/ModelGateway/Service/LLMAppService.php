@@ -23,6 +23,7 @@ use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ImageGenerateErrorCode;
@@ -148,7 +149,7 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function chatCompletion(CompletionDTO $sendMsgDTO): ResponseInterface
     {
-        return $this->processRequest($sendMsgDTO, function (ModelInterface $model, CompletionDTO $request) {
+        return $this->processRequest($sendMsgDTO, function (ModelGatewayDataIsolation $modelGatewayDataIsolation, ModelInterface $model, CompletionDTO $request) {
             return $this->callChatModel($model, $request);
         });
     }
@@ -158,16 +159,15 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function embeddings(EmbeddingsDTO $proxyModelRequest): ResponseInterface
     {
-        return $this->processRequest($proxyModelRequest, function (EmbeddingInterface $model, EmbeddingsDTO $request) {
+        return $this->processRequest($proxyModelRequest, function (ModelGatewayDataIsolation $modelGatewayDataIsolation, EmbeddingInterface $model, EmbeddingsDTO $request) {
             return $this->callEmbeddingsModel($model, $request);
         });
     }
 
     public function textGenerateImageV2(TextGenerateImageDTO $textGenerateImageDTO): ResponseInterface
     {
-        // 使用统一的 processRequest 处理流程
-        return $this->processRequest($textGenerateImageDTO, function (ImageModel $imageModel, TextGenerateImageDTO $request) {
-            return $this->callImageModel($imageModel, $request);
+        return $this->processRequest($textGenerateImageDTO, function (ModelGatewayDataIsolation $modelGatewayDataIsolation, ImageModel $imageModel, TextGenerateImageDTO $request) {
+            return $this->callImageModel($modelGatewayDataIsolation, $imageModel, $request);
         });
     }
 
@@ -573,7 +573,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
-            $response = $modelCallFunction($model, $proxyModelRequest);
+            $response = $modelCallFunction($modelGatewayDataIsolation, $model, $proxyModelRequest);
 
             // Calculate response time (milliseconds)
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -754,10 +754,10 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * 调用图片生成模型.
      */
-    protected function callImageModel(ImageModel $imageModel, TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
+    protected function callImageModel(ModelGatewayDataIsolation $modelGatewayDataIsolation, ImageModel $imageModel, TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
     {
-        $organizationCode = $proxyModelRequest->getBusinessParam('organization_id');
-        $creator = $proxyModelRequest->getBusinessParam('user_id');
+        $organizationCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
+        $creator = $modelGatewayDataIsolation->getCurrentUserId();
 
         $modelVersion = $imageModel->getModelVersion();
 
