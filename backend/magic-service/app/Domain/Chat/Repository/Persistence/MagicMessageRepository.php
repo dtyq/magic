@@ -82,6 +82,7 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
 
     /**
      * Check if message exists by app_message_id and optional message_type.
+     * Uses covering index (app_message_id, deleted_at, message_type) to avoid table lookup.
      */
     public function isMessageExistsByAppMessageId(string $appMessageId, string $messageType = ''): bool
     {
@@ -89,7 +90,10 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
             return false;
         }
 
+        // Build query to maximize covering index usage
+        // Index order: app_message_id, deleted_at, message_type
         $query = $this->magicMessage::query()
+            ->select(\Hyperf\DbConnection\Db::raw('1'))  // Only select constant to ensure index-only scan
             ->where('app_message_id', $appMessageId)
             ->whereNull('deleted_at');
 
@@ -98,7 +102,8 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
             $query->where('message_type', $messageType);
         }
 
-        return $query->exists();
+        // Use limit(1) for early termination since we only care about existence
+        return $query->limit(1)->exists();
     }
 
     #[Cacheable(prefix: 'getMessageByMagicMessageId', value: '_#{magicMessageId}', ttl: 10)]
