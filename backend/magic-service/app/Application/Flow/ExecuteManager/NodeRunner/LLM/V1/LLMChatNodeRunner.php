@@ -55,7 +55,7 @@ class LLMChatNodeRunner extends AbstractLLMNodeRunner
 
         $modelName = $paramsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         $orgCode = $executionData->getOperator()->getOrganizationCode();
-        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($executionData->getDataIsolation()->getCurrentOrganizationCode(), $executionData->getDataIsolation()->getCurrentUserId());
         $model = $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
 
         // 默认视觉模型配置就是自己

@@ -1017,7 +1017,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
     ): string {
         $orgCode = $authorization->getOrganizationCode();
         $dataIsolation = $this->createDataIsolation($authorization);
-        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::DEEPSEEK_V3->value);
+        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $dataIsolation->getCurrentUserId(), LLMModelEnum::DEEPSEEK_V3->value);
 
         $modelGatewayMapperDataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         # 开始请求大模型
