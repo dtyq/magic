@@ -463,10 +463,12 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        // 检查当前套餐是否有这个模型的使用权限
-        if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($providerModelEntity->getModelId(), $modelType)) {
-            $this->logger->info('模型不在可用名单', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
-            return null;
+        // 检查当前套餐是否有这个模型的使用权限 - 目前只有 LLM 模型有这个限制
+        if ($providerModelEntity->getModelType()->isLLM()) {
+            if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($providerModelEntity->getModelId(), $modelType)) {
+                $this->logger->info('模型不在可用名单', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
+                return null;
+            }
         }
 
         // 获取配置

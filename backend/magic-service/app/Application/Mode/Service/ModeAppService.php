@@ -61,7 +61,6 @@ class ModeAppService extends AbstractModeAppService
         $allProviderModelsWithStatus = $this->getModelsBatch(array_unique($allModelIds));
 
         // 步骤3：组织模型过滤
-        $providerModels = [];
 
         // 首先收集所有需要过滤的模型
         $allAggregateModels = [];
@@ -227,7 +226,7 @@ class ModeAppService extends AbstractModeAppService
     /**
      * 从批量查询结果中提取特定聚合根的模型.
      * @param ModeAggregate $aggregate 模式聚合根
-     * @param array $allProviderModels 批量查询的所有模型结果
+     * @param array<string, ProviderModelEntity> $allProviderModels 批量查询的所有模型结果
      * @return array<string, ProviderModelEntity> 该聚合根相关的模型
      */
     private function getModelsForAggregate(ModeAggregate $aggregate, array $allProviderModels): array
@@ -238,10 +237,13 @@ class ModeAppService extends AbstractModeAppService
             foreach ($groupAggregate->getRelations() as $relation) {
                 $modelId = $relation->getModelId();
 
-                // 从批量结果中获取模型（内存操作，无数据库查询）
-                if (isset($allProviderModels[$modelId])) {
-                    $aggregateModels[$modelId] = $allProviderModels[$modelId];
+                if (! $providerModel = $allProviderModels[$modelId] ?? null) {
+                    continue;
                 }
+                if (! $providerModel->getConfig()->isSupportFunction()) {
+                    continue;
+                }
+                $aggregateModels[$modelId] = $providerModel;
             }
         }
 
