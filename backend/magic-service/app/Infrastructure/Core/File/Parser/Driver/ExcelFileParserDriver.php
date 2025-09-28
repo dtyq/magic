@@ -39,15 +39,21 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
                 $content .= '## ' . $sheetName . "\n";
                 $sheet = $excelFile->openSheet($sheetName, Excel::SKIP_EMPTY_ROW);
                 $row = $sheet->nextRow();
+                $consecutiveEmptyRows = 0;
                 while (! empty($row)) {
                     $csvRow = array_map(fn ($cell) => $this->formatCsvCell((string) $cell), $row);
-                    // 整行都是空字符串，跳过
-                    if (array_filter($csvRow, function ($value) {
-                        return $value !== '';
-                    }) === []) {
+                    // Check if the entire row is empty (empty strings or #N/A)
+                    if ($this->isEmptyRow($csvRow)) {
+                        $consecutiveEmptyRows++;
+                        // If we have 10 consecutive empty rows, stop processing
+                        if ($consecutiveEmptyRows >= 10) {
+                            break;
+                        }
                         $row = $sheet->nextRow();
                         continue;
                     }
+                    // Reset consecutive empty row counter
+                    $consecutiveEmptyRows = 0;
                     $csvRow = implode(',', $csvRow);
                     $content .= $csvRow . "\n";
                     $row = $sheet->nextRow();
@@ -72,6 +78,7 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
                 $worksheet = $spreadsheet->getSheetByName($sheetName);
                 $highestRow = $worksheet->getHighestRow();
                 $highestColumn = $worksheet->getHighestColumn();
+                $consecutiveEmptyRows = 0;
 
                 for ($row = 1; $row <= $highestRow; ++$row) {
                     $rowData = [];
@@ -79,6 +86,19 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
                         $cellValue = $worksheet->getCell($col . $row)->getValue();
                         $rowData[] = $this->formatCsvCell(strval($cellValue ?? ''));
                     }
+                    
+                    // Check if the entire row is empty (empty strings or #N/A)
+                    if ($this->isEmptyRow($rowData)) {
+                        $consecutiveEmptyRows++;
+                        // If we have 10 consecutive empty rows, stop processing
+                        if ($consecutiveEmptyRows >= 10) {
+                            break;
+                        }
+                        continue;
+                    }
+                    
+                    // Reset consecutive empty row counter
+                    $consecutiveEmptyRows = 0;
                     $content .= implode(',', $rowData) . "\n";
                 }
                 $content .= "\n";
@@ -87,6 +107,17 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
             ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, sprintf('Failed to read Excel file: %s', $e->getMessage()));
         }
         return $content;
+    }
+
+    /**
+     * Check if a row is considered empty (contains only empty strings or #N/A values).
+     */
+    private function isEmptyRow(array $rowData): bool
+    {
+        return array_filter($rowData, function ($value) {
+            $trimmedValue = trim($value, '"'); // Remove quotes from formatted CSV cells
+            return $trimmedValue !== '' && $trimmedValue !== '#N/A';
+        }) === [];
     }
 
     /**
