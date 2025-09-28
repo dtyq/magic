@@ -115,12 +115,16 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
 
     private function getBusinessParam(string $key, mixed $default = null, array $businessParams = []): mixed
     {
+        $key = strtolower($key);
         if (isset($businessParams[$key])) {
             return $businessParams[$key];
         }
 
-        $request = di(RequestInterface::class);
-        $key = strtolower($key);
+        if (! container()->has(RequestInterface::class)) {
+            return $default;
+        }
+
+        $request = container()->get(RequestInterface::class);
         $headerConfigs = [];
         foreach ($request->getHeaders() as $k => $value) {
             $k = strtolower((string) $k);
