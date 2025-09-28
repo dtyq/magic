@@ -93,7 +93,7 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         // Build query to maximize covering index usage
         // Index order: app_message_id, deleted_at, message_type
         $query = $this->magicMessage::query()
-            ->select(\Hyperf\DbConnection\Db::raw('1'))  // Only select constant to ensure index-only scan
+            ->select(Db::raw('1'))  // Only select constant to ensure index-only scan
             ->where('app_message_id', $appMessageId)
             ->whereNull('deleted_at');
 
