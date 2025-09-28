@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use Dtyq\MagicEnterprise\Infrastructure\Core\Constants\DeploymentIdConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 
 /**
@@ -246,7 +247,11 @@ class TaskContext
             $modelName = $this->getModelId();
             // 当 max 模型是 claude 系列的时候，并且是 slider 模式的时候，切换为 claude3.7
             if ($modelName === 'max' && $this->getAgentMode() === 'ppt') {
-                $modelName = 'claude-3.7';
+                if (DeploymentIdConstant::isDomestic()) {
+                    $modelName = 'plus';
+                } else {
+                    $modelName = 'claude-3.7';
+                }
             }
             $this->dynamicConfig['models'][$this->getModelId()] = [
                 'api_key' => '${MAGIC_API_KEY}',
