@@ -58,8 +58,8 @@ return [
         'disabled' => 'โมเดล [:model_name] ถูกปิดใช้งาน',
         'not_support_embedding' => '[:model_name] ไม่รองรับการฝังตัว',
         'error_config_missing' => 'ไม่พบรายการกำหนดค่า :name โปรดตรวจสอบการตั้งค่าหรือติดต่อผู้ดูแลระบบ',
-        'embedding_failed' => '[:model_name] การฝังตัวล้มเหลว, โปรดตรวจสอบการตั้งค่าฝังตัว',
-        'vector_size_not_match' => '[:model_name] ขนาดเวกเตอร์ไม่ตรงกับการตั้งค่า, โปรดตรวจสอบขนาดเวกเตอร์',
+        'embedding_failed' => '[:model_name] การฝังตัวล้มเหลว, ข้อความผิดพลาด: [:error_message], โปรดตรวจสอบการตั้งค่าฝังตัว',
+        'vector_size_not_match' => '[:model_name] ขนาดเวกเตอร์ไม่ตรงกับการตั้งค่า, ขนาดที่คาดหวัง: [:expected_size], ขนาดจริง: [:actual_size], โปรดตรวจสอบขนาดเวกเตอร์',
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'ไม่รองรับการสร้างเวกเตอร์ใหม่',
