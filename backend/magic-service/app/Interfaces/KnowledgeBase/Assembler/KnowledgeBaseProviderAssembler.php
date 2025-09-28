@@ -36,6 +36,6 @@ class KnowledgeBaseProviderAssembler
             $modelDTO->setIcon($model->getInfo()['attributes']['icon'] ?? '');
             $dtoList[$providerAlias]->addModel($modelDTO);
         }
-        return $dtoList;
+        return array_values($dtoList);
     }
 }
