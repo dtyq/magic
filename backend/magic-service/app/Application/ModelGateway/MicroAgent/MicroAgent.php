@@ -158,7 +158,7 @@ class MicroAgent
     private function getResolvedModelId(string $organizationCode): string
     {
         if ($this->enabledModelFallbackChain) {
-            return di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($organizationCode, $this->modelId);
+            return di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($organizationCode, '', $this->modelId);
         }
 
         return $this->modelId;

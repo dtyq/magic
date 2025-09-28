@@ -40,7 +40,7 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         $orgCode = $executionData->getOperator()->getOrganizationCode();
         $modelName = $LLMNodeParamsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         if (! $model) {
-            $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+            $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($executionData->getDataIsolation()->getCurrentOrganizationCode(), $executionData->getDataIsolation()->getCurrentUserId());
             $model = $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
         }
         $vertexResult->addDebugLog('model', $modelName);

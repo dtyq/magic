@@ -484,9 +484,10 @@ class LongTermMemoryAppService
     {
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain(
             $authorization->getOrganizationCode(),
+            $authorization->getId(),
             LLMModelEnum::DEEPSEEK_V3->value
         );
-        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($authorization->getOrganizationCode());
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($authorization->getOrganizationCode(), $authorization->getId());
         return $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
     }
 
