@@ -1019,10 +1019,10 @@ class MagicChatMessageAppService extends MagicSeqAppService
         $dataIsolation = $this->createDataIsolation($authorization);
         $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::DEEPSEEK_V3->value);
 
-        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode);
+        $modelGatewayMapperDataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         # 开始请求大模型
         $modelGatewayMapper = di(ModelGatewayMapper::class);
-        $model = $modelGatewayMapper->getChatModelProxy($dataIsolation, $chatModelName);
+        $model = $modelGatewayMapper->getChatModelProxy($modelGatewayMapperDataIsolation, $chatModelName);
         $memoryManager = $messageHistory->getMemoryManager($conversationId);
         $agent = AgentFactory::create(
             model: $model,

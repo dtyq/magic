@@ -36,6 +36,10 @@ class MagicAILocalModel extends AbstractModel
 
     private int $vectorSize;
 
+    private string $organizationCode = '';
+
+    private string $userId = '';
+
     public function __construct(
         protected string $model,
         protected array $config,
@@ -43,6 +47,8 @@ class MagicAILocalModel extends AbstractModel
     ) {
         $this->accessToken = defined('MAGIC_ACCESS_TOKEN') ? MAGIC_ACCESS_TOKEN : ($this->config['access_token'] ?? '');
         $this->vectorSize = (int) ($this->config['vector_size'] ?? 2048);
+        $this->organizationCode = $this->config['organization_code'] ?? '';
+        $this->userId = $this->config['user_id'] ?? '';
         parent::__construct($this->model, $this->config, $this->logger);
     }
 
@@ -92,6 +98,7 @@ class MagicAILocalModel extends AbstractModel
     ): ChatCompletionStreamResponse {
         $this->checkFunctionCallSupport($tools);
         $this->checkMultiModalSupport($messages);
+        $businessParams = $this->businessParamsHandler($businessParams);
         return $this->modelChat($messages, $temperature, $maxTokens, $stop, $tools, $businessParams, true);
     }
 
@@ -112,11 +119,14 @@ class MagicAILocalModel extends AbstractModel
     ): ChatCompletionResponse {
         $this->checkFunctionCallSupport($tools);
         $this->checkMultiModalSupport($messages);
+        $businessParams = $this->businessParamsHandler($businessParams);
         return $this->modelChat($messages, $temperature, $maxTokens, $stop, $tools, $businessParams);
     }
 
     public function completions(string $prompt, float $temperature = 0.9, int $maxTokens = 0, array $stop = [], float $frequencyPenalty = 0.0, float $presencePenalty = 0.0, array $businessParams = []): TextCompletionResponse
     {
+        $businessParams = $this->businessParamsHandler($businessParams);
+
         $sendMsgGPTDTO = new CompletionDTO();
         $sendMsgGPTDTO->setAccessToken($this->accessToken);
         $sendMsgGPTDTO->setModel($this->model);
@@ -152,7 +162,7 @@ class MagicAILocalModel extends AbstractModel
         return $openAI->getClient($config, $this->getApiRequestOptions(), $this->logger);
     }
 
-    private function modelChat(
+    protected function modelChat(
         array $messages,
         float $temperature = 0.9,
         int $maxTokens = 0,
@@ -180,5 +190,16 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setBusinessParams($businessParams);
 
         return di(LLMAppService::class)->chatCompletion($sendMsgGPTDTO);
+    }
+
+    private function businessParamsHandler(array $businessParams): array
+    {
+        if (empty($businessParams['organization_code']) && ! empty($this->organizationCode)) {
+            $businessParams['organization_code'] = $this->organizationCode;
+        }
+        if (empty($bussinessParams['user_id']) && ! empty($this->userId)) {
+            $businessParams['user_id'] = $this->userId;
+        }
+        return $businessParams;
     }
 }

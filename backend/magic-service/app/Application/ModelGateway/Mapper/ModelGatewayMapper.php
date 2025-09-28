@@ -86,7 +86,7 @@ class ModelGatewayMapper extends ModelMapper
         if (! $odinModel instanceof AbstractModel) {
             throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
         }
-        return $this->createProxy($model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
+        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
     }
 
     /**
@@ -491,7 +491,7 @@ class ModelGatewayMapper extends ModelMapper
         return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
     }
 
-    private function createProxy(string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel
+    private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel
     {
         // 使用ModelFactory创建模型实例
         $odinModel = ModelFactory::create(
@@ -499,6 +499,8 @@ class ModelGatewayMapper extends ModelMapper
             $model,
             [
                 'vector_size' => $modelOptions->getVectorSize(),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $dataIsolation->getCurrentUserId(),
             ],
             $modelOptions,
             $apiOptions,

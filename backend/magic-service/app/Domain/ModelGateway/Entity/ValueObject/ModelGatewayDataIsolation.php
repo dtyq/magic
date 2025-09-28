@@ -65,9 +65,9 @@ class ModelGatewayDataIsolation extends BaseDataIsolation
         return new self($currentOrganizationCode, $userId);
     }
 
-    public static function createByOrganizationCodeWithoutSubscription(string $currentOrganizationCode = ''): self
+    public static function createByOrganizationCodeWithoutSubscription(string $currentOrganizationCode = '', string $userId = ''): self
     {
-        $dataIsolation = new self($currentOrganizationCode, '');
+        $dataIsolation = new self($currentOrganizationCode, $userId);
         $dataIsolation->getSubscriptionManager()->setEnabled(false);
         return $dataIsolation;
     }
