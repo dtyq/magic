@@ -8,6 +8,10 @@ ARG timezone
 
 ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
     SCAN_CACHEABLE=(true)
+
+RUN sed -i 's|https://dl-cdn.alpinelinux.org/|https://mirrors.tuna.tsinghua.edu.cn/|g' /etc/apk/repositories && \
+   apk update
+
 #RUN --mount=type=cache,id=alpine-3.20,target=/var/run/apk \
 #    sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories && \
 #    # apk安装构建工具
