@@ -90,7 +90,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
 
         // 设置业务参数
         $dataIsolation->setSourceId($this->getBusinessParam('source_id', '', $businessParams));
-        $dataIsolation->setSourceId($this->getBusinessParam('user_name', '', $businessParams));
+        $dataIsolation->setUserName($this->getBusinessParam('user_name', '', $businessParams));
 
         return $dataIsolation;
     }
