@@ -58,8 +58,8 @@ return [
         'disabled' => 'Mô hình [:model_name] bị vô hiệu hóa',
         'not_support_embedding' => '[:model_name] không hỗ trợ nhúng',
         'error_config_missing' => 'Thiếu mục cấu hình :name. Vui lòng kiểm tra cài đặt hoặc liên hệ quản trị viên.',
-        'embedding_failed' => '[:model_name] Nhúng thất bại, vui lòng kiểm tra cấu hình nhúng',
-        'vector_size_not_match' => '[:model_name] Kích thước vector không khớp, vui lòng kiểm tra kích thước vector',
+        'embedding_failed' => '[:model_name] Nhúng thất bại, thông báo lỗi: [:error_message], vui lòng kiểm tra cấu hình nhúng',
+        'vector_size_not_match' => '[:model_name] Kích thước vector không khớp, kích thước dự kiến: [:expected_size], kích thước thực tế: [:actual_size], vui lòng kiểm tra kích thước vector',
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'Không hỗ trợ tái vector hóa',
