@@ -58,8 +58,8 @@ return [
         'disabled' => 'Model [:model_name] dimatikan',
         'not_support_embedding' => '[:model_name] tidak menyokong pembenaman',
         'error_config_missing' => 'Item konfigurasi :name hilang. Sila periksa tetapan atau hubungi pentadbir.',
-        'embedding_failed' => '[:model_name] pembenaman gagal, sila periksa konfigurasi pembenaman',
-        'vector_size_not_match' => '[:model_name] saiz vektor tidak sepadan, sila periksa saiz vektor',
+        'embedding_failed' => '[:model_name] pembenaman gagal, mesej ralat: [:error_message], sila periksa konfigurasi pembenaman',
+        'vector_size_not_match' => '[:model_name] saiz vektor tidak sepadan, saiz yang dijangka: [:expected_size], saiz sebenar: [:actual_size], sila periksa saiz vektor',
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'Tidak menyokong pembenaman semula',

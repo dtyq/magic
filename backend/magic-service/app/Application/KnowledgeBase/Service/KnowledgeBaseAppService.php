@@ -105,7 +105,13 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                 ]
             );
             if (count($embeddingResult->getEmbeddings()) !== $embeddingModel->getVectorSize()) {
-                ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.vector_size_not_match', ['model_name' => $modelName]);
+                $actualSize = count($embeddingResult->getEmbeddings());
+                $expectedSize = $embeddingModel->getVectorSize();
+                ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.vector_size_not_match', [
+                    'model_name' => $modelName,
+                    'expected_size' => $expectedSize,
+                    'actual_size' => $actualSize,
+                ]);
             }
         } catch (Throwable $exception) {
             simple_logger('KnowledgeBaseDomainService')->warning('KnowledgeBaseCheckEmbeddingsFailed', [
@@ -115,7 +121,10 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                 'code' => $exception->getCode(),
                 'trace' => $exception->getTraceAsString(),
             ]);
-            ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.embedding_failed', ['model_name' => $modelName]);
+            ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.model.embedding_failed', [
+                'model_name' => $modelName,
+                'error_message' => $exception->getMessage(),
+            ]);
         }
 
         $knowledgeBaseEntity = $this->knowledgeBaseDomainService->save($dataIsolation, $magicFlowKnowledgeEntity, $documentFiles);
