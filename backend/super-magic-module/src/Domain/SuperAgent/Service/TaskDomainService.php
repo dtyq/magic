@@ -398,7 +398,6 @@ class TaskDomainService
      * 获取项目下的任务附件列表.
      *
      * @param int $projectId Project ID
-     * @param DataIsolation $dataIsolation Data isolation
      * @param int $page Page number
      * @param int $pageSize Page size
      * @param array $fileType File type filter
