@@ -31,13 +31,19 @@ class FileConverterRequest implements RequestInterface
 
     private array $stsTemporaryCredential = [];
 
-    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '')
+    private string $userId = '';
+
+    private string $organizationCode = '';
+
+    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '', string $userId = '', string $organizationCode = '')
     {
         $this->sandboxId = $sandboxId;
         $this->convertType = $convertType;
         $this->fileKeys = $fileKeys;
         $this->stsTemporaryCredential = $stsTemporaryCredential;
         $this->taskKey = $taskKey;
+        $this->userId = $userId;
+        $this->organizationCode = $organizationCode;
 
         if (isset($options['is_debug'])) {
             $this->isDebug = (bool) $options['is_debug'];
@@ -89,6 +95,16 @@ class FileConverterRequest implements RequestInterface
         return $this->stsTemporaryCredential;
     }
 
+    public function getUserId(): string
+    {
+        return $this->userId;
+    }
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -98,6 +114,15 @@ class FileConverterRequest implements RequestInterface
             'convert_type' => $this->convertType,
             'task_key' => $this->taskKey,
         ];
+
+        // 添加用户相关字段（只有当字段不为空时才包含）
+        if (! empty($this->userId)) {
+            $result['user_id'] = $this->userId;
+        }
+
+        if (! empty($this->organizationCode)) {
+            $result['organization_code'] = $this->organizationCode;
+        }
 
         // 只有当 options 不为空时才包含该字段
         if (! empty($this->options)) {
