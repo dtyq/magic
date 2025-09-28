@@ -11,7 +11,6 @@ use App\Application\LongTermMemory\DTO\EvaluateConversationRequestDTO;
 use App\Application\LongTermMemory\DTO\ShouldRememberDTO;
 use App\Application\LongTermMemory\Enum\MemoryEvaluationStatus;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
-use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Application\ModelGateway\Service\ModelConfigAppService;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
@@ -392,7 +391,7 @@ class LongTermMemoryAppService
     /**
      * 对记忆进行评分.
      */
-    public function rateMemory(OdinModel $model, string $memory): int
+    public function rateMemory(ModelInterface $model, string $memory): int
     {
         $promptFile = BASE_PATH . '/app/Application/LongTermMemory/Prompt/MemoryPrompt.text';
         $prompt = $this->loadPromptFile($promptFile);
@@ -401,7 +400,7 @@ class LongTermMemoryAppService
 
         try {
             // 使用系统提示词
-            $response = $model->getModel()->chat([new SystemMessage($prompt)]);
+            $response = $model->chat([new SystemMessage($prompt)]);
             $content = $response->getFirstChoice()?->getMessage()->getContent();
         } catch (Throwable $e) {
             ExceptionBuilder::throw(LongTermMemoryErrorCode::EVALUATION_LLM_REQUEST_FAILED, throwable: $e);

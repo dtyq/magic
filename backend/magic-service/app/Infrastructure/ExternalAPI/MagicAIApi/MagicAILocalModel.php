@@ -197,7 +197,7 @@ class MagicAILocalModel extends AbstractModel
         if (empty($businessParams['organization_code']) && ! empty($this->organizationCode)) {
             $businessParams['organization_code'] = $this->organizationCode;
         }
-        if (empty($bussinessParams['user_id']) && ! empty($this->userId)) {
+        if (empty($businessParams['user_id']) && ! empty($this->userId)) {
             $businessParams['user_id'] = $this->userId;
         }
         return $businessParams;

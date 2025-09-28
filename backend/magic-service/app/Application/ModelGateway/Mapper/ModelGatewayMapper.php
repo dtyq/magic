@@ -105,7 +105,7 @@ class ModelGatewayMapper extends ModelMapper
             throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
         }
         // 转换为代理
-        return $this->createProxy($model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
+        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
     }
 
     /**
