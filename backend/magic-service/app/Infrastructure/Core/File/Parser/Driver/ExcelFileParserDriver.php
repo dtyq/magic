@@ -110,13 +110,23 @@ class ExcelFileParserDriver implements ExcelFileParserDriverInterface
     }
 
     /**
-     * Check if a row is considered empty (contains only empty strings or #N/A values).
+     * Check if a row is considered empty (contains only empty strings, whitespace, or Excel error values).
      */
     private function isEmptyRow(array $rowData): bool
     {
         return array_filter($rowData, function ($value) {
             $trimmedValue = trim($value, '"'); // Remove quotes from formatted CSV cells
-            return $trimmedValue !== '' && $trimmedValue !== '#N/A';
+            $cleanValue = trim($trimmedValue); // Remove whitespace
+
+            // Consider empty if it's an empty string, whitespace, or Excel error value
+            return $cleanValue !== ''
+                && $cleanValue !== '#N/A'
+                && $cleanValue !== '#REF!'
+                && $cleanValue !== '#VALUE!'
+                && $cleanValue !== '#DIV/0!'
+                && $cleanValue !== '#NAME?'
+                && $cleanValue !== '#NUM!'
+                && $cleanValue !== '#NULL!';
         }) === [];
     }
 
