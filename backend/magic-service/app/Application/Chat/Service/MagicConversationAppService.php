@@ -265,6 +265,7 @@ class MagicConversationAppService extends AbstractAppService
         // Get model name
         $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain(
             $userAuthorization->getOrganizationCode(),
+            $userAuthorization->getId(),
             LLMModelEnum::DEEPSEEK_V3->value
         );
         // Build history context with length limit, prioritizing recent messages
