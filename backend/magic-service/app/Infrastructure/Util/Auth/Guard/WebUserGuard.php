@@ -73,7 +73,7 @@ class WebUserGuard extends AbstractAuthGuard
             if ($user instanceof MagicUserAuthorization) {
                 $this->redis->setex($cacheKey, 60, serialize($user));
             }
-            $logger->info('WebUserGuard UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getRealName(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getMagicEnvId()]);
+            $logger->info('WebUserGuard UserAuthorization', ['uid' => $user->getId(), 'name' => $user->getNickname(), 'organization' => $user->getOrganizationCode(), 'env' => $user->getMagicEnvId()]);
             return $user;
         } catch (Throwable $exception) {
             $errMsg = [
