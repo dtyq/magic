@@ -16,7 +16,7 @@ return new class extends Migration {
     {
         Schema::table('magic_chat_messages', function (Blueprint $table) {
             // Order: high selectivity -> filter condition -> optional filter
-            $table->index(['app_message_id', 'deleted_at', 'message_type'], 'idx_app_message_covered');
+            $table->index(['app_message_id', 'message_type'], 'idx_app_message_covered');
         });
     }
 
