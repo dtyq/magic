@@ -8,27 +8,36 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Domain\Chat\DTO\Message\MagicMessageStruct;
+use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
+use Cron\CronExpression;
 use DateTime;
+use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TimeConfigDTO;
@@ -54,12 +63,13 @@ class MessageScheduleAppService extends AbstractAppService
     protected LoggerInterface $logger;
 
     public function __construct(
+        private readonly MagicChatMessageAppService $chatMessageAppService,
+        private readonly ChatAppService $chatAppService,
         private readonly MessageScheduleDomainService $messageScheduleDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly TaskSchedulerDomainService $taskSchedulerDomainService,
-        private readonly MagicChatMessageAppService $chatMessageAppService,
         private readonly MagicUserDomainService $userDomainService,
         LoggerFactory $loggerFactory
     ) {
@@ -360,10 +370,55 @@ class MessageScheduleAppService extends AbstractAppService
     }
 
     /**
+     * Get next execution time for crontab task.
+     * 获取定时任务的下一次执行时间.
+     *
+     * @param null|int $crontabId The crontab ID from task_scheduler_crontab table
+     * @return null|string Next execution time in 'Y-m-d H:i:s' format or null if not available
+     */
+    public function getNextExecutionTime(?int $crontabId): ?string
+    {
+        if (! $crontabId) {
+            return null;
+        }
+
+        try {
+            $crontab = $this->taskSchedulerDomainService->getByCrontabId($crontabId);
+            if (! $crontab || ! $crontab->isEnabled()) {
+                return null;
+            }
+
+            // Check if deadline has passed
+            if ($crontab->getDeadline() && $crontab->getDeadline() < new DateTime()) {
+                return null;
+            }
+
+            // Calculate next execution time using Cron expression
+            $cron = new CronExpression($crontab->getCrontab());
+            $nextRun = $cron->getNextRunDate();
+
+            // Check if next execution exceeds deadline
+            if ($crontab->getDeadline() && $nextRun > $crontab->getDeadline()) {
+                return null;
+            }
+
+            return $nextRun->format('Y-m-d H:i:s');
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to calculate next execution time', [
+                'crontab_id' => $crontabId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Execute message schedule (internal method).
      */
     private function executeMessageSchedule(int $messageScheduleId): array
     {
+        $executionLog = null;
+
         try {
             // 1. Get message schedule entity
             $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
@@ -375,17 +430,27 @@ class MessageScheduleAppService extends AbstractAppService
                 ];
             }
 
+            // Create execution log (status: running) only when all checks passed
+            $executionLog = $this->messageScheduleDomainService->createExecutionLog($messageScheduleEntity);
+
             // Check if schedule is enabled
             if (! $messageScheduleEntity->isEnabled()) {
                 $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
                 return [
-                    'success' => true,
+                    'success' => false,
                     'message' => 'Message schedule is disabled',
                 ];
             }
 
             // 2. Get project entity
-            $projectEntity = $this->projectDomainService->getProjectNotUserId($messageScheduleEntity->getProjectId());
+            $projectEntity = $this->getProjectOrCreate(
+                $messageScheduleEntity->getProjectId(),
+                $messageScheduleEntity->getWorkspaceId(),
+                $messageScheduleEntity->getUserId(),
+                $messageScheduleEntity->getOrganizationCode(),
+                $messageScheduleEntity->getMessageType(),
+                $messageScheduleEntity->getMessageContent(),
+            );
             if (! $projectEntity) {
                 $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
                 return [
@@ -395,7 +460,7 @@ class MessageScheduleAppService extends AbstractAppService
             }
 
             // 3. Get topic entity
-            $topicEntity = $this->topicDomainService->getTopicById($messageScheduleEntity->getTopicId());
+            $topicEntity = $this->getTopicOrCreate($messageScheduleEntity->getTopicId(), $projectEntity);
             if (! $topicEntity) {
                 $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
                 return [
@@ -407,16 +472,36 @@ class MessageScheduleAppService extends AbstractAppService
             // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
             $sendResult = $this->sendMessageToAgent($messageScheduleEntity, $topicEntity);
 
+            // 5. 如果任务的下一次执行时间，大于截止时间，则更新任务状态为完成
+            $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
+            $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
+            if ($nextExecutionTime && $nextExecutionTime > $messageScheduleEntity->getDeadline()) {
+                $messageScheduleEntity->setCompleted(1);
+                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
+            }
+
             $this->logger->info('Message schedule execution completed', [
                 'message_schedule_id' => $messageScheduleId,
+                'execution_log_id' => $executionLog->getId(),
                 'success' => $sendResult['success'],
                 'error_message' => $sendResult['error_message'],
             ]);
 
+            // Keep log status as RUNNING since this is async trigger
+            // Real task processing will be handled by event listeners
             return $sendResult;
         } catch (Throwable $e) {
+            // Update execution log status to failed if log was created
+            if ($executionLog) {
+                $this->messageScheduleDomainService->markLogAsFailed(
+                    $executionLog->getId(),
+                    $e->getMessage()
+                );
+            }
+
             $this->logger->error('Message schedule execution exception', [
                 'message_schedule_id' => $messageScheduleId,
+                'execution_log_id' => $executionLog?->getId(),
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -427,6 +512,66 @@ class MessageScheduleAppService extends AbstractAppService
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    private function getProjectOrCreate(int $projectId, int $workspaceId, string $userId, string $userOrganizationCode, string $messageType, array $messageContent): ?ProjectEntity
+    {
+        // 如果项目id 不为空，直接获取
+        if (! empty($projectId)) {
+            return $this->projectDomainService->getProjectNotUserId($projectId);
+        }
+        // 如果不存在，则创建
+        $newProjectId = IdGenerator::getSnowId();
+        // 准备创建参数
+        // 获取项目工作目录
+        $projectWorkDir = WorkDirectoryUtil::getWorkDir($userId, $newProjectId);
+        // 从消息体，提前文件 id 和 用户发送消息的文本
+        /** @var null|MagicMessageStruct $messageStruct */
+        $chatMessageType = ChatMessageType::from($messageType);
+        $messageStruct = MessageAssembler::getChatMessageStruct(
+            $chatMessageType,
+            $messageContent
+        );
+        $projectName = '';
+        if ($messageStruct instanceof TextContentInterface) {
+            $authorization = new MagicUserAuthorization();
+            $authorization->setId($userId);
+            $authorization->setOrganizationCode($userOrganizationCode);
+            $authorization->setUserType(UserType::Human);
+            $projectName = $this->chatMessageAppService->summarizeText($authorization, $messageStruct->getTextContent());
+        }
+
+        return $this->projectDomainService->createProject(
+            workspaceId: $workspaceId,
+            projectName: $projectName,
+            userId: $userId,
+            userOrganizationCode: $userOrganizationCode,
+            projectId: (string) $newProjectId,
+            workDir: $projectWorkDir,
+            projectMode: null,
+            source: CreationSource::SCHEDULED_TASK->value
+        );
+    }
+
+    private function getTopicOrCreate(int $topicId, ProjectEntity $projectEntity): ?TopicEntity
+    {
+        if (! empty($topicId)) {
+            return $this->topicDomainService->getTopicById($topicId);
+        }
+        // 1. 初始化 chat 的会话和话题
+        $dataIsolation = DataIsolation::simpleMake($projectEntity->getUserOrganizationCode(), $projectEntity->getUserId());
+        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+
+        // 2. 创建话题
+        return $this->topicDomainService->createTopic(
+            $dataIsolation,
+            $projectEntity->getWorkspaceId(),
+            $projectEntity->getId(),
+            $chatConversationId,
+            $chatConversationTopicId, // 会话的话题ID
+            $projectEntity->getProjectName(),
+            $projectEntity->getWorkDir(),
+        );
     }
 
     /**
@@ -476,7 +621,7 @@ class MessageScheduleAppService extends AbstractAppService
             $crontab->setDeadline($finalDeadline);
             $crontab->setCreator('system');
 
-            $this->taskSchedulerDomainService->createCrontab($crontab);
+            $crontab = $this->taskSchedulerDomainService->createCrontab($crontab);
 
             // Generate specific execution plans
             $this->taskSchedulerDomainService->createByCrontab($crontab, 3);
@@ -487,7 +632,7 @@ class MessageScheduleAppService extends AbstractAppService
                 'message_schedule_id' => $messageScheduleId,
                 'error' => $e->getMessage(),
             ]);
-            return null;
+            throw $e;
         }
     }
 
@@ -527,6 +672,7 @@ class MessageScheduleAppService extends AbstractAppService
                 'message_schedule_id' => $messageSchedule->getId(),
                 'error' => $e->getMessage(),
             ]);
+            throw $e;
         }
     }
 
@@ -543,6 +689,7 @@ class MessageScheduleAppService extends AbstractAppService
                 'message_schedule_id' => $messageScheduleId,
                 'error' => $e->getMessage(),
             ]);
+            throw $e;
         }
     }
 
