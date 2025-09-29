@@ -49,6 +49,7 @@ Router::addGroup(
     ['middleware' => [SandboxTokenAuthMiddleware::class]]
 );
 
+
 // 沙箱开放接口
 Router::addGroup('/api/v1/open-api/sandbox', static function () {
     Router::addGroup('/agents', static function () {
@@ -56,6 +57,8 @@ Router::addGroup('/api/v1/open-api/sandbox', static function () {
         Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
     });
 });
+
+
 
 // super-magic 开放api , 注意，后续的开放api均使用super-magic 不使用super-agent
 Router::addGroup('/api/v1/open-api/super-magic', static function () {
