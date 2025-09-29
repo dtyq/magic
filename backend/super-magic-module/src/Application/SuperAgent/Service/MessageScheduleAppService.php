@@ -619,7 +619,7 @@ class MessageScheduleAppService extends AbstractAppService
             $crontab->setDeadline($finalDeadline);
             $crontab->setCreator('system');
 
-            $crontab = $this->taskSchedulerDomainService->createCrontab($crontab);
+            $this->taskSchedulerDomainService->createCrontab($crontab);
 
             // Generate specific execution plans
             $this->taskSchedulerDomainService->createByCrontab($crontab, 3);
