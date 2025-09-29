@@ -1896,16 +1896,19 @@ class TaskFileDomainService
     {
         $watermarkText = $this->getWatermarkText();
         $driver = config('cloudfile.driver');
+        $text = '';
+
         switch ($driver) {
             case 'oss':
-                $text = '?x-tos-process=';
-                // no break
-            case 'tos':
                 $text = '?x-oss-process=';
-                // no break
+                break;
+            case 'tos':
+                $text = '?x-tos-process=';
+                break;
             default:
                 return $url;
         }
+
         $text = $text . 'image/resize,p_50,image/watermark,text_6bqm5ZCJQUnnlJ_miJA=,size_30,color_FFFFFF,' . $watermarkText;
 
         return $url . $text . $watermarkText;
