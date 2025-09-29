@@ -526,7 +526,6 @@ class MessageScheduleAppService extends AbstractAppService
         // 获取项目工作目录
         $projectWorkDir = WorkDirectoryUtil::getWorkDir($userId, $newProjectId);
         // 从消息体，提前文件 id 和 用户发送消息的文本
-        /** @var null|MagicMessageStruct $messageStruct */
         $chatMessageType = ChatMessageType::from($messageType);
         $messageStruct = MessageAssembler::getChatMessageStruct(
             $chatMessageType,
