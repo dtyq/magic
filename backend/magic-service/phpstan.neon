@@ -12,7 +12,6 @@ parameters:
   level: 5
   paths:
     - app
-    - ./../super-magic-module/src
   excludePaths:
   reportUnmatchedIgnoredErrors: false
   # 信任PHPDoc中声明的类型，并根据类型做静态分析
