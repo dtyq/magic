@@ -28,6 +28,6 @@ Router::addGroup('/api/v1/asr', function () {
     // 文件列表查询服务 - 测试接口
     Router::post('/files', [AsrTokenApi::class, 'listObject']); // 查询指定目录下的文件列表（测试用）
 
-    // 调试接口：查询指定锁（仅允许 asr:summary:topic 前缀）
-    Router::get('/debug/lock', [AsrTokenApi::class, 'debugLock']);
+    // 调试接口：根据 task_key 查询任务缓存
+    Router::get('/debug/task', [AsrTokenApi::class, 'debugTaskStatus']);
 }, ['middleware' => [RequestContextMiddleware::class]]);

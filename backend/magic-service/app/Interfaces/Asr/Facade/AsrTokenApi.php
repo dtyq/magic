@@ -500,39 +500,43 @@ class AsrTokenApi extends AbstractApi
     }
 
     /**
-     * 调试：查询指定锁名的当前值与TTL（仅允许 asr:summary:topic 前缀）
-     * GET /api/v1/asr/debug/lock?lock_name=asr:summary:topic:xxx.
+     * 调试：根据 task_key + user_id 查询 Redis 任务状态（测试环境专用）
+     * GET /api/v1/asr/debug/task?task_key=xxx&user_id=yyy.
      */
-    public function debugLock(RequestInterface $request): array
+    public function debugTaskStatus(RequestInterface $request): array
     {
-        // 读取并校验锁名
-        $lockName = (string) $request->input('lock_name', '');
-        if ($lockName === '' || ! str_starts_with($lockName, 'asr:summary:topic')) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'lock_name must start with asr:summary:topic');
+        $taskKey = (string) $request->input('task_key', '');
+        if ($taskKey === '') {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_key is required');
         }
 
-        // 与 RedisLocker 的实现保持一致：真实 key 为 'lock_' . $name
-        $redisKey = 'lock_' . $lockName;
+        $userId = (string) $request->input('user_id', '');
+        if ($userId === '') {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_id is required');
+        }
+
+        $redisKey = $this->generateTaskRedisKey($taskKey, $userId);
 
         try {
-            $value = $this->redis->get($redisKey);
+            $data = $this->redis->hGetAll($redisKey);
             $ttl = $this->redis->ttl($redisKey);
-
-            $exists = $value !== false && $value !== null;
+            $exists = ! empty($data);
 
             return [
                 'success' => true,
-                'lock_name' => $lockName,
+                'task_key' => $taskKey,
+                'user_id' => $userId,
                 'redis_key' => $redisKey,
                 'exists' => $exists,
-                'owner' => $exists ? $value : null,
-                'ttl' => $exists ? $ttl : null, // -1 表示无过期，-2 表示不存在
+                'ttl' => $exists ? $ttl : null, // -1: 永不过期; -2: 不存在
+                'data' => $data,
                 'queried_at' => date('Y-m-d H:i:s'),
             ];
         } catch (Throwable $e) {
             return [
                 'success' => false,
-                'lock_name' => $lockName,
+                'task_key' => $taskKey,
+                'user_id' => $userId,
                 'redis_key' => $redisKey,
                 'error' => $e->getMessage(),
                 'queried_at' => date('Y-m-d H:i:s'),
