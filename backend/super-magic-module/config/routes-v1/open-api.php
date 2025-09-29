@@ -4,12 +4,12 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\SandboxTokenAuthMiddleware;
+use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 沙箱开放接口 命名不规范，需要废弃
@@ -19,7 +19,6 @@ Router::addGroup('/api/v1/sandbox-openapi', static function () {
         Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
     });
 });
-
 
 // 沙箱内部API路由分组 - 专门给沙箱调用超级麦吉使用，命名不规范，需要废弃
 Router::addGroup(
@@ -37,21 +36,18 @@ Router::addGroup(
     ['middleware' => [SandboxTokenAuthMiddleware::class]]
 );
 
-
 // 沙箱内部API路由分组 - 专门给沙箱调用超级麦吉使用
 Router::addGroup(
     '/api/v1/open-api/sandbox',
     static function () {
-            // 文件管理相关
-            Router::addGroup('/file', static function () {
-                // 创建文件版本
-                Router::post('/versions', [FileApi::class, 'createFileVersion']);
-            });
+        // 文件管理相关
+        Router::addGroup('/file', static function () {
+            // 创建文件版本
+            Router::post('/versions', [FileApi::class, 'createFileVersion']);
+        });
     },
     ['middleware' => [SandboxTokenAuthMiddleware::class]]
 );
-
-
 
 // 沙箱开放接口
 Router::addGroup('/api/v1/open-api/sandbox', static function () {
@@ -60,8 +56,6 @@ Router::addGroup('/api/v1/open-api/sandbox', static function () {
         Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
     });
 });
-
-
 
 // super-magic 开放api , 注意，后续的开放api均使用super-magic 不使用super-agent
 Router::addGroup('/api/v1/open-api/super-magic', static function () {
