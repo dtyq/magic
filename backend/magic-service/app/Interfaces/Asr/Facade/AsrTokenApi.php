@@ -244,6 +244,7 @@ class AsrTokenApi extends AbstractApi
                 'topic_id' => $summaryRequest->topicId,
                 'error' => $e->getMessage(),
                 'user_id' => $userAuthorization->getId(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
@@ -258,15 +259,7 @@ class AsrTokenApi extends AbstractApi
         } finally {
             // 确保释放锁
             if ($lockAcquired) {
-                try {
-                    $this->locker->release($lockName, $lockOwner);
-                } catch (Throwable $e) {
-                    $this->logger->warning('释放ASR总结锁失败', [
-                        'lock_name' => $lockName,
-                        'lock_owner' => $lockOwner,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                $this->locker->release($lockName, $lockOwner);
             }
         }
     }
