@@ -52,4 +52,6 @@ return [
     'invalid_quality_parameter' => '无效的质量参数，有效选项为: standard, hd',
 
     'model_not_support_edit' => '模型不支持图像编辑',
+    #水印相关
+    'image_watermark' => 'type_ZmFuZ3poZW5naGVpdGk',
 ];
