@@ -173,6 +173,11 @@ readonly class AsrFileAppService
                 'workspace_name' => $workspaceName,
             ];
         } catch (Throwable $e) {
+            $this->logger->error('处理ASR总结任务失败', [
+                'task_key' => $summaryRequest->taskKey,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
