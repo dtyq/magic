@@ -51,6 +51,6 @@ return [
     'invalid_quality_parameter' => 'Invalid quality parameter, valid options are: standard, hd',
 
     'model_not_support_edit' => 'The model does not support image editing',
-    #watermark
+    # watermark
     'image_watermark' => 'type_TWFnaWMgQUkgR2VuZXJhdGVk',
 ];

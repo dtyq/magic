@@ -1160,7 +1160,7 @@ class TaskFileDomainService
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = [],bool $addWatermark = true): array
+    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = [], bool $addWatermark = true): array
     {
         $result = [];
 
@@ -1194,7 +1194,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(),$addWatermark);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1215,7 +1215,7 @@ class TaskFileDomainService
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode, array $fileVersions = [],bool $addWatermark = true): array
+    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode, array $fileVersions = [], bool $addWatermark = true): array
     {
         // 从token获取内容
         $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
@@ -1249,7 +1249,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(),$addWatermark);
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1882,17 +1882,15 @@ class TaskFileDomainService
         ];
     }
 
-
-    ## 增加水印支持  水印名称从多语言中获取##
+    # # 增加水印支持  水印名称从多语言中获取##
     private function getWatermarkText(): string
     {
         return trans('image_generate.image_watermark');
     }
 
     /**
-     * Summary of addWatermarkToFile
-     * @param mixed $driver
-     * @return string
+     * Summary of addWatermarkToFile.
+     * @param mixed $url
      */
     private function addWatermarkToFile($url): string
     {
@@ -1900,13 +1898,15 @@ class TaskFileDomainService
         $driver = config('cloudfile.driver');
         switch ($driver) {
             case 'oss':
-                $text="?x-tos-process=";
+                $text = '?x-tos-process=';
+                // no break
             case 'tos':
-                $text="?x-oss-process=";
+                $text = '?x-oss-process=';
+                // no break
             default:
                 return $url;
         }
-        $text = $text . "image/resize,p_50,image/watermark,text_6bqm5ZCJQUnnlJ_miJA=,size_30,color_FFFFFF,".$watermarkText;
+        $text = $text . 'image/resize,p_50,image/watermark,text_6bqm5ZCJQUnnlJ_miJA=,size_30,color_FFFFFF,' . $watermarkText;
 
         return $url . $text . $watermarkText;
     }
