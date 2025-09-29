@@ -244,6 +244,7 @@ class AsrTokenApi extends AbstractApi
                 'topic_id' => $summaryRequest->topicId,
                 'error' => $e->getMessage(),
                 'user_id' => $userAuthorization->getId(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
@@ -258,15 +259,7 @@ class AsrTokenApi extends AbstractApi
         } finally {
             // 确保释放锁
             if ($lockAcquired) {
-                try {
-                    $this->locker->release($lockName, $lockOwner);
-                } catch (Throwable $e) {
-                    $this->logger->warning('释放ASR总结锁失败', [
-                        'lock_name' => $lockName,
-                        'lock_owner' => $lockOwner,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                $this->locker->release($lockName, $lockOwner);
             }
         }
     }
@@ -501,6 +494,47 @@ class AsrTokenApi extends AbstractApi
                     'user_id' => $userId,
                     'organization_code' => $organizationCode,
                 ],
+                'queried_at' => date('Y-m-d H:i:s'),
+            ];
+        }
+    }
+
+    /**
+     * 调试：查询指定锁名的当前值与TTL（仅允许 asr:summary:topic 前缀）
+     * GET /api/v1/asr/debug/lock?lock_name=asr:summary:topic:xxx.
+     */
+    public function debugLock(RequestInterface $request): array
+    {
+        // 读取并校验锁名
+        $lockName = (string) $request->input('lock_name', '');
+        if ($lockName === '' || ! str_starts_with($lockName, 'asr:summary:topic')) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'lock_name must start with asr:summary:topic');
+        }
+
+        // 与 RedisLocker 的实现保持一致：真实 key 为 'lock_' . $name
+        $redisKey = 'lock_' . $lockName;
+
+        try {
+            $value = $this->redis->get($redisKey);
+            $ttl = $this->redis->ttl($redisKey);
+
+            $exists = $value !== false && $value !== null;
+
+            return [
+                'success' => true,
+                'lock_name' => $lockName,
+                'redis_key' => $redisKey,
+                'exists' => $exists,
+                'owner' => $exists ? $value : null,
+                'ttl' => $exists ? $ttl : null, // -1 表示无过期，-2 表示不存在
+                'queried_at' => date('Y-m-d H:i:s'),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'success' => false,
+                'lock_name' => $lockName,
+                'redis_key' => $redisKey,
+                'error' => $e->getMessage(),
                 'queried_at' => date('Y-m-d H:i:s'),
             ];
         }
