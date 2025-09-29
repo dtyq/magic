@@ -68,10 +68,10 @@ class TaskSchedulerDomainService
     /**
      * 创建定时调度.
      */
-    public function createCrontab(TaskSchedulerCrontab $scheduleTaskCrontab): void
+    public function createCrontab(TaskSchedulerCrontab $scheduleTaskCrontab): TaskSchedulerCrontab
     {
         $scheduleTaskCrontab->prepareForCreate();
-        $this->scheduleTaskCrontabRepository->create($scheduleTaskCrontab);
+        return $this->scheduleTaskCrontabRepository->create($scheduleTaskCrontab);
     }
 
     /**

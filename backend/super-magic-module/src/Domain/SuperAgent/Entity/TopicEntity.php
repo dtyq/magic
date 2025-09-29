@@ -92,6 +92,11 @@ class TopicEntity extends AbstractEntity
     protected float $cost = 0.0;
 
     /**
+     * @var int Creation source
+     */
+    protected int $source = 1;
+
+    /**
      * @var null|int 当前任务ID
      */
     protected ?int $currentTaskId = null;
@@ -159,6 +164,7 @@ class TopicEntity extends AbstractEntity
             'task_mode' => $this->taskMode ?? 'chat',
             'topic_mode' => $this->topicMode,
             'cost' => $this->cost ?? 0.0,
+            'source' => $this->source,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
@@ -515,6 +521,23 @@ class TopicEntity extends AbstractEntity
         }
 
         $this->cost = $cost;
+        return $this;
+    }
+
+    /**
+     * Get creation source.
+     */
+    public function getSource(): int
+    {
+        return $this->source;
+    }
+
+    /**
+     * Set creation source.
+     */
+    public function setSource(int $source): self
+    {
+        $this->source = $source;
         return $this;
     }
 

@@ -10,6 +10,8 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleLogEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Logger\LoggerFactory;
@@ -26,6 +28,7 @@ class MessageScheduleDomainService
 
     public function __construct(
         private readonly MessageScheduleRepositoryInterface $messageScheduleRepository,
+        private readonly MessageScheduleLogRepositoryInterface $messageScheduleLogRepository,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get('message_schedule');
@@ -291,5 +294,69 @@ class MessageScheduleDomainService
         ];
 
         return $this->messageScheduleRepository->batchUpdateByCondition($conditions, $data);
+    }
+
+    // ===== Message Schedule Log Methods =====
+
+    /**
+     * Create execution log for message schedule.
+     */
+    public function createExecutionLog(MessageScheduleEntity $messageSchedule): MessageScheduleLogEntity
+    {
+        $currentTime = date('Y-m-d H:i:s');
+
+        $logEntity = new MessageScheduleLogEntity();
+        $logEntity->setMessageScheduleId($messageSchedule->getId())
+            ->setWorkspaceId($messageSchedule->getWorkspaceId())
+            ->setProjectId($messageSchedule->getProjectId())
+            ->setTopicId($messageSchedule->getTopicId())
+            ->setTaskName($messageSchedule->getTaskName())
+            ->setStatus(MessageScheduleLogEntity::STATUS_RUNNING)
+            ->setExecutedAt($currentTime);
+
+        return $this->messageScheduleLogRepository->create($logEntity);
+    }
+
+    /**
+     * Update execution log status to success.
+     */
+    public function markLogAsSuccess(int $logId): bool
+    {
+        return $this->messageScheduleLogRepository->updateStatus($logId, MessageScheduleLogEntity::STATUS_SUCCESS);
+    }
+
+    /**
+     * Update execution log status to failed.
+     */
+    public function markLogAsFailed(int $logId, ?string $errorMessage = null): bool
+    {
+        return $this->messageScheduleLogRepository->updateStatus($logId, MessageScheduleLogEntity::STATUS_FAILED, $errorMessage);
+    }
+
+    /**
+     * Get execution logs by message schedule ID.
+     */
+    public function getExecutionLogs(int $messageScheduleId): array
+    {
+        return $this->messageScheduleLogRepository->findByMessageScheduleId($messageScheduleId);
+    }
+
+    /**
+     * Get execution logs with pagination.
+     */
+    public function getExecutionLogsByConditions(
+        array $conditions = [],
+        int $page = 1,
+        int $pageSize = 10,
+        string $orderBy = 'executed_at',
+        string $orderDirection = 'desc'
+    ): array {
+        return $this->messageScheduleLogRepository->getLogsByConditions(
+            $conditions,
+            $page,
+            $pageSize,
+            $orderBy,
+            $orderDirection
+        );
     }
 }
