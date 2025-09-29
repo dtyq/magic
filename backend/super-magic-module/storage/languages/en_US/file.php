@@ -42,6 +42,7 @@ return [
     'convert_create_zip_failed' => 'Failed to create ZIP file',
     'convert_no_converted_files' => 'No valid converted files to create ZIP',
     'convert_failed' => 'File conversion failed, please try again',
+    'convert_md_to_ppt_not_supported' => 'Converting Markdown to PPT is not supported',
 
     // File version related
     'cannot_version_directory' => 'Cannot create version for directory',

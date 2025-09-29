@@ -207,6 +207,19 @@ class FileConverterAppService extends AbstractAppService
         $convertType = $requestDTO->convert_type;
         $projectId = (string) $projectEntity->getId();
 
+        // 校验：不支持 md 转 ppt
+        if (strtolower($convertType) === 'ppt') {
+            foreach ($validFiles as $fileEntity) {
+                $ext = strtolower($fileEntity->getFileExtension());
+                if ($ext === 'md' || $ext === '.md') {
+                    ExceptionBuilder::throw(
+                        SuperAgentErrorCode::FILE_CONVERT_FAILED,
+                        'file.convert_md_to_ppt_not_supported'
+                    );
+                }
+            }
+        }
+
         try {
             $this->fileConvertStatusManager->setTaskProgress($taskKey, 0, $totalFiles, 'Starting file conversion');
 
@@ -426,25 +439,41 @@ class FileConverterAppService extends AbstractAppService
      */
     private function buildCompletedResponse(FileConverterResponse $response, string $taskKey, MagicUserAuthorization $userAuthorization): FileConvertStatusResponseDTO
     {
-        $zipOssKey = null;
-        foreach ($response->getConvertedFiles() as $file) {
-            if ($file->type === 'zip') {
-                $zipOssKey = $file->ossKey;
-                break;
+        // 优先查找 zip；若不存在，则回退到 pdf/ppt/pptx 等单文件类型
+        $targetOssKey = null;
+        $preferredTypes = ['zip', 'pdf', 'ppt', 'pptx'];
+
+        // 先尝试优先类型顺序匹配
+        foreach ($preferredTypes as $preferredType) {
+            foreach ($response->getConvertedFiles() as $file) {
+                if (strtolower($file->type) === $preferredType) {
+                    $targetOssKey = $file->ossKey;
+                    break 2;
+                }
+            }
+        }
+
+        // 如果仍未找到，则回退到第一个可用文件
+        if ($targetOssKey === null) {
+            foreach ($response->getConvertedFiles() as $file) {
+                if (! empty($file->ossKey)) {
+                    $targetOssKey = $file->ossKey;
+                    break;
+                }
             }
         }
 
         $downloadUrl = null;
-        if ($zipOssKey) {
+        if ($targetOssKey) {
             try {
-                $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$zipOssKey]);
-                $downloadUrl = $fileLinks[$zipOssKey]->getUrl();
+                $fileLinks = $this->fileAppService->getLinks($userAuthorization->getOrganizationCode(), [$targetOssKey]);
+                $downloadUrl = $fileLinks[$targetOssKey]->getUrl();
             } catch (Throwable $e) {
                 $this->logger->error('Failed to generate download URL for converted file', [
                     'task_key' => $taskKey,
                     'user_id' => $userAuthorization->getId(),
                     'organization_code' => $userAuthorization->getOrganizationCode(),
-                    'zip_oss_key' => $zipOssKey,
+                    'oss_key' => $targetOssKey,
                     'batch_id' => $response->getBatchId(),
                     'error' => $e->getMessage(),
                     'file' => $e->getFile(),
