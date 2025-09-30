@@ -8,6 +8,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 
 $fileDriver = env('FILE_DRIVER');
 
+var_dump($fileDriver,"============fileDriver");
 $storages = [];
 switch ($fileDriver) {
     case 'local':

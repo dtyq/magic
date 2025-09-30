@@ -1809,9 +1809,10 @@ class TaskFileDomainService
      *
      * @param string $filename File name
      * @param string $downloadMode Download mode (download, preview, inline)
+     * @param bool $addWatermark Whether to add watermark parameters
      * @return array URL options array
      */
-    private function prepareFileUrlOptions(string $filename, string $downloadMode): array
+    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark = false): array
     {
         $urlOptions = [];
 
@@ -1842,6 +1843,14 @@ class TaskFileDomainService
         // 设置Content-Type响应头
         $urlOptions['custom_query']['response-content-type'] = $urlOptions['content_type'];
 
+        // Add watermark parameters if enabled and file is an image
+        if ($addWatermark && $this->isImageFile($filename)) {
+            $watermarkParams = $this->getWatermarkParameters();
+            if (!empty($watermarkParams)) {
+                $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
+            }
+        }
+
         // 设置filename用于预签名URL生成
         $urlOptions['filename'] = $filename;
 
@@ -1864,16 +1873,12 @@ class TaskFileDomainService
         string $fileId,
         bool $addWatermark = true
     ): array {
-        // 准备下载选项
+        // 准备下载选项，包含水印参数
         $filename = $fileEntity->getFileName();
-        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode);
+        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode, $addWatermark);
 
-        // 生成预签名URL
+        // 生成预签名URL（水印参数已包含在签名中）
         $preSignedUrl = $this->getFilePreSignedUrl($dataIsolation, $fileEntity, $urlOptions);
-
-        if ($addWatermark) {
-            $preSignedUrl = $this->addWatermarkToFile($preSignedUrl);
-        }
 
         // 返回结果数组
         return [
@@ -1882,36 +1887,62 @@ class TaskFileDomainService
         ];
     }
 
-    # # 增加水印支持  水印名称从多语言中获取##
+    /**
+     * Get watermark text from translation.
+     */
     private function getWatermarkText(): string
     {
         return trans('image_generate.image_watermark');
     }
 
     /**
-     * Summary of addWatermarkToFile.
-     * @param mixed $url
+     * Check if file is an image based on file extension.
      */
-    private function addWatermarkToFile($url): string
+    private function isImageFile(string $filename): bool
     {
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        return in_array($extension, $imageExtensions);
+    }
+
+    /**
+     * Get watermark parameters for cloud storage processing.
+     */
+    private function getWatermarkParameters(): array
+    {
+        $driver = env('FILE_DRIVER');
+        if (empty($driver)) {
+            return [];
+        }
+
         $watermarkText = $this->getWatermarkText();
-        $driver = config('cloudfile.driver');
-        $text = '';
+        // Use base64url encoding for cloud storage compatibility
+        $encodedText = $this->base64UrlEncode($watermarkText);
 
         switch ($driver) {
             case 'oss':
-                $text = '?x-oss-process=';
-                break;
+                return [
+                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10'
+                ];
             case 'tos':
-                $text = '?x-tos-process=';
-                break;
+                return [
+                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10'
+                ];
             default:
-                return $url;
+                return [];
         }
+    }
 
-        $text = $text . 'image/resize,p_50,image/watermark,text_6bqm5ZCJQUnnlJ_miJA=,size_30,color_FFFFFF,' . $watermarkText;
+    /**
+     * Encode string to base64url format (RFC 4648).
+     */
+    private function base64UrlEncode(string $data): string
+    {
+        // First encode to standard base64
+        $base64 = base64_encode($data);
 
-        return $url . $text . $watermarkText;
+        // Convert to base64url by replacing characters and removing padding
+        return rtrim(strtr($base64, '+/', '-_'), '=');
     }
 
     /**
