@@ -44,4 +44,6 @@ interface MessageScheduleLogRepositoryInterface
         string $orderBy = 'executed_at',
         string $orderDirection = 'desc'
     ): array;
+
+    public function updateExecutionLogDetails(int $id, array $updateData): bool;
 }

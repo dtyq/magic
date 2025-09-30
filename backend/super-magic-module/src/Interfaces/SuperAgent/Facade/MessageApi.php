@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConsumeMessageQueueRequest
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageQueueRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleLogsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageScheduleRequestDTO;
@@ -230,5 +231,39 @@ class MessageApi extends AbstractApi
 
         // Call application service to handle business logic
         return $this->messageScheduleAppService->getScheduleDetail($requestContext, (int) $id);
+    }
+
+    /**
+     * Get message schedule execution logs.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $id Message schedule ID
+     * @return array Execution logs result with total count and list containing executed_at, task_name, workspace info, project info, topic info, status, and error_message
+     * @throws BusinessException If parameters are invalid or operation fails
+     * @throws Throwable
+     */
+    public function getMessageScheduleLogs(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization information
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Create DTO from request
+        $requestDTO = QueryMessageScheduleLogsRequestDTO::fromRequest($this->request);
+
+        // Call application service to handle business logic
+        return $this->messageScheduleAppService->getScheduleLogs($requestContext, (int) $id, $requestDTO);
+    }
+
+    /**
+     * Execute message schedule for testing purpose.
+     * 执行消息定时任务（测试用途）.
+     */
+    public function executeMessageScheduleForTest(RequestContext $requestContext, string $id): array
+    {
+        // Convert string ID to integer
+        $messageScheduleId = (int) $id;
+
+        // Call the messageScheduleCallback method directly for testing
+        return MessageScheduleAppService::messageScheduleCallback($messageScheduleId);
     }
 }

@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
+use Carbon\Carbon;
+
 /**
  * Message schedule log entity.
  */
@@ -161,15 +163,23 @@ class MessageScheduleLogEntity
         return $this;
     }
 
-    public function setCreatedAt(?string $createdAt): self
+    public function setCreatedAt($createdAt): self
     {
-        $this->createdAt = $createdAt;
+        if ($createdAt instanceof Carbon) {
+            $this->createdAt = $createdAt->toDateTimeString();
+        } else {
+            $this->createdAt = $createdAt;
+        }
         return $this;
     }
 
-    public function setUpdatedAt(?string $updatedAt): self
+    public function setUpdatedAt($updatedAt): self
     {
-        $this->updatedAt = $updatedAt;
+        if ($updatedAt instanceof Carbon) {
+            $this->updatedAt = $updatedAt->toDateTimeString();
+        } else {
+            $this->updatedAt = $updatedAt;
+        }
         return $this;
     }
 

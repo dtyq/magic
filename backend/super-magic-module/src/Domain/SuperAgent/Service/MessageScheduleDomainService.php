@@ -359,4 +359,12 @@ class MessageScheduleDomainService
             $orderDirection
         );
     }
+
+    /**
+     * Update execution log details.
+     */
+    public function updateExecutionLogDetails(int $executionLogId, array $updateData): bool
+    {
+        return $this->messageScheduleLogRepository->updateExecutionLogDetails($executionLogId, $updateData);
+    }
 }

@@ -156,6 +156,10 @@ Router::addGroup(
             Router::post('/queries', [MessageApi::class, 'queryMessageSchedules']);
             // 查询定时任务详情
             Router::get('/{id}', [MessageApi::class, 'getMessageScheduleDetail']);
+            // 查询定时任务执行日志
+            Router::post('/{id}/logs', [MessageApi::class, 'getMessageScheduleLogs']);
+            // 手动执行定时任务（测试用途）
+            Router::post('/{id}/execute', [MessageApi::class, 'executeMessageScheduleForTest']);
         });
 
         Router::addGroup('/file', static function () {
