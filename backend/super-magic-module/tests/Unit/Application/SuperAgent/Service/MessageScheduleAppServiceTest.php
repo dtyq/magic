@@ -101,7 +101,7 @@ class MessageScheduleAppServiceTest extends TestCase
 
         $this->assertTrue($method->isStatic());
         $this->assertTrue($method->isPublic());
-        $this->assertEquals('array', $method->getReturnType()->getName());
+        $this->assertEquals('array', (string) $method->getReturnType());
     }
 
     /**
@@ -130,7 +130,7 @@ class MessageScheduleAppServiceTest extends TestCase
         // Verify return type
         $returnType = $method->getReturnType();
         $this->assertNotNull($returnType, 'Method should have return type');
-        $this->assertEquals('array', $returnType->getName(), 'Method should return array');
+        $this->assertEquals('array', (string) $returnType, 'Method should return array');
 
         // Verify parameter count
         $parameters = $method->getParameters();
@@ -141,7 +141,7 @@ class MessageScheduleAppServiceTest extends TestCase
         $this->assertEquals('message_schedule_id', $param->getName(), 'Parameter should be named message_schedule_id');
         $paramType = $param->getType();
         $this->assertNotNull($paramType, 'Parameter should have type hint');
-        $this->assertEquals('int', $paramType->getName(), 'Parameter should be int type');
+        $this->assertEquals('int', (string) $paramType, 'Parameter should be int type');
     }
 
     /**
