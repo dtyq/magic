@@ -117,19 +117,7 @@ readonly class AsrFileAppService
             // 3. 验证项目权限 - 确保项目属于当前用户和组织
             $this->validateProjectAccess($summaryRequest->projectId, $userId, $organizationCode);
 
-            // 3.5. 检查并更新项目/话题名称（如果为空且有生成的标题）
-            $generatedTitle = $summaryRequest->generatedTitle;
-            if (! empty($generatedTitle) && $summaryRequest->hasAsrStreamContent()) {
-                $this->updateEmptyProjectAndTopicNames(
-                    $summaryRequest->projectId,
-                    (int) $summaryRequest->topicId,
-                    $summaryRequest->generatedTitle,
-                    $userId,
-                    $organizationCode
-                );
-            }
-
-            // 4. 查询项目和工作区信息
+            // 4. 查询项目、工作区和话题信息（先查询，后续可判断是否需要更新）
             $projectName = null;
             $workspaceName = null;
             try {
@@ -151,6 +139,36 @@ readonly class AsrFileAppService
                 ]);
             }
 
+            // 获取话题名称
+            $topicName = $topicEntity->getTopicName();
+
+            // 4.5. 检查并更新项目/话题名称（如果为空且有生成的标题）
+            // 支持两种场景：场景一（实时录音）和场景二（上传已有文件）
+            $generatedTitle = $summaryRequest->generatedTitle;
+            if (! empty($generatedTitle)) {
+                $needUpdateProject = empty($projectName) || trim($projectName) === '';
+                $needUpdateTopic = empty($topicName) || trim($topicName) === '';
+
+                // 只在确实需要更新时才调用更新方法
+                if ($needUpdateProject || $needUpdateTopic) {
+                    $this->updateEmptyProjectAndTopicNames(
+                        $summaryRequest->projectId,
+                        (int) $summaryRequest->topicId,
+                        $generatedTitle,
+                        $userId,
+                        $organizationCode
+                    );
+
+                    // 更新本地变量，避免再次查询数据库
+                    if ($needUpdateProject) {
+                        $projectName = $generatedTitle;
+                    }
+                    if ($needUpdateTopic) {
+                        $topicName = $generatedTitle;
+                    }
+                }
+            }
+
             // 5. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
             Coroutine::create(function () use ($summaryRequest, $userAuthorization) {
                 try {
@@ -168,6 +186,7 @@ readonly class AsrFileAppService
                 'task_status' => null,
                 'conversation_id' => $conversationId,
                 'chat_result' => true,
+                'topic_name' => $topicName,
                 'project_name' => $projectName,
                 'workspace_name' => $workspaceName,
             ];
