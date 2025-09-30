@@ -97,7 +97,7 @@ class TopicEntity extends AbstractEntity
     protected int $source = 1;
 
     /**
-     * @var string|null Source ID
+     * @var null|string Source ID
      */
     protected ?string $sourceId = null;
 
