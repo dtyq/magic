@@ -97,9 +97,9 @@ class TopicEntity extends AbstractEntity
     protected int $source = 1;
 
     /**
-     * @var string Source ID
+     * @var string|null Source ID
      */
-    protected string $sourceId = '';
+    protected ?string $sourceId = null;
 
     /**
      * @var null|int 当前任务ID
@@ -572,7 +572,7 @@ class TopicEntity extends AbstractEntity
     /**
      * Get source ID.
      */
-    public function getSourceId(): string
+    public function getSourceId(): ?string
     {
         return $this->sourceId;
     }
@@ -580,7 +580,7 @@ class TopicEntity extends AbstractEntity
     /**
      * Set source ID.
      */
-    public function setSourceId(string $sourceId): self
+    public function setSourceId(?string $sourceId): self
     {
         $this->sourceId = $sourceId;
         return $this;
