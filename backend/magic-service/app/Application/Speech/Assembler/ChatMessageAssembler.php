@@ -9,91 +9,33 @@ namespace App\Application\Speech\Assembler;
 
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Domain\Chat\DTO\Request\ChatRequest;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Codec\Json;
 use Hyperf\Contract\TranslatorInterface;
-use Hyperf\Logger\LoggerFactory;
-use Psr\Log\LoggerInterface;
 
 /**
  * 聊天消息装配器
  * 负责构建ASR总结相关的聊天消息.
  */
-class ChatMessageAssembler
+readonly class ChatMessageAssembler
 {
-    private LoggerInterface $logger;
-
     public function __construct(
         private TranslatorInterface $translator,
-        LoggerFactory $loggerFactory
     ) {
-        $this->logger = $loggerFactory->get('ChatMessageAssembler');
     }
 
     /**
      * 构建聊天请求对象用于总结任务
      *
      * @param ProcessSummaryTaskDTO $dto 处理总结任务DTO
+     * @param array $audioFileData 音频文件数据（包含file_id, file_name, file_path, file_size等）
+     * @param null|array $noteFileData 笔记文件数据（包含file_id, file_name, file_path, file_size等），可选
      * @return ChatRequest 聊天请求对象
-     * @throws BusinessException 当工作区文件键为空时
      */
-    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto): ChatRequest
+    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, array $audioFileData, ?array $noteFileData = null): ChatRequest
     {
-        // 验证工作区文件键
-        if (empty($dto->taskStatus->workspaceFileKey)) {
-            $this->logger->warning('工作区文件键为空，无法构建聊天消息', [
-                'task_key' => $dto->taskStatus->taskKey,
-                'user_id' => $dto->userId,
-            ]);
-
-            throw new BusinessException('工作区文件键为空，无法构建聊天消息');
-        }
-        // 生成文件信息
-        $fileId = (string) IdGenerator::getSnowId();
-
-        $fullFilePath = $dto->taskStatus->filePath;
-        $fileName = basename($fullFilePath); // 从完整路径中提取文件名
-
-        // 提取工作区下的相对路径
-        $workspaceRelativePath = $this->extractWorkspaceRelativePath($fullFilePath);
-
-        // 如果有笔记文件，需要构建笔记文件信息
-        $noteFileName = null;
-        $noteFilePath = null;
-        $noteFileId = null;
-        if ($dto->taskStatus->hasNoteFile()) {
-            $noteFileName = $dto->taskStatus->noteFileName;
-            $noteFileId = $dto->taskStatus->noteFileId;
-            // 笔记文件与音频文件在同一目录，通过音频文件路径构造笔记文件路径
-            $audioFileDirectory = dirname($workspaceRelativePath);
-            $noteFilePath = $audioFileDirectory . '/' . $noteFileName;
-            // 规范化路径，移除多余的斜杠
-            $noteFilePath = ltrim($noteFilePath, './');
-        }
-
-        // 构建文件数据
-        $fileData = [
-            'file_id' => $fileId,
-            'file_name' => $fileName,
-            'file_path' => $workspaceRelativePath,
-            'file_extension' => pathinfo($fileName, PATHINFO_EXTENSION),
-            'file_size' => 0,
-        ];
-
-        // 构建笔记文件数据（如果有）
-        $noteData = null;
-        if ($dto->taskStatus->hasNoteFile() && ! empty($noteFileName) && ! empty($noteFilePath)) {
-            $noteData = [
-                'file_id' => $noteFileId ?: (string) IdGenerator::getSnowId(),
-                'file_name' => $noteFileName,
-                'file_path' => $noteFilePath,
-                'file_extension' => pathinfo($noteFileName, PATHINFO_EXTENSION),
-                'file_size' => 0,
-            ];
-        }
-
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($dto->modelId, $fileData, $noteData);
+        $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -187,7 +129,7 @@ class ChatMessageAssembler
         }
 
         return [
-            'content' => json_encode([
+            'content' => Json::encode([
                 'type' => 'doc',
                 'content' => [
                     [

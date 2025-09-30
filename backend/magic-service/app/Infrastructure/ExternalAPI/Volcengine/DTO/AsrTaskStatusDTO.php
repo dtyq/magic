@@ -31,6 +31,9 @@ class AsrTaskStatusDTO
     // 类似：project_821749697183776769/workspace/录音总结_20250910_174251
     public ?string $workspaceRelativeDir = null; // 工作区相对目录，确保音频和note文件在同一目录
 
+    // 文件ID（数据库中的实际ID）
+    public ?string $audioFileId = null; // 音频文件ID（写入magic_super_agent_task_files表后返回的ID）
+
     // note 文件信息
     public ?string $noteFileName = null; // note文件名（与音频文件在同一目录，为空表示无笔记文件）
 
@@ -57,6 +60,7 @@ class AsrTaskStatusDTO
         $this->workspaceFileUrl = $data['workspace_file_url'] ?? $data['workspaceFileUrl'] ?? null;
         $this->filePath = $data['file_path'] ?? $data['filePath'] ?? $data['file_name'] ?? $data['fileName'] ?? null;
         $this->workspaceRelativeDir = $data['workspace_relative_dir'] ?? $data['workspaceRelativeDir'] ?? null;
+        $this->audioFileId = $data['audio_file_id'] ?? $data['audioFileId'] ?? null;
         $this->noteFileName = $data['note_file_name'] ?? $data['noteFileName'] ?? null;
         $this->noteFileId = $data['note_file_id'] ?? $data['noteFileId'] ?? null;
     }
@@ -87,6 +91,7 @@ class AsrTaskStatusDTO
             'workspace_file_url' => $this->workspaceFileUrl,
             'file_path' => $this->filePath,
             'workspace_relative_dir' => $this->workspaceRelativeDir,
+            'audio_file_id' => $this->audioFileId,
             'note_file_name' => $this->noteFileName,
             'note_file_id' => $this->noteFileId,
         ];
