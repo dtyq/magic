@@ -41,6 +41,9 @@ class ModeAssembler
         return $dto;
     }
 
+    /**
+     * @param array<string, ProviderModelEntity> $providerModels
+     */
     public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels): ModeGroupAggregateDTO
     {
         $dto = new ModeGroupAggregateDTO();
@@ -55,17 +58,9 @@ class ModeAssembler
             $providerModelId = $relation->getModelId();
             if (isset($providerModels[$providerModelId])) {
                 $providerModel = $providerModels[$providerModelId];
-                $modelDTO->setModelName($providerModel->getName());
+                $modelDTO->setModelName($providerModel->getLocalizedName($locale));
                 $modelDTO->setModelIcon($providerModel->getIcon());
-
-                $description = '';
-                $translate = $providerModel->getTranslate();
-                if (is_array($translate) && isset($translate['description'][$locale])) {
-                    $description = $translate['description'][$locale];
-                } else {
-                    $description = $providerModel->getDescription();
-                }
-                $modelDTO->setModelDescription($description);
+                $modelDTO->setModelDescription($providerModel->getDescription());
                 $models[] = $modelDTO;
             }
         }
