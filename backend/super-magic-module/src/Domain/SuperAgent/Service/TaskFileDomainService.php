@@ -1846,7 +1846,7 @@ class TaskFileDomainService
         // Add watermark parameters if enabled and file is an image
         if ($addWatermark && $this->isImageFile($filename)) {
             $watermarkParams = $this->getWatermarkParameters();
-            if (!empty($watermarkParams)) {
+            if (! empty($watermarkParams)) {
                 $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
             }
         }
@@ -1922,11 +1922,11 @@ class TaskFileDomainService
         switch ($driver) {
             case 'oss':
                 return [
-                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10'
+                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10',
                 ];
             case 'tos':
                 return [
-                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10'
+                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10',
                 ];
             default:
                 return [];
