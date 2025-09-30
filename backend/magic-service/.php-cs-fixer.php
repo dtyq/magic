@@ -99,6 +99,6 @@ return (new Config())
             ->exclude('runtime')
             ->exclude('vendor')
             ->in(__DIR__)
-            ->append(Finder::create()->in(__DIR__.'/../super-magic-module')->exclude('vendor'))
+            ->append(Finder::create()->in(__DIR__.'/vendor/dtyq/super-magic-module')->exclude('vendor'))
     )
     ->setUsingCache(false);
