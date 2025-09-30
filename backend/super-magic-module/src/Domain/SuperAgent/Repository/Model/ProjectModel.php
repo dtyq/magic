@@ -42,6 +42,7 @@ class ProjectModel extends AbstractModel
         'current_topic_id',
         'current_topic_status',
         'project_mode',
+        'source',
         'created_uid',
         'updated_uid',
     ];

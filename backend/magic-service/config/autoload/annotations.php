@@ -4,6 +4,7 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use Aws\WrappedHttpHandler;
 use GuzzleHttp\BodySummarizer;
 use Hyperf\SocketIOServer\Room\RedisAdapter;
 use Hyperf\SocketIOServer\SocketIO;
@@ -28,6 +29,8 @@ return [
             // websocket server 支持 swow 驱动
             //            Sender::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/WebSocketServer/Sender.php',
             BodySummarizer::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/GuzzleHttp/BodySummarizer.php',
+            // AWS SDK error handling enhancement
+            WrappedHttpHandler::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/Aws/WrappedHttpHandler.php',
         ],
     ],
 ];

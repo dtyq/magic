@@ -27,7 +27,6 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -118,19 +117,7 @@ readonly class AsrFileAppService
             // 3. 验证项目权限 - 确保项目属于当前用户和组织
             $this->validateProjectAccess($summaryRequest->projectId, $userId, $organizationCode);
 
-            // 3.5. 检查并更新项目/话题名称（如果为空且有生成的标题）
-            $generatedTitle = $summaryRequest->generatedTitle;
-            if (! empty($generatedTitle) && $summaryRequest->hasAsrStreamContent()) {
-                $this->updateEmptyProjectAndTopicNames(
-                    $summaryRequest->projectId,
-                    (int) $summaryRequest->topicId,
-                    $summaryRequest->generatedTitle,
-                    $userId,
-                    $organizationCode
-                );
-            }
-
-            // 4. 查询项目和工作区信息
+            // 4. 查询项目、工作区和话题信息（先查询，后续可判断是否需要更新）
             $projectName = null;
             $workspaceName = null;
             try {
@@ -152,6 +139,36 @@ readonly class AsrFileAppService
                 ]);
             }
 
+            // 获取话题名称
+            $topicName = $topicEntity->getTopicName();
+
+            // 4.5. 检查并更新项目/话题名称（如果为空且有生成的标题）
+            // 支持两种场景：场景一（实时录音）和场景二（上传已有文件）
+            $generatedTitle = $summaryRequest->generatedTitle;
+            if (! empty($generatedTitle)) {
+                $needUpdateProject = empty($projectName) || trim($projectName) === '';
+                $needUpdateTopic = empty($topicName) || trim($topicName) === '';
+
+                // 只在确实需要更新时才调用更新方法
+                if ($needUpdateProject || $needUpdateTopic) {
+                    $this->updateEmptyProjectAndTopicNames(
+                        $summaryRequest->projectId,
+                        (int) $summaryRequest->topicId,
+                        $generatedTitle,
+                        $userId,
+                        $organizationCode
+                    );
+
+                    // 更新本地变量，避免再次查询数据库
+                    if ($needUpdateProject) {
+                        $projectName = $generatedTitle;
+                    }
+                    if ($needUpdateTopic) {
+                        $topicName = $generatedTitle;
+                    }
+                }
+            }
+
             // 5. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
             Coroutine::create(function () use ($summaryRequest, $userAuthorization) {
                 try {
@@ -169,6 +186,7 @@ readonly class AsrFileAppService
                 'task_status' => null,
                 'conversation_id' => $conversationId,
                 'chat_result' => true,
+                'topic_name' => $topicName,
                 'project_name' => $projectName,
                 'workspace_name' => $workspaceName,
             ];
@@ -507,9 +525,9 @@ readonly class AsrFileAppService
      * 保存任务状态到Redis.
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态DTO
-     * @param int $ttl 缓存过期时间（秒），默认12小时
+     * @param int $ttl 缓存过期时间（秒)
      */
-    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = 43200): void
+    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = 3600 * 24 * 7): void
     {
         try {
             $redisKey = sprintf('asr:task:%s', md5(sprintf('%s:%s', $taskStatus->userId, $taskStatus->taskKey)));
@@ -1007,8 +1025,10 @@ readonly class AsrFileAppService
 
     /**
      * 保存文件记录到项目文件表.
+     *
+     * @return null|TaskFileEntity 保存成功返回文件实体，失败返回null
      */
-    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto): void
+    private function saveFileRecordToProject(SaveFileRecordToProjectDTO $dto): ?TaskFileEntity
     {
         try {
             // 从文件key中提取目录路径
@@ -1044,7 +1064,10 @@ readonly class AsrFileAppService
             ]);
 
             // 插入或忽略（防重复）
-            $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
+            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
+
+            // 如果插入成功，返回实体；如果已存在，通过file_key查询现有实体
+            return $result ?? $this->taskFileDomainService->getByProjectIdAndFileKey((int) $dto->projectId, $dto->fileKey);
         } catch (Throwable $e) {
             // 保存文件记录失败只记录日志，不影响主流程
             $this->logger->error('保存文件记录到项目失败', [
@@ -1054,6 +1077,7 @@ readonly class AsrFileAppService
                 'error' => $e->getMessage(),
                 'stack_trace' => $e->getTraceAsString(),
             ]);
+            return null;
         }
     }
 
@@ -1814,7 +1838,7 @@ readonly class AsrFileAppService
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
-            // 4. 保存文件记录到项目
+            // 4. 保存文件记录到项目并获取文件实体
             $fileSize = filesize($mergedLocalAudioFile);
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
@@ -1825,7 +1849,12 @@ readonly class AsrFileAppService
                 pathinfo($fileName, PATHINFO_EXTENSION),
                 $userId
             );
-            $this->saveFileRecordToProject($saveDto);
+            $audioFileEntity = $this->saveFileRecordToProject($saveDto);
+
+            // 保存音频文件ID到taskStatus（用于构建聊天消息）
+            if ($audioFileEntity !== null) {
+                $taskStatus->audioFileId = (string) $audioFileEntity->getFileId();
+            }
 
             // 5. 获取文件访问URL
             $fileLink = $this->fileAppService->getLink($organizationCode, $actualWorkspaceFileKey, StorageBucketType::SandBox);
@@ -1906,6 +1935,55 @@ readonly class AsrFileAppService
     }
 
     /**
+     * 根据taskStatus构建文件数据（从数据库查询）.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param string $projectId 项目ID
+     * @param bool $isAudioFile true-构建音频文件数据，false-构建笔记文件数据
+     * @return array 文件数据数组
+     * @throws InvalidArgumentException 当找不到文件时
+     */
+    private function buildFileDataFromTaskStatus(AsrTaskStatusDTO $taskStatus, string $projectId, bool $isAudioFile): array
+    {
+        // 获取文件ID
+        $fileId = $isAudioFile ? $taskStatus->audioFileId : $taskStatus->noteFileId;
+        $fileType = $isAudioFile ? '音频文件' : '笔记文件';
+
+        if (empty($fileId)) {
+            throw new InvalidArgumentException(sprintf(
+                '%s ID为空，无法构建文件数据。task_key: %s, project_id: %s',
+                $fileType,
+                $taskStatus->taskKey,
+                $projectId
+            ));
+        }
+
+        // 根据文件ID查询数据库
+        $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+
+        if ($fileEntity === null) {
+            throw new InvalidArgumentException(sprintf(
+                '根据文件ID未找到%s记录。file_id: %s, task_key: %s, project_id: %s',
+                $fileType,
+                $fileId,
+                $taskStatus->taskKey,
+                $projectId
+            ));
+        }
+
+        // 提取工作区相对路径
+        $workspaceRelativePath = $this->chatMessageAssembler->extractWorkspaceRelativePath($fileEntity->getFileKey());
+
+        return [
+            'file_id' => (string) $fileEntity->getFileId(),
+            'file_name' => $fileEntity->getFileName(),
+            'file_path' => $workspaceRelativePath,
+            'file_extension' => $fileEntity->getFileExtension(),
+            'file_size' => $fileEntity->getFileSize(),
+        ];
+    }
+
+    /**
      * 发送总结聊天消息.
      *
      * @param ProcessSummaryTaskDTO $dto 处理总结任务DTO
@@ -1914,10 +1992,19 @@ readonly class AsrFileAppService
     private function sendSummaryChatMessage(ProcessSummaryTaskDTO $dto, MagicUserAuthorization $userAuthorization): void
     {
         try {
-            // 构建聊天请求
-            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto);
+            // 1. 查询音频文件数据
+            $audioFileData = $this->buildFileDataFromTaskStatus($dto->taskStatus, $dto->projectId, true);
 
-            // 检查话题状态，决定是直接发送消息还是写入队列
+            // 2. 查询笔记文件数据（如果有）
+            $noteFileData = null;
+            if ($dto->taskStatus->hasNoteFile()) {
+                $noteFileData = $this->buildFileDataFromTaskStatus($dto->taskStatus, $dto->projectId, false);
+            }
+
+            // 3. 构建聊天请求
+            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData);
+
+            // 4. 检查话题状态，决定是直接发送消息还是写入队列
             $shouldQueueMessage = $this->shouldQueueMessage($dto->topicId);
             if ($shouldQueueMessage) {
                 // 话题状态为waiting或running，将消息写入队列
@@ -1954,10 +2041,7 @@ readonly class AsrFileAppService
         string $userId
     ): void {
         try {
-            // 1. 生成笔记文件ID
-            $noteFileId = (string) IdGenerator::getSnowId();
-
-            // 2. 生成临时文件
+            // 1. 生成临时文件
             $tempDir = sys_get_temp_dir();
             $noteFileName = $summaryRequest->getNoteFileName(); // 使用生成的标题
             $tempFilePath = sprintf('%s/%s', rtrim($tempDir, '/'), $noteFileName);
@@ -1990,7 +2074,7 @@ readonly class AsrFileAppService
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
-            // 7. 保存文件记录到项目 task_files 表
+            // 7. 保存文件记录到项目 task_files 表并获取文件实体
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
                 $summaryRequest->projectId,
@@ -2000,11 +2084,13 @@ readonly class AsrFileAppService
                 $summaryRequest->note->getFileExtension(),
                 $userId
             );
-            $this->saveFileRecordToProject($saveDto);
+            $noteFileEntity = $this->saveFileRecordToProject($saveDto);
 
             // 保存笔记文件名和ID（非空表示存在笔记文件）
             $taskStatus->noteFileName = $noteFileName;
-            $taskStatus->noteFileId = $noteFileId;
+            if ($noteFileEntity !== null) {
+                $taskStatus->noteFileId = (string) $noteFileEntity->getFileId();
+            }
 
             // 8. 删除本地临时文件
             if (file_exists($tempFilePath)) {

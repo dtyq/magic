@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -193,7 +194,8 @@ class TopicDomainService
         string $chatTopicId,
         string $topicName = '',
         string $workDir = '',
-        string $topicMode = ''
+        string $topicMode = '',
+        int $source = CreationSource::USER_CREATED->value
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -218,6 +220,7 @@ class TopicDomainService
         $topicEntity->setWorkDir($workDir); // Initially empty
         $topicEntity->setCurrentTaskId(0);
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // Default status: waiting
+        $topicEntity->setSource($source);
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
