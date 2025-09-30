@@ -30,6 +30,7 @@ use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 abstract class AbstractLLMAppService extends AbstractKernelAppService
 {
@@ -124,24 +125,31 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
             return $default;
         }
 
-        $request = container()->get(RequestInterface::class);
-        $headerConfigs = [];
-        foreach ($request->getHeaders() as $k => $value) {
-            $k = strtolower((string) $k);
-            $headerConfigs[$k] = $request->getHeader($k)[0] ?? '';
+        try {
+            $request = container()->get(RequestInterface::class);
+            if (! method_exists($request, 'getHeaders') || ! method_exists($request, 'getHeader')) {
+                return $default;
+            }
+            $headerConfigs = [];
+            foreach ($request->getHeaders() as $k => $value) {
+                $k = strtolower((string) $k);
+                $headerConfigs[$k] = $request->getHeader($k)[0] ?? '';
+            }
+            if (isset($headerConfigs['business_id']) && $key === 'business_id') {
+                return $headerConfigs['business_id'];
+            }
+            if (isset($headerConfigs['magic-organization-id']) && ($key === 'organization_id' || $key === 'organization_code')) {
+                return $headerConfigs['magic-organization-id'];
+            }
+            if (isset($headerConfigs['magic-organization-code']) && ($key === 'organization_id' || $key === 'organization_code')) {
+                return $headerConfigs['magic-organization-code'];
+            }
+            if (isset($headerConfigs['magic-user-id']) && $key === 'user_id') {
+                return $headerConfigs['magic-user-id'];
+            }
+            return $request->input('business_params.' . $key, $default);
+        } catch (Throwable $throwable) {
+            return $default;
         }
-        if (isset($headerConfigs['business_id']) && $key === 'business_id') {
-            return $headerConfigs['business_id'];
-        }
-        if (isset($headerConfigs['magic-organization-id']) && ($key === 'organization_id' || $key === 'organization_code')) {
-            return $headerConfigs['magic-organization-id'];
-        }
-        if (isset($headerConfigs['magic-organization-code']) && ($key === 'organization_id' || $key === 'organization_code')) {
-            return $headerConfigs['magic-organization-code'];
-        }
-        if (isset($headerConfigs['magic-user-id']) && $key === 'user_id') {
-            return $headerConfigs['magic-user-id'];
-        }
-        return $request->input('business_params.' . $key, $default);
     }
 }

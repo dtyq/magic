@@ -72,6 +72,7 @@ class MagicAILocalModel extends AbstractModel
      */
     public function embedding(array|string $input, ?string $encoding_format = 'float', ?string $user = null, array $businessParams = []): Embedding
     {
+        $businessParams = $this->businessParamsHandler($businessParams);
         $response = $this->embeddings($input, $encoding_format, $user, $businessParams);
         // 从响应中提取嵌入向量
         $embeddings = [];
