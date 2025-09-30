@@ -421,8 +421,8 @@ class MessageScheduleAppService extends AbstractAppService
 
         // Remove duplicates
         $workspaceIds = array_unique($workspaceIds);
-        $projectIds = array_unique(array_filter($projectIds));
-        $topicIds = array_unique(array_filter($topicIds));
+        $projectIds = array_unique($projectIds);
+        $topicIds = array_unique($topicIds);
 
         // Batch fetch names (reuse existing domain service methods)
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
