@@ -519,10 +519,16 @@ class ProviderModelEntity extends AbstractEntity
      */
     public function getLocalizedName(string $locale): string
     {
-        return $this->translate['name'][$locale]
-            ?? $this->translate['name']['zh_CN']
-            ?? $this->translate['name']['en_US']
-            ?? $this->name;
+        if (! empty($this->translate['name'][$locale] ?? '')) {
+            return $this->translate['name'][$locale];
+        }
+        if (! empty($this->translate['name']['zh_CN'] ?? '')) {
+            return $this->translate['name']['zh_CN'];
+        }
+        if (! empty($this->translate['name']['en_US'] ?? '')) {
+            return $this->translate['name']['en_US'];
+        }
+        return $this->name;
     }
 
     /**
@@ -530,9 +536,15 @@ class ProviderModelEntity extends AbstractEntity
      */
     public function getLocalizedDescription(string $locale): string
     {
-        return $this->translate['description'][$locale]
-            ?? $this->translate['description']['zh_CN']
-            ?? $this->translate['description']['en_US']
-            ?? $this->description;
+        if (! empty($this->translate['description'][$locale] ?? '')) {
+            return $this->translate['description'][$locale];
+        }
+        if (! empty($this->translate['description']['zh_CN'] ?? '')) {
+            return $this->translate['description']['zh_CN'];
+        }
+        if (! empty($this->translate['description']['en_US'] ?? '')) {
+            return $this->translate['description']['en_US'];
+        }
+        return $this->description;
     }
 }
