@@ -1910,7 +1910,12 @@ class TaskFileDomainService
      */
     private function getWatermarkParameters(): array
     {
-        $driver = env('FILE_DRIVER');
+        $driver = env('FILE_SERVICE_PUBLIC_PLATFORM') ?? env('FILE_SERVICE_PRIVATE_PLATFORM');
+
+        if (empty($driver)) {
+            $driver = env('FILE_DRIVER');
+        }
+
         if (empty($driver)) {
             return [];
         }
@@ -1922,11 +1927,11 @@ class TaskFileDomainService
         switch ($driver) {
             case 'oss':
                 return [
-                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10',
+                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
                 ];
             case 'tos':
                 return [
-                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10',
+                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
                 ];
             default:
                 return [];
