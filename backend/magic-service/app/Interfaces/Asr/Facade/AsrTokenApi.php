@@ -205,6 +205,7 @@ class AsrTokenApi extends AbstractApi
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
                     'topic_id' => $summaryRequest->topicId,
+                    'topic_name' => null,
                     'project_name' => null,
                     'workspace_name' => null,
                 ];
@@ -224,6 +225,7 @@ class AsrTokenApi extends AbstractApi
                     'task_key' => $summaryRequest->taskKey,
                     'project_id' => $summaryRequest->projectId,
                     'topic_id' => $summaryRequest->topicId,
+                    'topic_name' => null,
                     'project_name' => null,
                     'workspace_name' => null,
                 ];
@@ -235,6 +237,7 @@ class AsrTokenApi extends AbstractApi
                 'project_id' => $summaryRequest->projectId,
                 'topic_id' => $summaryRequest->topicId,
                 'conversation_id' => $result['conversation_id'],
+                'topic_name' => $result['topic_name'] ?? null,
                 'project_name' => $result['project_name'] ?? null,
                 'workspace_name' => $result['workspace_name'] ?? null,
             ];
@@ -253,6 +256,7 @@ class AsrTokenApi extends AbstractApi
                 'task_key' => $summaryRequest->taskKey,
                 'project_id' => $summaryRequest->projectId,
                 'topic_id' => $summaryRequest->topicId,
+                'topic_name' => null,
                 'project_name' => null,
                 'workspace_name' => null,
             ];
