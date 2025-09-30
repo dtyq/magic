@@ -817,7 +817,8 @@ class FileManagementAppService extends AbstractAppService
                 $fileIds,
                 $downloadMode,
                 $options,
-                $fileVersions
+                $fileVersions,
+                true
             );
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
