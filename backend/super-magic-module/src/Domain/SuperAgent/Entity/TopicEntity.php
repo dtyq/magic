@@ -97,6 +97,11 @@ class TopicEntity extends AbstractEntity
     protected int $source = 1;
 
     /**
+     * @var string Source ID
+     */
+    protected string $sourceId = '';
+
+    /**
      * @var null|int 当前任务ID
      */
     protected ?int $currentTaskId = null;
@@ -165,6 +170,7 @@ class TopicEntity extends AbstractEntity
             'topic_mode' => $this->topicMode,
             'cost' => $this->cost ?? 0.0,
             'source' => $this->source,
+            'source_id' => $this->sourceId,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
@@ -560,6 +566,23 @@ class TopicEntity extends AbstractEntity
     public function setChatHistoryCommitHash(?string $chatHistoryCommitHash): self
     {
         $this->chatHistoryCommitHash = $chatHistoryCommitHash;
+        return $this;
+    }
+
+    /**
+     * Get source ID.
+     */
+    public function getSourceId(): string
+    {
+        return $this->sourceId;
+    }
+
+    /**
+     * Set source ID.
+     */
+    public function setSourceId(string $sourceId): self
+    {
+        $this->sourceId = $sourceId;
         return $this;
     }
 }

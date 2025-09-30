@@ -218,9 +218,9 @@ class MessageScheduleAppServiceTest extends TestCase
             $this->assertIsArray($result, 'Response should be array for ID: ' . var_export($invalidId, true));
             $this->assertFalse($result['success'], 'Success should be false for invalid ID: ' . var_export($invalidId, true));
 
-            // For zero and negative IDs, expect 'Message schedule ID is required'
-            // For non-existent IDs, expect 'Message schedule not found'
-            if ($invalidId <= 0) {
+            // For zero IDs, expect 'Message schedule ID is required'
+            // For negative and non-existent IDs, expect 'Message schedule not found'
+            if ($invalidId == 0) {
                 $this->assertEquals('Message schedule ID is required', $result['message'], 'Error message should match for ID: ' . var_export($invalidId, true));
             } else {
                 $this->assertEquals('Message schedule not found', $result['message'], 'Error message should match for ID: ' . var_export($invalidId, true));
@@ -236,12 +236,12 @@ class MessageScheduleAppServiceTest extends TestCase
      * ┌─────────────────────┬─────────────────┬─────────────────┬─────────────────┐
      * │   Input ID          │   Expected      │   Result Type   │   Validation    │
      * ├─────────────────────┼─────────────────┼─────────────────┼─────────────────┤
-     * │ 831207343155568640  │ Service call    │ Array response  │ Has success key │
+     * │ 831488811665473536  │ Service call    │ Array response  │ Has success key │
      * └─────────────────────┴─────────────────┴─────────────────┴─────────────────┘
      */
     public function testMessageScheduleCallbackWithRealId(): void
     {
-        $realId = 831207343155568640;
+        $realId = 831488811665473536;
 
         // Call the actual method
         $result = MessageScheduleAppService::messageScheduleCallback($realId);
@@ -291,7 +291,7 @@ class MessageScheduleAppServiceTest extends TestCase
      */
     public function testMessageScheduleCallbackWithRealIdAsString(): void
     {
-        $realId = '831207343155568640';
+        $realId = '831488811665473536';
 
         // Call the actual method - convert string to int for the new signature
         $result = MessageScheduleAppService::messageScheduleCallback((int) $realId);
@@ -434,7 +434,7 @@ class MessageScheduleAppServiceTest extends TestCase
     public function testUpdateScheduleToVerifyTaskSchedulerIdFix(): void
     {
         // 使用之前测试过的真实 message_schedule_id
-        $realMessageScheduleId = 831207343155568640;
+        $realMessageScheduleId = 831488811665473536;
 
         echo "\n🔧 Testing updateSchedule method fix\n";
         echo "=====================================\n";

@@ -195,7 +195,8 @@ class TopicDomainService
         string $topicName = '',
         string $workDir = '',
         string $topicMode = '',
-        int $source = CreationSource::USER_CREATED->value
+        int $source = CreationSource::USER_CREATED->value,
+        string $sourceId = ''
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -221,6 +222,7 @@ class TopicDomainService
         $topicEntity->setCurrentTaskId(0);
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // Default status: waiting
         $topicEntity->setSource($source);
+        $topicEntity->setSourceId($sourceId); // Set source ID
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
