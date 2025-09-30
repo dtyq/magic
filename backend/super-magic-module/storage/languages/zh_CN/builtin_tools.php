@@ -26,7 +26,7 @@ return [
 
         // 内容处理
         'visual_understanding' => '图片理解',
-        'convert_pdf' => 'PDF转换',
+        'convert_to_markdown' => '转换为Markdown',
         'voice_understanding' => '语音识别',
         'summarize' => '内容摘要',
         'generate_image' => '智能图像生成',
@@ -70,7 +70,7 @@ return [
 
         // 内容处理
         'visual_understanding' => '视觉理解工具，分析和解释图像内容，支持JPEG、PNG、GIF等多种格式，适用于图片识别描述、图表分析、文字提取、多图对比等场景',
-        'convert_pdf' => 'PDF转换工具，将PDF文件转换为Markdown格式，支持本地文件和URL，提供smart和normal两种模式，可指定输出路径',
+        'convert_to_markdown' => '文档格式转换工具，将文档转换为Markdown格式并保存到指定位置。支持多种文件类型：PDF、Word、Excel、PowerPoint、图片、Jupyter笔记本等',
         'voice_understanding' => '语音识别工具，将音频文件转换为文本，支持wav、mp3、ogg、m4a等格式，可启用说话人信息识别功能',
         'summarize' => '信息精炼工具，提升文本信息密度，剔除冗余内容使其更结构化，支持自定义精炼要求和目标长度设置',
         'generate_image' => '图像生成与编辑工具，支持根据文字描述创建全新图像，也可以对已有图像进行修改编辑。可自定义图像尺寸、生成数量，并保存到指定位置，满足各种图像创作需求',
