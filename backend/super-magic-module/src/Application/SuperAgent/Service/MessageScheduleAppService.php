@@ -78,11 +78,10 @@ class MessageScheduleAppService extends AbstractAppService
     /**
      * Message schedule callback method (task scheduler entry point).
      */
-    public static function messageScheduleCallback(array $params): array
+    public static function messageScheduleCallback(int $message_schedule_id): array
     {
         try {
-            $messageScheduleId = $params['message_schedule_id'] ?? 0;
-            if (empty($messageScheduleId)) {
+            if (empty($message_schedule_id)) {
                 return [
                     'success' => false,
                     'message' => 'Message schedule ID is required',
@@ -91,10 +90,10 @@ class MessageScheduleAppService extends AbstractAppService
 
             // Create application service instance
             $appService = di(self::class);
-            return $appService->executeMessageSchedule((int) $messageScheduleId);
+            return $appService->executeMessageSchedule($message_schedule_id);
         } catch (Throwable $e) {
             simple_logger('MessageScheduleCallback')->error('Message schedule callback failed', [
-                'params' => $params,
+                'message_schedule_id' => $message_schedule_id,
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
