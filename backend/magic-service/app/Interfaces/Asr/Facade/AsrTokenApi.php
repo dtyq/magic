@@ -548,8 +548,8 @@ class AsrTokenApi extends AbstractApi
             // 保存任务状态数据
             $this->redis->hMSet($redisKey, $taskStatus->toArray());
 
-            // 设置过期时间
-            $this->redis->expire($redisKey, 43200);
+            // 设置过期时间（7天）
+            $this->redis->expire($redisKey, 3600 * 24 * 7);
         } catch (Throwable $e) {
             // Redis操作失败时记录但不抛出异常
             $this->logger->warning(trans('asr.api.redis.save_task_status_failed'), [
@@ -646,22 +646,91 @@ class AsrTokenApi extends AbstractApi
             }
         }
 
-        // 生成标题（如果有流式识别文本）
-        $generatedTitle = null;
-        if (! empty($asrStreamContent)) {
-            try {
-                $language = di(TranslatorInterface::class)->getLocale();
-                $title = $this->magicChatMessageAppService->summarizeText($userAuthorization, (string) $asrStreamContent, $language ?: 'zh_CN');
-                $generatedTitle = $this->sanitizeTitleForPath($title);
-            } catch (Throwable $e) {
-                $this->logger->warning('ASR 流式文本生成标题失败', [
-                    'task_key' => $taskKey,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
+        // 生成标题
+        $generatedTitle = $this->generateTitleForScenario($userAuthorization, $asrStreamContent, $workspaceFilePath, $note, $taskKey);
 
         return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath, $note, $asrStreamContent ?: null, $generatedTitle);
+    }
+
+    /**
+     * 根据不同场景生成标题.
+     *
+     * 场景一：有 asr_stream_content（前端实时录音），直接用内容生成标题
+     * 场景二：有 workspace_file_path（上传已有文件），构建提示词生成标题
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权
+     * @param string $asrStreamContent ASR流式识别内容
+     * @param null|string $workspaceFilePath 工作区文件路径
+     * @param null|NoteDTO $note 笔记内容
+     * @param string $taskKey 任务键（用于日志）
+     * @return null|string 生成的标题
+     */
+    private function generateTitleForScenario(
+        MagicUserAuthorization $userAuthorization,
+        string $asrStreamContent,
+        ?string $workspaceFilePath,
+        ?NoteDTO $note,
+        string $taskKey
+    ): ?string {
+        try {
+            $translator = di(TranslatorInterface::class);
+            $language = $translator->getLocale() ?: 'zh_CN';
+
+            // 场景一：有 asr_stream_content（前端实时录音）
+            if (! empty($asrStreamContent)) {
+                $title = $this->magicChatMessageAppService->summarizeText(
+                    $userAuthorization,
+                    $asrStreamContent,
+                    $language
+                );
+                return $this->sanitizeTitleForPath($title);
+            }
+
+            // 场景二：有 workspace_file_path（上传已有文件）
+            if (! empty($workspaceFilePath)) {
+                // 构建提示词：使用聊天消息的模板
+                if ($note !== null && $note->hasContent()) {
+                    // 有笔记的情况：生成笔记文件路径（使用默认文件名，因为此时还没有标题）
+                    $audioFileDirectory = dirname($workspaceFilePath);
+                    $noteFileName = $note->generateFileName(); // 使用默认笔记文件名
+                    $noteFilePath = ltrim(sprintf('%s/%s', $audioFileDirectory, $noteFileName), './');
+
+                    $promptContent = sprintf(
+                        '%s@%s%s@%s%s',
+                        $translator->trans('asr.messages.summary_prefix_with_note'),
+                        $workspaceFilePath,
+                        $translator->trans('asr.messages.summary_middle_with_note'),
+                        $noteFilePath,
+                        $translator->trans('asr.messages.summary_suffix_with_note')
+                    );
+                } else {
+                    // 只有音频文件的情况
+                    $promptContent = sprintf(
+                        '%s@%s%s',
+                        $translator->trans('asr.messages.summary_prefix'),
+                        $workspaceFilePath,
+                        $translator->trans('asr.messages.summary_suffix')
+                    );
+                }
+
+                $title = $this->magicChatMessageAppService->summarizeText(
+                    $userAuthorization,
+                    $promptContent,
+                    $language
+                );
+                return $this->sanitizeTitleForPath($title);
+            }
+
+            return null;
+        } catch (Throwable $e) {
+            $this->logger->warning('生成标题失败', [
+                'task_key' => $taskKey,
+                'has_asr_content' => ! empty($asrStreamContent),
+                'has_workspace_path' => ! empty($workspaceFilePath),
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**
