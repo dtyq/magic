@@ -26,7 +26,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Pemahaman Visual',
-        'convert_pdf' => 'Tukar PDF',
+        'convert_to_markdown' => 'Tukar ke Markdown',
         'voice_understanding' => 'Pengecaman Suara',
         'summarize' => 'Ringkasan',
         'generate_image' => 'Jana Imej Pintar',
@@ -70,7 +70,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Alat pemahaman visual, menganalisis dan mentafsir kandungan imej, menyokong JPEG, PNG, GIF dan format lain, sesuai untuk penerangan pengecaman imej, analisis carta, pengekstrakan teks, perbandingan berbilang imej dan senario lain',
-        'convert_pdf' => 'Alat penukaran PDF, menukar fail PDF ke format Markdown, menyokong fail tempatan dan URL, menyediakan mod pintar dan normal, membenarkan menentukan laluan output',
+        'convert_to_markdown' => 'Alat penukaran format dokumen, menukar dokumen ke format Markdown dan menyimpan ke lokasi yang ditentukan. Menyokong pelbagai jenis fail: PDF, Word, Excel, PowerPoint, imej, Jupyter notebooks, dll',
         'voice_understanding' => 'Alat pengecaman pertuturan, menukar fail audio ke teks, menyokong wav, mp3, ogg, m4a dan format lain, boleh membolehkan fungsi pengecaman maklumat penutur',
         'summarize' => 'Alat penapisan maklumat, meningkatkan kepadatan maklumat teks, menghapuskan kandungan berlebihan untuk menjadikannya lebih berstruktur, menyokong keperluan penapisan tersuai dan tetapan panjang sasaran',
         'generate_image' => 'Alat penjanaan dan penyuntingan imej yang menyokong penciptaan imej baru dari penerangan teks dan pengubahsuaian imej sedia ada. Boleh menyesuaikan dimensi imej, kuantiti dan lokasi penyimpanan untuk memenuhi pelbagai keperluan kreatif',

@@ -26,7 +26,7 @@ return [
 
         // Xử lý nội dung
         'visual_understanding' => 'Hiểu hình ảnh',
-        'convert_pdf' => 'Chuyển đổi PDF',
+        'convert_to_markdown' => 'Chuyển đổi sang Markdown',
         'voice_understanding' => 'Nhận dạng giọng nói',
         'summarize' => 'Tóm tắt',
         'generate_image' => 'Tạo hình ảnh thông minh',
@@ -70,7 +70,7 @@ return [
 
         // Xử lý nội dung
         'visual_understanding' => 'Công cụ hiểu thị giác, phân tích và diễn giải nội dung hình ảnh, hỗ trợ JPEG, PNG, GIF và các định dạng khác, phù hợp cho mô tả nhận dạng hình ảnh, phân tích biểu đồ, trích xuất văn bản, so sánh nhiều hình ảnh và các tình huống khác',
-        'convert_pdf' => 'Công cụ chuyển đổi PDF, chuyển đổi tệp PDF sang định dạng Markdown, hỗ trợ tệp cục bộ và URL, cung cấp chế độ thông minh và bình thường, cho phép chỉ định đường dẫn đầu ra',
+        'convert_to_markdown' => 'Công cụ chuyển đổi định dạng tài liệu, chuyển đổi tài liệu sang định dạng Markdown và lưu trữ tại vị trí được chỉ định. Hỗ trợ nhiều loại tệp: PDF, Word, Excel, PowerPoint, hình ảnh, Jupyter notebooks, v.v',
         'voice_understanding' => 'Công cụ nhận dạng giọng nói, chuyển đổi tệp âm thanh thành văn bản, hỗ trợ wav, mp3, ogg, m4a và các định dạng khác, có thể bật chức năng nhận dạng thông tin người nói',
         'summarize' => 'Công cụ tinh chỉnh thông tin, nâng cao mật độ thông tin văn bản, loại bỏ nội dung dư thừa để làm cho nó có cấu trúc hơn, hỗ trợ yêu cầu tinh chỉnh tùy chỉnh và cài đặt độ dài mục tiêu',
         'generate_image' => 'Công cụ tạo và chỉnh sửa hình ảnh, hỗ trợ tạo hình ảnh mới từ mô tả văn bản và chỉnh sửa hình ảnh có sẵn. Có thể tùy chỉnh kích thước, số lượng hình ảnh và vị trí lưu trữ để đáp ứng các nhu cầu sáng tạo khác nhau',
