@@ -125,7 +125,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
 
         try {
             $request = container()->get(RequestInterface::class);
-            if (! method_exists($request, 'getHeaders') || ! method_exists($request, 'getHeader')) {
+            if (! method_exists($request, 'getHeaders') || ! method_exists($request, 'getHeader') || ! method_exists($request, 'input')) {
                 return $default;
             }
             $headerConfigs = [];
