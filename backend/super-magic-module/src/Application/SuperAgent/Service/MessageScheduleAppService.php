@@ -550,10 +550,21 @@ class MessageScheduleAppService extends AbstractAppService
                 // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
                 $sendResult = $this->sendMessageToAgent($messageScheduleEntity, $topicEntity);
 
-                // 5. 如果任务的下一次执行时间，大于截止时间，则更新任务状态为完成
+                // 5. 如果是一次性任务或下次执行时间超过截止时间，则更新任务状态为完成
                 $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
+
+                // 检查是否为一次性任务
+                $timeConfig = $messageScheduleEntity->getTimeConfig();
+                $isNoRepeatTask = isset($timeConfig['type'])
+                                  && $timeConfig['type'] === TaskType::NoRepeat->value;
+
+                // 检查下次执行时间是否超过截止时间
                 $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
-                if ($nextExecutionTime && $nextExecutionTime > $messageScheduleEntity->getDeadline()) {
+                $isExecutionTimeExceeded = $nextExecutionTime
+                                          && $nextExecutionTime > $messageScheduleEntity->getDeadline();
+
+                // 满足任一条件就标记为已完成
+                if ($isNoRepeatTask || $isExecutionTimeExceeded) {
                     $messageScheduleEntity->setCompleted(1);
                     $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
                 }
