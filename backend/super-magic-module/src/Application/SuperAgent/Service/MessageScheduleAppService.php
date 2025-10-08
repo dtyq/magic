@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
@@ -672,7 +673,11 @@ class MessageScheduleAppService extends AbstractAppService
             $messageContent
         );
 
-        $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
+        // Cast to MagicMessageStruct to access getExtra() method
+        $superAgentExtra = null;
+        if ($messageStruct instanceof MagicMessageStruct) {
+            $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
+        }
         $mentions = $superAgentExtra?->getMentionsJsonStruct();
         if (empty($mentions)) {
             return $messageContent;
@@ -742,7 +747,7 @@ class MessageScheduleAppService extends AbstractAppService
         }
 
         // Update file information in messageContent
-        if (! empty($fileUpdateMapping)) {
+        if (count($fileUpdateMapping) > 0) {
             $this->updateMentionsFileInfo($messageContent, $fileUpdateMapping);
         }
 
