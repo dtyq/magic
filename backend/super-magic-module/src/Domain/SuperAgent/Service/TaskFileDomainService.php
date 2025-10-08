@@ -906,6 +906,45 @@ class TaskFileDomainService
         }
     }
 
+    public function copyFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): ?TaskFileEntity
+    {
+        try {
+            if ($fileEntity->getFileKey() === $targetPath) {
+                return null;
+            }
+
+            // Call cloud file service to move the file
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            $this->cloudFileRepository->copyObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
+
+            // Update file record (parentId and sort have already been set by handleFileSortOnMove)
+            $targetFileEntity = new TaskFileEntity();
+            $targetFileEntity->setFileId(IdGenerator::getSnowId());
+            $targetFileEntity->setProjectId($fileEntity->getProjectId());
+            $targetFileEntity->setUserId($dataIsolation->getCurrentUserId());
+            $targetFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $targetFileEntity->setFileType($fileEntity->getFileType());
+            $targetFileEntity->setFileName(basename($targetPath));
+            $fileInfo = pathinfo($targetPath);
+            $extension = $fileInfo['extension'];
+            $targetFileEntity->setFileExtension($extension);
+            $targetFileEntity->setFileSize($fileEntity->getFileSize());
+            $targetFileEntity->setFileKey($targetPath);
+            $targetFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
+            $targetFileEntity->setStorageType($fileEntity->getStorageType());
+            $targetFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $targetFileEntity->setIsDirectory($fileEntity->getIsDirectory());
+            $targetFileEntity->setParentId($targetParentId);
+            $targetFileEntity->setSort($fileEntity->getSort() + 1);
+            $targetFileEntity->setMetadata($fileEntity->getMetadata());
+            $targetFileEntity->setSource(TaskFileSource::COPY->value);
+
+            return $this->taskFileRepository->insert($targetFileEntity);
+        } catch (Throwable $e) {
+            throw $e;
+        }
+    }
+
     public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
         $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
