@@ -1831,6 +1831,15 @@ class TaskFileDomainService
                     $urlOptions['custom_query']['response-content-disposition']
                         = ContentTypeUtil::buildContentDispositionHeader($filename, 'attachment');
                 }
+
+                // Add watermark parameters if enabled and file is an image
+                if ($addWatermark && $this->isImageFile($filename)) {
+                    $watermarkParams = $this->getWatermarkParameters();
+                    if (! empty($watermarkParams)) {
+                        $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
+                    }
+                }
+
                 break;
             case 'download':
             default:
@@ -1843,13 +1852,7 @@ class TaskFileDomainService
         // 设置Content-Type响应头
         $urlOptions['custom_query']['response-content-type'] = $urlOptions['content_type'];
 
-        // Add watermark parameters if enabled and file is an image
-        if ($addWatermark && $this->isImageFile($filename)) {
-            $watermarkParams = $this->getWatermarkParameters();
-            if (! empty($watermarkParams)) {
-                $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
-            }
-        }
+
 
         // 设置filename用于预签名URL生成
         $urlOptions['filename'] = $filename;
@@ -1927,11 +1930,11 @@ class TaskFileDomainService
         switch ($driver) {
             case 'oss':
                 return [
-                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
+                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
                 ];
             case 'tos':
                 return [
-                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
+                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
                 ];
             default:
                 return [];
