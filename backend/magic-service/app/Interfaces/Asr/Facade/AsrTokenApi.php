@@ -449,8 +449,8 @@ class AsrTokenApi extends AbstractApi
         $topicId = $request->input('topic_id', '');
         // 获取model_id参数（必传参数）
         $modelId = $request->input('model_id', '');
-        // 获取workspace_file_path参数（可选参数）
-        $workspaceFilePath = $request->input('workspace_file_path');
+        // 获取file_id参数（可选参数，场景二：直接上传已有音频文件）
+        $fileId = $request->input('file_id');
         // 获取note参数（可选参数）
         $noteData = $request->input('note');
         // 获取asr_stream_content（可选参数）
@@ -461,13 +461,13 @@ class AsrTokenApi extends AbstractApi
             $asrStreamContent = mb_substr($asrStreamContent, 0, 10000);
         }
 
-        // 如果存在workspace_file_path且task_key为空，则生成UUID作为task_key
-        if (! empty($workspaceFilePath) && empty($taskKey)) {
+        // 如果存在file_id且task_key为空，则生成UUID作为task_key
+        if (! empty($fileId) && empty($taskKey)) {
             $taskKey = uniqid('', true);
         }
 
-        // 如果既没有task_key也没有workspace_file_path，则抛出异常
-        if (empty($taskKey) && empty($workspaceFilePath)) {
+        // 如果既没有task_key也没有file_id，则抛出异常
+        if (empty($taskKey) && empty($fileId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
@@ -508,20 +508,20 @@ class AsrTokenApi extends AbstractApi
         }
 
         // 生成标题
-        $generatedTitle = $this->generateTitleForScenario($userAuthorization, $asrStreamContent, $workspaceFilePath, $note, $taskKey);
+        $generatedTitle = $this->generateTitleForScenario($userAuthorization, $asrStreamContent, $fileId, $note, $taskKey);
 
-        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $workspaceFilePath, $note, $asrStreamContent ?: null, $generatedTitle);
+        return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $fileId, $note, $asrStreamContent ?: null, $generatedTitle);
     }
 
     /**
      * 根据不同场景生成标题.
      *
      * 场景一：有 asr_stream_content（前端实时录音），直接用内容生成标题
-     * 场景二：有 workspace_file_path（上传已有文件），构建提示词生成标题
+     * 场景二：有 file_id（上传已有文件），构建提示词生成标题
      *
      * @param MagicUserAuthorization $userAuthorization 用户授权
      * @param string $asrStreamContent ASR流式识别内容
-     * @param null|string $workspaceFilePath 工作区文件路径
+     * @param null|string $fileId 文件ID
      * @param null|NoteDTO $note 笔记内容
      * @param string $taskKey 任务键（用于日志）
      * @return null|string 生成的标题
@@ -529,7 +529,7 @@ class AsrTokenApi extends AbstractApi
     private function generateTitleForScenario(
         MagicUserAuthorization $userAuthorization,
         string $asrStreamContent,
-        ?string $workspaceFilePath,
+        ?string $fileId,
         ?NoteDTO $note,
         string $taskKey
     ): ?string {
@@ -547,8 +547,21 @@ class AsrTokenApi extends AbstractApi
                 return $this->sanitizeTitleForPath($title);
             }
 
-            // 场景二：有 workspace_file_path（上传已有文件）
-            if (! empty($workspaceFilePath)) {
+            // 场景二：有 file_id（上传已有文件）
+            if (! empty($fileId)) {
+                // 根据文件ID查询文件信息获取工作区文件路径
+                $fileEntity = $this->asrFileAppService->getFileEntityById((int) $fileId);
+                if ($fileEntity === null) {
+                    $this->logger->warning('生成标题时未找到文件', [
+                        'file_id' => $fileId,
+                        'task_key' => $taskKey,
+                    ]);
+                    return null;
+                }
+
+                // 提取工作区相对路径
+                $workspaceFilePath = $fileEntity->getFileKey();
+
                 // 构建提示词：使用聊天消息的模板
                 if ($note !== null && $note->hasContent()) {
                     // 有笔记的情况：生成笔记文件路径（使用默认文件名，因为此时还没有标题）
@@ -587,7 +600,7 @@ class AsrTokenApi extends AbstractApi
             $this->logger->warning('生成标题失败', [
                 'task_key' => $taskKey,
                 'has_asr_content' => ! empty($asrStreamContent),
-                'has_workspace_path' => ! empty($workspaceFilePath),
+                'has_file_id' => ! empty($fileId),
                 'error' => $e->getMessage(),
             ]);
             return null;

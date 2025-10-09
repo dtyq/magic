@@ -27,6 +27,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -40,6 +41,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Codec\Json;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Engine\Coroutine;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -72,6 +74,7 @@ readonly class AsrFileAppService
         private MagicChatDomainService $magicChatDomainService,
         private TopicDomainService $superAgentTopicDomainService,
         private MessageQueueDomainService $messageQueueDomainService,
+        private TranslatorInterface $translator,
         private Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -109,8 +112,8 @@ readonly class AsrFileAppService
             $chatTopicId = $topicEntity->getChatTopicId();
             $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
 
-            // 2. 获取并验证任务状态（如果有workspace_file_path则跳过此步骤）
-            if (! $summaryRequest->hasWorkspaceFilePath()) {
+            // 2. 获取并验证任务状态（如果有file_id则跳过此步骤）
+            if (! $summaryRequest->hasFileId()) {
                 $this->getAndValidateTaskStatus($summaryRequest->taskKey, $userId);
             }
 
@@ -170,7 +173,13 @@ readonly class AsrFileAppService
             }
 
             // 5. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
-            Coroutine::create(function () use ($summaryRequest, $userAuthorization) {
+            // 协程透传语言和 requestId
+            $language = $this->translator->getLocale();
+            $requestId = CoContext::getRequestId();
+            Coroutine::create(function () use ($summaryRequest, $userAuthorization, $language, $requestId) {
+                // 在协程内重新设置语言和 requestId
+                $this->translator->setLocale($language);
+                CoContext::setRequestId($requestId);
                 try {
                     $this->handleAsrSummary($summaryRequest, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
                 } catch (Throwable $e) {
@@ -226,8 +235,8 @@ readonly class AsrFileAppService
         // 2. 使用传入的 SummaryRequestDTO
 
         // 3. 任务状态准备
-        if ($summaryRequest->hasWorkspaceFilePath()) {
-            $taskStatus = $this->createVirtualTaskStatusFromWorkspaceFile($summaryRequest);
+        if ($summaryRequest->hasFileId()) {
+            $taskStatus = $this->createVirtualTaskStatusFromFileId($summaryRequest, $userId);
         } else {
             $taskStatus = $this->getAndValidateTaskStatus($summaryRequest->taskKey, $userId);
             $existingWorkspaceFilePath = $taskStatus->filePath;
@@ -437,6 +446,17 @@ readonly class AsrFileAppService
     }
 
     // ==================== 语音识别任务管理 ====================
+
+    /**
+     * 根据文件ID获取文件实体.
+     *
+     * @param int $fileId 文件ID
+     * @return null|TaskFileEntity 文件实体，不存在时返回null
+     */
+    public function getFileEntityById(int $fileId): ?TaskFileEntity
+    {
+        return $this->taskFileDomainService->getById($fileId);
+    }
 
     /**
      * 验证项目权限 - 确保项目属于当前用户和组织.
@@ -1912,25 +1932,55 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 从workspace_file_path创建虚拟任务状态.
+     * 从file_id创建虚拟任务状态.
      *
      * @param SummaryRequestDTO $summaryRequest 总结请求DTO
+     * @param string $userId 用户ID
      * @return AsrTaskStatusDTO 虚拟任务状态DTO
+     * @throws InvalidArgumentException 当文件不存在时
      */
-    private function createVirtualTaskStatusFromWorkspaceFile(SummaryRequestDTO $summaryRequest): AsrTaskStatusDTO
+    private function createVirtualTaskStatusFromFileId(SummaryRequestDTO $summaryRequest, string $userId): AsrTaskStatusDTO
     {
-        $workspaceFilePath = $summaryRequest->workspaceFilePath;
+        $fileId = $summaryRequest->fileId;
+
+        // 根据文件ID查询文件信息
+        $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+
+        if ($fileEntity === null) {
+            throw new InvalidArgumentException(sprintf(
+                '根据文件ID未找到文件记录。file_id: %s, task_key: %s, project_id: %s',
+                $fileId,
+                $summaryRequest->taskKey,
+                $summaryRequest->projectId
+            ));
+        }
+
+        // 验证文件属于当前项目
+        if ((string) $fileEntity->getProjectId() !== $summaryRequest->projectId) {
+            throw new InvalidArgumentException(sprintf(
+                '文件不属于当前项目。file_id: %s, file_project_id: %s, request_project_id: %s',
+                $fileId,
+                $fileEntity->getProjectId(),
+                $summaryRequest->projectId
+            ));
+        }
+
+        // 提取工作区相对路径
+        $workspaceRelativePath = $this->chatMessageAssembler->extractWorkspaceRelativePath($fileEntity->getFileKey());
+        $workspaceDirectory = dirname($fileEntity->getFileKey());
 
         // 创建虚拟任务状态，用于构建聊天消息
         return new AsrTaskStatusDTO([
             'task_key' => $summaryRequest->taskKey,
-            'user_id' => '', // 这里会在调用处设置
-            'business_directory' => $summaryRequest->getWorkspaceDirectory(),
-            'sts_full_directory' => $summaryRequest->getWorkspaceDirectory(),
+            'user_id' => $userId,
+            'business_directory' => $workspaceDirectory,
+            'sts_full_directory' => $workspaceDirectory,
             'status' => AsrTaskStatusEnum::COMPLETED->value, // 直接标记为已完成
-            'workspace_file_key' => $workspaceFilePath,
+            'workspace_file_key' => $fileEntity->getFileKey(),
             'workspace_file_url' => '', // 这里可以为空，因为不需要下载URL
-            'file_path' => $workspaceFilePath, // 传入完整的工作区文件路径
+            'file_path' => $workspaceRelativePath, // 工作区相对路径
+            'audio_file_id' => $fileId, // 保存音频文件ID
+            'workspace_relative_dir' => dirname($workspaceRelativePath), // 保存工作区相对目录，供note文件使用
         ]);
     }
 
