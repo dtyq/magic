@@ -16,6 +16,7 @@ return new class extends Migration {
     {
         Schema::table('magic_super_agent_topics', function (Blueprint $table) {
             $table->tinyInteger('source')->default(1)->after('cost')->comment('Creation source: 1=user_created, 2=scheduled_task');
+            $table->string('source_id', 128)->default('')->after('source')->comment('Source ID: empty for user_created, execution_log_id for scheduled_task');
         });
     }
 

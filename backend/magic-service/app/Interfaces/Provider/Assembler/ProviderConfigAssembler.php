@@ -86,8 +86,8 @@ class ProviderConfigAssembler
 
             $translate = Json::decode($provider['translate']);
             // 合并 provider 信息到配置中
-            $preparedConfig['name'] = $translate['name'][$locale] ?? '';
-            $preparedConfig['description'] = $translate['description'][$locale] ?? '';
+            $preparedConfig['name'] = self::getTranslatedText($translate['name'] ?? [], $locale);
+            $preparedConfig['description'] = self::getTranslatedText($translate['description'] ?? [], $locale);
             $preparedConfig['icon'] = $provider['icon'] ?? '';
             $preparedConfig['provider_type'] = $provider['provider_type'] ?? null;
             $preparedConfig['category'] = $provider['category'] ?? null;
@@ -161,5 +161,22 @@ class ProviderConfigAssembler
     private static function _getAesKey(string $salt): string
     {
         return config('service_provider.model_aes_key') . $salt;
+    }
+
+    /**
+     * Get translated text with fallback support.
+     */
+    private static function getTranslatedText(array $translations, string $locale): string
+    {
+        if (! empty($translations[$locale] ?? '')) {
+            return $translations[$locale];
+        }
+        if (! empty($translations['zh_CN'] ?? '')) {
+            return $translations['zh_CN'];
+        }
+        if (! empty($translations['en_US'] ?? '')) {
+            return $translations['en_US'];
+        }
+        return '';
     }
 }

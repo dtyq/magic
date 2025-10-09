@@ -259,9 +259,15 @@ class ProviderEntity extends AbstractEntity
      */
     public function getLocalizedName(string $locale): string
     {
-        return $this->translate['name'][$locale]
-            ?? $this->translate['name']['zh_CN']
-            ?? $this->translate['name']['en_US']
-            ?? $this->name;
+        if (! empty($this->translate['name'][$locale] ?? '')) {
+            return $this->translate['name'][$locale];
+        }
+        if (! empty($this->translate['name']['zh_CN'] ?? '')) {
+            return $this->translate['name']['zh_CN'];
+        }
+        if (! empty($this->translate['name']['en_US'] ?? '')) {
+            return $this->translate['name']['en_US'];
+        }
+        return $this->name;
     }
 }

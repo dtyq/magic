@@ -48,6 +48,7 @@ class TopicModel extends AbstractModel
         'task_mode',
         'cost',
         'source',
+        'source_id',
         'created_at',
         'updated_at',
         'deleted_at',

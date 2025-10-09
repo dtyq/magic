@@ -159,6 +159,15 @@ class WorkDirectoryUtil
         return preg_match($pattern, $workDir) === 1;
     }
 
+    public static function getWorkDirByFileKey(string $fileKey): string
+    {
+        $projectId = self::extractProjectIdFromAbsolutePath($fileKey);
+        if (! $projectId) {
+            return '';
+        }
+        return self::getWorkDir('', (int) $projectId);
+    }
+
     /**
      * Extract project ID from work directory path.
      *

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
@@ -29,20 +30,27 @@ use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageScheduleRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleLogsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TimeConfigDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageScheduleRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleListItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageScheduleLogItemDTO;
 use Dtyq\TaskScheduler\Entity\TaskScheduler;
 use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
@@ -68,6 +76,7 @@ class MessageScheduleAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly TaskSchedulerDomainService $taskSchedulerDomainService,
         private readonly MagicUserDomainService $userDomainService,
         LoggerFactory $loggerFactory
@@ -368,8 +377,85 @@ class MessageScheduleAppService extends AbstractAppService
     }
 
     /**
+     * Get schedule execution logs with pagination.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param int $messageScheduleId Message schedule ID
+     * @param QueryMessageScheduleLogsRequestDTO $requestDTO Request DTO with pagination parameters
+     * @return array Execution logs result with total and list
+     */
+    public function getScheduleLogs(RequestContext $requestContext, int $messageScheduleId, QueryMessageScheduleLogsRequestDTO $requestDTO): array
+    {
+        $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+
+        // Validate that the user owns this message schedule
+        $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $messageScheduleId);
+
+        // Get execution logs with pagination (using domain service with conditions)
+        $conditions = [
+            'message_schedule_id' => $messageScheduleId,
+        ];
+
+        $result = $this->messageScheduleDomainService->getExecutionLogsByConditions(
+            $conditions,
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            'id', // Order by id (newest first)
+            'desc'
+        );
+
+        if (empty($result['list'])) {
+            return [
+                'total' => $result['total'],
+                'list' => [],
+            ];
+        }
+
+        // Extract unique IDs for batch name fetching (similar to querySchedules)
+        $workspaceIds = [];
+        $projectIds = [];
+        $topicIds = [];
+
+        foreach ($result['list'] as $log) {
+            $workspaceIds[] = $log->getWorkspaceId();
+            if ($log->getProjectId()) {
+                $projectIds[] = $log->getProjectId();
+            }
+            if ($log->getTopicId()) {
+                $topicIds[] = $log->getTopicId();
+            }
+        }
+
+        // Remove duplicates
+        $workspaceIds = array_unique($workspaceIds);
+        $projectIds = array_unique($projectIds);
+        $topicIds = array_unique($topicIds);
+
+        // Batch fetch names (reuse existing domain service methods)
+        $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
+        $projectNameMap = $this->projectDomainService->getProjectNamesBatch($projectIds);
+        $topicNameMap = $this->topicDomainService->getTopicNamesBatch($topicIds);
+
+        // Convert entities to DTOs with names
+        $list = [];
+        foreach ($result['list'] as $log) {
+            $workspaceName = $workspaceNameMap[$log->getWorkspaceId()] ?? '';
+            $projectName = $log->getProjectId() ? ($projectNameMap[$log->getProjectId()] ?? '') : '';
+            $topicName = $log->getTopicId() ? ($topicNameMap[$log->getTopicId()] ?? '') : '';
+
+            $dto = MessageScheduleLogItemDTO::fromEntity($log, $workspaceName, $projectName, $topicName);
+            $list[] = $dto->toArray();
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
+    }
+
+    /**
      * Get next execution time for crontab task.
-     * 获取定时任务的下一次执行时间.
+     * Get the next execution time for scheduled tasks.
      *
      * @param null|int $crontabId The crontab ID from task_scheduler_crontab table
      * @return null|string Next execution time in 'Y-m-d H:i:s' format or null if not available
@@ -395,11 +481,6 @@ class MessageScheduleAppService extends AbstractAppService
             $cron = new CronExpression($crontab->getCrontab());
             $nextRun = $cron->getNextRunDate();
 
-            // Check if next execution exceeds deadline
-            if ($crontab->getDeadline() && $nextRun > $crontab->getDeadline()) {
-                return null;
-            }
-
             return $nextRun->format('Y-m-d H:i:s');
         } catch (Throwable $e) {
             $this->logger->error('Failed to calculate next execution time', [
@@ -415,134 +496,149 @@ class MessageScheduleAppService extends AbstractAppService
      */
     private function executeMessageSchedule(int $messageScheduleId): array
     {
-        $executionLog = null;
+        return Db::transaction(function () use ($messageScheduleId) {
+            $executionLog = null;
 
-        try {
-            // 1. Get message schedule entity
-            $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
-            if (! $messageScheduleEntity) {
-                $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
-                return [
-                    'success' => false,
-                    'message' => 'Message schedule not found',
-                ];
-            }
+            try {
+                // 1. Get message schedule entity
+                $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
+                if (! $messageScheduleEntity) {
+                    $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
+                    return [
+                        'success' => false,
+                        'message' => 'Message schedule not found',
+                    ];
+                }
 
-            // Create execution log (status: running) only when all checks passed
-            $executionLog = $this->messageScheduleDomainService->createExecutionLog($messageScheduleEntity);
+                // Create execution log (status: running) only when all checks passed
+                $executionLog = $this->messageScheduleDomainService->createExecutionLog($messageScheduleEntity);
 
-            // Check if schedule is enabled
-            if (! $messageScheduleEntity->isEnabled()) {
-                $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
-                return [
-                    'success' => false,
-                    'message' => 'Message schedule is disabled',
-                ];
-            }
+                // Check if schedule is enabled
+                if (! $messageScheduleEntity->isEnabled()) {
+                    $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
+                    return [
+                        'success' => false,
+                        'message' => 'Message schedule is disabled',
+                    ];
+                }
+                $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
 
-            // 2. Get project entity
-            $projectEntity = $this->getProjectOrCreate(
-                $messageScheduleEntity->getProjectId(),
-                $messageScheduleEntity->getWorkspaceId(),
-                $messageScheduleEntity->getUserId(),
-                $messageScheduleEntity->getOrganizationCode(),
-                $messageScheduleEntity->getMessageType(),
-                $messageScheduleEntity->getMessageContent(),
-            );
-            if (! $projectEntity) {
-                $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
-                return [
-                    'success' => false,
-                    'message' => 'Project not found',
-                ];
-            }
-
-            // 3. Get topic entity
-            $topicEntity = $this->getTopicOrCreate($messageScheduleEntity->getTopicId(), $projectEntity);
-            if (! $topicEntity) {
-                $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
-                return [
-                    'success' => false,
-                    'message' => 'Topic not found',
-                ];
-            }
-
-            // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
-            $sendResult = $this->sendMessageToAgent($messageScheduleEntity, $topicEntity);
-
-            // 5. 如果任务的下一次执行时间，大于截止时间，则更新任务状态为完成
-            $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
-            $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
-            if ($nextExecutionTime && $nextExecutionTime > $messageScheduleEntity->getDeadline()) {
-                $messageScheduleEntity->setCompleted(1);
-                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
-            }
-
-            $this->logger->info('Message schedule execution completed', [
-                'message_schedule_id' => $messageScheduleId,
-                'execution_log_id' => $executionLog->getId(),
-                'success' => $sendResult['success'],
-                'error_message' => $sendResult['error_message'],
-            ]);
-
-            // Keep log status as RUNNING since this is async trigger
-            // Real task processing will be handled by event listeners
-            return $sendResult;
-        } catch (Throwable $e) {
-            // Update execution log status to failed if log was created
-            if ($executionLog) {
-                $this->messageScheduleDomainService->markLogAsFailed(
-                    $executionLog->getId(),
-                    $e->getMessage()
+                // 2. Get project entity
+                $projectEntity = $this->getProjectOrCreate(
+                    $dataIsolation,
+                    $messageScheduleEntity->getProjectId(),
+                    $messageScheduleEntity->getWorkspaceId(),
+                    $messageScheduleEntity->getMessageType(),
+                    $messageScheduleEntity->getMessageContent(),
                 );
+                if (! $projectEntity) {
+                    $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
+                    return [
+                        'success' => false,
+                        'message' => 'Project not found',
+                    ];
+                }
+
+                // Migrate chat message attachments to project and get updated content
+                $messageContent = $this->moveMessageFileToProject($dataIsolation, $messageScheduleEntity->getMessageType(), $messageScheduleEntity->getMessageContent(), $projectEntity);
+
+                // 3. Get topic entity
+                $topicEntity = $this->getTopicOrCreate($dataIsolation, $messageScheduleEntity->getTopicId(), $projectEntity, $messageScheduleEntity->getMessageType(), $messageScheduleEntity->getMessageContent(), (string) $executionLog->getId());
+                if (! $topicEntity) {
+                    $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
+                    return [
+                        'success' => false,
+                        'message' => 'Topic not found',
+                    ];
+                }
+
+                // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
+                $sendResult = $this->sendMessageToAgent($dataIsolation, $messageScheduleEntity->getMessageType(), $messageContent, $topicEntity);
+
+                // 5. Update task status to completed if it's a one-time task or next execution time exceeds deadline
+                // Check if it's a one-time task
+                $timeConfig = $messageScheduleEntity->getTimeConfig();
+                $isNoRepeatTask = isset($timeConfig['type'])
+                                  && $timeConfig['type'] === TaskType::NoRepeat->value;
+
+                // Check if next execution time exceeds deadline
+                $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
+                $isExecutionTimeExceeded = $nextExecutionTime
+                                          && $nextExecutionTime > $messageScheduleEntity->getDeadline();
+
+                // Mark as completed if any condition is met
+                if ($isNoRepeatTask || $isExecutionTimeExceeded) {
+                    $messageScheduleEntity->setCompleted(1);
+                    $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
+                }
+
+                // Update executionLog's project_id and topic_id
+                $executionLog = $executionLog->setProjectId($projectEntity->getId());
+                $executionLog = $executionLog->setTopicId($topicEntity->getId());
+
+                // Save updated execution log to database
+                $this->messageScheduleDomainService->updateExecutionLogDetails(
+                    $executionLog->getId(),
+                    [
+                        'project_id' => $projectEntity->getId(),
+                        'topic_id' => $topicEntity->getId(),
+                    ]
+                );
+
+                $this->logger->info('Message schedule execution completed', [
+                    'message_schedule_id' => $messageScheduleId,
+                    'execution_log_id' => $executionLog->getId(),
+                    'success' => $sendResult['success'],
+                    'error_message' => $sendResult['error_message'],
+                ]);
+
+                // Keep log status as RUNNING since this is async trigger
+                // Real task processing will be handled by event listeners
+                return $sendResult;
+            } catch (Throwable $e) {
+                // Update execution log status to failed if log was created
+                if ($executionLog) {
+                    $this->messageScheduleDomainService->markLogAsFailed(
+                        $executionLog->getId(),
+                        $e->getMessage()
+                    );
+                }
+
+                $this->logger->error('Message schedule execution exception', [
+                    'message_schedule_id' => $messageScheduleId,
+                    'execution_log_id' => $executionLog?->getId(),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+
+                return [
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ];
             }
-
-            $this->logger->error('Message schedule execution exception', [
-                'message_schedule_id' => $messageScheduleId,
-                'execution_log_id' => $executionLog?->getId(),
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
-        }
+        });
     }
 
-    private function getProjectOrCreate(int $projectId, int $workspaceId, string $userId, string $userOrganizationCode, string $messageType, array $messageContent): ?ProjectEntity
+    private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent): ?ProjectEntity
     {
-        // 如果项目id 不为空，直接获取
+        // If project id is not empty, get it directly
         if (! empty($projectId)) {
             return $this->projectDomainService->getProjectNotUserId($projectId);
         }
-        // 如果不存在，则创建
+        // If it doesn't exist, create it
         $newProjectId = IdGenerator::getSnowId();
-        // 准备创建参数
-        // 获取项目工作目录
-        $projectWorkDir = WorkDirectoryUtil::getWorkDir($userId, $newProjectId);
-        // 从消息体，提前文件 id 和 用户发送消息的文本
-        $chatMessageType = ChatMessageType::from($messageType);
-        $messageStruct = MessageAssembler::getChatMessageStruct(
-            $chatMessageType,
-            $messageContent
-        );
-        $projectName = '';
-        if ($messageStruct instanceof TextContentInterface) {
-            $authorization = new MagicUserAuthorization();
-            $authorization->setId($userId);
-            $authorization->setOrganizationCode($userOrganizationCode);
-            $authorization->setUserType(UserType::Human);
-            $projectName = $this->chatMessageAppService->summarizeText($authorization, $messageStruct->getTextContent());
-        }
+        // Prepare creation parameters
+        // Get project working directory
+        $projectWorkDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $newProjectId);
+
+        $projectName = $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
 
         return $this->projectDomainService->createProject(
             workspaceId: $workspaceId,
             projectName: $projectName,
-            userId: $userId,
-            userOrganizationCode: $userOrganizationCode,
+            userId: $dataIsolation->getCurrentUserId(),
+            userOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
             projectId: (string) $newProjectId,
             workDir: $projectWorkDir,
             projectMode: null,
@@ -550,24 +646,167 @@ class MessageScheduleAppService extends AbstractAppService
         );
     }
 
-    private function getTopicOrCreate(int $topicId, ProjectEntity $projectEntity): ?TopicEntity
+    private function getSummarizeMessageText(DataIsolation $dataIsolation, string $messageType, array $messageContent): string
+    {
+        $chatMessageType = ChatMessageType::from($messageType);
+        $messageStruct = MessageAssembler::getChatMessageStruct(
+            $chatMessageType,
+            $messageContent
+        );
+        $text = '';
+        if ($messageStruct instanceof TextContentInterface) {
+            $authorization = new MagicUserAuthorization();
+            $authorization->setId($dataIsolation->getCurrentUserId());
+            $authorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $authorization->setUserType(UserType::Human);
+            $text = $this->chatMessageAppService->summarizeText($authorization, $messageStruct->getTextContent());
+        }
+        return $text;
+    }
+
+    private function moveMessageFileToProject(DataIsolation $dataIsolation, string $messageType, array $messageContent, ProjectEntity $projectEntity): array
+    {
+        // 1. Get attachments from chat content
+        $chatMessageType = ChatMessageType::from($messageType);
+        $messageStruct = MessageAssembler::getChatMessageStruct(
+            $chatMessageType,
+            $messageContent
+        );
+
+        // Cast to MagicMessageStruct to access getExtra() method
+        $superAgentExtra = null;
+        if ($messageStruct instanceof MagicMessageStruct) {
+            $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
+        }
+        $mentions = $superAgentExtra?->getMentionsJsonStruct();
+        if (empty($mentions)) {
+            return $messageContent;
+        }
+        $filePathMap = [];
+
+        // Extract file paths from mentions where type is 'upload_file'
+        foreach ($mentions as $mention) {
+            if ($mention['type'] == 'upload_file') {
+                $filePathMap[$mention['file_path']] = $mention;
+            }
+        }
+        if (empty($filePathMap)) {
+            return $messageContent;
+        }
+
+        // Collect file update mapping
+        $fileUpdateMapping = [];
+
+        // Start copying
+        foreach ($filePathMap as $filePath => $fileData) {
+            // Check if file exists
+            $oldWorkDir = WorkDirectoryUtil::getWorkDirByFileKey($filePath);
+            $targetFileKey = str_replace($oldWorkDir, $projectEntity->getWorkDir(), $filePath);
+            $taskFileEntity = $this->taskFileDomainService->getByFileKey($targetFileKey);
+            if (! empty($taskFileEntity)) {
+                // Skip if exists
+                $fileUpdateMapping[$fileData['file_id']] = [
+                    'file_id' => $taskFileEntity->getFileId(),
+                    'file_path' => $taskFileEntity->getFileKey(),
+                    'file_key' => $taskFileEntity->getFileKey(), // file_key is same as file_path
+                    'file_name' => $taskFileEntity->getFileName(),
+                ];
+                continue;
+            }
+            // Build based on $oldWorkDir
+            $fileEntity = new TaskFileEntity();
+            $fileEntity->setFileKey($filePath);
+            $fileEntity->setFileName($fileData['file_name']);
+            $fileEntity->setFileSize($fileData['file_size']);
+            $fileEntity->setProjectId($projectEntity->getId());
+            $fileEntity->setFileType(FileType::USER_UPLOAD->value);
+            $fileEntity->setStorageType(StorageType::WORKSPACE->value);
+            $fileEntity->setIsHidden(false);
+            $fileEntity->setIsDirectory(false);
+            $fileEntity->setSort(0);
+            $fileEntity->setMetadata('');
+            // Get parent id
+            $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
+                projectId: $projectEntity->getId(),
+                userId: $projectEntity->getUserId(),
+                organizationCode: $projectEntity->getUserOrganizationCode(),
+                fullFileKey: $targetFileKey,
+                workDir: $projectEntity->getWorkDir(),
+                source: TaskFileSource::COPY,
+            );
+            // Execute copy
+            $newFileEntity = $this->taskFileDomainService->copyFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetFileKey, $parentId);
+
+            // Collect new file information for updating mentions
+            $fileUpdateMapping[$fileData['file_id']] = [
+                'file_id' => $newFileEntity->getFileId(),
+                'file_path' => $newFileEntity->getFileKey(),
+                'file_key' => $newFileEntity->getFileKey(), // file_key is same as file_path
+                'file_name' => $newFileEntity->getFileName(),
+            ];
+        }
+
+        // Update file information in messageContent
+        if (count($fileUpdateMapping) > 0) {
+            $this->updateMentionsFileInfo($messageContent, $fileUpdateMapping);
+        }
+
+        return $messageContent;
+    }
+
+    /**
+     * Update file information in mentions array.
+     */
+    private function updateMentionsFileInfo(array &$messageContent, array $fileUpdateMapping): void
+    {
+        if (! isset($messageContent['extra']['super_agent']['mentions'])) {
+            return;
+        }
+
+        foreach ($messageContent['extra']['super_agent']['mentions'] as &$mention) {
+            if (
+                $mention['type'] === 'mention'
+                && isset($mention['attrs']['type'])
+                && $mention['attrs']['type'] === 'upload_file'
+                && isset($mention['attrs']['data']['file_id'])
+            ) {
+                $oldFileId = $mention['attrs']['data']['file_id'];
+
+                if (isset($fileUpdateMapping[$oldFileId])) {
+                    $newFileInfo = $fileUpdateMapping[$oldFileId];
+
+                    // Update all file-related fields
+                    $mention['attrs']['data']['file_id'] = (string) $newFileInfo['file_id'];
+                    $mention['attrs']['data']['file_path'] = $newFileInfo['file_path'];
+                    $mention['attrs']['data']['file_key'] = $newFileInfo['file_key'];
+                    $mention['attrs']['data']['file_name'] = $newFileInfo['file_name'];
+                }
+            }
+        }
+    }
+
+    private function getTopicOrCreate(DataIsolation $dataIsolation, int $topicId, ProjectEntity $projectEntity, string $messageType, array $messageContent, string $sourceId = ''): ?TopicEntity
     {
         if (! empty($topicId)) {
             return $this->topicDomainService->getTopicById($topicId);
         }
-        // 1. 初始化 chat 的会话和话题
-        $dataIsolation = DataIsolation::simpleMake($projectEntity->getUserOrganizationCode(), $projectEntity->getUserId());
+        // 1. Initialize chat conversation and topic
         [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
-        // 2. 创建话题
+        $topicName = $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
+
+        // 2. Create topic
         return $this->topicDomainService->createTopic(
             $dataIsolation,
             $projectEntity->getWorkspaceId(),
             $projectEntity->getId(),
             $chatConversationId,
-            $chatConversationTopicId, // 会话的话题ID
-            $projectEntity->getProjectName(),
+            $chatConversationTopicId, // Conversation topic ID
+            $topicName,
             $projectEntity->getWorkDir(),
+            '', // topicMode
+            CreationSource::SCHEDULED_TASK->value, // source
+            $sourceId // sourceId
         );
     }
 
@@ -693,14 +932,14 @@ class MessageScheduleAppService extends AbstractAppService
     /**
      * Send message to agent (reference MessageQueueCompensationAppService::sendMessageToAgent).
      */
-    private function sendMessageToAgent(MessageScheduleEntity $messageScheduleEntity, TopicEntity $topicEntity): array
+    private function sendMessageToAgent(DataIsolation $dataIsolation, string $messageType, array $messageContent, TopicEntity $topicEntity): array
     {
         try {
             // Convert message content
-            $chatMessageType = ChatMessageType::from($messageScheduleEntity->getMessageType());
+            $chatMessageType = ChatMessageType::from($messageType);
             $messageStruct = MessageAssembler::getChatMessageStruct(
                 $chatMessageType,
-                $messageScheduleEntity->getMessageContent()
+                $messageContent
             );
 
             // Create MagicSeqEntity based on message content
@@ -717,17 +956,15 @@ class MessageScheduleAppService extends AbstractAppService
             $appMessageId = IdGenerator::getUniqueId32();
 
             // Get agent user_id
-            $dataIsolation = new DataIsolation();
-            $dataIsolation->setCurrentOrganizationCode($messageScheduleEntity->getOrganizationCode());
             $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
 
             if (empty($aiUserEntity)) {
                 $this->logger->error('Agent user not found, skip processing', [
-                    'organization_code' => $messageScheduleEntity->getOrganizationCode(),
+                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
                 ]);
                 return [
                     'success' => false,
-                    'error_message' => 'Agent user not found for organization: ' . $messageScheduleEntity->getOrganizationCode(),
+                    'error_message' => 'Agent user not found for organization: ' . $dataIsolation->getCurrentOrganizationCode(),
                     'result' => null,
                 ];
             }
@@ -735,7 +972,7 @@ class MessageScheduleAppService extends AbstractAppService
             // Call userSendMessageToAgent
             $result = $this->chatMessageAppService->userSendMessageToAgent(
                 aiSeqDTO: $seqEntity,
-                senderUserId: $messageScheduleEntity->getUserId(),
+                senderUserId: $dataIsolation->getCurrentUserId(),
                 receiverId: $aiUserEntity->getUserId(),
                 appMessageId: $appMessageId,
                 doNotParseReferMessageId: false,
@@ -751,7 +988,6 @@ class MessageScheduleAppService extends AbstractAppService
             ];
         } catch (Throwable $e) {
             $this->logger->error('Failed to send message to agent', [
-                'message_schedule_id' => $messageScheduleEntity->getId(),
                 'topic_id' => $topicEntity->getId(),
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),

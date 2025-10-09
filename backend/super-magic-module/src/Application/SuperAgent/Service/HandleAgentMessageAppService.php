@@ -24,6 +24,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FinishTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -422,6 +423,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         TaskContext $taskContext,
         TopicEntity $topicEntity
     ): void {
+        // 该事件后续将废弃，不再使用
         AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
             $taskContext->getCurrentOrganizationCode(),
             $taskContext->getCurrentUserId(),
@@ -430,6 +432,29 @@ class HandleAgentMessageAppService extends AbstractAppService
             $taskContext->getTask()->getId(),
             $messageDTO,
             $messageDTO->getMetadata()->getLanguage()
+        ));
+        // 使用下面的事件来替代
+        if ($messageDTO->getPayload()->getEvent() === AgentEventEnum::AFTER_MAIN_AGENT_RUN->value) {
+            // 触发任务完成事件
+            $this->dispatchFinishTaskEvent($messageDTO, $taskContext, $topicEntity);
+        }
+    }
+
+    /**
+     * Dispatch finish task event.
+     */
+    private function dispatchFinishTaskEvent(
+        TopicTaskMessageDTO $messageDTO,
+        TaskContext $taskContext,
+        TopicEntity $topicEntity
+    ): void {
+        AsyncEventUtil::dispatch(new FinishTaskEvent(
+            $taskContext->getCurrentOrganizationCode(),
+            $taskContext->getCurrentUserId(),
+            $taskContext->getTopicId(),
+            (string) $topicEntity->getProjectId(),
+            $taskContext->getTask()->getId(),
+            $messageDTO
         ));
     }
 

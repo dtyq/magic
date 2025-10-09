@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleLogEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\MessageScheduleLogModel;
@@ -60,7 +61,7 @@ class MessageScheduleLogRepository extends AbstractRepository implements Message
     {
         $models = $this->messageScheduleLogModel::query()
             ->where('message_schedule_id', $messageScheduleId)
-            ->orderBy('executed_at', 'desc')
+            ->orderBy('id', 'desc')
             ->get();
 
         return $models->map(function ($model) {
@@ -85,6 +86,25 @@ class MessageScheduleLogRepository extends AbstractRepository implements Message
         return $this->messageScheduleLogModel::query()
             ->where('id', $id)
             ->update($updateData) > 0;
+    }
+
+    /**
+     * Update execution log details.
+     */
+    public function updateExecutionLogDetails(int $id, array $updateData): bool
+    {
+        $allowedFields = ['project_id', 'topic_id', 'status', 'error_message'];
+        $filteredData = array_intersect_key($updateData, array_flip($allowedFields));
+
+        if (empty($filteredData)) {
+            return false;
+        }
+
+        $filteredData['updated_at'] = date('Y-m-d H:i:s');
+
+        return $this->messageScheduleLogModel::query()
+            ->where('id', $id)
+            ->update($filteredData) > 0;
     }
 
     /**
@@ -140,11 +160,29 @@ class MessageScheduleLogRepository extends AbstractRepository implements Message
             'topic_id' => $model->topic_id,
             'task_name' => $model->task_name,
             'status' => $model->status,
-            'executed_at' => $model->executed_at,
+            'executed_at' => $this->formatDateTime($model->executed_at),
             'error_message' => $model->error_message,
-            'created_at' => $model->created_at,
-            'updated_at' => $model->updated_at,
+            'created_at' => $this->formatDateTime($model->created_at),
+            'updated_at' => $this->formatDateTime($model->updated_at),
         ]);
+    }
+
+    /**
+     * Format datetime value to string.
+     * @param mixed $datetime
+     */
+    private function formatDateTime($datetime): ?string
+    {
+        if ($datetime === null) {
+            return null;
+        }
+
+        if ($datetime instanceof Carbon) {
+            return $datetime->toDateTimeString();
+        }
+
+        // If it's already a string, return it as is
+        return (string) $datetime;
     }
 
     /**

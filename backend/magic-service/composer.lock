@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.28",
+            "version": "3.356.35",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "aaf809461033836d120f3bbf7a4cf67e946281d1"
+                "reference": "09f1e434cbeed5b916f572369b9f09389b13a5c0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/aaf809461033836d120f3bbf7a4cf67e946281d1",
-                "reference": "aaf809461033836d120f3bbf7a4cf67e946281d1",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/09f1e434cbeed5b916f572369b9f09389b13a5c0",
+                "reference": "09f1e434cbeed5b916f572369b9f09389b13a5c0",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.28"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.35"
             },
-            "time": "2025-09-29T18:04:14+00:00"
+            "time": "2025-10-08T18:06:42+00:00"
         },
         {
             "name": "brick/math",
@@ -1115,6 +1115,7 @@
                 "issues": "https://github.com/doctrine/annotations/issues",
                 "source": "https://github.com/doctrine/annotations/tree/1.14.4"
             },
+            "abandoned": true,
             "time": "2024-09-05T10:15:52+00:00"
         },
         {
@@ -1214,6 +1215,7 @@
                     "type": "tidelift"
                 }
             ],
+            "abandoned": true,
             "time": "2022-05-20T20:06:54+00:00"
         },
         {
@@ -2193,12 +2195,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "5c4a3dbb7a9125d888a06849e770d779b5d1937d"
+                "reference": "f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=5c4a3dbb7a9125d888a06849e770d779b5d1937d",
-                "reference": "5c4a3dbb7a9125d888a06849e770d779b5d1937d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc",
+                "reference": "f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc",
                 "shasum": ""
             },
             "require": {
@@ -2306,7 +2308,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-28T09:25:51+00:00"
+            "time": "2025-10-09T02:32:04+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2576,12 +2578,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "0c0237b5f488cc7c3079ea11f68867f8adba361d"
+                "reference": "d6a0eb55ef83c00e14776914554d5f9108e64361"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=0c0237b5f488cc7c3079ea11f68867f8adba361d",
-                "reference": "0c0237b5f488cc7c3079ea11f68867f8adba361d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=d6a0eb55ef83c00e14776914554d5f9108e64361",
+                "reference": "d6a0eb55ef83c00e14776914554d5f9108e64361",
                 "shasum": ""
             },
             "require": {
@@ -2683,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-09-30T16:54:20+08:00"
+            "time": "2025-10-08T11:29:56+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -3559,16 +3561,16 @@
         },
         {
             "name": "google/longrunning",
-            "version": "0.5.0",
+            "version": "0.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/php-longrunning.git",
-                "reference": "715519ab4aaf3c4268adb2b551ee0f34135c8c5f"
+                "reference": "226d3b5166eaa13754cc5e452b37872478e23375"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/php-longrunning/zipball/715519ab4aaf3c4268adb2b551ee0f34135c8c5f",
-                "reference": "715519ab4aaf3c4268adb2b551ee0f34135c8c5f",
+                "url": "https://api.github.com/repos/googleapis/php-longrunning/zipball/226d3b5166eaa13754cc5e452b37872478e23375",
+                "reference": "226d3b5166eaa13754cc5e452b37872478e23375",
                 "shasum": ""
             },
             "require-dev": {
@@ -3597,9 +3599,9 @@
             ],
             "description": "Google LongRunning Client for PHP",
             "support": {
-                "source": "https://github.com/googleapis/php-longrunning/tree/v0.5.0"
+                "source": "https://github.com/googleapis/php-longrunning/tree/v0.6.0"
             },
-            "time": "2025-09-20T01:29:44+00:00"
+            "time": "2025-10-07T18:41:09+00:00"
         },
         {
             "name": "google/protobuf",
@@ -10272,16 +10274,16 @@
         },
         {
             "name": "paragonie/sodium_compat",
-            "version": "v2.3.0",
+            "version": "v2.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/paragonie/sodium_compat.git",
-                "reference": "693f6fe5b09173981458f7a9dd0a18b90f8947da"
+                "reference": "547e2dc4d45107440e76c17ab5a46e4252460158"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/paragonie/sodium_compat/zipball/693f6fe5b09173981458f7a9dd0a18b90f8947da",
-                "reference": "693f6fe5b09173981458f7a9dd0a18b90f8947da",
+                "url": "https://api.github.com/repos/paragonie/sodium_compat/zipball/547e2dc4d45107440e76c17ab5a46e4252460158",
+                "reference": "547e2dc4d45107440e76c17ab5a46e4252460158",
                 "shasum": ""
             },
             "require": {
@@ -10307,9 +10309,6 @@
                 "files": [
                     "autoload.php"
                 ],
-                "psr-0": {
-                    "ParagonIE_Sodium_": "src"
-                },
                 "psr-4": {
                     "ParagonIE\\Sodium\\": "namespaced/"
                 }
@@ -10365,9 +10364,9 @@
             ],
             "support": {
                 "issues": "https://github.com/paragonie/sodium_compat/issues",
-                "source": "https://github.com/paragonie/sodium_compat/tree/v2.3.0"
+                "source": "https://github.com/paragonie/sodium_compat/tree/v2.4.0"
             },
-            "time": "2025-09-30T07:27:45+00:00"
+            "time": "2025-10-06T08:47:40+00:00"
         },
         {
             "name": "php-amqplib/php-amqplib",
@@ -10913,16 +10912,16 @@
         },
         {
             "name": "phpseclib/phpseclib",
-            "version": "3.0.46",
+            "version": "3.0.47",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpseclib/phpseclib.git",
-                "reference": "56483a7de62a6c2a6635e42e93b8a9e25d4f0ec6"
+                "reference": "9d6ca36a6c2dd434765b1071b2644a1c683b385d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/56483a7de62a6c2a6635e42e93b8a9e25d4f0ec6",
-                "reference": "56483a7de62a6c2a6635e42e93b8a9e25d4f0ec6",
+                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/9d6ca36a6c2dd434765b1071b2644a1c683b385d",
+                "reference": "9d6ca36a6c2dd434765b1071b2644a1c683b385d",
                 "shasum": ""
             },
             "require": {
@@ -11003,7 +11002,7 @@
             ],
             "support": {
                 "issues": "https://github.com/phpseclib/phpseclib/issues",
-                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.46"
+                "source": "https://github.com/phpseclib/phpseclib/tree/3.0.47"
             },
             "funding": [
                 {
@@ -11019,7 +11018,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-06-26T16:29:55+00:00"
+            "time": "2025-10-06T01:07:24+00:00"
         },
         {
             "name": "phpspec/php-diff",
@@ -17689,12 +17688,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "684ef27cdce62b6562f77a92dc76bdfb46542a2d"
+                "reference": "aeb989ee4f985c14504c76a0d1bcdd468046f53a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/684ef27cdce62b6562f77a92dc76bdfb46542a2d",
-                "reference": "684ef27cdce62b6562f77a92dc76bdfb46542a2d",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/aeb989ee4f985c14504c76a0d1bcdd468046f53a",
+                "reference": "aeb989ee4f985c14504c76a0d1bcdd468046f53a",
                 "shasum": ""
             },
             "conflict": {
@@ -17736,10 +17735,10 @@
                 "athlon1600/php-proxy-app": "<=3",
                 "athlon1600/youtube-downloader": "<=4",
                 "austintoddj/canvas": "<=3.4.2",
-                "auth0/auth0-php": ">=8.0.0.0-beta1,<8.14",
-                "auth0/login": "<7.17",
-                "auth0/symfony": "<5.4",
-                "auth0/wordpress": "<5.3",
+                "auth0/auth0-php": ">=3.3,<=8.16",
+                "auth0/login": "<=7.18",
+                "auth0/symfony": "<=5.4.1",
+                "auth0/wordpress": "<=5.3",
                 "automad/automad": "<2.0.0.0-alpha5",
                 "automattic/jetpack": "<9.8",
                 "awesome-support/awesome-support": "<=6.0.7",
@@ -17856,7 +17855,7 @@
                 "doctrine/mongodb-odm": "<1.0.2",
                 "doctrine/mongodb-odm-bundle": "<3.0.1",
                 "doctrine/orm": ">=1,<1.2.4|>=2,<2.4.8|>=2.5,<2.5.1|>=2.8.3,<2.8.4",
-                "dolibarr/dolibarr": "<=21.0.2",
+                "dolibarr/dolibarr": "<21.0.3",
                 "dompdf/dompdf": "<2.0.4",
                 "doublethreedigital/guest-entries": "<3.1.2",
                 "drupal/admin_audit_trail": "<1.0.5",
@@ -18045,7 +18044,7 @@
                 "joomla/archive": "<1.1.12|>=2,<2.0.1",
                 "joomla/database": ">=1,<2.2|>=3,<3.4",
                 "joomla/filesystem": "<1.6.2|>=2,<2.0.1",
-                "joomla/filter": "<1.4.4|>=2,<2.0.1",
+                "joomla/filter": "<2.0.6|>=3,<3.0.5|==4",
                 "joomla/framework": "<1.5.7|>=2.5.4,<=3.8.12",
                 "joomla/input": ">=2,<2.0.2",
                 "joomla/joomla-cms": "<3.9.12|>=4,<4.4.13|>=5,<5.2.6",
@@ -18185,7 +18184,7 @@
                 "notrinos/notrinos-erp": "<=0.7",
                 "noumo/easyii": "<=0.9",
                 "novaksolutions/infusionsoft-php-sdk": "<1",
-                "novosga/novosga": "<=2.2.9",
+                "novosga/novosga": "<=2.2.12",
                 "nukeviet/nukeviet": "<4.5.02",
                 "nyholm/psr7": "<1.6.1",
                 "nystudio107/craft-seomatic": "<3.4.12",
@@ -18463,7 +18462,7 @@
                 "thelia/thelia": ">=2.1,<2.1.3",
                 "theonedemon/phpwhois": "<=4.2.5",
                 "thinkcmf/thinkcmf": "<6.0.8",
-                "thorsten/phpmyfaq": "<=4.0.1",
+                "thorsten/phpmyfaq": "<=4.0.1|>=4.0.7,<4.0.13",
                 "tikiwiki/tiki-manager": "<=17.1",
                 "timber/timber": ">=0.16.6,<1.23.1|>=1.24,<1.24.1|>=2,<2.1",
                 "tinymce/tinymce": "<7.2",
@@ -18655,7 +18654,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-09-24T21:05:21+00:00"
+            "time": "2025-10-07T14:05:55+00:00"
         },
         {
             "name": "sebastian/cli-parser",
