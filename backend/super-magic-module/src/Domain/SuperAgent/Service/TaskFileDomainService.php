@@ -1841,6 +1841,7 @@ class TaskFileDomainService
                 }
 
                 break;
+            case 'high_quality':
             case 'download':
             default:
                 // 下载模式：强制下载，使用标准的 attachment 格式
