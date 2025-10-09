@@ -99,6 +99,14 @@ class TaskFileDomainService
     }
 
     /**
+     * Get file by project ID and file key.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getByProjectIdAndFileKey($projectId, $fileKey);
+    }
+
+    /**
      * Find user files by file IDs and user ID.
      *
      * @param array $fileIds File ID array
