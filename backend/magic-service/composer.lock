@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.34",
+            "version": "3.356.35",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "4dabcc34c34ec3c3ce74373c2ff2fc318099d20b"
+                "reference": "09f1e434cbeed5b916f572369b9f09389b13a5c0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/4dabcc34c34ec3c3ce74373c2ff2fc318099d20b",
-                "reference": "4dabcc34c34ec3c3ce74373c2ff2fc318099d20b",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/09f1e434cbeed5b916f572369b9f09389b13a5c0",
+                "reference": "09f1e434cbeed5b916f572369b9f09389b13a5c0",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.34"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.35"
             },
-            "time": "2025-10-07T18:05:06+00:00"
+            "time": "2025-10-08T18:06:42+00:00"
         },
         {
             "name": "brick/math",
@@ -1115,6 +1115,7 @@
                 "issues": "https://github.com/doctrine/annotations/issues",
                 "source": "https://github.com/doctrine/annotations/tree/1.14.4"
             },
+            "abandoned": true,
             "time": "2024-09-05T10:15:52+00:00"
         },
         {
@@ -1214,6 +1215,7 @@
                     "type": "tidelift"
                 }
             ],
+            "abandoned": true,
             "time": "2022-05-20T20:06:54+00:00"
         },
         {
@@ -2193,12 +2195,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "5c4a3dbb7a9125d888a06849e770d779b5d1937d"
+                "reference": "f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=5c4a3dbb7a9125d888a06849e770d779b5d1937d",
-                "reference": "5c4a3dbb7a9125d888a06849e770d779b5d1937d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc",
+                "reference": "f49c14e2b2409c5eb4e85f2c357a53462a2c9ffc",
                 "shasum": ""
             },
             "require": {
@@ -2306,7 +2308,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-09-28T09:25:51+00:00"
+            "time": "2025-10-09T02:32:04+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -3559,16 +3561,16 @@
         },
         {
             "name": "google/longrunning",
-            "version": "0.5.0",
+            "version": "0.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/php-longrunning.git",
-                "reference": "715519ab4aaf3c4268adb2b551ee0f34135c8c5f"
+                "reference": "226d3b5166eaa13754cc5e452b37872478e23375"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/php-longrunning/zipball/715519ab4aaf3c4268adb2b551ee0f34135c8c5f",
-                "reference": "715519ab4aaf3c4268adb2b551ee0f34135c8c5f",
+                "url": "https://api.github.com/repos/googleapis/php-longrunning/zipball/226d3b5166eaa13754cc5e452b37872478e23375",
+                "reference": "226d3b5166eaa13754cc5e452b37872478e23375",
                 "shasum": ""
             },
             "require-dev": {
@@ -3597,9 +3599,9 @@
             ],
             "description": "Google LongRunning Client for PHP",
             "support": {
-                "source": "https://github.com/googleapis/php-longrunning/tree/v0.5.0"
+                "source": "https://github.com/googleapis/php-longrunning/tree/v0.6.0"
             },
-            "time": "2025-09-20T01:29:44+00:00"
+            "time": "2025-10-07T18:41:09+00:00"
         },
         {
             "name": "google/protobuf",
