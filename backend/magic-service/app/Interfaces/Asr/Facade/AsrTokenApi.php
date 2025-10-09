@@ -22,7 +22,6 @@ use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
-use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Exception;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Annotation\Controller;
@@ -30,7 +29,6 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
-use Swow\Psr7\Message\UploadedFile;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -109,71 +107,6 @@ class AsrTokenApi extends AbstractApi
                 'organization_code' => $userAuthorization->getOrganizationCode(),
             ],
         ];
-    }
-
-    /**
-     * 录音文件上传服务,debug 使用.
-     * @deprecated
-     *
-     * @param RequestInterface $request 包含 task_key 和文件数据
-     */
-    public function uploadFile(RequestInterface $request): array
-    {
-        $userAuthorization = $this->getAuthorization();
-        $userId = $userAuthorization->getId();
-        $organizationCode = $userAuthorization->getOrganizationCode();
-
-        // 获取task_key参数
-        $taskKey = $request->input('task_key', '');
-        if (empty($taskKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
-        }
-
-        // 获取上传文件
-        $file = $request->file('file');
-        if (! $file instanceof UploadedFile) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.file_required'));
-        }
-
-        // 验证任务是否存在且属于当前用户 - 委托给应用服务
-        $taskStatus = $this->asrFileAppService->getAndValidateTaskStatus($taskKey, $userId);
-
-        try {
-            // 构建上传文件对象，使用业务目录作为文件键
-            $filename = $file->getClientFilename() ?: 'audio.webm';
-            $fileKey = rtrim($taskStatus->businessDirectory, '/') . '/' . $filename;
-            $fileKey = ltrim($fileKey, '/');
-            // 获取上传文件的临时路径
-            $fileArray = $file->toArray();
-            $uploadFile = new UploadFile($fileArray['tmp_file'], '', $fileKey, false);
-
-            // 使用AsrFileAppService的专用上传方法
-            $this->asrFileAppService->uploadFile($organizationCode, $uploadFile);
-
-            return [
-                'success' => true,
-                'task_key' => $taskKey,
-                'filename' => $filename,
-                'file_key' => $fileKey,
-                'file_size' => $file->getSize(),
-                'upload_directory' => $taskStatus->businessDirectory,
-                'message' => trans('asr.api.upload.success_message'),
-                'user' => [
-                    'user_id' => $userId,
-                    'organization_code' => $organizationCode,
-                ],
-                'uploaded_at' => date('Y-m-d H:i:s'),
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error(trans('asr.api.upload.failed_log'), [
-                'task_key' => $taskKey,
-                'filename' => $filename ?? 'unknown',
-                'error' => $e->getMessage(),
-                'user_id' => $userId,
-            ]);
-
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.upload.failed_exception', ['error' => $e->getMessage()]));
-        }
     }
 
     /**
@@ -425,82 +358,6 @@ class AsrTokenApi extends AbstractApi
             ],
             'usage_note' => trans('asr.api.token.usage_note'),
         ];
-    }
-
-    /**
-     * 查询指定目录下的文件列表（测试接口）
-     * POST /api/v1/asr/files.
-     *
-     * @param RequestInterface $request 包含 task_key 或 directory 参数
-     */
-    public function listObject(RequestInterface $request): array
-    {
-        $userAuthorization = $this->getAuthorization();
-        $userId = $userAuthorization->getId();
-        $organizationCode = $userAuthorization->getOrganizationCode();
-
-        // 获取查询参数
-        $taskKey = $request->input('task_key', '');
-        $directory = $request->input('directory', '');
-
-        // 确定查询目录：优先使用 task_key，其次使用 directory
-        if (! empty($taskKey)) {
-            // 通过 task_key 获取业务目录
-            $taskStatus = $this->asrFileAppService->getAndValidateTaskStatus($taskKey, $userId);
-            $businessDirectory = $taskStatus->businessDirectory;
-        } elseif (! empty($directory)) {
-            // 直接使用提供的目录
-            $businessDirectory = trim($directory, '/');
-        } else {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_key 或 directory 参数至少需要提供一个');
-        }
-
-        try {
-            // 调用应用层服务获取文件列表
-            $files = $this->asrFileAppService->listFilesInDirectory($organizationCode, $businessDirectory);
-
-            // 转换为API响应格式
-            $fileList = [];
-            foreach ($files as $file) {
-                $fileList[] = [
-                    'file_key' => $file->getKey(),
-                    'filename' => $file->getFilename(),
-                    'size' => $file->getSize(),
-                    'last_modified' => $file->getLastModified(),
-                ];
-            }
-
-            return [
-                'success' => true,
-                'directory' => sprintf('/%s/', $businessDirectory),
-                'file_count' => count($fileList),
-                'files' => $fileList,
-                'user' => [
-                    'user_id' => $userId,
-                    'organization_code' => $organizationCode,
-                ],
-                'queried_at' => date('Y-m-d H:i:s'),
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error('查询文件列表失败', [
-                'task_key' => $taskKey,
-                'directory' => $businessDirectory,
-                'organization_code' => $organizationCode,
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'directory' => sprintf('/%s/', $businessDirectory),
-                'error' => sprintf('查询文件列表失败：%s', $e->getMessage()),
-                'user' => [
-                    'user_id' => $userId,
-                    'organization_code' => $organizationCode,
-                ],
-                'queried_at' => date('Y-m-d H:i:s'),
-            ];
-        }
     }
 
     /**
