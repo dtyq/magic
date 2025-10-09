@@ -1852,8 +1852,6 @@ class TaskFileDomainService
         // 设置Content-Type响应头
         $urlOptions['custom_query']['response-content-type'] = $urlOptions['content_type'];
 
-
-
         // 设置filename用于预签名URL生成
         $urlOptions['filename'] = $filename;
 
