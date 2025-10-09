@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -46,7 +47,7 @@ class MessageQueueDomainService
         int $projectId,
         int $topicId,
         array $messageContent,
-        string $messageType
+        ChatMessageType $messageType
     ): MessageQueueEntity {
         $lockKey = $this->getTopicLockKey($topicId);
 
@@ -65,7 +66,7 @@ class MessageQueueDomainService
                 ->setProjectId($projectId)
                 ->setTopicId($topicId)
                 ->setMessageContent($messageContentJson)
-                ->setMessageType($messageType)
+                ->setMessageType($messageType->value)
                 ->setStatus(MessageQueueStatus::PENDING)
                 ->setExceptExecuteTime($exceptExecuteTime)
                 ->setCreatedAt(date('Y-m-d H:i:s'))
