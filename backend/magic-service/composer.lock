@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "97fd859500968e98eeecb66a3db8d1a4",
+    "content-hash": "903592fbaa25e74b4f68af205008da2c",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2578,12 +2578,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "51e9cf3bc9872037d790a223632e0e1295013843"
+                "reference": "51cb1eae4b0653684c140b1c3002302c624e653e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=51e9cf3bc9872037d790a223632e0e1295013843",
-                "reference": "51e9cf3bc9872037d790a223632e0e1295013843",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=51cb1eae4b0653684c140b1c3002302c624e653e",
+                "reference": "51cb1eae4b0653684c140b1c3002302c624e653e",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-10-10T14:28:56+08:00"
+            "time": "2025-10-10T21:32:38+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8294,16 +8294,16 @@
         },
         {
             "name": "justinrainbow/json-schema",
-            "version": "6.5.2",
+            "version": "6.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/jsonrainbow/json-schema.git",
-                "reference": "ac0d369c09653cf7af561f6d91a705bc617a87b8"
+                "reference": "68ba7677532803cc0c5900dd5a4d730537f2b2f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/ac0d369c09653cf7af561f6d91a705bc617a87b8",
-                "reference": "ac0d369c09653cf7af561f6d91a705bc617a87b8",
+                "url": "https://api.github.com/repos/jsonrainbow/json-schema/zipball/68ba7677532803cc0c5900dd5a4d730537f2b2f3",
+                "reference": "68ba7677532803cc0c5900dd5a4d730537f2b2f3",
                 "shasum": ""
             },
             "require": {
@@ -8363,9 +8363,9 @@
             ],
             "support": {
                 "issues": "https://github.com/jsonrainbow/json-schema/issues",
-                "source": "https://github.com/jsonrainbow/json-schema/tree/6.5.2"
+                "source": "https://github.com/jsonrainbow/json-schema/tree/6.6.0"
             },
-            "time": "2025-09-09T09:42:27+00:00"
+            "time": "2025-10-10T11:34:09+00:00"
         },
         {
             "name": "kk-erp-service/service-sdk",
@@ -8475,16 +8475,16 @@
         },
         {
             "name": "kkguan-service/opentracer",
-            "version": "3.1.2",
+            "version": "3.1.3",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:open-source/opentracer.git",
-                "reference": "334100e672f9b0b67543037a42df2dc2215c39d6"
+                "reference": "91423df3e3415854bd67147400a275ed12ddd67d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=334100e672f9b0b67543037a42df2dc2215c39d6",
-                "reference": "334100e672f9b0b67543037a42df2dc2215c39d6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=91423df3e3415854bd67147400a275ed12ddd67d",
+                "reference": "91423df3e3415854bd67147400a275ed12ddd67d",
                 "shasum": ""
             },
             "require": {
@@ -8536,9 +8536,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.2"
+                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.3"
             },
-            "time": "2025-08-28T12:10:46+08:00"
+            "time": "2025-10-10T13:47:44+00:00"
         },
         {
             "name": "kkguan-service/token-sdk",
