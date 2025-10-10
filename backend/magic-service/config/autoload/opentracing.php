@@ -34,7 +34,7 @@ $endpointUrl = multiCloudAdapter(env('ZIPKIN_ENDPOINT_URL', ''));
 
 return [
     'default' => env('TRACER_DRIVER', 'zipkin'),
-    'prefix' => env('TRACER_PREFIX', 'teamshare-service'),
+    'prefix' => env('TRACER_PREFIX', ''),
     'enable' => [
         'guzzle' => env('TRACER_ENABLE_GUZZLE', true),
         'redis' => env('TRACER_ENABLE_REDIS', true),
