@@ -1058,6 +1058,17 @@ readonly class AsrFileAppService
             $parentId = $this->ensureAsrRecordingsDirectoryExists($dto->organizationCode, $dto->projectId, $dto->userId, $directoryPath);
 
             // 创建文件实体
+            $metadata = [
+                'asr_task' => true,
+                'created_by' => 'asr_summary_api',
+                'created_at' => date('Y-m-d H:i:s'),
+            ];
+
+            // 如果有时长信息，添加到 metadata
+            if ($dto->duration !== null) {
+                $metadata['duration'] = $dto->duration;
+            }
+
             $taskFileEntity = new TaskFileEntity([
                 'user_id' => $dto->userId,
                 'organization_code' => $dto->organizationCode,
@@ -1076,11 +1087,7 @@ readonly class AsrFileAppService
                 'sort' => 0,
                 'parent_id' => $parentId, // 使用ASR录音目录ID
                 'source' => 2, // 2-项目目录
-                'metadata' => Json::encode([
-                    'asr_task' => true,
-                    'created_by' => 'asr_summary_api',
-                    'created_at' => date('Y-m-d H:i:s'),
-                ]),
+                'metadata' => Json::encode($metadata),
             ]);
 
             // 插入或忽略（防重复）
@@ -1414,6 +1421,118 @@ readonly class AsrFileAppService
             $hex = bin2hex($data);
         }
         return $hex;
+    }
+
+    /**
+     * 检测音频文件时长（秒）.
+     *
+     * @param string $audioFilePath 音频文件路径
+     * @return null|int 时长（秒），检测失败返回null
+     */
+    private function detectAudioDuration(string $audioFilePath): ?int
+    {
+        try {
+            if (! file_exists($audioFilePath)) {
+                return null;
+            }
+
+            // 使用 ffprobe 检测时长
+            $cmd = sprintf(
+                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s',
+                escapeshellarg($audioFilePath)
+            );
+
+            $output = [];
+            $returnVar = 0;
+            exec($cmd . ' 2>&1', $output, $returnVar);
+
+            if ($returnVar !== 0 || empty($output[0])) {
+                $this->logger->warning('检测音频时长失败', [
+                    'file_path' => $audioFilePath,
+                    'return_code' => $returnVar,
+                    'output' => implode("\n", $output),
+                ]);
+                return null;
+            }
+
+            $duration = (float) trim($output[0]);
+            return (int) round($duration);
+        } catch (Throwable $e) {
+            $this->logger->warning('检测音频时长异常', [
+                'file_path' => $audioFilePath,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 将元数据写入音频文件.
+     *
+     * @param string $inputFile 输入音频文件路径
+     * @param string $outputFile 输出音频文件路径
+     * @param int $duration 时长（秒）
+     * @param null|string $title 音频标题（可选）
+     * @return bool 成功返回true，失败返回false
+     */
+    private function writeAudioMetadata(string $inputFile, string $outputFile, int $duration, ?string $title = null): bool
+    {
+        try {
+            if (! file_exists($inputFile)) {
+                $this->logger->warning('写入音频元数据失败：输入文件不存在', [
+                    'input_file' => $inputFile,
+                    'file_exists' => false,
+                ]);
+                return false;
+            }
+
+            // 获取真实路径
+            $realInputFile = realpath($inputFile);
+            if ($realInputFile === false) {
+                $this->logger->warning('写入音频元数据失败：无法获取真实路径', [
+                    'input_file' => $inputFile,
+                ]);
+                return false;
+            }
+
+            // 构建元数据参数
+            $metadataParams = sprintf('-metadata duration=%d', $duration);
+            if ($title !== null && $title !== '') {
+                $metadataParams .= sprintf(' -metadata title=%s', escapeshellarg($title));
+            }
+
+            // 使用 ffmpeg 重新封装并写入元数据（无损，仅复制流）
+            $cmd = sprintf(
+                'ffmpeg -y -loglevel error -i %s %s -c copy %s',
+                escapeshellarg($realInputFile),
+                $metadataParams,
+                escapeshellarg($outputFile)
+            );
+
+            $output = [];
+            $returnVar = 0;
+            exec($cmd . ' 2>&1', $output, $returnVar);
+
+            if ($returnVar !== 0 || ! file_exists($outputFile) || filesize($outputFile) === 0) {
+                $this->logger->warning('写入音频元数据失败', [
+                    'input_file' => $inputFile,
+                    'real_input_file' => $realInputFile,
+                    'output_file' => $outputFile,
+                    'return_code' => $returnVar,
+                    'output' => implode("\n", $output),
+                    'cmd' => $cmd,
+                ]);
+                return false;
+            }
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->warning('写入音频元数据异常', [
+                'input_file' => $inputFile,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -1853,13 +1972,53 @@ readonly class AsrFileAppService
             $fileName = sprintf('%s.%s', $finalTitle, $audioFormat);
             $fileRelativeDir = $this->getFileRelativeDir($userId, $projectId, $safeTitle !== '' ? $finalTitle : null);
 
-            // 3. 直接上传合并文件到工作区的动态ASR录音目录
-            $uploadFile = new UploadFile($mergedLocalAudioFile, $fileRelativeDir, $fileName, false);
+            // 3. 检测音频文件时长
+            $audioDuration = $this->detectAudioDuration($mergedLocalAudioFile);
+
+            // 4. 将元数据写入音频文件（如果检测到时长）
+            $finalAudioFile = $mergedLocalAudioFile;
+            if ($audioDuration !== null) {
+                $runtimeDir = dirname($mergedLocalAudioFile);
+                $withMetadataFile = sprintf('%s/with_metadata_%s.%s', $runtimeDir, $taskStatus->taskKey, $audioFormat);
+
+                $this->logger->info('准备写入音频元数据', [
+                    'task_key' => $taskStatus->taskKey,
+                    'merged_file' => $mergedLocalAudioFile,
+                    'merged_file_exists' => file_exists($mergedLocalAudioFile),
+                    'with_metadata_file' => $withMetadataFile,
+                ]);
+
+                $metadataWritten = $this->writeAudioMetadata(
+                    $mergedLocalAudioFile,
+                    $withMetadataFile,
+                    $audioDuration,
+                    $finalTitle
+                );
+
+                if ($metadataWritten && file_exists($withMetadataFile)) {
+                    $finalAudioFile = $withMetadataFile;
+                    $this->logger->info('音频元数据写入成功', [
+                        'task_key' => $taskStatus->taskKey,
+                        'duration' => $audioDuration,
+                        'title' => $finalTitle,
+                    ]);
+                }
+            }
+
+            // 5. 上传最终的音频文件到工作区
+            $this->logger->info('准备上传音频文件', [
+                'task_key' => $taskStatus->taskKey,
+                'final_audio_file' => $finalAudioFile,
+                'file_exists' => file_exists($finalAudioFile),
+                'file_size' => file_exists($finalAudioFile) ? filesize($finalAudioFile) : 0,
+            ]);
+
+            $uploadFile = new UploadFile($finalAudioFile, $fileRelativeDir, $fileName, false);
             $this->fileAppService->upload($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
             $actualWorkspaceFileKey = $uploadFile->getKey();
 
-            // 4. 保存文件记录到项目并获取文件实体
-            $fileSize = filesize($mergedLocalAudioFile);
+            // 6. 保存文件记录到项目并获取文件实体
+            $fileSize = filesize($finalAudioFile);
             $saveDto = new SaveFileRecordToProjectDTO(
                 $organizationCode,
                 $projectId,
@@ -1867,7 +2026,8 @@ readonly class AsrFileAppService
                 $fileName,
                 $fileSize,
                 pathinfo($fileName, PATHINFO_EXTENSION),
-                $userId
+                $userId,
+                $audioDuration
             );
             $audioFileEntity = $this->saveFileRecordToProject($saveDto);
 
@@ -1876,21 +2036,21 @@ readonly class AsrFileAppService
                 $taskStatus->audioFileId = (string) $audioFileEntity->getFileId();
             }
 
-            // 5. 获取文件访问URL
+            // 7. 获取文件访问URL
             $fileLink = $this->fileAppService->getLink($organizationCode, $actualWorkspaceFileKey, StorageBucketType::SandBox);
             $workspaceFileUrl = $fileLink ? $fileLink->getUrl() : '';
 
-            // 6. 同时将合并文件也上传到业务目录（保持兼容性）
-            $businessUploadResult = $this->uploadMergedAudioAndGetUrl($organizationCode, $mergedLocalAudioFile, $taskStatus->taskKey, $taskStatus->businessDirectory);
+            // 8. 同时将合并文件也上传到业务目录（保持兼容性）
+            $businessUploadResult = $this->uploadMergedAudioAndGetUrl($organizationCode, $finalAudioFile, $taskStatus->taskKey, $taskStatus->businessDirectory);
 
-            // 7. 更新任务状态
+            // 9. 更新任务状态
             $fileWorkspaceRelativePath = rtrim($fileRelativeDir, '/') . '/' . $fileName;
             $taskStatus->mergedAudioFileKey = $businessUploadResult['file_key']; // 业务目录中的合并文件
             $taskStatus->workspaceFileKey = $actualWorkspaceFileKey; // 工作区中的合并文件
             $taskStatus->workspaceFileUrl = $workspaceFileUrl;
             $taskStatus->filePath = $fileWorkspaceRelativePath; // 保存工作区文件路径
             $taskStatus->workspaceRelativeDir = $fileRelativeDir; // 保存工作区相对目录，供note文件使用
-            // 8. 清理本地临时文件和远程小文件
+            // 10. 清理本地临时文件和远程小文件
             $this->cleanupTaskFiles($taskStatus->taskKey, $organizationCode, $taskStatus->businessDirectory);
 
             // 标记任务已处理
