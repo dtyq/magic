@@ -110,6 +110,26 @@ readonly class OrganizationDomainService
     }
 
     /**
+     * 根据编码列表批量获取组织.
+     * @param string[] $magicOrganizationCodes
+     * @return OrganizationEntity[]
+     */
+    public function getByCodes(array $magicOrganizationCodes): array
+    {
+        if (empty($magicOrganizationCodes)) {
+            return [];
+        }
+
+        $entities = $this->organizationRepository->getByCodes($magicOrganizationCodes);
+
+        $codeMapEntity = [];
+        foreach ($entities as $entity) {
+            $codeMapEntity[$entity->getMagicOrganizationCode()] = $entity;
+        }
+        return $codeMapEntity;
+    }
+
+    /**
      * 根据名称获取组织.
      */
     public function getByName(string $name): ?OrganizationEntity
