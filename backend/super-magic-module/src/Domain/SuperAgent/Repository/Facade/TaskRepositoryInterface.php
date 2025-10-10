@@ -143,7 +143,7 @@ interface TaskRepositoryInterface
     public function updateTaskByCondition(array $condition, array $data): bool;
 
     /**
-     * 根据话题ID和任务ID列表获取任务实体列表
+     * 根据话题ID和任务ID列表获取任务实体列表.
      *
      * @param int $topicId 话题ID
      * @param array $taskIds 任务ID列表

@@ -25,11 +25,6 @@ class DuplicateTopicRequestDTO extends AbstractRequestDTO
     public string $newTopicName = '';
 
     /**
-     * User sequence ID.
-     */
-    public string $userSeqId = '';
-
-    /**
      * 获取目标消息ID.
      */
     public function getTargetMessageId(): string
@@ -46,14 +41,6 @@ class DuplicateTopicRequestDTO extends AbstractRequestDTO
     }
 
     /**
-     * Get user sequence ID.
-     */
-    public function getUserSeqId(): string
-    {
-        return $this->userSeqId;
-    }
-
-    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -61,7 +48,6 @@ class DuplicateTopicRequestDTO extends AbstractRequestDTO
         return [
             'target_message_id' => 'required|string',
             'new_topic_name' => 'required|string|max:255',
-            'user_seq_id' => 'required|string',
         ];
     }
 
@@ -76,8 +62,6 @@ class DuplicateTopicRequestDTO extends AbstractRequestDTO
             'new_topic_name.required' => 'New topic name is required',
             'new_topic_name.string' => 'New topic name must be a string',
             'new_topic_name.max' => 'New topic name cannot exceed 255 characters',
-            'user_seq_id.required' => 'User sequence ID is required',
-            'user_seq_id.string' => 'User sequence ID must be a string',
         ];
     }
 }

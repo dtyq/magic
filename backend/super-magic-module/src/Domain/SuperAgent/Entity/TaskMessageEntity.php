@@ -145,11 +145,6 @@ class TaskMessageEntity extends AbstractEntity
     protected ?int $imSeqId = null;
 
     /**
-     * @var null|int IM 状态（来自magic_chat_sequences表的status字段）
-     */
-    protected ?int $imStatus = null;
-
-    /**
      * @var null|string 关联ID，用于消息追踪和关联
      */
     protected ?string $correlationId = null;
@@ -425,17 +420,6 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
-    public function getImStatus(): ?int
-    {
-        return $this->imStatus;
-    }
-
-    public function setImStatus(?int $imStatus): self
-    {
-        $this->imStatus = $imStatus;
-        return $this;
-    }
-
     public function getCorrelationId(): ?string
     {
         return $this->correlationId;
@@ -449,7 +433,7 @@ class TaskMessageEntity extends AbstractEntity
 
     public function toArray(): array
     {
-        $result = [
+        return [
             'id' => $this->id,
             'sender_type' => $this->senderType,
             'sender_uid' => $this->senderUid,
@@ -460,29 +444,23 @@ class TaskMessageEntity extends AbstractEntity
             'topic_id' => $this->topicId,
             'status' => $this->status,
             'content' => $this->content,
-            'raw_content' => $this->rawContent,
-            'steps' => $this->getSteps(),
-            'tool' => $this->getTool(),
-            'attachments' => $this->getAttachments(),
-            'mentions' => $this->getMentions(),
+            'raw_content' => $this->rawContent ?? '',
+            'steps' => $this->getSteps() !== null ? json_encode($this->getSteps(), JSON_UNESCAPED_UNICODE) : null,
+            'tool' => $this->getTool() !== null ? json_encode($this->getTool(), JSON_UNESCAPED_UNICODE) : null,
+            'attachments' => $this->getAttachments() !== null ? json_encode($this->getAttachments(), JSON_UNESCAPED_UNICODE) : null,
+            'mentions' => $this->getMentions() !== null ? json_encode($this->getMentions(), JSON_UNESCAPED_UNICODE) : null,
             'event' => $this->event,
             'send_timestamp' => $this->sendTimestamp,
             'show_in_ui' => $this->showInUi,
-            // 新增的队列处理字段
-            'raw_data' => $this->rawData,
+            'raw_data' => $this->rawData ?? '',
             'seq_id' => $this->seqId,
             'processing_status' => $this->processingStatus,
             'error_message' => $this->errorMessage,
             'retry_count' => $this->retryCount,
             'processed_at' => $this->processedAt,
             'im_seq_id' => $this->imSeqId,
-            'im_status' => $this->imStatus,
             'correlation_id' => $this->correlationId,
         ];
-
-        return array_filter($result, function ($value) {
-            return $value !== null;
-        });
     }
 
     public static function taskMessageDTOToTaskMessageEntity(TaskMessageDTO $taskMessageDTO): TaskMessageEntity

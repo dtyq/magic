@@ -7,20 +7,22 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
-use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
-use App\Domain\Chat\Entity\MagicTopicEntity;
-use App\Domain\Chat\Entity\MagicTopicMessageEntity;
-use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\Items\SeqExtra;
+use App\Domain\Chat\Entity\MagicSeqEntity;
+use App\Domain\Chat\Entity\MagicTopicEntity;
+use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Repository\Facade\MagicChatSeqRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Entity\ValueObject\UserType;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -28,11 +30,13 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInt
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use EasyWeChat\Kernel\Support\Arr;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
+
 use function Hyperf\Translation\trans;
 
 class TopicDomainService
@@ -46,6 +50,7 @@ class TopicDomainService
         protected MagicChatSeqRepositoryInterface $magicSeqRepository,
         protected MagicChatTopicRepositoryInterface $magicChatTopicRepository,
         protected TaskMessageRepositoryInterface $taskMessageRepository,
+        protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get('topic');
@@ -670,17 +675,24 @@ class TopicDomainService
         DataIsolation $dataIsolation,
         TopicEntity $sourceTopicEntity,
         int $messageId,
-        int $userSeqId,
         string $newTopicName
-    ) {
+    ): TopicEntity {
         // 初始化 IM 会话
         $imConversationResult = $this->initImConversationFromTopic($sourceTopicEntity, $newTopicName);
         // Create topic entity
-        $targetTopicEntity = $this->copyTopicEntity($dataIsolation, $sourceTopicEntity, $imConversationResult['ai_conversation_id'], $imConversationResult['new_topic_id'], $newTopicName);
+        $targetTopicEntity = $this->copyTopicEntity($dataIsolation, $sourceTopicEntity, $imConversationResult['user_conversation_id'], $imConversationResult['new_topic_id'], $newTopicName);
         // 复制消息
-        // $this->copyTopicShareMessages($messageId, $sourceTopicEntity, $targetTopicEntity);
+        $messageIdMapping = $this->copyTopicShareMessages($messageId, $sourceTopicEntity, $targetTopicEntity);
+        // 获取 agent 的 seq id
+        $seqList = $this->getSeqIdByMessageId((string) $messageId);
+        $userSeqId = (int) $seqList['user_seq_id'];
+        $aiSeqId = (int) $seqList['ai_seq_id'];
         // 复制 IM 消息
-        $this->copyImMessages($imConversationResult, $userSeqId, 829009468971884544);
+        $this->copyImMessages($imConversationResult, $messageIdMapping, $userSeqId, $aiSeqId);
+        // 复制沙箱的聊天记录
+        $this->copyAiChatHistoryFile($sourceTopicEntity, $targetTopicEntity);
+
+        return $targetTopicEntity;
     }
 
     private function copyTopicEntity(
@@ -689,8 +701,7 @@ class TopicDomainService
         string $chatConversationId,
         string $chatTopicId,
         string $newTopicName
-    ) : TopicEntity
-    {
+    ): TopicEntity {
         $currentTime = date('Y-m-d H:i:s');
         $topicEntity = new TopicEntity();
         $topicEntity->setUserId($sourceTopicEntity->getUserId());
@@ -862,13 +873,13 @@ class TopicDomainService
             $newMessageEntities[] = $newMessageEntity;
             
             // 建立映射关系：旧消息ID => 新消息ID
-            $messageIdMapping[$messageToCopy->getId()] = $newMessageEntity->getId();
+            $messageIdMapping[$messageToCopy->getId()] = (string) $newMessageEntity->getId();
         }
         
         // 批量插入到新话题中
         $createdMessageEntities = $this->taskMessageRepository->batchCreateMessages($newMessageEntities);
 
-        $this->logger->info('Successfully copied topic share messages', [
+        $this->logger->debug('Successfully copied topic share messages', [
             'source_topic_id' => $sourceTopicEntity->getId(),
             'target_topic_id' => $targetTopicEntity->getId(),
             'copied_count' => count($createdMessageEntities),
@@ -888,7 +899,7 @@ class TopicDomainService
 
         // 1. 通过 chat_topic_id 查询 magic_chat_topics 表获取所有相关记录
         $existingTopics = $this->magicChatTopicRepository->getTopicsByTopicId($sourceTopicEntity->getChatTopicId());
-        
+
         if (count($existingTopics) !== 2) {
             ExceptionBuilder::throw(
                 SuperAgentErrorCode::TOPIC_NOT_FOUND,
@@ -900,24 +911,24 @@ class TopicDomainService
         $newTopicId = (string) IdGenerator::getSnowId();
         $aiConversationId = '';
         $userConversationId = '';
-        
+
         // 3. 在循环中确定角色并直接创建记录
         foreach ($existingTopics as $topic) {
             $newTopicEntity = new MagicTopicEntity();
             $newTopicEntity->setTopicId($newTopicId);
             $newTopicEntity->setConversationId($topic->getConversationId());
-            $newTopicEntity->setName(!empty($topicName) ? $topicName : $sourceTopicEntity->getTopicName());
+            $newTopicEntity->setName(! empty($topicName) ? $topicName : $sourceTopicEntity->getTopicName());
             $newTopicEntity->setDescription($topic->getDescription());
             $newTopicEntity->setOrganizationCode($topic->getOrganizationCode());
-            
+
             // 保存新的话题记录
             $this->magicChatTopicRepository->createTopic($newTopicEntity);
-            
+
             // 确定AI和用户的会话ID
             if ($topic->getConversationId() === $sourceTopicEntity->getChatConversationId()) {
-                $aiConversationId = $topic->getConversationId();
-            } else {
                 $userConversationId = $topic->getConversationId();
+            } else {
+                $aiConversationId = $topic->getConversationId();
             }
         }
 
@@ -941,7 +952,7 @@ class TopicDomainService
         return $result;
     }
 
-    private function copyImMessages(array $imConversationResult, int $userSeqId, int $aiSeqId): array
+    private function copyImMessages(array $imConversationResult, array $messageIdMapping, int $userSeqId, int $aiSeqId): array
     {
         $this->logger->info('开始复制IM消息', [
             'user_seq_id' => $userSeqId,
@@ -957,7 +968,7 @@ class TopicDomainService
             $userSeqId
         );
 
-        // 2. 查询AI的topic messages  
+        // 2. 查询AI的topic messages
         $aiTopicMessages = $this->magicChatTopicRepository->getTopicMessagesBySeqId(
             $imConversationResult['ai_conversation_id'],
             $imConversationResult['old_topic_id'],
@@ -1008,7 +1019,7 @@ class TopicDomainService
 
         // 4. 批量插入消息
         $insertResult = false;
-        if (!empty($batchInsertData)) {
+        if (! empty($batchInsertData)) {
             $insertResult = $this->magicChatTopicRepository->createTopicMessages($batchInsertData);
         }
 
@@ -1022,7 +1033,7 @@ class TopicDomainService
             $userSeqIds
         );
 
-        // 5.2 查询AI的 sequences  
+        // 5.2 查询AI的 sequences
         $aiSequences = $this->magicSeqRepository->getSequencesByConversationIdAndSeqIds(
             $imConversationResult['ai_conversation_id'],
             $aiSeqIds
@@ -1037,14 +1048,14 @@ class TopicDomainService
         foreach ($userSequences as $userSeq) {
             $originalSeqId = $userSeq->getId();
             $newSeqId = $seqIdsMap[$originalSeqId] ?? null;
-            
-            if (!$newSeqId) {
+
+            if (! $newSeqId) {
                 continue;
             }
 
             // 生成或获取 magic_message_id 映射
             $originalMagicMessageId = $userSeq->getMagicMessageId();
-            if (!isset($magicMessageIdMapping[$originalMagicMessageId])) {
+            if (! isset($magicMessageIdMapping[$originalMagicMessageId])) {
                 $magicMessageIdMapping[$originalMagicMessageId] = IdGenerator::getUniqueId32();
             }
             $newMagicMessageId = $magicMessageIdMapping[$originalMagicMessageId];
@@ -1062,9 +1073,9 @@ class TopicDomainService
             // 获取 sender_message_id
             $senderMessageId = $seqIdsMap[$userSeq->getSenderMessageId()] ?? '';
 
-            // 处理 app_message_id
-            // todo 等实现
-            $appMessageId = (string) IdGenerator::getSnowId();
+            // 处理 app_message_id - 使用 messageIdMapping 映射
+            $originalAppMessageId = $userSeq->getAppMessageId();
+            $appMessageId = $messageIdMapping[$originalAppMessageId] ?? '';
 
             // 创建新的 sequence 实体
             $newUserSeq = new MagicSeqEntity();
@@ -1094,14 +1105,14 @@ class TopicDomainService
         foreach ($aiSequences as $aiSeq) {
             $originalSeqId = $aiSeq->getId();
             $newSeqId = $seqIdsMap[$originalSeqId] ?? null;
-            
-            if (!$newSeqId) {
+
+            if (! $newSeqId) {
                 continue;
             }
 
             // 生成或获取 magic_message_id 映射
             $originalMagicMessageId = $aiSeq->getMagicMessageId();
-            if (!isset($magicMessageIdMapping[$originalMagicMessageId])) {
+            if (! isset($magicMessageIdMapping[$originalMagicMessageId])) {
                 $magicMessageIdMapping[$originalMagicMessageId] = IdGenerator::getUniqueId32();
             }
             $newMagicMessageId = $magicMessageIdMapping[$originalMagicMessageId];
@@ -1119,9 +1130,9 @@ class TopicDomainService
             // 获取 sender_message_id
             $senderMessageId = $seqIdsMap[$aiSeq->getSenderMessageId()] ?? '';
 
-            // 处理 app_message_id
-            // todo 等实现
-            $appMessageId = (string) IdGenerator::getSnowId();
+            // 处理 app_message_id - 使用 messageIdMapping 映射
+            $originalAppMessageId = $aiSeq->getAppMessageId();
+            $appMessageId = $messageIdMapping[$originalAppMessageId] ?? '';
 
             // 创建新的 sequence 实体
             $newAiSeq = new MagicSeqEntity();
@@ -1149,33 +1160,30 @@ class TopicDomainService
 
         // 5.5 批量插入 sequences
         $seqInsertResult = [];
-        if (!empty($batchSeqInsertData)) {
+        if (! empty($batchSeqInsertData)) {
             $seqInsertResult = $this->magicSeqRepository->batchCreateSeq($batchSeqInsertData);
         }
 
         // 6. 处理 magic_chat_messages 表
         // 6.1 将 $magicMessageIdMapping 的 key 转成数组 $originalMagicMessageIds
         $originalMagicMessageIds = array_keys($magicMessageIdMapping);
-        
+
         // 6.2 查询原先的 magic_chat_messages 记录
         $originalMessages = $this->magicMessageRepository->getMessagesByMagicMessageIds($originalMagicMessageIds);
-        
+
         $this->logger->info('查询到原始Messages', [
             'original_message_ids_count' => count($originalMagicMessageIds),
             'found_messages_count' => count($originalMessages),
         ]);
 
-        // 6.3 建立 app_message_id 映射 (从sequences中提取)
-        $appMessageIdMapping = [];
-
-
-        // 6.4 生成新的 magic_chat_messages 记录
+        // 6.3 生成新的 magic_chat_messages 记录
+        // 直接使用 messageIdMapping，结构: [old_app_message_id] = new_message_id
         $batchMessageInsertData = [];
         foreach ($originalMessages as $originalMessage) {
             $originalMagicMessageId = $originalMessage->getMagicMessageId();
             $newMagicMessageId = $magicMessageIdMapping[$originalMagicMessageId] ?? null;
-            
-            if (!$newMagicMessageId) {
+
+            if (! $newMagicMessageId) {
                 continue;
             }
 
@@ -1187,9 +1195,9 @@ class TopicDomainService
                 'receive_type' => $originalMessage->getReceiveType(),
                 'receive_organization_code' => $originalMessage->getReceiveOrganizationCode(),
                 'message_type' => $originalMessage->getMessageType(),
-                'content' => $originalMessage->getContent(),
+                'content' => json_encode($originalMessage->getContent()->toArray(), JSON_UNESCAPED_UNICODE),
                 'language' => $originalMessage->getLanguage(),
-                'app_message_id' => $appMessageIdMapping[$originalMagicMessageId] ?? '',
+                'app_message_id' => $messageIdMapping[$originalMessage->getAppMessageId()] ?? '',
                 'magic_message_id' => $newMagicMessageId,
                 'send_time' => $originalMessage->getSendTime(),
                 'current_version_id' => null,
@@ -1200,7 +1208,7 @@ class TopicDomainService
 
         // 6.5 批量插入 magic_chat_messages
         $messageInsertResult = false;
-        if (!empty($batchMessageInsertData)) {
+        if (! empty($batchMessageInsertData)) {
             $messageInsertResult = $this->magicMessageRepository->batchCreateMessages($batchMessageInsertData);
         }
 
@@ -1212,16 +1220,58 @@ class TopicDomainService
             'user_sequences_count' => count($userSequences),
             'ai_sequences_count' => count($aiSequences),
             'total_sequences_copied' => count($batchSeqInsertData),
-            'sequences_insert_success' => !empty($seqInsertResult),
+            'sequences_insert_success' => ! empty($seqInsertResult),
             'magic_message_id_mappings' => count($magicMessageIdMapping),
             'original_messages_found' => count($originalMessages),
             'total_messages_copied' => count($batchMessageInsertData),
             'messages_insert_success' => $messageInsertResult,
-            'app_message_id_mappings' => count($appMessageIdMapping),
+            'app_message_id_mappings' => count($messageIdMapping),
         ];
 
         $this->logger->info('IM消息复制完成', $result);
 
         return $result;
+    }
+
+    private function getSeqIdByMessageId(string $messageId): array
+    {
+        // 先通过 app_message_id 和 message_type 查询 magic_chat_messages， 获取 magic_message_id
+        $magicMessageId = $this->magicMessageRepository->getMagicMessageIdByAppMessageId($messageId);
+
+        // 再通过 magic_message_id 查询 magic_chat_sequences 获取 seq_id
+        $seqList = $this->magicSeqRepository->getBothSeqListByMagicMessageId($magicMessageId);
+        $result = [];
+        foreach ($seqList as $seq) {
+            if ($seq['object_type'] === UserType::Ai->value) {
+                $result['ai_seq_id'] = $seq['seq_id'];
+            } elseif ($seq['object_type'] === UserType::Human->value) {
+                $result['user_seq_id'] = $seq['seq_id'];
+            }
+        }
+        return $result;
+    }
+
+    private function copyAiChatHistoryFile(TopicEntity $sourceTopicEntity, TopicEntity $targetTopicEntity)
+    {
+        $sourcePath = WorkDirectoryUtil::getAgentChatHistoryFilePath($sourceTopicEntity->getUserId(), $sourceTopicEntity->getProjectId(), $sourceTopicEntity->getId());
+        $targetPath = WorkDirectoryUtil::getAgentChatHistoryFilePath($targetTopicEntity->getUserId(), $targetTopicEntity->getProjectId(), $targetTopicEntity->getId());
+        $prefix = $this->cloudFileRepository->getFullPrefix($sourceTopicEntity->getUserOrganizationCode());
+        try {
+            $sourceKey = rtrim($prefix, '/') . '/' . ltrim($sourcePath, '/');
+            $destinationKey = rtrim($prefix, '/') . '/' . ltrim($targetPath, '/');
+            $this->cloudFileRepository->copyObjectByCredential(
+                prefix: '/',
+                organizationCode: $sourceTopicEntity->getUserOrganizationCode(),
+                sourceKey: $sourceKey,
+                destinationKey: $destinationKey,
+                bucketType: StorageBucketType::SandBox
+            );
+        } catch (Throwable $e) {
+            $this->logger->error('复制IM消息文件失败', [
+                'error_message' => $e->getMessage(),
+                'source_path' => $sourcePath,
+                'target_path' => $targetPath,
+            ]);
+        }
     }
 }

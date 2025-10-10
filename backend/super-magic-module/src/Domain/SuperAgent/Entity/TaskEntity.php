@@ -41,7 +41,7 @@ class TaskEntity extends AbstractEntity
     protected int $topicId = 0;
 
     /**
-     * @var int|null 复制来源任务ID
+     * @var null|int 复制来源任务ID
      */
     protected ?int $fromTaskId = null;
 

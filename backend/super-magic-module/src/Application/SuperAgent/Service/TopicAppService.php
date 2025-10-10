@@ -501,7 +501,7 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
-     * 复制话题
+     * 复制话题.
      *
      * @param RequestContext $requestContext 请求上下文
      * @param string $sourceTopicId 源话题ID
@@ -513,10 +513,10 @@ class TopicAppService extends AbstractAppService
     {
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
-        
+
         // 创建数据隔离对象
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        
+
         $this->logger->info('Starting topic duplication', [
             'user_id' => $userAuthorization->getId(),
             'source_topic_id' => $sourceTopicId,
@@ -525,7 +525,7 @@ class TopicAppService extends AbstractAppService
         ]);
 
         $sourceTopicEntity = $this->topicDomainService->getTopicById((int) $sourceTopicId);
-        if (!$sourceTopicEntity) {
+        if (! $sourceTopicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
 
@@ -536,31 +536,14 @@ class TopicAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
-            // TODO: 2. 创建新话题，话题名称后面带数字（1），由前端传过来，并初始化话题信息，模式为空
-            // 可以参考 createTopic 方法的实现
-            $this->topicDomainService->duplicateTopic(
+            $newTopicEntity = $this->topicDomainService->duplicateTopic(
                 $dataIsolation,
                 $sourceTopicEntity,
                 (int) $requestDTO->getTargetMessageId(),
-                (int) $requestDTO->getUserSeqId(),
                 $requestDTO->getNewTopicName()
             );
-            // TODO: 3. 生成任务key并初始化状态
-            $taskKey = 'topic_duplicate_' . time() . '_' . uniqid();
-            
-            // TODO: 4. 异步执行复制任务
-            // - 打开沙箱环境，解压话题文件，重新打包
-            // - 拷贝 IM 的消息数据
-            // - 根据 topic_id 拷贝 magic_super_agent_message 的数据
-            Db::rollBack();
-            // 临时返回，等待具体实现
-            return [
-                'task_key' => $taskKey,
-                'status' => 'running',
-                'topic_id' => 'temp_new_topic_id_' . time(),
-                'message' => 'Topic duplication started',
-            ];
-            
+            Db::commit();
+            return TopicItemDTO::fromEntity($newTopicEntity)->toArray();
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Failed to start topic duplication', [
@@ -585,7 +568,7 @@ class TopicAppService extends AbstractAppService
     {
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
-        
+
         $this->logger->info('Checking topic duplication status', [
             'user_id' => $userAuthorization->getId(),
             'task_key' => $taskKey,
@@ -595,7 +578,7 @@ class TopicAppService extends AbstractAppService
             // TODO: 1. 验证用户权限
             // TODO: 2. 获取任务状态
             // TODO: 3. 返回状态信息
-            
+
             // 临时返回，等待具体实现
             return [
                 'status' => 'running',
@@ -603,7 +586,6 @@ class TopicAppService extends AbstractAppService
                 'topic_id' => 'temp_new_topic_id_' . time(),
                 'message' => 'Topic duplication in progress',
             ];
-            
         } catch (Throwable $e) {
             $this->logger->error('Failed to check topic duplication status', [
                 'user_id' => $userAuthorization->getId(),

@@ -241,9 +241,6 @@ class ClientMessageAppService extends AbstractAppService
     }
 
     /**
-     * @param SuperAgentMessage $message
-     * @param string $chatTopicId
-     * @param string $chatConversationId
      * @return string seq_id
      */
     private function doSendMessage(

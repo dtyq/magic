@@ -25,6 +25,13 @@ interface MagicMessageRepositoryInterface
     public function updateMessageContentAndVersionId(MagicMessageEntity $messageEntity, MagicMessageVersionEntity $magicMessageVersionEntity): void;
 
     /**
+     * Check if message exists by app_message_id and optional message_type.
+     */
+    public function isMessageExistsByAppMessageId(string $appMessageId, string $messageType = ''): bool;
+
+    public function getMagicMessageIdByAppMessageId(string $appMessageId, string $messageType = ''): string;
+
+    /**
      * Get messages by magic message IDs.
      * @param array $magicMessageIds Magic message ID数组
      * @return MagicMessageEntity[] 消息实体数组

@@ -23,16 +23,15 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackCheckReq
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicCheckRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicCheckRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackCheckResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DuplicateTopicResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DuplicateTopicStatusResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use Exception;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -401,7 +400,7 @@ class TopicApi extends AbstractApi
     }
 
     /**
-     * 复制话题
+     * 复制话题.
      *
      * @param RequestContext $requestContext 请求上下文
      * @param string $id 源话题ID
@@ -417,23 +416,7 @@ class TopicApi extends AbstractApi
 
         // 获取请求DTO
         $dto = DuplicateTopicRequestDTO::fromRequest($this->request);
-
-        try {
-            // 调用应用服务
-            $result = $this->topicAppService->duplicateChat($requestContext, $id, $dto);
-            
-            $responseDTO = new DuplicateTopicResponseDTO(
-                $result['task_key'],
-                $result['status'],
-                $result['topic_id'],
-                $result['message']
-            );
-
-            return $responseDTO->toArray();
-        } catch (Throwable $e) {
-            // TODO: 添加错误日志记录
-            throw $e;
-        }
+        return $this->topicAppService->duplicateChat($requestContext, $id, $dto);
     }
 
     /**
@@ -457,7 +440,7 @@ class TopicApi extends AbstractApi
         try {
             // 调用应用服务
             $result = $this->topicAppService->checkDuplicateChatStatus($requestContext, $dto->getTaskKey());
-            
+
             $responseDTO = new DuplicateTopicStatusResponseDTO(
                 $result['status'],
                 $result['progress'],

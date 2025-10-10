@@ -328,8 +328,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     }
 
     /**
-     * @param int $topicId
-     * @param int $messageId
      * @return TaskMessageEntity[]
      */
     public function findMessagesToCopyByTopicIdAndMessageId(int $topicId, int $messageId): array
