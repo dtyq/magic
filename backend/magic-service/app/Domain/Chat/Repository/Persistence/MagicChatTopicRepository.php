@@ -269,7 +269,7 @@ class MagicChatTopicRepository implements MagicChatTopicRepositoryInterface
             ->where('topic_id', $topicId)
             ->where('seq_id', '<=', $maxSeqId)
             ->orderBy('seq_id', 'asc');
-        
+
         $topicMessages = Db::select($query->toSql(), $query->getBindings());
         return TopicAssembler::getTopicMessageEntities($topicMessages);
     }

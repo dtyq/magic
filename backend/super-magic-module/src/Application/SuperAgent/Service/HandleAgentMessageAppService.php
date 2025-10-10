@@ -375,7 +375,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             // 4. Send message to client
             $seqId = $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
 
-            $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), $seqId);
+            $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), (int) $seqId);
         }
     }
 

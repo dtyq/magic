@@ -6,7 +6,7 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-class AddFromTopicIdToMagicSuperAgentTopicsTable extends Migration
+return new class extends Migration
 {
     /**
      * Run the migrations.
@@ -31,4 +31,4 @@ class AddFromTopicIdToMagicSuperAgentTopicsTable extends Migration
     {
 
     }
-}
+};
