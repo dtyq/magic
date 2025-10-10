@@ -17,6 +17,7 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -57,6 +58,7 @@ use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
 use Dtyq\TaskScheduler\Service\TaskSchedulerDomainService;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -120,51 +122,72 @@ class MessageScheduleAppService extends AbstractAppService
      */
     public function createSchedule(RequestContext $requestContext, CreateMessageScheduleRequestDTO $requestDTO): array
     {
-        return Db::transaction(function () use ($requestContext, $requestDTO) {
-            // Validate resource permissions
-            $dataIsolation = $this->createDataIsolationFromContext($requestContext);
-            $this->validateResourcePermissions(
-                $dataIsolation,
-                (int) $requestDTO->getWorkspaceId(),
-                $requestDTO->getProjectId() ? (int) $requestDTO->getProjectId() : null,
-                $requestDTO->getTopicId() ? (int) $requestDTO->getTopicId() : null
+        try {
+            return Db::transaction(function () use ($requestContext, $requestDTO) {
+                // Validate resource permissions
+                $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+                $this->validateResourcePermissions(
+                    $dataIsolation,
+                    (int) $requestDTO->getWorkspaceId(),
+                    $requestDTO->getProjectId() ? (int) $requestDTO->getProjectId() : null,
+                    $requestDTO->getTopicId() ? (int) $requestDTO->getTopicId() : null
+                );
+
+                // 2.1 Create message schedule
+                $messageSchedule = $this->messageScheduleDomainService->createMessageSchedule(
+                    $dataIsolation,
+                    $requestDTO->getTaskName(),
+                    $requestDTO->getMessageType(),
+                    $requestDTO->getMessageContent(),
+                    (int) $requestDTO->getWorkspaceId(),
+                    (int) $requestDTO->getProjectId(),
+                    (int) $requestDTO->getTopicId(),
+                    $requestDTO->getCompleted(),
+                    $requestDTO->getEnabled(),
+                    $requestDTO->getDeadline(),
+                    $requestDTO->getRemark(),
+                    $requestDTO->getTimeConfig()
+                );
+
+                // 2.2 Create task scheduler
+                $timeConfigDTO = $requestDTO->createTimeConfigDTO();
+                $taskSchedulerId = $this->createTaskScheduler(
+                    $messageSchedule->getId(),
+                    $timeConfigDTO,
+                    $messageSchedule->isEnabled(),
+                    $requestDTO->getDeadline(), // Priority deadline from request
+                    $requestDTO->getTaskName() // Task name from request
+                );
+
+                // 2.3 Update task_scheduler_crontab_id
+                if ($taskSchedulerId) {
+                    $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
+                }
+
+                return [
+                    'id' => (string) $messageSchedule->getId(),
+                ];
+            });
+        } catch (InvalidArgumentException $e) {
+            // Parameter validation exception: show specific error message
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                trans('common.parameter_validation_error') . ': ' . $e->getMessage()
             );
+        } catch (Throwable $e) {
+            // System exception: log details and show generic error message
+            $this->logger->error('Schedule create operation system exception', [
+                'operation' => 'createSchedule',
+                'user_id' => $requestContext->getUserId(),
+                'organization_code' => $requestContext->getOrganizationCode(),
+                'error' => $e->getMessage(),
+            ]);
 
-            // 2.1 Create message schedule
-            $messageSchedule = $this->messageScheduleDomainService->createMessageSchedule(
-                $dataIsolation,
-                $requestDTO->getTaskName(),
-                $requestDTO->getMessageType(),
-                $requestDTO->getMessageContent(),
-                (int) $requestDTO->getWorkspaceId(),
-                (int) $requestDTO->getProjectId(),
-                (int) $requestDTO->getTopicId(),
-                $requestDTO->getCompleted(),
-                $requestDTO->getEnabled(),
-                $requestDTO->getDeadline(),
-                $requestDTO->getRemark(),
-                $requestDTO->getTimeConfig()
+            ExceptionBuilder::throw(
+                GenericErrorCode::SystemError,
+                trans('common.system_exception')
             );
-
-            // 2.2 Create task scheduler
-            $timeConfigDTO = $requestDTO->createTimeConfigDTO();
-            $taskSchedulerId = $this->createTaskScheduler(
-                $messageSchedule->getId(),
-                $timeConfigDTO,
-                $messageSchedule->isEnabled(),
-                $requestDTO->getDeadline(), // Priority deadline from request
-                $requestDTO->getTaskName() // Task name from request
-            );
-
-            // 2.3 Update task_scheduler_crontab_id
-            if ($taskSchedulerId) {
-                $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
-            }
-
-            return [
-                'id' => (string) $messageSchedule->getId(),
-            ];
-        });
+        }
     }
 
     /**
@@ -243,101 +266,123 @@ class MessageScheduleAppService extends AbstractAppService
      */
     public function updateSchedule(RequestContext $requestContext, int $id, UpdateMessageScheduleRequestDTO $requestDTO): array
     {
-        return Db::transaction(function () use ($requestContext, $id, $requestDTO) {
-            $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+        try {
+            return Db::transaction(function () use ($requestContext, $id, $requestDTO) {
+                $dataIsolation = $this->createDataIsolationFromContext($requestContext);
 
-            // Get existing message schedule
-            $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
+                // Get existing message schedule
+                $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-            // Validate permissions for new resource IDs (if provided)
-            $currentWorkspaceId = $messageSchedule->getWorkspaceId();
-            $currentProjectId = $messageSchedule->getProjectId();
-            $currentTopicId = $messageSchedule->getTopicId();
+                // Validate permissions for new resource IDs (if provided)
+                $currentWorkspaceId = $messageSchedule->getWorkspaceId();
+                $currentProjectId = $messageSchedule->getProjectId();
+                $currentTopicId = $messageSchedule->getTopicId();
 
-            $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
-            $newProjectId = ! empty($requestDTO->getProjectId()) ? (int) $requestDTO->getProjectId() : $currentProjectId;
-            $newTopicId = ! empty($requestDTO->getTopicId()) ? (int) $requestDTO->getTopicId() : $currentTopicId;
+                $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
+                $newProjectId = ! empty($requestDTO->getProjectId()) ? (int) $requestDTO->getProjectId() : $currentProjectId;
+                $newTopicId = ! empty($requestDTO->getTopicId()) ? (int) $requestDTO->getTopicId() : $currentTopicId;
 
-            // Check if resource IDs have changed, and validate permissions for new resources
-            if ($newWorkspaceId !== $currentWorkspaceId
-                || $newProjectId !== $currentProjectId
-                || $newTopicId !== $currentTopicId) {
-                $this->validateResourcePermissions(
-                    $dataIsolation,
-                    $newWorkspaceId,
-                    $newProjectId > 0 ? $newProjectId : null,
-                    $newTopicId > 0 ? $newTopicId : null
-                );
-            }
+                // Check if resource IDs have changed, and validate permissions for new resources
+                if ($newWorkspaceId !== $currentWorkspaceId
+                    || $newProjectId !== $currentProjectId
+                    || $newTopicId !== $currentTopicId) {
+                    $this->validateResourcePermissions(
+                        $dataIsolation,
+                        $newWorkspaceId,
+                        $newProjectId > 0 ? $newProjectId : null,
+                        $newTopicId > 0 ? $newTopicId : null
+                    );
+                }
 
-            $needUpdateTaskScheduler = false;
+                $needUpdateTaskScheduler = false;
 
-            // Update fields
-            if (! empty($requestDTO->getTaskName())) {
-                $messageSchedule->setTaskName($requestDTO->getTaskName());
-            }
+                // Update fields
+                if (! empty($requestDTO->getTaskName())) {
+                    $messageSchedule->setTaskName($requestDTO->getTaskName());
+                }
 
-            // Update workspace ID
-            if (! empty($requestDTO->getWorkspaceId()) && $newWorkspaceId !== $currentWorkspaceId) {
-                $messageSchedule->setWorkspaceId($newWorkspaceId);
-            }
+                // Update workspace ID
+                if (! empty($requestDTO->getWorkspaceId()) && $newWorkspaceId !== $currentWorkspaceId) {
+                    $messageSchedule->setWorkspaceId($newWorkspaceId);
+                }
 
-            // Update project ID
-            if (! empty($requestDTO->getProjectId()) && $newProjectId !== $currentProjectId) {
-                $messageSchedule->setProjectId($newProjectId);
-            }
+                // Update project ID
+                if (! empty($requestDTO->getProjectId()) && $newProjectId !== $currentProjectId) {
+                    $messageSchedule->setProjectId($newProjectId);
+                }
 
-            // Update topic ID
-            if (! empty($requestDTO->getTopicId()) && $newTopicId !== $currentTopicId) {
-                $messageSchedule->setTopicId($newTopicId);
-            }
+                // Update topic ID
+                if (! empty($requestDTO->getTopicId()) && $newTopicId !== $currentTopicId) {
+                    $messageSchedule->setTopicId($newTopicId);
+                }
 
-            if (! empty($requestDTO->getMessageType())) {
-                $messageSchedule->setMessageType($requestDTO->getMessageType());
-            }
+                if (! empty($requestDTO->getMessageType())) {
+                    $messageSchedule->setMessageType($requestDTO->getMessageType());
+                }
 
-            if (! empty($requestDTO->getMessageContent())) {
-                $messageSchedule->setMessageContent($requestDTO->getMessageContent());
-            }
+                if (! empty($requestDTO->getMessageContent())) {
+                    $messageSchedule->setMessageContent($requestDTO->getMessageContent());
+                }
 
-            // Check if status fields changed
-            if ($requestDTO->getEnabled() !== null) {
-                $oldEnabled = $messageSchedule->getEnabled();
-                $messageSchedule->setEnabled($requestDTO->getEnabled());
+                // Check if status fields changed
+                if ($requestDTO->getEnabled() !== null) {
+                    $oldEnabled = $messageSchedule->getEnabled();
+                    $messageSchedule->setEnabled($requestDTO->getEnabled());
 
-                if ($oldEnabled !== $requestDTO->getEnabled()) {
+                    if ($oldEnabled !== $requestDTO->getEnabled()) {
+                        $needUpdateTaskScheduler = true;
+                    }
+                }
+
+                if ($requestDTO->getDeadline() !== null) {
+                    $messageSchedule->setDeadline($requestDTO->getDeadline());
+                }
+
+                // Note: completed and remark fields are not modifiable by client
+                // They always return fixed values (null for updates) and will not be processed
+
+                // Check if time configuration really changed
+                $oldTimeConfig = $messageSchedule->getTimeConfig();
+                $newTimeConfig = $requestDTO->getTimeConfig();
+
+                if (TimeConfigDTO::isConfigChanged($oldTimeConfig, $newTimeConfig)) {
+                    $messageSchedule->setTimeConfig($newTimeConfig);
                     $needUpdateTaskScheduler = true;
                 }
-            }
 
-            if ($requestDTO->getDeadline() !== null) {
-                $messageSchedule->setDeadline($requestDTO->getDeadline());
-            }
+                // Update message schedule
+                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageSchedule);
 
-            // Note: completed and remark fields are not modifiable by client
-            // They always return fixed values (null for updates) and will not be processed
+                // Update task scheduler if needed
+                if ($needUpdateTaskScheduler) {
+                    $this->updateTaskScheduler($messageSchedule, $requestDTO);
+                }
 
-            // Check if time configuration really changed
-            $oldTimeConfig = $messageSchedule->getTimeConfig();
-            $newTimeConfig = $requestDTO->getTimeConfig();
+                return [
+                    'id' => (string) $messageSchedule->getId(),
+                ];
+            });
+        } catch (InvalidArgumentException $e) {
+            // Parameter validation exception: show specific error message
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                trans('common.parameter_validation_error') . ': ' . $e->getMessage()
+            );
+        } catch (Throwable $e) {
+            // System exception: log details and show generic error message
+            $this->logger->error('Schedule update operation system exception', [
+                'operation' => 'updateSchedule',
+                'schedule_id' => $id,
+                'user_id' => $requestContext->getUserId(),
+                'organization_code' => $requestContext->getOrganizationCode(),
+                'error' => $e->getMessage(),
+            ]);
 
-            if (TimeConfigDTO::isConfigChanged($oldTimeConfig, $newTimeConfig)) {
-                $messageSchedule->setTimeConfig($newTimeConfig);
-                $needUpdateTaskScheduler = true;
-            }
-
-            // Update message schedule
-            $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageSchedule);
-
-            // Update task scheduler if needed
-            if ($needUpdateTaskScheduler) {
-                $this->updateTaskScheduler($messageSchedule, $requestDTO);
-            }
-
-            return [
-                'id' => (string) $messageSchedule->getId(),
-            ];
-        });
+            ExceptionBuilder::throw(
+                GenericErrorCode::SystemError,
+                trans('common.system_exception')
+            );
+        }
     }
 
     /**
@@ -563,8 +608,10 @@ class MessageScheduleAppService extends AbstractAppService
 
                 // Check if next execution time exceeds deadline
                 $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
-                $isExecutionTimeExceeded = $nextExecutionTime
-                                          && $nextExecutionTime > $messageScheduleEntity->getDeadline();
+                $deadline = $messageScheduleEntity->getDeadline();
+                $isExecutionTimeExceeded = $nextExecutionTime !== null
+                                          && $deadline !== null
+                                          && $nextExecutionTime > $deadline;
 
                 // Mark as completed if any condition is met
                 if ($isNoRepeatTask || $isExecutionTimeExceeded) {

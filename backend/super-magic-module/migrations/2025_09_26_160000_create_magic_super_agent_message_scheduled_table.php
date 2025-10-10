@@ -8,7 +8,7 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
 
-class CreateMagicSuperAgentMessageScheduledTable extends Migration
+return new class extends Migration
 {
     /**
      * Run the migrations.
@@ -65,4 +65,4 @@ class CreateMagicSuperAgentMessageScheduledTable extends Migration
     public function down(): void
     {
     }
-}
+};
