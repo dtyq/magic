@@ -16,7 +16,7 @@ return [
         RequestIdMiddleware::class,
         CorsMiddleware::class,
         ResponseMiddleware::class,
-        TraceMiddleware::class,
+        // TraceMiddleware::class,
     ],
     'socket-io' => [
     ],
