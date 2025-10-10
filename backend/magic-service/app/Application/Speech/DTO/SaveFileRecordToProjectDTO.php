@@ -16,7 +16,8 @@ readonly class SaveFileRecordToProjectDTO
         public string $fileName,
         public int $fileSize,
         public string $fileExtension,
-        public string $userId
+        public string $userId,
+        public ?int $duration = null
     ) {
     }
 }

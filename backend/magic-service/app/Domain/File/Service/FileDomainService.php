@@ -273,7 +273,7 @@ readonly class FileDomainService
                 key: $objectKey,
                 filename: $filename,
                 size: $object['size'] ?? null,
-                lastModified: isset($object['last_modified']) ? date('Y-m-d H:i:s', $object['last_modified']) : null
+                lastModified: null // ASR业务中不使用该字段，直接传null
             );
         }
         return $files;
