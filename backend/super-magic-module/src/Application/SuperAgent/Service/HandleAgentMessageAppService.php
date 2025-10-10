@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -373,7 +374,9 @@ class HandleAgentMessageAppService extends AbstractAppService
             $messageEntity = $this->recordAgentMessage($messageData, $taskContext);
 
             // 4. Send message to client
-            $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
+            $seqId = $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
+
+            $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), (int) $seqId);
         }
     }
 
@@ -655,15 +658,15 @@ class HandleAgentMessageAppService extends AbstractAppService
     /**
      * Send message to client.
      */
-    private function sendMessageToClient(int $messageId, array $messageData, TaskContext $taskContext): void
+    private function sendMessageToClient(int $messageId, array $messageData, TaskContext $taskContext): string
     {
         if (! $messageData['showInUi']) {
-            return;
+            return '';
         }
 
         $task = $taskContext->getTask();
 
-        $this->clientMessageAppService->sendMessageToClient(
+        return $this->clientMessageAppService->sendMessageToClient(
             messageId: $messageId,
             topicId: $task->getTopicId(),
             taskId: (string) $task->getId(),
@@ -742,11 +745,11 @@ class HandleAgentMessageAppService extends AbstractAppService
      * Process single attachment using saveProjectFile approach.
      * @param array $attachment Attachment data
      * @param TaskContext $taskContext Task context
-     * @param mixed $projectEntity Project entity (passed from parent to avoid repeated queries)
+     * @param ProjectEntity $projectEntity Project entity (passed from parent to avoid repeated queries)
      * @param string $type Attachment type: 'tool' or 'message'
      * @return array{attachment: array, taskFileEntity: null|TaskFileEntity}
      */
-    private function processSingleAttachment(array $attachment, TaskContext $taskContext, $projectEntity, string $type): array
+    private function processSingleAttachment(array $attachment, TaskContext $taskContext, ProjectEntity $projectEntity, string $type): array
     {
         $task = $taskContext->getTask();
         $dataIsolation = $taskContext->getDataIsolation();

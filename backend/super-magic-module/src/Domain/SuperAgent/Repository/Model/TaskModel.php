@@ -36,6 +36,7 @@ class TaskModel extends AbstractModel
         'workspace_id',
         'project_id',
         'topic_id',
+        'from_task_id',
         'task_id',
         'sandbox_id',
         'prompt',

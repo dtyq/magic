@@ -23,11 +23,14 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackCheckReq
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicCheckRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackCheckResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DuplicateTopicStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicMessagesResponseDTO;
 use Exception;
 use Hyperf\Contract\TranslatorInterface;
@@ -394,5 +397,56 @@ class TopicApi extends AbstractApi
         $responseDTO->setCanRollback((bool) $result->getDataValue('can_rollback', false));
 
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 复制话题.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 源话题ID
+     * @return array 复制任务信息
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     */
+    #[ApiResponse('low_code')]
+    public function duplicateChat(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 获取请求DTO
+        $dto = DuplicateTopicRequestDTO::fromRequest($this->request);
+        return $this->topicAppService->duplicateChat($requestContext, $id, $dto);
+    }
+
+    /**
+     * 检查话题复制状态
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $id 源话题ID
+     * @return array 复制状态信息
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     */
+    #[ApiResponse('low_code')]
+    public function duplicateChatCheck(RequestContext $requestContext, string $id): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 获取请求DTO
+        $dto = DuplicateTopicCheckRequestDTO::fromRequest($this->request);
+
+        try {
+            // 调用应用服务
+            $result = $this->topicAppService->checkDuplicateChatStatus($requestContext, $dto->getTaskKey());
+
+            $responseDTO = DuplicateTopicStatusResponseDTO::fromArray($result);
+
+            return $responseDTO->toArray();
+        } catch (Throwable $e) {
+            // TODO: 添加错误日志记录
+            throw $e;
+        }
     }
 }

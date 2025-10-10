@@ -18,7 +18,7 @@ readonly class SummaryRequestDTO
         public string $projectId,
         public string $topicId,
         public string $modelId,
-        public ?string $workspaceFilePath = null,
+        public ?string $fileId = null,
         public ?NoteDTO $note = null,
         public ?string $asrStreamContent = null,
         public ?string $generatedTitle = null
@@ -26,35 +26,11 @@ readonly class SummaryRequestDTO
     }
 
     /**
-     * 是否有工作区文件路径.
+     * 是否有文件ID（场景二：直接上传已有音频文件）.
      */
-    public function hasWorkspaceFilePath(): bool
+    public function hasFileId(): bool
     {
-        return ! empty($this->workspaceFilePath);
-    }
-
-    /**
-     * 从工作区文件路径提取目录.
-     */
-    public function getWorkspaceDirectory(): ?string
-    {
-        if (! $this->hasWorkspaceFilePath()) {
-            return null;
-        }
-
-        return dirname($this->workspaceFilePath);
-    }
-
-    /**
-     * 从工作区文件路径提取文件名.
-     */
-    public function getWorkspaceFileName(): ?string
-    {
-        if (! $this->hasWorkspaceFilePath()) {
-            return null;
-        }
-
-        return basename($this->workspaceFilePath);
+        return ! empty($this->fileId);
     }
 
     /**

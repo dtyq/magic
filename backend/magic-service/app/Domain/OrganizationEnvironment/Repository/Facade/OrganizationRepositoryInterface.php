@@ -31,6 +31,13 @@ interface OrganizationRepositoryInterface
     public function getByCode(string $code): ?OrganizationEntity;
 
     /**
+     * 根据编码列表批量获取组织.
+     * @param string[] $codes
+     * @return OrganizationEntity[]
+     */
+    public function getByCodes(array $codes): array;
+
+    /**
      * 根据名称获取组织.
      */
     public function getByName(string $name): ?OrganizationEntity;
