@@ -81,7 +81,7 @@ class ClientMessageAppService extends AbstractAppService
         ?array $tool = null,
         ?array $attachments = null,
         ?string $correlationId = null,
-    ): void {
+    ): string {
         try {
             $message = $this->createSuperAgentMessage(
                 $messageId,
@@ -97,13 +97,14 @@ class ClientMessageAppService extends AbstractAppService
                 $correlationId
             );
 
-            $this->doSendMessage($message, $chatTopicId, $chatConversationId);
+            $seqId = $this->doSendMessage($message, $chatTopicId, $chatConversationId);
 
             $this->logger->info(sprintf(
                 'Normal message sent to client, Task ID: %s, Message type: %s',
                 $taskId,
                 $messageType
             ));
+            return $seqId;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to send message to client: %s, Task ID: %s',
@@ -111,6 +112,7 @@ class ClientMessageAppService extends AbstractAppService
                 $taskId
             ));
             // Do not throw exception to avoid affecting main process
+            return '';
         }
     }
 
@@ -239,14 +241,13 @@ class ClientMessageAppService extends AbstractAppService
     }
 
     /**
-     * Core implementation for sending messages to client
-     * Unified message sending logic.
+     * @return string seq_id
      */
     private function doSendMessage(
         SuperAgentMessage $message,
         string $chatTopicId,
         string $chatConversationId
-    ): void {
+    ): string {
         // Create sequence entity
         $seqDTO = new MagicSeqEntity();
         $seqDTO->setObjectType(ConversationType::Ai);
@@ -268,11 +269,21 @@ class ClientMessageAppService extends AbstractAppService
                 $appMessageId,
                 $message->getTaskId()
             ));
-            return; // Skip sending if message already exists
+            return ''; // Skip sending if message already exists
         }
 
         // Send message
-        $this->chatMessageAppService->aiSendMessage($seqDTO, $message->getMessageId());
+        try {
+            $data = $this->chatMessageAppService->aiSendMessage($seqDTO, $message->getMessageId());
+            return $data['seq']['seq_id'] ?? '';
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to send message to client: %s, Task ID: %s',
+                $e->getMessage(),
+                $message->getTaskId()
+            ));
+            return '';
+        }
     }
 
     /**

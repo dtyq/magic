@@ -44,6 +44,11 @@ class WorkDirectoryUtil
         return self::getRootDir($userId, $projectId) . '/chat-history/';
     }
 
+    public static function getAgentChatHistoryFilePath(string $userId, int $projectId, int $topicId): string
+    {
+        return self::getAgentChatHistoryDir($userId, $projectId) . sprintf('chat_history_%d.zip', $topicId);
+    }
+
     /**
      * Get topic root directory path.
      *
