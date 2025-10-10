@@ -13,19 +13,14 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 class DuplicateTopicStatusResponseDTO
 {
     /**
-     * 任务状态
+     * 任务ID.
+     */
+    protected string $taskId;
+
+    /**
+     * 任务状态 (running, completed, failed).
      */
     protected string $status;
-
-    /**
-     * 进度百分比.
-     */
-    protected string $progress;
-
-    /**
-     * 新话题ID.
-     */
-    protected ?string $topicId;
 
     /**
      * 状态消息.
@@ -33,18 +28,37 @@ class DuplicateTopicStatusResponseDTO
     protected string $message;
 
     /**
+     * 进度信息.
+     */
+    protected ?array $progress = null;
+
+    /**
+     * 结果信息（任务完成时）.
+     */
+    protected ?array $result = null;
+
+    /**
+     * 错误信息（任务失败时）.
+     */
+    protected ?string $error = null;
+
+    /**
      * 构造函数.
      */
     public function __construct(
+        string $taskId,
         string $status,
-        string $progress = '0%',
-        ?string $topicId = null,
-        string $message = ''
+        string $message = '',
+        ?array $progress = null,
+        ?array $result = null,
+        ?string $error = null
     ) {
+        $this->taskId = $taskId;
         $this->status = $status;
-        $this->progress = $progress;
-        $this->topicId = $topicId;
         $this->message = $message;
+        $this->progress = $progress;
+        $this->result = $result;
+        $this->error = $error;
     }
 
     /**
@@ -52,12 +66,57 @@ class DuplicateTopicStatusResponseDTO
      */
     public function toArray(): array
     {
-        return [
+        $result = [
+            'task_id' => $this->taskId,
             'status' => $this->status,
-            'progress' => $this->progress,
-            'topic_id' => $this->topicId,
             'message' => $this->message,
         ];
+
+        if ($this->progress !== null) {
+            $result['progress'] = $this->progress;
+        }
+
+        if ($this->result !== null) {
+            $result['result'] = $this->result;
+        }
+
+        if ($this->error !== null) {
+            $result['error'] = $this->error;
+        }
+
+        return $result;
+    }
+
+    /**
+     * 从数组创建DTO实例.
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            $data['task_id'],
+            $data['status'],
+            $data['message'] ?? '',
+            $data['progress'] ?? null,
+            $data['result'] ?? null,
+            $data['error'] ?? null
+        );
+    }
+
+    /**
+     * 获取任务ID.
+     */
+    public function getTaskId(): string
+    {
+        return $this->taskId;
+    }
+
+    /**
+     * 设置任务ID.
+     */
+    public function setTaskId(string $taskId): self
+    {
+        $this->taskId = $taskId;
+        return $this;
     }
 
     /**
@@ -78,40 +137,6 @@ class DuplicateTopicStatusResponseDTO
     }
 
     /**
-     * 获取进度百分比.
-     */
-    public function getProgress(): string
-    {
-        return $this->progress;
-    }
-
-    /**
-     * 设置进度百分比.
-     */
-    public function setProgress(string $progress): self
-    {
-        $this->progress = $progress;
-        return $this;
-    }
-
-    /**
-     * 获取新话题ID.
-     */
-    public function getTopicId(): ?string
-    {
-        return $this->topicId;
-    }
-
-    /**
-     * 设置新话题ID.
-     */
-    public function setTopicId(?string $topicId): self
-    {
-        $this->topicId = $topicId;
-        return $this;
-    }
-
-    /**
      * 获取状态消息.
      */
     public function getMessage(): string
@@ -125,6 +150,57 @@ class DuplicateTopicStatusResponseDTO
     public function setMessage(string $message): self
     {
         $this->message = $message;
+        return $this;
+    }
+
+    /**
+     * 获取进度信息.
+     */
+    public function getProgress(): ?array
+    {
+        return $this->progress;
+    }
+
+    /**
+     * 设置进度信息.
+     */
+    public function setProgress(?array $progress): self
+    {
+        $this->progress = $progress;
+        return $this;
+    }
+
+    /**
+     * 获取结果信息.
+     */
+    public function getResult(): ?array
+    {
+        return $this->result;
+    }
+
+    /**
+     * 设置结果信息.
+     */
+    public function setResult(?array $result): self
+    {
+        $this->result = $result;
+        return $this;
+    }
+
+    /**
+     * 获取错误信息.
+     */
+    public function getError(): ?string
+    {
+        return $this->error;
+    }
+
+    /**
+     * 设置错误信息.
+     */
+    public function setError(?string $error): self
+    {
+        $this->error = $error;
         return $this;
     }
 }

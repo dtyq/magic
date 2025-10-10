@@ -675,23 +675,36 @@ class TopicDomainService
         DataIsolation $dataIsolation,
         TopicEntity $sourceTopicEntity,
         int $messageId,
-        string $newTopicName
+        string $newTopicName,
+        ?callable $progressCallback = null
     ): TopicEntity {
         // 初始化 IM 会话
+        $progressCallback && $progressCallback('running', 20, 'Initializing IM conversation');
         $imConversationResult = $this->initImConversationFromTopic($sourceTopicEntity, $newTopicName);
+
         // Create topic entity
+        $progressCallback && $progressCallback('running', 30, 'Creating topic entity');
         $targetTopicEntity = $this->copyTopicEntity($dataIsolation, $sourceTopicEntity, $imConversationResult['user_conversation_id'], $imConversationResult['new_topic_id'], $newTopicName);
+
         // 复制消息
+        $progressCallback && $progressCallback('running', 50, 'Copying topic messages');
         $messageIdMapping = $this->copyTopicShareMessages($messageId, $sourceTopicEntity, $targetTopicEntity);
+
         // 获取 agent 的 seq id
+        $progressCallback && $progressCallback('running', 60, 'Getting sequence IDs');
         $seqList = $this->getSeqIdByMessageId((string) $messageId);
         $userSeqId = (int) $seqList['user_seq_id'];
         $aiSeqId = (int) $seqList['ai_seq_id'];
+
         // 复制 IM 消息
+        $progressCallback && $progressCallback('running', 80, 'Copying IM messages');
         $this->copyImMessages($imConversationResult, $messageIdMapping, $userSeqId, $aiSeqId);
+
         // 复制沙箱的聊天记录
+        $progressCallback && $progressCallback('running', 95, 'Copying chat history files');
         $this->copyAiChatHistoryFile($sourceTopicEntity, $targetTopicEntity);
 
+        $progressCallback && $progressCallback('running', 100, 'Topic duplication completed');
         return $targetTopicEntity;
     }
 
@@ -754,11 +767,11 @@ class TopicDomainService
 
         foreach ($sourceTaskEntities as $sourceTask) {
             $newTaskEntity = new TaskEntity();
-            
+
             // 提前生成新任务的ID
             $newTaskId = IdGenerator::getSnowId();
             $newTaskEntity->setId($newTaskId);
-            
+
             // 复制所有相关属性
             $newTaskEntity->setUserId($sourceTask->getUserId());
             $newTaskEntity->setWorkspaceId($sourceTask->getWorkspaceId());
@@ -774,17 +787,17 @@ class TopicDomainService
             $newTaskEntity->setTaskMode($sourceTask->getTaskMode());
             $newTaskEntity->setErrMsg(null); // 清空错误信息
             $newTaskEntity->setConversationId(null); // 清空会话ID
-            
+
             // 设置复制来源任务ID
             $newTaskEntity->setFromTaskId($sourceTask->getId());
-            
+
             // 设置时间戳
             $newTaskEntity->setCreatedAt($currentTime);
             $newTaskEntity->setUpdatedAt($currentTime);
             $newTaskEntity->setDeletedAt(null);
 
             $newTaskEntities[] = $newTaskEntity;
-            
+
             // 直接建立映射关系：旧任务ID => 新任务ID
             $taskIdMapping[$sourceTask->getId()] = $newTaskId;
         }
@@ -842,10 +855,10 @@ class TopicDomainService
 
         $newMessageEntities = [];
         $messageIdMapping = []; // 旧消息ID => 新消息ID的映射关系
-        
+
         foreach ($messagesToCopy as $messageToCopy) {
             $newMessageEntity = new TaskMessageEntity();
-            
+
             // 复制消息属性，更新为新话题ID
             $newMessageEntity->setSenderType($messageToCopy->getSenderType());
             $newMessageEntity->setTopicId($targetTopicEntity->getId()); // 设置为新话题ID
@@ -869,13 +882,13 @@ class TopicDomainService
             $newMessageEntity->setProcessedAt($messageToCopy->getProcessedAt());
             $newMessageEntity->setShowInUi($messageToCopy->getShowInUi());
             $newMessageEntity->setRawContent($messageToCopy->getRawContent());
-    
+
             $newMessageEntities[] = $newMessageEntity;
-            
+
             // 建立映射关系：旧消息ID => 新消息ID
             $messageIdMapping[$messageToCopy->getId()] = (string) $newMessageEntity->getId();
         }
-        
+
         // 批量插入到新话题中
         $createdMessageEntities = $this->taskMessageRepository->batchCreateMessages($newMessageEntities);
 

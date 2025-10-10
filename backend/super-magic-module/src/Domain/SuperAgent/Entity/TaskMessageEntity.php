@@ -162,6 +162,11 @@ class TaskMessageEntity extends AbstractEntity
         return $this->id;
     }
 
+    public function setId(int $id): self
+    {
+        return $this->setId($id);
+    }
+
     public function getSenderType(): string
     {
         return $this->senderType;

@@ -441,12 +441,7 @@ class TopicApi extends AbstractApi
             // 调用应用服务
             $result = $this->topicAppService->checkDuplicateChatStatus($requestContext, $dto->getTaskKey());
 
-            $responseDTO = new DuplicateTopicStatusResponseDTO(
-                $result['status'],
-                $result['progress'],
-                $result['topic_id'],
-                $result['message']
-            );
+            $responseDTO = DuplicateTopicStatusResponseDTO::fromArray($result);
 
             return $responseDTO->toArray();
         } catch (Throwable $e) {
