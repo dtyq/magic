@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 /**
- * 本文件属于KK馆版权所有，泄漏必究。
- * This file belong to KKGUAN, all rights reserved.
+ * Copyright (c) The Magic , Distributed under the software license
  */
 use Hyperf\Tracer\Adapter\ZipkinTracerFactory;
 use Zipkin\Samplers\BinarySampler;
@@ -26,7 +25,7 @@ return [
     'tracer' => [
         // 主pod
         'zipkin' => [
-            'driver' => Hyperf\Tracer\Adapter\ZipkinTracerFactory::class,
+            'driver' => ZipkinTracerFactory::class,
             'app' => [
                 'name' => sprintf('%s-%s', env('APP_NAME'), env('TRACER_PREFIX', env('APP_ENV'))),
                 // Hyperf will detect the system info automatically as the value if ipv4, ipv6, port is null
