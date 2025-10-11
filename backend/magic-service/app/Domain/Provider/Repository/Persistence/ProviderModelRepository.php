@@ -391,25 +391,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     }
 
     /**
-     * 直接更新模型状态.
-     */
-    private function updateStatusDirect(ProviderDataIsolation $dataIsolation, string $id, Status $status): void
-    {
-        $builder = ProviderModelModel::query()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
-        $builder->where('id', $id)->update(['status' => $status->value]);
-    }
-
-    /**
-     * 准备移除软删相关功能，临时这样写。创建带有软删除过滤的 ProviderModelModel 查询构建器.
-     */
-    private function createProviderModelQuery(): Builder
-    {
-        /* @phpstan-ignore-next-line */
-        return ProviderModelModel::query()->whereNull('deleted_at');
-    }
-
-    /**
-     * 根据查询条件获取按模型类型分组的模型ID列表
+     * 根据查询条件获取按模型类型分组的模型ID列表.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离对象
      * @param ProviderModelQuery $query 查询条件
@@ -459,6 +441,24 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         }
 
         return $groupedResults;
+    }
+
+    /**
+     * 直接更新模型状态.
+     */
+    private function updateStatusDirect(ProviderDataIsolation $dataIsolation, string $id, Status $status): void
+    {
+        $builder = ProviderModelModel::query()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
+        $builder->where('id', $id)->update(['status' => $status->value]);
+    }
+
+    /**
+     * 准备移除软删相关功能，临时这样写。创建带有软删除过滤的 ProviderModelModel 查询构建器.
+     */
+    private function createProviderModelQuery(): Builder
+    {
+        /* @phpstan-ignore-next-line */
+        return ProviderModelModel::query()->whereNull('deleted_at');
     }
 
     /**

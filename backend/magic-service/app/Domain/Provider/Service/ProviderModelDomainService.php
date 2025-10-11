@@ -162,7 +162,7 @@ readonly class ProviderModelDomainService
     }
 
     /**
-     * 根据查询条件获取按模型类型分组的模型ID列表
+     * 根据查询条件获取按模型类型分组的模型ID列表.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离对象
      * @param ProviderModelQuery $query 查询条件
