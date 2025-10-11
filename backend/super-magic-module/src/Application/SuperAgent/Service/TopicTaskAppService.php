@@ -217,7 +217,7 @@ class TopicTaskAppService extends AbstractAppService
             if (is_null($messageEntity)) {
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $this->processToolContentStorage($dataIsolation, $taskEntity, $messageEntity);
+                $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
@@ -518,6 +518,50 @@ class TopicTaskAppService extends AbstractAppService
         }
 
         return $taskMessageEntity;
+    }
+
+    private function processToolContent(DataIsolation $dataIsolation, TaskEntity $taskEntity, TaskMessageEntity $taskMessageEntity): void
+    {
+        // 根据类型处理
+        $tool = $taskMessageEntity->getTool();
+        $detailType = $tool['detail']['type'] ?? '';
+        switch ($detailType) {
+            case 'image':
+                // 处理图片
+                $this->processToolContentImage($taskMessageEntity);
+                break;
+            default:
+                // 默认处理文本
+                $this->processToolContentStorage($dataIsolation, $taskEntity, $taskMessageEntity);
+                break;
+        }
+    }
+
+    private function processToolContentImage(TaskMessageEntity $taskMessageEntity): void
+    {
+        $tool = $taskMessageEntity->getTool();
+        // 获取文件名称
+        $fileName = $tool['detail']['data']['file_name'] ?? '';
+        if (empty($fileName)) {
+            return;
+        }
+        $fileKey = '';
+        $attachments = $tool['attachments'] ?? [];
+        foreach ($attachments as $attachment) {
+            if ($attachment['file_name'] === $fileName) {
+                $fileKey = $attachment['file_key'];
+            }
+        }
+        if (empty($fileKey)) {
+            return;
+        }
+        $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
+        if ($taskFileEntity === null) {
+            return;
+        }
+        $tool['detail']['data']['file_id'] = $taskFileEntity->getFileId();
+        $tool['detail']['data']['file_extension'] = pathinfo($fileName, PATHINFO_EXTENSION);
+        $taskMessageEntity->setTool($tool);
     }
 
     private function processToolContentStorage(DataIsolation $dataIsolation, TaskEntity $taskEntity, TaskMessageEntity $taskMessageEntity): void
