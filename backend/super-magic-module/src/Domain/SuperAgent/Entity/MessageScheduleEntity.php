@@ -40,6 +40,8 @@ class MessageScheduleEntity
 
     private array $timeConfig = [];
 
+    private ?array $plugins = null;
+
     private ?int $taskSchedulerCrontabId = null;
 
     private string $createdUid = '';
@@ -128,6 +130,11 @@ class MessageScheduleEntity
     public function getTimeConfig(): array
     {
         return $this->timeConfig;
+    }
+
+    public function getPlugins(): ?array
+    {
+        return $this->plugins;
     }
 
     public function getTaskSchedulerCrontabId(): ?int
@@ -245,6 +252,12 @@ class MessageScheduleEntity
         return $this;
     }
 
+    public function setPlugins(?array $plugins): self
+    {
+        $this->plugins = $plugins;
+        return $this;
+    }
+
     public function setTaskSchedulerCrontabId(?int $taskSchedulerCrontabId): self
     {
         $this->taskSchedulerCrontabId = $taskSchedulerCrontabId;
@@ -351,6 +364,7 @@ class MessageScheduleEntity
             'deadline' => $this->deadline,
             'remark' => $this->remark,
             'time_config' => $this->timeConfig,
+            'plugins' => $this->plugins,
             'task_scheduler_crontab_id' => $this->taskSchedulerCrontabId,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,

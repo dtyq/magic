@@ -76,7 +76,8 @@ class MessageScheduleDomainService
         int $enabled,
         ?string $deadline,
         string $remark,
-        array $timeConfig
+        array $timeConfig,
+        ?array $plugins = null
     ): MessageScheduleEntity {
         $currentTime = date('Y-m-d H:i:s');
         $userId = $dataIsolation->getCurrentUserId();
@@ -96,6 +97,7 @@ class MessageScheduleDomainService
             ->setDeadline($deadline)
             ->setRemark($remark)
             ->setTimeConfig($timeConfig)
+            ->setPlugins($plugins)
             ->setCreatedUid($userId)
             ->setUpdatedUid($userId)
             ->setCreatedAt($currentTime)

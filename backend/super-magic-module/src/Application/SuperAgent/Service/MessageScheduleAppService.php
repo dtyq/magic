@@ -8,15 +8,18 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
+use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -81,6 +84,7 @@ class MessageScheduleAppService extends AbstractAppService
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly TaskSchedulerDomainService $taskSchedulerDomainService,
         private readonly MagicUserDomainService $userDomainService,
+        private readonly MagicUserSettingDomainService $magicUserSettingDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -146,7 +150,8 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getEnabled(),
                     $requestDTO->getDeadline(),
                     $requestDTO->getRemark(),
-                    $requestDTO->getTimeConfig()
+                    $requestDTO->getTimeConfig(),
+                    $requestDTO->getPlugins()
                 );
 
                 // 2.2 Create task scheduler
@@ -336,6 +341,10 @@ class MessageScheduleAppService extends AbstractAppService
 
                 if ($requestDTO->getDeadline() !== null) {
                     $messageSchedule->setDeadline($requestDTO->getDeadline());
+                }
+
+                if ($requestDTO->getPlugins() !== null) {
+                    $messageSchedule->setPlugins($requestDTO->getPlugins());
                 }
 
                 // Note: completed and remark fields are not modifiable by client
@@ -582,6 +591,15 @@ class MessageScheduleAppService extends AbstractAppService
                         'success' => false,
                         'message' => 'Project not found',
                     ];
+                }
+
+                // Set project MCP configuration if plugins are configured
+                if (! empty($messageScheduleEntity->getPlugins())) {
+                    $this->setProjectMcpConfig(
+                        $dataIsolation,
+                        $projectEntity->getId(),
+                        $messageScheduleEntity->getPlugins()
+                    );
                 }
 
                 // Migrate chat message attachments to project and get updated content
@@ -1094,6 +1112,45 @@ class MessageScheduleAppService extends AbstractAppService
                 // Re-throw the exception from validateTopicForMessageQueue method
                 throw $e;
             }
+        }
+    }
+
+    /**
+     * Set project MCP configuration from scheduled task plugins.
+     */
+    private function setProjectMcpConfig(
+        DataIsolation $dataIsolation,
+        int $projectId,
+        array $plugins
+    ): void {
+        try {
+            // Only set if plugins contain servers array
+            if (empty($plugins['servers'])) {
+                return;
+            }
+
+            // Create user setting entity for project MCP servers
+            $entity = new MagicUserSettingEntity();
+            $entity->setKey(UserSettingKey::genSuperMagicProjectMCPServers((string) $projectId));
+            $entity->setValue([
+                'servers' => $plugins['servers'],
+            ]);
+
+            // Save through domain service
+            $this->magicUserSettingDomainService->save($dataIsolation, $entity);
+
+            $this->logger->info('Set project MCP config from scheduled task', [
+                'project_id' => $projectId,
+                'servers_count' => count($plugins['servers']),
+            ]);
+        } catch (Throwable $e) {
+            // Log error but don't break main flow
+            $this->logger->error('Failed to set project MCP config', [
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
         }
     }
 }
