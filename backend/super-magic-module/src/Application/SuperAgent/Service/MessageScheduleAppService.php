@@ -339,8 +339,16 @@ class MessageScheduleAppService extends AbstractAppService
                     }
                 }
 
+                // Check if deadline changed (only process if field is present in request)
                 if ($requestDTO->getDeadline() !== null) {
-                    $messageSchedule->setDeadline($requestDTO->getDeadline());
+                    $oldDeadline = $messageSchedule->getDeadline();
+                    $newDeadline = $requestDTO->getDeadline();
+
+                    // Only update if deadline value really changed
+                    if ($oldDeadline !== $newDeadline) {
+                        $messageSchedule->setDeadline($newDeadline);
+                        $needUpdateTaskScheduler = true;
+                    }
                 }
 
                 if ($requestDTO->getPlugins() !== null) {
