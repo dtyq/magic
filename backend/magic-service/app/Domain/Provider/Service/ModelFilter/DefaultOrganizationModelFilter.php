@@ -38,4 +38,12 @@ class DefaultOrganizationModelFilter implements OrganizationBasedModelFilterInte
     {
         return [];
     }
+
+    /**
+     * 默认实现：返回空数组，表示没有模型需要升级.
+     */
+    public function getUpgradeRequiredModelIds(string $organizationCode): array
+    {
+        return [];
+    }
 }

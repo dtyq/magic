@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace App\Application\Kernel;
 
+use App\Application\ModelGateway\Mapper\ProviderManager;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Hyperf\Context\Context;
@@ -84,13 +86,17 @@ class EnvManager
     private static function initSubscription(BaseDataIsolation $baseDataIsolation): void
     {
         $subscriptionManager = $baseDataIsolation->getSubscriptionManager();
+        $providerDataIsolation = ProviderDataIsolation::create($baseDataIsolation->getCurrentOrganizationCode(), $baseDataIsolation->getCurrentUserId(), $baseDataIsolation->getMagicId());
+        $providerDataIsolation->setContainOfficialOrganization(true);
         if (! $subscriptionManager->isEnabled()) {
             return;
         }
         if ($baseDataIsolation->isOfficialOrganization()) {
             $subscriptionManager->setEnabled(false);
         }
+
         $subscription = di(PackageFilterInterface::class)->getCurrentSubscription($baseDataIsolation);
-        $subscriptionManager->setCurrentSubscription($subscription['id'] ?? '', $subscription['info'] ?? []);
+        $modelIdsGroupByType = di(ProviderManager::class)->getModelIdsGroupByType($providerDataIsolation);
+        $subscriptionManager->setCurrentSubscription($subscription['id'] ?? '', $subscription['info'] ?? [], $modelIdsGroupByType);
     }
 }

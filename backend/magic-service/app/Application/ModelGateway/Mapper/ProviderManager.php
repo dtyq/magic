@@ -54,6 +54,21 @@ readonly class ProviderManager
     }
 
     /**
+     * 获取可用的模型ID列表.
+     *
+     * @param ProviderDataIsolation $providerDataIsolation 数据隔离对象
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $providerDataIsolation): array
+    {
+        $query = new ProviderModelQuery();
+        $query->setStatus(Status::Enabled);
+        $query->setOrder(['model_id' => 'asc']);
+
+        return $this->providerModelDomainService->getModelIdsGroupByType($providerDataIsolation, $query);
+    }
+
+    /**
      * @return array<int, ProviderConfigEntity>
      */
     public function getProviderConfigsByIds(ProviderDataIsolation $providerDataIsolation, array $providerConfigIds): array
