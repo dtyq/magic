@@ -80,14 +80,12 @@ class BingSearch
                 $responseBody = $e->getResponse()?->getBody()->getContents();
                 $this->logger->error(sprintf('HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
                     'endpoint' => $endpoint,
-                    'query' => $queryParams,
                     'statusCode' => $statusCode,
                 ]);
             } else {
                 // 如果没有响应，如网络错误
                 $this->logger->error($e->getMessage(), [
                     'endpoint' => $endpoint,
-                    'query' => $queryParams,
                     'exception' => get_class($e),
                 ]);
             }
