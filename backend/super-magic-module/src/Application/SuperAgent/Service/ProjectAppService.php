@@ -455,6 +455,21 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
+     * 审查页面获取的项目附件列表.
+     */
+    public function getProjectAttachmentsFromAudit(RequestContext $requestContext, GetProjectAttachmentsRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+
+        // 创建基于用户的数据隔离
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+    }
+
+    /**
      * 通过访问令牌获取项目附件列表.
      */
     public function getProjectAttachmentsByAccessToken(GetProjectAttachmentsRequestDTO $requestDto): array
@@ -751,7 +766,7 @@ class ProjectAppService extends AbstractAppService
     /**
      * 获取项目附件列表的核心逻辑.
      */
-    private function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
+    public function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
     {
         // 通过任务领域服务获取项目下的附件列表
         $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
@@ -760,22 +775,11 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
             $requestDTO->getFileType(),
-            StorageType::WORKSPACE->value
+            StorageType::WORKSPACE->value,
         );
-
-        //        $workDir = $this->fileDomainService->getFullWorkDir(
-        //            $dataIsolation->getCurrentOrganizationCode(),
-        //            $dataIsolation->getCurrentUserId(),
-        //            (int) $requestDTO->getProjectId(),
-        //            AgentConstant::SUPER_MAGIC_CODE,
-        //            AgentConstant::DEFAULT_PROJECT_DIR
-        //        );
-
-        // $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 
         // 处理文件 URL
         $list = [];
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
