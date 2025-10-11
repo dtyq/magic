@@ -16,12 +16,14 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\TopicMessageProcessPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FinishTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskAfterEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageProcessEvent;
@@ -659,5 +661,17 @@ class TopicTaskAppService extends AbstractAppService
             $messageDTO,
             $messageDTO->getMetadata()->getLanguage()
         ));
+        // 使用下面的事件来替代
+        if ($messageDTO->getPayload()->getEvent() === AgentEventEnum::AFTER_MAIN_AGENT_RUN->value) {
+            // 触发任务完成事件
+            AsyncEventUtil::dispatch(new FinishTaskEvent(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId(),
+                $topicId,
+                (string) $taskEntity->getProjectId(),
+                $taskEntity->getId(),
+                $messageDTO
+            ));
+        }
     }
 }
