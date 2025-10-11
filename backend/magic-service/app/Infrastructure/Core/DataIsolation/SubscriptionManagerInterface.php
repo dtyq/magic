@@ -18,7 +18,7 @@ interface SubscriptionManagerInterface
 
     public function setEnabled(bool $enabled): void;
 
-    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo): void;
+    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo, array $modelIdsGroupByType = []): void;
 
     /**
      * 获取当前订阅ID.
