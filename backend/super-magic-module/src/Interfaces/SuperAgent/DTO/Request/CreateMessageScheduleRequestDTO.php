@@ -61,6 +61,11 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
     public array $timeConfig = [];
 
     /**
+     * MCP plugins configuration.
+     */
+    public ?array $plugins = null;
+
+    /**
      * Get task name.
      */
     public function getTaskName(): string
@@ -149,6 +154,14 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get plugins configuration.
+     */
+    public function getPlugins(): ?array
+    {
+        return $this->plugins;
+    }
+
+    /**
      * Create TimeConfigDTO from time configuration.
      */
     public function createTimeConfigDTO(): TimeConfigDTO
@@ -185,6 +198,7 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
             'time_config.day' => 'nullable|string',
             'time_config.time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
             'time_config.value' => 'nullable|array',
+            'plugins' => 'nullable|array',
         ];
     }
 
@@ -218,6 +232,7 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
             'time_config.time.string' => 'Time configuration time must be a string',
             'time_config.time.regex' => 'Time configuration time must be in HH:MM format',
             'time_config.value.array' => 'Time configuration value must be an array',
+            'plugins.array' => 'Plugins must be an array',
         ];
     }
 }

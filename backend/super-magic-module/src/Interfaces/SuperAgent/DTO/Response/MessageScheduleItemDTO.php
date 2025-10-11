@@ -83,6 +83,11 @@ class MessageScheduleItemDTO extends AbstractDTO
     protected array $timeConfig = [];
 
     /**
+     * @var null|array MCP plugins configuration
+     */
+    protected ?array $plugins = null;
+
+    /**
      * @var string Task scheduler crontab ID
      */
     protected string $taskSchedulerCrontabId = '';
@@ -112,6 +117,7 @@ class MessageScheduleItemDTO extends AbstractDTO
         $dto->setDeadline($entity->getDeadline());
         $dto->setRemark($entity->getRemark());
         $dto->setTimeConfig($entity->getTimeConfig());
+        $dto->setPlugins($entity->getPlugins());
         $dto->setTaskSchedulerCrontabId($entity->getTaskSchedulerCrontabId() ? (string) $entity->getTaskSchedulerCrontabId() : '');
         $dto->setUpdatedAt($entity->getUpdatedAt() ?? '');
         return $dto;
@@ -137,6 +143,7 @@ class MessageScheduleItemDTO extends AbstractDTO
         $dto->deadline = $data['deadline'] ?? null;
         $dto->remark = $data['remark'] ?? '';
         $dto->timeConfig = $data['time_config'] ?? [];
+        $dto->plugins = $data['plugins'] ?? null;
         $dto->taskSchedulerCrontabId = (string) ($data['task_scheduler_crontab_id'] ?? '');
         $dto->updatedAt = $data['updated_at'] ?? '';
         return $dto;
@@ -297,6 +304,17 @@ class MessageScheduleItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getPlugins(): ?array
+    {
+        return $this->plugins;
+    }
+
+    public function setPlugins(?array $plugins): self
+    {
+        $this->plugins = $plugins;
+        return $this;
+    }
+
     public function getTaskSchedulerCrontabId(): string
     {
         return $this->taskSchedulerCrontabId;
@@ -340,6 +358,7 @@ class MessageScheduleItemDTO extends AbstractDTO
             'deadline' => $this->deadline,
             'remark' => $this->remark,
             'time_config' => $this->timeConfig,
+            'plugins' => $this->plugins,
             'task_scheduler_crontab_id' => $this->taskSchedulerCrontabId,
             'updated_at' => $this->updatedAt,
         ];

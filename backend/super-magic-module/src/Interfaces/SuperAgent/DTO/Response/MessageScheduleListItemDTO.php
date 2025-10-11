@@ -92,6 +92,11 @@ class MessageScheduleListItemDTO extends AbstractDTO
     protected array $timeConfig = [];
 
     /**
+     * @var null|array MCP plugins configuration
+     */
+    protected ?array $plugins = null;
+
+    /**
      * Create DTO from entity with additional name fields.
      */
     public static function fromEntity(
@@ -112,6 +117,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
         $dto->setEnabled($entity->getEnabled());
         $dto->setDeadline($entity->getDeadline());
         $dto->setTimeConfig($entity->getTimeConfig());
+        $dto->setPlugins($entity->getPlugins());
         $dto->setUpdatedAt($entity->getUpdatedAt() ?? '');
 
         // Store name fields for toArray method
@@ -139,6 +145,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
         $dto->enabled = (int) ($data['enabled'] ?? 1);
         $dto->deadline = $data['deadline'] ?? null;
         $dto->timeConfig = $data['time_config'] ?? [];
+        $dto->plugins = $data['plugins'] ?? null;
         $dto->updatedAt = $data['updated_at'] ?? '';
         return $dto;
     }
@@ -276,6 +283,17 @@ class MessageScheduleListItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getPlugins(): ?array
+    {
+        return $this->plugins;
+    }
+
+    public function setPlugins(?array $plugins): self
+    {
+        $this->plugins = $plugins;
+        return $this;
+    }
+
     /**
      * Convert to array.
      * Keep underscore naming for API compatibility.
@@ -294,6 +312,7 @@ class MessageScheduleListItemDTO extends AbstractDTO
             'enabled' => $this->enabled,
             'deadline' => $this->deadline,
             'time_config' => $this->timeConfig,
+            'plugins' => $this->plugins,
             'updated_at' => $this->updatedAt,
             'workspace_name' => $this->workspaceName,
             'project_name' => $this->projectName,
