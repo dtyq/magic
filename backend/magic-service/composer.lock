@@ -609,16 +609,16 @@
         },
         {
             "name": "aws/aws-sdk-php",
-            "version": "3.356.36",
+            "version": "3.356.37",
             "source": {
                 "type": "git",
                 "url": "https://github.com/aws/aws-sdk-php.git",
-                "reference": "20facd00fe1a8f733c3275918bf533d2330af53d"
+                "reference": "855bcaaa4c486fc67447bf17cfbff9ff75341ad7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/20facd00fe1a8f733c3275918bf533d2330af53d",
-                "reference": "20facd00fe1a8f733c3275918bf533d2330af53d",
+                "url": "https://api.github.com/repos/aws/aws-sdk-php/zipball/855bcaaa4c486fc67447bf17cfbff9ff75341ad7",
+                "reference": "855bcaaa4c486fc67447bf17cfbff9ff75341ad7",
                 "shasum": ""
             },
             "require": {
@@ -700,9 +700,9 @@
             "support": {
                 "forum": "https://github.com/aws/aws-sdk-php/discussions",
                 "issues": "https://github.com/aws/aws-sdk-php/issues",
-                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.36"
+                "source": "https://github.com/aws/aws-sdk-php/tree/3.356.37"
             },
-            "time": "2025-10-09T18:07:17+00:00"
+            "time": "2025-10-10T18:50:12+00:00"
         },
         {
             "name": "brick/math",
@@ -17688,12 +17688,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "79c1c038b063d5cdbdc7fc954eb8d7d1e1886f6e"
+                "reference": "60bbb2fff15a77ab2eda09d7a420883f863938f8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/79c1c038b063d5cdbdc7fc954eb8d7d1e1886f6e",
-                "reference": "79c1c038b063d5cdbdc7fc954eb8d7d1e1886f6e",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/60bbb2fff15a77ab2eda09d7a420883f863938f8",
+                "reference": "60bbb2fff15a77ab2eda09d7a420883f863938f8",
                 "shasum": ""
             },
             "conflict": {
@@ -17858,6 +17858,7 @@
                 "dolibarr/dolibarr": "<21.0.3",
                 "dompdf/dompdf": "<2.0.4",
                 "doublethreedigital/guest-entries": "<3.1.2",
+                "drupal-pattern-lab/unified-twig-extensions": "<=0.1",
                 "drupal/admin_audit_trail": "<1.0.5",
                 "drupal/ai": "<1.0.5",
                 "drupal/alogin": "<2.0.6",
@@ -18657,7 +18658,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-10-09T21:05:17+00:00"
+            "time": "2025-10-11T00:19:40+00:00"
         },
         {
             "name": "sebastian/cli-parser",
