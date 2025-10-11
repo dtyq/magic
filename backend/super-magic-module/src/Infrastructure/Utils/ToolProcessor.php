@@ -16,6 +16,56 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 class ToolProcessor
 {
     /**
+     * File extension to type mapping.
+     */
+    private const EXTENSION_TYPE_MAP = [
+        // Image formats
+        'jpg' => 'image', 'jpeg' => 'image', 'png' => 'image', 'gif' => 'image',
+        'bmp' => 'image', 'webp' => 'image', 'svg' => 'image', 'ico' => 'image',
+        'tiff' => 'image', 'tif' => 'image', 'heic' => 'image', 'heif' => 'image', 'raw' => 'image',
+
+        // Code formats - Programming languages
+        'php' => 'code', 'js' => 'code', 'ts' => 'code', 'tsx' => 'code', 'jsx' => 'code',
+        'py' => 'code', 'java' => 'code', 'cpp' => 'code', 'c' => 'code', 'h' => 'code', 'hpp' => 'code',
+        'go' => 'code', 'rs' => 'code', 'rb' => 'code', 'swift' => 'code', 'kt' => 'code', 'cs' => 'code',
+        'vue' => 'code', 'scala' => 'code', 'dart' => 'code', 'lua' => 'code', 'pl' => 'code', 'pm' => 'code',
+        'asm' => 'code', 'm' => 'code', 'mm' => 'code', 'groovy' => 'code', 'r' => 'code',
+
+        // Code formats - Styles
+        'css' => 'code', 'scss' => 'code', 'sass' => 'code', 'less' => 'code',
+
+        // Code formats - Configuration and data
+        'json' => 'code', 'xml' => 'code', 'yaml' => 'code', 'yml' => 'code', 'toml' => 'code',
+        'conf' => 'code', 'ini' => 'code', 'properties' => 'code',
+
+        // Code formats - Scripts
+        'sql' => 'code', 'sh' => 'code', 'bash' => 'code', 'zsh' => 'code',
+        'bat' => 'code', 'ps1' => 'code',
+
+        // Code formats - Build files
+        'gradle' => 'code', 'makefile' => 'code', 'dockerfile' => 'code',
+
+        // Document formats
+        'doc' => 'docx', 'docx' => 'docx', 'odt' => 'docx', 'rtf' => 'docx',
+
+        // Spreadsheet formats
+        'xls' => 'excel', 'xlsx' => 'excel', 'xlsm' => 'excel', 'xlsb' => 'excel',
+        'csv' => 'excel', 'ods' => 'excel',
+
+        // Presentation formats
+        'ppt' => 'powerpoint', 'pptx' => 'powerpoint', 'pptm' => 'powerpoint', 'odp' => 'powerpoint',
+
+        // PDF format
+        'pdf' => 'pdf',
+
+        // HTML formats
+        'html' => 'html', 'htm' => 'html',
+
+        // Markdown formats
+        'md' => 'md', 'markdown' => 'md',
+    ];
+
+    /**
      * Process tool attachments and match file IDs.
      */
     public static function processToolAttachments(?array &$tool): void
@@ -175,18 +225,6 @@ class ToolProcessor
     private static function determineFileType(string $extension): string
     {
         $extension = strtolower($extension);
-
-        // Image formats
-        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'];
-
-        if (in_array($extension, $imageExtensions)) {
-            return 'image';
-        }
-
-        return match ($extension) {
-            'html' => 'html',
-            'md' => 'md',
-            default => 'text'
-        };
+        return self::EXTENSION_TYPE_MAP[$extension] ?? 'text';
     }
 }
