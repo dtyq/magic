@@ -548,7 +548,7 @@ class TopicTaskAppService extends AbstractAppService
         $fileKey = '';
         $attachments = $tool['attachments'] ?? [];
         foreach ($attachments as $attachment) {
-            if ($attachment['file_name'] === $fileName) {
+            if ($attachment['filename'] === $fileName) {
                 $fileKey = $attachment['file_key'];
             }
         }
@@ -559,7 +559,7 @@ class TopicTaskAppService extends AbstractAppService
         if ($taskFileEntity === null) {
             return;
         }
-        $tool['detail']['data']['file_id'] = $taskFileEntity->getFileId();
+        $tool['detail']['data']['file_id'] = (string) $taskFileEntity->getFileId();
         $tool['detail']['data']['file_extension'] = pathinfo($fileName, PATHINFO_EXTENSION);
         $taskMessageEntity->setTool($tool);
     }
