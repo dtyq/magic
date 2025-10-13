@@ -36,7 +36,7 @@ class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
             return null;
         }
         // If the token is expired, delete it and return null
-        if (!empty($token['expired_at']) && Carbon::parse($token['expired_at'])->isPast()) {
+        if (! empty($token['expired_at']) && Carbon::parse($token['expired_at'])->isPast()) {
             $this->token::query()
                 ->where('token', $token['token'])
                 ->where('type', $token['type'])
