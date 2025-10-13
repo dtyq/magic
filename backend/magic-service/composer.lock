@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "784b41cf750c334308e158e10ed0477c2c6b1a5b"
+                "reference": "b0940d7e8e85baa2903ee796a75ac64960068a20"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=784b41cf750c334308e158e10ed0477c2c6b1a5b",
-                "reference": "784b41cf750c334308e158e10ed0477c2c6b1a5b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=b0940d7e8e85baa2903ee796a75ac64960068a20",
+                "reference": "b0940d7e8e85baa2903ee796a75ac64960068a20",
                 "shasum": ""
             },
             "require": {
@@ -1976,7 +1976,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-10-13T03:37:36+00:00"
+            "time": "2025-10-13T05:59:09+00:00"
         },
         {
             "name": "dtyq/cloudfile",
