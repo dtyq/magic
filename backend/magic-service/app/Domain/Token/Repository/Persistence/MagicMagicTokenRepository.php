@@ -30,10 +30,17 @@ class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
         $token = $this->token::query()
             ->where('type', $tokenDTO->getType()->value)
             ->where('token', $tokenDTO->getToken())
-            ->where('expired_at', '>', date('Y-m-d H:i:s'))
             ->orderBy('id', 'desc');
         $token = Db::select($token->toSql(), $token->getBindings())[0] ?? null;
         if (empty($token)) {
+            return null;
+        }
+        // If the token is expired, delete it and return null
+        if (!empty($token['expired_at']) && Carbon::parse($token['expired_at'])->isPast()) {
+            $this->token::query()
+                ->where('token', $token['token'])
+                ->where('type', $token['type'])
+                ->delete();
             return null;
         }
         if (empty($token['type_relation_value'])) {
