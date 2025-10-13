@@ -413,28 +413,106 @@ class TopicTaskAppService extends AbstractAppService
         if (! empty($missingFileKeys)) {
             $projectEntity = $this->projectDomainService->getProjectNotUserId($task->getProjectId());
             if ($projectEntity) {
-                foreach ($missingFileKeys as $missingFileKey) {
-                    if (! isset($fileInfoMap[$missingFileKey])) {
-                        $this->logger->error(sprintf('Missing file_key: %s', $missingFileKey));
-                        continue;
+                // Setup spin lock for project to prevent concurrent file operations
+                // Same lock strategy as SandboxFileNotificationAppService
+                $lockKey = WorkDirectoryUtil::getLockerKey($projectEntity->getId());
+                $lockOwner = IdGenerator::getUniqueId32();
+                $lockExpireSeconds = 30;
+                $lockAcquired = false;
+
+                try {
+                    // Attempt to acquire distributed spin lock
+                    $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
+                    if (! $lockAcquired) {
+                        $this->logger->warning(sprintf(
+                            'Failed to acquire lock for missing file processing, project_id: %d, task_id: %s, file_keys: %s',
+                            $projectEntity->getId(),
+                            $task->getTaskId(),
+                            implode(', ', $missingFileKeys)
+                        ));
+                        ExceptionBuilder::throw(GenericErrorCode::SystemError, 'Failed to acquire file processing lock');
                     }
-                    $storageType = WorkFileUtil::isSnapshotFile($missingFileKey)
-                        ? StorageType::SNAPSHOT->value
-                        : StorageType::WORKSPACE->value;
-                    $fileInfoMap[$missingFileKey]['storage_type'] = $storageType;
-                    $fallbackFileEntity = $this->taskFileDomainService->convertMessageAttachmentToTaskFileEntity($fileInfoMap[$missingFileKey], $task);
-                    $this->logger->error(sprintf(
-                        'Attachment not found in database, skipping processing, task_id: %s, file_key: %s',
+
+                    $this->logger->info(sprintf(
+                        'Lock acquired for missing file processing, project_id: %d, task_id: %s, file_keys: %s',
+                        $projectEntity->getId(),
                         $task->getTaskId(),
-                        $missingFileKey
+                        implode(', ', $missingFileKeys)
                     ));
-                    $savedEntity = $this->taskFileDomainService->saveProjectFile(
-                        $dataIsolation,
-                        $projectEntity,
-                        $fallbackFileEntity,
-                        $storageType
-                    );
-                    $fileIdMap[$missingFileKey] = $savedEntity->getFileId();
+
+                    // Re-check file existence after acquiring lock to avoid duplicate creation
+                    $fileEntities = $this->taskFileDomainService->getByFileKeys($missingFileKeys);
+                    $existingFileIdMap = [];
+                    foreach ($fileEntities as $fileEntity) {
+                        $existingFileIdMap[$fileEntity->getFileKey()] = $fileEntity->getFileId();
+                    }
+
+                    // Process only files that still don't exist
+                    foreach ($missingFileKeys as $missingFileKey) {
+                        // Skip if file was created by another process
+                        if (isset($existingFileIdMap[$missingFileKey])) {
+                            $fileIdMap[$missingFileKey] = $existingFileIdMap[$missingFileKey];
+                            $this->logger->info(sprintf(
+                                'File already created by another process, file_key: %s, file_id: %d',
+                                $missingFileKey,
+                                $existingFileIdMap[$missingFileKey]
+                            ));
+                            continue;
+                        }
+
+                        if (! isset($fileInfoMap[$missingFileKey])) {
+                            $this->logger->error(sprintf('Missing file_key: %s', $missingFileKey));
+                            continue;
+                        }
+                        $storageType = WorkFileUtil::isSnapshotFile($missingFileKey)
+                            ? StorageType::SNAPSHOT->value
+                            : StorageType::WORKSPACE->value;
+                        $fileInfoMap[$missingFileKey]['storage_type'] = $storageType;
+                        $fallbackFileEntity = $this->taskFileDomainService->convertMessageAttachmentToTaskFileEntity($fileInfoMap[$missingFileKey], $task);
+                        $this->logger->info(sprintf(
+                            'Attachment not found in database, creating file record, task_id: %s, file_key: %s',
+                            $task->getTaskId(),
+                            $missingFileKey
+                        ));
+                        $savedEntity = $this->taskFileDomainService->saveProjectFile(
+                            $dataIsolation,
+                            $projectEntity,
+                            $fallbackFileEntity,
+                            $storageType
+                        );
+                        $fileIdMap[$missingFileKey] = $savedEntity->getFileId();
+                    }
+
+                    $this->logger->info(sprintf(
+                        'Missing file processing completed with lock protection, project_id: %d, task_id: %s',
+                        $projectEntity->getId(),
+                        $task->getTaskId()
+                    ));
+                } catch (Throwable $e) {
+                    $this->logger->error(sprintf(
+                        'Exception processing missing files with lock protection, project_id: %d, task_id: %s, error: %s',
+                        $projectEntity->getId(),
+                        $task->getTaskId(),
+                        $e->getMessage()
+                    ));
+                    throw $e;
+                } finally {
+                    // Ensure lock is always released
+                    if ($lockAcquired) {
+                        if ($this->locker->release($lockKey, $lockOwner)) {
+                            $this->logger->debug(sprintf(
+                                'Lock released for missing file processing, project_id: %d, task_id: %s',
+                                $projectEntity->getId(),
+                                $task->getTaskId()
+                            ));
+                        } else {
+                            $this->logger->error(sprintf(
+                                'Failed to release lock for missing file processing, project_id: %d, task_id: %s. Manual intervention may be required.',
+                                $projectEntity->getId(),
+                                $task->getTaskId()
+                            ));
+                        }
+                    }
                 }
             } else {
                 $this->logger->error(sprintf('Project not found, project_id: %s', $task->getProjectId()));
