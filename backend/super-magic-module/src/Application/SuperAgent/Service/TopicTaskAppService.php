@@ -742,13 +742,17 @@ class TopicTaskAppService extends AbstractAppService
         // 使用下面的事件来替代
         if ($messageDTO->getPayload()->getEvent() === AgentEventEnum::AFTER_MAIN_AGENT_RUN->value) {
             // 触发任务完成事件
+            // Extract task status and content
+            $taskStatus = $messageDTO->getPayload()->getStatus();
+            $taskContent = $messageDTO->getPayload()->getContent();
             AsyncEventUtil::dispatch(new FinishTaskEvent(
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId(),
                 $topicId,
-                (string) $taskEntity->getProjectId(),
+                $taskEntity->getProjectId(),
                 $taskEntity->getId(),
-                $messageDTO
+                $taskStatus,
+                $taskContent
             ));
         }
     }
