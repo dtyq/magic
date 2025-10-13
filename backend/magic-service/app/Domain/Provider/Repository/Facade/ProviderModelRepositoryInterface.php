@@ -11,12 +11,18 @@ use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 interface ProviderModelRepositoryInterface
 {
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity;
+
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity;
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity;
 
     /**
      * @return ProviderModelEntity[]
@@ -68,4 +74,18 @@ interface ProviderModelRepositoryInterface
      * @return array<string, ProviderModelEntity[]> 模型实体数组，以model_id为键，值为对应的模型列表
      */
     public function getByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array;
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array;
+
+    /**
+     * 根据查询条件获取按模型类型分组的模型ID列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ProviderModelQuery $query 查询条件
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array;
 }

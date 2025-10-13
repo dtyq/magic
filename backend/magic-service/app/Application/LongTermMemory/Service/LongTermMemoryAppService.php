@@ -11,7 +11,6 @@ use App\Application\LongTermMemory\DTO\EvaluateConversationRequestDTO;
 use App\Application\LongTermMemory\DTO\ShouldRememberDTO;
 use App\Application\LongTermMemory\Enum\MemoryEvaluationStatus;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
-use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Application\ModelGateway\Service\ModelConfigAppService;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
 use App\Domain\LongTermMemory\DTO\CreateMemoryDTO;
@@ -21,6 +20,7 @@ use App\Domain\LongTermMemory\DTO\UpdateMemoryDTO;
 use App\Domain\LongTermMemory\Entity\LongTermMemoryEntity;
 use App\Domain\LongTermMemory\Entity\ValueObject\MemoryType;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\ErrorCode\LongTermMemoryErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -29,6 +29,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationAction;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\ValueObject\MemoryOperationScenario;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Message\SystemMessage;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -390,7 +391,7 @@ class LongTermMemoryAppService
     /**
      * 对记忆进行评分.
      */
-    public function rateMemory(OdinModel $model, string $memory): int
+    public function rateMemory(ModelInterface $model, string $memory): int
     {
         $promptFile = BASE_PATH . '/app/Application/LongTermMemory/Prompt/MemoryPrompt.text';
         $prompt = $this->loadPromptFile($promptFile);
@@ -399,7 +400,7 @@ class LongTermMemoryAppService
 
         try {
             // 使用系统提示词
-            $response = $model->getModel()->chat([new SystemMessage($prompt)]);
+            $response = $model->chat([new SystemMessage($prompt)]);
             $content = $response->getFirstChoice()?->getMessage()->getContent();
         } catch (Throwable $e) {
             ExceptionBuilder::throw(LongTermMemoryErrorCode::EVALUATION_LLM_REQUEST_FAILED, throwable: $e);
@@ -413,26 +414,9 @@ class LongTermMemoryAppService
     }
 
     /**
-     * 获取聊天模型.
-     */
-    public function getChatModel(MagicUserAuthorization $authorization): OdinModel
-    {
-        $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain(
-            $authorization->getOrganizationCode(),
-            LLMModelEnum::DEEPSEEK_V3->value
-        );
-        $chatModel = $this->modelGatewayMapper->getOrganizationChatModel($modelName, $authorization->getOrganizationCode());
-        if ($chatModel instanceof OdinModel) {
-            return $chatModel;
-        }
-        // Assuming getOrganizationChatModel returns null or a different type on failure
-        ExceptionBuilder::throw(LongTermMemoryErrorCode::GENERAL_ERROR);
-    }
-
-    /**
      * 判断是否需要记住内容.
      */
-    public function shouldRememberContent(OdinModel $model, EvaluateConversationRequestDTO $dto): ShouldRememberDTO
+    public function shouldRememberContent(ModelInterface $model, EvaluateConversationRequestDTO $dto): ShouldRememberDTO
     {
         $promptFile = BASE_PATH . '/app/Application/LongTermMemory/Prompt/MemoryRatingPrompt.txt';
         $prompt = $this->loadPromptFile($promptFile);
@@ -441,7 +425,7 @@ class LongTermMemoryAppService
 
         try {
             // 使用系统提示词
-            $response = $model->getModel()->chat([new SystemMessage($prompt)]);
+            $response = $model->chat([new SystemMessage($prompt)]);
             $firstChoiceContent = $response->getFirstChoice()?->getMessage()->getContent();
         } catch (Throwable $e) {
             ExceptionBuilder::throw(LongTermMemoryErrorCode::EVALUATION_LLM_REQUEST_FAILED, throwable: $e);
@@ -490,6 +474,20 @@ class LongTermMemoryAppService
             'updated_count' => $updatedCount,
             'requested_count' => count($memoryIds),
         ];
+    }
+
+    /**
+     * 获取聊天模型.
+     */
+    private function getChatModel(MagicUserAuthorization $authorization): ModelInterface
+    {
+        $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+            LLMModelEnum::DEEPSEEK_V3->value
+        );
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($authorization->getOrganizationCode(), $authorization->getId());
+        return $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
     }
 
     /**

@@ -60,35 +60,34 @@ class ModeAppService extends AbstractModeAppService
         // 步骤2：批量查询所有模型和服务商状态
         $allProviderModelsWithStatus = $this->getModelsBatch(array_unique($allModelIds));
 
-        // 步骤3：套餐过滤 + 内存分配
-        $currentPackage = $this->packageFilter->getCurrentPackage($authorization->getOrganizationCode());
-        $providerModels = [];
+        // 步骤3：组织模型过滤
 
+        // 首先收集所有需要过滤的模型
+        $allAggregateModels = [];
         foreach ($modeAggregates as $aggregate) {
-            // 从批量结果中提取当前聚合根的模型
             $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
+            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
+        }
 
-            // 根据套餐进一步过滤模型
-            foreach ($aggregateModels as $modelId => $model) {
-                $visiblePackages = $model->getVisiblePackages();
+        // 需要升级套餐
+        $upgradeRequiredModelIds = [];
 
-                // 过滤规则：如果没有配置可见套餐，则对所有套餐可见
-                if (empty($visiblePackages)) {
-                    $providerModels[$modelId] = $model;
-                    continue;
-                }
-
-                // 如果配置了可见套餐，检查当前套餐是否在其中
-                if ($currentPackage && in_array($currentPackage, $visiblePackages)) {
-                    $providerModels[$modelId] = $model;
-                }
-            }
+        // 使用组织过滤器进行过滤
+        if ($this->organizationModelFilter) {
+            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateModels
+            );
+            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
+        } else {
+            // 如果没有组织过滤器，返回所有模型（开源版本行为）
+            $providerModels = $allAggregateModels;
         }
 
         // 转换为DTO数组
         $modeAggregateDTOs = [];
         foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels);
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds);
         }
 
         // 处理图标URL转换
@@ -231,7 +230,7 @@ class ModeAppService extends AbstractModeAppService
     /**
      * 从批量查询结果中提取特定聚合根的模型.
      * @param ModeAggregate $aggregate 模式聚合根
-     * @param array $allProviderModels 批量查询的所有模型结果
+     * @param array<string, ProviderModelEntity> $allProviderModels 批量查询的所有模型结果
      * @return array<string, ProviderModelEntity> 该聚合根相关的模型
      */
     private function getModelsForAggregate(ModeAggregate $aggregate, array $allProviderModels): array
@@ -242,10 +241,13 @@ class ModeAppService extends AbstractModeAppService
             foreach ($groupAggregate->getRelations() as $relation) {
                 $modelId = $relation->getModelId();
 
-                // 从批量结果中获取模型（内存操作，无数据库查询）
-                if (isset($allProviderModels[$modelId])) {
-                    $aggregateModels[$modelId] = $allProviderModels[$modelId];
+                if (! $providerModel = $allProviderModels[$modelId] ?? null) {
+                    continue;
                 }
+                if (! $providerModel->getConfig()->isSupportFunction()) {
+                    continue;
+                }
+                $aggregateModels[$modelId] = $providerModel;
             }
         }
 

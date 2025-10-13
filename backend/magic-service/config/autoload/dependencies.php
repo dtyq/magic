@@ -174,7 +174,9 @@ use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderOriginalModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderRepository;
+use App\Domain\Provider\Service\ModelFilter\DefaultOrganizationModelFilter;
 use App\Domain\Provider\Service\ModelFilter\DefaultPackageFilter;
+use App\Domain\Provider\Service\ModelFilter\OrganizationBasedModelFilterInterface;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
@@ -190,8 +192,10 @@ use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PHPExecutorInterface;
 use App\Infrastructure\Core\Contract\Flow\CodeExecutor\PythonExecutorInterface;
 use App\Infrastructure\Core\Contract\Session\SessionInterface;
 use App\Infrastructure\Core\DataIsolation\BaseHandleDataIsolation;
+use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
 use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
 use App\Infrastructure\Core\DataIsolation\HandleDataIsolationInterface;
+use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
 use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInterface;
 use App\Infrastructure\Core\Embeddings\DocumentSplitter\DocumentSplitterInterface;
 use App\Infrastructure\Core\Embeddings\DocumentSplitter\OdinRecursiveCharacterTextSplitter;
@@ -334,6 +338,7 @@ $dependencies = [
     OrganizationConfigRepositoryInterface::class => OrganizationConfigRepository::class,
     UserConfigRepositoryInterface::class => UserConfigRepository::class,
     MsgLogRepositoryInterface::class => MsgLogRepository::class,
+    SubscriptionManagerInterface::class => BaseSubscriptionManager::class,
 
     // embeddings
     EmbeddingGeneratorInterface::class => OdinEmbeddingGenerator::class,
@@ -431,6 +436,8 @@ $dependencies = [
     ModeRepositoryInterface::class => ModeRepository::class,
     ModeGroupRepositoryInterface::class => ModeGroupRepository::class,
     ModeGroupRelationRepositoryInterface::class => ModeGroupRelationRepository::class,
+
+    OrganizationBasedModelFilterInterface::class => DefaultOrganizationModelFilter::class,
 ];
 
 // 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并

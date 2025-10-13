@@ -15,6 +15,7 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseSavedEvent;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Psr\Container\ContainerInterface;
@@ -66,7 +67,8 @@ readonly class KnowledgeBaseSyncSubscriber implements ListenerInterface
                 $knowledge->setSyncStatus(KnowledgeSyncStatus::Syncing);
                 $knowledgeBaseDomainService->changeSyncStatus($knowledge);
 
-                $model = $this->container->get(ModelGatewayMapper::class)->getEmbeddingModelProxy($knowledge->getModel(), $knowledge->getOrganizationCode());
+                $modelGatewayDataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+                $model = $this->container->get(ModelGatewayMapper::class)->getEmbeddingModelProxy($modelGatewayDataIsolation, $knowledge->getModel());
                 $vector->createCollection($knowledge->getCollectionName(), $model->getVectorSize());
                 $knowledge->setSyncStatus(KnowledgeSyncStatus::Synced);
                 $changed = true;

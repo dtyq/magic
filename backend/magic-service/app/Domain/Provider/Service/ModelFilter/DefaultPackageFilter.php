@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Service\ModelFilter;
 
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+
 class DefaultPackageFilter implements PackageFilterInterface
 {
     /**
@@ -15,5 +17,13 @@ class DefaultPackageFilter implements PackageFilterInterface
     public function getCurrentPackage(string $organizationCode): ?string
     {
         return null;
+    }
+
+    public function getCurrentSubscription(BaseDataIsolation $dataIsolation): array
+    {
+        return [
+            'id' => '',
+            'info' => [],
+        ];
     }
 }

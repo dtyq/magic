@@ -13,8 +13,6 @@ class AzureOpenAIImageEditRequest extends ImageGenerateRequest
 
     private ?string $maskUrl = null;
 
-    private string $size = '1024x1024';
-
     private int $n = 1;
 
     public function setReferenceImages(array $referenceImages): void

@@ -15,6 +15,7 @@ use App\Domain\Speech\Entity\Dto\SpeechQueryDTO;
 use App\Domain\Speech\Entity\Dto\SpeechSubmitDTO;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\Volcengine\DTO\SpeechRecognitionResultDTO;
 use App\Infrastructure\ExternalAPI\Volcengine\SpeechRecognition\VolcengineStandardClient;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use DateTime;
@@ -54,7 +55,10 @@ class SpeechToTextStandardAppService
         return $this->volcengineClient->queryResult($queryDTO);
     }
 
-    public function queryLargeModelResult(SpeechQueryDTO $speechQueryDTO): array
+    /**
+     * 查询大模型语音识别结果.
+     */
+    public function queryLargeModelResult(SpeechQueryDTO $speechQueryDTO): SpeechRecognitionResultDTO
     {
         $this->validateAccessToken($speechQueryDTO->getAccessToken(), []);
         return $this->volcengineClient->queryBigModelResult($speechQueryDTO->getTaskId());

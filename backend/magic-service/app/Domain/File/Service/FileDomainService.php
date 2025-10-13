@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\File\Service;
 
+use App\Domain\File\DTO\CloudFileInfoDTO;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -182,6 +183,32 @@ readonly class FileDomainService
         return $this->cloudFileRepository->deleteFile($organizationCode, $filePath, $bucketType);
     }
 
+    /**
+     * Delete multiple objects by credential.
+     *
+     * @param string $prefix Prefix for the operation
+     * @param string $organizationCode Organization code for data isolation
+     * @param array $objectKeys Array of object keys to delete
+     * @param StorageBucketType $bucketType Storage bucket type
+     * @param array $options Additional options
+     * @return array Delete result with success and error information
+     */
+    public function deleteObjectsByCredential(
+        string $prefix,
+        string $organizationCode,
+        array $objectKeys,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        array $options = []
+    ): array {
+        return $this->cloudFileRepository->deleteObjectsByCredential(
+            $prefix,
+            $organizationCode,
+            $objectKeys,
+            $bucketType,
+            $options
+        );
+    }
+
     public function getFullPrefix(string $organizationCode): string
     {
         return $this->cloudFileRepository->getFullPrefix($organizationCode);
@@ -211,5 +238,44 @@ readonly class FileDomainService
         array $options = []
     ): void {
         $this->cloudFileRepository->setHeadObjectByCredential($organizationCode, $objectKey, $metadata, $bucketType, $options);
+    }
+
+    /**
+     * 从云存储获取文件列表.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $directoryPrefix 目录前缀
+     * @param StorageBucketType $bucketType 存储桶类型
+     * @return CloudFileInfoDTO[] 文件DTO对象数组
+     */
+    public function getFilesFromCloudStorage(
+        string $organizationCode,
+        string $directoryPrefix,
+        StorageBucketType $bucketType = StorageBucketType::Private
+    ): array {
+        // 使用listObjectsByCredential列出目录文件
+        $objectsResponse = $this->cloudFileRepository->listObjectsByCredential(
+            $organizationCode,
+            $directoryPrefix,
+            $bucketType
+        );
+
+        $files = [];
+
+        // 正确解析对象列表数据结构
+        $objectsList = $objectsResponse['objects'] ?? $objectsResponse;
+
+        foreach ($objectsList as $object) {
+            $objectKey = $object['key'] ?? $object['Key'] ?? '';
+            $filename = basename($objectKey);
+
+            $files[] = new CloudFileInfoDTO(
+                key: $objectKey,
+                filename: $filename,
+                size: $object['size'] ?? null,
+                lastModified: null // ASR业务中不使用该字段，直接传null
+            );
+        }
+        return $files;
     }
 }

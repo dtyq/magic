@@ -127,17 +127,19 @@ class ProviderConfigEntity extends AbstractEntity
      */
     public function getLocalizedAlias(string $locale): string
     {
-        $alias = $this->translate['alias'][$locale]
-            ?? $this->translate['alias']['zh_CN']
-            ?? $this->translate['alias']['en_US']
-            ?? $this->alias;
-        if ($alias) {
-            $alias = $this->alias;
+        if (! empty($this->translate['alias'][$locale] ?? '')) {
+            return $this->translate['alias'][$locale];
         }
-        if (empty($alias)) {
-            return $locale === 'zh_CN' ? '自定义服务商' : 'Custom Provider';
+        if (! empty($this->translate['alias']['zh_CN'] ?? '')) {
+            return $this->translate['alias']['zh_CN'];
         }
-        return $alias;
+        if (! empty($this->translate['alias']['en_US'] ?? '')) {
+            return $this->translate['alias']['en_US'];
+        }
+        if (! empty($this->alias)) {
+            return $this->alias;
+        }
+        return $locale === 'zh_CN' ? '自定义服务商' : 'Custom Provider';
     }
 
     public function setAlias(null|int|string $alias): void

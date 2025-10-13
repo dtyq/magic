@@ -46,8 +46,7 @@ class TextSplitterNodeRunner extends NodeRunner
         }
 
         $splitter = DocumentSplitterSwitch::tryFrom($params['strategy'] ?? '') ?? DocumentSplitterSwitch::Auto;
-        $orgCode = $executionData->getOperator()->getOrganizationCode();
-        $model = $this->modelGatewayMapper->getChatModelProxy(EmbeddingGenerator::defaultModel(), $orgCode);
+        $model = $this->modelGatewayMapper->getChatModelProxy($executionData->getDataIsolation(), EmbeddingGenerator::defaultModel());
 
         $splitTexts = $splitter->getSplitter()->split($model, $text);
 

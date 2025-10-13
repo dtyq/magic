@@ -10,6 +10,7 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\Kernel\SuperPermissionEnum;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\Query\ModelConfigQuery;
 use App\Infrastructure\Core\ValueObject\Page;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -60,15 +61,18 @@ class ModelConfigAppService extends AbstractLLMAppService
     /**
      * 获取模型的降级链，合并用户传入的降级链与系统默认的降级链.
      *
+     * @param string $orgCode 组织编码
+     * @param string $userId 用户ID
      * @param string $modelType 指定的模型类型
      * @param string[] $modelFallbackChain 用户传入的降级链
      *
      * @return string 最终的模型类型
      */
-    public function getChatModelTypeByFallbackChain(string $orgCode, string $modelType = '', array $modelFallbackChain = []): string
+    public function getChatModelTypeByFallbackChain(string $orgCode, string $userId, string $modelType = '', array $modelFallbackChain = []): string
     {
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode, $userId);
         // 从组织可用的模型列表中获取所有可聊天的模型
-        $odinModels = di(ModelGatewayMapper::class)->getChatModels($orgCode) ?? [];
+        $odinModels = di(ModelGatewayMapper::class)->getChatModels($dataIsolation) ?? [];
         $chatModelsName = array_keys($odinModels);
         if (empty($chatModelsName)) {
             return '';

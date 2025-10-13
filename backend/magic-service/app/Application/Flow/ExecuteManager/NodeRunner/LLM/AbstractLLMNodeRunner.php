@@ -14,6 +14,7 @@ use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\AbstractLLMNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\ModelConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\LLM\Structure\OptionTool;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Util\Odin\Agent;
@@ -39,7 +40,8 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
         $orgCode = $executionData->getOperator()->getOrganizationCode();
         $modelName = $LLMNodeParamsConfig->getModel()->getValue()->getResult($executionData->getExpressionFieldData());
         if (! $model) {
-            $model = $this->modelGatewayMapper->getChatModelProxy($modelName, $orgCode);
+            $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($executionData->getDataIsolation()->getCurrentOrganizationCode(), $executionData->getDataIsolation()->getCurrentUserId());
+            $model = $this->modelGatewayMapper->getChatModelProxy($dataIsolation, $modelName);
         }
         $vertexResult->addDebugLog('model', $modelName);
 
@@ -50,6 +52,8 @@ abstract class AbstractLLMNodeRunner extends NodeRunner
 
         $vertexResult->addDebugLog('messages', array_map(fn ($message) => $message->toArray(), $memoryManager->applyPolicy()->getProcessedMessages()));
 
+        $systemPrompt = trim($systemPrompt);
+        $systemPrompt = trim($systemPrompt, "\n");
         // 加载系统提示词
         if ($systemPrompt !== '') {
             $memoryManager->addSystemMessage(new SystemMessage($systemPrompt));

@@ -12,6 +12,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
@@ -19,6 +20,7 @@ use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
@@ -36,15 +38,42 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     ) {
     }
 
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        if (is_numeric($modelId)) {
+            $builder->where('id', $modelId);
+        } else {
+            $builder->where('model_id', $modelId);
+        }
+        $builder->where('status', Status::Enabled->value);
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+        if (! isset($result[0])) {
+            return null;
+        }
+        return ProviderModelAssembler::toEntity($result[0]);
+    }
+
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
-        $builder = $this->createProviderModelQuery()
-            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
-            ->where('id', $id);
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('id', $id);
 
         $result = Db::select($builder->toSql(), $builder->getBindings());
         if (empty($result)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
+        }
+        return ProviderModelAssembler::toEntity($result[0]);
+    }
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('model_id', $modelId);
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+        if (empty($result)) {
+            return null;
         }
         return ProviderModelAssembler::toEntity($result[0]);
     }
@@ -328,6 +357,90 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         }
 
         return ProviderModelAssembler::toEntity($result[0]);
+    }
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        if (! is_null($query->getModelIds())) {
+            $builder->whereIn('model_id', $query->getModelIds());
+        }
+        if (! is_null($query->getStatus())) {
+            $builder->where('status', $query->getStatus()->value);
+        }
+        if (! is_null($query->getModelType())) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
+
+        $data = $this->getByPage($builder, $page, $query);
+        $list = [];
+        /** @var ProviderModelModel $model */
+        foreach ($data['list'] as $model) {
+            $entity = ProviderModelAssembler::toEntity($model->toArray());
+            match ($query->getKeyBy()) {
+                'id' => $list[$entity->getId()] = $entity,
+                'model_id' => $list[$entity->getModelId()] = $entity,
+                default => $list[] = $entity,
+            };
+        }
+        $data['list'] = $list;
+        return $data;
+    }
+
+    /**
+     * 根据查询条件获取按模型类型分组的模型ID列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ProviderModelQuery $query 查询条件
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+
+        // 应用查询条件
+        if (! is_null($query->getModelIds())) {
+            $builder->whereIn('model_id', $query->getModelIds());
+        }
+        if (! is_null($query->getStatus())) {
+            $builder->where('status', $query->getStatus()->value);
+        }
+        if (! is_null($query->getModelType())) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
+
+        // 选择 model_id 和 model_type 字段
+        $builder->select('model_id', 'model_type');
+
+        // 应用排序
+        if (! empty($query->getOrder())) {
+            foreach ($query->getOrder() as $field => $direction) {
+                $builder->orderBy($field, $direction);
+            }
+        }
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        // 按模型类型分组，并去重模型ID
+        $groupedResults = [];
+        foreach ($result as $row) {
+            $modelType = $row['model_type'];
+            $modelId = $row['model_id'];
+
+            if (! isset($groupedResults[$modelType])) {
+                $groupedResults[$modelType] = [];
+            }
+
+            // 避免重复的模型ID
+            if (! in_array($modelId, $groupedResults[$modelType], true)) {
+                $groupedResults[$modelType][] = $modelId;
+            }
+        }
+
+        return $groupedResults;
     }
 
     /**

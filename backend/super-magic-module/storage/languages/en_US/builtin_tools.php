@@ -26,7 +26,7 @@ return [
 
         // Content Processing
         'visual_understanding' => 'Visual Understanding',
-        'convert_pdf' => 'Convert PDF',
+        'convert_to_markdown' => 'Convert to Markdown',
         'voice_understanding' => 'Voice Recognition',
         'summarize' => 'Summarize',
         'generate_image' => 'Generate Image',
@@ -70,7 +70,7 @@ return [
 
         // Content Processing
         'visual_understanding' => 'Visual understanding tool, analyzes and interprets image content, supports JPEG, PNG, GIF and other formats, suitable for image recognition description, chart analysis, text extraction, multi-image comparison and other scenarios',
-        'convert_pdf' => 'PDF conversion tool, converts PDF files to Markdown format, supports local files and URLs, provides smart and normal modes, allows specifying output path',
+        'convert_to_markdown' => 'Document format conversion tool, converts documents to Markdown format and saves to specified location. Supports multiple file types: PDF, Word, Excel, PowerPoint, images, Jupyter notebooks, etc',
         'voice_understanding' => 'Speech recognition tool, converts audio files to text, supports wav, mp3, ogg, m4a and other formats, can enable speaker information recognition function',
         'summarize' => 'Information refining tool, improves text information density, removes redundant content to make it more structured, supports custom refining requirements and target length settings',
         'generate_image' => 'Image generation and editing tool that creates new images from text descriptions and modifies existing images. Allows customizing image dimensions, quantity, and saving location to meet various creative needs',

@@ -11,11 +11,13 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 readonly class ProviderModelDomainService
@@ -26,9 +28,19 @@ readonly class ProviderModelDomainService
     ) {
     }
 
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getAvailableByModelIdOrId($dataIsolation, $modelId);
+    }
+
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
     {
         return $this->providerModelRepository->getById($dataIsolation, $id);
+    }
+
+    public function getByModelId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getByModelId($dataIsolation, $modelId);
     }
 
     /**
@@ -139,5 +151,25 @@ readonly class ProviderModelDomainService
     public function getModelsByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
     {
         return $this->providerModelRepository->getByModelIds($dataIsolation, $modelIds);
+    }
+
+    /**
+     * @return array{total: int, list: ProviderModelEntity[]}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
+    {
+        return $this->providerModelRepository->queries($dataIsolation, $query, $page);
+    }
+
+    /**
+     * 根据查询条件获取按模型类型分组的模型ID列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ProviderModelQuery $query 查询条件
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
+    {
+        return $this->providerModelRepository->getModelIdsGroupByType($dataIsolation, $query);
     }
 }

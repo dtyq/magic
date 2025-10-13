@@ -323,7 +323,7 @@ class TaskAppService extends AbstractAppService
         }
 
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, [], ''));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, [], '', ''));
         $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 

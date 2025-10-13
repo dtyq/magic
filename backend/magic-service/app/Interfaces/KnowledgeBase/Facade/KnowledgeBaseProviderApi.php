@@ -61,7 +61,11 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
     public function getEmbeddingProviderList(): array
     {
         $userAuthorization = $this->getAuthorization();
-        $models = $this->modelGatewayMapper->getEmbeddingModels($userAuthorization->getOrganizationCode());
+        /* @phpstan-ignore-next-line */
+        $models = $this->llmAppService->models(accessToken: MAGIC_ACCESS_TOKEN, withInfo: true, type: 'embedding', businessParams: [
+            'organization_code' => $userAuthorization->getOrganizationCode(),
+            'user_id' => $userAuthorization->getId(),
+        ]);
         return KnowledgeBaseProviderAssembler::odinModelToProviderDTO($models);
     }
 }

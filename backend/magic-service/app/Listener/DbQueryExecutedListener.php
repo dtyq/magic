@@ -46,6 +46,10 @@ class DbQueryExecutedListener implements ListenerInterface
     {
         if ($event instanceof QueryExecuted) {
             $sql = $event->sql;
+
+            // 只打印前 1024 个字符
+            $sql = substr($sql, 0, 1024);
+
             if (! Arr::isAssoc($event->bindings)) {
                 $position = 0;
                 foreach ($event->bindings as $value) {
@@ -58,9 +62,6 @@ class DbQueryExecutedListener implements ListenerInterface
                     $position += strlen($value);
                 }
             }
-
-            // 只打印前 1024 个字符
-            $sql = substr($sql, 0, 1024);
 
             // 对敏感表的SQL进行脱敏处理
             $sql = $this->desensitizeSql($sql);

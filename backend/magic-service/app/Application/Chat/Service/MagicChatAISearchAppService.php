@@ -32,6 +32,7 @@ use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Chat\Service\MagicLLMDomainService;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\CoContext;
@@ -361,7 +362,7 @@ class MagicChatAISearchAppService extends AbstractAppService
     ])]
     public function searchUserQuestion(MagicChatAggregateSearchReqDTO $dto): array
     {
-        $modelInterface = $this->getChatModel($dto->getOrganizationCode());
+        $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId());
         $start = microtime(true);
         $llmConversationId = (string) IdGenerator::getSnowId();
         $llmHistoryMessage = MagicChatAggregateSearchReqDTO::generateLLMHistory($dto->getMagicChatMessageHistory(), $llmConversationId);
@@ -466,7 +467,7 @@ class MagicChatAISearchAppService extends AbstractAppService
         if (! empty($allSearchContexts)) {
             // 清洗搜索结果中的重复项
             $searchKeywords = array_column($associateQuestions, 'title');
-            $modelInterface = $this->getChatModel($dto->getOrganizationCode());
+            $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId());
             $queryVo = (new AISearchCommonQueryVo())
                 ->setSearchKeywords($searchKeywords)
                 ->setUserMessage($dto->getUserMessage())
@@ -600,9 +601,9 @@ class MagicChatAISearchAppService extends AbstractAppService
             ->setOrganizationCode($dto->getOrganizationCode());
         // 深度搜索的总结使用 deepseek-r1 模型
         if ($dto->getSearchDeepLevel() === SearchDeepLevel::DEEP) {
-            $modelInterface = $this->getChatModel($dto->getOrganizationCode(), LLMModelEnum::DEEPSEEK_R1->value);
+            $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId(), LLMModelEnum::DEEPSEEK_R1->value);
         } else {
-            $modelInterface = $this->getChatModel($dto->getOrganizationCode());
+            $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId());
         }
         $queryVo->setModel($modelInterface);
         $summarizeCompletionResponse = $this->magicLLMDomainService->summarize($queryVo);
@@ -682,7 +683,7 @@ class MagicChatAISearchAppService extends AbstractAppService
     {
         // 生成思维导图和PPT
         $extraContentParallel = new Parallel(3);
-        $modelInterface = $this->getChatModel($dto->getOrganizationCode());
+        $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId());
         $extraContentParallel->add(function () use ($summarize, $dto, $modelInterface) {
             // odin 会修改 vo 对象中的值，避免污染，复制再传入
             CoContext::setRequestId($dto->getRequestId());
@@ -914,7 +915,7 @@ class MagicChatAISearchAppService extends AbstractAppService
         }
         $llmConversationId = (string) IdGenerator::getSnowId();
         $llmHistoryMessage = MagicChatAggregateSearchReqDTO::generateLLMHistory($dto->getMagicChatMessageHistory(), $llmConversationId);
-        $modelInterface = $this->getChatModel($dto->getOrganizationCode());
+        $modelInterface = $this->getChatModel($dto->getOrganizationCode(), $dto->getUserId());
         return (new AISearchCommonQueryVo())
             ->setUserMessage($searchKeyword)
             ->setSearchEngine($dto->getSearchEngine())
@@ -1031,12 +1032,13 @@ class MagicChatAISearchAppService extends AbstractAppService
         return di(MagicChatMessageAppService::class);
     }
 
-    private function getChatModel(string $orgCode, string $modelName = LLMModelEnum::DEEPSEEK_V3->value): ModelInterface
+    private function getChatModel(string $orgCode, string $userId, string $modelName = LLMModelEnum::DEEPSEEK_V3->value): ModelInterface
     {
         // 通过降级链获取模型名称
-        $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $modelName);
+        $modelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $userId, $modelName);
         // 获取模型代理
-        return di(ModelGatewayMapper::class)->getChatModelProxy($modelName, $orgCode);
+        $dataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($orgCode, $userId);
+        return di(ModelGatewayMapper::class)->getChatModelProxy($dataIsolation, $modelName);
     }
 
     /**

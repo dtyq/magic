@@ -77,7 +77,7 @@ class MessageQueueAppService extends AbstractAppService
             $projectId,
             $topicId,
             $requestDTO->getMessageContent(),
-            $requestDTO->getMessageType()
+            $chatMessageType
         );
 
         $this->logger->info('Message queue created successfully', [

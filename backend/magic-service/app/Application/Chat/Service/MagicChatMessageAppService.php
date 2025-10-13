@@ -47,6 +47,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
@@ -1016,11 +1017,12 @@ class MagicChatMessageAppService extends MagicSeqAppService
     ): string {
         $orgCode = $authorization->getOrganizationCode();
         $dataIsolation = $this->createDataIsolation($authorization);
-        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, LLMModelEnum::DEEPSEEK_V3->value);
+        $chatModelName = di(ModelConfigAppService::class)->getChatModelTypeByFallbackChain($orgCode, $dataIsolation->getCurrentUserId(), LLMModelEnum::DEEPSEEK_V3->value);
 
+        $modelGatewayMapperDataIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         # 开始请求大模型
         $modelGatewayMapper = di(ModelGatewayMapper::class);
-        $model = $modelGatewayMapper->getChatModelProxy($chatModelName, $orgCode);
+        $model = $modelGatewayMapper->getChatModelProxy($modelGatewayMapperDataIsolation, $chatModelName);
         $memoryManager = $messageHistory->getMemoryManager($conversationId);
         $agent = AgentFactory::create(
             model: $model,

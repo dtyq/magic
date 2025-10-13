@@ -23,7 +23,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
         $mapper = di(ModelGatewayMapper::class);
 
         $list = [];
-        $models = $mapper->getChatModels($dataIsolation->getCurrentOrganizationCode());
+        $models = $mapper->getChatModels($dataIsolation);
         foreach ($models as $odinModel) {
             /** @var AbstractModel $model */
             $model = $odinModel->getModel();

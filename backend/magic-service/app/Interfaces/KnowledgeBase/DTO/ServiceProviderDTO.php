@@ -52,4 +52,10 @@ class ServiceProviderDTO extends AbstractDTO
         $this->models = $models;
         return $this;
     }
+
+    public function addModel(ServiceProviderModelDTO $model): static
+    {
+        $this->models[] = $model;
+        return $this;
+    }
 }
