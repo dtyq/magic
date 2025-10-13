@@ -69,12 +69,16 @@ class ModeAppService extends AbstractModeAppService
             $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
         }
 
+        // 需要升级套餐
+        $upgradeRequiredModelIds = [];
+
         // 使用组织过滤器进行过滤
         if ($this->organizationModelFilter) {
             $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
                 $authorization->getOrganizationCode(),
                 $allAggregateModels
             );
+            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
         } else {
             // 如果没有组织过滤器，返回所有模型（开源版本行为）
             $providerModels = $allAggregateModels;
@@ -83,7 +87,7 @@ class ModeAppService extends AbstractModeAppService
         // 转换为DTO数组
         $modeAggregateDTOs = [];
         foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels);
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds);
         }
 
         // 处理图标URL转换

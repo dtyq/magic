@@ -391,6 +391,59 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     }
 
     /**
+     * 根据查询条件获取按模型类型分组的模型ID列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ProviderModelQuery $query 查询条件
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+
+        // 应用查询条件
+        if (! is_null($query->getModelIds())) {
+            $builder->whereIn('model_id', $query->getModelIds());
+        }
+        if (! is_null($query->getStatus())) {
+            $builder->where('status', $query->getStatus()->value);
+        }
+        if (! is_null($query->getModelType())) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
+
+        // 选择 model_id 和 model_type 字段
+        $builder->select('model_id', 'model_type');
+
+        // 应用排序
+        if (! empty($query->getOrder())) {
+            foreach ($query->getOrder() as $field => $direction) {
+                $builder->orderBy($field, $direction);
+            }
+        }
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        // 按模型类型分组，并去重模型ID
+        $groupedResults = [];
+        foreach ($result as $row) {
+            $modelType = $row['model_type'];
+            $modelId = $row['model_id'];
+
+            if (! isset($groupedResults[$modelType])) {
+                $groupedResults[$modelType] = [];
+            }
+
+            // 避免重复的模型ID
+            if (! in_array($modelId, $groupedResults[$modelType], true)) {
+                $groupedResults[$modelType][] = $modelId;
+            }
+        }
+
+        return $groupedResults;
+    }
+
+    /**
      * 直接更新模型状态.
      */
     private function updateStatusDirect(ProviderDataIsolation $dataIsolation, string $id, Status $status): void
