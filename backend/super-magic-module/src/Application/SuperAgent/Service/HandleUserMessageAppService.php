@@ -29,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FinishTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -173,6 +174,7 @@ class HandleUserMessageAppService extends AbstractAppService
 
     public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
+        $projectId = 0;
         $topicId = 0;
         $taskId = '';
         $errMsg = '';
@@ -183,6 +185,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+            $projectId = $topicEntity->getProjectId();
 
             // 检查项目是否有权限
             $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
@@ -301,6 +304,18 @@ class HandleUserMessageAppService extends AbstractAppService
                 errorMessage: trans('task.initialize_error'),
             );
             throw new BusinessException('Initialize task failed', 500);
+        } finally {
+            if (! empty($errMsg)) {
+                AsyncEventUtil::dispatch(new FinishTaskEvent(
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $dataIsolation->getCurrentUserId(),
+                    $topicId,
+                    $projectId,
+                    (int) $taskId,
+                    TaskStatus::ERROR->value,
+                    $errMsg
+                ));
+            }
         }
     }
 

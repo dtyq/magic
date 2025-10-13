@@ -7,23 +7,19 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
-
 class FinishTaskEvent extends AbstractEvent
 {
-    private array $departmentIds;
-
     public function __construct(
         private string $organizationCode,
         private string $userId,
         private int $topicId,
-        private string $projectId,
+        private int $projectId,
         private int $taskId,
-        private TopicTaskMessageDTO $taskMessage,
+        private ?string $taskStatus = null,
+        private ?string $taskContent = null
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
-        $this->departmentIds = $this->extractDepartmentIds();
     }
 
     public function getOrganizationCode(): string
@@ -41,7 +37,7 @@ class FinishTaskEvent extends AbstractEvent
         return $this->topicId;
     }
 
-    public function getProjectId(): string
+    public function getProjectId(): int
     {
         return $this->projectId;
     }
@@ -51,19 +47,20 @@ class FinishTaskEvent extends AbstractEvent
         return $this->taskId;
     }
 
-    public function getTaskMessage(): TopicTaskMessageDTO
+    /**
+     * Get task status.
+     */
+    public function getTaskStatus(): ?string
     {
-        return $this->taskMessage;
+        return $this->taskStatus;
     }
 
     /**
-     * Get department IDs from the user information in the task message.
-     *
-     * @return string[]
+     * Get task content/error message.
      */
-    public function getDepartmentIds(): array
+    public function getTaskContent(): ?string
     {
-        return $this->departmentIds;
+        return $this->taskContent;
     }
 
     /**
@@ -77,22 +74,8 @@ class FinishTaskEvent extends AbstractEvent
             'topicId' => $this->topicId,
             'projectId' => $this->projectId,
             'taskId' => $this->taskId,
-            'taskMessage' => $this->taskMessage->toArray() ?? $this->taskMessage,
-            'departmentIds' => $this->departmentIds,
+            'taskStatus' => $this->taskStatus,
+            'taskContent' => $this->taskContent,
         ];
-    }
-
-    private function extractDepartmentIds(): array
-    {
-        $departmentIds = [];
-        $metadata = $this->taskMessage->getMetadata();
-        $userInfo = $metadata->getUserInfo();
-        if ($userInfo) {
-            $departments = $userInfo->getDepartments();
-            foreach ($departments as $department) {
-                $departmentIds[] = $department->getId();
-            }
-        }
-        return $departmentIds;
     }
 }

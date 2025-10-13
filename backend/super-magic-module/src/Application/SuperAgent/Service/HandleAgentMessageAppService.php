@@ -448,13 +448,18 @@ class HandleAgentMessageAppService extends AbstractAppService
         TaskContext $taskContext,
         TopicEntity $topicEntity
     ): void {
+        // Extract task status and content
+        $taskStatus = $messageDTO->getPayload()->getStatus();
+        $taskContent = $messageDTO->getPayload()->getContent();
+
         AsyncEventUtil::dispatch(new FinishTaskEvent(
             $taskContext->getCurrentOrganizationCode(),
             $taskContext->getCurrentUserId(),
             $taskContext->getTopicId(),
-            (string) $topicEntity->getProjectId(),
+            $topicEntity->getProjectId(),
             $taskContext->getTask()->getId(),
-            $messageDTO
+            $taskStatus,
+            $taskContent
         ));
     }
 
