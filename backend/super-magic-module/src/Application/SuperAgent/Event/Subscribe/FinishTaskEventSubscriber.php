@@ -100,7 +100,6 @@ class FinishTaskEventSubscriber implements ListenerInterface
     private function updateScheduledTaskExecutionLog(TopicEntity $topicEntity, FinishTaskEvent $event): void
     {
         $topicId = $event->getTopicId();
-        $taskMessage = $event->getTaskMessage();
 
         // 1. 检查 source 是否等于定时任务，并且 source_id 不为空
         if ($topicEntity->getSource() !== CreationSource::SCHEDULED_TASK->value || empty($topicEntity->getSourceId())) {
@@ -113,7 +112,7 @@ class FinishTaskEventSubscriber implements ListenerInterface
         }
 
         // 2. 获取任务状态
-        $taskStatus = $taskMessage->getPayload()->getStatus();
+        $taskStatus = $event->getTaskStatus();
         $isFinished = ($taskStatus === 'finished');
 
         $this->logger->info('[FinishTaskEventSubscriber] 处理定时任务执行日志更新', [
@@ -136,7 +135,7 @@ class FinishTaskEventSubscriber implements ListenerInterface
             ]);
         } else {
             // 任务未正常完成，标记为失败
-            $errorMessage = $taskMessage->getPayload()->getContent() ?? 'Task not finished properly';
+            $errorMessage = $event->getTaskContent() ?? 'Task not finished properly';
             $this->messageScheduleDomainService->markLogAsFailed($executionLogId, $errorMessage);
 
             $this->logger->warning('[FinishTaskEventSubscriber] 标记执行日志为失败', [
