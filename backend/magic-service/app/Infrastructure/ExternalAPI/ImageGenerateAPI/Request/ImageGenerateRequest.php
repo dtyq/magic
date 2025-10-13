@@ -16,6 +16,8 @@ class ImageGenerateRequest
 
     protected string $height;
 
+    protected string $size = '1024x1024';
+
     protected string $prompt;
 
     protected string $negativePrompt;
@@ -174,5 +176,15 @@ class ImageGenerateRequest
     public function isAddWatermark(): bool
     {
         return $this->getWatermarkConfig() !== null;
+    }
+
+    public function getSize(): string
+    {
+        return $this->size;
+    }
+
+    public function setSize(string $size): void
+    {
+        $this->size = $size;
     }
 }

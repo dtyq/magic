@@ -24,6 +24,8 @@ class AIImageGenerateParamsVO extends AbstractValueObject
 
     public string $ratio = '1:1';
 
+    public string $size = '1024x1024';
+
     public bool $useSr = true;
 
     public string $userPrompt;
@@ -128,6 +130,17 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public function setWidth(string $width): AIImageGenerateParamsVO
     {
         $this->width = $width;
+        return $this;
+    }
+
+    public function getSize(): string
+    {
+        return $this->size;
+    }
+
+    public function setSize(string $size): AIImageGenerateParamsVO
+    {
+        $this->size = $size;
         return $this;
     }
 

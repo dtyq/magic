@@ -770,15 +770,10 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
         $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
         $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
+        $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
 
-        $size = $proxyModelRequest->getSize();
-        [$width, $height] = explode('x', $size);
-
-        // 计算字符串格式的比例，如 "1:1", "3:4"
-        $ratio = $this->calculateRatio((int) $width, (int) $height);
-        $imageGenerateParamsVO->setRatio($ratio);
-        $imageGenerateParamsVO->setWidth($width);
-        $imageGenerateParamsVO->setHeight($height);
+        // 直接透传原始 size 参数，让各服务商根据自己的需求处理
+        $imageGenerateParamsVO->setSize($proxyModelRequest->getSize());
 
         $data = $imageGenerateParamsVO->toArray();
         $data['organization_code'] = $organizationCode;
