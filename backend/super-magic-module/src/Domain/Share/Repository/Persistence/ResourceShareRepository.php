@@ -254,6 +254,9 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             $entity->setTargetIds($model->target_ids ?? '[]');
         }
 
+        // 处理是否启用字段（邀请链接专用）
+        $entity->setIsEnabled($model->is_enabled ?? true);
+
         if ($model->created_at) {
             $entity->setCreatedAt($model->created_at);
         }
@@ -289,6 +292,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             'view_count' => $entity->getViewCount(),
             'created_uid' => $entity->getCreatedUid(),
             'organization_code' => $entity->getOrganizationCode(),
+            'is_enabled' => $entity->getIsEnabled() ? 1 : 0,
             'updated_at' => $entity->getUpdatedAt(),
             'deleted_at' => $entity->getDeletedAt(),
             'updated_uid' => $entity->getUpdatedUid(),

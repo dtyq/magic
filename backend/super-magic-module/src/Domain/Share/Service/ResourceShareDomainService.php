@@ -25,11 +25,10 @@ class ResourceShareDomainService
     ) {
     }
 
-    public function saveShareByEntity(ResourceShareEntity $shareEntity): bool
+    public function saveShareByEntity(ResourceShareEntity $shareEntity): ResourceShareEntity
     {
         try {
-            $this->shareRepository->save($shareEntity);
-            return true;
+            return $this->shareRepository->save($shareEntity);
         } catch (Exception $e) {
             // 重新抛出异常
             ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.cancel_failed: ' . $shareEntity->getId());
@@ -308,6 +307,54 @@ class ResourceShareDomainService
 
         $decryptedPassword = $this->getDecryptedPassword($shareEntity);
         return $decryptedPassword === $password;
+    }
+
+    /**
+     * 切换分享状态（启用/禁用）.
+     *
+     * @param int $shareId 分享ID
+     * @param bool $enabled 是否启用
+     * @param string $userId 操作用户ID
+     * @return ResourceShareEntity 更新后的分享实体
+     * @throws Exception 如果操作失败
+     */
+    public function toggleShareStatus(int $shareId, bool $enabled, string $userId): ResourceShareEntity
+    {
+        // 1. 获取分享实体
+        $shareEntity = $this->shareRepository->getShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND, 'share.not_found', [$shareId]);
+        }
+
+        // 2. 权限检查（只有创建者可以操作）
+        if ($shareEntity->getCreatedUid() !== $userId) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission', [$shareId]);
+        }
+
+        // 3. 更新启用状态
+        $shareEntity->setIsEnabled($enabled);
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($userId);
+
+        // 4. 保存并返回
+        try {
+            return $this->shareRepository->save($shareEntity);
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.toggle_status_failed', [$shareId]);
+        }
+    }
+
+    /**
+     * 获取指定资源的分享.
+     *
+     * @param string $userId 用户ID（可选，用于权限检查）
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @return null|ResourceShareEntity 分享实体
+     */
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    {
+        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
     }
 
     /**

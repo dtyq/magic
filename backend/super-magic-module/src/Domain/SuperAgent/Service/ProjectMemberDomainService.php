@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberSettingEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Hyperf\DbConnection\Db;
@@ -342,5 +343,48 @@ class ProjectMemberDomainService
 
         // 创建项目成员设置记录（绑定到工作区）
         $this->projectMemberSettingRepository->setProjectShortcut($userId, $projectId, $workspaceId, $organizationCode);
+    }
+
+    /**
+     * 通过邀请链接添加项目成员.
+     *
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param MemberRole $role 成员角色
+     * @param string $organizationCode 组织编码
+     * @param string $invitedBy 邀请人ID
+     * @return ProjectMemberEntity 创建的成员实体
+     */
+    public function addMemberByInvitation(
+        string $projectId,
+        string $userId,
+        MemberRole $role,
+        string $organizationCode,
+        string $invitedBy
+    ): ProjectMemberEntity {
+        // 检查是否已经是成员
+        $isExistingMember = $this->isProjectMemberByUser((int) $projectId, $userId);
+        if ($isExistingMember) {
+            // 如果已经是成员，直接创建一个简单的实体返回
+            $memberEntity = new ProjectMemberEntity();
+            $memberEntity->setProjectId((int) $projectId);
+            $memberEntity->setTargetId($userId);
+            $memberEntity->setRole($role);
+            return $memberEntity;
+        }
+
+        // 创建新的项目成员记录
+        $memberEntity = new ProjectMemberEntity();
+        $memberEntity->setProjectId((int) $projectId);
+        $memberEntity->setTargetTypeFromString(MemberType::USER->value);
+        $memberEntity->setTargetId($userId);
+        $memberEntity->setRole($role);
+        $memberEntity->setOrganizationCode($organizationCode);
+        $memberEntity->setInvitedBy($invitedBy);
+
+        // 插入成员记录
+        $this->projectMemberRepository->insert([$memberEntity]);
+
+        return $memberEntity;
     }
 }

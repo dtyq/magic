@@ -30,6 +30,7 @@ enum ResourceType: int
     case Website = 11;          // 网站
     case Project = 12;          // 项目
     case File = 13;             // 文件
+    case ProjectInvitation = 14; // 项目邀请链接
 
     /**
      * 获取资源类型的业务名称.
@@ -50,6 +51,7 @@ enum ResourceType: int
             self::Website => 'website',
             self::Project => 'project',
             self::File => 'file',
+            self::ProjectInvitation => 'project_invitation',
         };
     }
 

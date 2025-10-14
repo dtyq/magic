@@ -85,6 +85,11 @@ class ResourceShareEntity extends AbstractEntity
     protected string $targetIds = '';
 
     /**
+     * @var bool 是否启用（邀请链接专用）
+     */
+    protected bool $isEnabled = true;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -111,6 +116,7 @@ class ResourceShareEntity extends AbstractEntity
         $this->expireAt = null;
         $this->deletedAt = null;
         $this->targetIds = '[]'; // 存储为JSON字符串
+        $this->isEnabled = true; // 默认启用
 
         $this->initProperty($data);
     }
@@ -235,6 +241,7 @@ class ResourceShareEntity extends AbstractEntity
             'updated_uid' => $this->updatedUid,
             'organization_code' => $this->organizationCode,
             'target_ids' => $this->targetIds,
+            'is_enabled' => $this->isEnabled,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -421,6 +428,35 @@ class ResourceShareEntity extends AbstractEntity
     public function setDeletedAt(?string $deletedAt): self
     {
         $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function getIsEnabled(): bool
+    {
+        return $this->isEnabled;
+    }
+
+    public function setIsEnabled(bool $isEnabled): self
+    {
+        $this->isEnabled = $isEnabled;
+        return $this;
+    }
+
+    /**
+     * 启用分享.
+     */
+    public function enable(): self
+    {
+        $this->isEnabled = true;
+        return $this;
+    }
+
+    /**
+     * 禁用分享.
+     */
+    public function disable(): self
+    {
+        $this->isEnabled = false;
         return $this;
     }
 }

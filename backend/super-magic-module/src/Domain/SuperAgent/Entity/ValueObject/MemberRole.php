@@ -20,6 +20,7 @@ use function Hyperf\Translation\trans;
 enum MemberRole: string
 {
     case OWNER = 'owner';
+    case MANAGE = 'manage';
     case EDITOR = 'editor';
     case VIEWER = 'viewer';
 
@@ -30,6 +31,7 @@ enum MemberRole: string
     {
         return match ($role) {
             'owner' => self::OWNER,
+            'manage' => self::MANAGE,
             'editor' => self::EDITOR,
             'viewer' => self::VIEWER,
             default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'))
@@ -61,6 +63,14 @@ enum MemberRole: string
     }
 
     /**
+     * 是否为管理者角色.
+     */
+    public function isManager(): bool
+    {
+        return $this === self::MANAGE;
+    }
+
+    /**
      * 是否为编辑者角色.
      */
     public function isEditor(): bool
@@ -83,6 +93,7 @@ enum MemberRole: string
     {
         return match ($this) {
             self::OWNER => '所有者',
+            self::MANAGE => '管理者',
             self::EDITOR => '编辑者',
             self::VIEWER => '查看者',
         };
@@ -95,6 +106,7 @@ enum MemberRole: string
     {
         return match ($this) {
             self::OWNER => 'Owner',
+            self::MANAGE => 'Manager',
             self::EDITOR => 'Editor',
             self::VIEWER => 'Viewer',
         };
@@ -106,7 +118,7 @@ enum MemberRole: string
     public function hasWritePermission(): bool
     {
         return match ($this) {
-            self::OWNER, self::EDITOR => true,
+            self::OWNER, self::MANAGE, self::EDITOR => true,
             self::VIEWER => false,
         };
     }
@@ -124,7 +136,10 @@ enum MemberRole: string
      */
     public function hasManagePermission(): bool
     {
-        return $this === self::OWNER;
+        return match ($this) {
+            self::OWNER, self::MANAGE => true,
+            self::EDITOR, self::VIEWER => false,
+        };
     }
 
     /**
@@ -133,7 +148,7 @@ enum MemberRole: string
     public function hasSharePermission(): bool
     {
         return match ($this) {
-            self::OWNER, self::EDITOR => true,
+            self::OWNER, self::MANAGE, self::EDITOR => true,
             self::VIEWER => false,
         };
     }
@@ -152,7 +167,8 @@ enum MemberRole: string
     public function getPermissionLevel(): int
     {
         return match ($this) {
-            self::OWNER => 3,
+            self::OWNER => 4,
+            self::MANAGE => 3,
             self::EDITOR => 2,
             self::VIEWER => 1,
         };
@@ -179,7 +195,7 @@ enum MemberRole: string
      */
     public static function getAllRoles(): array
     {
-        return [self::OWNER, self::EDITOR, self::VIEWER];
+        return [self::OWNER, self::MANAGE, self::EDITOR, self::VIEWER];
     }
 
     /**

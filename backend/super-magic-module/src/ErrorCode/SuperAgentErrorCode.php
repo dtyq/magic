@@ -188,6 +188,37 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.cannot_set_shortcut_for_own_project')]
     case CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT = 51216;
 
+    // Project invitation link related error codes (51217-51230)
+    #[ErrorMessage('invitation_link.not_found')]
+    case INVITATION_LINK_NOT_FOUND = 51217;
+
+    #[ErrorMessage('invitation_link.invalid')]
+    case INVITATION_LINK_INVALID = 51218;
+
+    #[ErrorMessage('invitation_link.permission_denied')]
+    case INVITATION_LINK_PERMISSION_DENIED = 51219;
+
+    #[ErrorMessage('invitation_link.password_incorrect')]
+    case INVITATION_LINK_PASSWORD_INCORRECT = 51220;
+
+    #[ErrorMessage('invitation_link.expired')]
+    case INVITATION_LINK_EXPIRED = 51221;
+
+    #[ErrorMessage('invitation_link.disabled')]
+    case INVITATION_LINK_DISABLED = 51222;
+
+    #[ErrorMessage('invitation_link.create_failed')]
+    case INVITATION_LINK_CREATE_FAILED = 51223;
+
+    #[ErrorMessage('invitation_link.update_failed')]
+    case INVITATION_LINK_UPDATE_FAILED = 51224;
+
+    #[ErrorMessage('invitation_link.already_joined')]
+    case INVITATION_LINK_ALREADY_JOINED = 51225;
+
+    #[ErrorMessage('invitation_link.invalid_permission')]
+    case INVITATION_LINK_INVALID_PERMISSION = 51226;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
