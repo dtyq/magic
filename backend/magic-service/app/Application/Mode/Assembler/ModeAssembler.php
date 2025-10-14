@@ -61,7 +61,7 @@ class ModeAssembler
                 $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getLocalizedName($locale));
                 $modelDTO->setModelIcon($providerModel->getIcon());
-                $modelDTO->setModelDescription($providerModel->getDescription());
+                $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
                 if (in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
                     $modelDTO->setTags(['VIP']);
                     $modelDTO->setModelStatus(ModelStatus::Disabled);
