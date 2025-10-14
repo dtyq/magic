@@ -37,7 +37,7 @@ use InvalidArgumentException;
 class ImageGenerateFactory
 {
     /**
-     * 各模型支持的固定比例映射表
+     * 各模型支持的固定比例映射表.
      */
     private const SIZE_FIXED_RATIOS = [
         'VolcengineArk' => [
@@ -351,7 +351,7 @@ class ImageGenerateFactory
      * 解析各种 size 格式为 [width, height] 数组.
      * 支持格式：1024x1024, 1024*1024, 2k, 3k, 16:9, 1:1 等.
      * @param string $size 尺寸字符串
-     * @param string|null $modelKey 模型键名，如果指定则优先使用该模型的固定比例配置
+     * @param null|string $modelKey 模型键名，如果指定则优先使用该模型的固定比例配置
      */
     private static function parseSizeToWidthHeight(string $size, ?string $modelKey = null): array
     {
@@ -402,10 +402,10 @@ class ImageGenerateFactory
     }
 
     /**
-     * 获取指定模型的固定比例尺寸配置
-     * @param string|null $modelKey 模型键名
+     * 获取指定模型的固定比例尺寸配置.
+     * @param null|string $modelKey 模型键名
      * @param string $ratioKey 比例键名，如 "1:1", "16:9"
-     * @return array|null 如果存在固定配置返回 [width, height] 数组，否则返回 null 表示需要使用换算
+     * @return null|array 如果存在固定配置返回 [width, height] 数组，否则返回 null 表示需要使用换算
      */
     private static function getFixedRatioSize(?string $modelKey, string $ratioKey): ?array
     {
