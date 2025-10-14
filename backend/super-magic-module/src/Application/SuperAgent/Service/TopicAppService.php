@@ -520,7 +520,7 @@ class TopicAppService extends AbstractAppService
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        $this->logger->info('Starting topic duplication (async)', [
+        $this->logger->info('Starting topic duplication (sync create + async copy)', [
             'user_id' => $userAuthorization->getId(),
             'source_topic_id' => $sourceTopicId,
             'target_message_id' => $requestDTO->getTargetMessageId(),
@@ -538,6 +538,41 @@ class TopicAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
         }
 
+        // === 同步部分：创建话题骨架 ===
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 在事务中创建话题骨架
+        Db::beginTransaction();
+        try {
+            // 调用 Domain 层创建话题骨架（包含 IM 会话）
+            $duplicateResult = $this->topicDomainService->duplicateTopic(
+                $dataIsolation,
+                $sourceTopicEntity,
+                $requestDTO->getNewTopicName()
+            );
+
+            $newTopicEntity = $duplicateResult['topic_entity'];
+            $imConversationResult = $duplicateResult['im_conversation'];
+
+            // 提交事务
+            Db::commit();
+
+            $this->logger->info('Topic skeleton created successfully (sync)', [
+                'source_topic_id' => $sourceTopicId,
+                'new_topic_id' => $newTopicEntity->getId(),
+            ]);
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Failed to create topic skeleton (sync)', [
+                'source_topic_id' => $sourceTopicId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        // 将话题实体转换为 DTO
+        $topicItemDTO = TopicItemDTO::fromEntity($newTopicEntity);
+
         // 生成任务键
         $taskKey = TopicDuplicateConstant::generateTaskKey($sourceTopicId, $userAuthorization->getId());
 
@@ -547,6 +582,8 @@ class TopicAppService extends AbstractAppService
             'target_message_id' => $requestDTO->getTargetMessageId(),
             'new_topic_name' => $requestDTO->getNewTopicName(),
             'user_id' => $userAuthorization->getId(),
+            'new_topic_id' => $newTopicEntity->getId(), // 保存新话题ID
+            'im_conversation' => $imConversationResult, // 保存 IM 会话信息
         ];
 
         $this->topicDuplicateStatusManager->initializeTask($taskKey, $userAuthorization->getId(), $taskData);
@@ -554,27 +591,24 @@ class TopicAppService extends AbstractAppService
         // 获取当前请求ID
         $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
 
-        // 启动异步任务
-        go(function () use ($requestContext, $sourceTopicEntity, $requestDTO, $taskKey, $requestId) {
+        // === 异步部分：复制消息 ===
+        go(function () use ($sourceTopicEntity, $newTopicEntity, $requestDTO, $imConversationResult, $taskKey, $requestId) {
             // 复制请求上下文
             CoContext::setRequestId($requestId);
 
             try {
-                // 创建数据隔离对象
-                $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
-
-                // 更新任务状态：开始处理
-                $this->topicDuplicateStatusManager->setTaskProgress($taskKey, 10, 'Starting topic duplication');
+                // 更新任务状态：开始复制消息
+                $this->topicDuplicateStatusManager->setTaskProgress($taskKey, 10, 'Starting to copy messages');
 
                 // 开始数据库事务
                 Db::beginTransaction();
                 try {
-                    // 执行实际复制逻辑
-                    $newTopicEntity = $this->topicDomainService->duplicateTopic(
-                        $dataIsolation,
+                    // 执行消息复制逻辑
+                    $this->topicDomainService->copyTopicMessageFromOthers(
                         $sourceTopicEntity,
+                        $newTopicEntity,
                         (int) $requestDTO->getTargetMessageId(),
-                        $requestDTO->getNewTopicName(),
+                        $imConversationResult,
                         // 进度回调函数
                         function (string $status, int $progress, string $message) use ($taskKey) {
                             $this->topicDuplicateStatusManager->setTaskProgress($taskKey, $progress, $message);
@@ -592,7 +626,7 @@ class TopicAppService extends AbstractAppService
                         'workspace_id' => $newTopicEntity->getWorkspaceId(),
                     ]);
 
-                    $this->logger->info('Topic duplication completed successfully', [
+                    $this->logger->info('Topic message copy completed successfully (async)', [
                         'task_key' => $taskKey,
                         'source_topic_id' => $sourceTopicEntity->getId(),
                         'new_topic_id' => $newTopicEntity->getId(),
@@ -606,10 +640,10 @@ class TopicAppService extends AbstractAppService
                 // 任务失败
                 $this->topicDuplicateStatusManager->setTaskFailed($taskKey, $e->getMessage());
 
-                $this->logger->error('Async topic duplication failed', [
+                $this->logger->error('Async topic message copy failed', [
                     'task_key' => $taskKey,
                     'source_topic_id' => $sourceTopicEntity->getId(),
-                    'user_id' => $requestContext->getUserAuthorization()->getId(),
+                    'new_topic_id' => $newTopicEntity->getId(),
                     'error' => $e->getMessage(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
@@ -618,11 +652,12 @@ class TopicAppService extends AbstractAppService
             }
         });
 
-        // 立即返回任务信息
+        // 立即返回任务信息和新创建的话题
         return [
             'task_id' => $taskKey,
-            'status' => 'running',
-            'message' => 'Topic duplication started',
+            'status' => 'copying',
+            'message' => 'Topic created, copying messages in background',
+            'topic' => $topicItemDTO->toArray(), // 新增：立即返回话题信息
         ];
     }
 
