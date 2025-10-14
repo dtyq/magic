@@ -46,8 +46,8 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $request = $this->request->all();
-        $enabled = $request['enabled'] ?? false; // 提取参数
+        $enabled = (bool) $this->request->input('enabled', false);
+
         return $this->invitationLinkAppService->toggleInvitationLink($requestContext, $projectId, $enabled);
     }
 

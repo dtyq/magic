@@ -78,7 +78,7 @@ Router::addGroup(
                 // 获取项目邀请链接信息
                 Router::get('', [ProjectInvitationLinkApi::class, 'getInvitationLink']);
                 // 开启/关闭邀请链接
-                Router::post('/toggle', [ProjectInvitationLinkApi::class, 'toggleInvitationLink']);
+                Router::put('/toggle', [ProjectInvitationLinkApi::class, 'toggleInvitationLink']);
                 // 重置邀请链接
                 Router::post('/reset', [ProjectInvitationLinkApi::class, 'resetInvitationLink']);
                 // 设置密码保护

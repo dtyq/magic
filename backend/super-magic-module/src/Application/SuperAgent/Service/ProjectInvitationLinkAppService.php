@@ -96,6 +96,9 @@ class ProjectInvitationLinkAppService
         }
 
         // 3. 创建新的邀请分享 (通过 ResourceShareDomainService)
+        // 先生成随机分享码
+        $shareCode = $this->resourceShareDomainService->generateShareCode();
+
         $shareEntity = $this->resourceShareDomainService->saveShare(
             $projectId,
             ResourceType::ProjectInvitation->value,
@@ -104,6 +107,7 @@ class ProjectInvitationLinkAppService
             [
                 'resource_name' => $project->getProjectName() . ' 邀请链接',
                 'share_type' => InvitationPermissionMapper::permissionToShareType('view')->value,
+                'share_code' => $shareCode, // 使用生成的随机分享码
             ],
             $this->generatePassword(), // 生成8位数字密码
             null // 永久有效
@@ -413,7 +417,7 @@ class ProjectInvitationLinkAppService
     private function formatLinkResponse(ResourceShareEntity $shareEntity): array
     {
         return [
-            'id' => $shareEntity->getId(),
+            'id' => (string) $shareEntity->getId(),
             'project_id' => $shareEntity->getResourceId(),
             'token' => $shareEntity->getShareCode(),
             'is_enabled' => $shareEntity->getIsEnabled(), // 使用专门的启用/禁用字段

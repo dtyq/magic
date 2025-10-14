@@ -150,7 +150,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
      */
     public function toggleInvitationLink(string $projectId, bool $enabled, int $expectedCode = 1000): array
     {
-        $response = $this->client->post(
+        $response = $this->client->put(
             self::BASE_URI . "/{$projectId}/invitation-links/toggle",
             ['enabled' => $enabled],
             $this->getCommonHeaders()
