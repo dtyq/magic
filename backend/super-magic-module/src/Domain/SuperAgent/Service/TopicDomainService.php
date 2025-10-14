@@ -671,41 +671,96 @@ class TopicDomainService
         return $this->topicRepository->getTopicStatusMetrics($conditions);
     }
 
+    /**
+     * Duplicate topic - create topic skeleton with IM conversation.
+     * This method only creates the topic entity and IM conversation,
+     * without copying messages. Use copyTopicMessageFromOthers to copy messages.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param TopicEntity $sourceTopicEntity Source topic entity to duplicate from
+     * @param string $newTopicName Name for the new topic
+     * @return array Returns array containing topic_entity and im_conversation
+     */
     public function duplicateTopic(
         DataIsolation $dataIsolation,
         TopicEntity $sourceTopicEntity,
-        int $messageId,
-        string $newTopicName,
-        ?callable $progressCallback = null
-    ): TopicEntity {
-        // 初始化 IM 会话
-        $progressCallback && $progressCallback('running', 20, 'Initializing IM conversation');
+        string $newTopicName
+    ): array {
+        $this->logger->info('Creating topic skeleton for duplication', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'new_topic_name' => $newTopicName,
+        ]);
+
+        // Initialize IM conversation
         $imConversationResult = $this->initImConversationFromTopic($sourceTopicEntity, $newTopicName);
 
         // Create topic entity
-        $progressCallback && $progressCallback('running', 30, 'Creating topic entity');
-        $targetTopicEntity = $this->copyTopicEntity($dataIsolation, $sourceTopicEntity, $imConversationResult['user_conversation_id'], $imConversationResult['new_topic_id'], $newTopicName);
+        $targetTopicEntity = $this->copyTopicEntity(
+            $dataIsolation,
+            $sourceTopicEntity,
+            $imConversationResult['user_conversation_id'],
+            $imConversationResult['new_topic_id'],
+            $newTopicName
+        );
 
-        // 复制消息
-        $progressCallback && $progressCallback('running', 50, 'Copying topic messages');
+        $this->logger->info('Topic skeleton created successfully', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'new_topic_id' => $targetTopicEntity->getId(),
+        ]);
+
+        return [
+            'topic_entity' => $targetTopicEntity,
+            'im_conversation' => $imConversationResult,
+        ];
+    }
+
+    /**
+     * Copy topic messages from source topic to target topic.
+     * This method handles the asynchronous copying of messages, IM messages, and chat history files.
+     *
+     * @param TopicEntity $sourceTopicEntity Source topic entity
+     * @param TopicEntity $targetTopicEntity Target topic entity
+     * @param int $messageId Message ID to copy up to
+     * @param array $imConversationResult IM conversation result from duplicateTopic
+     * @param null|callable $progressCallback Optional progress callback function
+     */
+    public function copyTopicMessageFromOthers(
+        TopicEntity $sourceTopicEntity,
+        TopicEntity $targetTopicEntity,
+        int $messageId,
+        array $imConversationResult,
+        ?callable $progressCallback = null
+    ): void {
+        $this->logger->info('Starting to copy topic messages', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'target_topic_id' => $targetTopicEntity->getId(),
+            'message_id' => $messageId,
+        ]);
+
+        // Copy messages
+        $progressCallback && $progressCallback('running', 20, 'Copying topic messages');
         $messageIdMapping = $this->copyTopicShareMessages($messageId, $sourceTopicEntity, $targetTopicEntity);
 
-        // 获取 agent 的 seq id
-        $progressCallback && $progressCallback('running', 60, 'Getting sequence IDs');
+        // Get agent's seq id
+        $progressCallback && $progressCallback('running', 40, 'Getting sequence IDs');
         $seqList = $this->getSeqIdByMessageId((string) $messageId);
         $userSeqId = (int) $seqList['user_seq_id'];
         $aiSeqId = (int) $seqList['ai_seq_id'];
 
-        // 复制 IM 消息
-        $progressCallback && $progressCallback('running', 80, 'Copying IM messages');
+        // Copy IM messages
+        $progressCallback && $progressCallback('running', 60, 'Copying IM messages');
         $this->copyImMessages($imConversationResult, $messageIdMapping, $userSeqId, $aiSeqId);
 
-        // 复制沙箱的聊天记录
-        $progressCallback && $progressCallback('running', 95, 'Copying chat history files');
+        // Copy sandbox chat history
+        $progressCallback && $progressCallback('running', 80, 'Copying chat history files');
         $this->copyAiChatHistoryFile($sourceTopicEntity, $targetTopicEntity);
 
-        $progressCallback && $progressCallback('running', 100, 'Topic duplication completed');
-        return $targetTopicEntity;
+        $progressCallback && $progressCallback('running', 100, 'Topic message copy completed');
+
+        $this->logger->info('Topic messages copied successfully', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'target_topic_id' => $targetTopicEntity->getId(),
+        ]);
     }
 
     private function copyTopicEntity(
