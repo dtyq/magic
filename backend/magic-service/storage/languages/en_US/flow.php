@@ -157,6 +157,9 @@ return [
             'start_node_not_found' => 'Tool [:flow_code] start node not found',
             'end_node_not_found' => 'Tool [:flow_code] end node not found',
             'execute_failed' => 'Tool [:flow_name] execution failed :error',
+            'name' => [
+                'invalid_format' => 'Tool name can only contain letters, numbers, and underscores',
+            ],
         ],
         'end' => [
             'must_exist' => 'End node must exist',
