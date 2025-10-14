@@ -28,12 +28,12 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     /**
      * Project ID.
      */
-    public string $projectId = '';
+    public ?string $projectId = null;
 
     /**
      * Topic ID.
      */
-    public string $topicId = '';
+    public ?string $topicId = null;
 
     /**
      * Message type.
@@ -84,7 +84,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     /**
      * Get project ID.
      */
-    public function getProjectId(): string
+    public function getProjectId(): ?string
     {
         return $this->projectId;
     }
@@ -92,7 +92,7 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
     /**
      * Get topic ID.
      */
-    public function getTopicId(): string
+    public function getTopicId(): ?string
     {
         return $this->topicId;
     }
@@ -134,7 +134,8 @@ class UpdateMessageScheduleRequestDTO extends AbstractRequestDTO
      */
     public function getDeadline(): ?string
     {
-        return $this->deadline;
+        // Convert empty string to null for database compatibility
+        return $this->deadline === '' ? null : $this->deadline;
     }
 
     /**
