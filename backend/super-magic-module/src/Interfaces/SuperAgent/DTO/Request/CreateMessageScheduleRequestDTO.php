@@ -134,7 +134,8 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
      */
     public function getDeadline(): ?string
     {
-        return $this->deadline;
+        // Convert empty string to null for database compatibility
+        return $this->deadline === '' ? null : $this->deadline;
     }
 
     /**

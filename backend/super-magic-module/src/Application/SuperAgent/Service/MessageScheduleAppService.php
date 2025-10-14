@@ -285,9 +285,10 @@ class MessageScheduleAppService extends AbstractAppService
                 $currentProjectId = $messageSchedule->getProjectId();
                 $currentTopicId = $messageSchedule->getTopicId();
 
+                // Check raw properties to detect empty strings (which should be converted to 0)
                 $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
-                $newProjectId = ! empty($requestDTO->getProjectId()) ? (int) $requestDTO->getProjectId() : $currentProjectId;
-                $newTopicId = ! empty($requestDTO->getTopicId()) ? (int) $requestDTO->getTopicId() : $currentTopicId;
+                $newProjectId = $requestDTO->projectId !== null ? (int) $requestDTO->getProjectId() : $currentProjectId;
+                $newTopicId = $requestDTO->topicId !== null ? (int) $requestDTO->getTopicId() : $currentTopicId;
 
                 // Check if resource IDs have changed, and validate permissions for new resources
                 if ($newWorkspaceId !== $currentWorkspaceId
@@ -313,13 +314,13 @@ class MessageScheduleAppService extends AbstractAppService
                     $messageSchedule->setWorkspaceId($newWorkspaceId);
                 }
 
-                // Update project ID
-                if (! empty($requestDTO->getProjectId()) && $newProjectId !== $currentProjectId) {
+                // Update project ID (check raw property to detect empty string)
+                if ($requestDTO->projectId !== null && $newProjectId !== $currentProjectId) {
                     $messageSchedule->setProjectId($newProjectId);
                 }
 
-                // Update topic ID
-                if (! empty($requestDTO->getTopicId()) && $newTopicId !== $currentTopicId) {
+                // Update topic ID (check raw property to detect empty string)
+                if ($requestDTO->topicId !== null && $newTopicId !== $currentTopicId) {
                     $messageSchedule->setTopicId($newTopicId);
                 }
 
@@ -341,10 +342,11 @@ class MessageScheduleAppService extends AbstractAppService
                     }
                 }
 
-                // Check if deadline changed (only process if field is present in request)
-                if ($requestDTO->getDeadline() !== null) {
+                // Check if deadline changed (check raw property to detect empty string)
+                // Note: We check $requestDTO->deadline directly because getDeadline() converts empty string to null
+                if ($requestDTO->deadline !== null) {
                     $oldDeadline = $messageSchedule->getDeadline();
-                    $newDeadline = $requestDTO->getDeadline();
+                    $newDeadline = $requestDTO->getDeadline();  // This converts empty string to null
 
                     // Only update if deadline value really changed
                     if ($oldDeadline !== $newDeadline) {
