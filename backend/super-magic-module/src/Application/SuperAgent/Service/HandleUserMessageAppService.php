@@ -29,7 +29,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\FinishTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -304,18 +303,6 @@ class HandleUserMessageAppService extends AbstractAppService
                 errorMessage: trans('task.initialize_error'),
             );
             throw new BusinessException('Initialize task failed', 500);
-        } finally {
-            if (! empty($errMsg)) {
-                AsyncEventUtil::dispatch(new FinishTaskEvent(
-                    $dataIsolation->getCurrentOrganizationCode(),
-                    $dataIsolation->getCurrentUserId(),
-                    $topicId,
-                    $projectId,
-                    (int) $taskId,
-                    TaskStatus::ERROR->value,
-                    $errMsg
-                ));
-            }
         }
     }
 
