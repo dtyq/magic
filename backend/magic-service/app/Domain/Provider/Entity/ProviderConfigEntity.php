@@ -270,7 +270,7 @@ class ProviderConfigEntity extends AbstractEntity
 
     public function i18n(string $languages): void
     {
-        if (isset($this->translate['alias'][$languages])) {
+        if (! empty($this->translate['alias'][$languages])) {
             $this->alias = $this->translate['alias'][$languages];
         }
     }
