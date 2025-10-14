@@ -157,6 +157,9 @@ return [
             'start_node_not_found' => 'Nod mula alat [:flow_code] tidak dijumpai',
             'end_node_not_found' => 'Nod akhir alat [:flow_code] tidak dijumpai',
             'execute_failed' => 'Pelaksanaan alat [:flow_name] gagal :error',
+            'name' => [
+                'invalid_format' => 'Nama alat hanya boleh mengandungi huruf, nombor, dan garis bawah',
+            ],
         ],
         'end' => [
             'must_exist' => 'Nod akhir mesti wujud',
