@@ -36,6 +36,22 @@ use InvalidArgumentException;
 
 class ImageGenerateFactory
 {
+    /**
+     * 各模型支持的固定比例映射表
+     */
+    private const SIZE_FIXED_RATIOS = [
+        'VolcengineArk' => [
+            '1:1' => ['2048', '2048'],
+            '4:3' => ['2304', '1728'],
+            '3:4' => ['1728', '2304'],
+            '16:9' => ['2560', '1440'],
+            '9:16' => ['1440', '2560'],
+            '3:2' => ['2496', '1664'],
+            '2:3' => ['1664', '2496'],
+            '21:9' => ['3024', '1296'],
+        ],
+    ];
+
     public static function create(ImageGenerateModelType $imageGenerateType, array $serviceProviderConfig): ImageGenerate
     {
         return match ($imageGenerateType) {
@@ -289,8 +305,8 @@ class ImageGenerateFactory
 
     private static function createVolcengineArkRequest(array $data): VolcengineArkRequest
     {
-        // 解析 size 参数为 width 和 height（虽然最终会被重新组合为 size）
-        [$width, $height] = self::parseSizeToWidthHeight($data['size'] ?? '1024x1024');
+        // 解析 size 参数为 width 和 height（使用 VolcengineArk 的固定比例配置）
+        [$width, $height] = self::parseSizeToWidthHeight($data['size'] ?? '1024x1024', ImageGenerateModelType::VolcengineArk->value);
 
         $request = new VolcengineArkRequest(
             $width,
@@ -334,8 +350,10 @@ class ImageGenerateFactory
     /**
      * 解析各种 size 格式为 [width, height] 数组.
      * 支持格式：1024x1024, 1024*1024, 2k, 3k, 16:9, 1:1 等.
+     * @param string $size 尺寸字符串
+     * @param string|null $modelKey 模型键名，如果指定则优先使用该模型的固定比例配置
      */
-    private static function parseSizeToWidthHeight(string $size): array
+    private static function parseSizeToWidthHeight(string $size, ?string $modelKey = null): array
     {
         $size = trim($size);
 
@@ -360,7 +378,13 @@ class ImageGenerateFactory
             $width = (int) $matches[1];
             $height = (int) $matches[2];
 
-            // 根据比例计算实际尺寸，基于1024为基准
+            // 尝试获取固定比例配置
+            $fixedSize = self::getFixedRatioSize($modelKey, $size);
+            if ($fixedSize !== null) {
+                return $fixedSize;
+            }
+
+            // 如果没有固定配置，按照正常换算（基于1024为基准）
             if ($width >= $height) {
                 // 横向
                 $actualWidth = 1024;
@@ -374,8 +398,29 @@ class ImageGenerateFactory
             return [(string) $actualWidth, (string) $actualHeight];
         }
 
-        // 如果无法识别，返回默认值
         return ['1024', '1024'];
+    }
+
+    /**
+     * 获取指定模型的固定比例尺寸配置
+     * @param string|null $modelKey 模型键名
+     * @param string $ratioKey 比例键名，如 "1:1", "16:9"
+     * @return array|null 如果存在固定配置返回 [width, height] 数组，否则返回 null 表示需要使用换算
+     */
+    private static function getFixedRatioSize(?string $modelKey, string $ratioKey): ?array
+    {
+        // 如果没有指定模型，直接返回 null
+        if ($modelKey === null) {
+            return null;
+        }
+
+        // 检查是否存在该模型的固定比例配置
+        if (isset(self::SIZE_FIXED_RATIOS[$modelKey])) {
+            return self::SIZE_FIXED_RATIOS[$modelKey][$ratioKey] ?? self::SIZE_FIXED_RATIOS[$modelKey]['1:1'];
+        }
+
+        // 如果不存在，返回 null 表示需要使用换算
+        return null;
     }
 
     /**
