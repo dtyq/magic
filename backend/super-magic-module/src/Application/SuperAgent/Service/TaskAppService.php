@@ -323,7 +323,7 @@ class TaskAppService extends AbstractAppService
         }
 
         $taskRound = $this->taskDomainService->getTaskNumByTopicId($topicEntity->getId());
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, [], ''));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, [], '', ''));
         $this->logger->info(sprintf('投递任务开始事件，话题id：%s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -1389,6 +1389,7 @@ class TaskAppService extends AbstractAppService
             // 修改工具数据结构
             $tool['detail']['data']['file_id'] = (string) $fileId;
             $tool['detail']['data']['content'] = ''; // 清空内容
+            $tool['detail']['data']['file_extension'] = $fileExtension;
 
             $this->logger->info(sprintf(
                 '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',

@@ -879,6 +879,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             // Modify tool data structure
             $tool['detail']['data']['file_id'] = (string) $fileId;
             $tool['detail']['data']['content'] = ''; // Clear content
+            $tool['detail']['data']['file_extension'] = $fileExtension;
 
             $this->logger->info(sprintf(
                 'Tool content storage completed, tool_id: %s, file_id: %d, original content length: %d',
