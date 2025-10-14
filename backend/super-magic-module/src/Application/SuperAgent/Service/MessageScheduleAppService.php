@@ -166,10 +166,18 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getTaskName() // Task name from request
                 );
 
-                // 2.3 Update task_scheduler_crontab_id
+                // 2.3 Update task_scheduler_crontab_id and completed status in one update
                 if ($taskSchedulerId) {
-                    $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
+                    // Set crontab_id in memory (no need to reload from database)
+                    $messageSchedule->setTaskSchedulerCrontabId($taskSchedulerId);
                 }
+
+                // 2.4 Check if task should be marked as completed (for expired tasks)
+                $shouldComplete = $this->shouldMarkAsCompleted($messageSchedule);
+                $messageSchedule->setCompleted($shouldComplete ? 1 : 0);
+
+                // Batch update: crontab_id and completed status in one query
+                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageSchedule);
 
                 return [
                     'id' => (string) $messageSchedule->getId(),
@@ -179,7 +187,7 @@ class MessageScheduleAppService extends AbstractAppService
             // Parameter validation exception: show specific error message
             ExceptionBuilder::throw(
                 GenericErrorCode::ParameterValidationFailed,
-                trans('common.parameter_validation_error') . ': ' . $e->getMessage()
+                $e->getMessage()
             );
         } catch (Throwable $e) {
             // System exception: log details and show generic error message
@@ -376,7 +384,18 @@ class MessageScheduleAppService extends AbstractAppService
 
                 // Update task scheduler if needed
                 if ($needUpdateTaskScheduler) {
-                    $this->updateTaskScheduler($messageSchedule, $requestDTO);
+                    $this->updateTaskScheduler($messageSchedule);
+
+                    // Check if task should be marked as completed
+                    // Note: crontab_id has been updated in memory by updateTaskScheduler()
+                    $shouldComplete = $this->shouldMarkAsCompleted($messageSchedule);
+                    $messageSchedule->setCompleted($shouldComplete ? 1 : 0);
+                    $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageSchedule);
+
+                    $this->logger->info('Updated task completion status after scheduler update', [
+                        'schedule_id' => $id,
+                        'completed' => $shouldComplete ? 1 : 0,
+                    ]);
                 }
 
                 return [
@@ -630,23 +649,15 @@ class MessageScheduleAppService extends AbstractAppService
                 // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
                 $sendResult = $this->sendMessageToAgent($dataIsolation, $messageScheduleEntity->getMessageType(), $messageContent, $topicEntity);
 
-                // 5. Update task status to completed if it's a one-time task or next execution time exceeds deadline
-                // Check if it's a one-time task
-                $timeConfig = $messageScheduleEntity->getTimeConfig();
-                $isNoRepeatTask = isset($timeConfig['type'])
-                                  && $timeConfig['type'] === TaskType::NoRepeat->value;
-
-                // Check if next execution time exceeds deadline
-                $nextExecutionTime = $this->getNextExecutionTime($messageScheduleEntity->getTaskSchedulerCrontabId());
-                $deadline = $messageScheduleEntity->getDeadline();
-                $isExecutionTimeExceeded = $nextExecutionTime !== null
-                                          && $deadline !== null
-                                          && $nextExecutionTime > $deadline;
-
-                // Mark as completed if any condition is met
-                if ($isNoRepeatTask || $isExecutionTimeExceeded) {
+                // 5. Check if task should be marked as completed
+                $shouldComplete = $this->shouldMarkAsCompleted($messageScheduleEntity);
+                if ($shouldComplete) {
                     $messageScheduleEntity->setCompleted(1);
                     $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
+
+                    $this->logger->info('Marked schedule as completed after execution', [
+                        'message_schedule_id' => $messageScheduleId,
+                    ]);
                 }
 
                 // Update executionLog's project_id and topic_id
@@ -874,7 +885,11 @@ class MessageScheduleAppService extends AbstractAppService
     private function getTopicOrCreate(DataIsolation $dataIsolation, int $topicId, ProjectEntity $projectEntity, string $messageType, array $messageContent, string $sourceId = ''): ?TopicEntity
     {
         if (! empty($topicId)) {
-            return $this->topicDomainService->getTopicById($topicId);
+            $topicEntity = $this->topicDomainService->getTopicById($topicId);
+            $topicEntity->setSourceId($sourceId);
+            $topicEntity->setSource(CreationSource::SCHEDULED_TASK->value);
+            $this->topicDomainService->updateTopicWhereUpdatedAt($topicEntity, date('Y-m-d H:i:s'));
+            return $topicEntity;
         }
         // 1. Initialize chat conversation and topic
         [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
@@ -960,17 +975,18 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Update task scheduler.
+     * This method is called when task configuration (time_config, deadline, or enabled) changes.
+     * It will always delete the old scheduler and create a new one based on current configuration.
      */
-    private function updateTaskScheduler(MessageScheduleEntity $messageSchedule, UpdateMessageScheduleRequestDTO $requestDTO): void
+    private function updateTaskScheduler(MessageScheduleEntity $messageSchedule): void
     {
         try {
-            // Clear old task scheduler
-            $taskSchedulerId = null;
-            if ($messageSchedule->hasTaskScheduler()) {
-                $this->deleteTaskScheduler($messageSchedule->getId());
-            }
+            // Always delete old task scheduler first (since this is called only when config changed)
+            // This handles all cases: repeat->repeat, repeat->no_repeat, no_repeat->repeat, no_repeat->no_repeat
+            $this->deleteTaskScheduler($messageSchedule->getId());
 
-            // Create new task scheduler if status is enabled and time config was updated
+            // Create new task scheduler based on current configuration
+            $taskSchedulerId = null;
             if ($messageSchedule->isEnabled()) {
                 $timeConfigDTO = new TimeConfigDTO();
                 $timeConfig = $messageSchedule->getTimeConfig();
@@ -983,12 +999,13 @@ class MessageScheduleAppService extends AbstractAppService
                     $messageSchedule->getId(),
                     $timeConfigDTO,
                     $messageSchedule->isEnabled(),
-                    $messageSchedule->getDeadline(), // Use updated deadline from messageSchedule
-                    $messageSchedule->getTaskName() // Use updated task name from messageSchedule
+                    $messageSchedule->getDeadline(),
+                    $messageSchedule->getTaskName()
                 );
             }
 
-            $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageSchedule->getId(), $taskSchedulerId);
+            // Update crontab_id in messageSchedule entity (in memory)
+            $messageSchedule->setTaskSchedulerCrontabId($taskSchedulerId);
         } catch (Throwable $e) {
             $this->logger->error('Failed to update task scheduler', [
                 'message_schedule_id' => $messageSchedule->getId(),
@@ -1173,5 +1190,66 @@ class MessageScheduleAppService extends AbstractAppService
                 'line' => $e->getLine(),
             ]);
         }
+    }
+
+    /**
+     * Check if task should be marked as completed.
+     *
+     * This method checks:
+     * 1. For no_repeat tasks: if execution time has passed
+     * 2. For repeating tasks: if next execution time exceeds deadline or no next execution time available
+     *
+     * @param MessageScheduleEntity $messageSchedule Message schedule entity
+     * @return bool True if task should be completed, false otherwise
+     */
+    private function shouldMarkAsCompleted(MessageScheduleEntity $messageSchedule): bool
+    {
+        $timeConfig = $messageSchedule->getTimeConfig();
+        $taskType = $timeConfig['type'] ?? '';
+        $currentTime = date('Y-m-d H:i:s');
+
+        // Case 1: One-time task (no_repeat)
+        if ($taskType === TaskType::NoRepeat->value) {
+            $day = $timeConfig['day'] ?? '';
+            $time = $timeConfig['time'] ?? '';
+
+            if (empty($day) || empty($time)) {
+                // Invalid configuration
+                return true;
+            }
+
+            // Assemble execution time: "2025-10-15 18:00:00"
+            // Ensure time includes seconds
+            $timeParts = explode(':', $time);
+            if (count($timeParts) === 2) {
+                $time .= ':00'; // Add seconds if not present
+            }
+            $executionTime = $day . ' ' . $time;
+
+            // Return true if execution time has passed
+            return $executionTime < $currentTime;
+        }
+
+        // Case 2: Repeating task - use task scheduler to get next execution time
+        if (! $messageSchedule->hasTaskScheduler()) {
+            // No task scheduler, cannot execute
+            return true;
+        }
+
+        $nextExecutionTime = $this->getNextExecutionTime($messageSchedule->getTaskSchedulerCrontabId());
+
+        // If no next execution time, task cannot execute anymore
+        if ($nextExecutionTime === null) {
+            return true;
+        }
+
+        // Check if next execution time exceeds deadline
+        $deadline = $messageSchedule->getDeadline();
+        if ($deadline !== null && $nextExecutionTime > $deadline) {
+            return true;
+        }
+
+        // Task still has valid future execution time
+        return false;
     }
 }
