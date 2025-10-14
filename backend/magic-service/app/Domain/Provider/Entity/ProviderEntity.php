@@ -246,10 +246,10 @@ class ProviderEntity extends AbstractEntity
 
     public function i18n(string $languages): void
     {
-        if (isset($this->translate['name'][$languages])) {
+        if (! empty($this->translate['name'][$languages])) {
             $this->name = $this->translate['name'][$languages];
         }
-        if (isset($this->translate['description'][$languages])) {
+        if (! empty($this->translate['description'][$languages])) {
             $this->description = $this->translate['description'][$languages];
         }
     }
