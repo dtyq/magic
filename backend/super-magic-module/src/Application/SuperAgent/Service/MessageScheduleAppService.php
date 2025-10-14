@@ -673,6 +673,14 @@ class MessageScheduleAppService extends AbstractAppService
                     ]
                 );
 
+                // 6. Update execution log status based on send result (synchronous)
+                if (! empty($sendResult['success'])) {
+                    $this->messageScheduleDomainService->markLogAsSuccess($executionLog->getId());
+                } else {
+                    $errorMessage = $sendResult['error_message'] ?? 'send failed';
+                    $this->messageScheduleDomainService->markLogAsFailed($executionLog->getId(), $errorMessage);
+                }
+
                 $this->logger->info('Message schedule execution completed', [
                     'message_schedule_id' => $messageScheduleId,
                     'execution_log_id' => $executionLog->getId(),
@@ -680,8 +688,6 @@ class MessageScheduleAppService extends AbstractAppService
                     'error_message' => $sendResult['error_message'],
                 ]);
 
-                // Keep log status as RUNNING since this is async trigger
-                // Real task processing will be handled by event listeners
                 return $sendResult;
             } catch (Throwable $e) {
                 // Update execution log status to failed if log was created
