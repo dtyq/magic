@@ -15,9 +15,9 @@ class MagicUserSettingEntity extends AbstractEntity
 
     private ?string $magicId = '';
 
-    private ?string $organizationCode = '';
+    private ?string $organizationCode = null;
 
-    private ?string $userId = '';
+    private ?string $userId = null;
 
     private string $key = '';
 
