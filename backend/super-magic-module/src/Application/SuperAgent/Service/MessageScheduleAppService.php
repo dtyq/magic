@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -79,6 +80,7 @@ class MessageScheduleAppService extends AbstractAppService
         private readonly ChatAppService $chatAppService,
         private readonly MessageScheduleDomainService $messageScheduleDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly ProjectMemberDomainService $projectMemberDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
@@ -707,7 +709,7 @@ class MessageScheduleAppService extends AbstractAppService
 
         $projectName = $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
 
-        return $this->projectDomainService->createProject(
+        $projectEntity = $this->projectDomainService->createProject(
             workspaceId: $workspaceId,
             projectName: $projectName,
             userId: $dataIsolation->getCurrentUserId(),
@@ -717,6 +719,15 @@ class MessageScheduleAppService extends AbstractAppService
             projectMode: null,
             source: CreationSource::SCHEDULED_TASK->value
         );
+
+        $this->projectMemberDomainService->initializeProjectMemberAndSettings(
+            $dataIsolation->getCurrentUserId(),
+            $projectEntity->getId(),
+            $workspaceId,
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+
+        return $projectEntity;
     }
 
     private function getSummarizeMessageText(DataIsolation $dataIsolation, string $messageType, array $messageContent): string
