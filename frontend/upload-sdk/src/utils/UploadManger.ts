@@ -132,52 +132,55 @@ export class UploadManger {
 				// 订阅当前上传任务的进度回调
 				TaskEvent.on(`${taskId}_progress`, taskEventCallback)
 			},
-			cancel: () => {
-				if (this.tasks[taskId]) {
-					cancelRequest(taskId)
-					// 移除当前任务的所有回调
-					TaskEvent.off(`${taskId}_success`)
-					TaskEvent.off(`${taskId}_fail`)
-					TaskEvent.off(`${taskId}_progress`)
-					const { pauseInfo } = this.tasks[taskId]
-					if (pauseInfo) {
-						// 清空复杂上传断点信息
-						delete this.tasks[taskId].pauseInfo
-					}
+		cancel: () => {
+			const task = this.tasks[taskId]
+			if (task) {
+				cancelRequest(taskId)
+				// 移除当前任务的所有回调
+				TaskEvent.off(`${taskId}_success`)
+				TaskEvent.off(`${taskId}_fail`)
+				TaskEvent.off(`${taskId}_progress`)
+				const { pauseInfo } = task
+				if (pauseInfo) {
+					// 清空复杂上传断点信息
+					delete task.pauseInfo
 				}
-			},
-			pause: () => {
-				if (this.tasks[taskId]) {
-					const { pauseInfo } = this.tasks[taskId]
-					if (pauseInfo) {
-						this.tasks[taskId].pauseInfo = {
-							...pauseInfo,
-							isPause: true,
-						}
-						pauseRequest(taskId)
+			}
+		},
+		pause: () => {
+			const task = this.tasks[taskId]
+			if (task) {
+				const { pauseInfo } = task
+				if (pauseInfo) {
+					task.pauseInfo = {
+						...pauseInfo,
+						isPause: true,
 					}
+					pauseRequest(taskId)
 				}
-			},
-			resume: () => {
-				if (this.tasks[taskId]) {
-					const { pauseInfo } = this.tasks[taskId]
-					// 只有复杂上传方式才能恢复上传
-					if (pauseInfo) {
-						const { isPause, checkpoint } = pauseInfo
+			}
+		},
+		resume: () => {
+			const task = this.tasks[taskId]
+			if (task) {
+				const { pauseInfo } = task
+				// 只有复杂上传方式才能恢复上传
+				if (pauseInfo) {
+					const { isPause, checkpoint } = pauseInfo
 
-						if (isPause) {
-							this.tasks[taskId].pauseInfo = {
-								isPause: false,
-								checkpoint,
-							}
-							this.upload(file, key, taskId, uploadConfig, {
-								...option,
-								checkpoint,
-							})
+					if (isPause) {
+						task.pauseInfo = {
+							isPause: false,
+							checkpoint,
 						}
+						this.upload(file, key, taskId, uploadConfig, {
+							...option,
+							checkpoint,
+						})
 					}
 				}
-			},
+			}
+		},
 		}
 		this.tasks[taskId] = {
 			success: (response) => {
@@ -213,23 +216,24 @@ export class UploadManger {
 		uploadConfig: UploadConfig,
 		option: PlatformMultipartUploadOption | PlatformSimpleUploadOption,
 	) {
-		const onProgress: Progress = (
-			percent: number,
-			loaded: number,
-			total: number,
-			checkpoint: OSS.Checkpoint | null,
-		) => {
-			// 保存复杂上传断点信息
-			if (checkpoint) {
-				this.tasks[taskId].pauseInfo = {
-					isPause: false,
-					checkpoint,
-				}
-				this.notifyProgress(taskId, percent, loaded, total, checkpoint)
-			} else {
-				this.notifyProgress(taskId, percent, loaded, total, null)
+	const onProgress: Progress = (
+		percent: number,
+		loaded: number,
+		total: number,
+		checkpoint: OSS.Checkpoint | null,
+	) => {
+		// 保存复杂上传断点信息
+		const task = this.tasks[taskId]
+		if (checkpoint && task) {
+			task.pauseInfo = {
+				isPause: false,
+				checkpoint,
 			}
+			this.notifyProgress(taskId, percent, loaded, total, checkpoint)
+		} else {
+			this.notifyProgress(taskId, percent, loaded, total, null)
 		}
+	}
 		// 处理上传凭证：支持自定义凭证和传统凭证获取
 		const uploadPromise = uploadConfig.customCredentials
 			? Promise.resolve({
@@ -272,29 +276,35 @@ export class UploadManger {
 					)
 				}
 			})
-			.then(({ platform, platformConfig }) => {
-				if (!file && !isBlob(file) && !isFile(file))
-					throw new InitException(InitExceptionCode.UPLOAD_IS_NO_SUPPORT_THIS_FILE_FORMAT)
-				if (!key)
-					throw new InitException(InitExceptionCode.MISSING_PARAMS_FOR_UPLOAD, "fileName")
-				return platform.upload(
-					file,
-					key,
-					platformConfig as OSS.AuthParams &
-						Kodo.AuthParams &
-						OSS.STSAuthParams &
-						TOS.STSAuthParams &
-						TOS.AuthParams &
-						OBS.STSAuthParams &
-						OBS.AuthParams &
-						Local.AuthParams,
-					{
-						...option,
-						progress: onProgress,
-						taskId,
-					},
+		.then(({ platform, platformConfig }) => {
+			if (!file && !isBlob(file) && !isFile(file))
+				throw new InitException(InitExceptionCode.UPLOAD_IS_NO_SUPPORT_THIS_FILE_FORMAT)
+			if (!key)
+				throw new InitException(InitExceptionCode.MISSING_PARAMS_FOR_UPLOAD, "fileName")
+			if (!platform.upload) {
+				throw new InitException(
+					InitExceptionCode.UPLOAD_IS_NO_SUPPORT_THIS_PLATFORM,
+					"platform.upload is undefined"
 				)
-			})
+			}
+			return platform.upload(
+				file,
+				key,
+				platformConfig as OSS.AuthParams &
+					Kodo.AuthParams &
+					OSS.STSAuthParams &
+					TOS.STSAuthParams &
+					TOS.AuthParams &
+					OBS.STSAuthParams &
+					OBS.AuthParams &
+					Local.AuthParams,
+				{
+					...option,
+					progress: onProgress,
+					taskId,
+				},
+			)
+		})
 			.then((res) => {
 				this.notifySuccess(taskId, res)
 				this.detach(taskId)
