@@ -11,9 +11,6 @@ use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
-use App\Domain\Chat\Entity\Items\SeqExtra;
-use App\Domain\Chat\Entity\MagicSeqEntity;
-use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -26,12 +23,10 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
-use Carbon\Carbon;
 use Cron\CronExpression;
 use DateTime;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageScheduleEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -40,6 +35,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -64,6 +60,7 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -79,6 +76,8 @@ class MessageScheduleAppService extends AbstractAppService
         private readonly MagicChatMessageAppService $chatMessageAppService,
         private readonly ChatAppService $chatAppService,
         private readonly MessageScheduleDomainService $messageScheduleDomainService,
+        private readonly MessageQueueDomainService $messageQueueDomainService,
+        private readonly UserMessageToAgentAppService $userMessageToAgentAppService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly ProjectMemberDomainService $projectMemberDomainService,
         private readonly TopicDomainService $topicDomainService,
@@ -156,8 +155,14 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getPlugins()
                 );
 
-                // 2.2 Create task scheduler
+                // 2.2 Validate time configuration
                 $timeConfigDTO = $requestDTO->createTimeConfigDTO();
+                $validationErrors = $timeConfigDTO->getValidationErrors();
+                if (! empty($validationErrors)) {
+                    throw new InvalidArgumentException(implode(', ', $validationErrors));
+                }
+
+                // 2.3 Create task scheduler
                 $taskSchedulerId = $this->createTaskScheduler(
                     $messageSchedule->getId(),
                     $timeConfigDTO,
@@ -166,13 +171,13 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getTaskName() // Task name from request
                 );
 
-                // 2.3 Update task_scheduler_crontab_id and completed status in one update
+                // 2.4 Update task_scheduler_crontab_id and completed status in one update
                 if ($taskSchedulerId) {
                     // Set crontab_id in memory (no need to reload from database)
                     $messageSchedule->setTaskSchedulerCrontabId($taskSchedulerId);
                 }
 
-                // 2.4 Check if task should be marked as completed (for expired tasks)
+                // 2.5 Check if task should be marked as completed (for expired tasks)
                 $shouldComplete = $this->shouldMarkAsCompleted($messageSchedule);
                 $messageSchedule->setCompleted($shouldComplete ? 1 : 0);
 
@@ -375,6 +380,13 @@ class MessageScheduleAppService extends AbstractAppService
                 $newTimeConfig = $requestDTO->getTimeConfig();
 
                 if (TimeConfigDTO::isConfigChanged($oldTimeConfig, $newTimeConfig)) {
+                    // Validate new time configuration
+                    $timeConfigDTO = new TimeConfigDTO($newTimeConfig);
+                    $validationErrors = $timeConfigDTO->getValidationErrors();
+                    if (! empty($validationErrors)) {
+                        throw new InvalidArgumentException(implode(', ', $validationErrors));
+                    }
+
                     $messageSchedule->setTimeConfig($newTimeConfig);
                     $needUpdateTaskScheduler = true;
                 }
@@ -583,30 +595,26 @@ class MessageScheduleAppService extends AbstractAppService
     {
         return Db::transaction(function () use ($messageScheduleId) {
             $executionLog = null;
+            $dataIsolation = null;
+            $messageScheduleEntity = null;
 
             try {
                 // 1. Get message schedule entity
                 $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
                 if (! $messageScheduleEntity) {
                     $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
-                    return [
-                        'success' => false,
-                        'message' => 'Message schedule not found',
-                    ];
+                    throw new RuntimeException('Message schedule not found');
                 }
 
                 // Create execution log (status: running) only when all checks passed
                 $executionLog = $this->messageScheduleDomainService->createExecutionLog($messageScheduleEntity);
+                $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
 
                 // Check if schedule is enabled
                 if (! $messageScheduleEntity->isEnabled()) {
                     $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
-                    return [
-                        'success' => false,
-                        'message' => 'Message schedule is disabled',
-                    ];
+                    throw new RuntimeException('Message schedule is disabled');
                 }
-                $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
 
                 // 2. Get project entity
                 $projectEntity = $this->getProjectOrCreate(
@@ -618,10 +626,7 @@ class MessageScheduleAppService extends AbstractAppService
                 );
                 if (! $projectEntity) {
                     $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
-                    return [
-                        'success' => false,
-                        'message' => 'Project not found',
-                    ];
+                    throw new RuntimeException('Project not found');
                 }
 
                 // Set project MCP configuration if plugins are configured
@@ -640,25 +645,11 @@ class MessageScheduleAppService extends AbstractAppService
                 $topicEntity = $this->getTopicOrCreate($dataIsolation, $messageScheduleEntity->getTopicId(), $projectEntity, $messageScheduleEntity->getMessageType(), $messageScheduleEntity->getMessageContent(), (string) $executionLog->getId());
                 if (! $topicEntity) {
                     $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
-                    return [
-                        'success' => false,
-                        'message' => 'Topic not found',
-                    ];
+                    throw new RuntimeException('Topic not found');
                 }
 
                 // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
                 $sendResult = $this->sendMessageToAgent($dataIsolation, $messageScheduleEntity->getMessageType(), $messageContent, $topicEntity);
-
-                // 5. Check if task should be marked as completed
-                $shouldComplete = $this->shouldMarkAsCompleted($messageScheduleEntity);
-                if ($shouldComplete) {
-                    $messageScheduleEntity->setCompleted(1);
-                    $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
-
-                    $this->logger->info('Marked schedule as completed after execution', [
-                        'message_schedule_id' => $messageScheduleId,
-                    ]);
-                }
 
                 // Update executionLog's project_id and topic_id
                 $executionLog = $executionLog->setProjectId($projectEntity->getId());
@@ -710,8 +701,43 @@ class MessageScheduleAppService extends AbstractAppService
                     'success' => false,
                     'message' => $e->getMessage(),
                 ];
+            } finally {
+                if ($messageScheduleEntity) {
+                    $this->finalizeScheduleCompletion($messageScheduleEntity);
+                }
             }
         });
+    }
+
+    /**
+     * Finalize: check and mark schedule as completed if needed.
+     * This method is safe to call in both success and exception paths.
+     */
+    private function finalizeScheduleCompletion(MessageScheduleEntity $messageScheduleEntity): void
+    {
+        try {
+            $shouldComplete = $this->shouldMarkAsCompleted($messageScheduleEntity);
+            if ($shouldComplete && (int) $messageScheduleEntity->getCompleted() !== 1) {
+                $messageScheduleEntity->setCompleted(1);
+                $dataIsolation = DataIsolation::simpleMake(
+                    $messageScheduleEntity->getOrganizationCode(),
+                    $messageScheduleEntity->getUserId()
+                );
+                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
+
+                $this->logger->info('Marked schedule as completed after execution', [
+                    'message_schedule_id' => $messageScheduleEntity->getId(),
+                ]);
+            }
+        } catch (Throwable $e) {
+            // Log only; do not interrupt the main flow
+            $this->logger->error('Failed to finalize schedule completion', [
+                'message_schedule_id' => $messageScheduleEntity->getId(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+        }
     }
 
     private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent): ?ProjectEntity
@@ -891,11 +917,7 @@ class MessageScheduleAppService extends AbstractAppService
     private function getTopicOrCreate(DataIsolation $dataIsolation, int $topicId, ProjectEntity $projectEntity, string $messageType, array $messageContent, string $sourceId = ''): ?TopicEntity
     {
         if (! empty($topicId)) {
-            $topicEntity = $this->topicDomainService->getTopicById($topicId);
-            $topicEntity->setSourceId($sourceId);
-            $topicEntity->setSource(CreationSource::SCHEDULED_TASK->value);
-            $this->topicDomainService->updateTopicWhereUpdatedAt($topicEntity, date('Y-m-d H:i:s'));
-            return $topicEntity;
+            return $this->topicDomainService->getTopicById($topicId);
         }
         // 1. Initialize chat conversation and topic
         [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
@@ -1039,76 +1061,25 @@ class MessageScheduleAppService extends AbstractAppService
     }
 
     /**
-     * Send message to agent (reference MessageQueueCompensationAppService::sendMessageToAgent).
+     * Send message to agent using UserMessageToAgentAppService.
+     * Delegates to the new service for unified message sending logic.
      */
     private function sendMessageToAgent(DataIsolation $dataIsolation, string $messageType, array $messageContent, TopicEntity $topicEntity): array
     {
-        try {
-            // Convert message content
-            $chatMessageType = ChatMessageType::from($messageType);
-            $messageStruct = MessageAssembler::getChatMessageStruct(
-                $chatMessageType,
-                $messageContent
-            );
+        // Call new service with intelligent routing
+        $result = $this->userMessageToAgentAppService->sendMessageWithQueueSupport(
+            $dataIsolation,
+            $topicEntity,
+            $messageType,
+            $messageContent
+        );
 
-            // Create MagicSeqEntity based on message content
-            $seqEntity = new MagicSeqEntity();
-            $seqEntity->setContent($messageStruct);
-            $seqEntity->setSeqType($chatMessageType);
-
-            // Set topic ID in extra
-            $seqExtra = new SeqExtra();
-            $seqExtra->setTopicId($topicEntity->getChatTopicId());
-            $seqEntity->setExtra($seqExtra);
-
-            // Generate unique app message ID for deduplication
-            $appMessageId = IdGenerator::getUniqueId32();
-
-            // Get agent user_id
-            $aiUserEntity = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
-
-            if (empty($aiUserEntity)) {
-                $this->logger->error('Agent user not found, skip processing', [
-                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                ]);
-                return [
-                    'success' => false,
-                    'error_message' => 'Agent user not found for organization: ' . $dataIsolation->getCurrentOrganizationCode(),
-                    'result' => null,
-                ];
-            }
-
-            // Call userSendMessageToAgent
-            $result = $this->chatMessageAppService->userSendMessageToAgent(
-                aiSeqDTO: $seqEntity,
-                senderUserId: $dataIsolation->getCurrentUserId(),
-                receiverId: $aiUserEntity->getUserId(),
-                appMessageId: $appMessageId,
-                doNotParseReferMessageId: false,
-                sendTime: new Carbon(),
-                receiverType: ConversationType::Ai,
-                topicId: $topicEntity->getChatTopicId()
-            );
-
-            return [
-                'success' => ! empty($result),
-                'error_message' => null,
-                'result' => $result,
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to send message to agent', [
-                'topic_id' => $topicEntity->getId(),
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return [
-                'success' => false,
-                'error_message' => $e->getMessage(),
-                'result' => null,
-            ];
-        }
+        // Map new service response to existing format for backward compatibility
+        return [
+            'success' => $result['success'],
+            'error_message' => $result['error_message'],
+            'result' => $result['data']['result'] ?? $result['data'],
+        ];
     }
 
     /**
