@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace App\Application\OrganizationEnvironment\Service;
 
@@ -21,5 +24,3 @@ class OrganizationAppService
         return $this->organizationDomainService->queries($page, $filters);
     }
 }
-
-

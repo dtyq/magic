@@ -20,6 +20,8 @@ return [
         'platform_ai' => 'AI管理',
         'platform_setting' => '系统设置',
         'platform_setting_maintenance' => '维护管理',
+        'platform_organization' => '组织管理',
+        'platform_organization_list' => '组织列表',
     ],
     // 顶层错误与校验
     'validate_failed' => '验证失败',

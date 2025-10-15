@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace App\Interfaces\OrganizationEnvironment\DTO;
 
@@ -10,17 +13,25 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 class OrganizationListRequestDTO extends AbstractDTO
 {
     public int $page = 1;
+
     public int $pageSize = 20;
 
     public ?string $name = null;
+
     public ?string $magicOrganizationCode = null;
+
     public ?int $status = null;
+
     public ?int $type = null;
+
     public ?int $syncStatus = null;
+
     public ?string $createdAtStart = null;
+
     public ?string $createdAtEnd = null;
 
     public string $orderBy = 'id';
+
     public string $orderDirection = 'asc';
 
     public static function fromRequest(RequestInterface $request): self
@@ -53,8 +64,6 @@ class OrganizationListRequestDTO extends AbstractDTO
             'created_at_end' => $this->createdAtEnd,
             'order_by' => $this->orderBy,
             'order_direction' => $this->orderDirection,
-        ], static fn($v) => $v !== null && $v !== '');
+        ], static fn ($v) => $v !== null && $v !== '');
     }
 }
-
-
