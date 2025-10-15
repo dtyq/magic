@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Application\Chat\Service\MagicUserInfoAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
@@ -16,20 +18,20 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Helper\InvitationPermissionMapper;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
 
 /**
  * 项目邀请链接应用服务
  *
  * 负责协调项目邀请链接相关的业务逻辑
  */
-class ProjectInvitationLinkAppService
+class ProjectInvitationLinkAppService extends AbstractAppService
 {
-    private const PASSWORD_LENGTH = 8;
-
     public function __construct(
         private ResourceShareDomainService $resourceShareDomainService,
         private ProjectMemberDomainService $projectMemberDomainService,
-        private ProjectDomainService $projectDomainService
+        private ProjectDomainService $projectDomainService,
+        private MagicUserInfoAppService $userInfoAppService
     ) {
     }
 
@@ -79,7 +81,6 @@ class ProjectInvitationLinkAppService
             $projectId,
             ResourceType::ProjectInvitation->value
         );
-
         if ($existingShare) {
             // 更新现有分享的启用/禁用状态
             $savedShare = $this->resourceShareDomainService->toggleShareStatus(
@@ -96,9 +97,6 @@ class ProjectInvitationLinkAppService
         }
 
         // 3. 创建新的邀请分享 (通过 ResourceShareDomainService)
-        // 先生成随机分享码
-        $shareCode = $this->resourceShareDomainService->generateShareCode();
-
         $shareEntity = $this->resourceShareDomainService->saveShare(
             $projectId,
             ResourceType::ProjectInvitation->value,
@@ -107,9 +105,8 @@ class ProjectInvitationLinkAppService
             [
                 'resource_name' => $project->getProjectName() . ' 邀请链接',
                 'share_type' => InvitationPermissionMapper::permissionToShareType('view')->value,
-                'share_code' => $shareCode, // 使用生成的随机分享码
             ],
-            $this->generatePassword(), // 生成8位数字密码
+            ResourceShareEntity::generateRandomPassword(), // 生成5位数字密码
             null // 永久有效
         );
 
@@ -172,43 +169,56 @@ class ProjectInvitationLinkAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_NOT_FOUND);
         }
 
-        // 3. 设置或清除密码
+        // 3. 设置密码保护开关
         if ($enabled) {
-            // 生成新密码
-            $newPassword = $this->generatePassword();
-            $savedShare = $this->resourceShareDomainService->saveShare(
-                $shareEntity->getResourceId(),
-                $shareEntity->getResourceType(),
-                $currentUserId,
-                $shareEntity->getOrganizationCode(),
-                [
-                    'resource_name' => $shareEntity->getResourceName(),
-                    'share_type' => $shareEntity->getShareType(),
-                ],
-                $newPassword
-            );
+            // 开启密码保护
+            $password = $shareEntity->getPassword();
+            $plainPassword = '';
+
+            // 如果没有历史密码，生成新密码
+            if (empty($password)) {
+                $plainPassword = ResourceShareEntity::generateRandomPassword();
+                $shareEntity->setPassword(PasswordCrypt::encrypt($plainPassword));
+            } else {
+                // 检查密码是否已加密，如果是明文则直接使用
+                if (strlen($password) > 20) {
+                    // 长度超过20的很可能是加密后的密码
+                    try {
+                        $plainPassword = PasswordCrypt::decrypt($password);
+                    } catch (\Exception $e) {
+                        // 解密失败，生成新密码
+                        $plainPassword = ResourceShareEntity::generateRandomPassword();
+                        $shareEntity->setPassword(PasswordCrypt::encrypt($plainPassword));
+                    }
+                } else {
+                    // 短密码认为是明文密码
+                    $plainPassword = $password;
+                }
+            }
+
+            // 启用密码保护
+            $shareEntity->setIsPasswordEnabled(true);
+            $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $shareEntity->setUpdatedUid($currentUserId);
+
+            $this->resourceShareDomainService->saveShareByEntity($shareEntity);
 
             return [
                 'enabled' => true,
-                'password' => $newPassword,
+                'password' => $plainPassword,
+            ];
+        } else {
+            // 关闭密码保护（保留密码）
+            $shareEntity->setIsPasswordEnabled(false);
+            $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $shareEntity->setUpdatedUid($currentUserId);
+
+            $this->resourceShareDomainService->saveShareByEntity($shareEntity);
+
+            return [
+                'enabled' => false,
             ];
         }
-        // 清除密码
-        $savedShare = $this->resourceShareDomainService->saveShare(
-            $shareEntity->getResourceId(),
-            $shareEntity->getResourceType(),
-            $currentUserId,
-            $shareEntity->getOrganizationCode(),
-            [
-                'resource_name' => $shareEntity->getResourceName(),
-                'share_type' => $shareEntity->getShareType(),
-            ],
-            null // 清除密码
-        );
-
-        return [
-            'enabled' => false,
-        ];
     }
 
     /**
@@ -234,7 +244,7 @@ class ProjectInvitationLinkAppService
         }
 
         // 3. 生成新密码
-        $newPassword = $this->generatePassword();
+        $newPassword = ResourceShareEntity::generateRandomPassword();
         $this->resourceShareDomainService->saveShare(
             $shareEntity->getResourceId(),
             $shareEntity->getResourceType(),
@@ -246,6 +256,47 @@ class ProjectInvitationLinkAppService
             ],
             $newPassword
         );
+
+        return [
+            'enabled' => true,
+            'password' => $newPassword,
+        ];
+    }
+
+    /**
+     * 修改邀请链接密码
+     */
+    public function changePassword(RequestContext $requestContext, string $projectId, string $newPassword): array
+    {
+        $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $projectIdInt = (int) $projectId;
+
+        // 1. 验证项目权限
+        $this->validateProjectOwner($projectIdInt, $currentUserId);
+
+        // 2. 验证密码长度（最大18位）
+        if (strlen($newPassword) > 18 || strlen($newPassword) < 1) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_PASSWORD_INCORRECT);
+        }
+
+        // 3. 获取邀请链接
+        $shareEntity = $this->resourceShareDomainService->getShareByResource(
+            $currentUserId,
+            $projectId,
+            ResourceType::ProjectInvitation->value
+        );
+
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_NOT_FOUND);
+        }
+
+        // 4. 更新密码并启用密码保护
+        $shareEntity->setPassword(PasswordCrypt::encrypt($newPassword));
+        $shareEntity->setIsPasswordEnabled(true);
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($currentUserId);
+
+        $this->resourceShareDomainService->saveShareByEntity($shareEntity);
 
         return [
             'enabled' => true,
@@ -296,8 +347,10 @@ class ProjectInvitationLinkAppService
     /**
      * 通过Token获取邀请信息（外部用户预览）.
      */
-    public function getInvitationByToken(string $token): array
+    public function getInvitationByToken(RequestContext $requestContext, string $token): array
     {
+        $currentUserId = $requestContext->getUserAuthorization()->getId();
+
         // 1. 获取分享信息
         $shareEntity = $this->resourceShareDomainService->getShareByCode($token);
         if (! $shareEntity || $shareEntity->getResourceType() !== ResourceType::ProjectInvitation->value) {
@@ -314,21 +367,37 @@ class ProjectInvitationLinkAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_INVALID);
         }
 
+        $resourceId = $shareEntity->getResourceId();
+        $projectId = (int) $resourceId;
+
         // 4. 获取项目信息
-        $project = $this->projectDomainService->getProjectNotUserId((int) $shareEntity->getResourceId());
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
         if (! $project) {
             ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_INVALID);
         }
 
+        // 5. 提取创建者ID
+        $creatorId = $project->getUserId();
+        $isCreator = $creatorId === $currentUserId;
+
+        // 6. 检查成员关系（短路评估：创建者无需检查）
+        $hasJoined = $isCreator || $this->projectMemberDomainService->isProjectMemberByUser($projectId, $currentUserId);
+
+        // 7. 获取创建者信息
+        $creatorInfo = $this->getUserInfo($requestContext, $creatorId);
+
         return [
-            'project_id' => $shareEntity->getResourceId(),
+            'project_id' => $resourceId,
             'project_name' => $project->getProjectName(),
             'project_description' => $project->getProjectDescription() ?? '',
             'organization_code' => $project->getUserOrganizationCode() ?? '',
-            'creator_id' => $project->getUserId() ?? '',
+            'creator_id' => $creatorId,
+            'creator_name' => $creatorInfo['name'] ?? '',
+            'creator_avatar' => $creatorInfo['avatar'] ?? '',
             'permission' => InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
-            'requires_password' => ! empty($shareEntity->getPassword()),
+            'requires_password' => $shareEntity->getIsPasswordEnabled(),
             'token' => $shareEntity->getShareCode(),
+            'has_joined' => $hasJoined,
         ];
     }
 
@@ -356,8 +425,8 @@ class ProjectInvitationLinkAppService
         }
 
         // 4. 验证密码
-        if (! empty($shareEntity->getPassword())) {
-            // 链接有密码保护
+        if ($shareEntity->getIsPasswordEnabled()) {
+            // 链接启用了密码保护
             if (empty($password)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_PASSWORD_INCORRECT);
             }
@@ -412,6 +481,30 @@ class ProjectInvitationLinkAppService
     }
 
     /**
+     * 获取用户信息.
+     */
+    private function getUserInfo(RequestContext $requestContext, string $userId): array
+    {
+        try {
+            $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
+            $dataIsolation = DataIsolation::create($organizationCode, $userId);
+
+            $userInfoArray = $this->userInfoAppService->getUserInfo($userId, $dataIsolation);
+
+            return [
+                'name' => $userInfoArray['name'] ?? '',
+                'avatar' => $userInfoArray['avatar_url'] ?? '',
+            ];
+        } catch (\Throwable $e) {
+            // 如果获取用户信息失败，返回默认值
+            return [
+                'name' => '',
+                'avatar' => '',
+            ];
+        }
+    }
+
+    /**
      * 格式化分享链接响应（管理员视角）.
      */
     private function formatLinkResponse(ResourceShareEntity $shareEntity): array
@@ -428,12 +521,4 @@ class ProjectInvitationLinkAppService
         ];
     }
 
-    /**
-     * 生成8位数字密码
-     */
-    private function generatePassword(): string
-    {
-        $maxNumber = (int) str_repeat('9', self::PASSWORD_LENGTH);
-        return str_pad((string) random_int(0, $maxNumber), self::PASSWORD_LENGTH, '0', STR_PAD_LEFT);
-    }
 }

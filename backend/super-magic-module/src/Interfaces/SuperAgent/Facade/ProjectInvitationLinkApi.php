@@ -70,8 +70,7 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $request = $this->request->all();
-        $enabled = $request['enabled'] ?? false; // 提取参数
+        $enabled = (bool) $this->request->input('enabled', false);
         return $this->invitationLinkAppService->setPassword($requestContext, $projectId, $enabled);
     }
 
@@ -87,6 +86,18 @@ class ProjectInvitationLinkApi extends AbstractApi
     }
 
     /**
+     * 修改邀请链接密码
+     */
+    public function changePassword(RequestContext $requestContext, string $projectId): array
+    {
+        // 设置用户授权信息
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $newPassword = $this->request->input('password', '');
+        return $this->invitationLinkAppService->changePassword($requestContext, $projectId, $newPassword);
+    }
+
+    /**
      * 修改权限级别.
      */
     public function updatePermission(RequestContext $requestContext, string $projectId): array
@@ -94,8 +105,7 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $request = $this->request->all();
-        $permission = $request['permission'] ?? 'view'; // 提取参数
+        $permission = $this->request->input('permission', 'view');
         return $this->invitationLinkAppService->updatePermission($requestContext, $projectId, $permission);
     }
 
@@ -107,7 +117,7 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 外部用户访问，但仍需要设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->invitationLinkAppService->getInvitationByToken($token);
+        return $this->invitationLinkAppService->getInvitationByToken($requestContext, $token);
     }
 
     /**
@@ -118,9 +128,8 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $request = $this->request->all();
-        $token = $request['token'] ?? ''; // 提取参数
-        $password = $request['password'] ?? null; // 提取参数
+        $token = $this->request->input('token', '');
+        $password = $this->request->input('password');
         return $this->invitationLinkAppService->joinProject($requestContext, $token, $password);
     }
 }

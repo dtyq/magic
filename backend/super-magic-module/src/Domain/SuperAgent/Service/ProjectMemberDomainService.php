@@ -387,4 +387,31 @@ class ProjectMemberDomainService
 
         return $memberEntity;
     }
+
+    /**
+     * 删除指定用户的项目成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return bool 删除是否成功
+     */
+    public function removeMemberByUser(int $projectId, string $userId): bool
+    {
+        $deletedCount = $this->projectMemberRepository->deleteByProjectAndUser($projectId, $userId);
+        return $deletedCount > 0;
+    }
+
+    /**
+     * 删除指定用户和目标类型的项目成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型（User/Department）
+     * @param string $targetId 目标ID
+     * @return bool 删除是否成功
+     */
+    public function removeMemberByTarget(int $projectId, string $targetType, string $targetId): bool
+    {
+        $deletedCount = $this->projectMemberRepository->deleteByProjectAndTarget($projectId, $targetType, $targetId);
+        return $deletedCount > 0;
+    }
 }

@@ -75,6 +75,30 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
+     * 删除指定项目和用户的成员关系.
+     */
+    public function deleteByProjectAndUser(int $projectId, string $userId): int
+    {
+        return $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->where('target_type', 'User')
+            ->where('target_id', $userId)
+            ->delete();
+    }
+
+    /**
+     * 删除指定项目和目标的成员关系.
+     */
+    public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int
+    {
+        return $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->where('target_type', $targetType)
+            ->where('target_id', $targetId)
+            ->delete();
+    }
+
+    /**
      * 检查项目和用户的成员关系是否存在.
      */
     public function existsByProjectAndUser(int $projectId, string $userId): bool

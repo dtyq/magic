@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\SuperAgent;
 
-use Hyperf\DbConnection\Db;
+use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Mockery;
 
 /**
@@ -253,6 +253,10 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
             $this->assertArrayHasKey('project_description', $response['data']);
             $this->assertArrayHasKey('requires_password', $response['data']);
             $this->assertArrayHasKey('permission', $response['data']);
+            $this->assertArrayHasKey('has_joined', $response['data']);
+            $this->assertArrayHasKey('creator_name', $response['data']);
+            $this->assertArrayHasKey('creator_avatar', $response['data']);
+            $this->assertIsBool($response['data']['has_joined']);
         }
 
         return $response;
@@ -368,6 +372,9 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $projectId = $this->projectId;
         $this->switchUserTest1();
 
+        // 清理测试数据
+        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value);
+
         // 连续快速开启/关闭邀请链接
         $this->toggleInvitationLink($projectId, true);
         $this->toggleInvitationLink($projectId, false);
@@ -375,7 +382,11 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
 
         // 验证最终状态
         $response = $this->getInvitationLink($projectId);
-        $this->assertTrue($response['data']['is_enabled']);
+        $this->assertEquals(1000, $response['code']);
+
+        // 验证链接是启用状态（兼容数字和布尔值）
+        $isEnabled = $response['data']['is_enabled'];
+        $this->assertTrue($isEnabled === true || $isEnabled === 1, '邀请链接应该是启用状态');
     }
 
     /**
@@ -400,8 +411,227 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
 
         // 验证密码长度和格式
         $password = $password3['data']['password'];
-        $this->assertEquals(8, strlen($password)); // 密码长度应该是8位
-        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]+$/', $password); // 只包含字母和数字
+        $this->assertEquals(5, strlen($password)); // 密码长度应该是5位
+        $this->assertMatchesRegularExpression('/^\d{5}$/', $password); // 只包含5位数字
+    }
+
+    /**
+     * 测试密码保护开关功能 - 关闭后再开启密码不会更改.
+     */
+    public function testPasswordTogglePreservation(): void
+    {
+        $projectId = $this->projectId;
+        $this->switchUserTest1();
+
+        // 0. 清理测试数据
+        $this->cleanupTestData($projectId);
+
+        // 1. 开启邀请链接
+        $this->toggleInvitationLink($projectId, true);
+
+        // 2. 设置密码保护
+        $initialPasswordResponse = $this->setInvitationPassword($projectId, true);
+        $this->assertEquals(1000, $initialPasswordResponse['code']);
+        $this->assertTrue($initialPasswordResponse['data']['enabled']);
+
+        $originalPassword = $initialPasswordResponse['data']['password'];
+        $this->assertNotEmpty($originalPassword);
+        $this->assertEquals(5, strlen($originalPassword));
+
+        // 3. 关闭密码保护
+        $disableResponse = $this->setInvitationPassword($projectId, false);
+        $this->assertEquals(1000, $disableResponse['code']);
+        $this->assertFalse($disableResponse['data']['enabled']);
+
+        // 4. 验证关闭状态下访问链接不需要密码
+        $linkResponse = $this->getInvitationLink($projectId);
+        $this->assertEquals(1000, $linkResponse['code']);
+        $token = $linkResponse['data']['token'];
+
+        $linkInfo = $this->getInvitationByToken($token);
+        $this->assertEquals(1000, $linkInfo['code']);
+        $this->assertFalse($linkInfo['data']['requires_password']);
+
+        // 5. 重新开启密码保护
+        $enableResponse = $this->setInvitationPassword($projectId, true);
+        $this->assertEquals(1000, $enableResponse['code']);
+        $this->assertTrue($enableResponse['data']['enabled']);
+
+        // 6. 验证密码保持不变
+        $restoredPassword = $enableResponse['data']['password'];
+        $this->assertEquals($originalPassword, $restoredPassword, '重新开启密码保护后，密码应该保持不变');
+
+        // 7. 验证开启状态下访问链接需要密码
+        $linkInfo = $this->getInvitationByToken($token);
+        $this->assertEquals(1000, $linkInfo['code']);
+        $this->assertTrue($linkInfo['data']['requires_password']);
+
+        // 8. 验证使用原密码可以成功加入项目
+        $this->switchUserTest2();
+        $joinResult = $this->joinProjectSuccess($token, $originalPassword);
+        $this->assertEquals(1000, $joinResult['code']);
+        $this->assertEquals('viewer', $joinResult['data']['user_role']);
+    }
+
+    /**
+     * 测试密码修改功能.
+     */
+    public function testChangePassword(): void
+    {
+        $projectId = $this->projectId;
+        $this->switchUserTest1();
+
+        // 0. 清理测试数据并重置邀请链接
+        $this->cleanupTestData($projectId);
+
+        // 通过领域服务删除现有的邀请链接
+        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value);
+
+        // 1. 开启邀请链接
+        $this->toggleInvitationLink($projectId, true);
+
+        // 2. 设置初始密码保护
+        $initialPasswordResponse = $this->setInvitationPassword($projectId, true);
+        $this->assertEquals(1000, $initialPasswordResponse['code']);
+        $this->assertTrue($initialPasswordResponse['data']['enabled']);
+
+        $originalPassword = $initialPasswordResponse['data']['password'];
+        $this->assertEquals(5, strlen($originalPassword)); // 验证密码长度为5位
+        $this->assertMatchesRegularExpression('/^\d{5}$/', $originalPassword); // 验证是5位数字
+
+        // 3. 修改密码为自定义密码
+        $customPassword = 'mypass123';
+        $changePasswordResponse = $this->changeInvitationPassword($projectId, $customPassword);
+        $this->assertEquals(1000, $changePasswordResponse['code']);
+        $this->assertTrue($changePasswordResponse['data']['enabled']);
+        $this->assertEquals($customPassword, $changePasswordResponse['data']['password']);
+
+        // 4. 验证原密码不能使用
+        $linkResponse = $this->getInvitationLink($projectId);
+        $token = $linkResponse['data']['token'];
+
+        $this->switchUserTest2();
+        // 使用原密码应该失败
+        $data = ['token' => $token, 'password' => $originalPassword];
+        $response = $this->client->post(
+            self::INVITATION_BASE_URI . '/join',
+            $data,
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(51220, $response['code'], '错误密码应该返回51220错误码');
+
+        // 5. 验证新密码可以正常使用
+        $joinResult = $this->joinProjectSuccess($token, $customPassword);
+        $this->assertEquals(1000, $joinResult['code']);
+        $this->assertEquals('viewer', $joinResult['data']['user_role']);
+
+        // 6. 清理测试数据
+        $this->cleanupTestData($projectId);
+
+        // 7. 测试无效密码格式（空字符串和超长密码）
+        $this->switchUserTest1();
+        $this->toggleInvitationLink($projectId, true);
+
+        // 测试空密码
+        $response = $this->changeInvitationPassword($projectId, '', 51220);
+        $this->assertEquals(51220, $response['code']);
+
+        // 测试超长密码（19位）
+        $response = $this->changeInvitationPassword($projectId, str_repeat('1', 19), 51220);
+        $this->assertEquals(51220, $response['code']);
+
+        // 8. 测试有效的各种密码格式
+        $validPasswords = ['123', '12345', 'abcde', '12a34', str_repeat('x', 18)];
+        foreach ($validPasswords as $validPassword) {
+            $response = $this->changeInvitationPassword($projectId, $validPassword, 1000);
+            $this->assertEquals(1000, $response['code']);
+            $this->assertEquals($validPassword, $response['data']['password']);
+        }
+    }
+
+    /**
+     * 测试邀请链接用户状态和创建者信息.
+     */
+    public function testInvitationLinkUserStatusAndCreatorInfo(): void
+    {
+        $projectId = $this->projectId;
+
+        // 0. 确保切换到test1用户并清理测试数据
+        $this->switchUserTest1();
+        $this->cleanupTestData($projectId);
+        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value);
+
+        // 1. 项目创建者（test1）开启邀请链接
+        $this->toggleInvitationLink($projectId, true);
+
+        // 获取邀请链接信息
+        $linkResponse = $this->getInvitationLink($projectId);
+        $token = $linkResponse['data']['token'];
+
+        // 2. 测试创建者访问邀请链接 - should show has_joined = true
+        $this->switchUserTest1();
+        $invitationInfo = $this->getInvitationByToken($token);
+
+        // 检查基本响应结构
+        $this->assertEquals(1000, $invitationInfo['code'], '获取邀请信息应该成功');
+        $this->assertIsArray($invitationInfo['data'], '响应数据应该是数组');
+
+        // 检查新增字段是否存在
+        $this->assertArrayHasKey('has_joined', $invitationInfo['data'], '响应应该包含has_joined字段');
+        $this->assertArrayHasKey('creator_name', $invitationInfo['data'], '响应应该包含creator_name字段');
+        $this->assertArrayHasKey('creator_avatar', $invitationInfo['data'], '响应应该包含creator_avatar字段');
+        $this->assertArrayHasKey('creator_id', $invitationInfo['data'], '响应应该包含creator_id字段');
+
+        // 检查字段值
+        $this->assertTrue($invitationInfo['data']['has_joined'], '创建者应该显示已加入项目');
+        $this->assertNotEmpty($invitationInfo['data']['creator_id'], 'creator_id不应该为空');
+
+        // 验证字段类型
+        $this->assertIsBool($invitationInfo['data']['has_joined'], 'has_joined应该是布尔类型');
+        $this->assertIsString($invitationInfo['data']['creator_name'], 'creator_name应该是字符串类型');
+        $this->assertIsString($invitationInfo['data']['creator_avatar'], 'creator_avatar应该是字符串类型');
+
+        // 3. 测试未加入用户访问邀请链接 - should show has_joined = false
+        $this->switchUserTest2();
+        $invitationInfo = $this->getInvitationByToken($token);
+
+        // 检查基本响应
+        $this->assertEquals(1000, $invitationInfo['code'], '未加入用户获取邀请信息应该成功');
+        $this->assertArrayHasKey('has_joined', $invitationInfo['data'], '响应应该包含has_joined字段');
+        $this->assertFalse($invitationInfo['data']['has_joined'], '未加入用户应该显示未加入项目');
+
+        // 验证创建者信息依然存在（不管谁访问，创建者信息都应该显示）
+        $this->assertArrayHasKey('creator_name', $invitationInfo['data'], '响应应该包含creator_name字段');
+        $this->assertArrayHasKey('creator_avatar', $invitationInfo['data'], '响应应该包含creator_avatar字段');
+
+        // 4. test2用户加入项目 - 需要提供密码
+        $password = $linkResponse['data']['password'] ?? null;
+        $joinResult = $this->joinProjectSuccess($token, $password);
+        $this->assertEquals(1000, $joinResult['code']);
+
+        // 5. 测试已加入成员访问邀请链接 - should show has_joined = true
+        $invitationInfo = $this->getInvitationByToken($token);
+
+        $this->assertEquals(1000, $invitationInfo['code'], '已加入成员获取邀请信息应该成功');
+        $this->assertArrayHasKey('has_joined', $invitationInfo['data'], '响应应该包含has_joined字段');
+        $this->assertTrue($invitationInfo['data']['has_joined'], '已加入成员应该显示已加入项目');
+
+        // 6. 验证响应数据完整性
+        $data = $invitationInfo['data'];
+        $requiredFields = [
+            'project_id', 'project_name', 'project_description',
+            'organization_code', 'creator_id', 'creator_name', 'creator_avatar',
+            'permission', 'requires_password', 'token', 'has_joined'
+        ];
+
+        foreach ($requiredFields as $field) {
+            $this->assertArrayHasKey($field, $data, "响应数据应包含字段: {$field}");
+        }
+
+        // 7. 清理测试数据并切换回test1用户
+        $this->switchUserTest1();
+        $this->cleanupTestData($projectId);
+        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value);
     }
 
     /**
@@ -412,7 +642,11 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $response = $this->toggleInvitationLink($projectId, true);
 
         $this->assertEquals(1000, $response['code']);
-        $this->assertTrue($response['data']['is_enabled']);
+
+        // 验证链接是启用状态（兼容数字和布尔值）
+        $isEnabled = $response['data']['is_enabled'];
+        $this->assertTrue($isEnabled === true || $isEnabled === 1, '邀请链接应该是启用状态');
+
         $this->assertNotEmpty($response['data']['token']);
         $this->assertEquals('view', $response['data']['permission']);
     }
@@ -425,7 +659,10 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $response = $this->toggleInvitationLink($projectId, false);
 
         $this->assertEquals(1000, $response['code']);
-        $this->assertFalse($response['data']['is_enabled']);
+
+        // 验证链接是禁用状态（兼容数字和布尔值）
+        $isEnabled = $response['data']['is_enabled'];
+        $this->assertTrue($isEnabled === false || $isEnabled === 0, '邀请链接应该是禁用状态');
     }
 
     /**
@@ -446,15 +683,46 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
     }
 
     /**
+     * 修改邀请链接密码 (私有辅助方法).
+     */
+    private function changeInvitationPassword(string $projectId, string $password, int $expectedCode = 1000): array
+    {
+        $response = $this->client->put(
+            self::BASE_URI . "/{$projectId}/invitation-links/change-password",
+            ['password' => $password],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertNotNull($response, '响应不应该为null');
+        $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
+
+        return $response;
+    }
+
+    /**
      * 清理测试数据.
      */
     private function cleanupTestData(string $projectId): void
     {
-        // 删除test2用户的项目成员关系（如果存在）
-        Db::table('magic_super_agent_project_members')
-            ->where('project_id', $projectId)
-            ->where('target_type', 'User')
-            ->where('target_id', 'usi_e9d64db5b986d062a342793013f682e8') // test2用户ID
-            ->delete();
+        // 通过领域服务删除test2用户的项目成员关系（如果存在）
+        $this->getProjectMemberDomainService()->removeMemberByUser((int)$projectId, 'usi_e9d64db5b986d062a342793013f682e8');
+    }
+
+    /**
+     * 获取资源分享领域服务.
+     */
+    private function getResourceShareDomainService(): \Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService
+    {
+        return \Hyperf\Context\ApplicationContext::getContainer()
+            ->get(\Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService::class);
+    }
+
+    /**
+     * 获取项目成员领域服务.
+     */
+    private function getProjectMemberDomainService(): \Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService
+    {
+        return \Hyperf\Context\ApplicationContext::getContainer()
+            ->get(\Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService::class);
     }
 }

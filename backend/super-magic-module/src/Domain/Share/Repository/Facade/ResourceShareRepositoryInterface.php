@@ -66,7 +66,7 @@ interface ResourceShareRepositoryInterface
      */
     public function paginate(array $conditions, int $page = 1, int $pageSize = 20): array;
 
-    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity;
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType, bool $withTrashed = true): ?ResourceShareEntity;
 
     /**
      * 检查分享码是否已存在.

@@ -355,7 +355,7 @@ class ResourceShareDomainService
      */
     public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
     {
-        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
+        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType, false);
     }
 
     /**
@@ -369,5 +369,60 @@ class ResourceShareDomainService
     protected function findExistingShare(string $resourceId, int $resourceType, string $userId = ''): ?ResourceShareEntity
     {
         return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
+    }
+
+    /**
+     * 删除指定资源的分享.
+     *
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @param string $userId 用户ID（可选，用于权限检查）
+     * @return bool 删除是否成功
+     */
+    public function deleteShareByResource(string $resourceId, int $resourceType, string $userId = ''): bool
+    {
+        $shareEntity = $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
+        if (!$shareEntity) {
+            return true; // 如果不存在，视为删除成功
+        }
+
+        return $this->shareRepository->delete($shareEntity->getId());
+    }
+
+    /**
+     * 删除指定分享码的分享.
+     *
+     * @param string $shareCode 分享码
+     * @return bool 删除是否成功
+     */
+    public function deleteShareByCode(string $shareCode): bool
+    {
+        $shareEntity = $this->shareRepository->getShareByCode($shareCode);
+        if (!$shareEntity) {
+            return true; // 如果不存在，视为删除成功
+        }
+
+        return $this->shareRepository->delete($shareEntity->getId());
+    }
+
+    /**
+     * 批量删除指定资源类型的分享.
+     *
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @return bool 删除是否成功
+     */
+    public function deleteAllSharesByResource(string $resourceId, int $resourceType): bool
+    {
+        try {
+            // 这里可以扩展为批量删除，目前先用单个删除
+            $shareEntity = $this->shareRepository->getShareByResource('', $resourceId, $resourceType);
+            if (!$shareEntity) {
+                return true;
+            }
+            return $this->shareRepository->delete($shareEntity->getId());
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.delete_failed: ' . $resourceId);
+        }
     }
 }

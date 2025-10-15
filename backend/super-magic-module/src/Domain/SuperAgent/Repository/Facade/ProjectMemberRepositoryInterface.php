@@ -41,6 +41,25 @@ interface ProjectMemberRepositoryInterface
     public function deleteByIds(array $ids): int;
 
     /**
+     * 删除指定项目和用户的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndUser(int $projectId, string $userId): int;
+
+    /**
+     * 删除指定项目和目标的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型
+     * @param string $targetId 目标ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int;
+
+    /**
      * 检查项目和用户的成员关系是否存在.
      *
      * @param int $projectId 项目ID

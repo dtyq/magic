@@ -85,6 +85,8 @@ Router::addGroup(
                 Router::post('/password', [ProjectInvitationLinkApi::class, 'setPassword']);
                 // 重新设置密码
                 Router::post('/reset-password', [ProjectInvitationLinkApi::class, 'resetPassword']);
+                // 修改邀请链接密码
+                Router::put('/change-password', [ProjectInvitationLinkApi::class, 'changePassword']);
                 // 修改权限级别
                 Router::put('/permission', [ProjectInvitationLinkApi::class, 'updatePermission']);
             });
