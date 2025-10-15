@@ -50,4 +50,19 @@ class VolcengineModelRequest extends ImageGenerateRequest
     {
         $this->organizationCode = $organizationCode;
     }
+
+    public function toRequestParams(): array
+    {
+        $prompt = $this->getPrompt();
+        $width = (int) $this->getWidth();
+        $height = (int) $this->getHeight();
+
+        return [
+            'return_url' => true,
+            'prompt' => $prompt,
+            'width' => $width,
+            'height' => $height,
+            'req_key' => $this->getModel(),
+        ];
+    }
 }

@@ -164,13 +164,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
         // 判断是图生图还是文生图
         $count = $imageGenerateRequest->getGenerateNum();
 
-        $this->logger->info('火山文生图：开始生图', [
-            'prompt' => $imageGenerateRequest->getPrompt(),
-            'negativePrompt' => $imageGenerateRequest->getNegativePrompt(),
-            'width' => $imageGenerateRequest->getWidth(),
-            'height' => $imageGenerateRequest->getHeight(),
-            'req_key' => $imageGenerateRequest->getModel(),
-        ]);
+        $this->logger->info('火山文生图：开始生图', $imageGenerateRequest->toRequestParams());
 
         // 使用同步方式处理
         $rawResults = [];
@@ -229,18 +223,8 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 
     private function submitAsyncTask(VolcengineModelRequest $request): string
     {
-        $prompt = $request->getPrompt();
-        $width = (int) $request->getWidth();
-        $height = (int) $request->getHeight();
-
         try {
-            $body = [
-                'return_url' => true,
-                'prompt' => $prompt,
-                'width' => $width,
-                'height' => $height,
-                'req_key' => $request->getModel(),
-            ];
+            $body = $request->toRequestParams();
 
             $response = $this->api->submitTask($body);
 
@@ -416,6 +400,7 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
             }
 
             $data = $volcengineResult['data'];
+            $size = sprintf('%sx%s', $imageGenerateRequest->getWidth(), $imageGenerateRequest->getHeight());
             $currentData = $response->getData();
             $currentUsage = $response->getUsage() ?? new ImageUsage();
 
@@ -427,15 +412,18 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
                     $processedUrl = $this->watermarkProcessor->addWatermarkToUrl($imageUrl, $imageGenerateRequest);
                     $currentData[] = [
                         'url' => $processedUrl,
+                        'size' => $size,
                     ];
                 } catch (Exception $e) {
                     $this->logger->error('VolcengineV3添加图片数据：URL水印处理失败', [
                         'error' => $e->getMessage(),
                         'url' => $imageUrl,
+                        'size' => $size,
                     ]);
                     // 水印处理失败时使用原始URL
                     $currentData[] = [
                         'url' => $imageUrl,
+                        'size' => $size,
                     ];
                 }
             } elseif (! empty($data['binary_data_base64']) && ! empty($data['binary_data_base64'][0])) {

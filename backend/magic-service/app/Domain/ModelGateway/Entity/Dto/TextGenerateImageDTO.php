@@ -100,6 +100,7 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     {
         $supportedModels = array_merge(
             ImageGenerateModelType::getVolcengineModes(),
+            ImageGenerateModelType::getVolcengineImageGenerateV4Modes(),
             ImageGenerateModelType::getAzureOpenAIEditModes(),
             ImageGenerateModelType::getQwenImageEditModes(),
             ImageGenerateModelType::getGoogleGeminiModes(),

@@ -187,4 +187,18 @@ class ImageGenerateRequest
     {
         $this->size = $size;
     }
+
+    public function toRequestParams(): array
+    {
+        $prompt = $this->getPrompt();
+        $width = (int) $this->getWidth();
+        $height = (int) $this->getHeight();
+
+        return [
+            'prompt' => $prompt,
+            'width' => $width,
+            'height' => $height,
+            'req_key' => $this->getModel(),
+        ];
+    }
 }
