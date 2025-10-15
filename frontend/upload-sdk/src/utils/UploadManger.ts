@@ -23,14 +23,15 @@ import type { OSS } from "../types/OSS"
 import type { ErrorType } from "../types/error"
 import type { Kodo } from "../types/Kodo"
 import type { TOS } from "../types/TOS"
+import type { OBS } from "../types/OBS"
 import type { Local } from "../types/Local"
+import type { S3 } from "../types/S3"
 import { isBlob, isFile } from "./checkDataFormat"
 import EventEmitter from "./EventEmitter"
 import { getUploadConfig } from "./global"
 import logPubSub from "./logPubSub"
 import { nanoid } from "./nanoid"
 import { cancelRequest, completeRequest, pauseRequest } from "./request"
-import type { OBS } from "../types/OBS"
 
 // 上传任务的事件订阅管理
 const TaskEvent = new EventEmitter<SuccessCallback | FailCallback | ProgressCallback>()
@@ -297,7 +298,9 @@ export class UploadManger {
 					TOS.AuthParams &
 					OBS.STSAuthParams &
 					OBS.AuthParams &
-					Local.AuthParams,
+					Local.AuthParams &
+					S3.AuthParams &
+					S3.STSAuthParams,
 				{
 					...option,
 					progress: onProgress,
