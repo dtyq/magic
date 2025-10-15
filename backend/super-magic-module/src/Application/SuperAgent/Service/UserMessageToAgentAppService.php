@@ -190,9 +190,6 @@ class UserMessageToAgentAppService extends AbstractAppService
         array $messageContent
     ): array {
         try {
-            // Validate message type
-            ChatMessageType::from($messageType);
-
             // Create message queue entity
             // Note: MessageQueueDomainService::createMessage() expects string type for $messageType parameter
             $messageQueueEntity = $this->messageQueueDomainService->createMessage(
