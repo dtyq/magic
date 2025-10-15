@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
 use function Hyperf\Translation\trans;
 
 /**
