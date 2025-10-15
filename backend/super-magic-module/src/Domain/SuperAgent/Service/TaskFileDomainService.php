@@ -1813,7 +1813,7 @@ class TaskFileDomainService
      * @param TaskFileEntity $fileEntity File entity
      * @return array URL options array
      */
-    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark = false, TaskFileEntity $fileEntity): array
+    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark, TaskFileEntity $fileEntity): array
     {
         $urlOptions = [];
 
