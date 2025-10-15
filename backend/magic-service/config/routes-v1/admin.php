@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
+use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
@@ -86,5 +87,10 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::put('/sub-admins/{id}', [RoleApi::class, 'updateSubAdmin']);
         Router::delete('/sub-admins/{id}', [RoleApi::class, 'deleteSubAdmin']);
         Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // 组织列表
+    Router::addGroup('/organizations', static function () {
+        Router::get('', [OrganizationApi::class, 'queries']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });
