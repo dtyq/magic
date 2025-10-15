@@ -1810,9 +1810,10 @@ class TaskFileDomainService
      * @param string $filename File name
      * @param string $downloadMode Download mode (download, preview, inline)
      * @param bool $addWatermark Whether to add watermark parameters
+     * @param TaskFileEntity $fileEntity File entity
      * @return array URL options array
      */
-    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark = false): array
+    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark = false,TaskFileEntity $fileEntity): array
     {
         $urlOptions = [];
 
@@ -1834,7 +1835,7 @@ class TaskFileDomainService
 
                 // Add watermark parameters if enabled and file is an image
                 if ($addWatermark && $this->isImageFile($filename)) {
-                    $watermarkParams = $this->getWatermarkParameters();
+                    $watermarkParams = $this->getWatermarkParameters($fileEntity->getSource());
                     if (! empty($watermarkParams)) {
                         $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
                     }
@@ -1877,7 +1878,7 @@ class TaskFileDomainService
     ): array {
         // 准备下载选项，包含水印参数
         $filename = $fileEntity->getFileName();
-        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode, $addWatermark);
+        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode, $addWatermark,$fileEntity);
 
         // 生成预签名URL（水印参数已包含在签名中）
         $preSignedUrl = $this->getFilePreSignedUrl($dataIsolation, $fileEntity, $urlOptions);
@@ -1910,7 +1911,7 @@ class TaskFileDomainService
     /**
      * Get watermark parameters for cloud storage processing.
      */
-    private function getWatermarkParameters(): array
+    private function getWatermarkParameters(TaskFileSource $source): array
     {
         $driver = env('FILE_SERVICE_PUBLIC_PLATFORM') ?? env('FILE_SERVICE_PRIVATE_PLATFORM');
 
@@ -1925,15 +1926,20 @@ class TaskFileDomainService
         $watermarkText = $this->getWatermarkText();
         // Use base64url encoding for cloud storage compatibility
         $encodedText = $this->base64UrlEncode($watermarkText);
+        if($source === TaskFileSource::AGENT->value){
+            $watermark=",p_50/watermark,text_" . $encodedText . ",color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp";
+        }else{
+            $watermark="";
+        }
 
         switch ($driver) {
             case 'oss':
                 return [
-                    'x-oss-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
+                    'x-oss-process' => 'image/resize,t_50,size_30'.$watermark,
                 ];
             case 'tos':
                 return [
-                    'x-tos-process' => 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp',
+                    'x-tos-process' => 'image/resize,t_50,size_30'.$watermark,
                 ];
             default:
                 return [];
