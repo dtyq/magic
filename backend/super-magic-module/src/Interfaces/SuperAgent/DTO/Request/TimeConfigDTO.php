@@ -8,6 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use App\Infrastructure\Core\AbstractRequestDTO;
+use Carbon\Carbon;
+use Exception;
+
+use function Hyperf\Translation\__;
 
 /**
  * Time configuration DTO.
@@ -90,70 +94,78 @@ class TimeConfigDTO extends AbstractRequestDTO
         switch ($this->type) {
             case 'no_repeat':
                 if (empty($this->day)) {
-                    $errors[] = 'Day is required for no_repeat type';
+                    $errors[] = __('validation.schedule_time.no_repeat.day_required');
                 }
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for no_repeat type';
+                    $errors[] = __('validation.schedule_time.no_repeat.time_required');
+                }
+
+                // Validate time range for no_repeat type
+                if (! empty($this->day) && ! empty($this->time)) {
+                    $timeRangeError = $this->validateNoRepeatTimeRange();
+                    if ($timeRangeError) {
+                        $errors[] = $timeRangeError;
+                    }
                 }
                 break;
             case 'daily_repeat':
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for daily_repeat type';
+                    $errors[] = __('validation.schedule_time.daily_repeat.time_required');
                 }
                 break;
             case 'weekly_repeat':
                 if (empty($this->day)) {
-                    $errors[] = 'Day is required for weekly_repeat type';
+                    $errors[] = __('validation.schedule_time.weekly_repeat.day_required');
                 }
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for weekly_repeat type';
+                    $errors[] = __('validation.schedule_time.weekly_repeat.time_required');
                 }
                 // Validate day is between 0-6
                 if (! empty($this->day) && (! is_numeric($this->day) || $this->day < 0 || $this->day > 6)) {
-                    $errors[] = 'Day must be between 0-6 for weekly_repeat type';
+                    $errors[] = __('validation.schedule_time.weekly_repeat.day_range');
                 }
                 break;
             case 'monthly_repeat':
                 if (empty($this->day)) {
-                    $errors[] = 'Day is required for monthly_repeat type';
+                    $errors[] = __('validation.schedule_time.monthly_repeat.day_required');
                 }
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for monthly_repeat type';
+                    $errors[] = __('validation.schedule_time.monthly_repeat.time_required');
                 }
                 // Validate day is between 1-31
                 if (! empty($this->day) && (! is_numeric($this->day) || $this->day < 1 || $this->day > 31)) {
-                    $errors[] = 'Day must be between 1-31 for monthly_repeat type';
+                    $errors[] = __('validation.schedule_time.monthly_repeat.day_range');
                 }
                 break;
             case 'annually_repeat':
                 if (empty($this->day)) {
-                    $errors[] = 'Day is required for annually_repeat type';
+                    $errors[] = __('validation.schedule_time.annually_repeat.day_required');
                 }
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for annually_repeat type';
+                    $errors[] = __('validation.schedule_time.annually_repeat.time_required');
                 }
                 break;
             case 'weekday_repeat':
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for weekday_repeat type';
+                    $errors[] = __('validation.schedule_time.weekday_repeat.time_required');
                 }
                 break;
             case 'custom_repeat':
                 if (empty($this->day)) {
-                    $errors[] = 'Day is required for custom_repeat type';
+                    $errors[] = __('validation.schedule_time.custom_repeat.day_required');
                 }
                 if (empty($this->time)) {
-                    $errors[] = 'Time is required for custom_repeat type';
+                    $errors[] = __('validation.schedule_time.custom_repeat.time_required');
                 }
                 if (empty($this->value['unit'])) {
-                    $errors[] = 'Unit is required for custom_repeat type';
+                    $errors[] = __('validation.schedule_time.custom_repeat.unit_required');
                 }
                 if (empty($this->value['interval'])) {
-                    $errors[] = 'Interval is required for custom_repeat type';
+                    $errors[] = __('validation.schedule_time.custom_repeat.interval_required');
                 }
                 // Validate values for week and month units
                 if (in_array($this->value['unit'] ?? '', ['week', 'month']) && empty($this->value['values'])) {
-                    $errors[] = 'Values are required for week and month units in custom_repeat type';
+                    $errors[] = __('validation.schedule_time.custom_repeat.values_required');
                 }
                 break;
         }
@@ -280,5 +292,40 @@ class TimeConfigDTO extends AbstractRequestDTO
             'value.deadline.string' => 'Deadline must be a string',
             'value.deadline.date' => 'Deadline must be a valid date',
         ];
+    }
+
+    /**
+     * Validate no_repeat type time range.
+     * Check if scheduled time is in the future and at least 5 minutes from now.
+     * Returns only the first error found (priority: past time > less than 5 minutes > invalid format).
+     */
+    private function validateNoRepeatTimeRange(): ?string
+    {
+        try {
+            // Combine day and time into a Carbon instance
+            $scheduledTime = Carbon::createFromFormat(
+                'Y-m-d H:i',
+                $this->day . ' ' . $this->time,
+                'Asia/Shanghai'
+            );
+
+            // Get current time
+            $now = Carbon::now('Asia/Shanghai');
+
+            // Check if scheduled time is in the past (highest priority)
+            if ($scheduledTime->lte($now)) {
+                return __('validation.schedule_time.no_repeat.must_be_future');
+            }
+
+            // Check if scheduled time is at least 5 minutes from now
+            $minimumTime = $now->copy()->addMinutes(5);
+            if ($scheduledTime->lt($minimumTime)) {
+                return __('validation.schedule_time.no_repeat.must_be_at_least_5_minutes');
+            }
+        } catch (Exception $e) {
+            return __('validation.schedule_time.no_repeat.invalid_date_time_format');
+        }
+
+        return null;
     }
 }
