@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Util\OrganizationEnvironment\Repository;
 
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSyncStatus;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Persistence\Model\OrganizationModel;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -39,6 +40,10 @@ class OrganizationRepository implements OrganizationRepositoryInterface
             'status' => $organizationEntity->getStatus(),
             'creator_id' => $organizationEntity->getCreatorId(),
             'type' => $organizationEntity->getType(),
+            'seats' => $organizationEntity->getSeats(),
+            'sync_type' => $organizationEntity->getSyncType(),
+            'sync_status' => $organizationEntity->getSyncStatus()?->value,
+            'sync_time' => $organizationEntity->getSyncTime(),
             'updated_at' => $organizationEntity->getUpdatedAt() ?? now(),
         ];
 
@@ -110,8 +115,17 @@ class OrganizationRepository implements OrganizationRepositoryInterface
         // 获取总数
         $total = $query->count();
 
+        // 排序：优先使用过滤器中的排序字段，否则默认按创建时间倒序
+        $orderBy = $filters['order_by'] ?? null;
+        $orderDirection = strtolower((string) ($filters['order_direction'] ?? '')) === 'asc' ? 'asc' : 'desc';
+        if (! empty($orderBy)) {
+            $query->orderBy($orderBy, $orderDirection);
+        } else {
+            $query->orderBy('id', 'asc');
+        }
+
         // 分页查询
-        $models = $query->orderBy('created_at', 'desc')
+        $models = $query
             ->forPage($page->getPage(), $page->getPageNum())
             ->get();
 
@@ -178,6 +192,23 @@ class OrganizationRepository implements OrganizationRepositoryInterface
         if (isset($filters['creator_id'])) {
             $query->where('creator_id', $filters['creator_id']);
         }
+
+        if (isset($filters['type'])) {
+            $query->where('type', (int) $filters['type']);
+        }
+
+        // 同步状态筛选
+        if (isset($filters['sync_status'])) {
+            $query->where('sync_status', (int) $filters['sync_status']);
+        }
+
+        // 创建时间区间筛选
+        if (! empty($filters['created_at_start'])) {
+            $query->where('created_at', '>=', $filters['created_at_start'] . ' 00:00:00');
+        }
+        if (! empty($filters['created_at_end'])) {
+            $query->where('created_at', '<=', $filters['created_at_end'] . ' 23:59:59');
+        }
     }
 
     /**
@@ -199,6 +230,14 @@ class OrganizationRepository implements OrganizationRepositoryInterface
         $entity->setStatus($model->status);
         $entity->setCreatorId($model->creator_id);
         $entity->setType($model->type);
+        $entity->setSeats($model->seats);
+        $entity->setSyncType($model->sync_type);
+        if ($model->sync_status !== null) {
+            $entity->setSyncStatus(OrganizationSyncStatus::from((int) $model->sync_status));
+        }
+        if ($model->sync_time) {
+            $entity->setSyncTime(new DateTime($model->sync_time->toDateTimeString()));
+        }
 
         if ($model->created_at) {
             $entity->setCreatedAt(new DateTime($model->created_at->toDateTimeString()));
