@@ -14,6 +14,7 @@ use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
@@ -21,9 +22,12 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * User Message To Agent Application Service
@@ -190,6 +194,15 @@ class UserMessageToAgentAppService extends AbstractAppService
         array $messageContent
     ): array {
         try {
+            // Validate message type against ChatMessageType enum
+            $chatMessageType = ChatMessageType::tryFrom($messageType);
+            if ($chatMessageType === null) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::VALIDATE_FAILED,
+                    trans('message_queue.invalid_message_type', ['type' => $messageType])
+                );
+            }
+
             // Create message queue entity
             // Note: MessageQueueDomainService::createMessage() expects string type for $messageType parameter
             $messageQueueEntity = $this->messageQueueDomainService->createMessage(
@@ -197,7 +210,7 @@ class UserMessageToAgentAppService extends AbstractAppService
                 $topicEntity->getProjectId(),
                 $topicEntity->getId(),
                 $messageContent,
-                $messageType
+                $chatMessageType
             );
 
             $this->logger->info('Message inserted into queue', [
