@@ -173,6 +173,7 @@ class HandleUserMessageAppService extends AbstractAppService
 
     public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
+        $projectId = 0;
         $topicId = 0;
         $taskId = '';
         $errMsg = '';
@@ -183,6 +184,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+            $projectId = $topicEntity->getProjectId();
 
             // 检查项目是否有权限
             $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());

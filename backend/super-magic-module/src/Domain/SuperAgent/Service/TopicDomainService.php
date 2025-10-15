@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -193,7 +194,9 @@ class TopicDomainService
         string $chatTopicId,
         string $topicName = '',
         string $workDir = '',
-        string $topicMode = ''
+        string $topicMode = '',
+        int $source = CreationSource::USER_CREATED->value,
+        string $sourceId = ''
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -218,6 +221,8 @@ class TopicDomainService
         $topicEntity->setWorkDir($workDir); // Initially empty
         $topicEntity->setCurrentTaskId(0);
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // Default status: waiting
+        $topicEntity->setSource($source);
+        $topicEntity->setSourceId($sourceId); // Set source ID
         $topicEntity->setCreatedUid($userId); // Set creator user ID
         $topicEntity->setUpdatedUid($userId); // Set updater user ID
         $topicEntity->setCreatedAt($currentTime);
@@ -316,16 +321,17 @@ class TopicDomainService
      * 批量计算工作区状态.
      *
      * @param array $workspaceIds 工作区ID数组
+     * @param null|string $userId 可选的用户ID，指定时只计算该用户的话题状态
      * @return array ['workspace_id' => 'status'] 键值对
      */
-    public function calculateWorkspaceStatusBatch(array $workspaceIds): array
+    public function calculateWorkspaceStatusBatch(array $workspaceIds, ?string $userId = null): array
     {
         if (empty($workspaceIds)) {
             return [];
         }
 
         // 从仓储层获取有运行中话题的工作区ID列表
-        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds);
+        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds, $userId);
 
         // 计算每个工作区的状态
         $result = [];
@@ -342,16 +348,17 @@ class TopicDomainService
      * 批量计算项目状态.
      *
      * @param array $projectIds 项目ID数组
+     * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
      * @return array ['project_id' => 'status'] 键值对
      */
-    public function calculateProjectStatusBatch(array $projectIds): array
+    public function calculateProjectStatusBatch(array $projectIds, ?string $userId = null): array
     {
         if (empty($projectIds)) {
             return [];
         }
 
         // 从仓储层获取有运行中话题的项目ID列表
-        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds);
+        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds, $userId);
 
         // 计算每个项目的状态
         $result = [];
@@ -645,5 +652,20 @@ class TopicDomainService
 
         // 使用仓储层查询统计数据
         return $this->topicRepository->getTopicStatusMetrics($conditions);
+    }
+
+    /**
+     * Batch get topic names by IDs.
+     *
+     * @param array $topicIds Topic ID array
+     * @return array ['topic_id' => 'topic_name'] key-value pairs
+     */
+    public function getTopicNamesBatch(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        return $this->topicRepository->getTopicNamesBatch($topicIds);
     }
 }

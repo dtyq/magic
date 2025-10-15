@@ -103,7 +103,9 @@ class HandleAgentMessageAppService extends AbstractAppService
             $this->updateTaskStatus($messageDTO, $taskContext);
 
             // 4. Event dispatch
-            $this->dispatchCallbackEvent($messageDTO, $taskContext, $topicEntity);
+            if (TaskStatus::tryFrom($messageDTO->getPayload()->getStatus())?->isFinal()) {
+                $this->dispatchCallbackEvent($messageDTO, $taskContext, $topicEntity);
+            }
 
             $this->logger->info(sprintf(
                 'Topic task message processing completed, message_id: %s',

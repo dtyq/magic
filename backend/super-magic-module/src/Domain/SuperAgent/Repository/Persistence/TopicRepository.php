@@ -415,18 +415,25 @@ class TopicRepository implements TopicRepositoryInterface
      * 批量获取有运行中话题的工作区ID列表.
      *
      * @param array $workspaceIds 工作区ID数组
+     * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
      * @return array 有运行中话题的工作区ID数组
      */
-    public function getRunningWorkspaceIds(array $workspaceIds): array
+    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array
     {
         if (empty($workspaceIds)) {
             return [];
         }
 
-        return $this->model::query()
+        $query = $this->model::query()
             ->whereIn('workspace_id', $workspaceIds)
             ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
+            ->whereNull('deleted_at');
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        return $query
             ->distinct()
             ->pluck('workspace_id')
             ->toArray();
@@ -436,18 +443,25 @@ class TopicRepository implements TopicRepositoryInterface
      * 批量获取有运行中话题的项目ID列表.
      *
      * @param array $projectIds 项目ID数组
+     * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
      * @return array 有运行中话题的项目ID数组
      */
-    public function getRunningProjectIds(array $projectIds): array
+    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array
     {
         if (empty($projectIds)) {
             return [];
         }
 
-        return $this->model::query()
+        $query = $this->model::query()
             ->whereIn('project_id', $projectIds)
             ->where('current_task_status', TaskStatus::RUNNING->value)
-            ->whereNull('deleted_at')
+            ->whereNull('deleted_at');
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        return $query
             ->distinct()
             ->pluck('project_id')
             ->toArray();
@@ -663,6 +677,29 @@ class TopicRepository implements TopicRepositoryInterface
             ->where('magic_chat_sequences.status', MagicMessageStatus::Revoked->value)
             ->pluck('magic_chat_topic_messages.seq_id')
             ->toArray();
+    }
+
+    /**
+     * Batch get topic names by IDs.
+     */
+    public function getTopicNamesBatch(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->whereIn('id', $topicIds)
+            ->whereNull('deleted_at')
+            ->select(['id', 'topic_name'])
+            ->get();
+
+        $topicNames = [];
+        foreach ($results as $result) {
+            $topicNames[(string) $result->id] = $result->topic_name;
+        }
+
+        return $topicNames;
     }
 
     /**

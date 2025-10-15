@@ -56,6 +56,11 @@ class ProjectEntity extends AbstractEntity
     protected string $projectMode = '';
 
     /**
+     * @var int Creation source
+     */
+    protected int $source = 1;
+
+    /**
      * @var ProjectStatus Project status
      */
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
@@ -117,6 +122,7 @@ class ProjectEntity extends AbstractEntity
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
             'project_mode' => $this->projectMode,
+            'source' => $this->source,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
@@ -383,6 +389,23 @@ class ProjectEntity extends AbstractEntity
     public function setProjectMode(?string $projectMode): self
     {
         $this->projectMode = $projectMode ?? '';
+        return $this;
+    }
+
+    /**
+     * Get creation source.
+     */
+    public function getSource(): int
+    {
+        return $this->source;
+    }
+
+    /**
+     * Set creation source.
+     */
+    public function setSource(int $source): self
+    {
+        $this->source = $source;
         return $this;
     }
 }

@@ -142,6 +142,24 @@ Router::addGroup(
             Router::post('/{id}/consume', [MessageApi::class, 'consumeMessageQueue']);
         });
 
+        // 消息定时任务
+        Router::addGroup('/message-schedule', static function () {
+            // 创建定时任务
+            Router::post('', [MessageApi::class, 'createMessageSchedule']);
+            // 修改定时任务
+            Router::put('/{id}', [MessageApi::class, 'updateMessageSchedule']);
+            // 删除定时任务
+            Router::delete('/{id}', [MessageApi::class, 'deleteMessageSchedule']);
+            // 查询定时任务
+            Router::post('/queries', [MessageApi::class, 'queryMessageSchedules']);
+            // 查询定时任务详情
+            Router::get('/{id}', [MessageApi::class, 'getMessageScheduleDetail']);
+            // 查询定时任务执行日志
+            Router::post('/{id}/logs', [MessageApi::class, 'getMessageScheduleLogs']);
+            // 手动执行定时任务（测试用途）
+            Router::post('/{id}/execute', [MessageApi::class, 'executeMessageScheduleForTest']);
+        });
+
         Router::addGroup('/file', static function () {
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
