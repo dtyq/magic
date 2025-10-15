@@ -29,6 +29,7 @@ enum MagicResourceEnum: string
     case ADMIN_SAFE = 'admin.safe'; # 安全管控
     case PLATFORM_AI = 'platform.ai'; # 平台管理后台-AI管理
     case PLATFORM_SETTING = 'platform.setting'; # 系统设置
+    case PLATFORM_ORGANIZATION = 'platform.organization'; # 组织管理
 
     // ===== 三级：具体资源 (用于具体绑定接口）=====
     case ADMIN_AI_MODEL = 'platform.ai.model_management'; # AI管理-模型管理
@@ -36,6 +37,7 @@ enum MagicResourceEnum: string
     case ADMIN_AI_MODE = 'platform.ai.mode_management'; # AI管理-模式管理管理
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 安全管控-子管理员
     case PLATFORM_SETTING_MAINTENANCE = 'platform.setting.maintenance'; # 平台管理 - 系统信息 - 维护管理
+    case PLATFORM_ORGANIZATION_LIST = 'platform.organization.list'; # 平台管理 - 组织管理 - 组织列表
 
     /**
      * 对应 i18n key.
@@ -54,6 +56,8 @@ enum MagicResourceEnum: string
             self::PLATFORM_AI => 'permission.resource.platform_ai',
             self::PLATFORM_SETTING => 'permission.resource.platform_setting',
             self::PLATFORM_SETTING_MAINTENANCE => 'permission.resource.platform_setting_maintenance',
+            self::PLATFORM_ORGANIZATION => 'permission.resource.platform_organization',
+            self::PLATFORM_ORGANIZATION_LIST => 'permission.resource.platform_organization_list',
         };
     }
 
@@ -69,7 +73,8 @@ enum MagicResourceEnum: string
             self::PLATFORM => null,
             // 模块
             self::PLATFORM_AI,
-            self::PLATFORM_SETTING => self::PLATFORM,
+            self::PLATFORM_SETTING,
+            self::PLATFORM_ORGANIZATION => self::PLATFORM,
             self::ADMIN_AI,
             self::ADMIN_SAFE => self::ADMIN,
             // 操作资源
@@ -78,6 +83,7 @@ enum MagicResourceEnum: string
             self::ADMIN_AI_MODE => self::PLATFORM_AI,
             self::SAFE_SUB_ADMIN => self::ADMIN_SAFE,
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
+            self::PLATFORM_ORGANIZATION_LIST => self::PLATFORM_ORGANIZATION,
         };
     }
 

@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace App\Interfaces\OrganizationEnvironment\DTO;
 
@@ -42,5 +45,3 @@ class OrganizationListResponseDTO extends AbstractDTO
         $this->pageSize = $pageSize;
     }
 }
-
-

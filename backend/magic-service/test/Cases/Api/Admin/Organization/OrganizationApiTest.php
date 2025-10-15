@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
 
 namespace HyperfTest\Cases\Api\Admin\Organization;
 
@@ -20,7 +23,7 @@ class OrganizationApiTest extends BaseTest
         $query = [
             'page' => 1,
             'page_size' => 10,
-            'type' => 0
+            'type' => 0,
         ];
 
         $response = $this->get($this->baseUri . '?' . http_build_query($query), [], $headers);
