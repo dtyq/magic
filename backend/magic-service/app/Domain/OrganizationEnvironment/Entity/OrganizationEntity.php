@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\OrganizationEnvironment\Entity;
 
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSyncStatus;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -48,6 +49,14 @@ class OrganizationEntity extends AbstractEntity
     protected ?DateTime $updatedAt = null;
 
     protected ?DateTime $deletedAt = null;
+
+    protected ?int $seats = null; // 席位数
+
+    protected ?string $syncType = null; // 同步类型
+
+    protected ?OrganizationSyncStatus $syncStatus = null; // 同步状态
+
+    protected ?DateTime $syncTime = null; // 同步时间
 
     public function shouldCreate(): bool
     {
@@ -249,6 +258,51 @@ class OrganizationEntity extends AbstractEntity
     public function setDeletedAt(?DateTime $deletedAt): void
     {
         $this->deletedAt = $deletedAt;
+    }
+
+    public function getSeats(): ?int
+    {
+        return $this->seats;
+    }
+
+    public function setSeats(?int $seats): void
+    {
+        $this->seats = $seats;
+    }
+
+    public function getSyncType(): ?string
+    {
+        return $this->syncType;
+    }
+
+    public function setSyncType(?string $syncType): void
+    {
+        $this->syncType = $syncType;
+    }
+
+    public function getSyncStatus(): ?OrganizationSyncStatus
+    {
+        return $this->syncStatus;
+    }
+
+    public function setSyncStatus(null|int|OrganizationSyncStatus $syncStatus): void
+    {
+        if ($syncStatus === null || $syncStatus instanceof OrganizationSyncStatus) {
+            $this->syncStatus = $syncStatus;
+            return;
+        }
+
+        $this->syncStatus = OrganizationSyncStatus::from($syncStatus);
+    }
+
+    public function getSyncTime(): ?DateTime
+    {
+        return $this->syncTime;
+    }
+
+    public function setSyncTime(?DateTime $syncTime): void
+    {
+        $this->syncTime = $syncTime;
     }
 
     protected function validate(): void
