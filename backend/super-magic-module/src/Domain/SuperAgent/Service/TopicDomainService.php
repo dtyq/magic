@@ -672,7 +672,7 @@ class TopicDomainService
     }
 
     /**
-     * Duplicate topic - create topic skeleton with IM conversation.
+     * Duplicate topic skeleton - create topic entity and IM conversation only.
      * This method only creates the topic entity and IM conversation,
      * without copying messages. Use copyTopicMessageFromOthers to copy messages.
      *
@@ -681,7 +681,7 @@ class TopicDomainService
      * @param string $newTopicName Name for the new topic
      * @return array Returns array containing topic_entity and im_conversation
      */
-    public function duplicateTopic(
+    public function duplicateTopicSkeleton(
         DataIsolation $dataIsolation,
         TopicEntity $sourceTopicEntity,
         string $newTopicName
@@ -715,13 +715,68 @@ class TopicDomainService
     }
 
     /**
+     * Duplicate topic - complete duplication including skeleton and messages.
+     * This is the main method for topic duplication (synchronous).
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param TopicEntity $sourceTopicEntity Source topic entity to duplicate from
+     * @param string $newTopicName Name for the new topic
+     * @param int $targetMessageId Message ID to copy up to
+     * @return TopicEntity The newly created topic entity
+     * @throws Throwable
+     */
+    public function duplicateTopic(
+        DataIsolation $dataIsolation,
+        TopicEntity $sourceTopicEntity,
+        string $newTopicName,
+        int $targetMessageId
+    ): TopicEntity {
+        $this->logger->info('Starting complete topic duplication', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'new_topic_name' => $newTopicName,
+            'target_message_id' => $targetMessageId,
+        ]);
+
+        // Step 1: Create topic skeleton with IM conversation
+        $duplicateResult = $this->duplicateTopicSkeleton(
+            $dataIsolation,
+            $sourceTopicEntity,
+            $newTopicName
+        );
+
+        $newTopicEntity = $duplicateResult['topic_entity'];
+        $imConversationResult = $duplicateResult['im_conversation'];
+
+        $this->logger->info('Topic skeleton created, starting message copy', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'new_topic_id' => $newTopicEntity->getId(),
+        ]);
+
+        // Step 2: Copy messages from source to target
+        $this->copyTopicMessageFromOthers(
+            $sourceTopicEntity,
+            $newTopicEntity,
+            $targetMessageId,
+            $imConversationResult,
+            null // No progress callback needed for synchronous operation
+        );
+
+        $this->logger->info('Complete topic duplication finished', [
+            'source_topic_id' => $sourceTopicEntity->getId(),
+            'new_topic_id' => $newTopicEntity->getId(),
+        ]);
+
+        return $newTopicEntity;
+    }
+
+    /**
      * Copy topic messages from source topic to target topic.
-     * This method handles the asynchronous copying of messages, IM messages, and chat history files.
+     * This method handles the copying of messages, IM messages, and chat history files.
      *
      * @param TopicEntity $sourceTopicEntity Source topic entity
      * @param TopicEntity $targetTopicEntity Target topic entity
      * @param int $messageId Message ID to copy up to
-     * @param array $imConversationResult IM conversation result from duplicateTopic
+     * @param array $imConversationResult IM conversation result from duplicateTopicSkeleton
      * @param null|callable $progressCallback Optional progress callback function
      */
     public function copyTopicMessageFromOthers(

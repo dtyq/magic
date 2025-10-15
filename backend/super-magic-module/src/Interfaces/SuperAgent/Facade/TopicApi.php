@@ -400,32 +400,54 @@ class TopicApi extends AbstractApi
     }
 
     /**
-     * 复制话题.
+     * Duplicate topic (synchronous) - blocks until completion.
      *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $id 源话题ID
-     * @return array 复制任务信息
-     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     * @param RequestContext $requestContext Request context
+     * @param string $id Source topic ID
+     * @return array Complete result with topic info
+     * @throws BusinessException If validation fails or operation fails
      */
     #[ApiResponse('low_code')]
     public function duplicateChat(RequestContext $requestContext, string $id): array
     {
-        // 设置用户授权信息
+        // Set user authorization
         $requestContext->setUserAuthorization($this->getAuthorization());
-        $userAuthorization = $requestContext->getUserAuthorization();
 
-        // 获取请求DTO
+        // Get request DTO
         $dto = DuplicateTopicRequestDTO::fromRequest($this->request);
-        return $this->topicAppService->duplicateChat($requestContext, $id, $dto);
+
+        // Call synchronous method
+        return $this->topicAppService->duplicateTopic($requestContext, $id, $dto);
     }
 
     /**
-     * 检查话题复制状态
+     * Duplicate topic (asynchronous) - returns immediately with task_id.
      *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $id 源话题ID
-     * @return array 复制状态信息
-     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     * @param RequestContext $requestContext Request context
+     * @param string $id Source topic ID
+     * @return array Task info with task_id
+     * @throws BusinessException If validation fails or operation fails
+     */
+    #[ApiResponse('low_code')]
+    public function duplicateChatAsync(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request DTO
+        $dto = DuplicateTopicRequestDTO::fromRequest($this->request);
+
+        // Call asynchronous method
+        return $this->topicAppService->duplicateChatAsync($requestContext, $id, $dto);
+    }
+
+    /**
+     * Check topic duplication status.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $id Source topic ID
+     * @return array Duplication status info
+     * @throws BusinessException If validation fails or operation fails
      */
     #[ApiResponse('low_code')]
     public function duplicateChatCheck(RequestContext $requestContext, string $id): array

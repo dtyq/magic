@@ -507,20 +507,92 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
-     * 复制话题.
+     * Duplicate topic (synchronous) - blocks until completion.
+     * This method performs complete topic duplication synchronously without task management.
      *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $sourceTopicId 源话题ID
-     * @param DuplicateTopicRequestDTO $requestDTO 请求DTO
-     * @return array 复制任务信息
-     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     * @param RequestContext $requestContext Request context
+     * @param string $sourceTopicId Source topic ID
+     * @param DuplicateTopicRequestDTO $requestDTO Request DTO
+     * @return array Complete result with topic info
+     * @throws BusinessException If validation fails or operation fails
      */
-    public function duplicateChat(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
+    public function duplicateTopic(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $this->logger->info('Topic duplication sync started', [
+            'user_id' => $userAuthorization->getId(),
+            'source_topic_id' => $sourceTopicId,
+            'target_message_id' => $requestDTO->getTargetMessageId(),
+            'new_topic_name' => $requestDTO->getNewTopicName(),
+        ]);
+
+        // Validate topic and permissions
+        $sourceTopicEntity = $this->topicDomainService->getTopicById((int) $sourceTopicId);
+        if (! $sourceTopicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        if ($sourceTopicEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
+        }
+
+        // Create data isolation
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // Execute complete duplication in transaction
+        Db::beginTransaction();
+        try {
+            // Call domain service - pure business logic
+            $newTopicEntity = $this->topicDomainService->duplicateTopic(
+                $dataIsolation,
+                $sourceTopicEntity,
+                $requestDTO->getNewTopicName(),
+                (int) $requestDTO->getTargetMessageId()
+            );
+
+            Db::commit();
+
+            $this->logger->info('Topic duplication sync completed', [
+                'source_topic_id' => $sourceTopicId,
+                'new_topic_id' => $newTopicEntity->getId(),
+            ]);
+
+            // Return complete result
+            return [
+                'status' => 'completed',
+                'message' => 'Topic duplicated successfully',
+                'topic' => TopicItemDTO::fromEntity($newTopicEntity)->toArray(),
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+
+            $this->logger->error('Topic duplication sync failed', [
+                'source_topic_id' => $sourceTopicId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Duplicate topic (asynchronous) - returns immediately with task_id.
+     * This method creates topic skeleton synchronously, then copies messages asynchronously.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $sourceTopicId Source topic ID
+     * @param DuplicateTopicRequestDTO $requestDTO Request DTO
+     * @return array Task info with task_id
+     * @throws BusinessException If validation fails or operation fails
+     */
+    public function duplicateChatAsync(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
     {
         // 获取用户授权信息
         $userAuthorization = $requestContext->getUserAuthorization();
 
-        $this->logger->info('Starting topic duplication (sync create + async copy)', [
+        $this->logger->info('Starting topic duplication async (skeleton sync + message copy async)', [
             'user_id' => $userAuthorization->getId(),
             'source_topic_id' => $sourceTopicId,
             'target_message_id' => $requestDTO->getTargetMessageId(),
@@ -545,7 +617,7 @@ class TopicAppService extends AbstractAppService
         Db::beginTransaction();
         try {
             // 调用 Domain 层创建话题骨架（包含 IM 会话）
-            $duplicateResult = $this->topicDomainService->duplicateTopic(
+            $duplicateResult = $this->topicDomainService->duplicateTopicSkeleton(
                 $dataIsolation,
                 $sourceTopicEntity,
                 $requestDTO->getNewTopicName()

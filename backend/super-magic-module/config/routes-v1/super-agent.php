@@ -118,8 +118,10 @@ Router::addGroup(
             });
             // 复制话题消息
             Router::addGroup('/{id}/duplicate-chat', static function () {
-                // 复制话题消息
+                // 复制话题消息（同步）
                 Router::post('', [TopicApi::class, 'duplicateChat']);
+                // 复制话题消息（异步）
+                Router::post('/create-job', [TopicApi::class, 'duplicateChatAsync']);
                 // 检查复制话题消息是否成功
                 Router::post('/check', [TopicApi::class, 'duplicateChatCheck']);
             });
