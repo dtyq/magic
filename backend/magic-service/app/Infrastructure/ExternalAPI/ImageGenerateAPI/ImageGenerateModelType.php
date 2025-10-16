@@ -14,6 +14,7 @@ enum ImageGenerateModelType: string
     case Midjourney = 'Midjourney';
     case Volcengine = 'Volcengine';
     case VolcengineImageGenerateV3 = 'VolcengineImageGenerateV3';
+    case VolcengineImageGenerateV4 = 'VolcengineImageGenerateV4';
     case Flux = 'Flux';
     case MiracleVision = 'MiracleVision';
     case TTAPIGPT4o = 'GPT4o';
@@ -37,6 +38,7 @@ enum ImageGenerateModelType: string
             in_array($model, self::getFluxModes()) => self::Flux,
             in_array($model, self::getVolcengineModes()) => self::Volcengine,
             in_array($model, self::getVolcengineImageGenerateV3Modes()) => self::VolcengineImageGenerateV3,
+            in_array($model, self::getVolcengineImageGenerateV4Modes()) => self::VolcengineImageGenerateV4,
             in_array($model, self::getGPT4oModes()) => self::TTAPIGPT4o,
             in_array($model, self::getAzureOpenAIModes()) => self::AzureOpenAIImageGenerate,
             in_array($model, self::getAzureOpenAIEditModes()) => self::AzureOpenAIImageEdit,
@@ -78,6 +80,11 @@ enum ImageGenerateModelType: string
     public static function getVolcengineImageGenerateV3Modes(): array
     {
         return ['high_aes_general_v30l_zt2i'];
+    }
+
+    public static function getVolcengineImageGenerateV4Modes(): array
+    {
+        return ['jimeng_t2i_v40'];
     }
 
     public static function getMiracleVisionModes(): array

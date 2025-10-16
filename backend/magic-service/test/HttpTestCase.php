@@ -52,6 +52,7 @@ abstract class HttpTestCase extends TestCase
     protected function getCommonHeaders(): array
     {
         return [
+            'api-key' => env('TEST_API_KEY'),
             'organization-code' => env('TEST_ORGANIZATION_CODE'),
             // 换成自己的
             'Authorization' => env('TEST_TOKEN'),

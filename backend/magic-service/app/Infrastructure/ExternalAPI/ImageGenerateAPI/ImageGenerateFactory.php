@@ -32,6 +32,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelReque
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelV4Request;
 use InvalidArgumentException;
 
 class ImageGenerateFactory
@@ -58,6 +59,7 @@ class ImageGenerateFactory
             ImageGenerateModelType::Midjourney => new MidjourneyModel($serviceProviderConfig),
             ImageGenerateModelType::Volcengine => new VolcengineModel($serviceProviderConfig),
             ImageGenerateModelType::VolcengineImageGenerateV3 => new VolcengineImageGenerateV3Model($serviceProviderConfig),
+            ImageGenerateModelType::VolcengineImageGenerateV4 => new VolcengineImageGenerateV3Model($serviceProviderConfig),
             ImageGenerateModelType::Flux => new FluxModel($serviceProviderConfig),
             ImageGenerateModelType::MiracleVision => new MiracleVisionModel($serviceProviderConfig),
             ImageGenerateModelType::TTAPIGPT4o => new GPT4oModel($serviceProviderConfig),
@@ -76,6 +78,7 @@ class ImageGenerateFactory
         return match ($imageGenerateType) {
             ImageGenerateModelType::Volcengine => self::createVolcengineRequest($data),
             ImageGenerateModelType::VolcengineImageGenerateV3 => self::createVolcengineRequest($data),
+            ImageGenerateModelType::VolcengineImageGenerateV4 => self::createVolcengineRequestV4($data),
             ImageGenerateModelType::Midjourney => self::createMidjourneyRequest($data),
             ImageGenerateModelType::Flux => self::createFluxRequest($data),
             ImageGenerateModelType::TTAPIGPT4o => self::createGPT4oRequest($data),
@@ -113,6 +116,36 @@ class ImageGenerateFactory
         $request->setReferenceImage($data['reference_images']);
         $request->setModel($data['model']);
         $request->setOrganizationCode($data['organization_code'] ?? '');
+        return $request;
+    }
+
+    private static function createVolcengineRequestV4(array $data): VolcengineModelV4Request
+    {
+        // 解析 size 参数为 width 和 height
+        [$width, $height] = self::parseSizeToWidthHeight($data['size'] ?? '1024x1024', ImageGenerateModelType::VolcengineArk->value);
+
+        $request = new VolcengineModelV4Request(
+            $width,
+            $height,
+            $data['user_prompt'],
+            $data['negative_prompt'],
+        );
+        isset($data['generate_num']) && $request->setGenerateNum($data['generate_num']);
+        $request->setReferenceImage($data['reference_images']);
+        $request->setModel($data['model']);
+        $request->setOrganizationCode($data['organization_code'] ?? '');
+        if (isset($data['scale'])) {
+            $request->setScale((float)$data['scale']);
+        }
+        if (isset($data['force_single'])) {
+            $request->setForceSingle((bool)$data['force_single']);
+        }
+        if (isset($data['min_ratio'])) {
+            $request->setMinRatio((float)$data['min_ratio']);
+        }
+        if (isset($data['max_ratio'])) {
+            $request->setMaxRatio((float)$data['max_ratio']);
+        }
         return $request;
     }
 
