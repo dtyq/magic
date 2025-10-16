@@ -197,7 +197,22 @@ class TaskApi extends AbstractApi
         try {
             $result = $this->fileConverterAppService->checkFileConvertStatus($userAuthorization, $taskKey);
 
-            // 如果状态是 ready 但是没有下载地址，说明任务发生了错误
+            // 如果状态是 FAILED，抛出异常
+            if ($result->getStatus() === ConvertStatusEnum::FAILED->value) {
+                $this->logger->error('File conversion failed', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userAuthorization->getId(),
+                    'organization_code' => $userAuthorization->getOrganizationCode(),
+                    'status' => $result->getStatus(),
+                    'total_files' => $result->getTotalFiles(),
+                    'success_count' => $result->getSuccessCount(),
+                    'batch_id' => $result->getBatchId(),
+                    'convert_type' => $result->getConvertType(),
+                ]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_CONVERT_FAILED, 'file.convert_failed');
+            }
+
+            // 如果状态是 COMPLETED 但是没有下载地址，说明任务发生了错误
             if ($result->getStatus() === ConvertStatusEnum::COMPLETED->value && empty($result->getDownloadUrl())) {
                 $this->logger->error('File conversion completed but no download URL available', [
                     'task_key' => $taskKey,
