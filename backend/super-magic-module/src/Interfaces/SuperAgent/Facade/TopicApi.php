@@ -7,14 +7,12 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade;
 
-use App\Application\Kernel\SuperPermissionEnum;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -399,32 +397,6 @@ class TopicApi extends AbstractApi
         $responseDTO->setCanRollback((bool) $result->getDataValue('can_rollback', false));
 
         return $responseDTO->toArray();
-    }
-
-    /**
-     * Download chat history for topic.
-     *
-     * @param RequestContext $requestContext Request context
-     * @param string $id Topic ID from route parameter
-     * @return array Contains download URL and topic information
-     */
-    public function downloadChatHistory(RequestContext $requestContext, string $id): array
-    {
-        // Set user authorization
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        // Validate topic ID
-        if (empty($id)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
-        }
-
-        // 只有看板管理员才有权限访问
-        if (! PermissionChecker::mobileHasPermission($this->getAuthorization()->getMobile(), SuperPermissionEnum::SUPER_MAGIC_BOARD_ADMIN)) {
-            return [];
-        }
-
-        // Call application service
-        return $this->topicAppService->downloadChatHistory($requestContext, (int) $id);
     }
 
     /**
