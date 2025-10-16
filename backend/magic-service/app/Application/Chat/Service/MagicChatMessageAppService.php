@@ -634,6 +634,25 @@ class MagicChatMessageAppService extends MagicSeqAppService
         return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId);
     }
 
+    /**
+     * 使用大模型对文本进行总结（使用自定义提示词）.
+     *
+     * @param MagicUserAuthorization $authorization 用户授权
+     * @param string $customPrompt 完整的自定义提示词（不做任何替换处理）
+     * @return string 生成的标题
+     */
+    public function summarizeTextWithCustomPrompt(MagicUserAuthorization $authorization, string $customPrompt): string
+    {
+        if (empty($customPrompt)) {
+            return '';
+        }
+
+        $conversationId = uniqid('', true);
+        $messageHistory = new MessageHistory();
+        $messageHistory->addMessages(new SystemMessage($customPrompt), $conversationId);
+        return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId);
+    }
+
     public function getMessageReceiveList(string $messageId, MagicUserAuthorization $userAuthorization): array
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
