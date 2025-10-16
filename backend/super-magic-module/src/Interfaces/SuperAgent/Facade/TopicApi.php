@@ -395,4 +395,25 @@ class TopicApi extends AbstractApi
 
         return $responseDTO->toArray();
     }
+
+    /**
+     * Download chat history for topic.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $id Topic ID from route parameter
+     * @return array Contains download URL and topic information
+     */
+    public function downloadChatHistory(RequestContext $requestContext, string $id): array
+    {
+        // Set user authorization
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Validate topic ID
+        if (empty($id)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // Call application service
+        return $this->topicAppService->downloadChatHistory($requestContext, (int) $id);
+    }
 }
