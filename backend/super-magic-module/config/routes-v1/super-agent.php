@@ -98,8 +98,6 @@ Router::addGroup(
             Router::post('/delete', [TopicApi::class, 'deleteTopic']);
             // 智能重命名话题
             Router::post('/rename', [TopicApi::class, 'renameTopic']);
-            // 下载话题聊天记录
-            Router::get('/{id}/download-chat-history', [TopicApi::class, 'downloadChatHistory']);
             // Checkpoint 回滚管理
             Router::addGroup('/{id}/checkpoints', static function () {
                 // 直接回滚检查点
