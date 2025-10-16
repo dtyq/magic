@@ -27,7 +27,7 @@ class ImagesV2ApiTest extends AbstractHttpTest
         ], $this->getCommonHeaders());
 
         $this->assertEquals('1024x1024', $response['data'][0]['size'], $response['data'][0]['size']);
-return;
+        return;
         // 发送HTTP请求
         $response = $this->post('/v2/images/generations', [
             'model' => 'jimeng_t2i_v40',
@@ -85,5 +85,4 @@ return;
 
         $this->assertEquals('2496x1664', $response['data'][0]['size'], $response['data'][0]['size']);
     }
-
 }

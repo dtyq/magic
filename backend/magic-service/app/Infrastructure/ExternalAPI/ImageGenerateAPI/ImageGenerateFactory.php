@@ -135,16 +135,16 @@ class ImageGenerateFactory
         $request->setModel($data['model']);
         $request->setOrganizationCode($data['organization_code'] ?? '');
         if (isset($data['scale'])) {
-            $request->setScale((float)$data['scale']);
+            $request->setScale((float) $data['scale']);
         }
         if (isset($data['force_single'])) {
-            $request->setForceSingle((bool)$data['force_single']);
+            $request->setForceSingle((bool) $data['force_single']);
         }
         if (isset($data['min_ratio'])) {
-            $request->setMinRatio((float)$data['min_ratio']);
+            $request->setMinRatio((float) $data['min_ratio']);
         }
         if (isset($data['max_ratio'])) {
-            $request->setMaxRatio((float)$data['max_ratio']);
+            $request->setMaxRatio((float) $data['max_ratio']);
         }
         return $request;
     }
