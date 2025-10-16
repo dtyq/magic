@@ -15,8 +15,8 @@ use App\Domain\Chat\Repository\Facade\MagicChatSeqRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -46,12 +46,12 @@ class TopicDomainService
 
     public function __construct(
         protected TopicRepositoryInterface $topicRepository,
+        protected CloudFileRepositoryInterface $cloudFileRepository,
         protected TaskRepositoryInterface $taskRepository,
         protected MagicMessageRepositoryInterface $magicMessageRepository,
         protected MagicChatSeqRepositoryInterface $magicSeqRepository,
         protected MagicChatTopicRepositoryInterface $magicChatTopicRepository,
         protected TaskMessageRepositoryInterface $taskMessageRepository,
-        protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get('topic');
@@ -691,6 +691,57 @@ class TopicDomainService
         }
 
         return $this->topicRepository->getTopicNamesBatch($topicIds);
+    }
+
+    /**
+     * Get chat history download URL for topic.
+     *
+     * @param int $topicId Topic ID
+     * @return string Pre-signed download URL
+     * @throws Exception If topic not found
+     */
+    public function getChatHistoryDownloadUrl(int $topicId): string
+    {
+        // Get topic entity
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // Build file path using WorkDirectoryUtil
+        $filePath = WorkDirectoryUtil::getAgentChatHistoryFilePath(
+            $topicEntity->getUserId(),
+            $topicEntity->getProjectId(),
+            $topicId
+        );
+
+        // Get organization code from topic entity (not current user)
+        $organizationCode = $topicEntity->getUserOrganizationCode();
+
+        // Get full prefix and build complete object key
+        $prefix = $this->cloudFileRepository->getFullPrefix($organizationCode);
+        $objectKey = rtrim($prefix, '/') . '/' . ltrim($filePath, '/');
+
+        // Generate pre-signed URL for download
+        $preSignedUrl = $this->cloudFileRepository->getPreSignedUrlByCredential(
+            organizationCode: $organizationCode,
+            objectKey: $objectKey,
+            bucketType: StorageBucketType::SandBox,
+            options: [
+                'method' => 'GET',
+                'expires' => 3600, // 1 hour expiration
+                'filename' => sprintf('chat_history_%d.zip', $topicId), // Set download filename
+            ]
+        );
+
+        $this->logger->info('Generated chat history download URL', [
+            'topic_id' => $topicId,
+            'file_path' => $filePath,
+            'object_key' => $objectKey,
+            'organization_code' => $organizationCode,
+        ]);
+
+        return $preSignedUrl;
     }
 
     /**

@@ -507,6 +507,33 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
+     * Download chat history for topic.
+     * Can download chat history for any topic (including other users' topics).
+     *
+     * @param RequestContext $requestContext Request context
+     * @param int $topicId Topic ID
+     * @return array Contains download URL
+     * @throws BusinessException If topic not found
+     */
+    public function downloadChatHistory(RequestContext $requestContext, int $topicId): array
+    {
+        // Get topic entity
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // Get download URL from domain service
+        $downloadUrl = $this->topicDomainService->getChatHistoryDownloadUrl($topicId);
+
+        return [
+            'url' => $downloadUrl,
+            'topic_id' => (string) $topicId,
+            'topic_name' => $topicEntity->getTopicName(),
+        ];
+    }
+
+    /**
      * Duplicate topic (synchronous) - blocks until completion.
      * This method performs complete topic duplication synchronously without task management.
      *
