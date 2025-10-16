@@ -263,7 +263,8 @@ describe("S3 Helper Utils", () => {
 
 		const url = buildS3Url("test-bucket", "test/file.txt", "https://s3.example.com", true)
 
-		expect(url).toBe("https://s3.example.com/test-bucket/test%2Ffile.txt")
+		// S3 paths should preserve slashes, not encode them
+		expect(url).toBe("https://s3.example.com/test-bucket/test/file.txt")
 	})
 
 	it("should build S3 URL in virtual-hosted-style", async () => {
@@ -271,7 +272,8 @@ describe("S3 Helper Utils", () => {
 
 		const url = buildS3Url("test-bucket", "test/file.txt", "https://s3.example.com", false)
 
-		expect(url).toBe("https://test-bucket.s3.example.com/test%2Ffile.txt")
+		// S3 paths should preserve slashes, not encode them
+		expect(url).toBe("https://test-bucket.s3.example.com/test/file.txt")
 	})
 
 	it("should build complete multipart XML", async () => {

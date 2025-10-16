@@ -108,24 +108,26 @@ export function parseS3Url(url: string): { bucket: string; key: string; endpoint
 	try {
 		const urlObj = new URL(url)
 		const pathParts = urlObj.pathname.split("/").filter(Boolean)
+		const hostParts = urlObj.host.split(".")
 
-		// Check if path-style URL
+		// First, check if virtual-hosted-style URL by looking for subdomain pattern
+		// Pattern: bucket-name.s3.region.amazonaws.com or bucket-name.endpoint
+		// Virtual-hosted has at least 3 parts: bucket + service + domain
+		if (hostParts.length >= 3 || (hostParts.length >= 2 && hostParts[1] === "s3")) {
+			const bucket = hostParts[0]
+			const key = pathParts.join("/")
+			const endpoint = `${urlObj.protocol}//${hostParts.slice(1).join(".")}`
+			if (bucket && endpoint) {
+				return { bucket, key, endpoint }
+			}
+		}
+
+		// Otherwise, assume path-style URL: endpoint/bucket/key
 		if (pathParts.length >= 2) {
 			const bucket = pathParts[0]
 			const key = pathParts.slice(1).join("/")
 			const endpoint = `${urlObj.protocol}//${urlObj.host}`
 			if (bucket && key && endpoint) {
-				return { bucket, key, endpoint }
-			}
-		}
-
-		// Check if virtual-hosted-style URL
-		const hostParts = urlObj.host.split(".")
-		if (hostParts.length >= 2) {
-			const bucket = hostParts[0]
-			const key = pathParts.join("/")
-			const endpoint = `${urlObj.protocol}//${hostParts.slice(1).join(".")}`
-			if (bucket && endpoint) {
 				return { bucket, key, endpoint }
 			}
 		}
