@@ -27,6 +27,12 @@ import { STSUpload } from "./STSUpload"
 // AWS S3 minimum part size is 5MB
 const S3_MIN_PART_SIZE = 5 * 1024 * 1024
 
+// Upload abort status codes
+const UPLOAD_STATUS_CODE = {
+	CANCEL: 5001,
+	PAUSE: 5002,
+} as const
+
 /**
  * Create an abort error with correct status code based on task abort state
  * @param {string} taskId Task ID
@@ -37,10 +43,9 @@ function createAbortError(taskId: string | undefined, message: string): Error {
 	const abortError = new Error(message) as any
 	if (taskId) {
 		const abortState = getTaskAbortState(taskId)
-		// 5001 = cancel, 5002 = pause
-		abortError.status = abortState === "pause" ? 5002 : 5001
+		abortError.status = abortState === "pause" ? UPLOAD_STATUS_CODE.PAUSE : UPLOAD_STATUS_CODE.CANCEL
 	} else {
-		abortError.status = 5001 // Default to cancel
+		abortError.status = UPLOAD_STATUS_CODE.CANCEL // Default to cancel
 	}
 	return abortError
 }
@@ -198,7 +203,6 @@ async function completeMultipartUpload(
  * @param {number} partNo Part number
  * @param {MinIO.PartInfo} data Part data
  * @param {MinIO.STSAuthParams} params Credentials parameters
- * @param {MinIO.MultipartUploadOption} options Upload options
  * @param {AbortSignal} abortSignal Optional abort signal for cancellation
  * @param {string} taskId Optional task ID for error handling
  */
@@ -208,7 +212,6 @@ async function uploadPart(
 	partNo: number,
 	data: MinIO.PartInfo,
 	params: MinIO.STSAuthParams,
-	options: MinIO.MultipartUploadOption,
 	abortSignal?: AbortSignal,
 	taskId?: string,
 ) {
@@ -313,9 +316,7 @@ async function resumeMultipart(
 				// Create abort signal for this upload part if taskId exists
 				const abortSignal = taskId ? createAbortSignal(taskId) : undefined
 
-				const result = await uploadPart(name, uploadId, partNo, data, params, {
-					...opt,
-				}, abortSignal, taskId)
+				const result = await uploadPart(name, uploadId, partNo, data, params, abortSignal, taskId)
 
 				if (!multipartFinish) {
 					checkpoint.doneParts.push({
@@ -387,8 +388,8 @@ async function resumeMultipart(
 		if (!error) {
 			throw new UploadException(UploadExceptionCode.UPLOAD_MULTIPART_ERROR, "Unknown upload error")
 		}
-		// 5001 cancel upload, 5002 pause upload
-		if (error.status === 5001 || error.status === 5002) {
+		// Check if upload was cancelled or paused
+		if (error.status === UPLOAD_STATUS_CODE.CANCEL || error.status === UPLOAD_STATUS_CODE.PAUSE) {
 			throw error as Error
 		}
 		throw new UploadException(
