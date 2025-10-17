@@ -36,6 +36,18 @@ readonly class FileDomainService
         return $list;
     }
 
+    public function getDefaultIconPaths(): array
+    {
+        $paths = $this->cloudFileRepository->getDefaultIconPaths();
+        $list = [];
+        foreach ($paths as $path) {
+            // Get file name without extension
+            $fileName = pathinfo($path, PATHINFO_FILENAME);
+            $list[$fileName] = $path;
+        }
+        return $list;
+    }
+
     public function getLink(string $organizationCode, ?string $filePath, ?StorageBucketType $bucketType = null, array $downloadNames = [], array $options = []): ?FileLink
     {
         if (empty($filePath)) {
