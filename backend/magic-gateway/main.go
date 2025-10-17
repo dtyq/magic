@@ -483,6 +483,9 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 		r.Header.Set("magic-user-id", claims.MagicUserID)
 		r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
 
+		logger.Printf("验证令牌-magic-user-id: %s", claims.MagicUserID)
+		logger.Printf("验证令牌-magic-organization-code: %s", claims.MagicOrganizationCode)
+		logger.Printf("验证令牌-X-User-Id: %s", claims.ContainerID)
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
 		r = r.WithContext(ctx)
