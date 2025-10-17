@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -33,7 +32,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function __construct(
         private ResourceShareDomainService $resourceShareDomainService,
         private ProjectMemberDomainService $projectMemberDomainService,
-        private MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
         private ProjectDomainService $projectDomainService,
         private MagicUserInfoAppService $userInfoAppService
     ) {
