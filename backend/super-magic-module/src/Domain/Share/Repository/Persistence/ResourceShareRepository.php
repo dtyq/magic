@@ -207,9 +207,13 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         ];
     }
 
-    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType, bool $withTrashed = true): ?ResourceShareEntity
     {
-        $query = ResourceShareModel::query()->withTrashed();
+        if ($withTrashed) {
+            $query = ResourceShareModel::query()->withTrashed();
+        } else {
+            $query = ResourceShareModel::query();
+        }
         if (! empty($userId)) {
             $query = $query->where('created_uid', $userId);
         }
@@ -254,6 +258,12 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             $entity->setTargetIds($model->target_ids ?? '[]');
         }
 
+        // 处理是否启用字段（邀请链接专用）
+        $entity->setIsEnabled($model->is_enabled ?? true);
+
+        // 处理密码保护是否启用字段
+        $entity->setIsPasswordEnabled($model->is_password_enabled ?? false);
+
         if ($model->created_at) {
             $entity->setCreatedAt($model->created_at);
         }
@@ -285,10 +295,12 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             'share_code' => $entity->getShareCode(),
             'share_type' => $entity->getShareType(),
             'password' => $entity->getPassword(),
+            'is_password_enabled' => $entity->getIsPasswordEnabled() ? 1 : 0,
             'expire_at' => $entity->getExpireAt(),
             'view_count' => $entity->getViewCount(),
             'created_uid' => $entity->getCreatedUid(),
             'organization_code' => $entity->getOrganizationCode(),
+            'is_enabled' => $entity->getIsEnabled() ? 1 : 0,
             'updated_at' => $entity->getUpdatedAt(),
             'deleted_at' => $entity->getDeletedAt(),
             'updated_uid' => $entity->getUpdatedUid(),

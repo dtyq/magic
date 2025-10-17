@@ -41,6 +41,8 @@ class ProjectModel extends AbstractModel
         'project_status',
         'current_topic_id',
         'current_topic_status',
+        'is_collaboration_enabled',
+        'permission',
         'project_mode',
         'source',
         'created_uid',
@@ -53,6 +55,7 @@ class ProjectModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'workspace_id' => 'integer',
+        'is_collaboration_enabled' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

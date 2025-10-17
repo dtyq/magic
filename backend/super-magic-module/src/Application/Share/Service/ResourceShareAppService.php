@@ -156,7 +156,8 @@ class ResourceShareAppService extends AbstractShareAppService
         $shareEntity->setUpdatedUid($userId);
 
         // 调用领域服务的取消分享方法
-        return $this->shareDomainService->saveShareByEntity($shareEntity);
+        $this->shareDomainService->saveShareByEntity($shareEntity);
+        return true;
     }
 
     public function checkShare(?MagicUserAuthorization $userAuthorization, string $shareCode): array

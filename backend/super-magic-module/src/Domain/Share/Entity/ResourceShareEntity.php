@@ -53,6 +53,11 @@ class ResourceShareEntity extends AbstractEntity
     protected ?string $password = null;
 
     /**
+     * @var bool 是否启用密码保护
+     */
+    protected bool $isPasswordEnabled = false;
+
+    /**
      * @var null|string 过期时间（可选）
      */
     protected ?string $expireAt = null;
@@ -85,6 +90,11 @@ class ResourceShareEntity extends AbstractEntity
     protected string $targetIds = '';
 
     /**
+     * @var bool 是否启用（邀请链接专用）
+     */
+    protected bool $isEnabled = true;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -111,6 +121,7 @@ class ResourceShareEntity extends AbstractEntity
         $this->expireAt = null;
         $this->deletedAt = null;
         $this->targetIds = '[]'; // 存储为JSON字符串
+        $this->isEnabled = true; // 默认启用
 
         $this->initProperty($data);
     }
@@ -229,12 +240,14 @@ class ResourceShareEntity extends AbstractEntity
             'share_code' => $this->shareCode,
             'share_type' => $this->shareType,
             'password' => $this->password,
+            'is_password_enabled' => $this->isPasswordEnabled,
             'expire_at' => $this->expireAt,
             'view_count' => $this->viewCount,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'organization_code' => $this->organizationCode,
             'target_ids' => $this->targetIds,
+            'is_enabled' => $this->isEnabled,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -322,6 +335,17 @@ class ResourceShareEntity extends AbstractEntity
     public function setPassword(?string $password): self
     {
         $this->password = $password;
+        return $this;
+    }
+
+    public function getIsPasswordEnabled(): bool
+    {
+        return $this->isPasswordEnabled;
+    }
+
+    public function setIsPasswordEnabled(bool $isPasswordEnabled): self
+    {
+        $this->isPasswordEnabled = $isPasswordEnabled;
         return $this;
     }
 
@@ -422,5 +446,67 @@ class ResourceShareEntity extends AbstractEntity
     {
         $this->deletedAt = $deletedAt;
         return $this;
+    }
+
+    public function getIsEnabled(): bool
+    {
+        return $this->isEnabled;
+    }
+
+    public function setIsEnabled(bool $isEnabled): self
+    {
+        $this->isEnabled = $isEnabled;
+        return $this;
+    }
+
+    /**
+     * 启用分享.
+     */
+    public function enable(): self
+    {
+        $this->isEnabled = true;
+        return $this;
+    }
+
+    /**
+     * 禁用分享.
+     */
+    public function disable(): self
+    {
+        $this->isEnabled = false;
+        return $this;
+    }
+
+    /**
+     * 生成随机数字密码.
+     *
+     * @param int $length 密码长度，默认5位
+     * @return string 生成的随机密码
+     */
+    public static function generateRandomPassword(int $length = 5): string
+    {
+        $maxNumber = (int) str_repeat('9', $length);
+        return str_pad((string) random_int(0, $maxNumber), $length, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * 生成随机密码（支持自定义种子，主要用于测试）.
+     *
+     * @param int $length 密码长度
+     * @param null|int $seed 随机种子，null则使用系统随机
+     * @return string 生成的随机密码
+     */
+    public static function generateRandomPasswordWithSeed(int $length = 5, ?int $seed = null): string
+    {
+        if ($seed !== null) {
+            mt_srand($seed);
+            $password = '';
+            for ($i = 0; $i < $length; ++$i) {
+                $password .= (string) mt_rand(0, 9);
+            }
+            return $password;
+        }
+
+        return self::generateRandomPassword($length);
     }
 }

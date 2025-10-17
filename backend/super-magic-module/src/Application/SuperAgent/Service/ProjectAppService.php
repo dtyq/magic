@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ForkProjectStartEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectCreatedEvent;
@@ -212,17 +213,29 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 检查话题是否存在
-        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
-        if (empty($workspaceEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
-        }
-
         // 获取项目信息
         $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
-        $projectEntity->setProjectName($requestDTO->getProjectName());
-        $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
-        $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
+
+        if (! is_null($requestDTO->getProjectName())) {
+            $projectEntity->setProjectName($requestDTO->getProjectName());
+        }
+        if (! is_null($requestDTO->getProjectDescription())) {
+            $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
+        }
+        if (! is_null($requestDTO->getWorkspaceId())) {
+            // 检查话题是否存在
+            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
+            if (empty($workspaceEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+            }
+            $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
+        }
+        if (! is_null($requestDTO->getIsCollaborationEnabled())) {
+            $projectEntity->setIsCollaborationEnabled($requestDTO->getIsCollaborationEnabled());
+        }
+        if (! is_null($requestDTO->getPermission())) {
+            $projectEntity->setPermission(MemberRole::validatePermissionLevel($requestDTO->getPermission()));
+        }
 
         $this->projectDomainService->saveProjectEntity($projectEntity);
 
