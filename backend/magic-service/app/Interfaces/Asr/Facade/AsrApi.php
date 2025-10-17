@@ -10,6 +10,7 @@ namespace App\Interfaces\Asr\Facade;
 use App\Application\Asr\DTO\DownloadMergedAudioResponseDTO;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
+use App\Application\Speech\Assembler\AsrPromptAssembler;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
@@ -35,7 +36,7 @@ use function Hyperf\Translation\trans;
 
 #[Controller]
 #[ApiResponse('low_code')]
-class AsrTokenApi extends AbstractApi
+class AsrApi extends AbstractApi
 {
     private LoggerInterface $logger;
 
@@ -131,17 +132,10 @@ class AsrTokenApi extends AbstractApi
             $lockAcquired = $this->locker->spinLock($lockName, $lockOwner, 30);
 
             if (! $lockAcquired) {
-                // 获取锁失败，返回错误
-                return [
-                    'success' => false,
-                    'error' => trans('asr.api.lock.acquire_failed'),
-                    'task_key' => $summaryRequest->taskKey,
-                    'project_id' => $summaryRequest->projectId,
-                    'topic_id' => $summaryRequest->topicId,
-                    'topic_name' => null,
-                    'project_name' => null,
-                    'workspace_name' => null,
-                ];
+                return $this->createSummaryFailureResponse(
+                    $summaryRequest,
+                    trans('asr.api.lock.acquire_failed')
+                );
             }
 
             // 处理ASR总结任务的完整流程（包含聊天消息发送）
@@ -152,28 +146,13 @@ class AsrTokenApi extends AbstractApi
 
             // 如果处理失败，直接返回错误
             if (! $result['success']) {
-                return [
-                    'success' => false,
-                    'error' => $result['error'],
-                    'task_key' => $summaryRequest->taskKey,
-                    'project_id' => $summaryRequest->projectId,
-                    'topic_id' => $summaryRequest->topicId,
-                    'topic_name' => null,
-                    'project_name' => null,
-                    'workspace_name' => null,
-                ];
+                return $this->createSummaryFailureResponse(
+                    $summaryRequest,
+                    $result['error']
+                );
             }
 
-            return [
-                'success' => true,
-                'task_key' => $summaryRequest->taskKey,
-                'project_id' => $summaryRequest->projectId,
-                'topic_id' => $summaryRequest->topicId,
-                'conversation_id' => $result['conversation_id'],
-                'topic_name' => $result['topic_name'] ?? null,
-                'project_name' => $result['project_name'] ?? null,
-                'workspace_name' => $result['workspace_name'] ?? null,
-            ];
+            return $this->createSummarySuccessResponse($summaryRequest, $result);
         } catch (Throwable $e) {
             $this->logger->error('ASR总结处理异常', [
                 'task_key' => $summaryRequest->taskKey,
@@ -183,16 +162,10 @@ class AsrTokenApi extends AbstractApi
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return [
-                'success' => false,
-                'error' => sprintf('处理异常: %s', $e->getMessage()),
-                'task_key' => $summaryRequest->taskKey,
-                'project_id' => $summaryRequest->projectId,
-                'topic_id' => $summaryRequest->topicId,
-                'topic_name' => null,
-                'project_name' => null,
-                'workspace_name' => null,
-            ];
+            return $this->createSummaryFailureResponse(
+                $summaryRequest,
+                sprintf('处理异常: %s', $e->getMessage())
+            );
         } finally {
             // 确保释放锁
             if ($lockAcquired) {
@@ -539,10 +512,12 @@ class AsrTokenApi extends AbstractApi
 
             // 场景一：有 asr_stream_content（前端实时录音）
             if (! empty($asrStreamContent)) {
-                $title = $this->magicChatMessageAppService->summarizeText(
+                // 获取完整的录音总结提示词（在 Assembler 内部处理内容格式化）
+                $customPrompt = AsrPromptAssembler::getTitlePrompt($asrStreamContent, $note, $language);
+                // 使用自定义提示词生成标题
+                $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
                     $userAuthorization,
-                    $asrStreamContent,
-                    $language
+                    $customPrompt
                 );
                 return $this->sanitizeTitleForPath($title);
             }
@@ -622,5 +597,39 @@ class AsrTokenApi extends AbstractApi
             $title = mb_substr($title, 0, 50);
         }
         return $title ?: null;
+    }
+
+    /**
+     * 创建ASR总结失败响应.
+     */
+    private function createSummaryFailureResponse(SummaryRequestDTO $request, string $error): array
+    {
+        return [
+            'success' => false,
+            'error' => $error,
+            'task_key' => $request->taskKey,
+            'project_id' => $request->projectId,
+            'topic_id' => $request->topicId,
+            'topic_name' => null,
+            'project_name' => null,
+            'workspace_name' => null,
+        ];
+    }
+
+    /**
+     * 创建ASR总结成功响应.
+     */
+    private function createSummarySuccessResponse(SummaryRequestDTO $request, array $result): array
+    {
+        return [
+            'success' => true,
+            'task_key' => $request->taskKey,
+            'project_id' => $request->projectId,
+            'topic_id' => $request->topicId,
+            'conversation_id' => $result['conversation_id'],
+            'topic_name' => $result['topic_name'] ?? null,
+            'project_name' => $result['project_name'] ?? null,
+            'workspace_name' => $result['workspace_name'] ?? null,
+        ];
     }
 }
