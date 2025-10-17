@@ -502,6 +502,7 @@ class LLMAppService extends AbstractLLMAppService
             $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($proxyModelRequest->getAccessToken(), $proxyModelRequest->getBusinessParams());
 
             $this->pointComponent->checkPointsSufficient(
+                $proxyModelRequest,
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 $modelGatewayDataIsolation->getCurrentUserId()
             );
