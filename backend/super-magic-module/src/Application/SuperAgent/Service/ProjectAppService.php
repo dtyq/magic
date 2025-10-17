@@ -807,7 +807,7 @@ class ProjectAppService extends AbstractAppService
             $dto->sort = $entity->getSort();
             $dto->fileUrl = '';
             $dto->parentId = (string) $entity->getParentId();
-
+            $dto->source = $entity->getSource();
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             // 判断file key是否重复，如果重复，则跳过
