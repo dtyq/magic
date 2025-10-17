@@ -213,10 +213,10 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
 
         // 2. 测试重复添加相同成员
         $this->addTeamMembers($projectId);
-//        $this->addTeamMembers($projectId); // 重复添加
+        //        $this->addTeamMembers($projectId); // 重复添加
 
         // 3. 测试无效的权限级别
-        $this->addMembersWithInvalidPermission($projectId, 5003);
+        $this->addMembersWithInvalidPermission($projectId, 51215);
 
         // 4. 测试不能删除自己
         $this->switchUserTest2();
@@ -254,10 +254,10 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
      */
     public function enableCollaboration(string $projectId, int $expectedCode = 1000): array
     {
-        $requestData = ['enabled' => true];
+        $requestData = ['is_collaboration_enabled' => true];
 
         $response = $this->put(
-            self::BASE_URI . "/{$projectId}/collaboration",
+            self::BASE_URI . "/{$projectId}",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -268,7 +268,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         if ($expectedCode === 1000) {
             $this->assertEquals('ok', $response['message']);
             $this->assertIsArray($response['data']);
-            $this->assertEmpty($response['data']);
+            $this->assertEquals('is_collaboration_enabled', $response['data']['is_collaboration_enabled']);
         }
 
         return $response;
@@ -279,10 +279,10 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
      */
     public function disableCollaboration(string $projectId, int $expectedCode = 1000): array
     {
-        $requestData = ['enabled' => false];
+        $requestData = ['is_collaboration_enabled' => false];
 
         $response = $this->put(
-            self::BASE_URI . "/{$projectId}/collaboration",
+            self::BASE_URI . "/{$projectId}",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -299,7 +299,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
     public function getCollaborationSettings(string $projectId, int $expectedCode = 1000): array
     {
         $response = $this->get(
-            self::BASE_URI . "/{$projectId}/collaboration",
+            self::BASE_URI . "/{$projectId}",
             [],
             $this->getCommonHeaders()
         );
@@ -434,7 +434,8 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         $requestData = [
             'members' => [
                 [
-                    'member_id' => $this->testUserId2,
+                    'target_type' => 'User',
+                    'target_id' => $this->testUserId2,
                     'permission' => 'manage',
                 ],
             ],
@@ -493,7 +494,8 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         $requestData = [
             'members' => [
                 [
-                    'member_id' => $userId,
+                    'target_type' => 'User',
+                    'target_id' => $userId,
                     'permission' => 'manage',
                 ],
             ],
@@ -515,7 +517,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
     public function cannotDeleteSelf(string $projectId): void
     {
         // 先添加当前用户为成员
-//        $this->addTeamMembers($projectId);
+        //        $this->addTeamMembers($projectId);
 
         // 尝试删除自己
         $currentUserId = $this->testUserId2; // test2用户
@@ -531,6 +533,22 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
 
         // 应该返回不能删除自己的错误
         $this->assertNotEquals(1000, $response['code']);
+    }
+
+    public function testGetProjectInfo()
+    {
+
+        $this->switchUserTest1();
+
+        $response = $this->get(
+            self::BASE_URI . "/{$this->projectId}",
+            [],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $response['code']);
+        $this->assertArrayHasKey('is_collaboration_enabled', $response['data']);
+        $this->assertArrayHasKey('permission', $response['data']);
     }
 
     /**

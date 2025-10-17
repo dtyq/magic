@@ -171,30 +171,6 @@ class ProjectMemberApi extends AbstractApi
     }
 
     /**
-     * 获取项目协作设置.
-     */
-    public function getCollaborationSettings(RequestContext $requestContext, int $projectId): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        return $this->projectMemberAppService->getCollaborationSettings($requestContext, $projectId);
-    }
-
-    /**
-     * 更新项目协作设置.
-     */
-    public function updateCollaboration(RequestContext $requestContext, int $projectId): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        $requestDTO = UpdateCollaborationRequestDTO::fromRequest($this->request);
-
-        $this->projectMemberAppService->updateCollaboration($requestContext, $projectId, $requestDTO->getEnabled());
-
-        return [];
-    }
-
-    /**
      * 批量更新成员权限.
      */
     public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId): array
@@ -213,7 +189,7 @@ class ProjectMemberApi extends AbstractApi
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $memberIds = (array) $this->request->input('member_ids', []);
+        $memberIds = (array) $this->request->input('ids', []);
 
         $this->projectMemberAppService->deleteMembers($requestContext, $projectId, $memberIds);
 

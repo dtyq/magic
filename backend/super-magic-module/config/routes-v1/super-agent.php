@@ -73,14 +73,6 @@ Router::addGroup(
             // 更新项目协作成员
             Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
 
-            // 项目协作管理
-            Router::addGroup('/{projectId}/collaboration', static function () {
-                // 获取项目协作设置
-                Router::get('', [ProjectMemberApi::class, 'getCollaborationSettings']);
-                // 更新项目协作设置（开启/关闭）
-                Router::put('', [ProjectMemberApi::class, 'updateCollaboration']);
-            });
-
             // 项目成员资源管理
             Router::addGroup('/{projectId}/members', static function () {
                 // 添加项目成员

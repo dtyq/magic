@@ -589,7 +589,7 @@ class ProjectMemberAppService extends AbstractAppService
             $memberEntity->setProjectId($projectId);
             $memberEntity->setTargetType(MemberType::from($memberData['target_type']));
             $memberEntity->setTargetId($memberData['target_id']);
-            $memberEntity->setRole(MemberRole::from($memberData['permission']));
+            $memberEntity->setRole(MemberRole::validatePermissionLevel($memberData['permission']));
             $memberEntity->setOrganizationCode($organizationCode);
             $memberEntity->setInvitedBy($currentUserId);
             $memberEntity->setStatus(MemberStatus::ACTIVE);
@@ -607,42 +607,6 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 获取项目协作设置.
-     */
-    public function getCollaborationSettings(RequestContext $requestContext, int $projectId): array
-    {
-        // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-
-        // 2. 验证管理者或所有者权限
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
-
-        return [
-            'is_collaboration_enabled' => $project->getIsCollaborationEnabled(),
-            'permission' => $project->getPermission()->value,
-        ];
-    }
-
-    /**
-     * 更新项目协作设置.
-     */
-    public function updateCollaboration(RequestContext $requestContext, int $projectId, bool $isEnabled): void
-    {
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $currentUserId = $userAuthorization->getId();
-
-        // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-
-        if (!$project || $project->getUserId() !== $currentUserId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.no_manage_permission');
-        }
-
-        // 2. 更新协作状态
-        $this->projectDomainService->updateCollaborationStatus($projectId, $isEnabled);
-    }
-
-    /**
      * 批量更新成员权限.
      */
     public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
@@ -655,19 +619,30 @@ class ProjectMemberAppService extends AbstractAppService
         // 2. 提取请求数据
         $members = $requestDTO->getMembers();
 
-        // 3. 验证批量操作
-        $memberIds = array_column($members, 'member_id');
+        // 3. 验证批量操作 - 提取target_id并验证
+        $targetIds = array_column($members, 'target_id');
 
-        // 检查是否为项目所有者
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-
-        // 不能修改创建者权限
-        if (in_array($project->getUserId(), $memberIds, true)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        // 检查是否尝试修改项目创建者权限（如果创建者是成员）
+        if (in_array($project->getCreatedUid(), $targetIds, true)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.cannot_modify_creator_permission');
         }
 
-        // 4. 执行批量权限更新
-        $this->projectMemberDomainService->batchUpdatePermissions($projectId, $members);
+        // 4. 验证目标用户/部门在当前组织内
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
+        $this->validateTargetsInOrganization($members, $organizationCode);
+
+        // 5. 转换数据格式供DomainService使用
+        $permissionUpdates = [];
+        foreach ($members as $member) {
+            $permissionUpdates[] = [
+                'target_type' => $member['target_type'],
+                'target_id' => $member['target_id'],
+                'permission' => $member['permission'],
+            ];
+        }
+
+        // 6. 执行批量权限更新
+        $this->projectMemberDomainService->batchUpdatePermissions($projectId, $permissionUpdates);
 
         return [];
     }
@@ -684,12 +659,12 @@ class ProjectMemberAppService extends AbstractAppService
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
 
         // 检查是否删除自己
-        if (in_array($currentUserId, $memberIds, true)) {
+        if (in_array($currentUserId, $memberIds)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
         // 不能是否删除创建者
-        if (in_array($project->getUserId(), $memberIds, true)) {
+        if (in_array($project->getUserId(), $memberIds)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
@@ -697,7 +672,7 @@ class ProjectMemberAppService extends AbstractAppService
         $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
 
         // 2. 执行批量删除
-        $this->projectMemberDomainService->batchDeleteMembers($projectId, $memberIds);
+        $this->projectMemberDomainService->deleteMembersByIds($projectId, $memberIds);
     }
 
     /**

@@ -23,22 +23,28 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     /**
      * Workspace ID.
      */
-    public string $workspaceId = '';
+    public ?string $workspaceId = null;
 
     /**
      * Project name.
      */
-    public string $projectName = '';
+    public ?string $projectName = null;
 
     /**
      * Project description.
      */
-    public string $projectDescription = '';
+    public ?string $projectDescription = null;
+
+
+    public ?bool $isCollaborationEnabled = null;
+
+
+    public ?string $permission = null;
 
     /**
      * Get project ID.
      */
-    public function getId(): string
+    public function getId(): ?string
     {
         return $this->id;
     }
@@ -46,15 +52,15 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     /**
      * Get workspace ID.
      */
-    public function getWorkspaceId(): int
+    public function getWorkspaceId(): ?int
     {
-        return (int) $this->workspaceId;
+        return $this->workspaceId;
     }
 
     /**
      * Get project name.
      */
-    public function getProjectName(): string
+    public function getProjectName(): ?string
     {
         return $this->projectName;
     }
@@ -62,9 +68,19 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     /**
      * Get project description.
      */
-    public function getProjectDescription(): string
+    public function getProjectDescription(): ?string
     {
         return $this->projectDescription;
+    }
+
+    public function getIsCollaborationEnabled(): ?bool
+    {
+        return $this->isCollaborationEnabled;
+    }
+
+    public function getPermission(): ?string
+    {
+        return $this->permission;
     }
 
     /**
@@ -73,8 +89,10 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'workspace_id' => 'required|integer',
-            'project_name' => 'required|string|max:100',
+            'workspace_id' => 'nullable|integer',
+            'project_name' => 'nullable|string|max:100',
+            'permission' => 'nullable|string|max:100',
+            'is_collaboration_enabled' => 'nullable|boolean',
             'project_description' => 'nullable|string|max:500',
         ];
     }
@@ -85,9 +103,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'workspace_id.required' => 'Workspace ID cannot be empty',
             'workspace_id.integer' => 'Workspace ID must be an integer',
-            'project_name.required' => 'Project name cannot be empty',
             'project_name.max' => 'Project name cannot exceed 100 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
         ];

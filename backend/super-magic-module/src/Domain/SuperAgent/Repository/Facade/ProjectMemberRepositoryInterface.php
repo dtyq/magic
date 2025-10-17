@@ -202,10 +202,10 @@ interface ProjectMemberRepositoryInterface
     public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array;
 
     /**
-     * 批量更新成员权限.
+     * 批量更新成员权限（新格式：target_type + target_id）.
      *
      * @param int $projectId 项目ID
-     * @param array $permissionUpdates [['member_id' => '', 'permission' => ''], ...]
+     * @param array $permissionUpdates [['target_type' => '', 'target_id' => '', 'permission' => ''], ...]
      * @return int 更新的记录数
      */
     public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int;
@@ -217,5 +217,5 @@ interface ProjectMemberRepositoryInterface
      * @param array $memberIds 成员ID数组
      * @return int 删除的记录数
      */
-    public function batchDeleteMembers(int $projectId, array $memberIds): int;
+    public function deleteMembersByIds(int $projectId, array $memberIds): int;
 }

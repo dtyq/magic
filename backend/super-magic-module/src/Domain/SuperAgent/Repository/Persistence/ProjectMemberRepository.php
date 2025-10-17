@@ -652,7 +652,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 批量更新成员权限.
+     * 批量更新成员权限（新格式：target_type + target_id）.
      */
     public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int
     {
@@ -660,26 +660,25 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return 0;
         }
 
-        $updatedCount = 0;
         $now = date('Y-m-d H:i:s');
+        $updatedCount = 0;
 
-        // 使用事务确保数据一致性
-        Db::transaction(function () use ($projectId, $permissionUpdates, $now, &$updatedCount) {
-            foreach ($permissionUpdates as $update) {
-                $memberId = $update['member_id'];
-                $permission = $update['permission'];
+        foreach ($permissionUpdates as $update) {
+            $targetType = $update['target_type'];
+            $targetId = $update['target_id'];
+            $permission = $update['permission'];
 
-                $result = $this->projectMemberModel::query()
-                    ->where('project_id', $projectId)
-                    ->where('target_id', $memberId)
-                    ->update([
-                        'role' => $permission,
-                        'updated_at' => $now,
-                    ]);
+            $result = $this->projectMemberModel::query()
+                ->where('project_id', $projectId)
+                ->where('target_type', $targetType)
+                ->where('target_id', $targetId)
+                ->update([
+                    'role' => $permission,
+                    'updated_at' => $now,
+                ]);
 
-                $updatedCount += $result;
-            }
-        });
+            $updatedCount += $result;
+        }
 
         return $updatedCount;
     }
@@ -687,7 +686,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     /**
      * 批量删除成员（硬删除）.
      */
-    public function batchDeleteMembers(int $projectId, array $memberIds): int
+    public function deleteMembersByIds(int $projectId, array $memberIds): int
     {
         if (empty($memberIds)) {
             return 0;

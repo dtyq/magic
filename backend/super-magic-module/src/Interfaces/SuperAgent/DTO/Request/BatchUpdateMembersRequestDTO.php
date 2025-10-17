@@ -39,8 +39,9 @@ class BatchUpdateMembersRequestDTO extends AbstractRequestDTO
     {
         return [
             'members' => 'required|array|min:1|max:500',
-            'members.*.member_id' => 'required|string|max:128',
-            'members.*.permission' => 'required|string',
+            'members.*.target_type' => 'required|string|in:User,Department',
+            'members.*.target_id' => 'required|string|max:128',
+            'members.*.permission' => 'required|string|in:viewer,editor,manage',
         ];
     }
 
@@ -54,9 +55,12 @@ class BatchUpdateMembersRequestDTO extends AbstractRequestDTO
             'members.array' => __('validation.project.members.array'),
             'members.min' => __('validation.project.members.min'),
             'members.max' => __('validation.project.members.max'),
-            'members.*.member_id.required' => __('validation.project.member_id.required'),
-            'members.*.member_id.string' => __('validation.project.member_id.string'),
-            'members.*.member_id.max' => __('validation.project.member_id.max'),
+            'members.*.target_type.required' => __('validation.project.target_type.required'),
+            'members.*.target_type.string' => __('validation.project.target_type.string'),
+            'members.*.target_type.in' => __('validation.project.target_type.in'),
+            'members.*.target_id.required' => __('validation.project.target_id.required'),
+            'members.*.target_id.string' => __('validation.project.target_id.string'),
+            'members.*.target_id.max' => __('validation.project.target_id.max'),
             'members.*.permission.required' => __('validation.project.permission.required'),
             'members.*.permission.string' => __('validation.project.permission.string'),
             'members.*.permission.in' => __('validation.project.permission.in'),
