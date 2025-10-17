@@ -1064,6 +1064,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		//检查magic-user-id是否是一个数组，如果是数组，则合并为单个字符串
+		if len(proxyReq.Header["magic-user-id"]) > 1 {
+			proxyReq.Header.Set("magic-user-id", strings.Join(proxyReq.Header["magic-user-id"], ","))
+		}
+
 		// 如果需要添加API密钥且请求头中没有Authorization
 		if shouldAddApiKey && !headerExists(proxyHeaders, "Authorization") {
 			proxyReq.Header.Set("Authorization", "Bearer "+targetApiKey)
