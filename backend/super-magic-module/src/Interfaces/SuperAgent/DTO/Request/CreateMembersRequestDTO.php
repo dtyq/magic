@@ -39,9 +39,9 @@ class CreateMembersRequestDTO extends AbstractRequestDTO
     {
         return [
             'members' => 'required|array|min:1|max:500',
-            'members.*.target_type' => 'required|string|in:User,Department',
+            'members.*.target_type' => 'required|string',
             'members.*.target_id' => 'required|string|max:128',
-            'members.*.permission' => 'required|string|in:viewer,editor,manage',
+            'members.*.permission' => 'required|string',
         ];
     }
 

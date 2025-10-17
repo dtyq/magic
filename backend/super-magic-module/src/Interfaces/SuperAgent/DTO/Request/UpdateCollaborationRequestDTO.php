@@ -52,7 +52,7 @@ class UpdateCollaborationRequestDTO extends AbstractRequestDTO
     {
         return [
             'enabled' => 'boolean',
-            'permission' => 'string|in:viewer,editor,manage',
+            'permission' => 'string',
         ];
     }
 

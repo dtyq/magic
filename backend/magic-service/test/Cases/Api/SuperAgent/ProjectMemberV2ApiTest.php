@@ -7,13 +7,14 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\SuperAgent;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Mockery;
 
 /**
  * @internal
  * 项目团队邀请API测试
  */
-class ProjectTeamInvitationApiTest extends AbstractApiTest
+class ProjectMemberV2ApiTest extends AbstractApiTest
 {
     private const BASE_URI = '/api/v1/super-agent/projects';
 
@@ -439,8 +440,8 @@ class ProjectTeamInvitationApiTest extends AbstractApiTest
             ],
         ];
 
-        $response = $this->patch(
-            self::BASE_URI . "/{$projectId}/members",
+        $response = $this->put(
+            self::BASE_URI . "/{$projectId}/members/permissions",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -498,8 +499,8 @@ class ProjectTeamInvitationApiTest extends AbstractApiTest
             ],
         ];
 
-        $response = $this->patch(
-            self::BASE_URI . "/{$projectId}/members",
+        $response = $this->put(
+            self::BASE_URI . "/{$projectId}/members/permissions",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -601,11 +602,8 @@ class ProjectTeamInvitationApiTest extends AbstractApiTest
     private function cleanupProjectMembers(string $projectId): void
     {
         try {
-            // 直接使用DB门面清理项目成员数据
-            \Hyperf\DbConnection\Db::table('magic_super_agent_project_members')
-                ->where('project_id', $projectId)
-                ->delete();
-            
+            $projectMemberDomainService = di(ProjectMemberDomainService::class);
+            $projectMemberDomainService->deleteByProjectId((int) $projectId);
             echo "清理项目成员数据完成: {$projectId}\n";
         } catch (\Exception $e) {
             echo "清理项目成员数据失败: " . $e->getMessage() . "\n";

@@ -84,11 +84,11 @@ Router::addGroup(
             // 项目成员资源管理
             Router::addGroup('/{projectId}/members', static function () {
                 // 添加项目成员
-                Router::post('', [ProjectMemberApi::class, 'createMembers']);
-                // 批量操作成员
-                Router::patch('', [ProjectMemberApi::class, 'batchUpdateMembers']);
+                Router::post('', [ProjectMemberApi::class, 'createProjectMembers']);
                 // 批量删除成员
-                Router::delete('', [ProjectMemberApi::class, 'batchDeleteMembers']);
+                Router::delete('', [ProjectMemberApi::class, 'deleteProjectMembers']);
+                // 批量更新成员-权限
+                Router::put('/permissions', [ProjectMemberApi::class, 'updateProjectMemberPermissions']);
             });
 
             // 项目邀请链接管理

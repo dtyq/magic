@@ -159,7 +159,7 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 添加项目成员（仅支持组织内部成员）.
      */
-    public function createMembers(RequestContext $requestContext, int $projectId): array
+    public function createProjectMembers(RequestContext $requestContext, int $projectId): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
@@ -197,25 +197,25 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 批量更新成员权限.
      */
-    public function batchUpdateMembers(RequestContext $requestContext, int $projectId): array
+    public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $requestDTO = BatchUpdateMembersRequestDTO::fromRequest($this->request);
 
-        return $this->projectMemberAppService->batchUpdateMembers($requestContext, $projectId, $requestDTO);
+        return $this->projectMemberAppService->updateProjectMemberPermissions($requestContext, $projectId, $requestDTO);
     }
 
     /**
      * 批量删除成员.
      */
-    public function batchDeleteMembers(RequestContext $requestContext, int $projectId): array
+    public function deleteProjectMembers(RequestContext $requestContext, int $projectId): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $memberIds = (array) $this->request->input('member_ids', []);
 
-        $this->projectMemberAppService->batchDeleteMembers($requestContext, $projectId, $memberIds);
+        $this->projectMemberAppService->deleteMembers($requestContext, $projectId, $memberIds);
 
         return [];
     }

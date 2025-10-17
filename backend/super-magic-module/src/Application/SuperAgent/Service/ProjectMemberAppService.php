@@ -645,7 +645,7 @@ class ProjectMemberAppService extends AbstractAppService
     /**
      * 批量更新成员权限.
      */
-    public function batchUpdateMembers(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
+    public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
     {
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
 
@@ -675,7 +675,7 @@ class ProjectMemberAppService extends AbstractAppService
     /**
      * 批量删除成员.
      */
-    public function batchDeleteMembers(RequestContext $requestContext, int $projectId, array $memberIds): void
+    public function deleteMembers(RequestContext $requestContext, int $projectId, array $memberIds): void
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $currentUserId = $userAuthorization->getId();
