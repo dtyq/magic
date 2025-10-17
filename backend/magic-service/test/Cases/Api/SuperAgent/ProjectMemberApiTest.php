@@ -17,8 +17,6 @@ class ProjectMemberApiTest extends AbstractApiTest
 {
     private const BASE_URI = '/api/v1/super-agent/projects';
 
-    private string $authorization = '';
-
     private string $fileId = '816640336984018944';
 
     private string $projectId = '816065897791012866';

@@ -41,6 +41,25 @@ interface ProjectMemberRepositoryInterface
     public function deleteByIds(array $ids): int;
 
     /**
+     * 删除指定项目和用户的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndUser(int $projectId, string $userId): int;
+
+    /**
+     * 删除指定项目和目标的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型
+     * @param string $targetId 目标ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int;
+
+    /**
      * 检查项目和用户的成员关系是否存在.
      *
      * @param int $projectId 项目ID
@@ -154,4 +173,49 @@ interface ProjectMemberRepositoryInterface
         string $sortField = 'last_active_at',
         string $sortDirection = 'desc'
     ): array;
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return null|ProjectMemberEntity 项目成员实体
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity;
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array;
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array;
+
+    /**
+     * 批量更新成员权限（新格式：target_type + target_id）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $permissionUpdates [['target_type' => '', 'target_id' => '', 'permission' => ''], ...]
+     * @return int 更新的记录数
+     */
+    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int;
+
+    /**
+     * 批量删除成员（软删除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function deleteMembersByIds(int $projectId, array $memberIds): int;
 }

@@ -9,7 +9,9 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberSettingEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberJoinMethod;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Hyperf\DbConnection\Db;
@@ -342,5 +344,163 @@ class ProjectMemberDomainService
 
         // 创建项目成员设置记录（绑定到工作区）
         $this->projectMemberSettingRepository->setProjectShortcut($userId, $projectId, $workspaceId, $organizationCode);
+    }
+
+    /**
+     * 通过邀请链接添加项目成员.
+     *
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param MemberRole $role 成员角色
+     * @param string $organizationCode 组织编码
+     * @param string $invitedBy 邀请人ID
+     * @return ProjectMemberEntity 创建的成员实体
+     */
+    public function addMemberByInvitation(
+        string $projectId,
+        string $userId,
+        MemberRole $role,
+        string $organizationCode,
+        string $invitedBy
+    ): ProjectMemberEntity {
+        // 检查是否已经是成员
+        $isExistingMember = $this->getMemberByProjectAndUser((int) $projectId, $userId);
+        if ($isExistingMember) {
+            return $isExistingMember;
+        }
+
+        // 创建新的项目成员记录
+        $memberEntity = new ProjectMemberEntity();
+        $memberEntity->setProjectId((int) $projectId);
+        $memberEntity->setTargetTypeFromString(MemberType::USER->value);
+        $memberEntity->setTargetId($userId);
+        $memberEntity->setRole($role);
+        $memberEntity->setOrganizationCode($organizationCode);
+        $memberEntity->setInvitedBy($invitedBy);
+        $memberEntity->setJoinMethod(MemberJoinMethod::LINK);
+
+        // 插入成员记录
+        $this->projectMemberRepository->insert([$memberEntity]);
+
+        return $memberEntity;
+    }
+
+    /**
+     * 删除指定用户的项目成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return bool 删除是否成功
+     */
+    public function removeMemberByUser(int $projectId, string $userId): bool
+    {
+        $deletedCount = $this->projectMemberRepository->deleteByProjectAndUser($projectId, $userId);
+        return $deletedCount > 0;
+    }
+
+    /**
+     * 删除指定用户和目标类型的项目成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型（User/Department）
+     * @param string $targetId 目标ID
+     * @return bool 删除是否成功
+     */
+    public function removeMemberByTarget(int $projectId, string $targetType, string $targetId): bool
+    {
+        $deletedCount = $this->projectMemberRepository->deleteByProjectAndTarget($projectId, $targetType, $targetId);
+        return $deletedCount > 0;
+    }
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return null|ProjectMemberEntity 项目成员实体
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity
+    {
+        return $this->projectMemberRepository->getMemberByProjectAndUser($projectId, $userId);
+    }
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array
+    {
+        return $this->projectMemberRepository->getMembersByProjectAndDepartmentIds($projectId, $departmentIds);
+    }
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array
+    {
+        return $this->projectMemberRepository->getMembersByIds((int) $projectId, $memberIds);
+    }
+
+    /**
+     * 批量更新成员权限（新格式：target_type + target_id）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $permissionUpdates [['target_type' => '', 'target_id' => '', 'permission' => ''], ...]
+     * @return int 更新的记录数
+     */
+    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int
+    {
+        $updateData = [];
+        foreach ($permissionUpdates as $member) {
+            $permission = MemberRole::validatePermissionLevel($member['permission']);
+            $updateData[] = [
+                'target_type' => $member['target_type'],
+                'target_id' => $member['target_id'],
+                'permission' => $permission->value,
+            ];
+        }
+
+        return $this->projectMemberRepository->batchUpdatePermissions($projectId, $updateData);
+    }
+
+    /**
+     * 批量删除成员.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function deleteMembersByIds(int $projectId, array $memberIds): int
+    {
+        return $this->projectMemberRepository->deleteMembersByIds($projectId, $memberIds);
+    }
+
+    /**
+     * 添加项目成员（内部邀请）.
+     *
+     * @param ProjectMemberEntity[] $memberEntities 成员实体数组
+     * @param string $organizationCode 组织编码
+     */
+    public function addInternalMembers(array $memberEntities, string $organizationCode): void
+    {
+        if (empty($memberEntities)) {
+            return;
+        }
+
+        // 为每个成员实体设置组织编码
+        foreach ($memberEntities as $memberEntity) {
+            $memberEntity->setJoinMethod(MemberJoinMethod::INTERNAL);
+            $memberEntity->setOrganizationCode($organizationCode);
+        }
+
+        // 批量插入成员
+        $this->projectMemberRepository->insert($memberEntities);
     }
 }

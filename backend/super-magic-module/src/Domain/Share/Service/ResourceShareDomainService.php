@@ -25,11 +25,10 @@ class ResourceShareDomainService
     ) {
     }
 
-    public function saveShareByEntity(ResourceShareEntity $shareEntity): bool
+    public function saveShareByEntity(ResourceShareEntity $shareEntity): ResourceShareEntity
     {
         try {
-            $this->shareRepository->save($shareEntity);
-            return true;
+            return $this->shareRepository->save($shareEntity);
         } catch (Exception $e) {
             // 重新抛出异常
             ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.cancel_failed: ' . $shareEntity->getId());
@@ -206,9 +205,8 @@ class ResourceShareDomainService
 
         // 2. 如果不存在，创建新的分享实体
         if (! $shareEntity) {
-            // 生成分享码
-            // 暂时使用 resource_id 代替 分享码
-            $shareCode = $resourceId;
+            // 生成分享码 - 优先使用传入的share_code，否则生成随机分享码
+            $shareCode = $attributes['share_code'] ?? $this->generateShareCode();
 
             // 构建基本分享数据
             $shareData = [
@@ -270,11 +268,49 @@ class ResourceShareDomainService
     /**
      * 生成分享码.
      *
-     * @return string 生成的分享码
+     * @return string 生成的分享码（12位随机字符）
      */
     public function generateShareCode(): string
     {
-        return (new ShareCodeGenerator())->generate();
+        return (new ShareCodeGenerator())
+            ->setCodeLength(12) // 设置为12位
+            ->generate();
+    }
+
+    /**
+     * 根据ID重新生成分享码.
+     *
+     * @param int $shareId 分享ID
+     * @param string $userId 操作用户ID
+     * @return string 新生成的分享码
+     * @throws Exception 如果操作失败
+     */
+    public function regenerateShareCodeById(int $shareId, string $userId): string
+    {
+        // 1. 获取分享实体
+        $shareEntity = $this->shareRepository->getShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND);
+        }
+
+        // 2. 权限检查（只有创建者可以操作）
+        if ($shareEntity->getCreatedUid() !== $userId) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED);
+        }
+
+        // 3. 重新生成分享码
+        $newShareCode = $this->generateShareCode();
+        $shareEntity->setShareCode($newShareCode);
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($userId);
+
+        // 4. 保存更新
+        try {
+            $this->shareRepository->save($shareEntity);
+            return $newShareCode;
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED);
+        }
     }
 
     /**
@@ -308,6 +344,109 @@ class ResourceShareDomainService
 
         $decryptedPassword = $this->getDecryptedPassword($shareEntity);
         return $decryptedPassword === $password;
+    }
+
+    /**
+     * 切换分享状态（启用/禁用）.
+     *
+     * @param int $shareId 分享ID
+     * @param bool $enabled 是否启用
+     * @param string $userId 操作用户ID
+     * @return ResourceShareEntity 更新后的分享实体
+     * @throws Exception 如果操作失败
+     */
+    public function toggleShareStatus(int $shareId, bool $enabled, string $userId): ResourceShareEntity
+    {
+        // 1. 获取分享实体
+        $shareEntity = $this->shareRepository->getShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND, 'share.not_found', [$shareId]);
+        }
+
+        // 2. 权限检查（只有创建者可以操作）
+        if ($shareEntity->getCreatedUid() !== $userId) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission', [$shareId]);
+        }
+
+        // 3. 更新启用状态
+        $shareEntity->setIsEnabled($enabled);
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($userId);
+
+        // 4. 保存并返回
+        try {
+            return $this->shareRepository->save($shareEntity);
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.toggle_status_failed', [$shareId]);
+        }
+    }
+
+    /**
+     * 获取指定资源的分享.
+     *
+     * @param string $userId 用户ID（可选，用于权限检查）
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @return null|ResourceShareEntity 分享实体
+     */
+    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    {
+        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType, false);
+    }
+
+    /**
+     * 删除指定资源的分享.
+     *
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @param string $userId 用户ID（可选，用于权限检查）
+     * @return bool 删除是否成功
+     */
+    public function deleteShareByResource(string $resourceId, int $resourceType, string $userId = ''): bool
+    {
+        $shareEntity = $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
+        if (! $shareEntity) {
+            return true; // 如果不存在，视为删除成功
+        }
+
+        return $this->shareRepository->delete($shareEntity->getId());
+    }
+
+    /**
+     * 删除指定分享码的分享.
+     *
+     * @param string $shareCode 分享码
+     * @return bool 删除是否成功
+     */
+    public function deleteShareByCode(string $shareCode): bool
+    {
+        $shareEntity = $this->shareRepository->getShareByCode($shareCode);
+        if (! $shareEntity) {
+            return true; // 如果不存在，视为删除成功
+        }
+
+        return $this->shareRepository->delete($shareEntity->getId());
+    }
+
+    /**
+     * 批量删除指定资源类型的分享.
+     *
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @return bool 删除是否成功
+     */
+    public function deleteAllSharesByResource(string $resourceId, int $resourceType): bool
+    {
+        try {
+            // 这里可以扩展为批量删除，目前先用单个删除
+            $shareEntity = $this->shareRepository->getShareByResource('', $resourceId, $resourceType);
+            if (! $shareEntity) {
+                return true;
+            }
+            return $this->shareRepository->delete($shareEntity->getId());
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.delete_failed: ' . $resourceId);
+        }
     }
 
     /**
