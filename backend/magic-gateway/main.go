@@ -204,8 +204,8 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		containerID := r.Header.Get("X-Container-ID")
-		magicUserID := r.Header.Get("magic-user-id")
-		magicOrganizationCode := r.Header.Get("magic-organization-code")
+		magicUserID := getHeaderValue(r, "magic-user-id")
+		magicOrganizationCode := getHeaderValue(r, "magic-organization-code")
 
 		// 如果X-Container-ID为空但magic-user-id存在，使用magic-user-id
 		if containerID == "" && magicUserID != "" {
@@ -301,8 +301,8 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 获取用户ID
 	userID := r.Header.Get("X-USER-ID")
-	magicUserID := r.Header.Get("magic-user-id")
-	magicOrganizationCode := r.Header.Get("magic-organization-code")
+	magicUserID := getHeaderValue(r, "magic-user-id")
+	magicOrganizationCode := getHeaderValue(r, "magic-organization-code")
 	if userID == "" && magicUserID != "" {
 		userID = magicUserID
 	}
@@ -478,10 +478,11 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// 将令牌信息存储在请求上下文中
+		// 将令牌信息存储在请求上下文中（不修改原始请求头，避免重复设置）
 		r.Header.Set("X-User-Id", claims.ContainerID)
-		r.Header.Set("magic-user-id", claims.MagicUserID)
-		r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
+		// 注意：不在这里设置 magic-user-id 和 magic-organization-code
+		// 因为会在后续的 proxyHandler 中从原始请求头或JWT claims中获取并设置
+		// 避免造成header被设置为数组
 
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
@@ -505,8 +506,8 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 		// 获取请求的环境变量
 		varsParam := r.URL.Query().Get("vars")
 		userID := r.Header.Get("X-USER-ID")
-		magicUserID := r.Header.Get("magic-user-id")
-		magicOrganizationCode := r.Header.Get("magic-organization-code")
+		magicUserID := getHeaderValue(r, "magic-user-id")
+		magicOrganizationCode := getHeaderValue(r, "magic-organization-code")
 
 		// 如果X-USER-ID为空但magic-user-id存在，使用magic-user-id
 		if userID == "" && magicUserID != "" {
@@ -724,14 +725,14 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 从JWT claims中获取用户信息
 		userID := r.Header.Get("X-USER-ID")
 		// 从请求头中获取magic-task-id 和magic-topic-id
-		magicTaskID := r.Header.Get("magic-task-id")
-		magicTopicID := r.Header.Get("magic-topic-id")
-		magicChatTopicID := r.Header.Get("magic-chat-topic-id")
-		magicLanguage := r.Header.Get("magic-language")
+		magicTaskID := getHeaderValue(r, "magic-task-id")
+		magicTopicID := getHeaderValue(r, "magic-topic-id")
+		magicChatTopicID := getHeaderValue(r, "magic-chat-topic-id")
+		magicLanguage := getHeaderValue(r, "magic-language")
 
 		// 优先从原始请求头获取，避免被JWT覆盖
-		magicUserID := r.Header.Get("magic-user-id")
-		magicOrganizationCode := r.Header.Get("magic-organization-code")
+		magicUserID := getHeaderValue(r, "magic-user-id")
+		magicOrganizationCode := getHeaderValue(r, "magic-organization-code")
 
 		// 从请求上下文中获取JWT claims作为fallback
 		if claims, ok := r.Context().Value("jwt_claims").(*JWTClaims); ok {
@@ -749,8 +750,8 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if debugMode {
-			logger.Printf("原始请求头 magic-user-id: %s", r.Header.Get("magic-user-id"))
-			logger.Printf("原始请求头 magic-organization-code: %s", r.Header.Get("magic-organization-code"))
+			logger.Printf("原始请求头 magic-user-id: %s", getHeaderValue(r, "magic-user-id"))
+			logger.Printf("原始请求头 magic-organization-code: %s", getHeaderValue(r, "magic-organization-code"))
 			logger.Printf("最终使用的 magicUserID: %s", magicUserID)
 			logger.Printf("最终使用的 magicOrganizationCode: %s", magicOrganizationCode)
 		}
@@ -893,6 +894,14 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			// 跳过 magic-* 相关的 header，稍后统一处理（避免重复设置导致数组）
+			keyLower := strings.ToLower(key)
+			if keyLower == "magic-user-id" || keyLower == "magic-organization-code" ||
+			   keyLower == "magic-task-id" || keyLower == "magic-topic-id" ||
+			   keyLower == "magic-chat-topic-id" || keyLower == "magic-language" {
+				continue
+			}
+
 			for _, value := range values {
 				// 特殊处理 Authorization 头
 				if key == "Authorization" {
@@ -1013,51 +1022,47 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 设置请求头
 		proxyReq.Header = proxyHeaders
 
-		// 透传magic-user-id和magic-organization-code到目标API
-		// 只有当原始请求头中没有对应值时，才从JWT中设置，避免覆盖原始值
-		if proxyReq.Header.Get("magic-user-id") == "" && magicUserID != "" {
+		// 统一设置 magic-* 相关的 header（已在前面的循环中跳过，这里统一处理，避免重复设置导致数组）
+		// 这些值已经通过 getHeaderValue() 合并了可能的数组值
+		if magicUserID != "" {
 			proxyReq.Header.Set("magic-user-id", magicUserID)
 			if debugMode {
-				logger.Printf("从JWT设置magic-user-id: %s", magicUserID)
+				logger.Printf("设置magic-user-id: %s", magicUserID)
 			}
-		} else if debugMode && proxyReq.Header.Get("magic-user-id") != "" {
-			logger.Printf("保留原始magic-user-id: %s", proxyReq.Header.Get("magic-user-id"))
 		}
 
-		if proxyReq.Header.Get("magic-organization-code") == "" && magicOrganizationCode != "" {
+		if magicOrganizationCode != "" {
 			proxyReq.Header.Set("magic-organization-code", magicOrganizationCode)
 			if debugMode {
-				logger.Printf("从JWT设置magic-organization-code: %s", magicOrganizationCode)
+				logger.Printf("设置magic-organization-code: %s", magicOrganizationCode)
 			}
-		} else if debugMode && proxyReq.Header.Get("magic-organization-code") != "" {
-			logger.Printf("保留原始magic-organization-code: %s", proxyReq.Header.Get("magic-organization-code"))
 		}
 
 		if magicTaskID != "" {
 			proxyReq.Header.Set("magic-task-id", magicTaskID)
 			if debugMode {
-				logger.Printf("透传magic-task-id: %s", magicTaskID)
+				logger.Printf("设置magic-task-id: %s", magicTaskID)
 			}
 		}
 
 		if magicTopicID != "" {
 			proxyReq.Header.Set("magic-topic-id", magicTopicID)
 			if debugMode {
-				logger.Printf("透传magic-topic-id: %s", magicTopicID)
+				logger.Printf("设置magic-topic-id: %s", magicTopicID)
 			}
 		}
 
 		if magicChatTopicID != "" {
 			proxyReq.Header.Set("magic-chat-topic-id", magicChatTopicID)
 			if debugMode {
-				logger.Printf("透传magic-chat-topic-id: %s", magicChatTopicID)
+				logger.Printf("设置magic-chat-topic-id: %s", magicChatTopicID)
 			}
 		}
 
 		if magicLanguage != "" {
 			proxyReq.Header.Set("magic-language", magicLanguage)
 			if debugMode {
-				logger.Printf("透传magic-language: %s", magicLanguage)
+				logger.Printf("设置magic-language: %s", magicLanguage)
 			}
 		}
 
@@ -1151,14 +1156,14 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// 判断respBody 大小，如果超过100kb 则不打印
-			if len(respBody) > 100*1024 {
-				logger.Printf("响应体大小超过100kb，不打印")
-			} else {
-				logger.Printf("响应体内容: %s", string(respBody))
-			}
+		// 判断respBody 大小，如果超过100kb 则不打印
+		if len(respBody) > 100*1024 {
+			logger.Printf("响应体大小超过100kb，不打印")
+		} else {
+			logger.Printf("响应体内容: %s", string(respBody))
+		}
 
-			// 转发响应体
+				// 转发响应体
 			w.Write(respBody)
 		}
 	})
@@ -1186,6 +1191,16 @@ func shouldSkipHeader(key string) bool {
 func headerExists(headers http.Header, key string) bool {
 	_, ok := headers[key]
 	return ok
+}
+
+// getHeaderValue 获取请求头的值，如果存在多个值（例如逗号分隔被解析为数组），则合并为单个字符串
+func getHeaderValue(r *http.Request, key string) string {
+	values := r.Header[key]
+	if len(values) == 0 {
+		return ""
+	}
+	// 将所有值合并为一个字符串（去除逗号分隔）
+	return strings.Join(values, "")
 }
 
 // 递归替换对象中的环境变量引用
