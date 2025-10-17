@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 
 class TaskFileItemDTO extends AbstractDTO
@@ -99,6 +100,11 @@ class TaskFileItemDTO extends AbstractDTO
     public string $parentId = '';
 
     /**
+     * 来源字段.
+     */
+    public TaskFileSource $source = TaskFileSource::DEFAULT;
+
+    /**
      * 从实体创建DTO.
      */
     public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
@@ -163,6 +169,11 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->sort = $data['sort'] ?? 0;
         $dto->parentId = (string) ($data['parent_id'] ?? '');
+        if (isset($data['source']) && is_string($data['source'])) {
+            $dto->source = TaskFileSource::fromValue($data['source']);
+        } else {
+            $dto->source = TaskFileSource::DEFAULT;
+        }
 
         // Handle metadata - could be string (JSON) or array
         $metadata = $data['metadata'] ?? null;
@@ -206,6 +217,7 @@ class TaskFileItemDTO extends AbstractDTO
             'metadata' => $this->metadata,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
+            'source' => $this->source->value,
         ];
     }
 }
