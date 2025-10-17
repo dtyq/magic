@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Api\SuperAgent;
 
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
+use Hyperf\Context\ApplicationContext;
 use Mockery;
 
 /**
@@ -614,7 +617,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $requiredFields = [
             'project_id', 'project_name', 'project_description',
             'organization_code', 'creator_id', 'creator_name', 'creator_avatar',
-            'permission', 'requires_password', 'token', 'has_joined'
+            'permission', 'requires_password', 'token', 'has_joined',
         ];
 
         foreach ($requiredFields as $field) {
@@ -697,24 +700,24 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
     private function cleanupTestData(string $projectId): void
     {
         // 通过领域服务删除test2用户的项目成员关系（如果存在）
-        $this->getProjectMemberDomainService()->removeMemberByUser((int)$projectId, 'usi_e9d64db5b986d062a342793013f682e8');
+        $this->getProjectMemberDomainService()->removeMemberByUser((int) $projectId, 'usi_e9d64db5b986d062a342793013f682e8');
     }
 
     /**
      * 获取资源分享领域服务.
      */
-    private function getResourceShareDomainService(): \Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService
+    private function getResourceShareDomainService(): ResourceShareDomainService
     {
-        return \Hyperf\Context\ApplicationContext::getContainer()
-            ->get(\Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService::class);
+        return ApplicationContext::getContainer()
+            ->get(ResourceShareDomainService::class);
     }
 
     /**
      * 获取项目成员领域服务.
      */
-    private function getProjectMemberDomainService(): \Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService
+    private function getProjectMemberDomainService(): ProjectMemberDomainService
     {
-        return \Hyperf\Context\ApplicationContext::getContainer()
-            ->get(\Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService::class);
+        return ApplicationContext::getContainer()
+            ->get(ProjectMemberDomainService::class);
     }
 }

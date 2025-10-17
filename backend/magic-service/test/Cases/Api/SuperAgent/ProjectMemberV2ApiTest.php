@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Api\SuperAgent;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
+use Exception;
 use Mockery;
 
 /**
@@ -22,8 +23,11 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
 
     // 测试用户ID和部门ID
     private string $testUserId1 = 'usi_27229966f39dd1b62c9d1449e3f7a90d';
+
     private string $testUserId2 = 'usi_e9d64db5b986d062a342793013f682e8';
+
     private string $testDepartmentId1 = '727236421093691395';
+
     private string $testDepartmentId2 = '727236421089497089';
 
     protected function setUp(): void
@@ -537,7 +541,6 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
 
     public function testGetProjectInfo()
     {
-
         $this->switchUserTest1();
 
         $response = $this->get(
@@ -623,9 +626,8 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
             $projectMemberDomainService = di(ProjectMemberDomainService::class);
             $projectMemberDomainService->deleteByProjectId((int) $projectId);
             echo "清理项目成员数据完成: {$projectId}\n";
-        } catch (\Exception $e) {
-            echo "清理项目成员数据失败: " . $e->getMessage() . "\n";
+        } catch (Exception $e) {
+            echo '清理项目成员数据失败: ' . $e->getMessage() . "\n";
         }
     }
-
 }
