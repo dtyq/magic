@@ -1,4 +1,5 @@
 // 更简单的测试策略，仅测试类的公共API
+import { describe, test, expect, beforeEach, vi } from "vitest"
 import { UploadManger } from "../../src/utils/UploadManger"
 import type { Method } from "../../src/types/request"
 
@@ -6,13 +7,13 @@ describe("UploadManger 类测试", () => {
 	let uploadManger: UploadManger
 
 	beforeEach(() => {
-		jest.resetModules() // 重置所有模块的状态
+		vi.resetModules() // 重置所有模块的状态
 		uploadManger = new UploadManger()
 	})
 
 	describe("任务控制方法", () => {
 		test("pauseAllTask 方法应该调用每个上传任务的 pause 方法", () => {
-			const mockPause = jest.fn()
+			const mockPause = vi.fn()
 			// 直接修改任务对象
 			// @ts-ignore - 访问私有属性进行测试
 			uploadManger["tasks"] = {
@@ -24,7 +25,7 @@ describe("UploadManger 类测试", () => {
 		})
 
 		test("resumeAllTask 方法应该调用每个上传任务的 resume 方法", () => {
-			const mockResume = jest.fn()
+			const mockResume = vi.fn()
 			// @ts-ignore - 访问私有属性进行测试
 			uploadManger["tasks"] = {
 				"test-id": { resume: mockResume },
@@ -35,7 +36,7 @@ describe("UploadManger 类测试", () => {
 		})
 
 		test("cancelAllTask 方法应该调用每个上传任务的 cancel 方法", () => {
-			const mockCancel = jest.fn()
+			const mockCancel = vi.fn()
 			// @ts-ignore - 访问私有属性进行测试
 			uploadManger["tasks"] = {
 				"test-id": { cancel: mockCancel },

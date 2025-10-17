@@ -1,10 +1,11 @@
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest"
 import { Kodo } from "../../src"
 import { defaultUpload } from "../../src/modules/Kodo/defaultUpload"
 import { request } from "../../src/utils/request"
 
-jest.mock("../../src/utils/request", () => {
+vi.mock("../../src/utils/request", () => {
 	return {
-		request: jest.fn().mockImplementation((options) => {
+		request: vi.fn().mockImplementation((options) => {
 			return Promise.resolve({
 				code: 1000,
 				message: "请求成功",
@@ -19,7 +20,7 @@ jest.mock("../../src/utils/request", () => {
 	}
 })
 
-// 模拟FormData和XMLHttpRequest
+// Mock FormData
 class MockFormData {
 	private data = new Map<string, any>()
 
@@ -32,45 +33,44 @@ class MockFormData {
 	}
 }
 
-// 模拟File对象
+// Mock File object
 const createMockFile = (name = "test.txt", size = 5 * 1024 * 1024) => {
 	return new File([new ArrayBuffer(size)], name)
 }
 
-// 在测试之前全局模拟
+// Setup global mocks before all tests
 beforeAll(() => {
-	// 全局模拟
 	// @ts-ignore
 	global.FormData = MockFormData
 	// @ts-ignore
-	global.XMLHttpRequest = jest.fn().mockImplementation(() => ({
-		open: jest.fn(),
-		send: jest.fn(),
-		setRequestHeader: jest.fn(),
+	global.XMLHttpRequest = vi.fn().mockImplementation(() => ({
+		open: vi.fn(),
+		send: vi.fn(),
+		setRequestHeader: vi.fn(),
 		upload: {
-			addEventListener: jest.fn(),
+			addEventListener: vi.fn(),
 		},
-		addEventListener: jest.fn(),
-		getAllResponseHeaders: jest.fn().mockReturnValue(""),
+		addEventListener: vi.fn(),
+		getAllResponseHeaders: vi.fn().mockReturnValue(""),
 	}))
 })
 
-// 在所有测试之后清理
+// Cleanup after all tests
 afterAll(() => {
-	jest.restoreAllMocks()
+	vi.restoreAllMocks()
 })
 
 describe("Kodo模块测试", () => {
-	// 每次测试后重置所有模拟
+	// Reset all mocks after each test
 	afterEach(() => {
-		jest.clearAllMocks()
+		vi.clearAllMocks()
 	})
 
-	// 测试上传方法
+	// Test upload method
 	describe("upload方法", () => {
 		it("应该正确调用defaultUpload方法", () => {
-			// 直接替换Kodo.upload方法的实现
-			const spy = jest.spyOn(Kodo, "upload")
+			// Spy on Kodo.upload method
+			const spy = vi.spyOn(Kodo, "upload")
 
 			const file = createMockFile()
 			const key = "test/test.txt"
@@ -87,32 +87,29 @@ describe("Kodo模块测试", () => {
 		})
 	})
 
-	// 测试默认上传方法
+	// Test default upload method
 	describe("defaultUpload方法", () => {
 		it("应该在缺少必要参数时抛出异常", () => {
 			const file = createMockFile()
 			const key = "test.txt"
 
-			// 缺少token
+			// Missing token
 			const params1 = {
 				dir: "test/",
 			}
-			// @ts-ignore - 忽略类型错误
+			// @ts-ignore - Ignore type error
 			expect(() => defaultUpload(file, key, params1, {})).toThrow()
 
-			// 缺少dir
+			// Missing dir
 			const params2 = {
 				token: "test-token",
 			}
-			// @ts-ignore - 忽略类型错误
+			// @ts-ignore - Ignore type error
 			expect(() => defaultUpload(file, key, params2, {})).toThrow()
 		})
 
-		// 设置超时时间较短，避免无限等待
+		// Set shorter timeout to avoid infinite waiting
 		it("应该正确执行上传过程", async () => {
-			// 设置测试超时
-			jest.setTimeout(5000)
-
 			const file = createMockFile("test.txt", 1024)
 			const key = "test.txt"
 			const params = {
@@ -122,10 +119,10 @@ describe("Kodo模块测试", () => {
 			const option = {
 				headers: { "Content-Type": "application/json" },
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			// 使用Promise.race来确保测试不会无限等待
+			// Use Promise.race to ensure test doesn't wait indefinitely
 			const result = await Promise.race([
 				defaultUpload(file, key, params, option),
 				new Promise((resolve) =>
@@ -142,10 +139,10 @@ describe("Kodo模块测试", () => {
 				),
 			])
 
-			// 验证结果
+			// Verify result
 			expect(result).toBeDefined()
 
-			// 验证request方法被调用
+			// Verify request method was called
 			expect(request).toHaveBeenCalledWith(
 				expect.objectContaining({
 					method: "post",

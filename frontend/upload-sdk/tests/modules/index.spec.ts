@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from "vitest"
 import { PlatformType } from "../../src"
 import PlatformModules from "../../src/modules"
 
@@ -61,7 +62,7 @@ describe("上传SDK模块集成测试", () => {
 			expect(PlatformModules[PlatformType.OBS]).toBeDefined()
 
 			// 验证模块属性可访问
-			const mockConsoleWarn = jest.spyOn(console, "warn").mockImplementation(() => {})
+			const mockConsoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {})
 			const property = Object.keys(PlatformModules[PlatformType.OSS])[0]
 
 			if (property) {
