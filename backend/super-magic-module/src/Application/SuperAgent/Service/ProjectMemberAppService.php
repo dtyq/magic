@@ -701,67 +701,6 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 验证项目管理权限（统一权限验证逻辑）.
-     */
-    private function validateProjectPermission(int $projectId, string $userId, bool $requireOwnerOnly = false): void
-    {
-        // 检查是否为项目所有者
-        $project = $this->projectDomainService->getProjectNotUserId((int) $projectId);
-        if ($project && $project->getUserId() === $userId) {
-            return; // 项目所有者通过验证
-        }
-
-        // 如果仅要求所有者权限，则停止检查
-        if ($requireOwnerOnly) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.no_manage_permission');
-        }
-
-        // 检查是否为项目管理者
-        $member = $this->projectMemberDomainService->getMemberByProjectAndUser($projectId, $userId);
-        if (!$member || !in_array($member->getRole(), [MemberRole::MANAGE, MemberRole::OWNER], true)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.no_manage_permission');
-        }
-    }
-
-    /**
-     * 验证管理权限（仅管理者）.
-     */
-    private function validateManagePermission(int $projectId, string $userId): void
-    {
-        $this->validateProjectPermission($projectId, $userId, false);
-    }
-
-    /**
-     * 验证管理者或所有者权限.
-     */
-    private function validateManageOrOwnerPermission(MagicUserAuthorization $magicUserAuthorization, ProjectEntity $projectEntity): void
-    {
-        $projectId = $projectEntity->getId();
-        $currentUserId = $magicUserAuthorization->getId();
-
-        if ($projectEntity->getCreatedUid() === $currentUserId) {
-            return ;
-        }
-
-        // 检查是否具有管理权限
-        $projectMemberEntity = $this->projectMemberDomainService->getMemberByProjectAndUser($projectId, $currentUserId);
-        if ($projectMemberEntity && $projectMemberEntity->getRole()->hasManagePermission()) {
-            return ;
-        }
-
-        $dataIsolation = DataIsolation::create($magicUserAuthorization->getOrganizationCode(), $currentUserId);
-        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $currentUserId, true);
-        $projectMemberEntities = $this->projectMemberDomainService->getMembersByProjectAndDepartmentIds($projectId, $departmentIds);
-
-        foreach ($projectMemberEntities as $projectMemberEntity) {
-            if ($projectMemberEntity->getRole()->hasManagePermission()) {
-                return ;
-            }
-        }
-        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-    }
-
-    /**
      * 批量验证目标用户/部门在当前组织内.
      */
     private function validateTargetsInOrganization(array $members, string $organizationCode): void

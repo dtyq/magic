@@ -449,37 +449,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     }
 
     /**
-     * 验证项目权限（项目所有者才能管理邀请链接）.
-     */
-    private function validateManageOrOwnerPermission(MagicUserAuthorization $magicUserAuthorization, ProjectEntity $project): object
-    {
-        $currentUserId = $magicUserAuthorization->getId();
-        $projectId = $project->getId();
-
-        // 检查是否当前创建者
-        if ($project->getUserId() === $currentUserId) {
-            return $project;
-        }
-
-        // 检查是否具有管理权限
-        $projectMemberEntity = $this->projectMemberDomainService->getMemberByProjectAndUser($projectId, $currentUserId);
-        if ($projectMemberEntity && $projectMemberEntity->getRole()->hasManagePermission()) {
-            return $project;
-        }
-
-        $dataIsolation = DataIsolation::create($magicUserAuthorization->getOrganizationCode(), $currentUserId);
-        $departmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $currentUserId, true);
-        $projectMemberEntities = $this->projectMemberDomainService->getMembersByProjectAndDepartmentIds($projectId, $departmentIds);
-
-        foreach ($projectMemberEntities as $projectMemberEntity) {
-            if ($projectMemberEntity->getRole()->hasManagePermission()) {
-                return $project;
-            }
-        }
-        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-    }
-
-    /**
      * 获取用户信息.
      */
     private function getUserInfo(RequestContext $requestContext, string $userId): array

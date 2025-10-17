@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -73,4 +74,38 @@ class AbstractAppService extends AbstractKernelAppService
 
         ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
     }
+
+    /**
+     * 验证管理者或所有者权限.
+     */
+    protected function validateManageOrOwnerPermission(MagicUserAuthorization $magicUserAuthorization, ProjectEntity $projectEntity): void
+    {
+        $projectMemberService = di(ProjectMemberDomainService::class);
+        $magicDepartmentUserDomainService = di(MagicDepartmentUserDomainService::class);
+
+        $projectId = $projectEntity->getId();
+        $currentUserId = $magicUserAuthorization->getId();
+
+        if ($projectEntity->getCreatedUid() === $currentUserId) {
+            return ;
+        }
+
+        // 检查是否具有管理权限
+        $projectMemberEntity = $projectMemberService->getMemberByProjectAndUser($projectId, $currentUserId);
+        if ($projectMemberEntity && $projectMemberEntity->getRole()->hasManagePermission()) {
+            return ;
+        }
+
+        $dataIsolation = DataIsolation::create($magicUserAuthorization->getOrganizationCode(), $currentUserId);
+        $departmentIds = $magicDepartmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $currentUserId, true);
+        $projectMemberEntities = $projectMemberService->getMembersByProjectAndDepartmentIds($projectId, $departmentIds);
+
+        foreach ($projectMemberEntities as $projectMemberEntity) {
+            if ($projectMemberEntity->getRole()->hasManagePermission()) {
+                return ;
+            }
+        }
+        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+    }
+
 }
