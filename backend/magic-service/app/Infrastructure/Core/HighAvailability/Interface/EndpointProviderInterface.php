@@ -33,4 +33,15 @@ interface EndpointProviderInterface
         ?string $provider = null,
         ?string $endpointName = null
     ): array;
+
+    /**
+     * Check endpoint connectivity.
+     *
+     * Business modules need to implement this method to check if the endpoint is accessible.
+     * This is used for active health check to recover circuit breaker status.
+     *
+     * @param string $endpointId Endpoint ID
+     * @return bool True if endpoint is accessible, false otherwise
+     */
+    public function checkConnectivity(string $endpointId): bool;
 }

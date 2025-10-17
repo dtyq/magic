@@ -55,4 +55,17 @@ interface HighAvailabilityInterface
      * @param EndpointResponseDTO $response 接入点响应实体
      */
     public function recordResponse(EndpointResponseDTO $response): bool;
+
+    /**
+     * Check endpoint connectivity.
+     *
+     * This method is used for active health check to recover circuit breaker status.
+     * It will:
+     * 1. Verify if the endpoint is still enabled in business side
+     * 2. Call business side's connectivity check method
+     *
+     * @param string $endpointId Endpoint ID
+     * @return bool True if endpoint is accessible, false otherwise
+     */
+    public function checkConnectivity(string $endpointId): bool;
 }
