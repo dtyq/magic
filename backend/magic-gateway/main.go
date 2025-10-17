@@ -478,11 +478,17 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// 将令牌信息存储在请求上下文中（不修改原始请求头，避免重复设置）
+		// 将令牌信息存储在请求上下文中
 		r.Header.Set("X-User-Id", claims.ContainerID)
-		// 注意：不在这里设置 magic-user-id 和 magic-organization-code
-		// 因为会在后续的 proxyHandler 中从原始请求头或JWT claims中获取并设置
-		// 避免造成header被设置为数组
+
+		// 只有当原始请求头中没有这些值时，才从JWT中设置（避免覆盖原始值）
+		// 使用 getHeaderValue 检查，确保即使是数组也能正确处理
+		if len(r.Header["magic-user-id"]) == 0 && claims.MagicUserID != "" {
+			r.Header.Set("magic-user-id", claims.MagicUserID)
+		}
+		if len(r.Header["magic-organization-code"]) == 0 && claims.MagicOrganizationCode != "" {
+			r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
+		}
 
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
@@ -745,7 +751,8 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if userID != "" {
+		// 如果经过上述处理后 magicUserID 仍然为空，才使用 X-USER-ID 作为最后的 fallback
+		if magicUserID == "" && userID != "" {
 			magicUserID = userID
 		}
 
@@ -1194,12 +1201,23 @@ func headerExists(headers http.Header, key string) bool {
 }
 
 // getHeaderValue 获取请求头的值，如果存在多个值（例如逗号分隔被解析为数组），则合并为单个字符串
+// 注意：在 Go 中，r.Header[key] 永远返回 []string 类型，即使只有一个值也是包含单个元素的数组
 func getHeaderValue(r *http.Request, key string) string {
 	values := r.Header[key]
+
+	// 如果没有值，返回空字符串
 	if len(values) == 0 {
 		return ""
 	}
-	// 将所有值合并为一个字符串（去除逗号分隔）
+
+	// 如果只有一个值，直接返回（这是最常见的情况）
+	if len(values) == 1 {
+		return values[0]
+	}
+
+	// 如果有多个值（被代理错误地按逗号分割），合并为完整字符串
+	// 不使用分隔符，因为原本就是一个完整的值，只是被代理错误地分割了
+	// 例如: ["usi_fb984a", "d537ab458136441571fff11f10"] -> "usi_fb984ad537ab458136441571fff11f10"
 	return strings.Join(values, "")
 }
 
