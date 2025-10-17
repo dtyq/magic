@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 
 /**
@@ -60,6 +61,9 @@ class ProjectEntity extends AbstractEntity
      */
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
 
+
+    protected MemberRole $permission = MemberRole::EDITOR;
+
     /**
      * @var null|int 当前话题ID
      */
@@ -69,6 +73,11 @@ class ProjectEntity extends AbstractEntity
      * @var string 当前话题状态
      */
     protected string $currentTopicStatus = '';
+
+    /**
+     * @var bool 是否启用协作功能
+     */
+    protected bool $isCollaborationEnabled = false;
 
     /**
      * @var string 创建者用户ID
@@ -116,7 +125,9 @@ class ProjectEntity extends AbstractEntity
             'project_status' => $this->projectStatus->value,
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
+            'is_collaboration_enabled' => $this->isCollaborationEnabled,
             'project_mode' => $this->projectMode,
+            'permission' => $this->permission->value,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
@@ -385,4 +396,33 @@ class ProjectEntity extends AbstractEntity
         $this->projectMode = $projectMode ?? '';
         return $this;
     }
+
+    /**
+     * 获取协作功能开关状态.
+     */
+    public function getIsCollaborationEnabled(): bool
+    {
+        return $this->isCollaborationEnabled;
+    }
+
+    /**
+     * 设置协作功能开关状态.
+     */
+    public function setIsCollaborationEnabled(bool|int|string $isCollaborationEnabled): self
+    {
+        $this->isCollaborationEnabled = (bool) $isCollaborationEnabled;
+        return $this;
+    }
+
+    public function getPermission(): MemberRole
+    {
+        return $this->permission;
+    }
+
+    public function setPermission(MemberRole $permission): void
+    {
+        $this->permission = $permission;
+    }
+
+
 }

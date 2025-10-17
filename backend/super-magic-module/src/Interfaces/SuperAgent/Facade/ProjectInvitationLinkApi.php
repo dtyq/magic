@@ -30,7 +30,7 @@ class ProjectInvitationLinkApi extends AbstractApi
     /**
      * 获取项目邀请链接信息.
      */
-    public function getInvitationLink(RequestContext $requestContext, string $projectId): array
+    public function getInvitationLink(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -41,7 +41,7 @@ class ProjectInvitationLinkApi extends AbstractApi
     /**
      * 开启/关闭邀请链接.
      */
-    public function toggleInvitationLink(RequestContext $requestContext, string $projectId): array
+    public function toggleInvitationLink(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -54,7 +54,7 @@ class ProjectInvitationLinkApi extends AbstractApi
     /**
      * 重置邀请链接.
      */
-    public function resetInvitationLink(RequestContext $requestContext, string $projectId): array
+    public function resetInvitationLink(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -65,52 +65,62 @@ class ProjectInvitationLinkApi extends AbstractApi
     /**
      * 设置密码保护.
      */
-    public function setPassword(RequestContext $requestContext, string $projectId): array
+    public function setPassword(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $enabled = (bool) $this->request->input('enabled', false);
-        return $this->invitationLinkAppService->setPassword($requestContext, $projectId, $enabled);
+
+        $password = $this->invitationLinkAppService->setPassword($requestContext, $projectId, $enabled);
+
+        return ['password' => $password];
     }
 
     /**
      * 重新设置密码
      */
-    public function resetPassword(RequestContext $requestContext, string $projectId): array
+    public function resetPassword(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->invitationLinkAppService->resetPassword($requestContext, $projectId);
+        $password = $this->invitationLinkAppService->resetPassword($requestContext, $projectId);
+
+        return ['password' => $password];
     }
 
     /**
      * 修改邀请链接密码
      */
-    public function changePassword(RequestContext $requestContext, string $projectId): array
+    public function changePassword(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $newPassword = $this->request->input('password', '');
-        return $this->invitationLinkAppService->changePassword($requestContext, $projectId, $newPassword);
+        $password = $this->invitationLinkAppService->changePassword($requestContext, $projectId, $newPassword);
+
+        return ['password' => $password];
     }
 
     /**
      * 修改权限级别.
      */
-    public function updatePermission(RequestContext $requestContext, string $projectId): array
+    public function updatePermission(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $permission = $this->request->input('permission', 'view');
-        return $this->invitationLinkAppService->updatePermission($requestContext, $projectId, $permission);
+
+        $this->invitationLinkAppService->updatePermission($requestContext, $projectId, $permission);
+
+        return ['permission' => $permission];
     }
 
     /**
-     * 通过Token访问邀请链接（外部用户预览）.
+     * 通过Token访问邀请链接.
      */
     public function getInvitationByToken(RequestContext $requestContext, string $token): array
     {

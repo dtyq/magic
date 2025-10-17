@@ -72,4 +72,9 @@ enum ResourceType: int
 
         throw new RuntimeException("找不到业务名称为 '{$businessName}' 的资源类型");
     }
+
+    public static function isProjectInvitation(int $type): bool
+    {
+        return self::ProjectInvitation->value === $type;
+    }
 }

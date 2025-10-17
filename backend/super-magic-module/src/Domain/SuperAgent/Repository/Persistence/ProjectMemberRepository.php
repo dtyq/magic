@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
@@ -581,8 +582,159 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'organization_code' => $entity->getOrganizationCode(),
             'status' => $entity->getStatus()->value,
             'invited_by' => $entity->getInvitedBy(),
+            'join_method' => $entity->getJoinMethod()->value,
             'created_at' => $now,
             'updated_at' => $now,
         ];
+    }
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity
+    {
+        $memberData = $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->where('target_type', MemberType::USER->value)
+            ->where('target_id', $userId)
+            ->first();
+
+        if (!$memberData) {
+            return null;
+        }
+
+        return $this->toEntity($memberData->toArray());
+    }
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array
+    {
+        if (empty($memberIds)) {
+            return [];
+        }
+
+        $membersData = $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->whereIn('target_id', $memberIds)
+            ->get();
+
+        $entities = [];
+        foreach ($membersData as $memberData) {
+            $entities[] = $this->toEntity($memberData->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array
+    {
+        if (empty($departmentIds)) {
+            return [];
+        }
+
+        $membersData = $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->where('target_type', 'Department')
+            ->whereIn('target_id', $departmentIds)
+            ->get();
+
+        $entities = [];
+        foreach ($membersData as $memberData) {
+            $entities[] = $this->toEntity($memberData->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
+     * 批量更新成员权限.
+     */
+    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int
+    {
+        if (empty($permissionUpdates)) {
+            return 0;
+        }
+
+        $updatedCount = 0;
+        $now = date('Y-m-d H:i:s');
+
+        // 使用事务确保数据一致性
+        Db::transaction(function () use ($projectId, $permissionUpdates, $now, &$updatedCount) {
+            foreach ($permissionUpdates as $update) {
+                $memberId = $update['member_id'];
+                $permission = $update['permission'];
+
+                $result = $this->projectMemberModel::query()
+                    ->where('project_id', $projectId)
+                    ->where('target_id', $memberId)
+                    ->update([
+                        'role' => $permission,
+                        'updated_at' => $now,
+                    ]);
+
+                $updatedCount += $result;
+            }
+        });
+
+        return $updatedCount;
+    }
+
+    /**
+     * 批量删除成员（硬删除）.
+     */
+    public function batchDeleteMembers(int $projectId, array $memberIds): int
+    {
+        if (empty($memberIds)) {
+            return 0;
+        }
+
+        // 使用硬删除，因为表没有deleted_at字段
+        return $this->projectMemberModel::query()
+            ->where('project_id', $projectId)
+            ->whereIn('target_id', $memberIds)
+            ->delete();
+    }
+
+    /**
+     * 将数据数组转换为ProjectMemberEntity.
+     */
+    private function toEntity(array $data): ProjectMemberEntity
+    {
+        // 处理target_type字段的类型转换
+        $targetType = $data['target_type'] ?? MemberType::USER->value;
+        if (is_string($targetType)) {
+            $targetType = MemberType::from($targetType);
+        }
+
+        // 处理role字段的类型转换
+        $role = $data['role'] ?? MemberRole::EDITOR->value;
+        if (is_string($role)) {
+            $role = MemberRole::from($role);
+        }
+
+        // 处理status字段的类型转换
+        $status = $data['status'] ?? MemberStatus::ACTIVE->value;
+        if (is_int($status)) {
+            $status = MemberStatus::from($status);
+        }
+
+        return new ProjectMemberEntity([
+            'id' => $data['id'] ?? 0,
+            'project_id' => $data['project_id'] ?? 0,
+            'target_type' => $targetType,
+            'target_id' => $data['target_id'] ?? '',
+            'role' => $role,
+            'organization_code' => $data['organization_code'] ?? '',
+            'status' => $status,
+            'invited_by' => $data['invited_by'] ?? '',
+            'created_at' => $data['created_at'] ?? null,
+            'updated_at' => $data['updated_at'] ?? null,
+            'deleted_at' => $data['deleted_at'] ?? null,
+        ]);
     }
 }

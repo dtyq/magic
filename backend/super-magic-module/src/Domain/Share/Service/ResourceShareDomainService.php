@@ -278,6 +278,42 @@ class ResourceShareDomainService
     }
 
     /**
+     * 根据ID重新生成分享码.
+     *
+     * @param int $shareId 分享ID
+     * @param string $userId 操作用户ID
+     * @return string 新生成的分享码
+     * @throws Exception 如果操作失败
+     */
+    public function regenerateShareCodeById(int $shareId, string $userId): string
+    {
+        // 1. 获取分享实体
+        $shareEntity = $this->shareRepository->getShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND);
+        }
+
+        // 2. 权限检查（只有创建者可以操作）
+        if ($shareEntity->getCreatedUid() !== $userId) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED);
+        }
+
+        // 3. 重新生成分享码
+        $newShareCode = $this->generateShareCode();
+        $shareEntity->setShareCode($newShareCode);
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+        $shareEntity->setUpdatedUid($userId);
+
+        // 4. 保存更新
+        try {
+            $this->shareRepository->save($shareEntity);
+            return $newShareCode;
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED);
+        }
+    }
+
+    /**
      * 获取解密后的分享密码
      *
      * @param ResourceShareEntity $shareEntity 分享实体

@@ -184,6 +184,38 @@ class ProjectDomainService
         return $this->projectRepository->save($projectEntity);
     }
 
+    /**
+     * 更新项目协作默认权限.
+     */
+    public function updateCollaborationDefaultPermission(int $projectId, string $permission): bool
+    {
+        $conditions = [
+            'id' => $projectId,
+        ];
+        $data = [
+            'permission' => (int) $permission,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        return $this->projectRepository->updateProjectByCondition($conditions, $data);
+    }
+
+    /**
+     * 更新项目协作状态.
+     */
+    public function updateCollaborationStatus(int $projectId, bool $enabled): bool
+    {
+        $conditions = [
+            'id' => $projectId,
+        ];
+        $data = [
+            'is_collaboration_enabled' => (int) $enabled,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        return $this->projectRepository->updateProjectByCondition($conditions, $data);
+    }
+
     public function updateProjectStatus(int $id, int $topicId, TaskStatus $taskStatus)
     {
         $conditions = [

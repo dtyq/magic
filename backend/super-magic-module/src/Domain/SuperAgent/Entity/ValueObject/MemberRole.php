@@ -87,32 +87,6 @@ enum MemberRole: string
     }
 
     /**
-     * 获取中文描述.
-     */
-    public function getDescription(): string
-    {
-        return match ($this) {
-            self::OWNER => '所有者',
-            self::MANAGE => '管理者',
-            self::EDITOR => '编辑者',
-            self::VIEWER => '查看者',
-        };
-    }
-
-    /**
-     * 获取英文描述.
-     */
-    public function getEnglishDescription(): string
-    {
-        return match ($this) {
-            self::OWNER => 'Owner',
-            self::MANAGE => 'Manager',
-            self::EDITOR => 'Editor',
-            self::VIEWER => 'Viewer',
-        };
-    }
-
-    /**
      * 是否有写入权限.
      */
     public function hasWritePermission(): bool
@@ -204,5 +178,23 @@ enum MemberRole: string
     public static function getAllRoleValues(): array
     {
         return array_map(fn ($role) => $role->value, self::getAllRoles());
+    }
+
+    /**
+     * 验证权限级别.
+     */
+    public static function validatePermissionLevel(string $permission): MemberRole
+    {
+        $validPermissions = [
+            MemberRole::MANAGE->value,
+            MemberRole::EDITOR->value,
+            MemberRole::VIEWER->value,
+        ];
+
+        if (!in_array($permission, $validPermissions, true)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'));
+        }
+
+        return MemberRole::from($permission);
     }
 }

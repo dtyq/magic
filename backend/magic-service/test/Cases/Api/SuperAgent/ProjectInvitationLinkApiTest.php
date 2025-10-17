@@ -126,8 +126,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $this->updateInvitationPermission($projectId, 'view');
     }
 
-    // =================== API 调用方法 ===================
-
     /**
      * 获取邀请链接信息.
      */
@@ -432,7 +430,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 2. 设置密码保护
         $initialPasswordResponse = $this->setInvitationPassword($projectId, true);
         $this->assertEquals(1000, $initialPasswordResponse['code']);
-        $this->assertTrue($initialPasswordResponse['data']['enabled']);
 
         $originalPassword = $initialPasswordResponse['data']['password'];
         $this->assertNotEmpty($originalPassword);
@@ -441,7 +438,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 3. 关闭密码保护
         $disableResponse = $this->setInvitationPassword($projectId, false);
         $this->assertEquals(1000, $disableResponse['code']);
-        $this->assertFalse($disableResponse['data']['enabled']);
 
         // 4. 验证关闭状态下访问链接不需要密码
         $linkResponse = $this->getInvitationLink($projectId);
@@ -455,7 +451,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 5. 重新开启密码保护
         $enableResponse = $this->setInvitationPassword($projectId, true);
         $this->assertEquals(1000, $enableResponse['code']);
-        $this->assertTrue($enableResponse['data']['enabled']);
 
         // 6. 验证密码保持不变
         $restoredPassword = $enableResponse['data']['password'];
@@ -493,7 +488,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 2. 设置初始密码保护
         $initialPasswordResponse = $this->setInvitationPassword($projectId, true);
         $this->assertEquals(1000, $initialPasswordResponse['code']);
-        $this->assertTrue($initialPasswordResponse['data']['enabled']);
 
         $originalPassword = $initialPasswordResponse['data']['password'];
         $this->assertEquals(5, strlen($originalPassword)); // 验证密码长度为5位
@@ -503,7 +497,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $customPassword = 'mypass123';
         $changePasswordResponse = $this->changeInvitationPassword($projectId, $customPassword);
         $this->assertEquals(1000, $changePasswordResponse['code']);
-        $this->assertTrue($changePasswordResponse['data']['enabled']);
         $this->assertEquals($customPassword, $changePasswordResponse['data']['password']);
 
         // 4. 验证原密码不能使用
@@ -673,7 +666,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $response = $this->setInvitationPassword($projectId, $enabled);
 
         $this->assertEquals(1000, $response['code']);
-        $this->assertEquals($enabled, $response['data']['enabled']);
 
         if ($enabled) {
             $this->assertArrayHasKey('password', $response['data']);

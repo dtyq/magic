@@ -73,6 +73,24 @@ Router::addGroup(
             // 更新项目协作成员
             Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
 
+            // 项目协作管理
+            Router::addGroup('/{projectId}/collaboration', static function () {
+                // 获取项目协作设置
+                Router::get('', [ProjectMemberApi::class, 'getCollaborationSettings']);
+                // 更新项目协作设置（开启/关闭）
+                Router::put('', [ProjectMemberApi::class, 'updateCollaboration']);
+            });
+
+            // 项目成员资源管理
+            Router::addGroup('/{projectId}/members', static function () {
+                // 添加项目成员
+                Router::post('', [ProjectMemberApi::class, 'createMembers']);
+                // 批量操作成员
+                Router::patch('', [ProjectMemberApi::class, 'batchUpdateMembers']);
+                // 批量删除成员
+                Router::delete('', [ProjectMemberApi::class, 'batchDeleteMembers']);
+            });
+
             // 项目邀请链接管理
             Router::addGroup('/{projectId}/invitation-links', static function () {
                 // 获取项目邀请链接信息

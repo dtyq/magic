@@ -173,4 +173,49 @@ interface ProjectMemberRepositoryInterface
         string $sortField = 'last_active_at',
         string $sortDirection = 'desc'
     ): array;
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return ProjectMemberEntity|null 项目成员实体
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity;
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array;
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array;
+
+    /**
+     * 批量更新成员权限.
+     *
+     * @param int $projectId 项目ID
+     * @param array $permissionUpdates [['member_id' => '', 'permission' => ''], ...]
+     * @return int 更新的记录数
+     */
+    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int;
+
+    /**
+     * 批量删除成员（软删除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function batchDeleteMembers(int $projectId, array $memberIds): int;
 }
