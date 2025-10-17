@@ -44,9 +44,30 @@ class SpeechToTextStandardAppService
 
     public function submitLargeModelTask(LargeModelSpeechSubmitDTO $submitDTO): array
     {
+        $this->logger->info('Starting to submit large model speech recognition task', [
+            'audio_url' => $submitDTO->getAudio()->getUrl(),
+            'ips' => $submitDTO->getIps(),
+        ]);
+
         $this->validateAccessToken($submitDTO->getAccessToken(), $submitDTO->getIps());
-        $submitDTO->getAudio()->setUrl(SSRFUtil::getSafeUrl($submitDTO->getAudio()->getUrl(), replaceIp: false));
-        return $this->volcengineClient->submitBigModelTask($submitDTO);
+
+        $originalUrl = $submitDTO->getAudio()->getUrl();
+        $safeUrl = SSRFUtil::getSafeUrl($originalUrl, replaceIp: false);
+        $submitDTO->getAudio()->setUrl($safeUrl);
+
+        $this->logger->info('Audio URL security check completed', [
+            'original_url' => $originalUrl,
+            'safe_url' => $safeUrl,
+        ]);
+
+        $this->logger->info('Calling Volcengine BigModel speech recognition API');
+        $result = $this->volcengineClient->submitBigModelTask($submitDTO);
+
+        $this->logger->info('Large model speech recognition task submitted successfully', [
+            'task_id' => $result['task_id'] ?? null,
+        ]);
+
+        return $result;
     }
 
     public function queryResult(SpeechQueryDTO $queryDTO): array
