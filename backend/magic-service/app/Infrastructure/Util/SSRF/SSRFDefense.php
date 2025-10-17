@@ -8,9 +8,6 @@ declare(strict_types=1);
 namespace App\Infrastructure\Util\SSRF;
 
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Logger\LoggerFactory;
-use Psr\Log\LoggerInterface;
 
 class SSRFDefense
 {
@@ -26,8 +23,6 @@ class SSRFDefense
 
     private string $ip;
 
-    private ?LoggerInterface $logger = null;
-
     public function __construct(string $url, SSRFDefenseOptions $options)
     {
         if (! $this->isUrl($url)) {
@@ -40,12 +35,6 @@ class SSRFDefense
         $this->scheme = $parsedUrl['scheme'] ?? '';
         $this->port = $parsedUrl['port'] ?? 0;
         $this->parseIp();
-        
-        try {
-            $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(self::class);
-        } catch (\Throwable $e) {
-            $this->logger = null;
-        }
     }
 
     public function getSafeUrl(?bool $allowRedirect = null): string
@@ -167,31 +156,21 @@ class SSRFDefense
 
     private function isRedirectUrl(string $url): bool
     {
-        $this->logger?->info('Checking if URL is redirect', ['url' => $url]);
-        
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_NOBODY, true);              // 只获取HTTP头，不下载body
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);                // 超时5秒
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);         // 连接超时3秒
         curl_setopt($ch, CURLOPT_MAXREDIRS, 0);              // 不跟随重定向
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);      // 验证SSL证书
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);         // 验证SSL主机
         try {
-            $result = curl_exec($ch);
+            curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            
-            $this->logger?->info('URL redirect check result', [
-                'url' => $url,
-                'http_code' => $httpCode,
-                'is_redirect' => ($httpCode >= 300 && $httpCode < 400),
-                'curl_error' => $curlError ?: null,
-            ]);
-            
+
             if ($httpCode >= 300 && $httpCode < 400) {
                 return true;
             }
