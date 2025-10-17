@@ -47,6 +47,7 @@
 		]
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.911.0",
 		"@babel/runtime": "^7.22.10",
 		"buffer": "^6.0.3",
 		"crypto-js": "^3.1.1",

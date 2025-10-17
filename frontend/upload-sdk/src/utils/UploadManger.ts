@@ -25,7 +25,7 @@ import type { Kodo } from "../types/Kodo"
 import type { TOS } from "../types/TOS"
 import type { OBS } from "../types/OBS"
 import type { Local } from "../types/Local"
-import type { S3 } from "../types/S3"
+import type { MinIO } from "../types/MinIO"
 import { isBlob, isFile } from "./checkDataFormat"
 import EventEmitter from "./EventEmitter"
 import { getUploadConfig } from "./global"
@@ -299,8 +299,8 @@ export class UploadManger {
 					OBS.STSAuthParams &
 					OBS.AuthParams &
 					Local.AuthParams &
-					S3.AuthParams &
-					S3.STSAuthParams,
+					MinIO.AuthParams &
+					MinIO.STSAuthParams,
 				{
 					...option,
 					progress: onProgress,

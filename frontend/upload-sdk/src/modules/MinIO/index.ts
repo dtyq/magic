@@ -3,7 +3,7 @@ import type {
 	PlatformRequest,
 	PlatformSimpleUploadOption,
 } from "../../types"
-import type { S3 } from "../../types/S3"
+import type { MinIO } from "../../types/MinIO"
 import { MultipartUpload } from "./MultipartUpload"
 import { STSUpload } from "./STSUpload"
 import { defaultUpload, signedUpload } from "./defaultUpload"
@@ -13,17 +13,17 @@ import { defaultUpload, signedUpload } from "./defaultUpload"
  * Automatically selects the appropriate upload method based on authentication parameters
  */
 const upload: PlatformRequest<
-	S3.AuthParams | S3.STSAuthParams,
+	MinIO.AuthParams | MinIO.STSAuthParams,
 	PlatformSimpleUploadOption | PlatformMultipartUploadOption
 > = (file, key, params, option) => {
 	// Check if using STS credentials (AccessKey/SecretKey)
-	if (Object.prototype.hasOwnProperty.call(params, "accessKeyId")) {
+	if (Object.prototype.hasOwnProperty.call(params, "access_key_id")) {
 		// Use multipart upload for STS credentials
-		return MultipartUpload(file, key, <S3.STSAuthParams>params, option)
+		return MultipartUpload(file, key, <MinIO.STSAuthParams>params, option)
 	}
 
 	// Use pre-signed URL upload
-	return defaultUpload(file, key, <S3.AuthParams>params, option)
+	return defaultUpload(file, key, <MinIO.AuthParams>params, option)
 }
 
 export default { upload, defaultUpload, signedUpload, MultipartUpload, STSUpload }

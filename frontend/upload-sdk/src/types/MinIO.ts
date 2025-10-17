@@ -4,42 +4,29 @@ import type { DataWrapperWithHeaders, Result } from "./request"
 /**
  * AWS S3 / MinIO Object Storage
  */
-export namespace S3 {
+export namespace MinIO {
 	/** Simple upload using pre-signed URL */
 	export interface AuthParams {
-		/** Pre-signed URL for upload */
-		url: string
-		/** HTTP method (PUT or POST) */
-		method?: "PUT" | "POST"
-		/** Additional headers */
-		headers?: Record<string, string>
-		/** Object key path */
-		key?: string
-		/** Callback URL for server-side callback */
-		callback?: string
-	}
+        url: string
+        host: string
+        method: string
+        fields: Record<string, string>
+        dir: string
+        expires: number
+    }
 
 	/** Upload using AccessKey/SecretKey with Signature V4 */
 	export interface STSAuthParams {
-		/** S3 bucket name */
-		bucket: string
-		/** AWS region or MinIO region */
-		region: string
-		/** Object key prefix/directory */
-		dir: string
-		/** Access Key ID */
-		accessKeyId: string
-		/** Secret Access Key */
-		secretAccessKey: string
-		/** Session token for temporary credentials (optional) */
-		sessionToken?: string
-		/** S3 endpoint URL (for MinIO or custom S3-compatible services) */
-		endpoint: string
-		/** Callback URL for server-side callback */
-		callback?: string
-		/** Whether to use path-style URL (bucket in path) instead of virtual-hosted-style */
-		pathStyle?: boolean
-	}
+        region: string
+        endpoint: string
+        bucket: string
+        access_key_id: string
+        secret_access_key: string
+        session_token: string
+        expiration: string
+        expires: number
+        dir: string
+    }
 
 	export type Headers = Record<string, string>
 
@@ -95,7 +82,7 @@ export namespace S3 {
 	}
 
 	interface OriginResponseData {
-		platform: PlatformType.S3
+		platform: PlatformType.Minio
 		file_code?: string
 		path: string
 		url?: string

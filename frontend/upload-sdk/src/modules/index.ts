@@ -9,13 +9,13 @@ import type { OBS } from "../types/OBS"
 import type { Kodo } from "../types/Kodo"
 import type { TOS } from "../types/TOS"
 import type { Local } from "../types/Local"
-import type { S3 } from "../types/S3"
+import type { MinIO } from "../types/MinIO"
 import OSSUpload from "./OSS"
 import OBSUpload from "./OBS"
 import KodoUpload from "./Kodo"
 import TOSUpload from "./TOS"
 import LocalUpload from "./Local"
-import S3Upload from "./S3"
+import MinIOUpload from "./MinIO"
 
 const PlatformModules: Record<
 	PlatformType,
@@ -29,8 +29,8 @@ const PlatformModules: Record<
 		| PlatformRequest<OBS.STSAuthParams, PlatformMultipartUploadOption>
 		| PlatformRequest<OBS.AuthParams, PlatformMultipartUploadOption>
 		| PlatformRequest<Local.AuthParams, PlatformSimpleUploadOption>
-		| PlatformRequest<S3.AuthParams, PlatformSimpleUploadOption>
-		| PlatformRequest<S3.STSAuthParams, PlatformMultipartUploadOption>
+		| PlatformRequest<MinIO.AuthParams, PlatformSimpleUploadOption>
+		| PlatformRequest<MinIO.STSAuthParams, PlatformMultipartUploadOption>
 	>
 > = {
 	[PlatformType.OSS]: OSSUpload,
@@ -38,7 +38,7 @@ const PlatformModules: Record<
 	[PlatformType.TOS]: TOSUpload,
 	[PlatformType.OBS]: OBSUpload,
 	[PlatformType.Local]: LocalUpload,
-	[PlatformType.S3]: S3Upload,
+	[PlatformType.Minio]: MinIOUpload,
 }
 
 export default PlatformModules
