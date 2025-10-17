@@ -121,7 +121,7 @@ const upload = new Upload();
 | 腾讯云 COS  | 🔄 计划支持 | 开发中                       |
 | 百度云 BOS  | 🔄 计划支持 | 开发中                       |
 | 网易云 NOS  | 🔄 计划支持 | 开发中                       |
-| MinIO/S3    | ✅ 已支持   | 支持 PUT 和 POST Policy 上传  |
+| MinIO/S3    | ✅ 已支持   | 支持分片上传、断点续传等功能  |
 | Azure Blob  | 🔄 计划支持 | 开发中                       |
 
 > 注：对于尚未支持的平台，您可以通过提交 Issue 或 PR 来帮助我们加快开发进度。
