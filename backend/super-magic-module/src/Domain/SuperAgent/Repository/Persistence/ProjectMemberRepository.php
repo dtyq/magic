@@ -545,50 +545,6 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 准备批量插入的属性数组.
-     */
-    private function prepareBatchInsertAttributes(array $projectMemberEntities): array
-    {
-        $attributes = [];
-
-        foreach ($projectMemberEntities as $entity) {
-            $memberAttrs = $this->entityToModelAttributes($entity);
-
-            if ($entity->getId() === 0) {
-                $snowId = IdGenerator::getSnowId();
-                $memberAttrs['id'] = $snowId;
-                $entity->setId($snowId);
-            }
-
-            $attributes[] = $memberAttrs;
-        }
-
-        return $attributes;
-    }
-
-    /**
-     * 实体转换为模型属性.
-     */
-    private function entityToModelAttributes(ProjectMemberEntity $entity): array
-    {
-        $now = date('Y-m-d H:i:s');
-
-        return [
-            'id' => $entity->getId(),
-            'project_id' => $entity->getProjectId(),
-            'target_type' => $entity->getTargetType()->value,
-            'target_id' => $entity->getTargetId(),
-            'role' => $entity->getRole()->value,
-            'organization_code' => $entity->getOrganizationCode(),
-            'status' => $entity->getStatus()->value,
-            'invited_by' => $entity->getInvitedBy(),
-            'join_method' => $entity->getJoinMethod()->value,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ];
-    }
-
-    /**
      * 根据项目ID和用户ID获取项目成员信息.
      */
     public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity
@@ -599,7 +555,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->where('target_id', $userId)
             ->first();
 
-        if (!$memberData) {
+        if (! $memberData) {
             return null;
         }
 
@@ -697,6 +653,50 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->where('project_id', $projectId)
             ->whereIn('target_id', $memberIds)
             ->delete();
+    }
+
+    /**
+     * 准备批量插入的属性数组.
+     */
+    private function prepareBatchInsertAttributes(array $projectMemberEntities): array
+    {
+        $attributes = [];
+
+        foreach ($projectMemberEntities as $entity) {
+            $memberAttrs = $this->entityToModelAttributes($entity);
+
+            if ($entity->getId() === 0) {
+                $snowId = IdGenerator::getSnowId();
+                $memberAttrs['id'] = $snowId;
+                $entity->setId($snowId);
+            }
+
+            $attributes[] = $memberAttrs;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * 实体转换为模型属性.
+     */
+    private function entityToModelAttributes(ProjectMemberEntity $entity): array
+    {
+        $now = date('Y-m-d H:i:s');
+
+        return [
+            'id' => $entity->getId(),
+            'project_id' => $entity->getProjectId(),
+            'target_type' => $entity->getTargetType()->value,
+            'target_id' => $entity->getTargetId(),
+            'role' => $entity->getRole()->value,
+            'organization_code' => $entity->getOrganizationCode(),
+            'status' => $entity->getStatus()->value,
+            'invited_by' => $entity->getInvitedBy(),
+            'join_method' => $entity->getJoinMethod()->value,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     /**

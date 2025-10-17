@@ -35,9 +35,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
      */
     public ?string $projectDescription = null;
 
-
     public ?bool $isCollaborationEnabled = null;
-
 
     public ?string $permission = null;
 
@@ -54,7 +52,10 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
      */
     public function getWorkspaceId(): ?int
     {
-        return $this->workspaceId;
+        if (is_null($this->workspaceId)) {
+            return null;
+        }
+        return (int) $this->workspaceId;
     }
 
     /**

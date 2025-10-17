@@ -7,6 +7,7 @@ declare(strict_types=1);
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
+use Hyperf\DbConnection\Db;
 
 class AddPasswordEnabledToMagicResourceSharesTable extends Migration
 {
@@ -22,9 +23,9 @@ class AddPasswordEnabledToMagicResourceSharesTable extends Migration
                 ->comment('是否启用密码保护（0=关闭，1=开启）')
                 ->after('password');
         });
-        
+
         // 为现有有密码的记录启用密码保护
-        \Hyperf\DbConnection\Db::table('magic_resource_shares')
+        Db::table('magic_resource_shares')
             ->whereNotNull('password')
             ->where('password', '!=', '')
             ->update(['is_password_enabled' => 1]);

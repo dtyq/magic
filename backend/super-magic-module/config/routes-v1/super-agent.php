@@ -68,13 +68,13 @@ Router::addGroup(
             Router::get('/{id}/fork-status', [ProjectApi::class, 'forkStatus']);
             // 移动项目到另一个工作区
             Router::post('/move', [ProjectApi::class, 'moveProject']);
-            // 获取项目协作成员
-            Router::get('/{id}/members', [ProjectMemberApi::class, 'getMembers']);
-            // 更新项目协作成员
-            Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
 
             // 项目成员资源管理
             Router::addGroup('/{projectId}/members', static function () {
+                // 获取项目协作成员
+                Router::get('', [ProjectMemberApi::class, 'getMembers']);
+                // 更新项目协作成员
+                Router::put('', [ProjectMemberApi::class, 'updateMembers']);
                 // 添加项目成员
                 Router::post('', [ProjectMemberApi::class, 'createProjectMembers']);
                 // 批量删除成员

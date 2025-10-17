@@ -179,7 +179,7 @@ interface ProjectMemberRepositoryInterface
      *
      * @param int $projectId 项目ID
      * @param string $userId 用户ID
-     * @return ProjectMemberEntity|null 项目成员实体
+     * @return null|ProjectMemberEntity 项目成员实体
      */
     public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity;
 

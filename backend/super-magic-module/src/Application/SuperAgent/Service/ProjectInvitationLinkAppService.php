@@ -7,21 +7,21 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Helper\InvitationPermissionMapper;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
+use Throwable;
 
 /**
  * 项目邀请链接应用服务
@@ -463,7 +463,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
                 'name' => $userInfoArray['name'] ?? '',
                 'avatar' => $userInfoArray['avatar_url'] ?? '',
             ];
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // 如果获取用户信息失败，返回默认值
             return [
                 'name' => '',

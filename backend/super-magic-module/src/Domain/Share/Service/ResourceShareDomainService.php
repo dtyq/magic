@@ -395,19 +395,6 @@ class ResourceShareDomainService
     }
 
     /**
-     * 查找已存在的分享.
-     *
-     * @param string $resourceId 资源ID
-     * @param int $resourceType 资源类型
-     * @param string $userId 用户ID
-     * @return null|ResourceShareEntity 如果存在则返回分享实体，否则返回null
-     */
-    protected function findExistingShare(string $resourceId, int $resourceType, string $userId = ''): ?ResourceShareEntity
-    {
-        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
-    }
-
-    /**
      * 删除指定资源的分享.
      *
      * @param string $resourceId 资源ID
@@ -418,7 +405,7 @@ class ResourceShareDomainService
     public function deleteShareByResource(string $resourceId, int $resourceType, string $userId = ''): bool
     {
         $shareEntity = $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
-        if (!$shareEntity) {
+        if (! $shareEntity) {
             return true; // 如果不存在，视为删除成功
         }
 
@@ -434,7 +421,7 @@ class ResourceShareDomainService
     public function deleteShareByCode(string $shareCode): bool
     {
         $shareEntity = $this->shareRepository->getShareByCode($shareCode);
-        if (!$shareEntity) {
+        if (! $shareEntity) {
             return true; // 如果不存在，视为删除成功
         }
 
@@ -453,12 +440,25 @@ class ResourceShareDomainService
         try {
             // 这里可以扩展为批量删除，目前先用单个删除
             $shareEntity = $this->shareRepository->getShareByResource('', $resourceId, $resourceType);
-            if (!$shareEntity) {
+            if (! $shareEntity) {
                 return true;
             }
             return $this->shareRepository->delete($shareEntity->getId());
         } catch (Exception $e) {
             ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED, 'share.delete_failed: ' . $resourceId);
         }
+    }
+
+    /**
+     * 查找已存在的分享.
+     *
+     * @param string $resourceId 资源ID
+     * @param int $resourceType 资源类型
+     * @param string $userId 用户ID
+     * @return null|ResourceShareEntity 如果存在则返回分享实体，否则返回null
+     */
+    protected function findExistingShare(string $resourceId, int $resourceType, string $userId = ''): ?ResourceShareEntity
+    {
+        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
     }
 }

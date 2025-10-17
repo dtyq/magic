@@ -14,7 +14,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectMemberAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchUpdateMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateCollaborationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectShortcutRequestDTO;
@@ -48,7 +47,7 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 更新项目成员.
      */
-    public function updateMembers(RequestContext $requestContext, string $id): array
+    public function updateMembers(RequestContext $requestContext, int $projectId): array
     {
         // Set user authorization and context data
         $userAuthorization = $this->getAuthorization();
@@ -58,7 +57,7 @@ class ProjectMemberApi extends AbstractApi
 
         // 1. 转换为RequestDTO并自动验证（包含路由参数project_id）
         $requestDTO = UpdateProjectMembersRequestDTO::fromRequest($this->request);
-        $requestDTO->setProjectId($id);
+        $requestDTO->setProjectId((string) $projectId);
 
         // 2. 委托给Application层处理
         $this->projectMemberAppService->updateProjectMembers($requestContext, $requestDTO);
@@ -69,7 +68,7 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 获取项目成员.
      */
-    public function getMembers(RequestContext $requestContext, string $id): array
+    public function getMembers(RequestContext $requestContext, int $projectId): array
     {
         // Set user authorization and context data
         $userAuthorization = $this->getAuthorization();
@@ -85,7 +84,7 @@ class ProjectMemberApi extends AbstractApi
         $requestContext->setDataIsolation($dataIsolation);
 
         // 委托给Application层处理
-        $responseDTO = $this->projectMemberAppService->getProjectMembers($requestContext, (int) $id);
+        $responseDTO = $this->projectMemberAppService->getProjectMembers($requestContext, $projectId);
 
         // 返回DTO转换后的数组格式
         return ['members' => $responseDTO->toArray()];

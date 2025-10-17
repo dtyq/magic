@@ -493,7 +493,7 @@ class ResourceShareEntity extends AbstractEntity
      * 生成随机密码（支持自定义种子，主要用于测试）.
      *
      * @param int $length 密码长度
-     * @param int|null $seed 随机种子，null则使用系统随机
+     * @param null|int $seed 随机种子，null则使用系统随机
      * @return string 生成的随机密码
      */
     public static function generateRandomPasswordWithSeed(int $length = 5, ?int $seed = null): string
@@ -501,7 +501,7 @@ class ResourceShareEntity extends AbstractEntity
         if ($seed !== null) {
             mt_srand($seed);
             $password = '';
-            for ($i = 0; $i < $length; $i++) {
+            for ($i = 0; $i < $length; ++$i) {
                 $password .= (string) mt_rand(0, 9);
             }
             return $password;

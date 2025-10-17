@@ -191,7 +191,7 @@ enum MemberRole: string
             MemberRole::VIEWER->value,
         ];
 
-        if (!in_array($permission, $validPermissions, true)) {
+        if (! in_array($permission, $validPermissions, true)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'));
         }
 

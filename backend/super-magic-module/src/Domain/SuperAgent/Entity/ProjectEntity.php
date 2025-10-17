@@ -61,7 +61,6 @@ class ProjectEntity extends AbstractEntity
      */
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
 
-
     protected MemberRole $permission = MemberRole::EDITOR;
 
     /**
@@ -423,6 +422,4 @@ class ProjectEntity extends AbstractEntity
     {
         $this->permission = $permission;
     }
-
-
 }

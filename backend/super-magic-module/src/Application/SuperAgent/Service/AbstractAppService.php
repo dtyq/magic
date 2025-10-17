@@ -87,13 +87,13 @@ class AbstractAppService extends AbstractKernelAppService
         $currentUserId = $magicUserAuthorization->getId();
 
         if ($projectEntity->getCreatedUid() === $currentUserId) {
-            return ;
+            return;
         }
 
         // 检查是否具有管理权限
         $projectMemberEntity = $projectMemberService->getMemberByProjectAndUser($projectId, $currentUserId);
         if ($projectMemberEntity && $projectMemberEntity->getRole()->hasManagePermission()) {
-            return ;
+            return;
         }
 
         $dataIsolation = DataIsolation::create($magicUserAuthorization->getOrganizationCode(), $currentUserId);
@@ -102,10 +102,9 @@ class AbstractAppService extends AbstractKernelAppService
 
         foreach ($projectMemberEntities as $projectMemberEntity) {
             if ($projectMemberEntity->getRole()->hasManagePermission()) {
-                return ;
+                return;
             }
         }
         ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
     }
-
 }
