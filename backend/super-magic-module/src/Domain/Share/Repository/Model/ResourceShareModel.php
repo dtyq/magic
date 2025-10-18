@@ -27,6 +27,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $updated_uid 更新者用户ID
  * @property string $organization_code 组织代码
  * @property null|string $target_ids 目标IDs
+ * @property null|array $extra 额外属性
  * @property bool $is_enabled 是否启用
  * @property string $created_at 创建时间
  * @property string $updated_at 更新时间
@@ -64,6 +65,7 @@ class ResourceShareModel extends AbstractModel
         'updated_uid',
         'organization_code',
         'target_ids',
+        'extra',
         'is_enabled',
         'deleted_at',
     ];
@@ -77,6 +79,7 @@ class ResourceShareModel extends AbstractModel
         'share_type' => 'integer',
         'view_count' => 'integer',
         'target_ids' => 'json',
+        'extra' => 'json',
         'is_enabled' => 'boolean',
         'is_password_enabled' => 'boolean',
         'created_at' => 'string',

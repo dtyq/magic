@@ -61,7 +61,10 @@ class ProjectEntity extends AbstractEntity
      */
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
 
-    protected MemberRole $permission = MemberRole::EDITOR;
+    /**
+     * @var MemberRole 默认加入权限
+     */
+    protected MemberRole $defaultJoinPermission = MemberRole::EDITOR;
 
     /**
      * @var null|int 当前话题ID
@@ -126,7 +129,7 @@ class ProjectEntity extends AbstractEntity
             'current_topic_status' => $this->currentTopicStatus,
             'is_collaboration_enabled' => $this->isCollaborationEnabled,
             'project_mode' => $this->projectMode,
-            'permission' => $this->permission->value,
+            'default_join_permission' => $this->defaultJoinPermission->value,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
@@ -413,13 +416,13 @@ class ProjectEntity extends AbstractEntity
         return $this;
     }
 
-    public function getPermission(): MemberRole
+    public function getDefaultJoinPermission(): MemberRole
     {
-        return $this->permission;
+        return $this->defaultJoinPermission;
     }
 
-    public function setPermission(MemberRole $permission): void
+    public function setDefaultJoinPermission(MemberRole $defaultJoinPermission): void
     {
-        $this->permission = $permission;
+        $this->defaultJoinPermission = $defaultJoinPermission;
     }
 }

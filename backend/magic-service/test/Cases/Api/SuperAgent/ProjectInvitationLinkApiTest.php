@@ -361,7 +361,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         );
 
         $this->assertNotNull($response, '响应不应该为null');
-        $this->assertEquals(51226, $response['code']); // 无效权限级别
+        $this->assertEquals(51215, $response['code']); // 无效权限级别
     }
 
     /**
@@ -554,7 +554,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 0. 确保切换到test1用户并清理测试数据
         $this->switchUserTest1();
         $this->cleanupTestData($projectId);
-        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value);
+        $this->getResourceShareDomainService()->deleteShareByResource($projectId, ResourceType::ProjectInvitation->value, '', true);
 
         // 1. 项目创建者（test1）开启邀请链接
         $this->toggleInvitationLink($projectId, true);

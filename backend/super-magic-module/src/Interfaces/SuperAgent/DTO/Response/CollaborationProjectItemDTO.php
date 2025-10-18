@@ -100,7 +100,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             tag: 'collaboration',
             userId: $project->getUserId(),
             isCollaborationEnabled: $project->getIsCollaborationEnabled(),
-            defaultJoinPermission: $project->getPermission()->value,
+            defaultJoinPermission: $project->getDefaultJoinPermission()->value,
         );
     }
 

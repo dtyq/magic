@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Helper\InvitationPermissionMapper;
 
 /**
  * 邀请链接响应DTO.
@@ -38,6 +37,9 @@ class InvitationLinkResponseDTO
         ResourceShareEntity $shareEntity,
         ResourceShareDomainService $resourceShareDomainService
     ): self {
+        // 从 extra 字段获取 default_join_permission
+        $defaultJoinPermission = $shareEntity->getExtraAttribute('default_join_permission', 'viewer');
+
         return new self(
             id: (string) $shareEntity->getId(),
             projectId: $shareEntity->getResourceId(),
@@ -45,7 +47,7 @@ class InvitationLinkResponseDTO
             isEnabled: $shareEntity->getIsEnabled(),
             isPasswordEnabled: $shareEntity->getIsPasswordEnabled(),
             password: $resourceShareDomainService->getDecryptedPassword($shareEntity),
-            defaultJoinPermission: InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
+            defaultJoinPermission: $defaultJoinPermission,
             createdBy: $shareEntity->getCreatedUid(),
             createdAt: $shareEntity->getCreatedAt(),
         );

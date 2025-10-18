@@ -14,9 +14,10 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
+use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Helper\InvitationPermissionMapper;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -107,10 +108,11 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             $organizationCode,
             [
                 'resource_name' => $project->getProjectName(),
-                'share_type' => InvitationPermissionMapper::permissionToShareType('viewer')->value,
+                'share_type' => ShareAccessType::Internet->value,
+                'extra' => [
+                    'default_join_permission' => MemberRole::VIEWER->value,
+                ],
             ],
-            null, // 生成5位数字密码
-            null // 永久有效
         );
 
         return InvitationLinkResponseDTO::fromEntity($shareEntity, $this->resourceShareDomainService);
@@ -138,14 +140,8 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_NOT_FOUND);
         }
 
-        // 3. 重新生成分享码（Token）
-        $newShareCode = $this->resourceShareDomainService->generateShareCode();
-        $shareEntity->setShareCode($newShareCode);
-        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $shareEntity->setUpdatedUid($currentUserId);
-
-        // 4. 保存更新
-        $savedShare = $this->resourceShareDomainService->saveShareByEntity($shareEntity);
+        // 3. 保存更新
+        $savedShare = $this->resourceShareDomainService->regenerateShareCodeById($shareEntity->getId());
 
         return InvitationLinkResponseDTO::fromEntity($savedShare, $this->resourceShareDomainService);
     }
@@ -180,16 +176,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             // 如果没有历史密码，生成新密码
             if (empty($password)) {
                 $plainPassword = ResourceShareEntity::generateRandomPassword();
-                $shareEntity->setPassword(PasswordCrypt::encrypt($plainPassword));
             } else {
                 $plainPassword = PasswordCrypt::decrypt($password);
             }
-
-            // 启用密码保护
-            $shareEntity->setIsPasswordEnabled(true);
-            $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-            $shareEntity->setUpdatedUid($currentUserId);
-            $this->resourceShareDomainService->saveShareByEntity($shareEntity);
+            $this->resourceShareDomainService->changePasswordById($shareEntity->getId(), $plainPassword);
             return $plainPassword;
         }
 
@@ -225,17 +215,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 3. 生成新密码
         $newPassword = ResourceShareEntity::generateRandomPassword();
-        $this->resourceShareDomainService->saveShare(
-            $shareEntity->getResourceId(),
-            $shareEntity->getResourceType(),
-            $currentUserId,
-            $shareEntity->getOrganizationCode(),
-            [
-                'resource_name' => $shareEntity->getResourceName(),
-                'share_type' => $shareEntity->getShareType(),
-            ],
-            $newPassword
-        );
+        $this->resourceShareDomainService->changePasswordById($shareEntity->getId(), $newPassword);
 
         return $newPassword;
     }
@@ -268,12 +248,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         }
 
         // 4. 更新密码并启用密码保护
-        $shareEntity->setPassword(PasswordCrypt::encrypt($newPassword));
-        $shareEntity->setIsPasswordEnabled(true);
-        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $shareEntity->setUpdatedUid($currentUserId);
-
-        $this->resourceShareDomainService->saveShareByEntity($shareEntity);
+        $this->resourceShareDomainService->changePasswordById($shareEntity->getId(), $newPassword);
 
         return $newPassword;
     }
@@ -301,16 +276,16 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         }
 
         // 3. 验证并更新权限级别
-        if (! in_array($permission, InvitationPermissionMapper::getAllPermissions())) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_INVALID_PERMISSION);
-        }
+        MemberRole::validatePermissionLevel($permission);
 
-        $shareType = InvitationPermissionMapper::permissionToShareType($permission);
-        $shareEntity->setShareType($shareType->value);
+        // 4. 更新 extra 中的 default_join_permission
+        $extra = $shareEntity->getExtra() ?? [];
+        $extra['default_join_permission'] = $permission;
+        $shareEntity->setExtra($extra);
         $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $shareEntity->setUpdatedUid($currentUserId);
 
-        // 4. 保存更新
+        // 5. 保存更新
         $this->resourceShareDomainService->saveShareByEntity($shareEntity);
 
         return $permission;
@@ -360,6 +335,9 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         // 7. 获取创建者信息
         $creatorInfo = $this->getUserInfo($requestContext, $creatorId);
 
+        // 8. 从 extra 中获取 default_join_permission
+        $defaultJoinPermission = $shareEntity->getExtraAttribute('default_join_permission', 'viewer');
+
         return InvitationDetailResponseDTO::fromArray([
             'project_id' => $resourceId,
             'project_name' => $project->getProjectName(),
@@ -368,7 +346,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             'creator_id' => $creatorId,
             'creator_name' => $creatorInfo['name'] ?? '',
             'creator_avatar' => $creatorInfo['avatar'] ?? '',
-            'default_join_permission' => InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
+            'default_join_permission' => $defaultJoinPermission,
             'requires_password' => $shareEntity->getIsPasswordEnabled(),
             'token' => $shareEntity->getShareCode(),
             'has_joined' => $hasJoined,
@@ -428,9 +406,9 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
         $this->validateManageOrOwnerPermission($magicUserAuthorization, $project);
 
-        // 7. 添加为项目成员（通过Domain服务）
-        $permission = InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType());
-        $memberRole = InvitationPermissionMapper::permissionToMemberRole($permission);
+        // 7. 从 extra 中获取 default_join_permission，并转换为成员角色
+        $permission = $shareEntity->getExtraAttribute('default_join_permission', MemberRole::VIEWER->value);
+        $memberRole = MemberRole::validatePermissionLevel($permission);
 
         // 使用Domain服务添加成员，符合DDD架构
         $projectMemberEntity = $this->projectMemberDomainService->addMemberByInvitation(

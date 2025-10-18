@@ -53,7 +53,7 @@ class ProjectItemDTO
             tag: $tag,
             userId: $project->getUserId(),
             isCollaborationEnabled: $project->getIsCollaborationEnabled(),
-            defaultJoinPermission: $project->getPermission()->value,
+            defaultJoinPermission: $project->getDefaultJoinPermission()->value,
         );
     }
 

@@ -234,7 +234,7 @@ class ProjectAppService extends AbstractAppService
             $projectEntity->setIsCollaborationEnabled($requestDTO->getIsCollaborationEnabled());
         }
         if (! is_null($requestDTO->getDefaultJoinPermission())) {
-            $projectEntity->setPermission(MemberRole::validatePermissionLevel($requestDTO->getDefaultJoinPermission()));
+            $projectEntity->setDefaultJoinPermission(MemberRole::validatePermissionLevel($requestDTO->getDefaultJoinPermission()));
         }
 
         $this->projectDomainService->saveProjectEntity($projectEntity);

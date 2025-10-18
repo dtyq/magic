@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Model\ResourceShareModel;
 use Exception;
+use Hyperf\Codec\Json;
 
 /**
  * 资源分享仓储实现.
@@ -122,13 +123,23 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
      * 删除分享.
      *
      * @param int $shareId 分享ID
+     * @param bool $forceDelete 是否强制删除（物理删除），默认false为软删除
      * @return bool 是否成功
      */
-    public function delete(int $shareId): bool
+    public function delete(int $shareId, bool $forceDelete = false): bool
     {
-        $model = $this->model->newQuery()->find($shareId);
-        if ($model) {
-            return $model->delete();
+        if ($forceDelete) {
+            // 物理删除：直接从数据库删除
+            $model = $this->model->newQuery()->withTrashed()->find($shareId);
+            if ($model) {
+                return $model->forceDelete();
+            }
+        } else {
+            // 软删除：使用 SoftDeletes trait
+            $model = $this->model->newQuery()->find($shareId);
+            if ($model) {
+                return $model->delete();
+            }
         }
         return false;
     }
@@ -258,6 +269,10 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             $entity->setTargetIds($model->target_ids ?? '[]');
         }
 
+        $extra = $model->extra ?? [];
+        $extra = is_array($extra) ? $extra : Json::decode($extra);
+        $entity->setExtra($extra);
+
         // 处理是否启用字段（邀请链接专用）
         $entity->setIsEnabled($model->is_enabled ?? true);
 
@@ -300,6 +315,7 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
             'view_count' => $entity->getViewCount(),
             'created_uid' => $entity->getCreatedUid(),
             'organization_code' => $entity->getOrganizationCode(),
+            'extra' => Json::encode($entity->getExtra() ?? []),
             'is_enabled' => $entity->getIsEnabled() ? 1 : 0,
             'updated_at' => $entity->getUpdatedAt(),
             'deleted_at' => $entity->getDeletedAt(),
