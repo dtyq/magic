@@ -452,22 +452,22 @@ class ProjectMemberDomainService
      * 批量更新成员权限（新格式：target_type + target_id）.
      *
      * @param int $projectId 项目ID
-     * @param array $permissionUpdates [['target_type' => '', 'target_id' => '', 'permission' => ''], ...]
+     * @param array $roleUpdates [['target_type' => '', 'target_id' => '', 'role' => ''], ...]
      * @return int 更新的记录数
      */
-    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int
+    public function batchUpdateRole(int $projectId, array $roleUpdates): int
     {
         $updateData = [];
-        foreach ($permissionUpdates as $member) {
-            $permission = MemberRole::validatePermissionLevel($member['permission']);
+        foreach ($roleUpdates as $member) {
+            $memberRole = MemberRole::validatePermissionLevel($member['role']);
             $updateData[] = [
                 'target_type' => $member['target_type'],
                 'target_id' => $member['target_id'],
-                'permission' => $permission->value,
+                'role' => $memberRole->value,
             ];
         }
 
-        return $this->projectMemberRepository->batchUpdatePermissions($projectId, $updateData);
+        return $this->projectMemberRepository->batchUpdateRole($projectId, $updateData);
     }
 
     /**

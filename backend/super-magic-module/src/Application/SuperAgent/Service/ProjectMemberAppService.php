@@ -121,7 +121,7 @@ class ProjectMemberAppService extends AbstractAppService
         $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 2. 获取项目成员列表
-        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
+        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
 
         if (empty($memberEntities)) {
             return ProjectMembersResponseDTO::fromEmpty();
@@ -427,7 +427,7 @@ class ProjectMemberAppService extends AbstractAppService
             $memberEntity->setProjectId($projectId);
             $memberEntity->setTargetType(MemberType::from($memberData['target_type']));
             $memberEntity->setTargetId($memberData['target_id']);
-            $memberEntity->setRole(MemberRole::validatePermissionLevel($memberData['permission']));
+            $memberEntity->setRole(MemberRole::validatePermissionLevel($memberData['role']));
             $memberEntity->setOrganizationCode($organizationCode);
             $memberEntity->setInvitedBy($currentUserId);
             $memberEntity->setStatus(MemberStatus::ACTIVE);
@@ -447,7 +447,7 @@ class ProjectMemberAppService extends AbstractAppService
     /**
      * 批量更新成员权限.
      */
-    public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
+    public function updateProjectMemberRoles(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
     {
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
 
@@ -475,12 +475,12 @@ class ProjectMemberAppService extends AbstractAppService
             $permissionUpdates[] = [
                 'target_type' => $member['target_type'],
                 'target_id' => $member['target_id'],
-                'permission' => $member['permission'],
+                'role' => $member['role'],
             ];
         }
 
         // 6. 执行批量权限更新
-        $this->projectMemberDomainService->batchUpdatePermissions($projectId, $permissionUpdates);
+        $this->projectMemberDomainService->batchUpdateRole($projectId, $permissionUpdates);
 
         return [];
     }
@@ -488,7 +488,7 @@ class ProjectMemberAppService extends AbstractAppService
     /**
      * 批量删除成员.
      */
-    public function deleteMembers(RequestContext $requestContext, int $projectId, array $memberIds): void
+    public function deleteMembers(RequestContext $requestContext, int $projectId, array $members): void
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $currentUserId = $userAuthorization->getId();
@@ -496,13 +496,15 @@ class ProjectMemberAppService extends AbstractAppService
         // 获取项目
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
 
+        $targetIds = array_column($members, 'target_id');
+
         // 检查是否删除自己
-        if (in_array($currentUserId, $memberIds)) {
+        if (in_array($currentUserId, $targetIds)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
         // 不能是否删除创建者
-        if (in_array($project->getUserId(), $memberIds)) {
+        if (in_array($project->getUserId(), $targetIds)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
         }
 
@@ -510,7 +512,7 @@ class ProjectMemberAppService extends AbstractAppService
         $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
 
         // 2. 执行批量删除
-        $this->projectMemberDomainService->deleteMembersByIds($projectId, $memberIds);
+        $this->projectMemberDomainService->deleteMembersByIds($projectId, $targetIds);
     }
 
     /**

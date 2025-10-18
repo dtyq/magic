@@ -37,7 +37,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
 
     public ?bool $isCollaborationEnabled = null;
 
-    public ?string $permission = null;
+    public ?string $defaultJoinPermission = null;
 
     /**
      * Get project ID.
@@ -79,9 +79,9 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
         return $this->isCollaborationEnabled;
     }
 
-    public function getPermission(): ?string
+    public function getDefaultJoinPermission(): ?string
     {
-        return $this->permission;
+        return $this->defaultJoinPermission;
     }
 
     /**
@@ -92,7 +92,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
         return [
             'workspace_id' => 'nullable|integer',
             'project_name' => 'nullable|string|max:100',
-            'permission' => 'nullable|string|max:100',
+            'default_join_permission' => 'nullable|string|max:100',
             'is_collaboration_enabled' => 'nullable|boolean',
             'project_description' => 'nullable|string|max:500',
         ];

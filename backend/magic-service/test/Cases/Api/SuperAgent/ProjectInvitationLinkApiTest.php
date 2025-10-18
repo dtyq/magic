@@ -123,10 +123,10 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $this->updateInvitationPermission($projectId, 'manage');
 
         // 3. 测试修改权限级别为编辑权限
-        $this->updateInvitationPermission($projectId, 'edit');
+        $this->updateInvitationPermission($projectId, 'editor');
 
         // 4. 测试修改权限级别为查看权限
-        $this->updateInvitationPermission($projectId, 'view');
+        $this->updateInvitationPermission($projectId, 'viewer');
     }
 
     /**
@@ -221,7 +221,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
     {
         $response = $this->client->put(
             self::BASE_URI . "/{$projectId}/invitation-links/permission",
-            ['permission' => $permission],
+            ['default_join_permission' => $permission],
             $this->getCommonHeaders()
         );
 
@@ -229,7 +229,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $this->assertEquals($expectedCode, $response['code'], $response['message'] ?? '');
 
         if ($expectedCode === 1000) {
-            $this->assertEquals($permission, $response['data']['permission']);
+            $this->assertEquals($permission, $response['data']['default_join_permission']);
         }
 
         return $response;
@@ -253,7 +253,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
             $this->assertArrayHasKey('project_name', $response['data']);
             $this->assertArrayHasKey('project_description', $response['data']);
             $this->assertArrayHasKey('requires_password', $response['data']);
-            $this->assertArrayHasKey('permission', $response['data']);
+            $this->assertArrayHasKey('default_join_permission', $response['data']);
             $this->assertArrayHasKey('has_joined', $response['data']);
             $this->assertArrayHasKey('creator_name', $response['data']);
             $this->assertArrayHasKey('creator_avatar', $response['data']);
@@ -307,7 +307,6 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('project_id', $response['data']);
         $this->assertArrayHasKey('user_role', $response['data']);
-        $this->assertArrayHasKey('permission', $response['data']);
         $this->assertArrayHasKey('join_method', $response['data']);
         $this->assertEquals('link', $response['data']['join_method']);
 
@@ -357,7 +356,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         // 测试无效权限级别
         $response = $this->client->put(
             self::BASE_URI . "/{$projectId}/invitation-links/permission",
-            ['permission' => 'invalid_permission'],
+            ['default_join_permission' => 'invalid_permission'],
             $this->getCommonHeaders()
         );
 
@@ -617,7 +616,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $requiredFields = [
             'project_id', 'project_name', 'project_description',
             'organization_code', 'creator_id', 'creator_name', 'creator_avatar',
-            'permission', 'requires_password', 'token', 'has_joined',
+            'default_join_permission', 'requires_password', 'token', 'has_joined',
         ];
 
         foreach ($requiredFields as $field) {
@@ -644,7 +643,7 @@ class ProjectInvitationLinkApiTest extends AbstractApiTest
         $this->assertTrue($isEnabled === true || $isEnabled === 1, '邀请链接应该是启用状态');
 
         $this->assertNotEmpty($response['data']['token']);
-        $this->assertEquals('view', $response['data']['permission']);
+        $this->assertEquals('viewer', $response['data']['default_join_permission']);
     }
 
     /**

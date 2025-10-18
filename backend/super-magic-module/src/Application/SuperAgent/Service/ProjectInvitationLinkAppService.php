@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
@@ -20,6 +21,9 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InvitationDetailResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InvitationLinkResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\JoinProjectResponseDTO;
 use Throwable;
 
 /**
@@ -40,7 +44,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     /**
      * 获取项目邀请链接信息.
      */
-    public function getInvitationLink(RequestContext $requestContext, int $projectId): ?array
+    public function getInvitationLink(RequestContext $requestContext, int $projectId): ?InvitationLinkResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
@@ -58,13 +62,13 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             return null;
         }
 
-        return $this->formatLinkResponse($shareEntity);
+        return InvitationLinkResponseDTO::fromEntity($shareEntity, $this->resourceShareDomainService);
     }
 
     /**
      * 开启/关闭邀请链接.
      */
-    public function toggleInvitationLink(RequestContext $requestContext, int $projectId, bool $enabled): array
+    public function toggleInvitationLink(RequestContext $requestContext, int $projectId, bool $enabled): InvitationLinkResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
         $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
@@ -87,7 +91,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
                 $enabled,
                 $currentUserId
             );
-            return $this->formatLinkResponse($savedShare);
+            return InvitationLinkResponseDTO::fromEntity($savedShare, $this->resourceShareDomainService);
         }
 
         if (! $enabled) {
@@ -103,19 +107,19 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             $organizationCode,
             [
                 'resource_name' => $project->getProjectName(),
-                'share_type' => InvitationPermissionMapper::permissionToShareType('view')->value,
+                'share_type' => InvitationPermissionMapper::permissionToShareType('viewer')->value,
             ],
-            ResourceShareEntity::generateRandomPassword(), // 生成5位数字密码
+            null, // 生成5位数字密码
             null // 永久有效
         );
 
-        return $this->formatLinkResponse($shareEntity);
+        return InvitationLinkResponseDTO::fromEntity($shareEntity, $this->resourceShareDomainService);
     }
 
     /**
      * 重置邀请链接.
      */
-    public function resetInvitationLink(RequestContext $requestContext, int $projectId): array
+    public function resetInvitationLink(RequestContext $requestContext, int $projectId): InvitationLinkResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
@@ -143,7 +147,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         // 4. 保存更新
         $savedShare = $this->resourceShareDomainService->saveShareByEntity($shareEntity);
 
-        return $this->formatLinkResponse($savedShare);
+        return InvitationLinkResponseDTO::fromEntity($savedShare, $this->resourceShareDomainService);
     }
 
     /**
@@ -277,7 +281,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     /**
      * 修改权限级别.
      */
-    public function updatePermission(RequestContext $requestContext, int $projectId, string $permission): string
+    public function updateDefaultJoinPermission(RequestContext $requestContext, int $projectId, string $permission): string
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
@@ -315,7 +319,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     /**
      * 通过Token获取邀请信息（外部用户预览）.
      */
-    public function getInvitationByToken(RequestContext $requestContext, string $token): array
+    public function getInvitationByToken(RequestContext $requestContext, string $token): InvitationDetailResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
@@ -356,7 +360,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         // 7. 获取创建者信息
         $creatorInfo = $this->getUserInfo($requestContext, $creatorId);
 
-        return [
+        return InvitationDetailResponseDTO::fromArray([
             'project_id' => $resourceId,
             'project_name' => $project->getProjectName(),
             'project_description' => $project->getProjectDescription() ?? '',
@@ -364,17 +368,17 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             'creator_id' => $creatorId,
             'creator_name' => $creatorInfo['name'] ?? '',
             'creator_avatar' => $creatorInfo['avatar'] ?? '',
-            'permission' => InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
+            'default_join_permission' => InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
             'requires_password' => $shareEntity->getIsPasswordEnabled(),
             'token' => $shareEntity->getShareCode(),
             'has_joined' => $hasJoined,
-        ];
+        ]);
     }
 
     /**
      * 加入项目（外部用户操作）.
      */
-    public function joinProject(RequestContext $requestContext, string $token, ?string $password = null): array
+    public function joinProject(RequestContext $requestContext, string $token, ?string $password = null): JoinProjectResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
@@ -437,13 +441,12 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             $shareEntity->getCreatedUid() // 邀请人（邀请链接创建者）
         );
 
-        return [
+        return JoinProjectResponseDTO::fromArray([
             'project_id' => $shareEntity->getResourceId(),
             'user_role' => $memberRole->value,
-            'permission' => $permission,
             'join_method' => $projectMemberEntity->getJoinMethod()->value,
-            'joined_at' => $projectMemberEntity->getCreatedAt(),
-        ];
+            'joined_at' => Carbon::now()->toDateTimeString(),
+        ]);
     }
 
     /**
@@ -468,22 +471,5 @@ class ProjectInvitationLinkAppService extends AbstractAppService
                 'avatar' => '',
             ];
         }
-    }
-
-    /**
-     * 格式化分享链接响应.
-     */
-    private function formatLinkResponse(ResourceShareEntity $shareEntity): array
-    {
-        return [
-            'id' => (string) $shareEntity->getId(),
-            'project_id' => $shareEntity->getResourceId(),
-            'token' => $shareEntity->getShareCode(),
-            'is_enabled' => $shareEntity->getIsEnabled(), // 使用专门的启用/禁用字段
-            'password' => $this->resourceShareDomainService->getDecryptedPassword($shareEntity),
-            'permission' => InvitationPermissionMapper::shareTypeToPermission($shareEntity->getShareType()),
-            'created_by' => $shareEntity->getCreatedUid(),
-            'created_at' => $shareEntity->getCreatedAt(),
-        ];
     }
 }

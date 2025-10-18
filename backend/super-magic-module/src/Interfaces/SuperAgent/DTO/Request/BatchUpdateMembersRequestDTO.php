@@ -41,7 +41,7 @@ class BatchUpdateMembersRequestDTO extends AbstractRequestDTO
             'members' => 'required|array|min:1|max:500',
             'members.*.target_type' => 'required|string|in:User,Department',
             'members.*.target_id' => 'required|string|max:128',
-            'members.*.permission' => 'required|string|in:viewer,editor,manage',
+            'members.*.role' => 'required|string|in:viewer,editor,manage',
         ];
     }
 
@@ -61,9 +61,9 @@ class BatchUpdateMembersRequestDTO extends AbstractRequestDTO
             'members.*.target_id.required' => __('validation.project.target_id.required'),
             'members.*.target_id.string' => __('validation.project.target_id.string'),
             'members.*.target_id.max' => __('validation.project.target_id.max'),
-            'members.*.permission.required' => __('validation.project.permission.required'),
-            'members.*.permission.string' => __('validation.project.permission.string'),
-            'members.*.permission.in' => __('validation.project.permission.in'),
+            'members.*.role.required' => __('validation.project.permission.required'),
+            'members.*.role.string' => __('validation.project.permission.string'),
+            'members.*.role.in' => __('validation.project.permission.in'),
         ];
     }
 }

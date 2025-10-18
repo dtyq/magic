@@ -80,7 +80,7 @@ Router::addGroup(
                 // 批量删除成员
                 Router::delete('', [ProjectMemberApi::class, 'deleteProjectMembers']);
                 // 批量更新成员-权限
-                Router::put('/permissions', [ProjectMemberApi::class, 'updateProjectMemberPermissions']);
+                Router::put('/roles', [ProjectMemberApi::class, 'updateProjectMemberRoles']);
             });
 
             // 项目邀请链接管理
@@ -98,7 +98,7 @@ Router::addGroup(
                 // 修改邀请链接密码
                 Router::put('/change-password', [ProjectInvitationLinkApi::class, 'changePassword']);
                 // 修改权限级别
-                Router::put('/permission', [ProjectInvitationLinkApi::class, 'updatePermission']);
+                Router::put('/permission', [ProjectInvitationLinkApi::class, 'updateDefaultJoinPermission']);
             });
         });
         // 协作项目相关路由分组

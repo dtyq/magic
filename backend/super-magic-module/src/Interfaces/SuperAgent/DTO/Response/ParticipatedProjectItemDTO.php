@@ -29,7 +29,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         ?string $tag,
         ?string $userId,
         ?bool $isCollaborationEnabled,
-        ?string $permission,
+        ?string $defaultJoinPermission,
 
         // 参与项目特有字段
         public readonly string $role = 'owner', // 用户在项目中的角色：owner-项目所有者，collaborator-协作者
@@ -52,7 +52,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             $tag,
             $userId,
             $isCollaborationEnabled,
-            $permission
+            $defaultJoinPermission
         );
     }
 
@@ -88,7 +88,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             isPinned: (bool) ($data['is_pinned'] ?? false),
             organizationCode: $data['organization_code'] ?? '',
             isCollaborationEnabled: (bool) ($data['is_collaboration_enabled'] ?? false),
-            permission: $data['permission'] ?? '',
+            defaultJoinPermission: $data['permission'] ?? '',
         );
     }
 

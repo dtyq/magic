@@ -30,7 +30,7 @@ class ProjectItemDTO
         public readonly ?string $tag,
         public readonly ?string $userId,
         public readonly ?bool $isCollaborationEnabled,
-        public readonly ?string $permission,
+        public readonly ?string $defaultJoinPermission,
     ) {
     }
 
@@ -53,7 +53,7 @@ class ProjectItemDTO
             tag: $tag,
             userId: $project->getUserId(),
             isCollaborationEnabled: $project->getIsCollaborationEnabled(),
-            permission: $project->getPermission()->value,
+            defaultJoinPermission: $project->getPermission()->value,
         );
     }
 
@@ -71,7 +71,7 @@ class ProjectItemDTO
             'project_mode' => $this->projectMode,
             'workspace_name' => $this->workspaceName,
             'is_collaboration_enabled' => $this->isCollaborationEnabled,
-            'permission' => $this->permission,
+            'default_join_permission' => $this->defaultJoinPermission,
             'tag' => $this->tag,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,

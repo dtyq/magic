@@ -612,26 +612,26 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     /**
      * 批量更新成员权限（新格式：target_type + target_id）.
      */
-    public function batchUpdatePermissions(int $projectId, array $permissionUpdates): int
+    public function batchUpdateRole(int $projectId, array $roleUpdates): int
     {
-        if (empty($permissionUpdates)) {
+        if (empty($roleUpdates)) {
             return 0;
         }
 
         $now = date('Y-m-d H:i:s');
         $updatedCount = 0;
 
-        foreach ($permissionUpdates as $update) {
+        foreach ($roleUpdates as $update) {
             $targetType = $update['target_type'];
             $targetId = $update['target_id'];
-            $permission = $update['permission'];
+            $role = $update['role'];
 
             $result = $this->projectMemberModel::query()
                 ->where('project_id', $projectId)
                 ->where('target_type', $targetType)
                 ->where('target_id', $targetId)
                 ->update([
-                    'role' => $permission,
+                    'role' => $role,
                     'updated_at' => $now,
                 ]);
 

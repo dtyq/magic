@@ -35,7 +35,9 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->invitationLinkAppService->getInvitationLink($requestContext, $projectId);
+        $result = $this->invitationLinkAppService->getInvitationLink($requestContext, $projectId);
+
+        return $result ? $result->toArray() : [];
     }
 
     /**
@@ -48,7 +50,7 @@ class ProjectInvitationLinkApi extends AbstractApi
 
         $enabled = (bool) $this->request->input('enabled', false);
 
-        return $this->invitationLinkAppService->toggleInvitationLink($requestContext, $projectId, $enabled);
+        return $this->invitationLinkAppService->toggleInvitationLink($requestContext, $projectId, $enabled)->toArray();
     }
 
     /**
@@ -59,7 +61,7 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->invitationLinkAppService->resetInvitationLink($requestContext, $projectId);
+        return $this->invitationLinkAppService->resetInvitationLink($requestContext, $projectId)->toArray();
     }
 
     /**
@@ -107,16 +109,16 @@ class ProjectInvitationLinkApi extends AbstractApi
     /**
      * 修改权限级别.
      */
-    public function updatePermission(RequestContext $requestContext, int $projectId): array
+    public function updateDefaultJoinPermission(RequestContext $requestContext, int $projectId): array
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $permission = $this->request->input('permission', 'view');
+        $permission = $this->request->input('default_join_permission', 'viewer');
 
-        $this->invitationLinkAppService->updatePermission($requestContext, $projectId, $permission);
+        $this->invitationLinkAppService->updateDefaultJoinPermission($requestContext, $projectId, $permission);
 
-        return ['permission' => $permission];
+        return ['default_join_permission' => $permission];
     }
 
     /**
@@ -127,7 +129,7 @@ class ProjectInvitationLinkApi extends AbstractApi
         // 外部用户访问，但仍需要设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        return $this->invitationLinkAppService->getInvitationByToken($requestContext, $token);
+        return $this->invitationLinkAppService->getInvitationByToken($requestContext, $token)->toArray();
     }
 
     /**
@@ -140,6 +142,6 @@ class ProjectInvitationLinkApi extends AbstractApi
 
         $token = $this->request->input('token', '');
         $password = $this->request->input('password');
-        return $this->invitationLinkAppService->joinProject($requestContext, $token, $password);
+        return $this->invitationLinkAppService->joinProject($requestContext, $token, $password)->toArray();
     }
 }

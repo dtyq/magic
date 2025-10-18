@@ -172,13 +172,13 @@ class ProjectMemberApi extends AbstractApi
     /**
      * 批量更新成员权限.
      */
-    public function updateProjectMemberPermissions(RequestContext $requestContext, int $projectId): array
+    public function updateProjectMemberRoles(RequestContext $requestContext, int $projectId): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $requestDTO = BatchUpdateMembersRequestDTO::fromRequest($this->request);
 
-        return $this->projectMemberAppService->updateProjectMemberPermissions($requestContext, $projectId, $requestDTO);
+        return $this->projectMemberAppService->updateProjectMemberRoles($requestContext, $projectId, $requestDTO);
     }
 
     /**
@@ -188,9 +188,9 @@ class ProjectMemberApi extends AbstractApi
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        $memberIds = (array) $this->request->input('ids', []);
+        $members = (array) $this->request->input('members', []);
 
-        $this->projectMemberAppService->deleteMembers($requestContext, $projectId, $memberIds);
+        $this->projectMemberAppService->deleteMembers($requestContext, $projectId, $members);
 
         return [];
     }
