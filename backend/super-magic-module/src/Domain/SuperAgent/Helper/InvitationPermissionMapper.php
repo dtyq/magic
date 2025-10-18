@@ -21,8 +21,8 @@ class InvitationPermissionMapper
      * 邀请权限到成员角色的映射.
      */
     private const PERMISSION_TO_MEMBER_ROLE_MAP = [
-        'view' => MemberRole::VIEWER,
-        'edit' => MemberRole::EDITOR,
+        'viewer' => MemberRole::VIEWER,
+        'editor' => MemberRole::EDITOR,
         'manage' => MemberRole::MANAGE,
     ];
 
@@ -32,8 +32,8 @@ class InvitationPermissionMapper
     public static function getPermissionToShareTypeMap(): array
     {
         return [
-            'view' => ShareAccessType::Internet,
-            'edit' => ShareAccessType::Internet,
+            'viewer' => ShareAccessType::Internet,
+            'editor' => ShareAccessType::Internet,
             'manage' => ShareAccessType::Internet,
         ];
     }
@@ -44,7 +44,7 @@ class InvitationPermissionMapper
     public static function getShareTypeToPermissionMap(): array
     {
         return [
-            ShareAccessType::Internet->value => 'view', // 默认权限
+            ShareAccessType::Internet->value => 'viewer', // 默认权限
         ];
     }
 
@@ -54,10 +54,9 @@ class InvitationPermissionMapper
     public static function getMemberRoleToPermissionMap(): array
     {
         return [
-            MemberRole::OWNER->value => 'manage',
-            MemberRole::MANAGE->value => 'manage',
+            MemberRole::MANAGE->value => 'editor',
             MemberRole::EDITOR->value => 'edit',
-            MemberRole::VIEWER->value => 'view',
+            MemberRole::VIEWER->value => 'viewer',
         ];
     }
 
@@ -76,7 +75,7 @@ class InvitationPermissionMapper
     public static function shareTypeToPermission(int $shareType): string
     {
         $map = self::getShareTypeToPermissionMap();
-        return $map[$shareType] ?? 'view';
+        return $map[$shareType] ?? 'viewer';
     }
 
     /**
@@ -93,7 +92,7 @@ class InvitationPermissionMapper
     public static function memberRoleToPermission(MemberRole $memberRole): string
     {
         $map = self::getMemberRoleToPermissionMap();
-        return $map[$memberRole->value] ?? 'view';
+        return $map[$memberRole->value] ?? 'viewer';
     }
 
     /**
@@ -101,6 +100,6 @@ class InvitationPermissionMapper
      */
     public static function getAllPermissions(): array
     {
-        return ['view', 'edit', 'manage'];
+        return ['viewer', 'editor', 'manage'];
     }
 }

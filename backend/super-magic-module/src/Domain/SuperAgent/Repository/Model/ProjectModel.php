@@ -54,7 +54,8 @@ class ProjectModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'workspace_id' => 'integer',
-        'is_collaboration_enabled' => 'boolean',
+        'is_collaboration_enabled' => 'integer',
+        'permission' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

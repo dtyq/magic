@@ -129,7 +129,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         // 1. 测试获取协作设置 - 默认关闭状态
         $response = $this->getCollaborationSettings($projectId);
         $this->assertFalse($response['data']['is_collaboration_enabled']);
-        $this->assertEquals('editor', $response['data']['permission']);
+        $this->assertEquals('viewer', $response['data']['default_join_permission']);
 
         // 2. 开启协作功能
         $this->enableCollaboration($projectId);
@@ -187,7 +187,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => 'usi_invalid_cross_org_user',
-                    'permission' => 'editor',
+                    'role' => 'editor',
                 ],
             ],
         ];
@@ -220,7 +220,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         //        $this->addTeamMembers($projectId); // 重复添加
 
         // 3. 测试无效的权限级别
-        $this->addMembersWithInvalidPermission($projectId, 51215);
+        $this->addMembersWithInvalidPermission($projectId, 5003);
 
         // 4. 测试不能删除自己
         $this->switchUserTest2();
@@ -314,7 +314,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         if ($expectedCode === 1000) {
             $this->assertEquals('ok', $response['message']);
             $this->assertIsBool($response['data']['is_collaboration_enabled']);
-            $this->assertIsString($response['data']['permission']);
+            $this->assertIsString($response['data']['default_join_permission']);
         }
 
         return $response;
@@ -330,12 +330,12 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $this->testUserId2,
-                    'permission' => 'editor',
+                    'role' => 'editor',
                 ],
                 [
                     'target_type' => 'Department',
                     'target_id' => $this->testDepartmentId1,
-                    'permission' => 'viewer',
+                    'role' => 'viewer',
                 ],
             ],
         ];
@@ -367,7 +367,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'Department',
                     'target_id' => $this->testDepartmentId2,
-                    'permission' => 'editor',
+                    'role' => 'editor',
                 ],
             ],
         ];
@@ -413,7 +413,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $this->testUserId2,
-                    'permission' => 'invalid_permission',
+                    'role' => 'invalid_permission',
                 ],
             ],
         ];
@@ -440,13 +440,13 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $this->testUserId2,
-                    'permission' => 'manage',
+                    'role' => 'manage',
                 ],
             ],
         ];
 
         $response = $this->put(
-            self::BASE_URI . "/{$projectId}/members/permissions",
+            self::BASE_URI . "/{$projectId}/members/roles",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -469,7 +469,12 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
     public function batchDeleteMembers(string $projectId, int $expectedCode = 1000): array
     {
         $requestData = [
-            'member_ids' => [$this->testUserId2],
+            'members' => [
+                [
+                    'target_type' => 'User',
+                    'target_id' => $this->testUserId2,
+                ]
+            ],
         ];
 
         $response = $this->delete(
@@ -500,13 +505,13 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $userId,
-                    'permission' => 'manage',
+                    'role' => 'manage',
                 ],
             ],
         ];
 
         $response = $this->put(
-            self::BASE_URI . "/{$projectId}/members/permissions",
+            self::BASE_URI . "/{$projectId}/members/roles",
             $requestData,
             $this->getCommonHeaders()
         );
@@ -526,7 +531,12 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         // 尝试删除自己
         $currentUserId = $this->testUserId2; // test2用户
         $requestData = [
-            'member_ids' => [$currentUserId],
+            'members' => [
+                [
+                    'target_type' => 'User',
+                    'target_id' => $currentUserId,
+                ]
+            ],
         ];
 
         $response = $this->delete(
@@ -551,7 +561,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
 
         $this->assertEquals(1000, $response['code']);
         $this->assertArrayHasKey('is_collaboration_enabled', $response['data']);
-        $this->assertArrayHasKey('permission', $response['data']);
+        $this->assertArrayHasKey('default_join_permission', $response['data']);
     }
 
     /**
@@ -593,7 +603,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
         $members = $response['data']['members'];
         foreach ($members as $member) {
             if (isset($member['user_id']) && $member['user_id'] === $this->testUserId2) {
-                $this->assertEquals('manage', $member['permission']);
+                $this->assertEquals('manage', $member['role']);
                 break;
             }
         }
