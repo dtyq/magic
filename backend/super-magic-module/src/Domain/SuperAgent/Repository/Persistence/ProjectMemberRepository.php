@@ -512,7 +512,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'p.user_id',
             'p.user_organization_code as organization_code',
             'p.is_collaboration_enabled',
-            'p.permission',
+            'p.default_join_permission',
             'p.created_at',
             'p.updated_at',
             'pm.role as user_role',
