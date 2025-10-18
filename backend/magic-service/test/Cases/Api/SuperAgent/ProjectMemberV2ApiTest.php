@@ -473,7 +473,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $this->testUserId2,
-                ]
+                ],
             ],
         ];
 
@@ -535,7 +535,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
                 [
                     'target_type' => 'User',
                     'target_id' => $currentUserId,
-                ]
+                ],
             ],
         ];
 
