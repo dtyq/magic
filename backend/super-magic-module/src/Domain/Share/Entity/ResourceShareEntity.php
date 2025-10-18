@@ -90,6 +90,11 @@ class ResourceShareEntity extends AbstractEntity
     protected string $targetIds = '';
 
     /**
+     * @var null|array 额外属性（用于存储扩展信息）
+     */
+    protected ?array $extra = null;
+
+    /**
      * @var bool 是否启用（邀请链接专用）
      */
     protected bool $isEnabled = true;
@@ -121,7 +126,9 @@ class ResourceShareEntity extends AbstractEntity
         $this->expireAt = null;
         $this->deletedAt = null;
         $this->targetIds = '[]'; // 存储为JSON字符串
+        $this->extra = null;
         $this->isEnabled = true; // 默认启用
+        $this->isPasswordEnabled = false; // 默认启用
 
         $this->initProperty($data);
     }
@@ -247,6 +254,7 @@ class ResourceShareEntity extends AbstractEntity
             'updated_uid' => $this->updatedUid,
             'organization_code' => $this->organizationCode,
             'target_ids' => $this->targetIds,
+            'extra' => $this->extra,
             'is_enabled' => $this->isEnabled,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
@@ -412,6 +420,37 @@ class ResourceShareEntity extends AbstractEntity
     public function setTargetIds(string $targetIds): self
     {
         $this->targetIds = $targetIds;
+        return $this;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?array $extra): self
+    {
+        $this->extra = $extra;
+        return $this;
+    }
+
+    /**
+     * 获取指定的额外属性值.
+     */
+    public function getExtraAttribute(string $key, mixed $default = null): mixed
+    {
+        return $this->extra[$key] ?? $default;
+    }
+
+    /**
+     * 设置指定的额外属性值.
+     */
+    public function setExtraAttribute(string $key, mixed $value): self
+    {
+        if ($this->extra === null) {
+            $this->extra = [];
+        }
+        $this->extra[$key] = $value;
         return $this;
     }
 

@@ -232,6 +232,11 @@ class ResourceShareDomainService
             $shareEntity->setShareType($attributes['share_type']);
         }
 
+        // 更新额外属性（如果提供）
+        if (isset($attributes['extra'])) {
+            $shareEntity->setExtra($attributes['extra']);
+        }
+
         // 设置密码（如果提供）
         if (! empty($password)) {
             // 使用可逆加密替代单向哈希
@@ -282,11 +287,9 @@ class ResourceShareDomainService
      * 根据ID重新生成分享码.
      *
      * @param int $shareId 分享ID
-     * @param string $userId 操作用户ID
-     * @return string 新生成的分享码
      * @throws Exception 如果操作失败
      */
-    public function regenerateShareCodeById(int $shareId, string $userId): string
+    public function regenerateShareCodeById(int $shareId): ResourceShareEntity
     {
         // 1. 获取分享实体
         $shareEntity = $this->shareRepository->getShareById($shareId);
@@ -294,21 +297,48 @@ class ResourceShareDomainService
             ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND);
         }
 
-        // 2. 权限检查（只有创建者可以操作）
-        if ($shareEntity->getCreatedUid() !== $userId) {
-            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED);
-        }
-
         // 3. 重新生成分享码
         $newShareCode = $this->generateShareCode();
         $shareEntity->setShareCode($newShareCode);
         $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-        $shareEntity->setUpdatedUid($userId);
 
         // 4. 保存更新
         try {
             $this->shareRepository->save($shareEntity);
-            return $newShareCode;
+            return $shareEntity;
+        } catch (Exception $e) {
+            ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED);
+        }
+    }
+
+    /**
+     * 修改密码.
+     *
+     * @param int $shareId 分享ID
+     * @throws Exception 如果操作失败
+     */
+    public function changePasswordById(int $shareId, string $password): ResourceShareEntity
+    {
+        // 1. 获取分享实体
+        $shareEntity = $this->shareRepository->getShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND);
+        }
+
+        // 3. 设置密码
+        if (! empty($password)) {
+            // 使用可逆加密替代单向哈希
+            $shareEntity->setPassword(PasswordCrypt::encrypt($password));
+        } else {
+            $shareEntity->setPassword('');
+        }
+        $shareEntity->setIsPasswordEnabled((bool) $shareEntity->getPassword());
+        $shareEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        // 4. 保存更新
+        try {
+            $this->shareRepository->save($shareEntity);
+            return $shareEntity;
         } catch (Exception $e) {
             ExceptionBuilder::throw(ShareErrorCode::OPERATION_FAILED);
         }
@@ -401,16 +431,17 @@ class ResourceShareDomainService
      * @param string $resourceId 资源ID
      * @param int $resourceType 资源类型
      * @param string $userId 用户ID（可选，用于权限检查）
+     * @param bool $forceDelete 是否强制删除（物理删除），默认false为软删除
      * @return bool 删除是否成功
      */
-    public function deleteShareByResource(string $resourceId, int $resourceType, string $userId = ''): bool
+    public function deleteShareByResource(string $resourceId, int $resourceType, string $userId = '', bool $forceDelete = false): bool
     {
         $shareEntity = $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType);
         if (! $shareEntity) {
             return true; // 如果不存在，视为删除成功
         }
 
-        return $this->shareRepository->delete($shareEntity->getId());
+        return $this->shareRepository->delete($shareEntity->getId(), $forceDelete);
     }
 
     /**
