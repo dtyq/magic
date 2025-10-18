@@ -239,6 +239,7 @@ class ResourceShareDomainService
         } else {
             $shareEntity->setPassword('');
         }
+        $shareEntity->setIsPasswordEnabled((bool) $shareEntity->getPassword());
 
         // 设置过期时间（如果提供）
         if ($expireDays > 0) {
