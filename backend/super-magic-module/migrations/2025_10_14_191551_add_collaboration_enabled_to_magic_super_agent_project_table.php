@@ -22,9 +22,9 @@ class AddCollaborationEnabledToMagicSuperAgentProjectTable extends Migration
                 ->comment('是否开启协作功能（0=关闭，1=开启）')
                 ->after('project_status');
 
-            $table->string('permission', 32)
+            $table->string('default_join_permission', 32)
                 ->default('editor')
-                ->comment('默认权限：manage-可管理，editor-可编辑，viewer-仅查看');
+                ->comment('默认权限：manage-管理，editor-编辑，viewer-查看');
         });
     }
 

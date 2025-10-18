@@ -44,9 +44,10 @@ interface ResourceShareRepositoryInterface
      * 删除分享.
      *
      * @param int $shareId 分享ID
+     * @param bool $forceDelete 是否强制删除（物理删除），默认false为软删除
      * @return bool 是否成功
      */
-    public function delete(int $shareId): bool;
+    public function delete(int $shareId, bool $forceDelete = false): bool;
 
     /**
      * 增加分享查看次数.
