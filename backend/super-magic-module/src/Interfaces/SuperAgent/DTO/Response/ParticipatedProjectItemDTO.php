@@ -87,7 +87,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             role: $role,
             isPinned: (bool) ($data['is_pinned'] ?? false),
             organizationCode: $data['organization_code'] ?? '',
-            isCollaborationEnabled: $data['is_collaboration_enabled'] ?? false,
+            isCollaborationEnabled: (bool) ($data['is_collaboration_enabled'] ?? false),
             permission: $data['permission'] ?? '',
         );
     }
