@@ -135,7 +135,6 @@ class ProjectEntity extends AbstractEntity
             'is_collaboration_enabled' => $this->isCollaborationEnabled,
             'project_mode' => $this->projectMode,
             'source' => $this->source,
-            'permission' => $this->permission->value,
             'default_join_permission' => $this->defaultJoinPermission->value,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
