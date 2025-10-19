@@ -49,15 +49,11 @@ class AbstractAppService extends AbstractKernelAppService
         }
 
         // 验证身份
-        if ($requiredRole) {
-            $magicUserAuthorization = new MagicUserAuthorization();
-            $magicUserAuthorization->setOrganizationCode($organizationCode);
-            $magicUserAuthorization->setId($userId);
-            $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, $requiredRole);
-            return $projectEntity;
-        }
-
-        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        $magicUserAuthorization = new MagicUserAuthorization();
+        $magicUserAuthorization->setOrganizationCode($organizationCode);
+        $magicUserAuthorization->setId($userId);
+        $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, $requiredRole);
+        return $projectEntity;
     }
 
     /**
