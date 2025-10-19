@@ -248,7 +248,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         // 使用单次查询优化N+1问题
         $results = $this->projectMemberModel::query()
             ->whereIn('project_id', $projectIds)
-            ->whereIn('role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
+            ->whereIn('role', [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->groupBy('project_id')
             ->selectRaw('project_id, COUNT(*) as total_count')
             ->get()
@@ -330,7 +330,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                 $join->on('magic_super_agent_project_member_settings.project_id', '=', 'magic_super_agent_project.id')
                     ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
             })
-            ->whereIn('magic_super_agent_project_members.role', [MemberRole::EDITOR->value, MemberRole::VIEWER->value])
+            ->whereIn('magic_super_agent_project_members.role', [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->where('magic_super_agent_project.user_id', '=', $userId)
             ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
             ->whereNull('magic_super_agent_project.deleted_at');
