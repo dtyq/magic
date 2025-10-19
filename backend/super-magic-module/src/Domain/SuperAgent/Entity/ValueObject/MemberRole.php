@@ -141,10 +141,10 @@ enum MemberRole: string
     public function getPermissionLevel(): int
     {
         return match ($this) {
-            self::OWNER => 4,
-            self::MANAGE => 3,
-            self::EDITOR => 2,
             self::VIEWER => 1,
+            self::EDITOR => 2,
+            self::MANAGE => 3,
+            self::OWNER => 4,
         };
     }
 
@@ -154,14 +154,6 @@ enum MemberRole: string
     public function isHigherOrEqualThan(self $other): bool
     {
         return $this->getPermissionLevel() >= $other->getPermissionLevel();
-    }
-
-    /**
-     * 比较角色权限等级.
-     */
-    public function isLowerThan(self $other): bool
-    {
-        return $this->getPermissionLevel() < $other->getPermissionLevel();
     }
 
     /**

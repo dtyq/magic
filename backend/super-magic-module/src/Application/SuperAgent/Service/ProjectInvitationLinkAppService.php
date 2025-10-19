@@ -51,7 +51,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
             $currentUserId,
@@ -76,7 +76,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证是否具有项目管理权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 查找现有的邀请分享
         $existingShare = $this->resourceShareDomainService->getShareByResource(
@@ -127,7 +127,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -155,7 +155,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -200,7 +200,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -229,7 +229,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 1. 验证项目权限
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 验证密码长度（最大18位）
         if (strlen($newPassword) > 18 || strlen($newPassword) < 3) {
@@ -261,8 +261,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $project);
+        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -323,7 +322,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 4. 验证链接创建者是否有项目管理权限，可能存在后续将该用户从该项目上删除
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($magicUserAuthorization, $project);
+        $this->validateManageOrOwnerPermission($magicUserAuthorization, $projectId);
 
         // 5. 提取创建者ID
         $creatorId = $project->getUserId();
@@ -403,8 +402,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $projectId = (int) $shareEntity->getResourceId();
 
         // 6. 验证链接创建者是否有项目管理权限，可能存在后续将该用户从该项目上删除
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($magicUserAuthorization, $project);
+        $this->validateManageOrOwnerPermission($magicUserAuthorization, $projectId);
 
         // 7. 从 extra 中获取 default_join_permission，并转换为成员角色
         $permission = $shareEntity->getExtraAttribute('default_join_permission', MemberRole::VIEWER->value);

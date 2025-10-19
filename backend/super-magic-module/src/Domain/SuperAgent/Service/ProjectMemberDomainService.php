@@ -48,7 +48,7 @@ class ProjectMemberDomainService
         // 2. 执行更新操作
         Db::transaction(function () use ($projectId, $memberEntities) {
             // 先删除所有现有成员
-            $this->projectMemberRepository->deleteByProjectId($projectId, [MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
+            $this->projectMemberRepository->deleteByProjectId($projectId, [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
 
             // 再批量插入新成员
             if (! empty($memberEntities)) {

@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -65,6 +66,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
+        private readonly ProjectDomainService $projectDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly LockerInterface $locker,
         private readonly Producer $producer,
@@ -96,7 +98,8 @@ class FileManagementAppService extends AbstractAppService
 
             // 情况1：有项目ID，获取项目的work_dir
             if (! empty($projectId)) {
-                $projectEntity = $this->getAccessibleProject((int) $projectId, $userId, $userAuthorization->getOrganizationCode());
+                $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+                $this->validateViewerPermission($userAuthorization, (int) $projectId);
                 $workDir = $projectEntity->getWorkDir();
                 if (empty($workDir)) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
@@ -215,7 +218,8 @@ class FileManagementAppService extends AbstractAppService
         $fileKey = $requestDTO->getFileKey();
 
         // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+        $this->validateEditorPermission($userAuthorization, (int) $projectId);
 
         $lockName = WorkDirectoryUtil::getLockerKey($projectEntity->getId());
         $lockOwner = $dataIsolation->getCurrentUserId();
@@ -342,7 +346,8 @@ class FileManagementAppService extends AbstractAppService
         }
 
         // 1. 验证项目权限
-        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $this->validateEditorPermission($userAuthorization, $projectId);
 
         Db::beginTransaction();
         try {
@@ -425,7 +430,8 @@ class FileManagementAppService extends AbstractAppService
             $parentId = ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : 0;
 
             // 校验项目归属权限 - 确保用户只能在自己的项目中创建文件
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+            $this->validateEditorPermission($userAuthorization, (int) $projectId);
 
             // 如果 parent_id 为空，则设置为根目录
             if (empty($parentId)) {
@@ -493,7 +499,9 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
+            $this->validateEditorPermission($userAuthorization, $fileEntity->getProjectId());
+
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
                 // 发布目录已删除事件
@@ -538,7 +546,8 @@ class FileManagementAppService extends AbstractAppService
             $fileId = $requestDTO->getFileId();
 
             // 1. 验证项目是否属于当前用户
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+            $this->validateEditorPermission($userAuthorization, (int) $projectId);
 
             // 2. 获取工作目录并拼接完整路径
             $workDir = $projectEntity->getWorkDir();
@@ -605,7 +614,8 @@ class FileManagementAppService extends AbstractAppService
             $forceDelete = $requestDTO->getForceDelete();
 
             // Validate project ownership
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+            $this->validateEditorPermission($userAuthorization, (int) $projectId);
 
             // Call domain service to batch delete files
             $result = $this->taskFileDomainService->batchDeleteProjectFiles(
@@ -656,7 +666,8 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $fileEntity->getProjectId());
+            $this->validateEditorPermission($userAuthorization, (int) $fileEntity->getProjectId());
 
             if ($fileEntity->getIsDirectory()) {
                 // Directory rename: batch process all sub-files
@@ -705,7 +716,8 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $fileEntity->getProjectId());
+            $this->validateEditorPermission($userAuthorization, (int) $fileEntity->getProjectId());
 
             // 2. Handle target parent directory
             if (empty($targetParentId)) {
@@ -807,7 +819,8 @@ class FileManagementAppService extends AbstractAppService
             $userAuthorization = $requestContext->getUserAuthorization();
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+            $this->validateViewerPermission($userAuthorization, (int) $projectId);
 
             return $this->taskFileDomainService->getFileUrls(
                 $dataIsolation,
@@ -916,7 +929,8 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             // 1. Get project information
-            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+            $this->validateEditorPermission($userAuthorization, (int) $requestDTO->getProjectId());
 
             // Generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();

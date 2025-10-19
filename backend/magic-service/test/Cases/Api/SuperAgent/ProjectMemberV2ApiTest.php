@@ -7,6 +7,11 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\SuperAgent;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Exception;
 use Mockery;
@@ -22,7 +27,7 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
     private string $projectId = '816065897791012866';
 
     // 测试用户ID和部门ID
-    private string $testUserId1 = 'usi_27229966f39dd1b62c9d1449e3f7a90d';
+    private string $testUserId1 = 'usi_7839078ce6af2d3249b82e7aaed643b8';
 
     private string $testUserId2 = 'usi_e9d64db5b986d062a342793013f682e8';
 
@@ -633,8 +638,22 @@ class ProjectMemberV2ApiTest extends AbstractApiTest
     private function cleanupProjectMembers(string $projectId): void
     {
         try {
+            $projectDomainService = di(ProjectDomainService::class);
+            $project = $projectDomainService->getProjectNotUserId((int) $projectId);
+
             $projectMemberDomainService = di(ProjectMemberDomainService::class);
             $projectMemberDomainService->deleteByProjectId((int) $projectId);
+
+            $memberEntity = new ProjectMemberEntity();
+            $memberEntity->setProjectId((int) $projectId);
+            $memberEntity->setTargetType(MemberType::USER);
+            $memberEntity->setTargetId($project->getCreatedUid());
+            $memberEntity->setRole(MemberRole::OWNER);
+            $memberEntity->setOrganizationCode($this->getOrganizationCode());
+            $memberEntity->setInvitedBy($project->getCreatedUid());
+            $memberEntity->setStatus(MemberStatus::ACTIVE);
+
+            $projectMemberDomainService->addInternalMembers([$memberEntity], $this->getOrganizationCode());
             echo "清理项目成员数据完成: {$projectId}\n";
         } catch (Exception $e) {
             echo '清理项目成员数据失败: ' . $e->getMessage() . "\n";

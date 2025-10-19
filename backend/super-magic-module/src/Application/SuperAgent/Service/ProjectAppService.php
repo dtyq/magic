@@ -260,7 +260,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 先获取项目实体用于事件发布
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         $result = Db::transaction(function () use ($projectId, $dataIsolation) {
             // 删除项目
@@ -310,8 +310,9 @@ class ProjectAppService extends AbstractAppService
      */
     public function getProject(RequestContext $requestContext, int $projectId): ProjectEntity
     {
-        $userAuthorization = $requestContext->getUserAuthorization();
-        return $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $this->validateViewerPermission($requestContext->getUserAuthorization(), $projectId);
+        return $projectEntity;
     }
 
     /**
@@ -398,7 +399,8 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 验证项目权限
-        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        $this->validateViewerPermission($userAuthorization, $projectId);
 
         // 通过话题领域服务获取项目下的话题列表
         $result = $this->topicDomainService->getProjectTopicsWithPagination(
@@ -458,7 +460,8 @@ class ProjectAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // 验证项目存在性和所有权
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+        $this->validateViewerPermission($userAuthorization, (int) $requestDTO->getProjectId());
 
         // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
@@ -539,7 +542,10 @@ class ProjectAppService extends AbstractAppService
 
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $this->validateViewerPermission($userAuthorization, $projectId);
+
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
     }
 

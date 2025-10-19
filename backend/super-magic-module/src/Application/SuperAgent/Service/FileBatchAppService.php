@@ -67,7 +67,8 @@ class FileBatchAppService extends AbstractAppService
         }
 
         // Check topic access
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userId, $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+        $this->validateViewerPermission($userAuthorization, (int) $requestDTO->getProjectId());
 
         // Permission validation: get user accessible files
         if (empty($requestDTO->getFileIds())) {
