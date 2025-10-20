@@ -11,7 +11,6 @@ use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
@@ -47,11 +46,11 @@ class ProjectInvitationLinkAppService extends AbstractAppService
      */
     public function getInvitationLink(RequestContext $requestContext, int $projectId): ?InvitationLinkResponseDTO
     {
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
         $currentUserId = $requestContext->getUserAuthorization()->getId();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
             $currentUserId,
@@ -75,8 +74,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证是否具有项目管理权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 查找现有的邀请分享
         $existingShare = $this->resourceShareDomainService->getShareByResource(
@@ -124,10 +122,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function resetInvitationLink(RequestContext $requestContext, int $projectId): InvitationLinkResponseDTO
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -152,10 +150,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function setPassword(RequestContext $requestContext, int $projectId, bool $enabled): string
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -197,10 +195,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function resetPassword(RequestContext $requestContext, int $projectId): string
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -226,10 +224,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function changePassword(RequestContext $requestContext, int $projectId, string $newPassword): string
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 验证密码长度（最大18位）
         if (strlen($newPassword) > 18 || strlen($newPassword) < 3) {
@@ -259,9 +257,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function updateDefaultJoinPermission(RequestContext $requestContext, int $projectId, string $permission): string
     {
         $currentUserId = $requestContext->getUserAuthorization()->getId();
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
 
         // 1. 验证项目权限
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
@@ -316,13 +315,8 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $resourceId = $shareEntity->getResourceId();
         $projectId = (int) $resourceId;
 
-        $magicUserAuthorization = new MagicUserAuthorization();
-        $magicUserAuthorization->setOrganizationCode($shareEntity->getOrganizationCode());
-        $magicUserAuthorization->setId($shareEntity->getCreatedUid());
-
         // 4. 验证链接创建者是否有项目管理权限，可能存在后续将该用户从该项目上删除
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($magicUserAuthorization, $projectId);
+        $project = $this->getAccessibleProjectWithManager($projectId, $shareEntity->getCreatedUid(), $shareEntity->getOrganizationCode());
 
         // 5. 提取创建者ID
         $creatorId = $project->getUserId();
@@ -395,14 +389,10 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::INVITATION_LINK_ALREADY_JOINED);
         }
 
-        $magicUserAuthorization = new MagicUserAuthorization();
-        $magicUserAuthorization->setOrganizationCode($shareEntity->getOrganizationCode());
-        $magicUserAuthorization->setId($shareEntity->getCreatedUid());
-
         $projectId = (int) $shareEntity->getResourceId();
 
         // 6. 验证链接创建者是否有项目管理权限，可能存在后续将该用户从该项目上删除
-        $this->validateManageOrOwnerPermission($magicUserAuthorization, $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $shareEntity->getCreatedUid(), $shareEntity->getOrganizationCode());
 
         // 7. 从 extra 中获取 default_join_permission，并转换为成员角色
         $permission = $shareEntity->getExtraAttribute('default_join_permission', MemberRole::VIEWER->value);
