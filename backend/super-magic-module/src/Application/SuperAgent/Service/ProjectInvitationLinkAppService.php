@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\Chat\Service\MagicUserInfoAppService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Carbon\Carbon;
@@ -23,7 +23,6 @@ use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InvitationDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InvitationLinkResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\JoinProjectResponseDTO;
-use Throwable;
 
 /**
  * 项目邀请链接应用服务
@@ -35,7 +34,8 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function __construct(
         private ResourceShareDomainService $resourceShareDomainService,
         private ProjectMemberDomainService $projectMemberDomainService,
-        private MagicUserInfoAppService $userInfoAppService
+        private MagicUserDomainService $magicUserDomainService,
+        private FileDomainService $fileDomainService
     ) {
     }
 
@@ -324,7 +324,12 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $hasJoined = $isCreator || $this->projectMemberDomainService->isProjectMemberByUser($projectId, $currentUserId);
 
         // 7. 获取创建者信息
-        $creatorInfo = $this->getUserInfo($requestContext, $creatorId);
+        $creatorEntity = $this->magicUserDomainService->getByUserId($creatorId);
+        $creatorAvatarUrl = $creatorNickName = '';
+        if ($creatorEntity) {
+            $creatorNickName = $creatorEntity->getNickname();
+            $creatorAvatarUrl = $this->fileDomainService->getLink('', $creatorEntity->getAvatarUrl()) ?? $creatorEntity->getAvatarUrl();
+        }
 
         // 8. 从 extra 中获取 default_join_permission
         $defaultJoinPermission = $shareEntity->getExtraAttribute('default_join_permission', 'viewer');
@@ -335,8 +340,8 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             'project_description' => $project->getProjectDescription() ?? '',
             'organization_code' => $project->getUserOrganizationCode() ?? '',
             'creator_id' => $creatorId,
-            'creator_name' => $creatorInfo['name'] ?? '',
-            'creator_avatar' => $creatorInfo['avatar'] ?? '',
+            'creator_name' => $creatorNickName,
+            'creator_avatar' => $creatorAvatarUrl,
             'default_join_permission' => $defaultJoinPermission,
             'requires_password' => $shareEntity->getIsPasswordEnabled(),
             'token' => $shareEntity->getShareCode(),
@@ -411,29 +416,5 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             'join_method' => $projectMemberEntity->getJoinMethod()->value,
             'joined_at' => Carbon::now()->toDateTimeString(),
         ]);
-    }
-
-    /**
-     * 获取用户信息.
-     */
-    private function getUserInfo(RequestContext $requestContext, string $userId): array
-    {
-        try {
-            $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
-            $dataIsolation = DataIsolation::create($organizationCode, $userId);
-
-            $userInfoArray = $this->userInfoAppService->getUserInfo($userId, $dataIsolation);
-
-            return [
-                'name' => $userInfoArray['name'] ?? '',
-                'avatar' => $userInfoArray['avatar_url'] ?? '',
-            ];
-        } catch (Throwable $e) {
-            // 如果获取用户信息失败，返回默认值
-            return [
-                'name' => '',
-                'avatar' => '',
-            ];
-        }
     }
 }
