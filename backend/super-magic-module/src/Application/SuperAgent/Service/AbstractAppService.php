@@ -24,7 +24,7 @@ class AbstractAppService extends AbstractKernelAppService
     use DataIsolationTrait;
 
     /**
-     * 获取用户可访问的项目实体.
+     * 获取用户可访问的项目实体（默认大于可读角色）.
      *
      * @return ProjectEntity 项目实体
      */
@@ -48,6 +48,11 @@ class AbstractAppService extends AbstractKernelAppService
             return $projectEntity;
         }
 
+        // 判断是否开启共享项目
+        if (! $projectEntity->getIsCollaborationEnabled()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
         // 验证身份
         $magicUserAuthorization = new MagicUserAuthorization();
         $magicUserAuthorization->setOrganizationCode($organizationCode);
@@ -57,10 +62,33 @@ class AbstractAppService extends AbstractKernelAppService
     }
 
     /**
+     * 获取用户可访问的项目实体（大于编辑角色）.
+     */
+    public function getAccessibleProjectWithEditor(int $projectId, string $userId, string $organizationCode): ProjectEntity
+    {
+        return $this->getAccessibleProject($projectId, $userId, $organizationCode, MemberRole::EDITOR);
+    }
+
+    /**
+     * 获取用户可访问的项目实体（大于管理角色）.
+     */
+    public function getAccessibleProjectWithManager(int $projectId, string $userId, string $organizationCode): ProjectEntity
+    {
+        return $this->getAccessibleProject($projectId, $userId, $organizationCode, MemberRole::MANAGE);
+    }
+
+    /**
      * 验证管理者或所有者权限.
      */
     protected function validateManageOrOwnerPermission(MagicUserAuthorization $magicUserAuthorization, int $projectId): void
     {
+        $projectDomainService = di(ProjectDomainService::class);
+        $projectEntity = $projectDomainService->getProjectNotUserId($projectId);
+        // 判断是否开启共享项目
+        if (! $projectEntity->getIsCollaborationEnabled()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
         $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, MemberRole::MANAGE);
     }
 
@@ -69,6 +97,13 @@ class AbstractAppService extends AbstractKernelAppService
      */
     protected function validateEditorPermission(MagicUserAuthorization $magicUserAuthorization, int $projectId): void
     {
+        $projectDomainService = di(ProjectDomainService::class);
+        $projectEntity = $projectDomainService->getProjectNotUserId($projectId);
+        // 判断是否开启共享项目
+        if (! $projectEntity->getIsCollaborationEnabled()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
         $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, MemberRole::EDITOR);
     }
 
@@ -77,6 +112,13 @@ class AbstractAppService extends AbstractKernelAppService
      */
     protected function validateViewerPermission(MagicUserAuthorization $magicUserAuthorization, int $projectId): void
     {
+        $projectDomainService = di(ProjectDomainService::class);
+        $projectEntity = $projectDomainService->getProjectNotUserId($projectId);
+        // 判断是否开启共享项目
+        if (! $projectEntity->getIsCollaborationEnabled()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
         $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, MemberRole::VIEWER);
     }
 
@@ -88,12 +130,6 @@ class AbstractAppService extends AbstractKernelAppService
         $projectMemberService = di(ProjectMemberDomainService::class);
         $magicDepartmentUserDomainService = di(MagicDepartmentUserDomainService::class);
         $userId = $magicUserAuthorization->getId();
-
-        /*$projectId = $projectEntity->getId();
-
-        if ($projectEntity->getCreatedUid() === $userId) {
-            return;
-        }*/
 
         $projectMemberEntity = $projectMemberService->getMemberByProjectAndUser($projectId, $userId);
 

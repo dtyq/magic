@@ -310,9 +310,8 @@ class ProjectAppService extends AbstractAppService
      */
     public function getProject(RequestContext $requestContext, int $projectId): ProjectEntity
     {
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateViewerPermission($requestContext->getUserAuthorization(), $projectId);
-        return $projectEntity;
+        $userAuthorization = $requestContext->getUserAuthorization();
+        return $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
     }
 
     /**
@@ -399,8 +398,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 验证项目权限
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateViewerPermission($userAuthorization, $projectId);
+        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 通过话题领域服务获取项目下的话题列表
         $result = $this->topicDomainService->getProjectTopicsWithPagination(
@@ -460,8 +458,7 @@ class ProjectAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
 
         // 验证项目存在性和所有权
-        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
-        $this->validateViewerPermission($userAuthorization, (int) $requestDTO->getProjectId());
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
@@ -542,10 +539,7 @@ class ProjectAppService extends AbstractAppService
 
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
-
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateViewerPermission($userAuthorization, $projectId);
-
+        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
     }
 

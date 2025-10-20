@@ -72,6 +72,8 @@ class ProjectMemberAppService extends AbstractAppService
         UpdateProjectMembersRequestDTO $requestDTO
     ): void {
         $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. DTO转换为Entity
         $projectId = (int) $requestDTO->getProjectId();
@@ -81,16 +83,15 @@ class ProjectMemberAppService extends AbstractAppService
             $entity = new ProjectMemberEntity();
             $entity->setTargetTypeFromString($memberData['target_type']);
             $entity->setTargetId($memberData['target_id']);
-            $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
-            $entity->setInvitedBy($userAuthorization->getId());
+            $entity->setOrganizationCode($organizationCode);
+            $entity->setInvitedBy($currentUserId);
             $entity->setRole(MemberRole::MANAGE);
 
             $memberEntities[] = $entity;
         }
 
         // 2. 验证并获取可访问的项目
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
-        $this->validateManageOrOwnerPermission($userAuthorization, $projectId);
+        $projectEntity = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -118,9 +119,11 @@ class ProjectMemberAppService extends AbstractAppService
     public function getProjectMembers(RequestContext $requestContext, int $projectId): ProjectMembersResponseDTO
     {
         $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. 验证是否管理者或所有者权限
-        $this->validateManageOrOwnerPermission($userAuthorization, $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取项目成员列表
         $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
@@ -404,18 +407,15 @@ class ProjectMemberAppService extends AbstractAppService
         $currentUserId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
 
-        // 1. 获取项目
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        // 1. 获取项目并验证用户是否为项目管理者或所有者
+        $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
-        // 2. 验证用户是否为项目管理者或所有者
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
-
-        // 3. 检查项目协作是否开启
+        // 2. 检查项目协作是否开启
         if (! $project->getIsCollaborationEnabled()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.collaboration_disabled');
         }
 
-        // 4. 提取请求数据
+        // 3. 提取请求数据
         $members = $requestDTO->getMembers();
 
         // 4. 构建成员实体列表
@@ -451,10 +451,12 @@ class ProjectMemberAppService extends AbstractAppService
      */
     public function updateProjectMemberRoles(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
     {
-        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. 验证权限
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 提取请求数据
         $members = $requestDTO->getMembers();
@@ -494,6 +496,7 @@ class ProjectMemberAppService extends AbstractAppService
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 获取项目
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
@@ -511,7 +514,7 @@ class ProjectMemberAppService extends AbstractAppService
         }
 
         // 1. 验证权限
-        $this->validateManageOrOwnerPermission($requestContext->getUserAuthorization(), $projectId);
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 执行批量删除
         $this->projectMemberDomainService->deleteMembersByIds($projectId, $targetIds);

@@ -31,7 +31,7 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->validateEditorPermission($userAuthorization, $fileEntity->getProjectId());
+        $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层处理业务逻辑
         $this->fileEditingDomainService->joinEditing($fileId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
@@ -46,7 +46,7 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->validateEditorPermission($userAuthorization, (int) $fileEntity->getProjectId());
+        $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层处理业务逻辑
         $this->fileEditingDomainService->leaveEditing($fileId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
@@ -61,7 +61,7 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->validateViewerPermission($userAuthorization, (int) $fileEntity->getProjectId());
+        $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层查询编辑用户数量
         return $this->fileEditingDomainService->getEditingUsersCount($fileId, $userAuthorization->getOrganizationCode());

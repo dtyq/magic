@@ -71,8 +71,7 @@ class FileSaveContentAppService extends AbstractAppService
                 return [];
             }
             $projectId = $fileDataList[0]['project_id'];
-            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) (int) $projectId);
-            $this->validateViewerPermission($userAuth, (int) $projectId);
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuth->getId(), $userAuth->getOrganizationCode());
 
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;
