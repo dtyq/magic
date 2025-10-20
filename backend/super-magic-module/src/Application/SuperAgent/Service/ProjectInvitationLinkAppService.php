@@ -17,7 +17,6 @@ use Dtyq\SuperMagic\Domain\Share\Constant\ShareAccessType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
@@ -36,7 +35,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
     public function __construct(
         private ResourceShareDomainService $resourceShareDomainService,
         private ProjectMemberDomainService $projectMemberDomainService,
-        private ProjectDomainService $projectDomainService,
         private MagicUserInfoAppService $userInfoAppService
     ) {
     }

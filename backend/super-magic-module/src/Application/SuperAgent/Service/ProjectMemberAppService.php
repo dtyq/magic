@@ -522,7 +522,7 @@ class ProjectMemberAppService extends AbstractAppService
 
     /**
      * 获取他人分享给我的项目ID列表.
-     * @param mixed $dataIsolation
+     * @param DataIsolation $dataIsolation
      */
     private function getReceivedProjectIds(string $userId, DataIsolation $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
     {
