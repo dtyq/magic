@@ -1890,12 +1890,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/billing-manager.git",
-                "reference": "dbdfa75c246dc5783278bf51f843a02dd114834a"
+                "reference": "15b12c90df1abd9874a2eeffd4ea52504ec9b4d0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=dbdfa75c246dc5783278bf51f843a02dd114834a",
-                "reference": "dbdfa75c246dc5783278bf51f843a02dd114834a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fbilling-manager/repository/archive.zip?sha=15b12c90df1abd9874a2eeffd4ea52504ec9b4d0",
+                "reference": "15b12c90df1abd9874a2eeffd4ea52504ec9b4d0",
                 "shasum": ""
             },
             "require": {
@@ -1976,7 +1976,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/billing-manager/-/tree/master"
             },
-            "time": "2025-10-20T06:59:53+00:00"
+            "time": "2025-10-20T10:35:04+00:00"
         },
         {
             "name": "dtyq/cloudfile",
@@ -2195,12 +2195,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "cf7227e6ac75d8732b58e58de43ebb735c1254b2"
+                "reference": "c29d9a8a486b7215ae950882c0740d6682a9489b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=cf7227e6ac75d8732b58e58de43ebb735c1254b2",
-                "reference": "cf7227e6ac75d8732b58e58de43ebb735c1254b2",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c29d9a8a486b7215ae950882c0740d6682a9489b",
+                "reference": "c29d9a8a486b7215ae950882c0740d6682a9489b",
                 "shasum": ""
             },
             "require": {
@@ -2306,9 +2306,9 @@
                 }
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/feat/organization-list-admin"
+                "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-10-17T08:44:51+00:00"
+            "time": "2025-10-20T14:11:49+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -2578,12 +2578,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "4f8bb9a98b91c88a47627dd5d7d89f5f997f7d32"
+                "reference": "70c1940c82f35abf1542cb73fa6656d55e43f88e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=4f8bb9a98b91c88a47627dd5d7d89f5f997f7d32",
-                "reference": "4f8bb9a98b91c88a47627dd5d7d89f5f997f7d32",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=70c1940c82f35abf1542cb73fa6656d55e43f88e",
+                "reference": "70c1940c82f35abf1542cb73fa6656d55e43f88e",
                 "shasum": ""
             },
             "require": {
@@ -2685,7 +2685,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-10-20T06:51:00+00:00"
+            "time": "2025-10-20T13:40:27+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -8476,16 +8476,16 @@
         },
         {
             "name": "kkguan-service/opentracer",
-            "version": "3.1.4",
+            "version": "3.1.5",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:open-source/opentracer.git",
-                "reference": "4bd46e1a3cbadda7d35430a294cfd3e041d20bc6"
+                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=4bd46e1a3cbadda7d35430a294cfd3e041d20bc6",
-                "reference": "4bd46e1a3cbadda7d35430a294cfd3e041d20bc6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=11ad58381f3809d029062f1290611f6aee8b94c6",
+                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6",
                 "shasum": ""
             },
             "require": {
@@ -8537,9 +8537,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.4"
+                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.5"
             },
-            "time": "2025-10-10T14:02:34+00:00"
+            "time": "2025-10-20T12:05:05+00:00"
         },
         {
             "name": "kkguan-service/token-sdk",
@@ -15593,28 +15593,28 @@
         },
         {
             "name": "webmozart/assert",
-            "version": "1.11.0",
+            "version": "1.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/webmozarts/assert.git",
-                "reference": "11cb2199493b2f8a3b53e7f19068fc6aac760991"
+                "reference": "541057574806f942c94662b817a50f63f7345360"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/webmozarts/assert/zipball/11cb2199493b2f8a3b53e7f19068fc6aac760991",
-                "reference": "11cb2199493b2f8a3b53e7f19068fc6aac760991",
+                "url": "https://api.github.com/repos/webmozarts/assert/zipball/541057574806f942c94662b817a50f63f7345360",
+                "reference": "541057574806f942c94662b817a50f63f7345360",
                 "shasum": ""
             },
             "require": {
                 "ext-ctype": "*",
+                "ext-date": "*",
+                "ext-filter": "*",
                 "php": "^7.2 || ^8.0"
             },
-            "conflict": {
-                "phpstan/phpstan": "<0.12.20",
-                "vimeo/psalm": "<4.6.1 || 4.6.2"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^8.5.13"
+            "suggest": {
+                "ext-intl": "",
+                "ext-simplexml": "",
+                "ext-spl": ""
             },
             "type": "library",
             "extra": {
@@ -15645,9 +15645,9 @@
             ],
             "support": {
                 "issues": "https://github.com/webmozarts/assert/issues",
-                "source": "https://github.com/webmozarts/assert/tree/1.11.0"
+                "source": "https://github.com/webmozarts/assert/tree/1.12.0"
             },
-            "time": "2022-06-03T18:03:27+00:00"
+            "time": "2025-10-20T12:43:39+00:00"
         },
         {
             "name": "wyndow/fuzzywuzzy",
