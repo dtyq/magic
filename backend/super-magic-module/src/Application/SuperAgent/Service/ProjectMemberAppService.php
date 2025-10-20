@@ -148,7 +148,7 @@ class ProjectMemberAppService extends AbstractAppService
         $dataIsolation = $requestContext->getDataIsolation();
 
         // 获取用户所属部门
-        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds($userIds, $dataIsolation);
+        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIdsInMagic($userIds);
         $userIdMapDepartmentIds = array_column($departmentUsers, 'department_id', 'userId');
         $allDepartmentIds = array_merge($departmentIds, array_values($userIdMapDepartmentIds));
 
@@ -158,7 +158,7 @@ class ProjectMemberAppService extends AbstractAppService
         // 5. 获取用户详细信息
         $users = [];
         if (! empty($userIds)) {
-            $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds);
+            $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds);
             $this->updateUserAvatarUrl($dataIsolation, $userEntities);
 
             foreach ($userEntities as $userEntity) {
@@ -348,7 +348,7 @@ class ProjectMemberAppService extends AbstractAppService
         }
 
         // 3. 批量获取创建者用户详细信息
-        $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($creatorUserIds);
 
         // 4. 更新头像URL
         $this->updateUserAvatarUrl($dataIsolation, $userEntities);
@@ -571,7 +571,7 @@ class ProjectMemberAppService extends AbstractAppService
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
         $creatorInfoMap = [];
         if (! empty($creatorUserIds)) {
-            $creatorUsers = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
+            $creatorUsers = $this->magicUserDomainService->getUserByIdsWithoutOrganization($creatorUserIds);
             foreach ($creatorUsers as $user) {
                 $creatorInfoMap[$user->getUserId()] = CreatorInfoDTO::fromUserEntity($user);
             }
@@ -604,7 +604,7 @@ class ProjectMemberAppService extends AbstractAppService
             }
 
             // 获取用户和部门信息
-            $userEntities = ! empty($userIds) ? $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds) : [];
+            $userEntities = ! empty($userIds) ? $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds) : [];
             $departmentEntities = ! empty($departmentIds) ? $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds) : [];
 
             // 直接创建CollaboratorMemberDTO数组

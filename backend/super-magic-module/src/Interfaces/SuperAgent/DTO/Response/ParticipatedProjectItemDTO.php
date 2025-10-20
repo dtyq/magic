@@ -67,7 +67,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         $tag = $hasProjectMember ? 'collaboration' : '';
 
         // Role logic: 当前用户在项目中的角色
-        $role = $isCollaborator ? 'collaborator' : 'owner';
+        $role = $data['user_role'] ?? '';
 
         return new self(
             id: (string) $data['id'],
