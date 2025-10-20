@@ -85,7 +85,21 @@ class VolcengineStandardClient
     {
         $requestData = $this->buildBigModelSubmitRequest($submitDTO);
         $requestId = (string) $requestData['req_id'];
+
+        $this->logger->info('Preparing to submit BigModel speech recognition task to Volcengine', [
+            'request_id' => $requestId,
+            'url' => self::BIGMODEL_SUBMIT_URL,
+            'app_id' => $this->config['app_id'],
+            'audio_url' => $requestData['audio']['url'] ?? null,
+            'audio_format' => $requestData['audio']['format'] ?? null,
+        ]);
+
         try {
+            $this->logger->info('Sending HTTP POST request to Volcengine', [
+                'request_id' => $requestId,
+                'resource_id' => 'volc.bigasr.auc',
+            ]);
+
             $response = $this->httpClient->post(self::BIGMODEL_SUBMIT_URL, [
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -98,7 +112,18 @@ class VolcengineStandardClient
                 'json' => $requestData,
             ]);
 
+            $statusCode = $response->getStatusCode();
+            $this->logger->info('Received response from Volcengine', [
+                'request_id' => $requestId,
+                'http_status_code' => $statusCode,
+            ]);
+
             $responseBody = $response->getBody()->getContents();
+
+            $this->logger->info('Parsing response body', [
+                'request_id' => $requestId,
+                'response_body_size' => strlen($responseBody),
+            ]);
             $result = Json::decode($responseBody);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->logger->error('Failed to parse Volcengine BigModel response JSON', [
@@ -111,8 +136,22 @@ class VolcengineStandardClient
             $result['request_id'] = $requestId;
             $responseHeaders = $this->extractResponseHeaders($response);
 
+            $this->logger->info('Extracted response headers', [
+                'request_id' => $requestId,
+                'volcengine_log_id' => $responseHeaders['volcengine_log_id'] ?? null,
+                'volcengine_status_code' => $responseHeaders['volcengine_status_code'] ?? null,
+                'volcengine_message' => $responseHeaders['volcengine_message'] ?? null,
+            ]);
+
             // 验证API状态码
+            $this->logger->info('Validating Volcengine API status code', [
+                'request_id' => $requestId,
+            ]);
             $this->validateApiStatusCode($responseHeaders, $requestId);
+
+            $this->logger->info('Volcengine API status code validation passed', [
+                'request_id' => $requestId,
+            ]);
 
             $this->logger->info('Volcengine BigModel speech recognition task submitted successfully', [
                 'request_id' => $requestId,
