@@ -521,7 +521,7 @@ class ProjectMemberAppService extends AbstractAppService
      * 获取他人分享给我的项目ID列表.
      * @param mixed $dataIsolation
      */
-    private function getReceivedProjectIds(string $userId, $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
+    private function getReceivedProjectIds(string $userId, DataIsolation $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
     {
         // 获取用户所在的所有部门（包含父级部门）
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
@@ -537,7 +537,8 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getName(),
             $requestDTO->getSortField(),
             $requestDTO->getSortDirection(),
-            $requestDTO->getCreatorUserIds()
+            $requestDTO->getCreatorUserIds(),
+            $requestDTO->getJoinMethod()
         );
     }
 
