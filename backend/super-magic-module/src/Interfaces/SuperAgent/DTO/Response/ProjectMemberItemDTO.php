@@ -101,6 +101,8 @@ class ProjectMemberItemDTO extends AbstractDTO
         $dto->setAvatarUrl(''); // 部门通常没有头像
         $dto->setType('Department');
         $dto->setPathNodes($departmentData['path_nodes'] ?? []);
+        $dto->setRole($departmentData['role'] ?? '');
+        $dto->setJoinMethod($departmentData['join_method'] ?? '');
 
         return $dto;
     }

@@ -102,7 +102,8 @@ class ProjectMemberDomainService
         ?string $name = null,
         ?string $sortField = null,
         string $sortDirection = 'desc',
-        array $creatorUserIds = []
+        array $creatorUserIds = [],
+        ?string $joinMethod = null,
     ): array {
         return $this->projectMemberRepository->getProjectIdsByUserAndDepartments(
             $userId,
@@ -110,7 +111,8 @@ class ProjectMemberDomainService
             $name,
             $sortField,
             $sortDirection,
-            $creatorUserIds
+            $creatorUserIds,
+            $joinMethod
         );
     }
 

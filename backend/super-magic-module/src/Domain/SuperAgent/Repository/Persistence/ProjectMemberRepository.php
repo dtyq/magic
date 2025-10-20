@@ -159,7 +159,8 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         ?string $name = null,
         ?string $sortField = null,
         string $sortDirection = 'desc',
-        array $creatorUserIds = []
+        array $creatorUserIds = [],
+        ?string $joinMethod = null,
     ): array {
         $query = $this->projectMemberModel::query()
             ->where(function ($query) use ($userId, $departmentIds) {
@@ -192,6 +193,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         if (! empty($creatorUserIds)) {
             // 如果有创建者用户ID搜索条件
             $query->whereIn('magic_super_agent_project.user_id', $creatorUserIds);
+        }
+
+        if (! empty($joinMethod)) {
+            // 加入方式
+            $query->where('magic_super_agent_project_members.join_method', $joinMethod);
         }
 
         $query->select(

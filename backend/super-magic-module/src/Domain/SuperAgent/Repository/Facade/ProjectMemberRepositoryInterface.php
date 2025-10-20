@@ -100,7 +100,8 @@ interface ProjectMemberRepositoryInterface
         ?string $name = null,
         ?string $sortField = null,
         string $sortDirection = 'desc',
-        array $creatorUserIds = []
+        array $creatorUserIds = [],
+        ?string $joinMethod = null,
     ): array;
 
     /**
