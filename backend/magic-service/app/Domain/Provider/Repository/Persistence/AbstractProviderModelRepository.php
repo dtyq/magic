@@ -60,6 +60,7 @@ abstract class AbstractProviderModelRepository extends AbstractRepository
         $entityArray['visible_organizations'] = Json::encode($entity->getVisibleOrganizations());
         $entityArray['visible_applications'] = Json::encode($entity->getVisibleApplications());
         $entityArray['visible_packages'] = Json::encode($entity->getVisiblePackages());
+        $entityArray['disabled_by'] = $entityArray['disabled_by'] ?? '';
 
         return $entityArray;
     }

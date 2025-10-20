@@ -1,3 +1,4 @@
+import { describe, test, expect } from "vitest"
 import { checkSpecialCharacters, getFileExtension } from "../../src/utils"
 
 describe("utils 工具函数测试", () => {

@@ -32,6 +32,8 @@ class MagicAILocalModel extends AbstractModel
 {
     protected bool $includeBusinessParams = true;
 
+    protected bool $streamIncludeUsage = true;
+
     private string $accessToken;
 
     private int $vectorSize;

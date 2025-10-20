@@ -158,9 +158,15 @@ class SSRFDefense
     {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_NOBODY, true);              // 只获取HTTP头，不下载body
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);                // 超时5秒
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);         // 连接超时3秒
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 0);              // 不跟随重定向
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);      // 验证SSL证书
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);         // 验证SSL主机
         try {
             curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

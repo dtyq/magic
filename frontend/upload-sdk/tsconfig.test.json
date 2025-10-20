@@ -23,5 +23,5 @@
 		"resolveJsonModule": true,
 		"composite": true
 	},
-	"include": ["tests/**/*"]
+	"include": ["tests/**/*", "src/**/*"]
 }

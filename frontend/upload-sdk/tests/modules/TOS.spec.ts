@@ -1,53 +1,54 @@
+import { describe, it, expect, vi, afterEach } from "vitest"
 import { TOS } from "../../src"
 
-// 模拟File对象
+// Mock File object
 const createMockFile = (name = "test.txt", size = 5 * 1024 * 1024) => {
 	return new File([new ArrayBuffer(size)], name)
 }
 
-// 使用简单的mock方法
-jest.mock("../../src/modules/TOS", () => {
+// Use simple mock method
+vi.mock("../../src/modules/TOS", () => {
 	return {
 		__esModule: true,
 		default: {
-			upload: jest.fn().mockResolvedValue({
+			upload: vi.fn().mockResolvedValue({
 				url: "test-url",
 				platform: "tos",
 				path: "test/test.txt",
 			}),
-			MultipartUpload: jest.fn().mockResolvedValue({
+			MultipartUpload: vi.fn().mockResolvedValue({
 				url: "test-url",
 				platform: "tos",
 				path: "test/test.txt",
 			}),
-			STSUpload: jest.fn().mockResolvedValue({
+			STSUpload: vi.fn().mockResolvedValue({
 				url: "test-url",
 				platform: "tos",
 				path: "test/test.txt",
 			}),
-			defaultUpload: jest.fn().mockResolvedValue({
+			defaultUpload: vi.fn().mockResolvedValue({
 				url: "test-url",
 				platform: "tos",
 				path: "test/test.txt",
 			}),
 		},
-		upload: jest.fn((file, key, params, option) => {
+		upload: vi.fn((file, key, params, option) => {
 			if (params.credentials && params.credentials.SessionToken) {
 				return TOS.upload(file, key, params, option)
 			}
 			return TOS.upload(file, key, params, option)
 		}),
-		MultipartUpload: jest.fn().mockResolvedValue({
+		MultipartUpload: vi.fn().mockResolvedValue({
 			url: "test-url",
 			platform: "tos",
 			path: "test/test.txt",
 		}),
-		STSUpload: jest.fn().mockResolvedValue({
+		STSUpload: vi.fn().mockResolvedValue({
 			url: "test-url",
 			platform: "tos",
 			path: "test/test.txt",
 		}),
-		defaultUpload: jest.fn().mockResolvedValue({
+		defaultUpload: vi.fn().mockResolvedValue({
 			url: "test-url",
 			platform: "tos",
 			path: "test/test.txt",
@@ -55,15 +56,15 @@ jest.mock("../../src/modules/TOS", () => {
 	}
 })
 
-// 每次测试结束后清理mock
+// Clean up mocks after each test
 afterEach(() => {
-	jest.clearAllMocks()
+	vi.clearAllMocks()
 })
 
 describe("TOS模块测试", () => {
-	// 测试上传方法的路由选择
+	// Test upload method routing
 	describe("upload方法", () => {
-		it("当提供STS凭证时应该使用MultipartUpload方法", () => {
+		it("当提供STS凭证时应该使用MultipartUpload方法", async () => {
 			const file = createMockFile()
 			const key = "test/test.txt"
 			const params = {
@@ -84,13 +85,14 @@ describe("TOS模块测试", () => {
 			}
 			const option = {}
 
-			TOS.upload(file, key, params, option)
+			const result = await TOS.upload(file, key, params, option)
 
-			// 直接验证MultipartUpload是否被调用
-			expect(TOS.upload).toHaveBeenCalled()
+			// Verify result is correct
+			expect(result).toBeDefined()
+			expect(result.platform).toBe("tos")
 		})
 
-		it("当提供普通凭证时应该使用defaultUpload方法", () => {
+		it("当提供普通凭证时应该使用defaultUpload方法", async () => {
 			const file = createMockFile()
 			const key = "test/test.txt"
 			const params = {
@@ -107,14 +109,15 @@ describe("TOS模块测试", () => {
 			}
 			const option = {}
 
-			TOS.upload(file, key, params, option)
+			const result = await TOS.upload(file, key, params, option)
 
-			// 直接验证defaultUpload是否被调用
-			expect(TOS.upload).toHaveBeenCalled()
+			// Verify result is correct
+			expect(result).toBeDefined()
+			expect(result.platform).toBe("tos")
 		})
 	})
 
-	// 测试默认上传方法
+	// Test default upload method
 	describe("defaultUpload方法", () => {
 		it("应该成功上传文件并返回预期结果", async () => {
 			const file = createMockFile("test.txt", 1024)
@@ -134,19 +137,19 @@ describe("TOS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			const result = await TOS.upload(file, key, params, option)
 
-			// 验证结果
+			// Verify result
 			expect(result).toBeDefined()
 			expect((result as any).platform).toBe("tos")
 			expect((result as any).path).toBe("test/test.txt")
 		})
 	})
 
-	// 测试STS上传方法
+	// Test STS upload method
 	describe("STSUpload方法", () => {
 		it("应该成功上传文件并返回预期结果", async () => {
 			const file = createMockFile("test.txt", 1024)
@@ -170,22 +173,22 @@ describe("TOS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			const result = await TOS.STSUpload(file, key, params, option)
 
-			// 验证结果
+			// Verify result
 			expect(result).toBeDefined()
 			expect((result as any).platform).toBe("tos")
 			expect((result as any).path).toBe("test/test.txt")
 		})
 	})
 
-	// 测试分片上传方法
+	// Test multipart upload method
 	describe("MultipartUpload方法", () => {
 		it("应该成功上传文件并返回预期结果", async () => {
-			const file = createMockFile("test.txt", 10 * 1024 * 1024) // 10MB文件
+			const file = createMockFile("test.txt", 10 * 1024 * 1024) // 10MB file
 			const key = "test/test.txt"
 			const params = {
 				credentials: {
@@ -204,16 +207,16 @@ describe("TOS模块测试", () => {
 				callback: "https://example.com/callback",
 			}
 			const option = {
-				partSize: 1024 * 1024, // 1MB分片
-				parallel: 2, // 并行数
+				partSize: 1024 * 1024, // 1MB part size
+				parallel: 2, // parallelism
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			const result = await TOS.MultipartUpload(file, key, params, option)
 
-			// 验证结果
+			// Verify result
 			expect(result).toBeDefined()
 			expect((result as any).platform).toBe("tos")
 			expect((result as any).path).toBe("test/test.txt")
@@ -241,12 +244,12 @@ describe("TOS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			// 临时修改MultipartUpload实现，使其抛出错误
+			// Temporarily modify MultipartUpload implementation to throw error
 			const originalImplementation = TOS.MultipartUpload
-			;(TOS.MultipartUpload as jest.Mock).mockImplementationOnce(() => {
+			;(TOS.MultipartUpload as any).mockImplementationOnce(() => {
 				return Promise.reject(new Error("Upload failed"))
 			})
 
@@ -254,8 +257,8 @@ describe("TOS模块测试", () => {
 				"Upload failed",
 			)
 
-			// 恢复原始实现
-			;(TOS.MultipartUpload as jest.Mock).mockImplementation(originalImplementation)
+			// Restore original implementation
+			;(TOS.MultipartUpload as any).mockImplementation(originalImplementation)
 		})
 	})
 })

@@ -11,6 +11,60 @@ import { formatHeaders } from "../modules/TOS/utils"
 // 维护一个请求队列
 let requestTasks: RequestTask[] = []
 
+// 维护 AbortController 队列（用于 AWS SDK 等 Fetch-based 请求）
+let abortControllers: Map<TaskId, AbortController[]> = new Map()
+
+// 维护任务的取消/暂停状态（用于区分 cancel 和 pause）
+let taskAbortStates: Map<TaskId, "cancel" | "pause"> = new Map()
+
+/**
+ * Register an AbortController for a task (used for AWS SDK requests)
+ * @param {TaskId} taskId Task ID
+ * @param {AbortController} controller AbortController instance
+ */
+export function registerAbortController(taskId: TaskId, controller: AbortController): void {
+	if (!abortControllers.has(taskId)) {
+		abortControllers.set(taskId, [])
+	}
+	abortControllers.get(taskId)?.push(controller)
+}
+
+/**
+ * Get the AbortSignal for a task
+ * @param {TaskId} taskId Task ID
+ * @returns {AbortSignal | undefined} AbortSignal if exists
+ */
+export function getAbortSignal(taskId: TaskId): AbortSignal | undefined {
+	const controllers = abortControllers.get(taskId)
+	if (controllers && controllers.length > 0) {
+		// Create a new controller for this specific request
+		const controller = new AbortController()
+		controllers.push(controller)
+		return controller.signal
+	}
+	return undefined
+}
+
+/**
+ * Create a new AbortController for a task and return its signal
+ * @param {TaskId} taskId Task ID
+ * @returns {AbortSignal} AbortSignal
+ */
+export function createAbortSignal(taskId: TaskId): AbortSignal {
+	const controller = new AbortController()
+	registerAbortController(taskId, controller)
+	return controller.signal
+}
+
+/**
+ * Get the abort state of a task (cancel or pause)
+ * @param {TaskId} taskId Task ID
+ * @returns {"cancel" | "pause" | undefined} The abort state
+ */
+export function getTaskAbortState(taskId: TaskId): "cancel" | "pause" | undefined {
+	return taskAbortStates.get(taskId)
+}
+
 /**
  * XMLHttpRequest对象兼容处理
  */
@@ -26,23 +80,47 @@ function createXHR() {
  * @param {TaskId} taskId 任务ID
  */
 export function cancelRequest(taskId: TaskId): void {
+	// Set abort state to cancel
+	taskAbortStates.set(taskId, "cancel")
+	
+	// Cancel XHR requests
 	requestTasks.forEach((task) => {
 		if (task.taskId === taskId) {
 			task.makeCancel()
 		}
 	})
+	
+	// Cancel Fetch-based requests (AWS SDK)
+	const controllers = abortControllers.get(taskId)
+	if (controllers) {
+		controllers.forEach((controller) => {
+			controller.abort()
+		})
+	}
 }
 
 /**
- * @description: 终止文件上传
+ * @description: 暂停文件上传
  * @param {TaskId} taskId 任务ID
  */
 export function pauseRequest(taskId: TaskId): void {
+	// Set abort state to pause
+	taskAbortStates.set(taskId, "pause")
+	
+	// Pause XHR requests
 	requestTasks.forEach((task) => {
 		if (task.taskId === taskId) {
 			task.makePause()
 		}
 	})
+	
+	// Pause Fetch-based requests (AWS SDK)
+	const controllers = abortControllers.get(taskId)
+	if (controllers) {
+		controllers.forEach((controller) => {
+			controller.abort()
+		})
+	}
 }
 
 /**
@@ -92,6 +170,12 @@ export function completeRequest(taskId: TaskId | undefined): void {
 	if (taskId === undefined) return
 
 	requestTasks = requestTasks.filter((task) => task.taskId !== taskId)
+	
+	// Clean up AbortControllers
+	abortControllers.delete(taskId)
+	
+	// Clean up abort state
+	taskAbortStates.delete(taskId)
 }
 
 /**
