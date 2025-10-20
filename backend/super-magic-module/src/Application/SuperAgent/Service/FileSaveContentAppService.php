@@ -11,7 +11,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SuperMagicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -37,7 +36,6 @@ class FileSaveContentAppService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly SuperMagicDomainService $superMagicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly ProjectDomainService $projectDomainService,
         private readonly EventDispatcherInterface $eventDispatcher,
     ) {
         $this->logger = $loggerFactory->get('sandbox-file-edit');
@@ -71,8 +69,7 @@ class FileSaveContentAppService extends AbstractAppService
                 return [];
             }
             $projectId = $fileDataList[0]['project_id'];
-            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) (int) $projectId);
-            $this->validateViewerPermission($userAuth, (int) $projectId);
+            $projectEntity = $this->getAccessibleProject((int) $projectId, $userAuth->getId(), $userAuth->getOrganizationCode());
 
             // 3. 根据项目创建一个沙箱
             $projectId = (string) $projectId;

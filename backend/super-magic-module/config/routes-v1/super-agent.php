@@ -73,8 +73,8 @@ Router::addGroup(
             Router::addGroup('/{projectId}/members', static function () {
                 // 获取项目协作成员
                 Router::get('', [ProjectMemberApi::class, 'getMembers']);
-                // 更新项目协作成员
-                Router::put('', [ProjectMemberApi::class, 'updateMembers']);
+                // 更新项目协作成员（新版本不需要此接口）
+                //                Router::put('', [ProjectMemberApi::class, 'updateMembers']);
                 // 添加项目成员
                 Router::post('', [ProjectMemberApi::class, 'createProjectMembers']);
                 // 批量删除成员
