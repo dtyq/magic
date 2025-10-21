@@ -1966,7 +1966,7 @@ class TaskFileDomainService
         // Use base64url encoding for cloud storage compatibility
         $encodedText = $this->base64UrlEncode($watermarkText);
 
-        if ($source->value === TaskFileSource::AGENT->value) {
+        if ($source->value === TaskFileSource::AI_IMAGE_GENERATION->value) {
             // $watermark = 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
             $watermark = 'image/watermark,text_' . $encodedText . ',t_50,size_50,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
         } else {
