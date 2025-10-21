@@ -808,6 +808,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
         $taskFileEntity->setFileExtension($attachment['file_extension']);
         $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+        $taskFileEntity->setSource(!empty($attachment['source']) ? $attachment['source'] : TaskFileSource::AGENT->value);
 
         // Set file type based on attachment type and file_tag
         if ($type === 'tool') {
