@@ -2195,12 +2195,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "ce45a509af9c646129932b12e1338f6f57efd5f0"
+                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=ce45a509af9c646129932b12e1338f6f57efd5f0",
-                "reference": "ce45a509af9c646129932b12e1338f6f57efd5f0",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
+                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
                 "shasum": ""
             },
             "require": {
@@ -2308,7 +2308,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-10-21T02:41:28+00:00"
+            "time": "2025-10-21T12:03:33+08:00"
         },
         {
             "name": "dtyq/php-mcp",
