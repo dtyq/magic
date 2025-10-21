@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "01d79fd693aae578769a5e5c9657cdf3",
+    "content-hash": "2f255e81709099a469d024b3091e5a29",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2190,17 +2190,17 @@
             "time": "2025-07-28T06:18:50+00:00"
         },
         {
-            "name": "dtyq/llm-proxy-hub",
+            "name": "dtyq/llm-proxy-service",
             "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/llm-proxy-service.git",
-                "reference": "7ef904311d3c60e418df9f214069b1b62dd4262e"
+                "reference": "93c1a174e8f2fd72856c79a588c144b1a1833d55"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fllm-proxy-hub/repository/archive.zip?sha=7ef904311d3c60e418df9f214069b1b62dd4262e",
-                "reference": "7ef904311d3c60e418df9f214069b1b62dd4262e",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fllm-proxy-service/repository/archive.zip?sha=93c1a174e8f2fd72856c79a588c144b1a1833d55",
+                "reference": "93c1a174e8f2fd72856c79a588c144b1a1833d55",
                 "shasum": ""
             },
             "require": {
@@ -2234,7 +2234,7 @@
             "type": "library",
             "extra": {
                 "hyperf": {
-                    "config": "Dtyq\\LLMProxyHub\\ConfigProvider",
+                    "config": "Dtyq\\LLMProxyService\\ConfigProvider",
                     "config_autoload": "config/autoload"
                 },
                 "branch-alias": {
@@ -2243,7 +2243,7 @@
             },
             "autoload": {
                 "psr-4": {
-                    "Dtyq\\LLMProxyHub\\": "src/"
+                    "Dtyq\\LLMProxyService\\": "src/"
                 }
             },
             "scripts": {
@@ -2268,7 +2268,7 @@
                     "email": "team@dtyq.com"
                 }
             ],
-            "description": "LLM Proxy Hub - A unified platform for managing multiple LLM providers",
+            "description": "LLM Proxy Service - A unified platform for managing multiple LLM providers",
             "keywords": [
                 "ai",
                 "claude",
@@ -2280,7 +2280,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/llm-proxy-service/-/tree/master"
             },
-            "time": "2025-10-20T19:07:57+08:00"
+            "time": "2025-10-21T18:59:20+08:00"
         },
         {
             "name": "dtyq/magic-enterprise-service",
@@ -20167,7 +20167,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "dtyq/llm-proxy-hub": 20,
+        "dtyq/llm-proxy-service": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
