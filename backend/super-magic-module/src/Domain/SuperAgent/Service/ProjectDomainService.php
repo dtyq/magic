@@ -366,6 +366,11 @@ class ProjectDomainService
         return $this->projectRepository->updateUpdatedAtToNow($projectId);
     }
 
+    public function getOrganizationCodesByProjectIds(array $projectIds): array
+    {
+        return $this->projectRepository->getOrganizationCodesByProjectIds($projectIds);
+    }
+
     /**
      * Create forked project from source project.
      */

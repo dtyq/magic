@@ -508,14 +508,45 @@ class ProjectMemberDomainService
         $this->projectMemberRepository->insert($memberEntities);
     }
 
-    /**
-     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
-     *
-     * @param array $targetIds 目标ID数组（用户ID或部门ID）
-     * @return array 组织编码数组
-     */
-    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array
+    public function getProjectIdsByCollaboratorTargets(array $targetIds): array
     {
-        return $this->projectMemberRepository->getOrganizationCodesByCollaboratorTargets($targetIds);
+        $roles = [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value];
+        return $this->projectMemberRepository->getProjectIdsByCollaboratorTargets($targetIds, $roles);
+    }
+
+    /**
+     * 批量获取用户在项目中的最高权限角色.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param array $targetIds 目标ID数组（用户ID和部门ID）
+     * @return array [project => role] 项目ID映射到角色
+     */
+    public function getUserHighestRolesInProjects(array $projectIds, array $targetIds): array
+    {
+        // 1. 从Repository获取成员实体数据
+        $memberEntities = $this->projectMemberRepository->getProjectMembersByTargetIds($projectIds, $targetIds);
+
+        if (empty($memberEntities)) {
+            return [];
+        }
+
+        // 2. 业务逻辑：按项目分组，计算每个项目的最高权限角色
+        $projectRoles = [];
+        foreach ($memberEntities as $entity) {
+            $projectId = $entity->getProjectId();
+            $role = $entity->getRole();
+            $permissionLevel = $role->getPermissionLevel();
+
+            // 如果该项目还没有记录，或当前角色权限更高，则更新
+            if (! isset($projectRoles[$projectId]) || $permissionLevel > $projectRoles[$projectId]['level']) {
+                $projectRoles[$projectId] = [
+                    'role' => $role->value,
+                    'level' => $permissionLevel,
+                ];
+            }
+        }
+
+        // 3. 只返回角色值，不包含权限等级
+        return array_map(fn ($data) => $data['role'], $projectRoles);
     }
 }

@@ -213,6 +213,17 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             ->toArray();
     }
 
+    public function getOrganizationCodesByProjectIds(array $projectIds): array
+    {
+        $organizationCodes = $this->projectModel::query()
+            ->whereIn('id', $projectIds)
+            ->select('user_organization_code')
+            ->pluck('user_organization_code')
+            ->toArray();
+
+        return array_values(array_unique($organizationCodes));
+    }
+
     /**
      * 模型转实体.
      */

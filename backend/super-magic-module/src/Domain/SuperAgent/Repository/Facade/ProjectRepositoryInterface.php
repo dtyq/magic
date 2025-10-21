@@ -64,4 +64,6 @@ interface ProjectRepositoryInterface
      * @return array 项目ID列表
      */
     public function getProjectIdsByWorkspaceId(int $workspaceId, string $userId, string $organizationCode): array;
+
+    public function getOrganizationCodesByProjectIds(array $projectIds): array;
 }

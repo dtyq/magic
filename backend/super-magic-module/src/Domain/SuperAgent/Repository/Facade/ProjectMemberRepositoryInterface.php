@@ -224,10 +224,19 @@ interface ProjectMemberRepositoryInterface
     public function deleteMembersByIds(int $projectId, array $memberIds): int;
 
     /**
-     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
+     * 通过协作者目标ID获取项目Id列表（排除OWNER角色）.
      *
      * @param array $targetIds 目标ID数组（用户ID或部门ID）
-     * @return array 组织编码数组
+     * @return array 项目Ids
      */
-    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array;
+    public function getProjectIdsByCollaboratorTargets(array $targetIds, array $roles): array;
+
+    /**
+     * 批量获取用户在项目中的成员记录.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param array $targetIds 目标ID数组（用户ID和部门ID）
+     * @return ProjectMemberEntity[] 成员实体数组
+     */
+    public function getProjectMembersByTargetIds(array $projectIds, array $targetIds): array;
 }

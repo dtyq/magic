@@ -672,9 +672,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
+     * 通过协作者目标ID获取项目Ids列表（排除OWNER角色）.
      */
-    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array
+    public function getProjectIdsByCollaboratorTargets(array $targetIds, array $roles): array
     {
         if (empty($targetIds)) {
             return [];
@@ -682,11 +682,35 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
         return $this->projectMemberModel::query()
             ->whereIn('target_id', $targetIds)
-            ->where('role', '!=', MemberRole::OWNER->value)
+            ->whereIn('role', $roles)
             ->where('status', MemberStatus::ACTIVE->value)
             ->distinct()
-            ->pluck('organization_code')
+            ->pluck('project_id')
             ->toArray();
+    }
+
+    /**
+     * 批量获取用户在项目中的成员记录.
+     */
+    public function getProjectMembersByTargetIds(array $projectIds, array $targetIds): array
+    {
+        if (empty($projectIds) || empty($targetIds)) {
+            return [];
+        }
+
+        $results = $this->projectMemberModel::query()
+            ->whereIn('project_id', $projectIds)
+            ->whereIn('target_id', $targetIds)
+            ->where('status', MemberStatus::ACTIVE->value)
+            ->get()
+            ->toArray();
+
+        $entities = [];
+        foreach ($results as $row) {
+            $entities[] = ProjectMemberEntity::modelToEntity($row);
+        }
+
+        return $entities;
     }
 
     /**
