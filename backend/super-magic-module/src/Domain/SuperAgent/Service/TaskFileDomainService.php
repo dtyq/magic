@@ -406,7 +406,7 @@ class TaskFileDomainService
 
             if ($isCreated && $isUpdated === false) {
                 $newFileEntity = $this->taskFileRepository->insert($fileEntity);
-            }else{
+            } else {
                 $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
             }
 
