@@ -19,6 +19,7 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 use function Swow\defer;
+use function Hyperf\Support\env;
 
 class ResponseMiddleware implements MiddlewareInterface
 {
@@ -110,11 +111,17 @@ class ResponseMiddleware implements MiddlewareInterface
         $uri = $request->getUri()->getPath();
         $parsedBody = $request->getParsedBody();
         $queryParams = $request->getQueryParams();
-        foreach ($this->desensitizeUris as $desensitizeUri) {
-            if (str_contains($uri, $desensitizeUri)) {
-                $parsedBody = 'Desensitize';
-                $queryParams = 'Desensitize';
-                break;
+        //判断是否在测试环境，如果是则不进行脱敏
+        if (env('APP_ENV') === 'local' || env('APP_ENV') === 'test') {
+            $parsedBody = $request->getParsedBody();
+            $queryParams = $request->getQueryParams();
+        } else {
+            foreach ($this->desensitizeUris as $desensitizeUri) {
+                if (str_contains($uri, $desensitizeUri)) {
+                    $parsedBody = 'Desensitize';
+                    $queryParams = 'Desensitize';
+                    break;
+                }
             }
         }
         $requestBody = [
