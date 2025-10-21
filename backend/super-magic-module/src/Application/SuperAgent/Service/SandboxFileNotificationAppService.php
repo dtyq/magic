@@ -58,7 +58,6 @@ class SandboxFileNotificationAppService extends AbstractAppService
         // 1. Get metadata and data value objects
         $metadata = $requestDTO->getMetadataValueObject();
         $data = $requestDTO->getDataValueObject();
-
         // 2. Validate operation type
         if (! $data->isValidOperation()) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'Invalid operation type');
@@ -105,8 +104,11 @@ class SandboxFileNotificationAppService extends AbstractAppService
             $taskFileEntity = null;
             switch ($data->getOperation()) {
                 case 'CREATE':
-                case 'UPDATE':
                     $result = $this->handleCreateOrUpdateFile($dataIsolation, $metadata, $data, $projectEntity, $fileKey);
+                    $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
+                    break;
+                case 'UPDATE':
+                    $result = $this->handleCreateOrUpdateFile($dataIsolation, $metadata, $data, $projectEntity, $fileKey, isUpdate: true);
                     $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
                     break;
                 case 'DELETE':
@@ -244,7 +246,8 @@ class SandboxFileNotificationAppService extends AbstractAppService
         MessageMetadata $metadata,
         SandboxFileNotificationDataValueObject $data,
         ProjectEntity $projectEntity,
-        string $fileKey
+        string $fileKey,
+        bool $isUpdate = false
     ): array {
         // Delegate to domain service
         $taskFileEntity = $this->taskFileDomainService->handleSandboxFileNotification(
@@ -252,7 +255,8 @@ class SandboxFileNotificationAppService extends AbstractAppService
             $projectEntity,
             $fileKey,
             $data,
-            $metadata
+            $metadata,
+            $isUpdate
         );
         return [
             'file_id' => $taskFileEntity->getFileId(),

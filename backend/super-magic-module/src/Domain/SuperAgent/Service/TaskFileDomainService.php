@@ -402,7 +402,10 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
+            if ($isCreated && $isUpdated === false) {
+                $newFileEntity = $this->taskFileRepository->insert($fileEntity);
+            }
+            $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
 
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
@@ -1080,13 +1083,13 @@ class TaskFileDomainService
         ProjectEntity $projectEntity,
         string $fileKey,
         SandboxFileNotificationDataValueObject $data,
-        MessageMetadata $metadata
+        MessageMetadata $metadata,
+        bool $isUpdate = false
     ): TaskFileEntity {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         Db::beginTransaction();
         try {
             $taskEntity = $this->taskRepository->getTaskById((int) $metadata->getSuperMagicTaskId());
-
             $taskFileEntity = new TaskFileEntity();
             $taskFileEntity->setFileKey($fileKey);
             $taskFileEntity->setTaskId($taskEntity->getId());
@@ -1094,6 +1097,9 @@ class TaskFileDomainService
             $taskFileEntity->setSource($data->getSource() ?? TaskFileSource::AGENT->value);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
+            if ($isUpdate) {
+                $taskFileEntity->setSource($data->getSource() ?? TaskFileSource::AGENT->value);
+            }
             if ($data->getIsDirectory()) {
                 $taskFileEntity->setIsDirectory(true);
                 $taskFileEntity->setFileType(FileType::DIRECTORY->value);
@@ -1104,7 +1110,7 @@ class TaskFileDomainService
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
             $taskFileEntity->setFileSize($fileInfo['size']);
-            $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, withTrash: true);
+            $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, isUpdated: $isUpdate, withTrash: true);
 
             Db::commit();
             return $fileEntity;
@@ -2010,7 +2016,7 @@ class TaskFileDomainService
         // Use base64url encoding for cloud storage compatibility
         $encodedText = $this->base64UrlEncode($watermarkText);
 
-        if ($source->value === TaskFileSource::AGENT->value) {
+        if ($source->value === TaskFileSource::AI_IMAGE_GENERATION->value) {
             // $watermark = 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
             $watermark = 'image/watermark,text_' . $encodedText . ',t_50,size_50,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
         } else {
