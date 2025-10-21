@@ -404,8 +404,9 @@ class TaskFileDomainService
 
             if ($isCreated && $isUpdated === false) {
                 $newFileEntity = $this->taskFileRepository->insert($fileEntity);
+            }else{
+                $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
             }
-            $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
 
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
