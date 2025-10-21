@@ -191,6 +191,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.cannot_set_shortcut_for_own_project')]
     case CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT = 51216;
 
+    #[ErrorMessage('project.project_id_required_for_collaboration')]
+    case PROJECT_ID_REQUIRED_FOR_COLLABORATION = 51217;
+
+    #[ErrorMessage('project.not_a_collaboration_project')]
+    case NOT_A_COLLABORATION_PROJECT = 51218;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
