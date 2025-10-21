@@ -228,13 +228,13 @@ class ProjectMemberAppService extends AbstractAppService
         $currentOrganizationCode = $dataIsolation->getCurrentOrganizationCode();
         $type = $requestDTO->getType() ?: 'received';
 
-        // 1. 获取用户协作项目中付费的组织编码
+        // 1. 获取用户协作项目中付费的组织编码（非付费套餐不支持项目协作）
         $collaborationPaidOrganizationCodes = $this->getUserCollaborationPaidOrganizationCodes($requestContext);
 
         // 2. 将当前组织编码也加入列表（用于过滤）
         $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$currentOrganizationCode]));
 
-        // 3. 根据类型获取项目ID列表（按付费组织编码过滤）
+        // 3. 根据类型获取项目ID列表
         $collaborationProjects = match ($type) {
             'shared' => $this->getSharedProjectIds($userId, $currentOrganizationCode, $requestDTO),
             default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO, $paidOrganizationCodes),
@@ -539,7 +539,7 @@ class ProjectMemberAppService extends AbstractAppService
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
-        $dataIsolation = $requestContext->getDataIsolation();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 1. 获取用户所属的部门ID列表（包含父级部门）
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
@@ -548,7 +548,9 @@ class ProjectMemberAppService extends AbstractAppService
         $targetIds = array_merge([$userId], $departmentIds);
 
         // 3. 通过协作者目标ID获取所有参与协作项目的组织编码（排除OWNER角色）
-        $organizationCodes = $this->projectMemberDomainService->getOrganizationCodesByCollaboratorTargets($targetIds);
+        $projectIds = $this->projectMemberDomainService->getProjectIdsByCollaboratorTargets($targetIds);
+
+        $organizationCodes = $this->projectDomainService->getOrganizationCodesByProjectIds($projectIds);
 
         if (empty($organizationCodes)) {
             return [];
@@ -611,6 +613,8 @@ class ProjectMemberAppService extends AbstractAppService
      */
     private function buildCollaborationProjectResponse(DataIsolation $dataIsolation, array $projects, array $collaborationProjects, int $totalCount): array
     {
+        $userId = $dataIsolation->getCurrentUserId();
+
         // 1. 获取创建人信息
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
         $creatorInfoMap = [];
@@ -623,6 +627,11 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 2. 分别获取协作者信息（拆分接口）
         $projectIdsFromResult = array_map(fn ($project) => $project->getId(), $projects);
+
+        // 2.1 获取用户在这些项目中的最高权限角色
+        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
+        $targetIds = array_merge([$userId], $departmentIds);
+        $userRolesMap = $this->projectMemberDomainService->getUserHighestRolesInProjects($projectIdsFromResult, $targetIds);
 
         // 2.1 获取项目成员总数
         $memberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIdsFromResult);
@@ -672,14 +681,15 @@ class ProjectMemberAppService extends AbstractAppService
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $projects));
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
-        // 4. 创建协作项目列表响应DTO
+        // 4. 创建协作项目列表响应DTO（包含用户角色）
         $collaborationListResponseDTO = CollaborationProjectListResponseDTO::fromProjectData(
             $projects,
             $collaborationProjects,
             $creatorInfoMap,
             $collaboratorsInfoMap,
             $workspaceNameMap,
-            $totalCount
+            $totalCount,
+            $userRolesMap
         );
 
         return $collaborationListResponseDTO->toArray();
