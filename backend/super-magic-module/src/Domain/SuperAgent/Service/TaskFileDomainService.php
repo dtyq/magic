@@ -343,8 +343,10 @@ class TaskFileDomainService
                 return $fileEntity;
             }
 
+            $isCreated = false;
             $currentTime = date('Y-m-d H:i:s');
             if (empty($fileEntity)) {
+                $isCreated = true;
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
