@@ -374,6 +374,7 @@ class TaskFileDomainService
             $fileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileEntity->getFileKey()));
             $fileEntity->setIsDirectory($taskFileEntity->getIsDirectory());
             $fileEntity->setSort(! empty($taskFileEntity->getSort()) ? $taskFileEntity->getSort() : 0);
+            $fileEntity->setSource($taskFileEntity->getSource());
 
             if (empty($taskFileEntity->getParentId())) {
                 $parentId = $this->findOrCreateDirectoryAndGetParentId(
@@ -1087,7 +1088,7 @@ class TaskFileDomainService
             $taskFileEntity->setFileKey($fileKey);
             $taskFileEntity->setTaskId($taskEntity->getId());
             $taskFileEntity->setTopicId($taskEntity->getTopicId());
-            $taskFileEntity->setSource(TaskFileSource::AGENT);
+            $taskFileEntity->setSource($data->getSource() ?? TaskFileSource::AGENT->value);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
             if ($data->getIsDirectory()) {
@@ -1100,7 +1101,6 @@ class TaskFileDomainService
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
             $taskFileEntity->setFileSize($fileInfo['size']);
-
             $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, withTrash: true);
 
             Db::commit();

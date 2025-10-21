@@ -73,6 +73,7 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
             'data.operation' => 'required|string|in:CREATE,UPDATE,DELETE',
             'data.file_path' => 'required|string',
             'data.file_size' => 'nullable|integer|min:0',
+            'data.source' => 'nullable|integer',
         ];
     }
 
@@ -101,6 +102,7 @@ class SandboxFileNotificationRequestDTO extends AbstractRequestDTO
             'data.file_path.string' => 'File path must be a string',
             'data.file_size.integer' => 'File size must be an integer',
             'data.file_size.min' => 'File size cannot be negative',
+            'data.source.integer' => 'Source must be an integer',
         ];
     }
 }
