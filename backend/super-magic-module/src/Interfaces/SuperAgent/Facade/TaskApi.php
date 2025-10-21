@@ -88,6 +88,10 @@ class TaskApi extends AbstractApi
             $requestData = $this->request->input('data', []);
         }
 
+        $this->logger->info('deliverMessage', [
+            'requestData' => $requestData,
+        ]);
+
         // 从请求中创建DTO
         $messageDTO = TopicTaskMessageDTO::fromArray($requestData);
         // 调用应用服务进行消息投递
