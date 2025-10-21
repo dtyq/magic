@@ -82,10 +82,10 @@ class TaskApi extends AbstractApi
         if ($isConfusion) {
             // 混淆处理
             $rawData = ShadowCode::unShadow($this->request->input('data', ''));
-            $requestData = json_decode($rawData, true);
         } else {
-            $requestData = $this->request->input('data', []);
+            $rawData = $this->request->input('data', '');
         }
+        $requestData = json_decode($rawData, true);
 
         // 从请求中创建DTO
         $messageDTO = TopicTaskMessageDTO::fromArray($requestData);
