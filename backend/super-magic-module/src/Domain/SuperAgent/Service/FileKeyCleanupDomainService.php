@@ -154,33 +154,6 @@ class FileKeyCleanupDomainService
     }
 
     /**
-     * Process a single fully deleted file_key with pre-fetched records (optimized).
-     */
-    private function processFullyDeletedFileKeyWithRecords(string $fileKey, array $records, bool $dryRun): array
-    {
-        Db::beginTransaction();
-        try {
-            $fileIds = array_column($records, 'file_id');
-
-            if (! $dryRun) {
-                $this->repository->deleteRecords($fileIds);
-            }
-
-            // Log all deleted records
-            foreach ($records as $record) {
-                $this->logDeletion('deleted', 'delete_all', $record, null, $dryRun);
-            }
-
-            Db::commit();
-
-            return ['deleted' => count($fileIds)];
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
      * Process directory duplicates (optimized with batch query).
      */
     public function processDirectoryDuplicates(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
@@ -202,7 +175,7 @@ class FileKeyCleanupDomainService
             if (empty($fileKeys) || $step > $maxStep) {
                 break;
             }
-            $step++;
+            ++$step;
             // 如果 file_key 一直处理失败，会导致这里一直有数据，从而陷入死循环，这里使用最长迭代步长吧
             // Optimized: Batch query all records for these file_keys at once
             $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
@@ -241,6 +214,154 @@ class FileKeyCleanupDomainService
             'parent_id_updated' => $totalParentIdUpdated,
             'errors' => $totalErrors,
         ];
+    }
+
+    /**
+     * Process file duplicates (optimized with batch query).
+     */
+    public function processFileDuplicates(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
+    {
+        $offset = 0;
+        $totalProcessed = 0;
+        $totalKept = 0;
+        $totalDeleted = 0;
+        $totalErrors = 0;
+        $batchNum = 0;
+        $previousFileKeys = [];
+        $sameKeysCount = 0;
+
+        $totalCount = $this->repository->countFileDuplicates();
+
+        $this->writeLog('INFO', "Stage 3: Processing {$totalCount} duplicate file file_keys");
+
+        $maxStep = 200;
+        $step = 0;
+        while (true) {
+            $fileKeys = $this->repository->getFileDuplicateKeys($batchSize, $offset, $projectId, $fileKey);
+            if (empty($fileKeys) || $step > $maxStep) {
+                break;
+            }
+            ++$step;
+
+            $remainingCount = $this->repository->countFileDuplicates();
+            $this->writeLog('INFO', "Processing batch {$batchNum} (50 file_keys, {$remainingCount} remaining)");
+
+            // Optimized: Batch query all records for these file_keys at once
+            $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
+
+            foreach ($fileKeys as $currentFileKey) {
+                try {
+                    $records = $recordsGrouped[$currentFileKey] ?? [];
+                    if (empty($records)) {
+                        continue;
+                    }
+                    $result = $this->processFileFileKeyWithRecords($currentFileKey, $records, $dryRun);
+                    if ($result['kept'] > 0) {
+                        ++$totalKept;
+                    }
+                    $totalDeleted += $result['deleted'];
+                    ++$totalProcessed;
+                } catch (Throwable $e) {
+                    ++$totalErrors;
+                    $this->logError('file', $currentFileKey, $e->getMessage());
+                    $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                }
+            }
+            break;
+        }
+
+        $this->writeLog(
+            'INFO',
+            "Stage 3 completed: {$totalProcessed} file_keys processed, {$totalKept} kept, {$totalDeleted} deleted, {$totalErrors} errors"
+        );
+
+        return [
+            'processed' => $totalProcessed,
+            'kept' => $totalKept,
+            'deleted' => $totalDeleted,
+            'errors' => $totalErrors,
+        ];
+    }
+
+    /**
+     * Verify remaining duplicates.
+     */
+    public function verifyRemainingDuplicates(): int
+    {
+        $count = $this->repository->countRemainingDuplicates();
+        $this->writeLog('INFO', "Verification: {$count} duplicate file_keys remaining");
+        return $count;
+    }
+
+    /**
+     * Detect and fix is_directory inconsistencies.
+     */
+    public function fixInconsistentDirectoryFlags(bool $dryRun = false): array
+    {
+        $inconsistentKeys = $this->repository->getInconsistentDirectoryFlags();
+
+        if (empty($inconsistentKeys)) {
+            $this->writeLog('INFO', 'No is_directory inconsistencies found');
+            return [
+                'total' => 0,
+                'fixed' => 0,
+            ];
+        }
+
+        $this->writeLog('WARNING', 'Found ' . count($inconsistentKeys) . ' file_keys with inconsistent is_directory values');
+
+        $fixed = 0;
+        foreach ($inconsistentKeys as $item) {
+            $fileKey = $item['file_key'];
+            $correctIsDirectory = $this->determineCorrectIsDirectory($fileKey);
+
+            $this->writeLog(
+                'INFO',
+                "File key '{$fileKey}' has inconsistent is_directory values ({$item['is_directory_values']}), "
+                . "correcting to {$correctIsDirectory} (records: {$item['record_count']})"
+            );
+
+            if (! $dryRun) {
+                $updatedCount = $this->repository->fixDirectoryFlag($fileKey, $correctIsDirectory);
+                $this->writeLog('INFO', "Updated {$updatedCount} records for '{$fileKey}'");
+                ++$fixed;
+            } else {
+                $this->writeLog('INFO', "[DRY RUN] Would update records for '{$fileKey}' to is_directory={$correctIsDirectory}");
+                ++$fixed;
+            }
+        }
+
+        return [
+            'total' => count($inconsistentKeys),
+            'fixed' => $fixed,
+        ];
+    }
+
+    /**
+     * Process a single fully deleted file_key with pre-fetched records (optimized).
+     */
+    private function processFullyDeletedFileKeyWithRecords(string $fileKey, array $records, bool $dryRun): array
+    {
+        Db::beginTransaction();
+        try {
+            $fileIds = array_column($records, 'file_id');
+
+            if (! $dryRun) {
+                $this->repository->deleteRecords($fileIds);
+            }
+
+            // Log all deleted records
+            foreach ($records as $record) {
+                $this->logDeletion('deleted', 'delete_all', $record, null, $dryRun);
+            }
+
+            Db::commit();
+
+            return ['deleted' => count($fileIds)];
+        } catch (Throwable $e) {
+            Db::rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -323,73 +444,6 @@ class FileKeyCleanupDomainService
     }
 
     /**
-     * Process file duplicates (optimized with batch query).
-     */
-    public function processFileDuplicates(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
-    {
-        $offset = 0;
-        $totalProcessed = 0;
-        $totalKept = 0;
-        $totalDeleted = 0;
-        $totalErrors = 0;
-        $batchNum = 0;
-        $previousFileKeys = [];
-        $sameKeysCount = 0;
-
-        $totalCount = $this->repository->countFileDuplicates();
-
-        $this->writeLog('INFO', "Stage 3: Processing {$totalCount} duplicate file file_keys");
-
-        $maxStep = 200;
-        $step = 0;
-        while (true) {
-            $fileKeys = $this->repository->getFileDuplicateKeys($batchSize, $offset, $projectId, $fileKey);
-            if (empty($fileKeys) || $step > $maxStep) {
-                break;
-            }
-            $step++;
-
-            $remainingCount = $this->repository->countFileDuplicates();
-            $this->writeLog('INFO', "Processing batch {$batchNum} (50 file_keys, {$remainingCount} remaining)");
-
-            // Optimized: Batch query all records for these file_keys at once
-            $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
-
-            foreach ($fileKeys as $currentFileKey) {
-                try {
-                    $records = $recordsGrouped[$currentFileKey] ?? [];
-                    if (empty($records)) {
-                        continue;
-                    }
-                    $result = $this->processFileFileKeyWithRecords($currentFileKey, $records, $dryRun);
-                    if ($result['kept'] > 0) {
-                        ++$totalKept;
-                    }
-                    $totalDeleted += $result['deleted'];
-                    ++$totalProcessed;
-                } catch (Throwable $e) {
-                    ++$totalErrors;
-                    $this->logError('file', $currentFileKey, $e->getMessage());
-                    $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
-                }
-            }
-            break;
-        }
-
-        $this->writeLog(
-            'INFO',
-            "Stage 3 completed: {$totalProcessed} file_keys processed, {$totalKept} kept, {$totalDeleted} deleted, {$totalErrors} errors"
-        );
-
-        return [
-            'processed' => $totalProcessed,
-            'kept' => $totalKept,
-            'deleted' => $totalDeleted,
-            'errors' => $totalErrors,
-        ];
-    }
-
-    /**
      * Process a single file file_key with pre-fetched records (optimized).
      * Enhanced with parent_id validation logic.
      */
@@ -457,7 +511,7 @@ class FileKeyCleanupDomainService
 
     /**
      * Select the record to keep for file duplicates with parent_id validation.
-     * 
+     *
      * Rules:
      * 1. If all parent_ids are the same, keep the latest updated_at
      * 2. If parent_ids differ:
@@ -465,7 +519,7 @@ class FileKeyCleanupDomainService
      *    2.2 If multiple parent_ids exist, keep the latest updated_at
      *    2.3 If only one parent_id exists, keep the latest updated_at
      *    2.4 If no parent_ids exist, keep the latest updated_at
-     * 
+     *
      * Summary: Always keep the latest updated_at, but log parent_id situation
      */
     private function selectRecordToKeepForFile(array $records, string $fileKey): array
@@ -477,12 +531,12 @@ class FileKeyCleanupDomainService
         if (count($parentIds) <= 1) {
             // Sort by updated_at DESC to get the latest one
             usort($records, fn ($a, $b) => strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? ''));
-            
+
             $this->writeLog(
                 'INFO',
                 "File '{$fileKey}': All parent_ids are consistent (" . (empty($parentIds) ? 'NULL' : reset($parentIds)) . "), keeping latest updated record (file_id: {$records[0]['file_id']})"
             );
-            
+
             return $records[0];
         }
 
@@ -534,7 +588,7 @@ class FileKeyCleanupDomainService
 
     /**
      * Check which parent_ids exist in the database.
-     * 
+     *
      * @param array $parentIds Array of parent_id values to check
      * @return array Array of parent_ids that exist
      */
@@ -545,7 +599,7 @@ class FileKeyCleanupDomainService
         }
 
         $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
-        
+
         $results = Db::select(
             "SELECT DISTINCT file_id 
             FROM magic_super_agent_task_files 
@@ -558,62 +612,8 @@ class FileKeyCleanupDomainService
     }
 
     /**
-     * Verify remaining duplicates.
-     */
-    public function verifyRemainingDuplicates(): int
-    {
-        $count = $this->repository->countRemainingDuplicates();
-        $this->writeLog('INFO', "Verification: {$count} duplicate file_keys remaining");
-        return $count;
-    }
-
-    /**
-     * Detect and fix is_directory inconsistencies.
-     */
-    public function fixInconsistentDirectoryFlags(bool $dryRun = false): array
-    {
-        $inconsistentKeys = $this->repository->getInconsistentDirectoryFlags();
-        
-        if (empty($inconsistentKeys)) {
-            $this->writeLog('INFO', 'No is_directory inconsistencies found');
-            return [
-                'total' => 0,
-                'fixed' => 0,
-            ];
-        }
-
-        $this->writeLog('WARNING', 'Found ' . count($inconsistentKeys) . ' file_keys with inconsistent is_directory values');
-        
-        $fixed = 0;
-        foreach ($inconsistentKeys as $item) {
-            $fileKey = $item['file_key'];
-            $correctIsDirectory = $this->determineCorrectIsDirectory($fileKey);
-            
-            $this->writeLog(
-                'INFO', 
-                "File key '{$fileKey}' has inconsistent is_directory values ({$item['is_directory_values']}), " .
-                "correcting to {$correctIsDirectory} (records: {$item['record_count']})"
-            );
-            
-            if (!$dryRun) {
-                $updatedCount = $this->repository->fixDirectoryFlag($fileKey, $correctIsDirectory);
-                $this->writeLog('INFO', "Updated {$updatedCount} records for '{$fileKey}'");
-                $fixed++;
-            } else {
-                $this->writeLog('INFO', "[DRY RUN] Would update records for '{$fileKey}' to is_directory={$correctIsDirectory}");
-                $fixed++;
-            }
-        }
-
-        return [
-            'total' => count($inconsistentKeys),
-            'fixed' => $fixed,
-        ];
-    }
-
-    /**
      * Determine correct is_directory value based on file_key pattern.
-     * 
+     *
      * Rules:
      * - No extension (e.g., "xx/a" or "xx/a/") → Directory (1)
      * - Has extension (e.g., "xx/a.txt") → File (0)
@@ -622,16 +622,16 @@ class FileKeyCleanupDomainService
     {
         // Remove trailing slash if exists
         $fileKey = rtrim($fileKey, '/');
-        
+
         // Get the last part after the last slash
         $lastPart = basename($fileKey);
-        
+
         // Check if it has a file extension
         // A file extension is a dot followed by 1-10 alphanumeric characters
         if (preg_match('/\.[a-zA-Z0-9]{1,10}$/', $lastPart)) {
             return 0; // File
         }
-        
+
         return 1; // Directory
     }
 
@@ -743,4 +743,3 @@ class FileKeyCleanupDomainService
         }
     }
 }
-

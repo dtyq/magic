@@ -196,15 +196,15 @@ class CleanupDuplicateFileKeysCommand extends HyperfCommand
 
             // Stage 4: Verification and Fixes
             $this->displayStageHeader('Stage 4: Verification and Fixes');
-            
+
             // Step 4.1: Check and fix is_directory inconsistencies
             $this->info('  🔍 Checking for is_directory inconsistencies...');
             $fixResults = $this->cleanupService->fixInconsistentDirectoryFlags($dryRun);
-            
+
             if ($fixResults['total'] > 0) {
                 if ($dryRun) {
                     $this->warn("  ⚠️  Found {$fixResults['total']} file_keys with inconsistent is_directory values");
-                    $this->info("  💡 Run without --dry-run to fix these automatically");
+                    $this->info('  💡 Run without --dry-run to fix these automatically');
                 } else {
                     $this->info("  ✅ Fixed {$fixResults['fixed']} file_keys with inconsistent is_directory values");
                 }
@@ -212,7 +212,7 @@ class CleanupDuplicateFileKeysCommand extends HyperfCommand
                 $this->info('  ✅ No is_directory inconsistencies found');
             }
             $this->line('');
-            
+
             // Step 4.2: Check remaining duplicates
             $this->info('  🔍 Checking for remaining duplicates...');
             $remainingDuplicates = $this->cleanupService->verifyRemainingDuplicates();
@@ -221,8 +221,8 @@ class CleanupDuplicateFileKeysCommand extends HyperfCommand
                 $this->info('  ✅ All duplicates have been cleaned up successfully!');
             } else {
                 $this->warn("  ⚠️  {$remainingDuplicates} duplicate file_keys still remaining");
-                if ($fixResults['total'] > 0 && !$dryRun) {
-                    $this->info("  💡 is_directory values were corrected. Re-run cleanup to process the corrected records.");
+                if ($fixResults['total'] > 0 && ! $dryRun) {
+                    $this->info('  💡 is_directory values were corrected. Re-run cleanup to process the corrected records.');
                 }
             }
             $this->line('');
@@ -356,4 +356,3 @@ class CleanupDuplicateFileKeysCommand extends HyperfCommand
         }
     }
 }
-

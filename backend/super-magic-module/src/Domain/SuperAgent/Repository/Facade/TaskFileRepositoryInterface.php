@@ -108,6 +108,16 @@ interface TaskFileRepositoryInterface
     public function insertOrIgnore(TaskFileEntity $entity): ?TaskFileEntity;
 
     /**
+     * 插入或更新文件.
+     * 使用 INSERT ... ON DUPLICATE KEY UPDATE 语法
+     * 当 file_key 冲突时更新现有记录，否则插入新记录.
+     *
+     * @param TaskFileEntity $entity 文件实体
+     * @return TaskFileEntity 插入或更新后的文件实体
+     */
+    public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity;
+
+    /**
      * 更新文件.
      */
     public function updateById(TaskFileEntity $entity): TaskFileEntity;

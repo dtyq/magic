@@ -213,6 +213,16 @@ class TaskFileDomainService
     }
 
     /**
+     * Insert or update file.
+     * Uses INSERT ... ON DUPLICATE KEY UPDATE syntax.
+     * When file_key conflicts, updates the existing record; otherwise inserts a new record.
+     */
+    public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity
+    {
+        return $this->taskFileRepository->insertOrUpdate($entity);
+    }
+
+    /**
      * Update file by ID.
      */
     public function updateById(TaskFileEntity $entity): TaskFileEntity
@@ -333,10 +343,8 @@ class TaskFileDomainService
                 return $fileEntity;
             }
 
-            $isCreated = false;
             $currentTime = date('Y-m-d H:i:s');
             if (empty($fileEntity)) {
-                $isCreated = true;
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
@@ -393,10 +401,7 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            if ($isCreated) {
-                $newFileEntity = $this->taskFileRepository->insert($fileEntity);
-            }
-            $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
+            $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
 
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
@@ -491,7 +496,7 @@ class TaskFileDomainService
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
             $taskFileEntity->setOrganizationCode($organizationCode);
             $taskFileEntity->setIsHidden(false);
-            $taskFileEntity->setSort(0);
+            $taskFileEntity->setSort($sortValue);
 
             // Extract file extension for files
             if (! $isDirectory && ! empty($fileName)) {
@@ -505,7 +510,7 @@ class TaskFileDomainService
             $taskFileEntity->setUpdatedAt($now);
 
             // Save to database
-            $this->insert($taskFileEntity);
+            $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
 
             Db::commit();
             return $taskFileEntity;
@@ -533,9 +538,6 @@ class TaskFileDomainService
 
         // Delete file record
         $this->taskFileRepository->deleteById($fileEntity->getFileId());
-        // Delete the same file in projects
-        $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
-
         return true;
     }
 
@@ -1130,10 +1132,6 @@ class TaskFileDomainService
 
         try {
             $this->taskFileRepository->deleteById($existingFile->getFileId());
-
-            // Delete the same file in projects
-            $this->taskFileRepository->deleteByFileKeyAndProjectId($existingFile->getFileKey(), $existingFile->getProjectId());
-
             return true;
         } catch (Throwable $e) {
             // Log error if needed
@@ -1187,8 +1185,9 @@ class TaskFileDomainService
         $now = date('Y-m-d H:i:s');
         $rootDirEntity->setCreatedAt($now);
         $rootDirEntity->setUpdatedAt($now);
+        $rootDirEntity->setDeletedAt(null);
 
-        $this->insert($rootDirEntity);
+        $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
 
         return $rootDirEntity->getFileId();
     }
@@ -1847,7 +1846,7 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        $this->insert($dirEntity);
+        $this->insertOrUpdate($dirEntity);
 
         return $dirEntity->getFileId();
     }

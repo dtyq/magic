@@ -19,11 +19,10 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
 
     /**
      * Get all statistics in one query (optimized).
-     * Returns: ['deleted' => int, 'directory' => int, 'file' => int]
+     * Returns: ['deleted' => int, 'directory' => int, 'file' => int].
      */
     public function getAllStatistics(?int $projectId = null, ?string $fileKey = null): array
     {
-        
         $whereConditions = ['file_key IS NOT NULL', "file_key != ''"];
         $params = [];
 
@@ -262,7 +261,7 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     public function getRecordsByFileKey(string $fileKey): array
     {
         $results = Db::select(
-            "SELECT *
+            'SELECT *
             FROM magic_super_agent_task_files
             WHERE file_key = ?
             ORDER BY 
@@ -270,7 +269,7 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
                 CASE WHEN topic_id IS NOT NULL THEN 0 ELSE 1 END,
                 CASE WHEN project_id IS NOT NULL THEN 0 ELSE 1 END,
                 created_at ASC,
-                file_id ASC",
+                file_id ASC',
             [$fileKey]
         );
 
@@ -280,7 +279,7 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
 
     /**
      * Get all records for multiple file_keys, ordered by priority (optimized batch query).
-     * Returns: ['file_key1' => [record1, record2, ...], 'file_key2' => [...], ...]
+     * Returns: ['file_key1' => [record1, record2, ...], 'file_key2' => [...], ...].
      */
     public function getRecordsByFileKeys(array $fileKeys): array
     {
@@ -414,4 +413,3 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
         );
     }
 }
-

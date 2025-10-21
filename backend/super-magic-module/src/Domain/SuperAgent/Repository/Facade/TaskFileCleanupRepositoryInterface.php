@@ -11,8 +11,8 @@ interface TaskFileCleanupRepositoryInterface
 {
     /**
      * Get all statistics in one query (optimized).
-     * @param int|null $projectId Filter by project ID
-     * @param string|null $fileKey Filter by specific file_key
+     * @param null|int $projectId Filter by project ID
+     * @param null|string $fileKey Filter by specific file_key
      */
     public function getAllStatistics(?int $projectId = null, ?string $fileKey = null): array;
 
@@ -33,22 +33,22 @@ interface TaskFileCleanupRepositoryInterface
 
     /**
      * Get fully deleted duplicate file_keys with pagination.
-     * @param int|null $projectId Filter by project ID
-     * @param string|null $fileKey Filter by specific file_key
+     * @param null|int $projectId Filter by project ID
+     * @param null|string $fileKey Filter by specific file_key
      */
     public function getFullyDeletedDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
      * Get duplicate directory file_keys with pagination.
-     * @param int|null $projectId Filter by project ID
-     * @param string|null $fileKey Filter by specific file_key
+     * @param null|int $projectId Filter by project ID
+     * @param null|string $fileKey Filter by specific file_key
      */
     public function getDirectoryDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
      * Get duplicate file file_keys with pagination.
-     * @param int|null $projectId Filter by project ID
-     * @param string|null $fileKey Filter by specific file_key
+     * @param null|int $projectId Filter by project ID
+     * @param null|string $fileKey Filter by specific file_key
      */
     public function getFileDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
 
@@ -88,4 +88,3 @@ interface TaskFileCleanupRepositoryInterface
      */
     public function fixDirectoryFlag(string $fileKey, int $correctIsDirectory): int;
 }
-
