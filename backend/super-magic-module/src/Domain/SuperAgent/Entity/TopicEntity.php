@@ -42,6 +42,11 @@ class TopicEntity extends AbstractEntity
     protected int $projectId = 0;
 
     /**
+     * @var null|int 复制来源话题ID
+     */
+    protected ?int $fromTopicId = null;
+
+    /**
      * @var string Chat话题ID
      */
     protected string $chatTopicId = '';
@@ -159,6 +164,7 @@ class TopicEntity extends AbstractEntity
             'user_organization_code' => $this->userOrganizationCode ?? '',
             'workspace_id' => $this->workspaceId ?? 0,
             'project_id' => $this->projectId ?? 0,
+            'from_topic_id' => $this->fromTopicId,
             'chat_topic_id' => $this->chatTopicId ?? '',
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
@@ -255,6 +261,22 @@ class TopicEntity extends AbstractEntity
         }
 
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function getFromTopicId(): ?int
+    {
+        return $this->fromTopicId;
+    }
+
+    public function setFromTopicId($fromTopicId): self
+    {
+        // 当输入不是整数时进行转换，null保持null
+        if ($fromTopicId !== null && ! is_int($fromTopicId)) {
+            $fromTopicId = (int) $fromTopicId;
+        }
+
+        $this->fromTopicId = $fromTopicId;
         return $this;
     }
 

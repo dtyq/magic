@@ -98,4 +98,15 @@ class TaskMessageDomainService
 
         return $messageEntity;
     }
+
+    /**
+     * Update message IM sequence ID.
+     *
+     * @param int $messageId Message ID
+     * @param null|int $imSeqId IM sequence ID, null to skip update
+     */
+    public function updateMessageSeqId(int $messageId, ?int $imSeqId): void
+    {
+        $this->messageRepository->updateMessageSeqId($messageId, $imSeqId);
+    }
 }

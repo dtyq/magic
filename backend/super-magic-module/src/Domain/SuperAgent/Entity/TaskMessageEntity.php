@@ -167,6 +167,12 @@ class TaskMessageEntity extends AbstractEntity
         return $this->id;
     }
 
+    public function setId(int $id): self
+    {
+        $this->id = $id;
+        return $this;
+    }
+
     public function getSenderType(): string
     {
         return $this->senderType;
@@ -197,6 +203,12 @@ class TaskMessageEntity extends AbstractEntity
     public function setReceiverUid(?string $receiverUid): self
     {
         $this->receiverUid = $receiverUid ?? '';
+        return $this;
+    }
+
+    public function setMessageId(string $messageId): self
+    {
+        $this->messageId = $messageId;
         return $this;
     }
 
@@ -276,8 +288,11 @@ class TaskMessageEntity extends AbstractEntity
         return $this->steps;
     }
 
-    public function setSteps(?array $steps): self
+    public function setSteps(null|array|string $steps): self
     {
+        if (is_string($steps)) {
+            $steps = json_decode($steps, true);
+        }
         $this->steps = empty($steps) ? null : $steps;
         return $this;
     }
@@ -287,8 +302,11 @@ class TaskMessageEntity extends AbstractEntity
         return $this->tool;
     }
 
-    public function setTool(?array $tool): self
+    public function setTool(null|array|string $tool): self
     {
+        if (is_string($tool)) {
+            $tool = json_decode($tool, true);
+        }
         $this->tool = empty($tool) ? null : $tool;
         return $this;
     }
@@ -298,8 +316,11 @@ class TaskMessageEntity extends AbstractEntity
         return $this->attachments;
     }
 
-    public function setAttachments(?array $attachments): self
+    public function setAttachments(null|array|string $attachments): self
     {
+        if (is_string($attachments)) {
+            $attachments = json_decode($attachments, true);
+        }
         $this->attachments = empty($attachments) ? null : $attachments;
         return $this;
     }
@@ -477,6 +498,38 @@ class TaskMessageEntity extends AbstractEntity
         return array_filter($result, function ($value) {
             return $value !== null;
         });
+    }
+
+    public function toArrayWithoutOtherField(): array
+    {
+        return [
+            'id' => $this->id,
+            'sender_type' => $this->senderType,
+            'sender_uid' => $this->senderUid,
+            'receiver_uid' => $this->receiverUid,
+            'message_id' => $this->messageId,
+            'type' => $this->type,
+            'task_id' => $this->taskId,
+            'topic_id' => $this->topicId,
+            'status' => $this->status,
+            'content' => $this->content,
+            'raw_content' => $this->rawContent ?? '',
+            'steps' => $this->getSteps() !== null ? json_encode($this->getSteps(), JSON_UNESCAPED_UNICODE) : null,
+            'tool' => $this->getTool() !== null ? json_encode($this->getTool(), JSON_UNESCAPED_UNICODE) : null,
+            'attachments' => $this->getAttachments() !== null ? json_encode($this->getAttachments(), JSON_UNESCAPED_UNICODE) : null,
+            'mentions' => $this->getMentions() !== null ? json_encode($this->getMentions(), JSON_UNESCAPED_UNICODE) : null,
+            'event' => $this->event,
+            'send_timestamp' => $this->sendTimestamp,
+            'show_in_ui' => $this->showInUi,
+            'raw_data' => $this->rawData ?? '',
+            'seq_id' => $this->seqId,
+            'processing_status' => $this->processingStatus,
+            'error_message' => $this->errorMessage,
+            'retry_count' => $this->retryCount,
+            'processed_at' => $this->processedAt,
+            'im_seq_id' => $this->imSeqId,
+            'correlation_id' => $this->correlationId,
+        ];
     }
 
     public static function taskMessageDTOToTaskMessageEntity(TaskMessageDTO $taskMessageDTO): TaskMessageEntity

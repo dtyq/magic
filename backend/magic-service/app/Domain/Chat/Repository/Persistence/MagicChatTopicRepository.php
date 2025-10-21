@@ -263,6 +263,37 @@ class MagicChatTopicRepository implements MagicChatTopicRepositoryInterface
         return $this->topicModel::query()->whereIn('id', $ids)->delete();
     }
 
+    /**
+     * Get topics by topic ID.
+     * @param string $topicId 话题ID
+     * @return MagicTopicEntity[] 话题实体数组
+     */
+    public function getTopicsByTopicId(string $topicId): array
+    {
+        $query = $this->topicModel::query()->where('topic_id', $topicId);
+        $topics = Db::select($query->toSql(), $query->getBindings());
+        return TopicAssembler::getTopicEntities($topics);
+    }
+
+    /**
+     * Get topic messages by conversation ID, topic ID and max seq ID.
+     * @param string $conversationId 会话ID
+     * @param string $topicId 话题ID
+     * @param int $maxSeqId 最大序列ID（包含该ID）
+     * @return MagicTopicMessageEntity[] 话题消息实体数组
+     */
+    public function getTopicMessagesBySeqId(string $conversationId, string $topicId, int $maxSeqId): array
+    {
+        $query = $this->topicMessagesModel::query()
+            ->where('conversation_id', $conversationId)
+            ->where('topic_id', $topicId)
+            ->where('seq_id', '<=', $maxSeqId)
+            ->orderBy('seq_id', 'asc');
+
+        $topicMessages = Db::select($query->toSql(), $query->getBindings());
+        return TopicAssembler::getTopicMessageEntities($topicMessages);
+    }
+
     // 避免 redis 缓存序列化的对象,占用太多内存
     #[Cacheable(prefix: 'topic:id:conversation', value: '_#{magicTopicDTO.topicId}_#{magicTopicDTO.conversationId}', ttl: 60)]
     private function getTopicArray(MagicTopicEntity $magicTopicDTO): ?array

@@ -48,11 +48,14 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;
 
+    #[ErrorMessage('task.access_denied')]
+    case TASK_ACCESS_DENIED = 51101;
+
     #[ErrorMessage('task.work_dir_not_found')]
-    case WORK_DIR_NOT_FOUND = 51101;
+    case WORK_DIR_NOT_FOUND = 51102;
 
     #[ErrorMessage('task.create_workspace_version_failed')]
-    case CREATE_WORKSPACE_VERSION_FAILED = 51102;
+    case CREATE_WORKSPACE_VERSION_FAILED = 51103;
 
     // File related error codes (51150-51199)
     #[ErrorMessage('file.permission_denied')]

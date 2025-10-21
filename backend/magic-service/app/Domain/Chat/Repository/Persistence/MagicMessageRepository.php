@@ -80,6 +80,89 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         );
     }
 
+    /**
+     * Check if message exists by app_message_id and optional message_type.
+     * Uses covering index (app_message_id, deleted_at, message_type) to avoid table lookup.
+     */
+    public function isMessageExistsByAppMessageId(string $appMessageId, string $messageType = ''): bool
+    {
+        if (empty($appMessageId)) {
+            return false;
+        }
+
+        // Build query to maximize covering index usage
+        // Index order: app_message_id, deleted_at, message_type
+        $query = $this->magicMessage::query()
+            ->select(Db::raw('1'))  // Only select constant to ensure index-only scan
+            ->where('app_message_id', $appMessageId)
+            ->whereNull('deleted_at');
+
+        // Only add message type filter when messageType is not empty
+        if (! empty($messageType)) {
+            $query->where('message_type', $messageType);
+        }
+
+        // Use limit(1) for early termination since we only care about existence
+        return $query->limit(1)->exists();
+    }
+
+    public function getMagicMessageIdByAppMessageId(string $appMessageId, string $messageType = ''): string
+    {
+        if (empty($appMessageId)) {
+            return '';
+        }
+
+        // Build query to maximize covering index usage
+        // Index order: app_message_id, deleted_at, message_type
+        $query = $this->magicMessage::query()
+            ->select('magic_message_id')  // Only select magic_message_id field
+            ->where('app_message_id', $appMessageId)
+            ->whereNull('deleted_at');
+
+        // Only add message type filter when messageType is not empty
+        if (! empty($messageType)) {
+            $query->where('message_type', $messageType);
+        }
+
+        // Use limit(1) for early termination and get the first result
+        $result = $query->limit(1)->first();
+
+        return $result ? $result->magic_message_id : '';
+    }
+
+    /**
+     * Get messages by magic message IDs.
+     * @param array $magicMessageIds Magic message ID数组
+     * @return MagicMessageEntity[] 消息实体数组
+     */
+    public function getMessagesByMagicMessageIds(array $magicMessageIds): array
+    {
+        if (empty($magicMessageIds)) {
+            return [];
+        }
+
+        $query = $this->magicMessage::query()->whereIn('magic_message_id', $magicMessageIds);
+        $messages = Db::select($query->toSql(), $query->getBindings());
+        
+        return array_map(function ($message) {
+            return MessageAssembler::getMessageEntity($message);
+        }, $messages);
+    }
+
+    /**
+     * Batch create messages.
+     * @param array $messagesData 消息数据数组
+     * @return bool 是否创建成功
+     */
+    public function batchCreateMessages(array $messagesData): bool
+    {
+        if (empty($messagesData)) {
+            return true;
+        }
+
+        return $this->magicMessage::query()->insert($messagesData);
+    }
+
     #[Cacheable(prefix: 'getMessageByMagicMessageId', value: '_#{magicMessageId}', ttl: 10)]
     private function getMessageDataByMagicMessageId(string $magicMessageId)
     {

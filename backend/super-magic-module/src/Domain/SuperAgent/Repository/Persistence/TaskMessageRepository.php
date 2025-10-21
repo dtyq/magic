@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -73,18 +74,16 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         // 确保排序方向是有效的
         $sortDirection = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
-        // 构建基础查询 - 关联 magic_chat_sequences 表获取 im_status
+        // 构建基础查询 - 不使用 leftJoin，避免影响 casts 转换
         $query = $this->model::query()
-            ->leftJoin('magic_chat_sequences', 'magic_super_agent_message.im_seq_id', '=', 'magic_chat_sequences.id')
-            ->select('magic_super_agent_message.*', 'magic_chat_sequences.status as im_status')
-            ->where('magic_super_agent_message.topic_id', $topicId);
+            ->where('topic_id', $topicId);
 
         // 如果 $showInUi 为 true，则添加条件过滤
         if ($showInUi) {
-            $query->where('magic_super_agent_message.show_in_ui', true);
+            $query->where('show_in_ui', true);
         }
 
-        $query->orderBy('magic_super_agent_message.id', $sortDirection);
+        $query->orderBy('id', $sortDirection);
 
         // 获取总记录数
         $total = $query->count();
@@ -100,8 +99,31 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
         // 将查询结果转换为实体对象
         $messages = [];
+        $imSeqIds = [];
         foreach ($records as $record) {
-            $messages[] = new TaskMessageEntity($record->toArray());
+            // toArray() 会自动应用 casts 转换
+            $entity = new TaskMessageEntity($record->toArray());
+            $messages[] = $entity;
+
+            // 收集 im_seq_id 用于批量查询 im_status
+            if ($entity->getImSeqId() !== null) {
+                $imSeqIds[$entity->getImSeqId()] = $entity->getImSeqId();
+            }
+        }
+
+        // 批量查询 im_status
+        if (! empty($imSeqIds)) {
+            $imStatusMap = Db::table('magic_chat_sequences')
+                ->whereIn('id', array_values($imSeqIds))
+                ->pluck('status', 'id')
+                ->toArray();
+
+            // 将 im_status 设置到对应的实体中
+            foreach ($messages as $message) {
+                if ($message->getImSeqId() !== null && isset($imStatusMap[$message->getImSeqId()])) {
+                    $message->setImStatus((int) $imStatusMap[$message->getImSeqId()]);
+                }
+            }
         }
 
         // 返回结构化结果
@@ -324,5 +346,61 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }
 
         return $processableMessages;
+    }
+
+    /**
+     * @return TaskMessageEntity[]
+     */
+    public function findMessagesToCopyByTopicIdAndMessageId(int $topicId, int $messageId): array
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('show_in_ui', true)
+            ->where('id', '<=', $messageId)
+            ->orderBy('id', 'asc');
+
+        $records = $query->get();
+
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages ?? [];
+    }
+
+    public function batchCreateMessages(array $messageEntities): array
+    {
+        if (empty($messageEntities)) {
+            return [];
+        }
+
+        $insertData = [];
+
+        foreach ($messageEntities as $messageEntity) {
+            // 如果ID未设置，则自动生成
+            if (empty($messageEntity->getId())) {
+                $messageEntity->setId(IdGenerator::getSnowId());
+            }
+
+            $insertData[] = $messageEntity->toArrayWithoutOtherField();
+        }
+
+        // 批量插入
+        $this->model::query()->insert($insertData);
+
+        return $messageEntities; // 直接返回传入的entities，因为它们已经包含了正确的ID
+    }
+
+    public function updateMessageSeqId(int $id, ?int $imSeqId): void
+    {
+        // 如果 im_seq_id 为空，则不执行更新
+        if ($imSeqId === null) {
+            return;
+        }
+
+        // 只更新 im_seq_id 字段
+        $this->model::query()
+            ->where('id', $id)
+            ->update(['im_seq_id' => $imSeqId]);
     }
 }

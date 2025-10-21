@@ -382,4 +382,57 @@ class TaskRepository implements TaskRepositoryInterface
             ->where($condition)
             ->update($data) > 0;
     }
+
+    public function getTasksByTopicIdAndTaskIds(int $topicId, array $taskIds): array
+    {
+        if (empty($taskIds)) {
+            return [];
+        }
+
+        $models = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->whereIn('id', $taskIds)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $result[] = new TaskEntity($model->toArray());
+        }
+
+        return $result;
+    }
+
+    public function batchCreateTasks(array $taskEntities): array
+    {
+        if (empty($taskEntities)) {
+            return [];
+        }
+
+        $date = date('Y-m-d H:i:s');
+        $insertData = [];
+
+        foreach ($taskEntities as $taskEntity) {
+            // 如果ID未设置，则自动生成（向下兼容）
+            if (empty($taskEntity->getId())) {
+                $taskEntity->setId(IdGenerator::getSnowId());
+            }
+
+            // 确保时间戳设置正确
+            if (empty($taskEntity->getCreatedAt())) {
+                $taskEntity->setCreatedAt($date);
+            }
+            if (empty($taskEntity->getUpdatedAt())) {
+                $taskEntity->setUpdatedAt($date);
+            }
+
+            $insertData[] = $taskEntity->toArray();
+        }
+
+        // 批量插入
+        $this->model::query()->insert($insertData);
+
+        return $taskEntities; // 直接返回传入的entities，因为它们已经包含了正确的ID
+    }
 }
