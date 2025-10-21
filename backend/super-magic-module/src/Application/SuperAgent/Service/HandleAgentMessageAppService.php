@@ -480,33 +480,14 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process all attachments - Unified attachment processing entry point with task-level locking.
+     * Process all attachments - Unified attachment processing entry point.
+     * File-level locking is handled in processSingleAttachment for better concurrency.
      */
     private function processAllAttachments(array &$messageData, TaskContext $taskContext): void
     {
-        // Setup task-level lock for all attachment processing
         $this->logger->info(sprintf('processAllAttachments: project_id: %d', $taskContext->getProjectId()));
-        $lockKey = WorkDirectoryUtil::getLockerKey($taskContext->getProjectId());
-        $lockOwner = $taskContext->getCurrentUserId();
-        $lockExpireSeconds = 30; // 30 seconds timeout for task-level processing
-        $lockAcquired = false;
 
         try {
-            // Attempt to acquire distributed task-level lock
-            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
-            if (! $lockAcquired) {
-                $this->logger->warning(sprintf(
-                    'Failed to acquire task-level attachment lock, task_id: %s',
-                    $taskContext->getTask()->getTaskId()
-                ));
-                return;
-            }
-
-            $this->logger->info(sprintf(
-                'Task-level attachment lock acquired, task_id: %s',
-                $taskContext->getTask()->getTaskId()
-            ));
-
             /** @var TaskFileEntity[] $processedEntities */
             $processedEntities = [];
 
@@ -545,21 +526,6 @@ class HandleAgentMessageAppService extends AbstractAppService
             }
         } catch (Exception $e) {
             $this->logger->error(sprintf('Exception occurred while processing attachments: %s', $e->getMessage()));
-        } finally {
-            // Ensure task-level lock is always released
-            if ($lockAcquired) {
-                if ($this->locker->release($lockKey, $lockOwner)) {
-                    $this->logger->info(sprintf(
-                        'Task-level attachment lock released, task_id: %s',
-                        $taskContext->getTask()->getTaskId()
-                    ));
-                } else {
-                    $this->logger->error(sprintf(
-                        'Failed to release task-level attachment lock, task_id: %s. Manual intervention may be required.',
-                        $taskContext->getTask()->getTaskId()
-                    ));
-                }
-            }
         }
     }
 
@@ -719,7 +685,7 @@ class HandleAgentMessageAppService extends AbstractAppService
     }
 
     /**
-     * Process single attachment using saveProjectFile approach.
+     * Process single attachment using saveProjectFile approach with file-level locking.
      * @param array $attachment Attachment data
      * @param TaskContext $taskContext Task context
      * @param ProjectEntity $projectEntity Project entity (passed from parent to avoid repeated queries)
@@ -742,16 +708,35 @@ class HandleAgentMessageAppService extends AbstractAppService
             return ['attachment' => [], 'taskFileEntity' => null];
         }
 
+        // Setup file-level lock to prevent concurrent processing of the same file
+        $fileKey = $attachment['file_key'];
+        $lockKey = WorkDirectoryUtil::getFileLockerKey($fileKey, 'agent_attachment');
+        $lockOwner = $taskContext->getCurrentUserId();
+        $lockExpireSeconds = 2;
+        $lockAcquired = false;
+
         try {
-            $savedEntity = $this->taskFileDomainService->getByFileKey($attachment['file_key']);
+            // Attempt to acquire distributed file-level lock
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, $lockExpireSeconds);
+            if (! $lockAcquired) {
+                $this->logger->warning(sprintf(
+                    'Failed to acquire file lock for attachment processing: %s, task_id: %s, type: %s',
+                    $fileKey,
+                    $task->getTaskId(),
+                    $type
+                ));
+                return ['attachment' => $attachment, 'taskFileEntity' => null];
+            }
+
+            $savedEntity = $this->taskFileDomainService->getByFileKey($fileKey);
             if ($savedEntity === null) {
                 $this->logger->error(sprintf(
                     'Attachment not found in database, skipping processing, task_id: %s, type: %s, file_key: %s',
                     $task->getTaskId(),
                     $type,
-                    $attachment['file_key']
+                    $fileKey
                 ));
-                $storageType = WorkFileUtil::isSnapshotFile($attachment['file_key'])
+                $storageType = WorkFileUtil::isSnapshotFile($fileKey)
                     ? StorageType::SNAPSHOT->value
                     : StorageType::WORKSPACE->value;
                 $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
@@ -786,10 +771,21 @@ class HandleAgentMessageAppService extends AbstractAppService
                 $attachment['filename'] ?? 'unknown',
                 $task->getTaskId(),
                 $type,
-                $attachment['file_key']
+                $fileKey
             ));
 
             return ['attachment' => $attachment, 'taskFileEntity' => null];
+        } finally {
+            // Ensure file-level lock is always released
+            if ($lockAcquired) {
+                if (! $this->locker->release($lockKey, $lockOwner)) {
+                    $this->logger->error(sprintf(
+                        'Failed to release file lock for attachment: %s, task_id: %s',
+                        $fileKey,
+                        $task->getTaskId()
+                    ));
+                }
+            }
         }
     }
 
