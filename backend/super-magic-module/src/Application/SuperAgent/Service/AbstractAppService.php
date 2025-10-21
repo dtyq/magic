@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -31,6 +32,7 @@ class AbstractAppService extends AbstractKernelAppService
     public function getAccessibleProject(int $projectId, string $userId, string $organizationCode, MemberRole $requiredRole = MemberRole::VIEWER): ProjectEntity
     {
         $projectDomainService = di(ProjectDomainService::class);
+        $packageFilterService = di(PackageFilterInterface::class);
         $projectEntity = $projectDomainService->getProjectNotUserId($projectId);
 
         /*if ($projectEntity->getUserOrganizationCode() !== $organizationCode) {
@@ -58,6 +60,11 @@ class AbstractAppService extends AbstractKernelAppService
         $magicUserAuthorization->setOrganizationCode($organizationCode);
         $magicUserAuthorization->setId($userId);
         $this->validateRoleHigherOrEqual($magicUserAuthorization, $projectId, $requiredRole);
+
+        // 判断是否付费套餐
+        if (! $packageFilterService->isPaidSubscription($projectEntity->getUserOrganizationCode())) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
         return $projectEntity;
     }
 

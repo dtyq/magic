@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -84,6 +85,7 @@ class ProjectAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Producer $producer,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly PackageFilterInterface $packageFilterService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -303,6 +305,23 @@ class ProjectAppService extends AbstractAppService
         }
 
         return $result;
+    }
+
+    /**
+     * 获取项目详情.
+     */
+    public function getProjectInfo(RequestContext $requestContext, int $projectId): ProjectEntity
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $project = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 如果当前组织未付费套餐，则禁止项目协作
+        if (! $this->packageFilterService->isPaidSubscription($project->getUserOrganizationCode())) {
+            $project->setIsCollaborationEnabled(false);
+        }
+
+        return $project;
     }
 
     /**
@@ -541,6 +560,13 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
+    }
+
+    public function getProjectRoleByUserId(int $projectId, string $userId): string
+    {
+        $projectMemberEntity = $this->projectMemberDomainService->getMemberByProjectAndUser($projectId, $userId);
+
+        return $projectMemberEntity ? $projectMemberEntity->getRoleValue() : '';
     }
 
     public function hasProjectMember(int $projectId): bool

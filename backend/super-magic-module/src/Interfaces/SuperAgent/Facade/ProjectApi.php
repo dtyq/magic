@@ -108,13 +108,15 @@ class ProjectApi extends AbstractApi
 
         $userId = $this->getAuthorization()->getId();
 
-        $project = $this->projectAppService->getProject($requestContext, (int) $id);
+        $project = $this->projectAppService->getProjectInfo($requestContext, (int) $id);
 
         $hasProjectMember = $this->projectAppService->hasProjectMember($project->getId());
 
+        $userRole = $this->projectAppService->getProjectRoleByUserId($project->getId(), $userId);
+
         $projectDTO = ProjectItemDTO::fromEntity($project, null, null, $hasProjectMember);
 
-        return $projectDTO->toArray();
+        return array_merge($projectDTO->toArray(), ['user_role' => $userRole]);
     }
 
     /**

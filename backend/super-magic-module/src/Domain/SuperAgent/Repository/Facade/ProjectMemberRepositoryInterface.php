@@ -92,6 +92,8 @@ interface ProjectMemberRepositoryInterface
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
      * @param null|string $name 项目名称模糊搜索关键词
+     * @param null|string $sortDirection 排序字段：updated_at,created_at,last_active_at
+     * @param array $organizationCodes 组织编码列表（用于过滤）
      * @return array ['total' => int, 'list' => array]
      */
     public function getProjectIdsByUserAndDepartments(
@@ -102,6 +104,7 @@ interface ProjectMemberRepositoryInterface
         string $sortDirection = 'desc',
         array $creatorUserIds = [],
         ?string $joinMethod = null,
+        array $organizationCodes = []
     ): array;
 
     /**
@@ -219,4 +222,12 @@ interface ProjectMemberRepositoryInterface
      * @return int 删除的记录数
      */
     public function deleteMembersByIds(int $projectId, array $memberIds): int;
+
+    /**
+     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
+     *
+     * @param array $targetIds 目标ID数组（用户ID或部门ID）
+     * @return array 组织编码数组
+     */
+    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array;
 }
