@@ -33,7 +33,7 @@ class OrganizationAdminPlusWhitelistRepository extends AbstractRepository implem
 
     public function save(OrganizationAdminPlusWhitelistEntity $entity): OrganizationAdminPlusWhitelistEntity
     {
-        /** @var OrganizationAdminPlusWhitelistModel|null $model */
+        /** @var null|OrganizationAdminPlusWhitelistModel $model */
         $model = $this->model::query()
             ->withTrashed()
             ->where('organization_code', $entity->getOrganizationCode())

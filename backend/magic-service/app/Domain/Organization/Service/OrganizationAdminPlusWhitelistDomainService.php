@@ -18,8 +18,7 @@ class OrganizationAdminPlusWhitelistDomainService
     public function __construct(
         private readonly OrganizationAdminPlusWhitelistRepositoryInterface $repository,
         private readonly OrganizationRepositoryInterface $organizationRepository
-    )
-    {
+    ) {
     }
 
     public function isOrgWhitelisted(string $organizationCode): bool
