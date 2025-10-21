@@ -393,7 +393,7 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            if ($isCreated) {
+            if ($isCreated && $isUpdated === false) {
                 $newFileEntity = $this->taskFileRepository->insert($fileEntity);
             }
             $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
@@ -1077,13 +1077,13 @@ class TaskFileDomainService
         ProjectEntity $projectEntity,
         string $fileKey,
         SandboxFileNotificationDataValueObject $data,
-        MessageMetadata $metadata
+        MessageMetadata $metadata,
+        bool $isUpdate = false
     ): TaskFileEntity {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         Db::beginTransaction();
         try {
             $taskEntity = $this->taskRepository->getTaskById((int) $metadata->getSuperMagicTaskId());
-
             $taskFileEntity = new TaskFileEntity();
             $taskFileEntity->setFileKey($fileKey);
             $taskFileEntity->setTaskId($taskEntity->getId());
@@ -1091,6 +1091,9 @@ class TaskFileDomainService
             $taskFileEntity->setSource($data->getSource() ?? TaskFileSource::AGENT->value);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
+            if ($isUpdate) {
+                $taskFileEntity->setSource($data->getSource() ?? TaskFileSource::AGENT->value);
+            }
             if ($data->getIsDirectory()) {
                 $taskFileEntity->setIsDirectory(true);
                 $taskFileEntity->setFileType(FileType::DIRECTORY->value);
@@ -1101,7 +1104,7 @@ class TaskFileDomainService
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
             $taskFileEntity->setFileSize($fileInfo['size']);
-            $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, withTrash: true);
+            $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, isUpdated: $isUpdate, withTrash: true);
 
             Db::commit();
             return $fileEntity;
