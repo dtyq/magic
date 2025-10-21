@@ -60,12 +60,11 @@ interface HighAvailabilityInterface
      * Check endpoint connectivity.
      *
      * This method is used for active health check to recover circuit breaker status.
-     * It will:
-     * 1. Verify if the endpoint is still enabled in business side
-     * 2. Call business side's connectivity check method
+     * It will call business side's connectivity check method.
      *
-     * @param string $endpointId Endpoint ID
+     * @param string $type 接入点类型（如：modelGateway||gpt-4）
+     * @param string $provider 服务提供商配置ID（serviceProviderConfigId）
      * @return bool True if endpoint is accessible, false otherwise
      */
-    public function checkConnectivity(string $endpointId): bool;
+    public function checkConnectivity(string $type, string $provider): bool;
 }

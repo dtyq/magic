@@ -9,14 +9,14 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
-use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AdminProviderDomainService;
-use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\EndpointProviderInterface;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -30,7 +30,6 @@ readonly class ModelGatewayEndpointProvider implements EndpointProviderInterface
 {
     public function __construct(
         private AdminProviderDomainService $adminProviderDomainService,
-        private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderAppService $adminProviderAppService,
         private LoggerInterface $logger
     ) {
@@ -94,70 +93,77 @@ readonly class ModelGatewayEndpointProvider implements EndpointProviderInterface
      * This method performs an actual connectivity test by calling the model API
      * to verify if the endpoint is accessible and working properly.
      *
-     * @param string $endpointId Endpoint ID (ProviderModelEntity ID)
+     * @param string $type 接入点类型（如：modelGateway||gpt-4）
+     * @param string $provider 服务提供商配置ID（serviceProviderConfigId）
      * @return bool True if endpoint is accessible, false otherwise
      */
-    public function checkConnectivity(string $endpointId): bool
+    public function checkConnectivity(string $type, string $provider): bool
     {
         try {
-            // 1. 查询模型实体信息
-            // 使用官方组织代码作为系统级查询，因为健康检查是系统级操作
-            $dataIsolation = ProviderDataIsolation::create(
-                OfficialOrganizationUtil::getOfficialOrganizationCode(),
-                ''
-            );
+            // 1. 从 type 中解析出 model_id
+            $modelId = EndpointAssembler::extractOriginalModelId($type);
 
-            $providerModelEntity = $this->providerModelDomainService->getById(
-                $dataIsolation,
-                $endpointId
-            );
+            // 2. 使用官方组织代码作为系统级查询，因为健康检查是系统级操作
+            $organizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
 
-            if ($providerModelEntity === null) {
-                $this->logger->warning(sprintf('Endpoint not found for connectivity check: %s', $endpointId));
-                return false;
+            // 3. provider 就是 serviceProviderConfigId，不需要查库
+            $serviceProviderConfigId = $provider;
+
+            // 4. 获取该提供商下的该模型列表
+            $serviceProviderModels = $this->adminProviderDomainService->getOrganizationActiveModelsByIdOrType(
+                $modelId,
+                $organizationCode
+            );
+            if (empty($serviceProviderModels)) {
+                return true;
             }
 
-            // 2. 检查模型是否启用
-            if ($providerModelEntity->getStatus() !== Status::Enabled) {
-                $this->logger->info(sprintf('Endpoint disabled: %s', $endpointId));
-                return false;
+            // 5. 筛选出指定提供商的模型
+            $targetModels = array_filter($serviceProviderModels, static function (ProviderModelEntity $model) use ($serviceProviderConfigId) {
+                return $model->getServiceProviderConfigId() === (int) $serviceProviderConfigId;
+            });
+            if (empty($targetModels)) {
+                return true;
             }
 
-            // 3. 调用真实的连接性测试
-            // 目前只有 VLM（图像生成类）模型支持不依赖用户授权的连接性测试
-            // LLM 和 Embedding 类型的测试需要实际调用 API，暂时只检查模型状态
-            $category = $providerModelEntity->getCategory();
-            $serviceProviderConfigId = (string) $providerModelEntity->getServiceProviderConfigId();
-            $modelVersion = $providerModelEntity->getModelVersion();
-            $organizationCode = $providerModelEntity->getOrganizationCode();
+            // 6. 使用第一个匹配的模型进行连通性测试
+            /** @var ProviderModelEntity $providerModelEntity */
+            $providerModelEntity = reset($targetModels);
+            $modelType = $providerModelEntity->getModelType();
 
-            // 对于 VLM 类型，调用实际的连接性测试
-            if ($category->value === 'vlm') {
-                $connectResponse = $this->adminProviderDomainService->vlmConnectivityTest(
+            // 7. 只对 LLM 和 Embedding 进行健康检查
+            if ($modelType === ModelType::LLM || $modelType === ModelType::EMBEDDING) {
+                // 检查模型是否启用
+                if ($providerModelEntity->getStatus() !== Status::Enabled) {
+                    return true;
+                }
+
+                // 8. 调用实际的连通性测试
+                $modelPrimaryId = (string) $providerModelEntity->getId();
+                $modelVersion = $providerModelEntity->getModelVersion();
+
+                // 创建系统级的授权对象（用于健康检查）
+                $systemAuthorization = new MagicUserAuthorization();
+                $systemAuthorization->setId('system_health_check');
+                $systemAuthorization->setOrganizationCode($organizationCode);
+                // 调用连通性测试
+                $connectResponse = $this->adminProviderAppService->connectivityTest(
                     $serviceProviderConfigId,
                     $modelVersion,
-                    $organizationCode
+                    $modelPrimaryId,
+                    $systemAuthorization
                 );
 
-                if (! $connectResponse->isStatus()) {
-                    $this->logger->warning(sprintf(
-                        'VLM connectivity test failed for endpoint %s: %s',
-                        $endpointId,
-                        $connectResponse->getMessage()
-                    ));
-                    return false;
-                }
+                return $connectResponse->isStatus();
             }
 
-            // 对于 LLM 和 Embedding 类型，目前只检查模型存在且启用状态
-            // 这对于主动恢复场景已经足够，因为熔断器已经根据实际请求结果做了判断
-            // 如果需要完整的 API 测试，需要创建系统级的测试方法
-
+            // VLM 等类型不做健康检查，直接跳过（返回 true）
             return true;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Connectivity check failed for endpoint %s: %s',
-                $endpointId,
+                'Connectivity check failed: type=%s, provider=%s, error=%s',
+                $type,
+                $provider,
                 $e->getMessage()
             ));
             return false;
