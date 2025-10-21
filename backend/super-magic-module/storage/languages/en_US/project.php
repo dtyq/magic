@@ -21,6 +21,8 @@ return [
     'update_members_failed' => 'Failed to update members',
     'member_validation_failed' => 'Member validation failed',
     'cannot_set_shortcut_for_own_project' => 'Cannot set shortcut for your own project',
+    'project_id_required_for_collaboration' => 'Project ID is required when workspace type is collaboration',
+    'not_a_collaboration_project' => 'The specified project is not a collaboration project or you do not have access',
 
     // Operation log related
     'operation_log' => [

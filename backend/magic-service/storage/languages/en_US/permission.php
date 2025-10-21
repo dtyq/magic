@@ -7,7 +7,9 @@ declare(strict_types=1);
 return [
     'resource' => [
         'admin' => 'Admin',
+        'admin_plus' => 'Admin Plus',
         'admin_ai' => 'AI Management',
+        'admin_plus_ai' => 'AI Management',
         'admin_safe' => 'Security & Permission',
         'safe_sub_admin' => 'Sub Admin',
         'ai_model' => 'AI Model',
@@ -22,6 +24,7 @@ return [
         'platform_setting_maintenance' => 'Maintenance',
         'platform_organization' => 'Organization',
         'platform_organization_list' => 'Organization List',
+        'platform_organization_whitelist' => 'Organization Whitelist',
     ],
     'operation' => [
         'query' => 'Query',

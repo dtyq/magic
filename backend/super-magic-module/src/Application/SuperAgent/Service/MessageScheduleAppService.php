@@ -54,6 +54,7 @@ use Dtyq\TaskScheduler\Entity\TaskScheduler;
 use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
 use Dtyq\TaskScheduler\Service\TaskSchedulerDomainService;
+use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
@@ -129,10 +130,15 @@ class MessageScheduleAppService extends AbstractAppService
                 $dataIsolation = $this->createDataIsolationFromContext($requestContext);
                 $this->validateResourcePermissions(
                     $dataIsolation,
-                    (int) $requestDTO->getWorkspaceId(),
+                    $requestDTO->getWorkspaceId(), // Keep as string to support "collaboration"
                     $requestDTO->getProjectId() ? (int) $requestDTO->getProjectId() : null,
                     $requestDTO->getTopicId() ? (int) $requestDTO->getTopicId() : null
                 );
+
+                // Convert collaboration to 0 for database storage
+                $workspaceIdForDb = $requestDTO->getWorkspaceId() === 'collaboration'
+                    ? 0
+                    : (int) $requestDTO->getWorkspaceId();
 
                 // 2.1 Create message schedule
                 $messageSchedule = $this->messageScheduleDomainService->createMessageSchedule(
@@ -140,7 +146,7 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getTaskName(),
                     $requestDTO->getMessageType(),
                     $requestDTO->getMessageContent(),
-                    (int) $requestDTO->getWorkspaceId(),
+                    $workspaceIdForDb, // Use converted value
                     (int) $requestDTO->getProjectId(),
                     (int) $requestDTO->getTopicId(),
                     $requestDTO->getCompleted(),
@@ -255,6 +261,9 @@ class MessageScheduleAppService extends AbstractAppService
         $projectIds = array_unique($projectIds);
         $topicIds = array_unique($topicIds);
 
+        // Remove 0 (collaboration workspace) from workspace IDs before batch fetching
+        $workspaceIds = array_filter($workspaceIds, fn ($id) => $id > 0);
+
         // Batch get names
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
         $projectNameMap = $this->projectDomainService->getProjectNamesBatch($projectIds);
@@ -263,7 +272,10 @@ class MessageScheduleAppService extends AbstractAppService
         // Convert entities to DTOs with names
         $list = [];
         foreach ($result['list'] as $entity) {
-            $workspaceName = $workspaceNameMap[$entity->getWorkspaceId()] ?? '';
+            // For collaboration workspace (id=0), set name as "Collaboration"
+            $workspaceName = $entity->getWorkspaceId() === 0
+                ? 'Collaboration'
+                : ($workspaceNameMap[$entity->getWorkspaceId()] ?? '');
             $projectName = $entity->getProjectId() ? ($projectNameMap[$entity->getProjectId()] ?? '') : '';
             $topicName = $entity->getTopicId() ? ($topicNameMap[$entity->getTopicId()] ?? '') : '';
 
@@ -294,18 +306,30 @@ class MessageScheduleAppService extends AbstractAppService
                 $currentProjectId = $messageSchedule->getProjectId();
                 $currentTopicId = $messageSchedule->getTopicId();
 
-                // Check raw properties to detect empty strings (which should be converted to 0)
-                $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
+                // Process new workspace ID
+                $newWorkspaceIdRaw = null;
+                $newWorkspaceIdForDb = $currentWorkspaceId;
+
+                if (! empty($requestDTO->getWorkspaceId())) {
+                    $newWorkspaceIdRaw = $requestDTO->getWorkspaceId();
+                    $newWorkspaceIdForDb = $newWorkspaceIdRaw === 'collaboration' ? 0 : (int) $newWorkspaceIdRaw;
+                }
+
                 $newProjectId = $requestDTO->projectId !== null ? (int) $requestDTO->getProjectId() : $currentProjectId;
                 $newTopicId = $requestDTO->topicId !== null ? (int) $requestDTO->getTopicId() : $currentTopicId;
 
                 // Check if resource IDs have changed, and validate permissions for new resources
-                if ($newWorkspaceId !== $currentWorkspaceId
+                if ($newWorkspaceIdForDb !== $currentWorkspaceId
                     || $newProjectId !== $currentProjectId
                     || $newTopicId !== $currentTopicId) {
+                    // Use raw value for validation (string or int)
+                    $workspaceIdForValidation = $newWorkspaceIdRaw ?? (
+                        $currentWorkspaceId === 0 ? 'collaboration' : $currentWorkspaceId
+                    );
+
                     $this->validateResourcePermissions(
                         $dataIsolation,
-                        $newWorkspaceId,
+                        $workspaceIdForValidation,
                         $newProjectId > 0 ? $newProjectId : null,
                         $newTopicId > 0 ? $newTopicId : null
                     );
@@ -319,8 +343,9 @@ class MessageScheduleAppService extends AbstractAppService
                 }
 
                 // Update workspace ID
-                if (! empty($requestDTO->getWorkspaceId()) && $newWorkspaceId !== $currentWorkspaceId) {
-                    $messageSchedule->setWorkspaceId($newWorkspaceId);
+                if ($newWorkspaceIdRaw !== null && $newWorkspaceIdForDb !== $currentWorkspaceId) {
+                    $messageSchedule->setWorkspaceId($newWorkspaceIdForDb);
+                    $needUpdateTaskScheduler = true;
                 }
 
                 // Update project ID (check raw property to detect empty string)
@@ -1092,11 +1117,50 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Validate resource permissions for scheduled message creation/update.
+     *
+     * @param int|string $workspaceId Workspace ID (number or "collaboration")
+     * @param null|int $projectId Project ID
+     * @param null|int $topicId Topic ID
+     * @throws Exception
      */
-    private function validateResourcePermissions(DataIsolation $dataIsolation, int $workspaceId, ?int $projectId = null, ?int $topicId = null): void
+    private function validateResourcePermissions(DataIsolation $dataIsolation, int|string $workspaceId, ?int $projectId = null, ?int $topicId = null): void
     {
+        // Handle collaboration workspace
+        if ($workspaceId === 'collaboration') {
+            // 1. Validate project ID is required
+            if (empty($projectId) || $projectId <= 0) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::PROJECT_ID_REQUIRED_FOR_COLLABORATION,
+                    trans('project.project_id_required_for_collaboration')
+                );
+            }
+
+            // 2. Validate user is a member of the project (collaboration project check)
+            $isProjectMember = $this->projectMemberDomainService->isProjectMemberByUser(
+                $projectId,
+                $dataIsolation->getCurrentUserId()
+            );
+
+            if (! $isProjectMember) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::NOT_A_COLLABORATION_PROJECT,
+                    trans('project.not_a_collaboration_project')
+                );
+            }
+
+            // 3. Validate topic access (if topic_id is provided)
+            if ($topicId !== null && $topicId > 0) {
+                $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
+            }
+
+            return;
+        }
+
+        // Handle normal workspace
+        $workspaceIdInt = (int) $workspaceId;
+
         // 1. Validate workspace access
-        $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+        $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceIdInt);
         if (! $workspace) {
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
         }
