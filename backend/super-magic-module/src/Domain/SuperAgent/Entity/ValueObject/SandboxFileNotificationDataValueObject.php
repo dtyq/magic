@@ -20,13 +20,15 @@ class SandboxFileNotificationDataValueObject
      * @param string $filePath Relative file path
      * @param int $fileSize File size in bytes
      * @param int $isDirectory Whether the path is a directory (1 for directory, 0 for file)
+     * @param int $source Source of the file (TaskFileSource::HOME->value, TaskFileSource::PROJECT_DIRECTORY->value, TaskFileSource::AGENT->value, TaskFileSource::COPY->value, TaskFileSource::AI_IMAGE_GENERATION->value)
      */
     public function __construct(
         private int $timestamp,
         private string $operation,
         private string $filePath,
         private int $fileSize = 0,
-        private int $isDirectory = 0
+        private int $isDirectory = 0,
+        private int $source = TaskFileSource::AGENT->value
     ) {
     }
 
@@ -42,7 +44,8 @@ class SandboxFileNotificationDataValueObject
             $data['operation'] ?? '',
             $data['file_path'] ?? '',
             $data['file_size'] ?? 0,
-            $data['is_directory'] ?? 0
+            $data['is_directory'] ?? 0,
+            $data['source'] ?? TaskFileSource::AGENT->value
         );
     }
 
@@ -59,6 +62,7 @@ class SandboxFileNotificationDataValueObject
             'file_path' => $this->filePath,
             'file_size' => $this->fileSize,
             'is_directory' => $this->isDirectory,
+            'source' => $this->source,
         ];
     }
 
@@ -126,5 +130,15 @@ class SandboxFileNotificationDataValueObject
     public function isDirectory(): bool
     {
         return $this->isDirectory === 1;
+    }
+
+    public function getSource(): int
+    {
+        return $this->source;
+    }
+
+    public function setSource(int $source): void
+    {
+        $this->source = $source;
     }
 }

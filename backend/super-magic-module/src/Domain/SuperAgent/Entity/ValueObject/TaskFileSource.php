@@ -30,6 +30,7 @@ enum TaskFileSource: int
     case AGENT = 3;
 
     case COPY = 4;
+    case AI_IMAGE_GENERATION = 5;
 
     /**
      * 获取来源名称.
@@ -42,6 +43,7 @@ enum TaskFileSource: int
             self::PROJECT_DIRECTORY => '项目目录',
             self::AGENT => 'Agent',
             self::COPY => '复制',
+            self::AI_IMAGE_GENERATION => 'AI图片生成',
         };
     }
 
@@ -59,6 +61,7 @@ enum TaskFileSource: int
             2 => self::PROJECT_DIRECTORY,
             3 => self::AGENT,
             4 => self::COPY,
+            5 => self::AI_IMAGE_GENERATION,
             default => self::DEFAULT,
         };
     }
