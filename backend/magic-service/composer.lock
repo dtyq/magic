@@ -2195,12 +2195,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c29d9a8a486b7215ae950882c0740d6682a9489b"
+                "reference": "ce45a509af9c646129932b12e1338f6f57efd5f0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c29d9a8a486b7215ae950882c0740d6682a9489b",
-                "reference": "c29d9a8a486b7215ae950882c0740d6682a9489b",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=ce45a509af9c646129932b12e1338f6f57efd5f0",
+                "reference": "ce45a509af9c646129932b12e1338f6f57efd5f0",
                 "shasum": ""
             },
             "require": {
@@ -2308,7 +2308,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-10-20T14:11:49+00:00"
+            "time": "2025-10-21T02:41:28+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -17689,12 +17689,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "7a8f128281289412092c450a5eb3df5cabbc89e1"
+                "reference": "b8a07f2b49070920a65c1e5089a21509d0358345"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/7a8f128281289412092c450a5eb3df5cabbc89e1",
-                "reference": "7a8f128281289412092c450a5eb3df5cabbc89e1",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/b8a07f2b49070920a65c1e5089a21509d0358345",
+                "reference": "b8a07f2b49070920a65c1e5089a21509d0358345",
                 "shasum": ""
             },
             "conflict": {
@@ -18108,7 +18108,7 @@
                 "luyadev/yii-helpers": "<1.2.1",
                 "macropay-solutions/laravel-crud-wizard-free": "<3.4.17",
                 "maestroerror/php-heic-to-jpg": "<1.0.5",
-                "magento/community-edition": "<=2.4.5.0-patch14|==2.4.6|>=2.4.6.0-patch1,<=2.4.6.0-patch12|>=2.4.7.0-beta1,<=2.4.7.0-patch7|>=2.4.8.0-beta1,<=2.4.8.0-patch2|>=2.4.9.0-alpha1,<=2.4.9.0-alpha2|==2.4.9",
+                "magento/community-edition": "<2.4.6.0-patch13|>=2.4.7.0-beta1,<2.4.7.0-patch8|>=2.4.8.0-beta1,<2.4.8.0-patch3|>=2.4.9.0-alpha1,<2.4.9.0-alpha3|==2.4.9",
                 "magento/core": "<=1.9.4.5",
                 "magento/magento1ce": "<1.9.4.3-dev",
                 "magento/magento1ee": ">=1,<1.14.4.3-dev",
@@ -18129,7 +18129,7 @@
                 "maximebf/debugbar": "<1.19",
                 "mdanter/ecc": "<2",
                 "mediawiki/abuse-filter": "<1.39.9|>=1.40,<1.41.3|>=1.42,<1.42.2",
-                "mediawiki/cargo": "<3.6.1",
+                "mediawiki/cargo": "<3.8.3",
                 "mediawiki/core": "<1.39.5|==1.40",
                 "mediawiki/data-transfer": ">=1.39,<1.39.11|>=1.41,<1.41.3|>=1.42,<1.42.2",
                 "mediawiki/matomo": "<2.4.3",
@@ -18390,7 +18390,7 @@
                 "spoonity/tcpdf": "<6.2.22",
                 "squizlabs/php_codesniffer": ">=1,<2.8.1|>=3,<3.0.1",
                 "ssddanbrown/bookstack": "<24.05.1",
-                "starcitizentools/citizen-skin": ">=1.9.4,<3.4",
+                "starcitizentools/citizen-skin": ">=1.9.4,<3.9",
                 "starcitizentools/short-description": ">=4,<4.0.1",
                 "starcitizentools/tabber-neue": ">=1.9.1,<2.7.2|>=3,<3.1.1",
                 "starcitizenwiki/embedvideo": "<=4",
@@ -18661,7 +18661,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-10-17T18:06:27+00:00"
+            "time": "2025-10-20T22:05:40+00:00"
         },
         {
             "name": "sebastian/cli-parser",
