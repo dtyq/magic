@@ -143,7 +143,7 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
 
         $query = $this->magicMessage::query()->whereIn('magic_message_id', $magicMessageIds);
         $messages = Db::select($query->toSql(), $query->getBindings());
-        
+
         return array_map(function ($message) {
             return MessageAssembler::getMessageEntity($message);
         }, $messages);

@@ -134,7 +134,8 @@ class WorkspaceAppService extends AbstractAppService
         $workspaceIds = array_unique($workspaceIds);
 
         // 批量获取工作区状态
-        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds);
+        $currentUserId = $dataIsolation->getCurrentUserId();
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds, $currentUserId);
 
         // 转换为响应DTO并传入状态映射
         return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap);

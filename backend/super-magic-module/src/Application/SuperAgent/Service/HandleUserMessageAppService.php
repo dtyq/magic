@@ -102,19 +102,19 @@ class HandleUserMessageAppService extends AbstractAppService
         // Set task termination flag in Redis to prevent agent messages from being processed
         TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskEntity->getId());
 
-        // Send interrupt message directly to client
-        $this->clientMessageAppService->sendInterruptMessageToClient(
-            topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
-            chatTopicId: $dto->getChatTopicId(),
-            chatConversationId: $dto->getChatConversationId(),
-            interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
-        );
-
         // Get sandbox status, if sandbox is running, send interrupt command
         $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
             $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+        } else {
+            // Send interrupt message directly to client
+            $this->clientMessageAppService->sendInterruptMessageToClient(
+                topicId: $topicEntity->getId(),
+                taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+                chatTopicId: $dto->getChatTopicId(),
+                chatConversationId: $dto->getChatConversationId(),
+                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+            );
         }
     }
     /*
@@ -419,7 +419,7 @@ class HandleUserMessageAppService extends AbstractAppService
             role: Role::User->value,
             senderUid: $dataIsolation->getCurrentUserId(),
             receiverUid: $userMessageDTO->getAgentUserId(),
-            messageType: 'chat',
+            messageType: $userMessageDTO->getChatMessageType(),
             content: $taskEntity->getPrompt(),
             rawContent: $userMessageDTO->getRawContent() ?? '',
             status: null,

@@ -33,6 +33,7 @@ class UserMessageDTO
         private readonly string $queueId = '',
         private readonly string $messageId = '',
         private readonly string $messageSeqId = '',
+        private readonly string $chatMessageType = '',
     ) {
     }
 
@@ -131,6 +132,11 @@ class UserMessageDTO
         return $this->messageSeqId;
     }
 
+    public function getChatMessageType(): string
+    {
+        return $this->chatMessageType;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -156,6 +162,7 @@ class UserMessageDTO
             queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
+            chatMessageType: $data['chat_message_type'] ?? $data['chatMessageType'] ?? '',
         );
     }
 
@@ -182,6 +189,7 @@ class UserMessageDTO
             'queue_id' => $this->queueId,
             'message_id' => $this->messageId,
             'message_seq_id' => $this->messageSeqId,
+            'chat_message_type' => $this->chatMessageType,
         ];
     }
 }
