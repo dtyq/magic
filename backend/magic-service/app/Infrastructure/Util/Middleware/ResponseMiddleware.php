@@ -112,7 +112,7 @@ class ResponseMiddleware implements MiddlewareInterface
         $parsedBody = $request->getParsedBody();
         $queryParams = $request->getQueryParams();
         // 判断是否在测试环境，如果是则不进行脱敏
-        if (env('APP_ENV') === 'local' || env('APP_ENV') === 'test') {
+        if (env('APP_ENV') === 'local' || env('APP_ENV') === 'test' || env('APP_ENV') === 'saas-test') {
             $parsedBody = $request->getParsedBody();
             $queryParams = $request->getQueryParams();
         } else {
