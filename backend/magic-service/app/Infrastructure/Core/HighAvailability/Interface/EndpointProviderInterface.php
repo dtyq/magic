@@ -33,4 +33,16 @@ interface EndpointProviderInterface
         ?string $provider = null,
         ?string $endpointName = null
     ): array;
+
+    /**
+     * Check endpoint connectivity.
+     *
+     * Business modules need to implement this method to check if the endpoint is accessible.
+     * This is used for active health check to recover circuit breaker status.
+     *
+     * @param string $type 接入点类型（如：modelGateway||gpt-4）
+     * @param string $provider 服务提供商配置ID（serviceProviderConfigId）
+     * @return bool True if endpoint is accessible, false otherwise
+     */
+    public function checkConnectivity(string $type, string $provider): bool;
 }

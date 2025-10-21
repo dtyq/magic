@@ -26,7 +26,7 @@ class RedisUtil
     {
         $redis = di(Redis::class);
         $keys = [];
-        $iterator = 0; // PhpRedis uses 0 as initial iterator
+        $iterator = null; // PhpRedis 第一次必须是 null，不能是 0
         $iterations = 0;
         $startTime = time();
 
@@ -42,17 +42,19 @@ class RedisUtil
             }
 
             $batchKeys = $redis->scan($iterator, $pattern, $count);
-            if ($batchKeys !== false) {
+
+            if ($batchKeys !== false && is_array($batchKeys)) {
                 $keys[] = $batchKeys;
             }
 
-            // When iterator is 0, scanning is complete
+            // When iterator is 0 or false, scanning is complete
+            // 注意：第一次 iterator 是 null，scan 后会变成数字或 0
             /* @phpstan-ignore-next-line */
-            if ($iterator == 0) {
+            if ($iterator === 0 || $iterator === false || $iterator === '0') {
                 break;
             }
         }
-
+        /* @phpstan-ignore-next-line */
         ! empty($keys) && $keys = array_merge(...$keys);
         return $keys;
     }
