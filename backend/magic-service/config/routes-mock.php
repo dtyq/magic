@@ -7,7 +7,7 @@ declare(strict_types=1);
 use App\Interfaces\Mock\OpenAIApi;
 use Hyperf\HttpServer\Router\Router;
 
-// 出于单测的需要，mock 所有第三方的 http 调用，提升单测速度和稳定性。
+// 出于单测的需要，mock 所有第三方的 http 调用-，提升单测速度和稳定性。
 Router::addServer('mock-http-service', static function () {
     // 类 openai 的大模型调用
     Router::addRoute(['POST'], '/v1/chat/completions', [OpenAIApi::class, 'chatCompletion']);
