@@ -1107,22 +1107,12 @@ class MessageScheduleAppService extends AbstractAppService
 
         // 2. Validate project access (if project_id is provided)
         if ($projectId !== null && $projectId > 0) {
-            try {
-                $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-            } catch (Throwable $e) {
-                // Re-throw the exception from getProject method
-                throw $e;
-            }
+            $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         }
 
         // 3. Validate topic access (if topic_id is provided)
         if ($topicId !== null && $topicId > 0) {
-            try {
-                $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
-            } catch (Throwable $e) {
-                // Re-throw the exception from validateTopicForMessageQueue method
-                throw $e;
-            }
+            $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
         }
     }
 
