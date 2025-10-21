@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "903592fbaa25e74b4f68af205008da2c",
+    "content-hash": "01d79fd693aae578769a5e5c9657cdf3",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2190,23 +2190,117 @@
             "time": "2025-07-28T06:18:50+00:00"
         },
         {
+            "name": "dtyq/llm-proxy-hub",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "git@git.kkgroup.cn:magic/llm-proxy-hub.git",
+                "reference": "7ef904311d3c60e418df9f214069b1b62dd4262e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fllm-proxy-hub/repository/archive.zip?sha=7ef904311d3c60e418df9f214069b1b62dd4262e",
+                "reference": "7ef904311d3c60e418df9f214069b1b62dd4262e",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-openssl": "*",
+                "ext-pdo": "*",
+                "hyperf/cache": "^3.1",
+                "hyperf/constants": "~3.1",
+                "hyperf/database": "~3.1.0",
+                "hyperf/db-connection": "~3.1.0",
+                "hyperf/engine-swow": "^2.12",
+                "hyperf/guzzle": "~3.1.0",
+                "hyperf/http-message": "~3.1.0",
+                "hyperf/http-server": "~3.1.0",
+                "hyperf/laminas-mime": "^3.0",
+                "hyperf/logger": "~3.1.0",
+                "hyperf/process": "~3.1.0",
+                "hyperf/rate-limit": "^3.1",
+                "hyperf/redis": "~3.1.0",
+                "hyperf/translation": "~3.1.0",
+                "hyperf/validation": "^3.1",
+                "php": ">=8.4",
+                "promphp/prometheus_client_php": "^2.13"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "phpstan/phpstan": "^1.0",
+                "roave/security-advisories": "dev-latest"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "hyperf": {
+                    "config": "Dtyq\\LLMProxyHub\\ConfigProvider",
+                    "config_autoload": "config/autoload"
+                },
+                "branch-alias": {
+                    "dev-master": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Dtyq\\LLMProxyHub\\": "src/"
+                }
+            },
+            "scripts": {
+                "post-autoload-dump": [
+                    "php -r \"if(PHP_OS_FAMILY === 'Windows') shell_exec('del /f /s /q runtime\\\\container && rmdir runtime\\\\container'); else shell_exec('rm -rf runtime/container');\" "
+                ],
+                "fix": [
+                    "Composer\\Config::disableProcessTimeout",
+                    "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/php-cs-fixer fix $1"
+                ],
+                "analyse": [
+                    "Composer\\Config::disableProcessTimeout",
+                    "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "authors": [
+                {
+                    "name": "dtyq",
+                    "email": "team@dtyq.com"
+                }
+            ],
+            "description": "LLM Proxy Hub - A unified platform for managing multiple LLM providers",
+            "keywords": [
+                "ai",
+                "claude",
+                "hyperf",
+                "llm",
+                "openai",
+                "proxy"
+            ],
+            "support": {
+                "source": "https://git.kkgroup.cn/magic/llm-proxy-hub/-/tree/master"
+            },
+            "time": "2025-10-20T19:07:57+08:00"
+        },
+        {
             "name": "dtyq/magic-enterprise-service",
             "version": "dev-master",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c"
+                "reference": "e00898efc7200fe40e73192fd82819653337bea7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
-                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=e00898efc7200fe40e73192fd82819653337bea7",
+                "reference": "e00898efc7200fe40e73192fd82819653337bea7",
                 "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
                 "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
+                "ext-redis": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
                 "hyperf/constants": "~3.1",
@@ -2308,7 +2402,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-10-21T12:03:33+08:00"
+            "time": "2025-10-21T06:46:15+00:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8476,16 +8570,16 @@
         },
         {
             "name": "kkguan-service/opentracer",
-            "version": "3.1.5",
+            "version": "3.1.6",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:open-source/opentracer.git",
-                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6"
+                "reference": "4603d3ef547c4bb22286829f9b9f5047e0efc24d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=11ad58381f3809d029062f1290611f6aee8b94c6",
-                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=4603d3ef547c4bb22286829f9b9f5047e0efc24d",
+                "reference": "4603d3ef547c4bb22286829f9b9f5047e0efc24d",
                 "shasum": ""
             },
             "require": {
@@ -8537,9 +8631,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.5"
+                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.6"
             },
-            "time": "2025-10-20T12:05:05+00:00"
+            "time": "2025-10-21T14:24:43+08:00"
         },
         {
             "name": "kkguan-service/token-sdk",
@@ -20073,6 +20167,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
+        "dtyq/llm-proxy-hub": 20,
         "dtyq/magic-enterprise-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
