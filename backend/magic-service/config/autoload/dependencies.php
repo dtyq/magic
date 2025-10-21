@@ -152,6 +152,8 @@ use App\Domain\ModelGateway\Repository\Persistence\ModelConfigRepository;
 use App\Domain\ModelGateway\Repository\Persistence\MsgLogRepository;
 use App\Domain\ModelGateway\Repository\Persistence\OrganizationConfigRepository;
 use App\Domain\ModelGateway\Repository\Persistence\UserConfigRepository;
+use App\Domain\Organization\Repository\Facade\OrganizationAdminPlusWhitelistRepositoryInterface;
+use App\Domain\Organization\Repository\Persistence\OrganizationAdminPlusWhitelistRepository;
 use App\Domain\OrganizationEnvironment\Entity\Facade\OpenPlatformConfigInterface;
 use App\Domain\OrganizationEnvironment\Entity\Item\OpenPlatformConfigItem;
 use App\Domain\OrganizationEnvironment\Repository\Facade\EnvironmentRepositoryInterface;
@@ -371,6 +373,7 @@ $dependencies = [
 
     // 组织管理
     OrganizationRepositoryInterface::class => OrganizationRepository::class,
+    OrganizationAdminPlusWhitelistRepositoryInterface::class => OrganizationAdminPlusWhitelistRepository::class,
 
     // 群组
     MagicGroupRepositoryInterface::class => MagicGroupRepository::class,
