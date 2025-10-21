@@ -112,9 +112,9 @@ class FileVersionAppService extends AbstractAppService
         }
 
         // 验证文件权限 - 确保文件属于当前组织
-        if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
+        /*if ($fileEntity->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, 'file.access_denied');
-        }
+        }*/
 
         // 验证项目权限
         if ($fileEntity->getProjectId() > 0) {
