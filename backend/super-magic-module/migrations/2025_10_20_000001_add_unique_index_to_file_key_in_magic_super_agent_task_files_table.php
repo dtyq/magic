@@ -21,7 +21,7 @@ return new class extends Migration {
         Schema::table('magic_super_agent_task_files', static function (Blueprint $table) {
             // Drop old normal index
             // $table->dropIndex('idx_file_key');
-            
+
             // Add unique index for file_key
             // After cleanup, file_key should be unique across the table
             // $table->unique('file_key', 'unique_file_key');
@@ -33,7 +33,5 @@ return new class extends Migration {
      */
     public function down(): void
     {
-
     }
 };
-
