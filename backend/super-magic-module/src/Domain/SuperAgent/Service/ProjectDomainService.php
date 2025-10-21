@@ -369,6 +369,11 @@ class ProjectDomainService
         return $this->projectRepository->updateUpdatedAtToNow($projectId);
     }
 
+    public function getOrganizationCodesByProjectIds(array $projectIds): array
+    {
+        return $this->projectRepository->getOrganizationCodesByProjectIds($projectIds);
+    }
+
     /**
      * Batch get project names by IDs.
      *

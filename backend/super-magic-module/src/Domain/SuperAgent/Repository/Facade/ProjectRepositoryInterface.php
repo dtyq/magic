@@ -72,4 +72,6 @@ interface ProjectRepositoryInterface
      * @return array ['project_id' => 'project_name'] key-value pairs
      */
     public function getProjectNamesBatch(array $projectIds): array;
+
+    public function getOrganizationCodesByProjectIds(array $projectIds): array;
 }
