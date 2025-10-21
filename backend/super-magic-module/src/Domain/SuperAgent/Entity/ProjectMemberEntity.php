@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberJoinMethod;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
@@ -36,6 +37,8 @@ class ProjectMemberEntity extends AbstractEntity
 
     protected MemberStatus $status;
 
+    protected MemberJoinMethod $joinMethod;
+
     protected string $invitedBy = '';
 
     protected ?string $createdAt = null;
@@ -52,6 +55,8 @@ class ProjectMemberEntity extends AbstractEntity
         $this->targetType = MemberType::USER;
         // 设置默认角色为编辑者
         $this->role = MemberRole::EDITOR;
+        // 设置默认加入为团队内邀请
+        $this->joinMethod = MemberJoinMethod::INTERNAL;
 
         $this->initProperty($data);
         $this->validateEntity();
@@ -196,6 +201,16 @@ class ProjectMemberEntity extends AbstractEntity
         $this->deletedAt = $deletedAt;
     }
 
+    public function getJoinMethod(): MemberJoinMethod
+    {
+        return $this->joinMethod;
+    }
+
+    public function setJoinMethod(MemberJoinMethod $joinMethod): void
+    {
+        $this->joinMethod = $joinMethod;
+    }
+
     public static function modelToEntity(array $data): ProjectMemberEntity
     {
         $entity = new ProjectMemberEntity();
@@ -206,6 +221,7 @@ class ProjectMemberEntity extends AbstractEntity
         $entity->setRoleFromString($data['role']);
         $entity->setOrganizationCode($data['organization_code']);
         $entity->setStatus(MemberStatus::from((int) $data['status'])); // 转换为MemberStatus枚举
+        $entity->setJoinMethod(MemberJoinMethod::from($data['join_method'] ?? MemberJoinMethod::INTERNAL->value));
         $entity->setInvitedBy($data['invited_by']);
         $entity->setCreatedAt($data['created_at']);
         $entity->setUpdatedAt($data['updated_at']);

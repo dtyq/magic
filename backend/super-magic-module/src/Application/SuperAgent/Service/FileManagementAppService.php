@@ -215,7 +215,7 @@ class FileManagementAppService extends AbstractAppService
         $fileKey = $requestDTO->getFileKey();
 
         // 校验项目归属权限并获取工作目录 - 需要先获取项目信息
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         $lockName = WorkDirectoryUtil::getLockerKey($projectEntity->getId());
         $lockOwner = $dataIsolation->getCurrentUserId();
@@ -342,7 +342,7 @@ class FileManagementAppService extends AbstractAppService
         }
 
         // 1. 验证项目权限
-        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
         Db::beginTransaction();
         try {
@@ -425,7 +425,7 @@ class FileManagementAppService extends AbstractAppService
             $parentId = ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : 0;
 
             // 校验项目归属权限 - 确保用户只能在自己的项目中创建文件
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 如果 parent_id 为空，则设置为根目录
             if (empty($parentId)) {
@@ -493,7 +493,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
                 // 发布目录已删除事件
@@ -538,7 +538,7 @@ class FileManagementAppService extends AbstractAppService
             $fileId = $requestDTO->getFileId();
 
             // 1. 验证项目是否属于当前用户
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 2. 获取工作目录并拼接完整路径
             $workDir = $projectEntity->getWorkDir();
@@ -605,7 +605,7 @@ class FileManagementAppService extends AbstractAppService
             $forceDelete = $requestDTO->getForceDelete();
 
             // Validate project ownership
-            $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // Call domain service to batch delete files
             $result = $this->taskFileDomainService->batchDeleteProjectFiles(
@@ -656,7 +656,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             if ($fileEntity->getIsDirectory()) {
                 // Directory rename: batch process all sub-files
@@ -706,7 +706,7 @@ class FileManagementAppService extends AbstractAppService
         try {
             // 1. Get file and project information
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
             // 2. Handle target parent directory
             if (empty($targetParentId)) {
@@ -918,7 +918,7 @@ class FileManagementAppService extends AbstractAppService
 
         try {
             // 1. Get project information
-            $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();

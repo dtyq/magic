@@ -77,6 +77,11 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
         $this->modelIdsGroupByType = $modelIdsGroupByType;
     }
 
+    public function isPaidSubscription(): bool
+    {
+        return true;
+    }
+
     public function toArray(): array
     {
         return [

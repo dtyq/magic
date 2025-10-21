@@ -259,7 +259,7 @@ class HandleUserMessageAppService extends AbstractAppService
             if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskEntity->getId())) {
                 $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
                 if ($result->getStatus() === SandboxStatus::RUNNING) {
-                    $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+                    $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止');
                 }
             } else {
                 $this->topicTaskAppService->updateTaskStatus(
