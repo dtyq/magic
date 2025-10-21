@@ -55,4 +55,16 @@ interface HighAvailabilityInterface
      * @param EndpointResponseDTO $response 接入点响应实体
      */
     public function recordResponse(EndpointResponseDTO $response): bool;
+
+    /**
+     * Check endpoint connectivity.
+     *
+     * This method is used for active health check to recover circuit breaker status.
+     * It will call business side's connectivity check method.
+     *
+     * @param string $type 接入点类型（如：modelGateway||gpt-4）
+     * @param string $provider 服务提供商配置ID（serviceProviderConfigId）
+     * @return bool True if endpoint is accessible, false otherwise
+     */
+    public function checkConnectivity(string $type, string $provider): bool;
 }
