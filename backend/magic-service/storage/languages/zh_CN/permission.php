@@ -7,7 +7,9 @@ declare(strict_types=1);
 return [
     'resource' => [
         'admin' => '管理后台',
+        'admin_plus' => '组织管理后台Plus',
         'admin_ai' => 'AI管理',
+        'admin_plus_ai' => 'AI管理',
         'admin_safe' => '安全与权限',
         'safe_sub_admin' => '子管理员',
         'ai_model' => '大模型',
@@ -22,6 +24,7 @@ return [
         'platform_setting_maintenance' => '维护管理',
         'platform_organization' => '组织管理',
         'platform_organization_list' => '组织列表',
+        'platform_organization_whitelist' => '组织白名单',
     ],
     // 顶层错误与校验
     'validate_failed' => '验证失败',

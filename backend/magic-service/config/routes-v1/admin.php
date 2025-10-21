@@ -8,6 +8,7 @@ use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
+use App\Interfaces\OrganizationEnvironment\Facade\Platform\OrganizationAdminPlusWhitelistApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
@@ -92,5 +93,10 @@ Router::addGroup('/api/v1/admin', static function () {
     // 组织列表
     Router::addGroup('/organizations', static function () {
         Router::get('', [OrganizationApi::class, 'queries']);
+        Router::addGroup('/whitelists', static function () {
+            Router::get('', [OrganizationAdminPlusWhitelistApi::class, 'queries']);
+            Router::post('', [OrganizationAdminPlusWhitelistApi::class, 'upsert']);
+            Router::delete('/{id:\d+}', [OrganizationAdminPlusWhitelistApi::class, 'delete']);
+        });
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });

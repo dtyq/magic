@@ -160,6 +160,8 @@ use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationsPlatformRe
 use App\Domain\OrganizationEnvironment\Repository\MagicEnvironmentsRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsEnvironmentRepository;
 use App\Domain\OrganizationEnvironment\Repository\OrganizationsPlatformRepository;
+use App\Domain\Organization\Repository\Facade\OrganizationAdminPlusWhitelistRepositoryInterface;
+use App\Domain\Organization\Repository\Persistence\OrganizationAdminPlusWhitelistRepository;
 use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
@@ -371,6 +373,7 @@ $dependencies = [
 
     // 组织管理
     OrganizationRepositoryInterface::class => OrganizationRepository::class,
+    OrganizationAdminPlusWhitelistRepositoryInterface::class => OrganizationAdminPlusWhitelistRepository::class,
 
     // 群组
     MagicGroupRepositoryInterface::class => MagicGroupRepository::class,
