@@ -92,7 +92,7 @@ interface ProjectMemberRepositoryInterface
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
      * @param null|string $name 项目名称模糊搜索关键词
-     * @param null|string $sortDirection 排序字段：updated_at,created_at,last_active_at
+     * @param null|string $sortField 排序字段：updated_at,created_at,last_active_at
      * @param array $organizationCodes 组织编码列表（用于过滤）
      * @return array ['total' => int, 'list' => array]
      */
