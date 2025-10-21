@@ -13,6 +13,7 @@ use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
@@ -58,6 +59,7 @@ class ProjectMemberAppService extends AbstractAppService
         private readonly MagicUserDomainService $magicUserDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly PackageFilterInterface $packageFilterService,
     ) {
     }
 
@@ -223,12 +225,19 @@ class ProjectMemberAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $userId = $dataIsolation->getCurrentUserId();
+        $currentOrganizationCode = $dataIsolation->getCurrentOrganizationCode();
         $type = $requestDTO->getType() ?: 'received';
 
-        // 根据类型获取项目ID列表
+        // 1. 获取用户协作项目中付费的组织编码
+        $collaborationPaidOrganizationCodes = $this->getUserCollaborationPaidOrganizationCodes($requestContext);
+
+        // 2. 将当前组织编码也加入列表（用于过滤）
+        $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$currentOrganizationCode]));
+
+        // 3. 根据类型获取项目ID列表（按付费组织编码过滤）
         $collaborationProjects = match ($type) {
-            'shared' => $this->getSharedProjectIds($userId, $dataIsolation->getCurrentOrganizationCode(), $requestDTO),
-            default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO),
+            'shared' => $this->getSharedProjectIds($userId, $currentOrganizationCode, $requestDTO),
+            default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO, $paidOrganizationCodes),
         };
 
         $projectIds = array_column($collaborationProjects['list'], 'project_id');
@@ -521,9 +530,43 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 获取他人分享给我的项目ID列表.
+     * 获取用户协作项目中付费的组织编码.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 付费套餐的组织编码数组
      */
-    private function getReceivedProjectIds(string $userId, DataIsolation $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
+    public function getUserCollaborationPaidOrganizationCodes(RequestContext $requestContext): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $userId = $userAuthorization->getId();
+        $dataIsolation = $requestContext->getDataIsolation();
+
+        // 1. 获取用户所属的部门ID列表（包含父级部门）
+        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
+
+        // 2. 合并用户ID和部门ID作为协作者目标ID
+        $targetIds = array_merge([$userId], $departmentIds);
+
+        // 3. 通过协作者目标ID获取所有参与协作项目的组织编码（排除OWNER角色）
+        $organizationCodes = $this->projectMemberDomainService->getOrganizationCodesByCollaboratorTargets($targetIds);
+
+        if (empty($organizationCodes)) {
+            return [];
+        }
+
+        // 4. 通过PackageFilterInterface过滤出付费套餐的组织编码
+        return $this->packageFilterService->filterPaidOrganizations($organizationCodes);
+    }
+
+    /**
+     * 获取他人分享给我的项目ID列表.
+     *
+     * @param string $userId 用户ID
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param GetCollaborationProjectListRequestDTO $requestDTO 请求DTO
+     * @param array $organizationCodes 组织编码列表（用于过滤）
+     */
+    private function getReceivedProjectIds(string $userId, DataIsolation $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO, array $organizationCodes = []): array
     {
         // 获取用户所在的所有部门（包含父级部门）
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
@@ -532,7 +575,7 @@ class ProjectMemberAppService extends AbstractAppService
             true // 包含父级部门
         );
 
-        // 获取协作项目ID列表及总数
+        // 获取协作项目ID列表及总数（按组织编码过滤）
         return $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal(
             $userId,
             $departmentIds,
@@ -540,7 +583,8 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getSortField(),
             $requestDTO->getSortDirection(),
             $requestDTO->getCreatorUserIds(),
-            $requestDTO->getJoinMethod()
+            $requestDTO->getJoinMethod(),
+            $organizationCodes
         );
     }
 

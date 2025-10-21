@@ -104,6 +104,7 @@ class ProjectMemberDomainService
         string $sortDirection = 'desc',
         array $creatorUserIds = [],
         ?string $joinMethod = null,
+        array $organizationCodes = []
     ): array {
         return $this->projectMemberRepository->getProjectIdsByUserAndDepartments(
             $userId,
@@ -112,7 +113,8 @@ class ProjectMemberDomainService
             $sortField,
             $sortDirection,
             $creatorUserIds,
-            $joinMethod
+            $joinMethod,
+            $organizationCodes
         );
     }
 
@@ -504,5 +506,16 @@ class ProjectMemberDomainService
 
         // 批量插入成员
         $this->projectMemberRepository->insert($memberEntities);
+    }
+
+    /**
+     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
+     *
+     * @param array $targetIds 目标ID数组（用户ID或部门ID）
+     * @return array 组织编码数组
+     */
+    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array
+    {
+        return $this->projectMemberRepository->getOrganizationCodesByCollaboratorTargets($targetIds);
     }
 }

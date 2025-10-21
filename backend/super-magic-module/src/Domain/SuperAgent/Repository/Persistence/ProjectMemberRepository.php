@@ -161,6 +161,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         string $sortDirection = 'desc',
         array $creatorUserIds = [],
         ?string $joinMethod = null,
+        array $organizationCodes = []
     ): array {
         $query = $this->projectMemberModel::query()
             ->where(function ($query) use ($userId, $departmentIds) {
@@ -183,6 +184,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                     ->where('magic_super_agent_project_member_settings.user_id', '=', $userId);
             })
             ->where('magic_super_agent_project.user_id', '!=', $userId)
+            ->where('magic_super_agent_project.is_collaboration_enabled', 1)
             ->whereNull('magic_super_agent_project.deleted_at');
 
         if (! empty($name)) {
@@ -198,6 +200,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         if (! empty($joinMethod)) {
             // 加入方式
             $query->where('magic_super_agent_project_members.join_method', $joinMethod);
+        }
+
+        if (! empty($organizationCodes)) {
+            // 根据组织编码过滤
+            $query->whereIn('magic_super_agent_project.user_organization_code', $organizationCodes);
         }
 
         $query->select(
@@ -339,6 +346,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->whereIn('magic_super_agent_project_members.role', [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value])
             ->where('magic_super_agent_project.user_id', '=', $userId)
             ->where('magic_super_agent_project.user_organization_code', '=', $organizationCode)
+            ->where('magic_super_agent_project.is_collaboration_enabled', 1)
             ->whereNull('magic_super_agent_project.deleted_at');
 
         // 如果有项目名称搜索条件
@@ -661,6 +669,24 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->where('project_id', $projectId)
             ->whereIn('target_id', $memberIds)
             ->delete();
+    }
+
+    /**
+     * 通过协作者目标ID获取组织编码列表（排除OWNER角色）.
+     */
+    public function getOrganizationCodesByCollaboratorTargets(array $targetIds): array
+    {
+        if (empty($targetIds)) {
+            return [];
+        }
+
+        return $this->projectMemberModel::query()
+            ->whereIn('target_id', $targetIds)
+            ->where('role', '!=', MemberRole::OWNER->value)
+            ->where('status', MemberStatus::ACTIVE->value)
+            ->distinct()
+            ->pluck('organization_code')
+            ->toArray();
     }
 
     /**
