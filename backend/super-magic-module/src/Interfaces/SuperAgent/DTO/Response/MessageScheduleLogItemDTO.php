@@ -190,10 +190,15 @@ class MessageScheduleLogItemDTO extends AbstractDTO
         string $projectName = '',
         string $topicName = ''
     ): self {
+        // Convert workspace_id: 0 -> "collaboration", others -> string
+        $workspaceId = $entity->getWorkspaceId() === 0
+            ? 'collaboration'
+            : (string) $entity->getWorkspaceId();
+
         return (new self())
             ->setExecutedAt($entity->getExecutedAt())
             ->setTaskName($entity->getTaskName())
-            ->setWorkspaceId((string) $entity->getWorkspaceId())
+            ->setWorkspaceId($workspaceId)
             ->setWorkspaceName($workspaceName)
             ->setProjectId((string) $entity->getProjectId())
             ->setProjectName($projectName)

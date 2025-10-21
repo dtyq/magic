@@ -109,7 +109,13 @@ class MessageScheduleItemDTO extends AbstractDTO
         $dto->setTaskName($entity->getTaskName());
         $dto->setMessageType($entity->getMessageType());
         $dto->setMessageContent($entity->getMessageContent());
-        $dto->setWorkspaceId((string) $entity->getWorkspaceId());
+
+        // Convert workspace_id: 0 -> "collaboration", others -> string
+        $workspaceId = $entity->getWorkspaceId() === 0
+            ? 'collaboration'
+            : (string) $entity->getWorkspaceId();
+        $dto->setWorkspaceId($workspaceId);
+
         $dto->setProjectId((string) $entity->getProjectId());
         $dto->setTopicId((string) $entity->getTopicId());
         $dto->setCompleted($entity->getCompleted());
