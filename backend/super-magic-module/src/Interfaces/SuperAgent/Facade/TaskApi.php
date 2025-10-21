@@ -84,7 +84,7 @@ class TaskApi extends AbstractApi
             $rawData = ShadowCode::unShadow($this->request->input('data', ''));
             $requestData = json_decode($rawData, true);
         } else {
-            $requestData = $this->request->all();
+            $requestData = $this->request->input('data', []);
         }
 
         // 从请求中创建DTO
