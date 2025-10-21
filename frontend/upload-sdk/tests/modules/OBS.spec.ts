@@ -1,34 +1,35 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { OBS } from "../../src"
 import type { OBS as NOBS } from "../../src/types/OBS"
 
-// 模拟File对象
+// Mock File object
 const createMockFile = (name = "test.txt", size = 5 * 1024 * 1024) => {
 	return new File([new ArrayBuffer(size)], name)
 }
 
-// 定义响应回调类型
+// Define response callback types
 interface ResponseCallbacks {
 	load?: (callback: (event: any) => void, xhr?: any) => void
 	error?: (callback: (error: any) => void) => void
 }
 
-// 创建测试所需的mock函数
+// Create mock functions needed for testing
 const setupMockXHR = (responseCallbacks: ResponseCallbacks = {}) => {
 	const mockXhr = {
-		open: jest.fn(),
-		send: jest.fn(),
-		setRequestHeader: jest.fn(),
+		open: vi.fn(),
+		send: vi.fn(),
+		setRequestHeader: vi.fn(),
 		upload: {
-			addEventListener: jest.fn(),
+			addEventListener: vi.fn(),
 		},
-		addEventListener: jest.fn((event: string, callback: any) => {
+		addEventListener: vi.fn((event: string, callback: any) => {
 			if (event === "load" && responseCallbacks.load) {
 				responseCallbacks.load(callback, mockXhr)
 			} else if (event === "error" && responseCallbacks.error) {
 				responseCallbacks.error(callback)
 			}
 		}),
-		getResponseHeader: jest.fn((header: string) => {
+		getResponseHeader: vi.fn((header: string) => {
 			if (header === "ETag") return '"etag-123456"'
 			return null
 		}),
@@ -40,18 +41,18 @@ const setupMockXHR = (responseCallbacks: ResponseCallbacks = {}) => {
 		response: "{}",
 	}
 
-	// 确保全局XMLHttpRequest是一个构造函数
-	// @ts-ignore - 全局mock
-	global.XMLHttpRequest = jest.fn(() => mockXhr)
+	// Ensure global XMLHttpRequest is a constructor function
+	// @ts-ignore - Global mock
+	global.XMLHttpRequest = vi.fn(() => mockXhr)
 
 	return mockXhr
 }
 
-// 首先添加模拟代码
-jest.mock("../../src/modules/OBS", () => {
-	// 创建上传模拟实现
-	const upload = jest.fn().mockImplementation((file, key, params, option) => {
-		// 根据参数类型选择合适的上传方法
+// Mock OBS module
+vi.mock("../../src/modules/OBS", () => {
+	// Create upload mock implementation
+	const upload = vi.fn().mockImplementation((file, key, params, option) => {
+		// Choose appropriate upload method based on parameter type
 		if (params.credentials && params.credentials.security_token) {
 			return Promise.resolve({
 				url: `https://${params.bucket}.${params.endpoint}/${params.dir}${key}`,
@@ -66,8 +67,8 @@ jest.mock("../../src/modules/OBS", () => {
 		})
 	})
 
-	// 创建各个方法的模拟实现
-	const MultipartUpload = jest.fn().mockImplementation((file, key, params, option) => {
+	// Create mock implementations for each method
+	const MultipartUpload = vi.fn().mockImplementation((file, key, params, option) => {
 		return Promise.resolve({
 			url: `https://${params.bucket}.${params.endpoint}/${params.dir}${key}`,
 			platform: "obs",
@@ -75,7 +76,7 @@ jest.mock("../../src/modules/OBS", () => {
 		})
 	})
 
-	const STSUpload = jest.fn().mockImplementation((file, key, params, option) => {
+	const STSUpload = vi.fn().mockImplementation((file, key, params, option) => {
 		return Promise.resolve({
 			url: `https://${params.bucket}.${params.endpoint}/${params.dir}${key}`,
 			platform: "obs",
@@ -83,7 +84,7 @@ jest.mock("../../src/modules/OBS", () => {
 		})
 	})
 
-	const defaultUpload = jest.fn().mockImplementation((file, key, params, option) => {
+	const defaultUpload = vi.fn().mockImplementation((file, key, params, option) => {
 		return Promise.resolve({
 			url: `${params.host}/${params.dir}${key}`,
 			platform: "obs",
@@ -91,7 +92,7 @@ jest.mock("../../src/modules/OBS", () => {
 		})
 	})
 
-	// 创建一个包含所有导出的对象
+	// Create an object containing all exports
 	const mockOBS = {
 		upload,
 		MultipartUpload,
@@ -109,9 +110,9 @@ jest.mock("../../src/modules/OBS", () => {
 	}
 })
 
-// 模拟utils/request.ts
-jest.mock("../../src/utils/request", () => {
-	const request = jest
+// Mock utils/request.ts
+vi.mock("../../src/utils/request", () => {
+	const request = vi
 		.fn()
 		.mockImplementation(({ url, headers, method, onProgress, fail, xmlResponse, ...opts }) => {
 			return Promise.resolve({
@@ -134,9 +135,9 @@ jest.mock("../../src/utils/request", () => {
 	}
 })
 
-// 模拟normalizeSuccessResponse
-jest.mock("../../src/utils/response", () => {
-	const normalizeSuccessResponse = jest.fn().mockImplementation((key, platform, headers) => {
+// Mock normalizeSuccessResponse
+vi.mock("../../src/utils/response", () => {
+	const normalizeSuccessResponse = vi.fn().mockImplementation((key, platform, headers) => {
 		return {
 			url: `https://example.com/${key}`,
 			platform,
@@ -150,13 +151,13 @@ jest.mock("../../src/utils/response", () => {
 	}
 })
 
-// 在测试开始前替换OBS对象，确保defaultUpload方法可用
+// Add defaultUpload method to OBS object before tests
 const originalOBS = { ...OBS }
 beforeEach(() => {
-	// @ts-ignore 向OBS对象添加defaultUpload方法以通过测试
+	// @ts-ignore Add defaultUpload method to OBS object to pass tests
 	if (!OBS.defaultUpload) {
 		// @ts-ignore
-		OBS.defaultUpload = jest.fn().mockImplementation((file, key, params, option) => {
+		OBS.defaultUpload = vi.fn().mockImplementation((file, key, params, option) => {
 			return Promise.resolve({
 				url: `${params.host}/${params.dir}${key}`,
 				platform: "obs",
@@ -166,26 +167,26 @@ beforeEach(() => {
 	}
 })
 
-// 测试完成后恢复原始对象
+// Restore original object after tests
 afterEach(() => {
-	// 避免修改原始对象
+	// Avoid modifying original object
 })
 
 describe("OBS模块测试", () => {
 	it("OBS模块应该被正确加载", () => {
-		// 检查OBS模块是否被正确定义
+		// Check if OBS module is properly defined
 		expect(OBS).toBeDefined()
 		expect(OBS.upload).toBeDefined()
-		// @ts-ignore - 我们已经在beforeEach中添加了defaultUpload
+		// @ts-ignore - We added defaultUpload in beforeEach
 		expect(OBS.defaultUpload).toBeDefined()
 		expect(OBS.MultipartUpload).toBeDefined()
 		expect(OBS.STSUpload).toBeDefined()
 	})
 
-	// 测试上传方法的路由选择
+	// Test upload method routing
 	describe("upload方法", () => {
 		it("当提供STS凭证时应该使用MultipartUpload方法", async () => {
-			// 使用我们上面已经模拟好的函数，不需要在这里重新模拟
+			// Use the mocked functions we already set up, no need to re-mock here
 			const file = createMockFile()
 			const key = "test/test.txt"
 			const params: NOBS.STSAuthParams = {
@@ -206,17 +207,19 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			await OBS.upload(file, key, params, option)
+			const result = await OBS.upload(file, key, params, option)
 
-			// 验证upload方法被调用
-			expect(OBS.upload).toHaveBeenCalledWith(file, key, params, option)
+			// Verify result is correct
+			expect(result).toBeDefined()
+			expect(result.platform).toBe("obs")
+			expect(result.path).toBe("test/test.txt")
 		})
 
 		it("当提供普通凭证时应该使用defaultUpload方法", async () => {
-			// 使用我们上面已经模拟好的函数，不需要在这里重新模拟
+			// Use the mocked functions we already set up, no need to re-mock here
 			const file = createMockFile()
 			const key = "test/test.txt"
 			const params = {
@@ -230,17 +233,19 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			await OBS.upload(file, key, params, option)
+			const result = await OBS.upload(file, key, params, option)
 
-			// 验证upload方法被调用
-			expect(OBS.upload).toHaveBeenCalledWith(file, key, params, option)
+			// Verify result is correct
+			expect(result).toBeDefined()
+			expect(result.platform).toBe("obs")
+			expect(result.path).toBe("test/test.txt")
 		})
 	})
 
-	// 测试默认上传方法
+	// Test default upload method
 	describe("defaultUpload方法", () => {
 		it("应该正确构建签名和请求", async () => {
 			const file = createMockFile("test.txt", 1024)
@@ -256,13 +261,13 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			// @ts-ignore - 我们已经在beforeEach中添加了defaultUpload
+			// @ts-ignore - We added defaultUpload in beforeEach
 			const result = await OBS.defaultUpload(file, key, params, option)
 
-			// 验证结果符合预期
+			// Verify result meets expectations
 			expect(result).toBeDefined()
 			expect(result).toHaveProperty("url")
 			expect(result).toHaveProperty("platform", "obs")
@@ -270,11 +275,11 @@ describe("OBS模块测试", () => {
 		})
 
 		it("应该处理默认上传失败的情况", async () => {
-			// 修改mock实现，使其在这个测试中抛出错误
-			// @ts-ignore - 我们已经在beforeEach中添加了defaultUpload
+			// Modify mock implementation to throw error in this test
+			// @ts-ignore - We added defaultUpload in beforeEach
 			const originalUpload = OBS.defaultUpload
-			// @ts-ignore - 临时修改为拒绝的Promise
-			OBS.defaultUpload = jest.fn().mockRejectedValueOnce(new Error("Upload failed"))
+			// @ts-ignore - Temporarily change to rejected Promise
+			OBS.defaultUpload = vi.fn().mockRejectedValueOnce(new Error("Upload failed"))
 
 			const file = createMockFile("test.txt", 1024)
 			const key = "test/test.txt"
@@ -289,21 +294,21 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
-			// @ts-ignore - 我们已经在beforeEach中添加了defaultUpload
+			// @ts-ignore - We added defaultUpload in beforeEach
 			await expect(OBS.defaultUpload(file, key, params, option)).rejects.toThrow(
 				"Upload failed",
 			)
 
-			// 恢复原始实现
+			// Restore original implementation
 			// @ts-ignore
 			OBS.defaultUpload = originalUpload
 		})
 	})
 
-	// 测试STS上传方法
+	// Test STS upload method
 	describe("STSUpload方法", () => {
 		it("应该正确构建STS签名和请求", async () => {
 			const file = createMockFile("test.txt", 1024)
@@ -326,12 +331,12 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			const result = await OBS.STSUpload(file, key, params, option)
 
-			// 验证结果符合预期
+			// Verify result meets expectations
 			expect(result).toBeDefined()
 			expect(result).toHaveProperty("url")
 			expect(result).toHaveProperty("platform", "obs")
@@ -339,10 +344,10 @@ describe("OBS模块测试", () => {
 		})
 	})
 
-	// 测试分片上传方法
+	// Test multipart upload method
 	describe("MultipartUpload方法", () => {
 		it("应该初始化分片上传并上传分片", async () => {
-			const file = createMockFile("test.txt", 10 * 1024 * 1024) // 10MB文件
+			const file = createMockFile("test.txt", 10 * 1024 * 1024) // 10MB file
 			const key = "test/test.txt"
 			const params: NOBS.STSAuthParams = {
 				credentials: {
@@ -360,16 +365,16 @@ describe("OBS模块测试", () => {
 				callback: "https://example.com/callback",
 			}
 			const option = {
-				partSize: 1024 * 1024, // 1MB分片
-				parallel: 2, // 并行数
+				partSize: 1024 * 1024, // 1MB part size
+				parallel: 2, // parallelism
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			const result = await OBS.MultipartUpload(file, key, params, option)
 
-			// 验证结果符合预期
+			// Verify result meets expectations
 			expect(result).toBeDefined()
 			expect(result).toHaveProperty("url")
 			expect(result).toHaveProperty("platform", "obs")
@@ -377,10 +382,10 @@ describe("OBS模块测试", () => {
 		})
 
 		it("应该处理分片上传失败的情况", async () => {
-			// 修改mock实现，使其在这个测试中抛出错误
+			// Modify mock implementation to throw error in this test
 			const originalMultipartUpload = OBS.MultipartUpload
-			// @ts-ignore - 临时修改为拒绝的Promise
-			OBS.MultipartUpload = jest.fn().mockRejectedValueOnce(new Error("Upload failed"))
+			// @ts-ignore - Temporarily change to rejected Promise
+			OBS.MultipartUpload = vi.fn().mockRejectedValueOnce(new Error("Upload failed"))
 
 			const file = createMockFile("test.txt", 5 * 1024 * 1024)
 			const key = "test/test.txt"
@@ -402,14 +407,14 @@ describe("OBS模块测试", () => {
 			const option = {
 				headers: {},
 				taskId: "test-task-id",
-				progress: jest.fn(),
+				progress: vi.fn(),
 			}
 
 			await expect(OBS.MultipartUpload(file, key, params, option)).rejects.toThrow(
 				"Upload failed",
 			)
 
-			// 恢复原始实现
+			// Restore original implementation
 			OBS.MultipartUpload = originalMultipartUpload
 		})
 	})

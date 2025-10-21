@@ -46,11 +46,11 @@ const InitExceptionMapping: Record<string, (...args: any[]) => string> = {
  * Exceptions Handler.
  */
 export class InitException extends BaseException {
-	public readonly name = "InitException"
+	public override readonly name = "InitException"
 
 	constructor(errType: keyof typeof InitExceptionMapping, ...args: any[]) {
 		const e = InitExceptionMapping[errType] || InitExceptionMapping.INIT_UNKNOWN_ERROR
-		const message = e.apply(null, [...args])
+		const message = e?.apply(null, [...args]) || ""
 		super(message)
 	}
 }

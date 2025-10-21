@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 
 class ProjectMemberItemDTO extends AbstractDTO
 {
@@ -52,6 +53,16 @@ class ProjectMemberItemDTO extends AbstractDTO
     protected string $type = '';
 
     /**
+     * @var string 角色
+     */
+    protected string $role = '';
+
+    /**
+     * @var string 加入方法
+     */
+    protected string $joinMethod = '';
+
+    /**
      * 用户在多个部门时的部门信息，不包含完整路径。
      */
     protected array $pathNodes = [];
@@ -70,6 +81,8 @@ class ProjectMemberItemDTO extends AbstractDTO
         $dto->setAvatarUrl($userData['avatar_url'] ?? '');
         $dto->setType('User');
         $dto->setPathNodes($userData['path_nodes'] ?? []);
+        $dto->setRole($userData['role'] ?? '');
+        $dto->setJoinMethod($userData['join_method'] ?? '');
 
         return $dto;
     }
@@ -88,6 +101,8 @@ class ProjectMemberItemDTO extends AbstractDTO
         $dto->setAvatarUrl(''); // 部门通常没有头像
         $dto->setType('Department');
         $dto->setPathNodes($departmentData['path_nodes'] ?? []);
+        $dto->setRole($departmentData['role'] ?? '');
+        $dto->setJoinMethod($departmentData['join_method'] ?? '');
 
         return $dto;
     }
@@ -106,12 +121,14 @@ class ProjectMemberItemDTO extends AbstractDTO
             'avatar_url' => $this->avatarUrl,
             'type' => $this->type,
             'path_nodes' => $this->pathNodes,
+            'role' => $this->role,
+            'join_method' => $this->joinMethod,
         ];
 
         // 根据类型添加特定字段
-        if ($this->type === 'User') {
+        if (MemberType::fromString($this->type)->isUser()) {
             $result['user_id'] = $this->userId;
-        } elseif ($this->type === 'Department') {
+        } elseif (MemberType::fromString($this->type)->isDepartment()) {
             $result['department_id'] = $this->departmentId;
         }
 
@@ -215,5 +232,25 @@ class ProjectMemberItemDTO extends AbstractDTO
     public function setPathNodes(array $pathNodes): void
     {
         $this->pathNodes = $pathNodes;
+    }
+
+    public function getRole(): string
+    {
+        return $this->role;
+    }
+
+    public function setRole(string $role): void
+    {
+        $this->role = $role;
+    }
+
+    public function getJoinMethod(): string
+    {
+        return $this->joinMethod;
+    }
+
+    public function setJoinMethod(string $joinMethod): void
+    {
+        $this->joinMethod = $joinMethod;
     }
 }

@@ -1,4 +1,5 @@
-import { nanoid } from "../../src/utils/nanoid";
+import { describe, test, expect } from "vitest"
+import { nanoid } from "../../src/utils/nanoid"
 
 describe("nanoid", () => {
   test("应该生成指定长度的唯一标识", () => {

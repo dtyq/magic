@@ -37,6 +37,11 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
     public string $type = '';
 
     /**
+     * join method.
+     */
+    public ?string $joinMethod = null;
+
+    /**
      * 排序字段：updated_at(项目更新时间), created_at(项目创建时间), last_active_at(用户最后活跃时间).
      */
     public string $sortField = '';
@@ -133,6 +138,16 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
         $this->creatorUserIds = $creatorUserIds;
     }
 
+    public function getJoinMethod(): ?string
+    {
+        return $this->joinMethod;
+    }
+
+    public function setJoinMethod(?string $joinMethod): void
+    {
+        $this->joinMethod = $joinMethod;
+    }
+
     /**
      * Get validation rules.
      */
@@ -142,6 +157,7 @@ class GetCollaborationProjectListRequestDTO extends AbstractRequestDTO
             'page' => 'integer|min:1',
             'page_size' => 'integer|min:1|max:100',
             'type' => 'nullable|string|in:received,shared',
+            'join_method' => 'nullable|string',
             'sort_field' => 'nullable|string|in:updated_at,created_at,last_active_at',
             'sort_direction' => 'nullable|string|in:asc,desc',
             'creator_user_ids' => 'nullable|array',

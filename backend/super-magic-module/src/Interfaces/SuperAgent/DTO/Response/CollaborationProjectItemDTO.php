@@ -30,6 +30,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         ?string $updatedAt,
         ?string $tag,
         ?string $userId,
+        ?bool $isCollaborationEnabled,
+        ?string $defaultJoinPermission,
 
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
@@ -54,7 +56,9 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             $createdAt,
             $updatedAt,
             $tag,
-            $userId
+            $userId,
+            $isCollaborationEnabled,
+            $defaultJoinPermission,
         );
     }
 
@@ -95,6 +99,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             bindWorkspaceId: $bindWorkspaceId,
             tag: 'collaboration',
             userId: $project->getUserId(),
+            isCollaborationEnabled: $project->getIsCollaborationEnabled(),
+            defaultJoinPermission: $project->getDefaultJoinPermission()->value,
         );
     }
 

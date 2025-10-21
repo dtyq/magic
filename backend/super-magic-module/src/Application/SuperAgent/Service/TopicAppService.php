@@ -118,7 +118,7 @@ class TopicAppService extends AbstractAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();

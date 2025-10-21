@@ -20,12 +20,15 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $share_code 分享代码
  * @property int $share_type 分享类型
  * @property null|string $password 访问密码
+ * @property bool $is_password_enabled 是否启用密码保护
  * @property null|string $expire_at 过期时间
  * @property int $view_count 查看次数
  * @property string $created_uid 创建者用户ID
  * @property string $updated_uid 更新者用户ID
  * @property string $organization_code 组织代码
  * @property null|string $target_ids 目标IDs
+ * @property null|array $extra 额外属性
+ * @property bool $is_enabled 是否启用
  * @property string $created_at 创建时间
  * @property string $updated_at 更新时间
  * @property null|string $deleted_at 删除时间
@@ -55,12 +58,15 @@ class ResourceShareModel extends AbstractModel
         'share_code',
         'share_type',
         'password',
+        'is_password_enabled',
         'expire_at',
         'view_count',
         'created_uid',
         'updated_uid',
         'organization_code',
         'target_ids',
+        'extra',
+        'is_enabled',
         'deleted_at',
     ];
 
@@ -73,6 +79,9 @@ class ResourceShareModel extends AbstractModel
         'share_type' => 'integer',
         'view_count' => 'integer',
         'target_ids' => 'json',
+        'extra' => 'json',
+        'is_enabled' => 'boolean',
+        'is_password_enabled' => 'boolean',
         'created_at' => 'string',
         'updated_at' => 'string',
         'deleted_at' => 'string',

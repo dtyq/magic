@@ -483,6 +483,9 @@ func withAuth(next http.HandlerFunc) http.HandlerFunc {
 		r.Header.Set("magic-user-id", claims.MagicUserID)
 		r.Header.Set("magic-organization-code", claims.MagicOrganizationCode)
 
+		logger.Printf("验证令牌-magic-user-id: %s", claims.MagicUserID)
+		logger.Printf("验证令牌-magic-organization-code: %s", claims.MagicOrganizationCode)
+		logger.Printf("验证令牌-X-User-Id: %s", claims.ContainerID)
 		// 将JWT claims存储到请求上下文中，供后续处理程序使用
 		ctx := context.WithValue(r.Context(), "jwt_claims", claims)
 		r = r.WithContext(ctx)
@@ -1061,6 +1064,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		//检查magic-user-id是否是一个数组，如果是数组，则合并为单个字符串
+		if len(proxyReq.Header["magic-user-id"]) > 1 {
+			proxyReq.Header.Set("magic-user-id", strings.Join(proxyReq.Header["magic-user-id"], ","))
+		}
+
 		// 如果需要添加API密钥且请求头中没有Authorization
 		if shouldAddApiKey && !headerExists(proxyHeaders, "Authorization") {
 			proxyReq.Header.Set("Authorization", "Bearer "+targetApiKey)
@@ -1151,14 +1159,14 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// 判断respBody 大小，如果超过100kb 则不打印
-			if len(respBody) > 100*1024 {
-				logger.Printf("响应体大小超过100kb，不打印")
-			} else {
-				logger.Printf("响应体内容: %s", string(respBody))
-			}
+		// 判断respBody 大小，如果超过100kb 则不打印
+		if len(respBody) > 100*1024 {
+			logger.Printf("响应体大小超过100kb，不打印")
+		} else {
+			logger.Printf("响应体内容: %s", string(respBody))
+		}
 
-			// 转发响应体
+				// 转发响应体
 			w.Write(respBody)
 		}
 	})
