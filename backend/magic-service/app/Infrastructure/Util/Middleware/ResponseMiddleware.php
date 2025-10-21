@@ -18,8 +18,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-use function Swow\defer;
 use function Hyperf\Support\env;
+use function Swow\defer;
 
 class ResponseMiddleware implements MiddlewareInterface
 {
@@ -111,7 +111,7 @@ class ResponseMiddleware implements MiddlewareInterface
         $uri = $request->getUri()->getPath();
         $parsedBody = $request->getParsedBody();
         $queryParams = $request->getQueryParams();
-        //判断是否在测试环境，如果是则不进行脱敏
+        // 判断是否在测试环境，如果是则不进行脱敏
         if (env('APP_ENV') === 'local' || env('APP_ENV') === 'test') {
             $parsedBody = $request->getParsedBody();
             $queryParams = $request->getQueryParams();
