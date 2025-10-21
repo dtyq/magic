@@ -2195,18 +2195,19 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:magic/magic-enterprise-service.git",
-                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c"
+                "reference": "205ee987315a8953ede3a4115a3d45495372162d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
-                "reference": "c3a2ee6a038b8ab91c84761c61a3bd2c0fbcc34c",
+                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-enterprise-service/repository/archive.zip?sha=205ee987315a8953ede3a4115a3d45495372162d",
+                "reference": "205ee987315a8953ede3a4115a3d45495372162d",
                 "shasum": ""
             },
             "require": {
                 "alipaysdk/easysdk": "^2.2",
                 "dtyq/billing-manager": "dev-master",
                 "ext-openssl": "*",
+                "ext-redis": "*",
                 "hyperf/amqp": "^3.1",
                 "hyperf/cache": "^3.1",
                 "hyperf/constants": "~3.1",
@@ -2308,7 +2309,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/magic/magic-enterprise-service/-/tree/master"
             },
-            "time": "2025-10-21T12:03:33+08:00"
+            "time": "2025-10-21T14:58:17+08:00"
         },
         {
             "name": "dtyq/php-mcp",
@@ -8476,16 +8477,16 @@
         },
         {
             "name": "kkguan-service/opentracer",
-            "version": "3.1.5",
+            "version": "3.1.6",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:open-source/opentracer.git",
-                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6"
+                "reference": "4603d3ef547c4bb22286829f9b9f5047e0efc24d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=11ad58381f3809d029062f1290611f6aee8b94c6",
-                "reference": "11ad58381f3809d029062f1290611f6aee8b94c6",
+                "url": "https://git.kkgroup.cn/api/v4/projects/open-source%2Fopentracer/repository/archive.zip?sha=4603d3ef547c4bb22286829f9b9f5047e0efc24d",
+                "reference": "4603d3ef547c4bb22286829f9b9f5047e0efc24d",
                 "shasum": ""
             },
             "require": {
@@ -8537,9 +8538,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.5"
+                "source": "https://git.kkgroup.cn/open-source/opentracer/-/tree/3.1.6"
             },
-            "time": "2025-10-20T12:05:05+00:00"
+            "time": "2025-10-21T14:24:43+08:00"
         },
         {
             "name": "kkguan-service/token-sdk",
