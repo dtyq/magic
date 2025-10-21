@@ -65,4 +65,12 @@ enum TaskFileSource: int
             default => self::DEFAULT,
         };
     }
+
+    /**
+     * 从值创建枚举实例 (Hyperf数据库层需要).
+     */
+    public static function from(int|string $value): self
+    {
+        return self::fromValue($value);
+    }
 }
