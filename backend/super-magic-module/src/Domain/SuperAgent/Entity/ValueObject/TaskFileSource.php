@@ -68,7 +68,7 @@ enum TaskFileSource: int
         };
     }
 
-    /**
+    /*
      * 从值创建枚举实例 (Hyperf数据库层需要).
      * Override the built-in from() method to handle invalid values gracefully.
      */
