@@ -393,7 +393,7 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            if ($isCreated && $isUpdated === false) {
+            if ($isCreated) {
                 $newFileEntity = $this->taskFileRepository->insert($fileEntity);
             } else {
                 $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
