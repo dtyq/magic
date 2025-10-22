@@ -1237,24 +1237,7 @@ class MessageScheduleAppService extends AbstractAppService
 
         // Case 1: One-time task (no_repeat)
         if ($taskType === TaskType::NoRepeat->value) {
-            $day = $timeConfig['day'] ?? '';
-            $time = $timeConfig['time'] ?? '';
-
-            if (empty($day) || empty($time)) {
-                // Invalid configuration
-                return true;
-            }
-
-            // Assemble execution time: "2025-10-15 18:00:00"
-            // Ensure time includes seconds
-            $timeParts = explode(':', $time);
-            if (count($timeParts) === 2) {
-                $time .= ':00'; // Add seconds if not present
-            }
-            $executionTime = $day . ' ' . $time;
-
-            // Return true if execution time has passed
-            return $executionTime < $currentTime;
+            return true;
         }
 
         // Case 2: Repeating task - use task scheduler to get next execution time
