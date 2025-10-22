@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
+use ValueError;
+
 /**
  * 任务文件来源枚举.
  */
@@ -66,11 +68,24 @@ enum TaskFileSource: int
         };
     }
 
-    /**
+    /*
      * 从值创建枚举实例 (Hyperf数据库层需要).
+     * Override the built-in from() method to handle invalid values gracefully.
      */
-    public static function from(int|string $value): self
-    {
-        return self::fromValue($value);
-    }
+    // public static function from(int|string $value): self
+    // {
+    //     if (is_string($value)) {
+    //         $value = (int) $value;
+    //     }
+
+    //     return match ($value) {
+    //         0 => self::DEFAULT,
+    //         1 => self::HOME,
+    //         2 => self::PROJECT_DIRECTORY,
+    //         3 => self::AGENT,
+    //         4 => self::COPY,
+    //         5 => self::AI_IMAGE_GENERATION,
+    //         default => throw new ValueError("{$value} is not a valid backing value for enum " . self::class),
+    //     };
+    // }
 }
