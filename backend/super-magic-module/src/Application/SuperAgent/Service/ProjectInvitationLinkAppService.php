@@ -103,6 +103,7 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             $currentUserId,
             $organizationCode,
             [
+                'resource_code' => $this->resourceShareDomainService->generateShareCode(),
                 'resource_name' => $project->getProjectName(),
                 'share_type' => ShareAccessType::Internet->value,
                 'extra' => [

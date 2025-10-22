@@ -205,8 +205,8 @@ class ResourceShareDomainService
 
         // 2. 如果不存在，创建新的分享实体
         if (! $shareEntity) {
-            // 生成分享码 - 优先使用传入的share_code，否则生成随机分享码
-            $shareCode = $attributes['share_code'] ?? $this->generateShareCode();
+            // 生成分享码 - 优先使用传入的share_code，使用 resource_id 代替 分享码
+            $shareCode = $attributes['share_code'] ?? $resourceId;
 
             // 构建基本分享数据
             $shareData = [
