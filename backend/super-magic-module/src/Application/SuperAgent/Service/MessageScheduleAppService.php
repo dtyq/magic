@@ -17,6 +17,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -196,6 +197,9 @@ class MessageScheduleAppService extends AbstractAppService
                 GenericErrorCode::ParameterValidationFailed,
                 $e->getMessage()
             );
+        } catch (BusinessException $e) {
+            // Business exception: re-throw to preserve error message
+            throw $e;
         } catch (Throwable $e) {
             // System exception: log details and show generic error message
             $this->logger->error('Schedule create operation system exception', [
@@ -441,6 +445,9 @@ class MessageScheduleAppService extends AbstractAppService
                 GenericErrorCode::ParameterValidationFailed,
                 trans('common.parameter_validation_error') . ': ' . $e->getMessage()
             );
+        } catch (BusinessException $e) {
+            // Business exception: re-throw to preserve error message
+            throw $e;
         } catch (Throwable $e) {
             // System exception: log details and show generic error message
             $this->logger->error('Schedule update operation system exception', [
