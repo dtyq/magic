@@ -21,7 +21,6 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
@@ -918,87 +917,6 @@ class TopicDomainService
         return $this->topicRepository->createTopic($topicEntity);
     }
 
-    private function copyTopicTaskEntity(int $sourceTopicId, int $targetTopicId, array $taskIds): array
-    {
-        $this->logger->info('Starting to copy topic task entities', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'task_ids' => $taskIds,
-        ]);
-
-        // 先通过 topic_id 和 task_id 查询任务的实体
-        $sourceTaskEntities = $this->taskRepository->getTasksByTopicIdAndTaskIds($sourceTopicId, $taskIds);
-
-        if (empty($sourceTaskEntities)) {
-            $this->logger->info('No tasks found to copy', [
-                'source_topic_id' => $sourceTopicId,
-                'task_ids' => $taskIds,
-            ]);
-            return [];
-        }
-
-        $this->logger->info('Found tasks to copy', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'task_count' => count($sourceTaskEntities),
-        ]);
-
-        // 然后参考 copyTopicEntity 方法，进行赋值
-        $newTaskEntities = [];
-        $taskIdMapping = []; // 旧task_id => 新task_id的映射关系
-        $currentTime = date('Y-m-d H:i:s');
-
-        foreach ($sourceTaskEntities as $sourceTask) {
-            $newTaskEntity = new TaskEntity();
-
-            // 提前生成新任务的ID
-            $newTaskId = IdGenerator::getSnowId();
-            $newTaskEntity->setId($newTaskId);
-
-            // 复制所有相关属性
-            $newTaskEntity->setUserId($sourceTask->getUserId());
-            $newTaskEntity->setWorkspaceId($sourceTask->getWorkspaceId());
-            $newTaskEntity->setProjectId($sourceTask->getProjectId());
-            $newTaskEntity->setTopicId($targetTopicId); // 设置为新话题ID
-            $newTaskEntity->setTaskId(''); // 任务ID由沙箱生成，暂时留空
-            $newTaskEntity->setSandboxId(''); // 新的沙箱ID
-            $newTaskEntity->setPrompt($sourceTask->getPrompt());
-            $newTaskEntity->setAttachments($sourceTask->getAttachments());
-            $newTaskEntity->setMentions($sourceTask->getMentions());
-            $newTaskEntity->setTaskStatus($sourceTask->getTaskStatus());
-            $newTaskEntity->setWorkDir($sourceTask->getWorkDir());
-            $newTaskEntity->setTaskMode($sourceTask->getTaskMode());
-            $newTaskEntity->setErrMsg(null); // 清空错误信息
-            $newTaskEntity->setConversationId(null); // 清空会话ID
-
-            // 设置复制来源任务ID
-            $newTaskEntity->setFromTaskId($sourceTask->getId());
-
-            // 设置时间戳
-            $newTaskEntity->setCreatedAt($currentTime);
-            $newTaskEntity->setUpdatedAt($currentTime);
-            $newTaskEntity->setDeletedAt(null);
-
-            $newTaskEntities[] = $newTaskEntity;
-
-            // 直接建立映射关系：旧任务ID => 新任务ID
-            $taskIdMapping[$sourceTask->getId()] = $newTaskId;
-        }
-
-        // 批量创建任务
-        $createdTaskEntities = $this->taskRepository->batchCreateTasks($newTaskEntities);
-
-        $this->logger->info('Successfully copied topic task entities', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'copied_count' => count($createdTaskEntities),
-            'task_id_mapping' => $taskIdMapping,
-        ]);
-
-        // 最后返回旧的task_id 和 新的task_id 的映射关系，如 ['old_task_id' => 'new_task_id']
-        return $taskIdMapping;
-    }
-
     private function copyTopicShareMessages(int $messageId, TopicEntity $sourceTopicEntity, TopicEntity $targetTopicEntity): array
     {
         $this->logger->info('Starting to copy topic share messages', [
@@ -1034,7 +952,7 @@ class TopicDomainService
                 $taskIds[] = $messageToCopy->getTaskId();
             }
         }
-        $taskIdMapping = $this->copyTopicTaskEntity($sourceTopicEntity->getId(), $targetTopicEntity->getId(), $taskIds);
+        // $taskIdMapping = $this->copyTopicTaskEntity($sourceTopicEntity->getId(), $targetTopicEntity->getId(), $taskIds);
 
         $newMessageEntities = [];
         $messageIdMapping = []; // 旧消息ID => 新消息ID的映射关系
@@ -1049,7 +967,7 @@ class TopicDomainService
             $newMessageEntity->setReceiverUid($messageToCopy->getReceiverUid());
             $newMessageEntity->setMessageId($messageToCopy->getMessageId());
             $newMessageEntity->setType($messageToCopy->getType());
-            $newMessageEntity->setTaskId((string) $taskIdMapping[$messageToCopy->getTaskId()] ?? '');
+            $newMessageEntity->setTaskId('');
             $newMessageEntity->setEvent($messageToCopy->getEvent());
             $newMessageEntity->setStatus($messageToCopy->getStatus());
             $newMessageEntity->setSteps($messageToCopy->getSteps());
