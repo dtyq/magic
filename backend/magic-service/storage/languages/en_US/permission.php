@@ -25,7 +25,6 @@ return [
         'platform_setting_maintenance' => 'Maintenance',
         'platform_organization' => 'Organization',
         'platform_organization_list' => 'Organization List',
-        'platform_organization_whitelist' => 'Organization Whitelist',
     ],
     'operation' => [
         'query' => 'Query',
