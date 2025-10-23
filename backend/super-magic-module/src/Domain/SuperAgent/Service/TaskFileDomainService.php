@@ -516,7 +516,7 @@ class TaskFileDomainService
 
     public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir): bool
     {
-        $fullPrefix = $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->getFullPrefix($fileEntity->getOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
@@ -525,7 +525,7 @@ class TaskFileDomainService
         // Delete cloud file
         try {
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->deleteObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
+            $this->cloudFileRepository->deleteObjectByCredential($prefix, $fileEntity->getOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
         } catch (Throwable $e) {
             $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
         }
