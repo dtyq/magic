@@ -457,7 +457,8 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         int $page = 1,
         int $pageSize = 10,
         string $sortField = 'last_active_at',
-        string $sortDirection = 'desc'
+        string $sortDirection = 'desc',
+        ?array $organizationCodes = null
     ): array {
         // 构建基础查询
         $query = $this->projectMemberModel::query()
@@ -494,6 +495,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         // 项目名称模糊搜索
         if (! empty($projectName)) {
             $query->where('p.project_name', 'like', '%' . $projectName . '%');
+        }
+
+        // 组织过滤
+        if (! empty($organizationCodes)) {
+            $query->whereIn('p.user_organization_code', $organizationCodes);
         }
 
         // 协作项目筛选逻辑

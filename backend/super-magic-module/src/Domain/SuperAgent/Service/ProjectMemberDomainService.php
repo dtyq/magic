@@ -293,6 +293,7 @@ class ProjectMemberDomainService
      * @param int $pageSize 每页大小
      * @param string $sortField 排序字段
      * @param string $sortDirection 排序方向
+     * @param null|array $organizationCodes 组织编码
      * @return array ['total' => int, 'list' => array]
      */
     public function getParticipatedProjectsWithCollaboration(
@@ -302,8 +303,9 @@ class ProjectMemberDomainService
         ?string $projectName = null,
         int $page = 1,
         int $pageSize = 10,
+        ?array $organizationCodes = null,
         string $sortField = 'last_active_at',
-        string $sortDirection = 'desc'
+        string $sortDirection = 'desc',
     ): array {
         // 判断是否限制工作区
         $limitWorkspace = $workspaceId > 0;
@@ -316,7 +318,8 @@ class ProjectMemberDomainService
             $page,
             $pageSize,
             $sortField,
-            $sortDirection
+            $sortDirection,
+            $organizationCodes
         );
     }
 

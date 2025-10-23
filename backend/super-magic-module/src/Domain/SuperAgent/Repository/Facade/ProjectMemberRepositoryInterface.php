@@ -165,6 +165,7 @@ interface ProjectMemberRepositoryInterface
      * @param int $pageSize 每页大小
      * @param string $sortField 排序字段
      * @param string $sortDirection 排序方向
+     * @param null|array $organizationCodes 组织编码
      * @return array ['total' => int, 'list' => array]
      */
     public function getParticipatedProjects(
@@ -175,7 +176,8 @@ interface ProjectMemberRepositoryInterface
         int $page = 1,
         int $pageSize = 10,
         string $sortField = 'last_active_at',
-        string $sortDirection = 'desc'
+        string $sortDirection = 'desc',
+        ?array $organizationCodes = null
     ): array;
 
     /**
