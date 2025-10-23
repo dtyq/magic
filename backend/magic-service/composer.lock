@@ -6551,16 +6551,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.60",
+            "version": "v1.1.61",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "2d430ac2d311b84e0f14765a83b739132c505d56"
+                "reference": "76c2a0014fe2f861f184f5338d9205b2f98b901a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=2d430ac2d311b84e0f14765a83b739132c505d56",
-                "reference": "2d430ac2d311b84e0f14765a83b739132c505d56",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=76c2a0014fe2f861f184f5338d9205b2f98b901a",
+                "reference": "76c2a0014fe2f861f184f5338d9205b2f98b901a",
                 "shasum": ""
             },
             "require": {
@@ -6632,9 +6632,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.60"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.61"
             },
-            "time": "2025-10-20T17:09:08+08:00"
+            "time": "2025-10-23T18:11:24+08:00"
         },
         {
             "name": "hyperf/phar",
