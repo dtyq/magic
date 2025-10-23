@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
@@ -39,6 +40,7 @@ readonly class AgentAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ProjectDomainService $projectDomainService,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -613,8 +615,10 @@ readonly class AgentAppService
             workspaceId: (string) $topicEntity->getWorkspaceId(),
         );
 
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
+
         // 初始化Agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, projectOrganizationCode: $projectEntity->getUserOrganizationCode());
 
         // 等待工作区就绪
         $this->waitForWorkspaceReady($sandboxId, 60, 2);

@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -62,6 +63,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         private readonly AccessTokenDomainService $accessTokenDomainService,
         private readonly MagicUserDomainService $userDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -347,8 +349,10 @@ class HandleTaskMessageAppService extends AbstractAppService
             (string) $taskContext->getProjectId(),
         );
 
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($taskContext->getTask()->getProjectId());
+
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectEntity->getUserOrganizationCode());
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());

@@ -32,9 +32,5 @@ class AddExtraAttributesToMagicResourceSharesTable extends Migration
      */
     public function down(): void
     {
-        Schema::table('magic_resource_shares', function (Blueprint $table) {
-            // 删除 extra 字段
-            $table->dropColumn('extra');
-        });
     }
 }

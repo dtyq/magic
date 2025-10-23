@@ -7,7 +7,6 @@ declare(strict_types=1);
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
 use Hyperf\Database\Schema\Schema;
-use Hyperf\DbConnection\Db;
 
 class AddCollaborationEnabledToMagicSuperAgentProjectTable extends Migration
 {
@@ -27,19 +26,6 @@ class AddCollaborationEnabledToMagicSuperAgentProjectTable extends Migration
                 ->default('editor')
                 ->comment('默认权限：manage-管理，editor-编辑，viewer-查看');
         });
-
-        // 为已有协作成员的项目启用协作功能
-        $projectIdsWithMembers = Db::table('magic_super_agent_project_members')
-            ->select('project_id')
-            ->distinct()
-            ->pluck('project_id')
-            ->toArray();
-
-        if (! empty($projectIdsWithMembers)) {
-            Db::table('magic_super_agent_project')
-                ->whereIn('id', $projectIdsWithMembers)
-                ->update(['is_collaboration_enabled' => 1]);
-        }
     }
 
     /**
