@@ -257,4 +257,9 @@ class MagicDepartmentUserEntity extends AbstractEntity implements ArrayAccess
     {
         $this->deletedAt = $deletedAt;
     }
+
+    public function isTopLevel(): bool
+    {
+        return $this->departmentId === '-1';
+    }
 }

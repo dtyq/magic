@@ -128,7 +128,7 @@ class ProjectMemberAppService extends AbstractAppService
         $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取项目成员列表
-        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::MANAGE->value, MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
+        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, MemberRole::getAllRoleValues());
 
         if (empty($memberEntities)) {
             return ProjectMembersResponseDTO::fromEmpty();
@@ -151,7 +151,12 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 获取用户所属部门
         $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIdsInMagic($userIds);
-        $userIdMapDepartmentIds = array_column($departmentUsers, 'department_id', 'userId');
+        $userIdMapDepartmentIds = [];
+        foreach ($departmentUsers as $departmentUser) {
+            if (! $departmentUser->isTopLevel()) {
+                $userIdMapDepartmentIds[$departmentUser->getUserId()] = $departmentUser->getDepartmentId();
+            }
+        }
         $allDepartmentIds = array_merge($departmentIds, array_values($userIdMapDepartmentIds));
 
         // 获取部门详情
@@ -759,8 +764,7 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 批量验证用户
         if (! empty($userIds)) {
-            $dataIsolation = DataIsolation::create($organizationCode, '');
-            $validUsers = $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds);
+            $validUsers = $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds);
             $validUserIds = array_map(fn ($user) => $user->getUserId(), $validUsers);
 
             $invalidUserIds = array_diff($userIds, $validUserIds);
