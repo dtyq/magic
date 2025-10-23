@@ -21,6 +21,7 @@ return [
         'platform' => '平台管理',
         'platform_ai' => 'AI管理',
         'platform_setting' => '系统设置',
+        'platform_setting_platform_info' => '平台信息',
         'platform_setting_maintenance' => '维护管理',
         'platform_organization' => '组织管理',
         'platform_organization_list' => '组织列表',
