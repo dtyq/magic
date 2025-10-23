@@ -26,6 +26,9 @@ enum UserSettingKey: string
     // 全局配置
     case GlobalConfig = 'GlobalConfig';
 
+    // 平台设置（平台信息、Logo、Favicon、i18n 等）
+    case PlatformSettings = 'PlatformSettings';
+
     // 智能体排序配置
     case SuperMagicAgentSort = 'SuperMagicAgentSort';
 

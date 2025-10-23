@@ -21,6 +21,7 @@ return [
         'platform' => 'Platform',
         'platform_ai' => 'Platform AI',
         'platform_setting' => 'System Settings',
+        'platform_setting_platform_info' => 'Platform Info',
         'platform_setting_maintenance' => 'Maintenance',
         'platform_organization' => 'Organization',
         'platform_organization_list' => 'Organization List',
