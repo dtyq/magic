@@ -31,6 +31,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $modifier
  * @property Carbon $updated_at
  * @property Carbon $deleted_at
+ * @property bool $enabled
  */
 class AccessTokenModel extends Model
 {
@@ -41,7 +42,7 @@ class AccessTokenModel extends Model
 
     protected array $fillable = [
         'id', 'type', 'access_token', 'relation_id', 'name', 'description', 'models', 'ip_limit',
-        'expire_time', 'total_amount', 'use_amount', 'rpm',
+        'expire_time', 'total_amount', 'use_amount', 'rpm', 'enabled',
         'organization_code', 'creator', 'created_at', 'modifier', 'updated_at', 'deleted_at',
     ];
 
@@ -64,6 +65,7 @@ class AccessTokenModel extends Model
         'modifier' => 'string',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'enabled' => 'boolean',
     ];
 
     public function setModelsAttribute(mixed $models): void
