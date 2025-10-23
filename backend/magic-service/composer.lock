@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "09b45ef319ffa2a79cbb81c1c9a6096c",
+    "content-hash": "0941c3d892d693b79b197648e7dcaf68",
     "packages": [
         {
             "name": "96qbhy/hyperf-auth",
@@ -2312,98 +2312,6 @@
             "time": "2025-10-22T18:32:11+08:00"
         },
         {
-            "name": "dtyq/magic-platform-service",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "git@git.kkgroup.cn:magic/magic-platform-service.git",
-                "reference": "cd562030beaadaf9949ec9b530778f57263eef2a"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/magic%2Fmagic-platform-service/repository/archive.zip?sha=cd562030beaadaf9949ec9b530778f57263eef2a",
-                "reference": "cd562030beaadaf9949ec9b530778f57263eef2a",
-                "shasum": ""
-            },
-            "require": {
-                "96qbhy/hyperf-auth": "^3.1",
-                "ext-json": "*",
-                "ext-openssl": "*",
-                "ext-pdo": "*",
-                "hyperf/cache": "^3.1",
-                "hyperf/constants": "~3.1",
-                "hyperf/database": "~3.1.0",
-                "hyperf/db-connection": "~3.1.0",
-                "hyperf/engine-swow": "^2.12",
-                "hyperf/guzzle": "~3.1.0",
-                "hyperf/http-message": "~3.1.0",
-                "hyperf/http-server": "~3.1.0",
-                "hyperf/laminas-mime": "^3.0",
-                "hyperf/logger": "~3.1.0",
-                "hyperf/process": "~3.1.0",
-                "hyperf/rate-limit": "^3.1",
-                "hyperf/redis": "~3.1.0",
-                "hyperf/translation": "~3.1.0",
-                "hyperf/validation": "^3.1",
-                "php": ">=8.4",
-                "promphp/prometheus_client_php": "^2.13"
-            },
-            "require-dev": {
-                "friendsofphp/php-cs-fixer": "^3.0",
-                "phpstan/phpstan": "^1.0",
-                "roave/security-advisories": "dev-latest"
-            },
-            "default-branch": true,
-            "type": "library",
-            "extra": {
-                "hyperf": {
-                    "config": "Dtyq\\MagicPlatformService\\ConfigProvider",
-                    "config_autoload": "config/autoload"
-                },
-                "branch-alias": {
-                    "dev-master": "1.0-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Dtyq\\MagicPlatformService\\": "src/"
-                }
-            },
-            "scripts": {
-                "post-autoload-dump": [
-                    "php -r \"if(PHP_OS_FAMILY === 'Windows') shell_exec('del /f /s /q runtime\\\\container && rmdir runtime\\\\container'); else shell_exec('rm -rf runtime/container');\" "
-                ],
-                "fix": [
-                    "Composer\\Config::disableProcessTimeout",
-                    "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/php-cs-fixer fix $1"
-                ],
-                "analyse": [
-                    "Composer\\Config::disableProcessTimeout",
-                    "php -dopcache.enable_cli=1 -dopcache.jit_buffer_size=128M -dopcache.jit=tracing vendor/bin/phpstan analyse --memory-limit 1G -c phpstan.neon"
-                ]
-            },
-            "license": [
-                "proprietary"
-            ],
-            "authors": [
-                {
-                    "name": "dtyq",
-                    "email": "team@dtyq.com"
-                }
-            ],
-            "description": "Magic Platform Service - A unified platform for managing multiple services",
-            "keywords": [
-                "hyperf",
-                "magic",
-                "platform",
-                "service"
-            ],
-            "support": {
-                "source": "https://git.kkgroup.cn/magic/magic-platform-service/-/tree/master"
-            },
-            "time": "2025-10-23T10:52:37+08:00"
-        },
-        {
             "name": "dtyq/php-mcp",
             "version": "0.1.7",
             "source": {
@@ -2671,12 +2579,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "afbc971e803c3f235c7ba66f090b45a61af6922a"
+                "reference": "edaf3605adf903f5e1c5c1332827da5fae911dc8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=afbc971e803c3f235c7ba66f090b45a61af6922a",
-                "reference": "afbc971e803c3f235c7ba66f090b45a61af6922a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=edaf3605adf903f5e1c5c1332827da5fae911dc8",
+                "reference": "edaf3605adf903f5e1c5c1332827da5fae911dc8",
                 "shasum": ""
             },
             "require": {
@@ -2778,7 +2686,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-10-23T02:36:09+00:00"
+            "time": "2025-10-22T18:13:18+08:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -20168,7 +20076,6 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "dtyq/magic-enterprise-service": 20,
-        "dtyq/magic-platform-service": 20,
         "dtyq/super-magic-module": 20,
         "roave/security-advisories": 20
     },
