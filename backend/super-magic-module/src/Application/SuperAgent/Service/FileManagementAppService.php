@@ -103,6 +103,7 @@ class FileManagementAppService extends AbstractAppService
                 if (empty($workDir)) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
                 }
+                $organizationCode = $projectEntity->getUserOrganizationCode();
             } else {
                 // 情况2：无项目ID，使用雪花ID生成临时项目ID
                 $tempProjectId = IdGenerator::getSnowId();
@@ -115,7 +116,7 @@ class FileManagementAppService extends AbstractAppService
             $storageType = StorageBucketType::SandBox->value;
 
             return $this->fileAppService->getStsTemporaryCredentialV2(
-                $projectEntity->getUserOrganizationCode(),
+                $organizationCode,
                 $storageType,
                 $workDir,
                 $expires,
