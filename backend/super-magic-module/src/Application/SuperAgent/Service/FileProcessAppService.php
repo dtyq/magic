@@ -989,7 +989,7 @@ class FileProcessAppService extends AbstractAppService
             $taskFileEntity->getFileKey(),
             $taskFileEntity->getFileName(),
             $taskFileEntity->getFileExtension(),
-            $authorization->getOrganizationCode(),
+            $taskFileEntity->getOrganizationCode(),
             $taskFileEntity->getFileId()
         );
 
