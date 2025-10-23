@@ -234,7 +234,6 @@ class FileAppService extends AbstractAppService
         return $data;
     }
 
-
     public function getStsTemporaryCredentialV2(string $organizationCode, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true, ?string $projectOrganizationCode = null): array
     {
         // 调用文件服务获取STS Token
