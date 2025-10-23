@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -69,6 +70,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly LockerInterface $locker,
         private readonly Producer $producer,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -112,12 +114,12 @@ class FileManagementAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
             $storageType = StorageBucketType::SandBox->value;
 
-            return $this->fileAppService->getStsTemporaryCredential(
-                $userAuthorization,
+            return $this->fileAppService->getStsTemporaryCredentialV2(
+                $projectEntity->getUserOrganizationCode(),
                 $storageType,
                 $workDir,
                 $expires,
-                false
+                false,
             );
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
@@ -165,6 +167,7 @@ class FileManagementAppService extends AbstractAppService
             if (empty($topicEntity)) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, trans('topic.not_found'));
             }
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
             $workDir = WorkDirectoryUtil::getTopicUploadDir($userId, $topicEntity->getProjectId(), $topicEntity->getId());
 
             // 获取STS Token
@@ -172,11 +175,11 @@ class FileManagementAppService extends AbstractAppService
             $userAuthorization->setOrganizationCode($organizationCode);
             $storageType = StorageBucketType::SandBox->value;
 
-            return $this->fileAppService->getStsTemporaryCredential(
-                $userAuthorization,
+            return $this->fileAppService->getStsTemporaryCredentialV2(
+                $projectEntity->getUserOrganizationCode(),
                 $storageType,
                 $workDir,
-                $expires
+                $expires,
             );
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
