@@ -31,9 +31,5 @@ class ExtendMagicSuperAgentProjectMembersTable extends Migration
      */
     public function down(): void
     {
-        Schema::table('magic_super_agent_project_members', function (Blueprint $table) {
-            // 删除 join_method 字段
-            $table->dropColumn('join_method');
-        });
     }
 }
