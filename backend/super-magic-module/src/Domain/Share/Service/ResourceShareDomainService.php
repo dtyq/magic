@@ -415,14 +415,13 @@ class ResourceShareDomainService
     /**
      * 获取指定资源的分享.
      *
-     * @param string $userId 用户ID（可选，用于权限检查）
      * @param string $resourceId 资源ID
      * @param int $resourceType 资源类型
      * @return null|ResourceShareEntity 分享实体
      */
-    public function getShareByResource(string $userId, string $resourceId, int $resourceType): ?ResourceShareEntity
+    public function getShareByResource(string $resourceId, int $resourceType): ?ResourceShareEntity
     {
-        return $this->shareRepository->getShareByResource($userId, $resourceId, $resourceType, false);
+        return $this->shareRepository->getShareByResource('', $resourceId, $resourceType, false);
     }
 
     /**
