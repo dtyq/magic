@@ -495,7 +495,7 @@ class FileManagementAppService extends AbstractAppService
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
-                $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey());
+                $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey(), $fileEntity->getOrganizationCode());
                 // 发布目录已删除事件
                 $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
                 $this->eventDispatcher->dispatch($directoryDeletedEvent);
@@ -555,7 +555,7 @@ class FileManagementAppService extends AbstractAppService
             $targetPath = $fileEntity->getFileKey();
 
             // 4. 调用领域服务执行批量删除
-            $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath);
+            $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath, $fileEntity->getOrganizationCode());
 
             // 发布目录已删除事件
             $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
@@ -613,7 +613,8 @@ class FileManagementAppService extends AbstractAppService
                 $projectEntity->getWorkDir(),
                 $projectId,
                 $fileIds,
-                $forceDelete
+                $forceDelete,
+                $projectEntity->getUserOrganizationCode()
             );
 
             $this->logger->info(sprintf(
@@ -713,7 +714,7 @@ class FileManagementAppService extends AbstractAppService
                     projectId: $projectEntity->getId(),
                     workDir: $projectEntity->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    organizationCode: $projectEntity->getUserOrganizationCode(),
                 );
             }
 
@@ -727,7 +728,7 @@ class FileManagementAppService extends AbstractAppService
                 $event = FileBatchMoveEvent::fromDTO(
                     $batchKey,
                     $dataIsolation->getCurrentUserId(),
-                    $dataIsolation->getCurrentOrganizationCode(),
+                    $projectEntity->getUserOrganizationCode(),
                     $fileIds,
                     $projectEntity->getId(),
                     $preFileId,
@@ -947,14 +948,14 @@ class FileManagementAppService extends AbstractAppService
             // Create and publish batch move event
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
             if (empty($requestDTO->getTargetParentId())) {
-                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $projectEntity->getUserOrganizationCode());
             } else {
                 $targetParentId = (int) $requestDTO->getTargetParentId();
             }
             $event = FileBatchMoveEvent::fromDTO(
                 $batchKey,
                 $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode(),
+                $projectEntity->getUserOrganizationCode(),
                 $requestDTO->getFileIds(),
                 $projectEntity->getId(),
                 $preFileId,

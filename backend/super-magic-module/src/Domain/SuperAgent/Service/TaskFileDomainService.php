@@ -433,7 +433,7 @@ class TaskFileDomainService
         bool $isDirectory,
         int $sortValue = 0
     ): TaskFileEntity {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $organizationCode = $projectEntity->getUserOrganizationCode();
         $workDir = $projectEntity->getWorkDir();
 
         if (empty($workDir)) {
@@ -538,10 +538,8 @@ class TaskFileDomainService
         return true;
     }
 
-    public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath): int
+    public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath, string $fileOrganizationCode): int
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
         Db::beginTransaction();
         try {
             // 1. 查找目录下所有文件（限制500条）
@@ -552,7 +550,7 @@ class TaskFileDomainService
                 return 0;
             }
             $deletedCount = 0;
-            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullPrefix = $this->getFullPrefix($fileOrganizationCode);
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
@@ -569,7 +567,7 @@ class TaskFileDomainService
                 try {
                     $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
                         $prefix,
-                        $organizationCode,
+                        $fileOrganizationCode,
                         $fileKeys,
                         StorageBucketType::SandBox
                     );
@@ -627,9 +625,9 @@ class TaskFileDomainService
      * @param bool $forceDelete Whether to force delete (optional)
      * @return array Result with counts of deleted files
      */
-    public function batchDeleteProjectFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, array $fileIds, bool $forceDelete = false): array
+    public function batchDeleteProjectFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, array $fileIds, bool $forceDelete = false, ?string $projectOrganizationCode = null): array
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectOrganizationCode ?? $dataIsolation->getCurrentOrganizationCode();
         $userId = $dataIsolation->getCurrentUserId();
 
         try {
@@ -643,7 +641,7 @@ class TaskFileDomainService
                 ];
             }
 
-            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             // 2. Validate permissions and project ownership
@@ -677,7 +675,7 @@ class TaskFileDomainService
                 try {
                     $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
                         $prefix,
-                        $organizationCode,
+                        $projectOrganizationCode,
                         $fileKeys,
                         StorageBucketType::SandBox
                     );
@@ -728,6 +726,8 @@ class TaskFileDomainService
 
     public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetName): TaskFileEntity
     {
+        $fileOrganizationCode = $fileEntity->getOrganizationCode();
+
         $dir = dirname($fileEntity->getFileKey());
         $fullTargetFileKey = $dir . DIRECTORY_SEPARATOR . $targetName;
         $targetFileEntity = $this->taskFileRepository->getByFileKey($fullTargetFileKey);
@@ -736,7 +736,7 @@ class TaskFileDomainService
         }
 
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $this->getFullPrefix($fileOrganizationCode),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fullTargetFileKey)) {
@@ -745,10 +745,9 @@ class TaskFileDomainService
 
         Db::beginTransaction();
         try {
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             // call cloud file service
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $fileOrganizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
 
             // rename file record
             $fileEntity->setFileKey($fullTargetFileKey);
@@ -768,7 +767,8 @@ class TaskFileDomainService
 
     public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $newDirName): int
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $fileOrganizationCode = $dirEntity->getOrganizationCode();
+
         $oldDirKey = $dirEntity->getFileKey();
         $parentDir = dirname($oldDirKey);
         $newDirKey = rtrim($parentDir, '/') . '/' . ltrim($newDirName, '/') . '/';
@@ -781,7 +781,7 @@ class TaskFileDomainService
 
         // Validate new directory key is within work directory
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($organizationCode),
+            $this->getFullPrefix($fileOrganizationCode),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newDirKey)) {
@@ -799,7 +799,7 @@ class TaskFileDomainService
             }
 
             $renamedCount = 0;
-            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $fullPrefix = $this->getFullPrefix($fileOrganizationCode);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
             // 2. Batch update file keys in database
@@ -825,7 +825,7 @@ class TaskFileDomainService
 
                 // 3. Rename in cloud storage
                 try {
-                    $this->cloudFileRepository->renameObjectByCredential($prefix, $organizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $fileOrganizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
                     ++$renamedCount;
                 } catch (Throwable $e) {
                     $this->logger->error('Failed to rename file in cloud storage', [
