@@ -1302,7 +1302,7 @@ class TaskFileDomainService
 
         try {
             return $this->cloudFileRepository->getPreSignedUrlByCredential(
-                $dataIsolation->getCurrentOrganizationCode(),
+                $fileEntity->getOrganizationCode(),
                 $fileEntity->getFileKey(),
                 $bucketType,
                 $options
