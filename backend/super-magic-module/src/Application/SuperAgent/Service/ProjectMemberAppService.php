@@ -384,6 +384,12 @@ class ProjectMemberAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // 1. 获取用户协作项目中付费的组织编码（非付费套餐不支持项目协作）
+        $collaborationPaidOrganizationCodes = $this->getUserCollaborationPaidOrganizationCodes($requestContext);
+
+        // 2. 将当前组织编码也加入列表（用于过滤）
+        $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$userAuthorization->getOrganizationCode()]));
+
         // 1. 获取用户参与的项目列表
         $result = $this->projectMemberDomainService->getParticipatedProjectsWithCollaboration(
             $dataIsolation->getCurrentUserId(),
@@ -391,7 +397,8 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getShowCollaboration(),
             $requestDTO->getProjectName(),
             $requestDTO->getPage(),
-            $requestDTO->getPageSize()
+            $requestDTO->getPageSize(),
+            $paidOrganizationCodes
         );
 
         // 2. 提取工作区ID并获取名称
