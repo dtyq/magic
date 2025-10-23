@@ -51,7 +51,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -74,9 +73,12 @@ class ProjectInvitationLinkAppService extends AbstractAppService
         // 1. 验证是否具有项目管理权限
         $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
+        if ($project->getUserId() !== $currentUserId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.invalid_permission_level');
+        }
+
         // 2. 查找现有的邀请分享
         $existingShare = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -103,7 +105,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
             $currentUserId,
             $organizationCode,
             [
-                'resource_code' => $this->resourceShareDomainService->generateShareCode(),
                 'resource_name' => $project->getProjectName(),
                 'share_type' => ShareAccessType::Internet->value,
                 'extra' => [
@@ -128,7 +129,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -156,7 +156,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -201,7 +200,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -235,7 +233,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 3. 获取邀请链接
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
@@ -263,7 +260,6 @@ class ProjectInvitationLinkAppService extends AbstractAppService
 
         // 2. 获取现有邀请分享
         $shareEntity = $this->resourceShareDomainService->getShareByResource(
-            $currentUserId,
             (string) $projectId,
             ResourceType::ProjectInvitation->value
         );
