@@ -9,8 +9,12 @@ namespace App\Interfaces\Kernel\Facade;
 
 use App\Application\Kernel\DTO\GlobalConfig;
 use App\Application\Kernel\Service\MagicSettingAppService;
+use App\Application\Kernel\Service\PlatformSettingsAppService;
+use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Throwable;
 
 #[ApiResponse('low_code')]
 class GlobalConfigApi
@@ -23,7 +27,19 @@ class GlobalConfigApi
     public function getGlobalConfig(): array
     {
         $config = $this->magicSettingAppService->get();
-        return $config->toArray();
+        $result = $config->toArray();
+
+        // 合并平台设置
+        try {
+            /** @var PlatformSettingsAppService $platformSettingsAppService */
+            $platformSettingsAppService = di(PlatformSettingsAppService::class);
+            $platform = $platformSettingsAppService->get();
+            $result = array_merge($result, self::platformSettingsToResponse($platform->toArray()));
+        } catch (Throwable $e) {
+            // 忽略平台设置异常，避免影响全局配置读取
+        }
+
+        return $result;
     }
 
     public function updateGlobalConfig(RequestInterface $request): array
@@ -38,5 +54,39 @@ class GlobalConfigApi
         $this->magicSettingAppService->save($config);
 
         return $config->toArray();
+    }
+
+    private static function platformSettingsToResponse(array $settings): array
+    {
+        // 将 logo_urls 转换为前端示例结构
+        $logo = [];
+        foreach (($settings['logo_urls'] ?? []) as $locale => $url) {
+            $logo[$locale] = ['url' => $url];
+        }
+        $favicon = [];
+        if (! empty($settings['favicon_url'] ?? '')) {
+            $favicon = ['url' => (string) $settings['favicon_url']];
+        }
+        $resp = [
+            'logo' => $logo,
+            'favicon' => $favicon,
+            'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
+        ];
+        foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n'] as $key) {
+            if (isset($settings[$key])) {
+                $resp[$key] = (array) $settings[$key];
+            }
+        }
+        return $resp;
+    }
+
+    private function isCurrentOrganizationOfficial(): bool
+    {
+        $officialOrganization = config('service_provider.office_organization');
+        $organizationCode = $this->getAuthorization()->getOrganizationCode();
+        if ($officialOrganization !== $organizationCode) {
+            ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
+        }
+        return true;
     }
 }

@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Kernel\Facade\GlobalConfigApi;
+// Platform settings routes moved to admin.php
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/settings', static function () {

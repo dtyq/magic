@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
+use App\Interfaces\Kernel\Facade\PlatformSettingsApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Platform\OrganizationAdminPlusWhitelistApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
@@ -100,3 +101,9 @@ Router::addGroup('/api/v1/admin', static function () {
         });
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });
+
+// 平台设置（管理端）
+Router::addGroup('/api/v1/platform', static function () {
+    Router::get('/setting', [PlatformSettingsApi::class, 'show']);
+    Router::put('/setting', [PlatformSettingsApi::class, 'update']);
+}, ['middleware' => [RequestContextMiddleware::class]]);
