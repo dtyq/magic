@@ -2673,12 +2673,12 @@
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:dtyq/super-magic-module.git",
-                "reference": "1a9f0edfb01f633b3d7661bca6535e945dd6419d"
+                "reference": "351688a65b076d6f19c1f61317046fb5644cfc68"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=1a9f0edfb01f633b3d7661bca6535e945dd6419d",
-                "reference": "1a9f0edfb01f633b3d7661bca6535e945dd6419d",
+                "url": "https://git.kkgroup.cn/api/v4/projects/dtyq%2Fsuper-magic-module/repository/archive.zip?sha=351688a65b076d6f19c1f61317046fb5644cfc68",
+                "reference": "351688a65b076d6f19c1f61317046fb5644cfc68",
                 "shasum": ""
             },
             "require": {
@@ -2780,7 +2780,7 @@
             "support": {
                 "source": "https://git.kkgroup.cn/dtyq/super-magic-module/-/tree/enterprise-master"
             },
-            "time": "2025-10-23T10:43:11+00:00"
+            "time": "2025-10-23T14:26:18+00:00"
         },
         {
             "name": "dtyq/task-scheduler",
@@ -6551,16 +6551,16 @@
         },
         {
             "name": "hyperf/odin",
-            "version": "v1.1.61",
+            "version": "v1.1.64",
             "source": {
                 "type": "git",
                 "url": "git@git.kkgroup.cn:hyperf/odin.git",
-                "reference": "76c2a0014fe2f861f184f5338d9205b2f98b901a"
+                "reference": "31e76d0a1a5f637aa4579a7fe067bbae06231523"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=76c2a0014fe2f861f184f5338d9205b2f98b901a",
-                "reference": "76c2a0014fe2f861f184f5338d9205b2f98b901a",
+                "url": "https://git.kkgroup.cn/api/v4/projects/hyperf%2Fodin/repository/archive.zip?sha=31e76d0a1a5f637aa4579a7fe067bbae06231523",
+                "reference": "31e76d0a1a5f637aa4579a7fe067bbae06231523",
                 "shasum": ""
             },
             "require": {
@@ -6632,9 +6632,9 @@
                 "php"
             ],
             "support": {
-                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.61"
+                "source": "https://git.kkgroup.cn/hyperf/odin/-/tree/v1.1.64"
             },
-            "time": "2025-10-23T18:11:24+08:00"
+            "time": "2025-10-23T21:59:46+08:00"
         },
         {
             "name": "hyperf/phar",
@@ -15057,16 +15057,16 @@
         },
         {
             "name": "volcengine/volc-sdk-php",
-            "version": "v1.0.160",
+            "version": "v1.0.161",
             "source": {
                 "type": "git",
                 "url": "https://github.com/volcengine/volc-sdk-php.git",
-                "reference": "8cf18596b9113916fe38a2d228cb3fcec10695ac"
+                "reference": "30593a085b89a9e86cdd70cdcabb640e3268a729"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/8cf18596b9113916fe38a2d228cb3fcec10695ac",
-                "reference": "8cf18596b9113916fe38a2d228cb3fcec10695ac",
+                "url": "https://api.github.com/repos/volcengine/volc-sdk-php/zipball/30593a085b89a9e86cdd70cdcabb640e3268a729",
+                "reference": "30593a085b89a9e86cdd70cdcabb640e3268a729",
                 "shasum": ""
             },
             "require": {
@@ -15101,9 +15101,9 @@
             ],
             "support": {
                 "issues": "https://github.com/volcengine/volc-sdk-php/issues",
-                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.160"
+                "source": "https://github.com/volcengine/volc-sdk-php/tree/v1.0.161"
             },
-            "time": "2025-10-16T10:57:24+00:00"
+            "time": "2025-10-23T09:54:32+00:00"
         },
         {
             "name": "w7corp/easywechat",
