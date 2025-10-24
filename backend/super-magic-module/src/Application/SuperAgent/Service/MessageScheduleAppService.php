@@ -123,10 +123,14 @@ class MessageScheduleAppService extends AbstractAppService
      */
     public function createSchedule(RequestContext $requestContext, CreateMessageScheduleRequestDTO $requestDTO): array
     {
+        $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+
+        // Check project permission
+        $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
         try {
-            return Db::transaction(function () use ($requestContext, $requestDTO) {
+            return Db::transaction(function () use ($requestDTO, $dataIsolation) {
                 // Validate resource permissions
-                $dataIsolation = $this->createDataIsolationFromContext($requestContext);
                 $this->validateResourcePermissions(
                     $dataIsolation,
                     (int) $requestDTO->getWorkspaceId(),
@@ -213,6 +217,9 @@ class MessageScheduleAppService extends AbstractAppService
     {
         $dataIsolation = $this->createDataIsolationFromContext($requestContext);
 
+        // Check project permission
+        $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
         $conditions = $requestDTO->buildConditions(
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
@@ -282,13 +289,16 @@ class MessageScheduleAppService extends AbstractAppService
      */
     public function updateSchedule(RequestContext $requestContext, int $id, UpdateMessageScheduleRequestDTO $requestDTO): array
     {
+        $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+
+        // Get existing message schedule
+        $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
+
+        // Check project permission
+        $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
         try {
-            return Db::transaction(function () use ($requestContext, $id, $requestDTO) {
-                $dataIsolation = $this->createDataIsolationFromContext($requestContext);
-
-                // Get existing message schedule
-                $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
-
+            return Db::transaction(function () use ($id, $requestDTO, $dataIsolation, $messageSchedule) {
                 // Validate permissions for new resource IDs (if provided)
                 $currentWorkspaceId = $messageSchedule->getWorkspaceId();
                 $currentProjectId = $messageSchedule->getProjectId();
@@ -438,12 +448,15 @@ class MessageScheduleAppService extends AbstractAppService
      */
     public function deleteSchedule(RequestContext $requestContext, int $id): array
     {
-        return Db::transaction(function () use ($requestContext, $id) {
-            $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+        $dataIsolation = $this->createDataIsolationFromContext($requestContext);
 
-            // Get message schedule
-            $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
+        // Get message schedule
+        $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
+        // Check project permission
+        $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
+        return Db::transaction(function () use ($id, $dataIsolation, $messageSchedule) {
             // Delete task scheduler if exists
             if ($messageSchedule->hasTaskScheduler()) {
                 $this->deleteTaskScheduler($messageSchedule->getId());
@@ -464,7 +477,11 @@ class MessageScheduleAppService extends AbstractAppService
     public function getScheduleDetail(RequestContext $requestContext, int $id): array
     {
         $dataIsolation = $this->createDataIsolationFromContext($requestContext);
+
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
+
+        // Check project permission
+        $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
         return MessageScheduleItemDTO::fromEntity($messageSchedule)->toArray();
     }
@@ -483,6 +500,9 @@ class MessageScheduleAppService extends AbstractAppService
 
         // Validate that the user owns this message schedule
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $messageScheduleId);
+
+        // Check project permission
+        $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
         // Get execution logs with pagination (using domain service with conditions)
         $conditions = [
