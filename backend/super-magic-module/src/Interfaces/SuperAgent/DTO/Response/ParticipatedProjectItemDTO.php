@@ -28,9 +28,11 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         ?string $updatedAt,
         ?string $tag,
         ?string $userId,
+        ?bool $isCollaborationEnabled,
+        ?string $defaultJoinPermission,
 
         // 参与项目特有字段
-        public readonly string $role = 'owner', // 用户在项目中的角色：owner-项目所有者，collaborator-协作者
+        public readonly string $userRole = 'owner', // 用户在项目中的角色：owner-项目所有者，collaborator-协作者
         public readonly bool $isPinned = false,
         public readonly string $organizationCode = '',
     ) {
@@ -48,7 +50,9 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             $createdAt,
             $updatedAt,
             $tag,
-            $userId
+            $userId,
+            $isCollaborationEnabled,
+            $defaultJoinPermission
         );
     }
 
@@ -63,7 +67,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         $tag = $hasProjectMember ? 'collaboration' : '';
 
         // Role logic: 当前用户在项目中的角色
-        $role = $isCollaborator ? 'collaborator' : 'owner';
+        $userRole = $data['user_role'] ?? '';
 
         return new self(
             id: (string) $data['id'],
@@ -80,9 +84,11 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             updatedAt: $data['updated_at'] ?? null,
             tag: $tag,
             userId: $data['user_id'] ?? '',
-            role: $role,
+            userRole: $userRole,
             isPinned: (bool) ($data['is_pinned'] ?? false),
             organizationCode: $data['organization_code'] ?? '',
+            isCollaborationEnabled: (bool) ($data['is_collaboration_enabled'] ?? false),
+            defaultJoinPermission: $data['default_join_permission'] ?? '',
         );
     }
 
@@ -92,7 +98,7 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
     public function toArray(): array
     {
         return array_merge(parent::toArray(), [
-            'role' => $this->role,
+            'user_role' => $this->userRole,
             'is_pinned' => $this->isPinned,
             'organization_code' => $this->organizationCode,
         ]);

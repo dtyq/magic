@@ -28,6 +28,9 @@ readonly class MagicDepartmentUserDomainService
         return $this->departmentUserRepository->getDepartmentUsersByUserIds($userIds, $dataIsolation->getCurrentOrganizationCode());
     }
 
+    /**
+     * @return MagicDepartmentUserEntity[]
+     */
     public function getDepartmentUsersByUserIdsInMagic(array $userIds): array
     {
         return $this->departmentUserRepository->getDepartmentUsersByUserIdsInMagic($userIds);

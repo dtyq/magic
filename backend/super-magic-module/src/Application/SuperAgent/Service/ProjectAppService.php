@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -23,6 +24,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ForkProjectStartEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectCreatedEvent;
@@ -83,6 +85,7 @@ class ProjectAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly Producer $producer,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly PackageFilterInterface $packageFilterService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -212,17 +215,29 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 检查话题是否存在
-        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
-        if (empty($workspaceEntity)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
-        }
-
         // 获取项目信息
         $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
-        $projectEntity->setProjectName($requestDTO->getProjectName());
-        $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
-        $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
+
+        if (! is_null($requestDTO->getProjectName())) {
+            $projectEntity->setProjectName($requestDTO->getProjectName());
+        }
+        if (! is_null($requestDTO->getProjectDescription())) {
+            $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
+        }
+        if (! is_null($requestDTO->getWorkspaceId())) {
+            // 检查话题是否存在
+            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
+            if (empty($workspaceEntity)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+            }
+            $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
+        }
+        if (! is_null($requestDTO->getIsCollaborationEnabled())) {
+            $projectEntity->setIsCollaborationEnabled($requestDTO->getIsCollaborationEnabled());
+        }
+        if (! is_null($requestDTO->getDefaultJoinPermission())) {
+            $projectEntity->setDefaultJoinPermission(MemberRole::validatePermissionLevel($requestDTO->getDefaultJoinPermission()));
+        }
 
         $this->projectDomainService->saveProjectEntity($projectEntity);
 
@@ -247,7 +262,7 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 先获取项目实体用于事件发布
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         $result = Db::transaction(function () use ($projectId, $dataIsolation) {
             // 删除项目
@@ -290,6 +305,23 @@ class ProjectAppService extends AbstractAppService
         }
 
         return $result;
+    }
+
+    /**
+     * 获取项目详情.
+     */
+    public function getProjectInfo(RequestContext $requestContext, int $projectId): ProjectEntity
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $project = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 如果当前组织未付费套餐，则禁止项目协作
+        if (! $this->packageFilterService->isPaidSubscription($project->getUserOrganizationCode())) {
+            $project->setIsCollaborationEnabled(false);
+        }
+
+        return $project;
     }
 
     /**
@@ -521,6 +553,13 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
         return $this->taskFileDomainService->getProjectFilesFromCloudStorage($dataIsolation->getCurrentOrganizationCode(), $projectEntity->getWorkDir());
+    }
+
+    public function getProjectRoleByUserId(int $projectId, string $userId): string
+    {
+        $projectMemberEntity = $this->projectMemberDomainService->getMemberByProjectAndUser($projectId, $userId);
+
+        return $projectMemberEntity ? $projectMemberEntity->getRoleValue() : '';
     }
 
     public function hasProjectMember(int $projectId): bool

@@ -22,6 +22,7 @@ class CollaborationProjectListResponseDTO
      * 从项目数据创建响应DTO.
      *
      * @param int $total 总数
+     * @param array $userRolesMap 用户角色映射 [project => role]
      */
     public static function fromProjectData(
         array $projects,
@@ -29,14 +30,15 @@ class CollaborationProjectListResponseDTO
         array $creatorInfoMap = [],
         array $collaboratorsInfoMap = [],
         array $workspaceNameMap = [],
-        int $total = 0
+        int $total = 0,
+        array $userRolesMap = []
     ): self {
         $projectIdMapEntities = [];
         foreach ($projects as $project) {
             $projectIdMapEntities[$project->getId()] = $project;
         }
 
-        $list = array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities) {
+        $list = array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities, $userRolesMap) {
             $projectId = $collaborationProject['project_id'];
             $projectEntity = $projectIdMapEntities[$projectId] ?? null;
             if (! $projectEntity) {
@@ -50,6 +52,7 @@ class CollaborationProjectListResponseDTO
             $lastActiveAt = $collaborationProject['last_active_at'] ?? null;
             $isBindWorkspace = (bool) ($collaborationProject['is_bind_workspace'] ?? false);
             $bindWorkspaceId = (string) ($collaborationProject['bind_workspace_id'] ?? '');
+            $userRole = $userRolesMap[$projectId] ?? null;
 
             return CollaborationProjectItemDTO::fromEntityWithExtendedInfo(
                 $projectEntity,
@@ -61,7 +64,8 @@ class CollaborationProjectListResponseDTO
                 $isPinned,
                 $lastActiveAt,
                 $isBindWorkspace,
-                $bindWorkspaceId
+                $bindWorkspaceId,
+                $userRole
             )->toArray();
         }, $collaborationProjects);
 

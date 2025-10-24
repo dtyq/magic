@@ -721,11 +721,12 @@ class FileConverterAppService extends AbstractAppService
     /**
      * Gets temporary STS credentials.
      */
-    private function getStsCredential(MagicUserAuthorization $userAuthorization, string $workDir): array
+    private function getStsCredential(MagicUserAuthorization $userAuthorization, string $workDir, ?string $projectOrganizationCode = null): array
     {
+        $projectOrganizationCode = $projectOrganizationCode ?? $userAuthorization->getOrganizationCode();
         $tempDir = $this->generateTempDir($workDir);
-        return $this->fileAppService->getStsTemporaryCredential(
-            $userAuthorization,
+        return $this->fileAppService->getStsTemporaryCredentialV2(
+            $projectOrganizationCode,
             'private',
             $tempDir // Expires in 2 hours
         );

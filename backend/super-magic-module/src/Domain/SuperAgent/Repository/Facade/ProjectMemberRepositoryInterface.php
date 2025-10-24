@@ -41,6 +41,25 @@ interface ProjectMemberRepositoryInterface
     public function deleteByIds(array $ids): int;
 
     /**
+     * 删除指定项目和用户的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndUser(int $projectId, string $userId): int;
+
+    /**
+     * 删除指定项目和目标的成员关系.
+     *
+     * @param int $projectId 项目ID
+     * @param string $targetType 目标类型
+     * @param string $targetId 目标ID
+     * @return int 删除的记录数
+     */
+    public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int;
+
+    /**
      * 检查项目和用户的成员关系是否存在.
      *
      * @param int $projectId 项目ID
@@ -73,6 +92,8 @@ interface ProjectMemberRepositoryInterface
      * @param string $userId 用户ID
      * @param array $departmentIds 部门ID数组
      * @param null|string $name 项目名称模糊搜索关键词
+     * @param null|string $sortField 排序字段：updated_at,created_at,last_active_at
+     * @param array $organizationCodes 组织编码列表（用于过滤）
      * @return array ['total' => int, 'list' => array]
      */
     public function getProjectIdsByUserAndDepartments(
@@ -81,7 +102,9 @@ interface ProjectMemberRepositoryInterface
         ?string $name = null,
         ?string $sortField = null,
         string $sortDirection = 'desc',
-        array $creatorUserIds = []
+        array $creatorUserIds = [],
+        ?string $joinMethod = null,
+        array $organizationCodes = []
     ): array;
 
     /**
@@ -142,6 +165,7 @@ interface ProjectMemberRepositoryInterface
      * @param int $pageSize 每页大小
      * @param string $sortField 排序字段
      * @param string $sortDirection 排序方向
+     * @param null|array $organizationCodes 组织编码
      * @return array ['total' => int, 'list' => array]
      */
     public function getParticipatedProjects(
@@ -152,6 +176,69 @@ interface ProjectMemberRepositoryInterface
         int $page = 1,
         int $pageSize = 10,
         string $sortField = 'last_active_at',
-        string $sortDirection = 'desc'
+        string $sortDirection = 'desc',
+        ?array $organizationCodes = null
     ): array;
+
+    /**
+     * 根据项目ID和用户ID获取项目成员信息.
+     *
+     * @param int $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return null|ProjectMemberEntity 项目成员实体
+     */
+    public function getMemberByProjectAndUser(int $projectId, string $userId): ?ProjectMemberEntity;
+
+    /**
+     * 根据项目ID和成员ID数组获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByIds(int $projectId, array $memberIds): array;
+
+    /**
+     * 根据项目ID和部门ID数组获取项目成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array $departmentIds 部门ID数组
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array;
+
+    /**
+     * 批量更新成员权限（新格式：target_type + target_id）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $roleUpdates [['target_type' => '', 'target_id' => '', 'role' => ''], ...]
+     * @return int 更新的记录数
+     */
+    public function batchUpdateRole(int $projectId, array $roleUpdates): int;
+
+    /**
+     * 批量删除成员（软删除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $memberIds 成员ID数组
+     * @return int 删除的记录数
+     */
+    public function deleteMembersByIds(int $projectId, array $memberIds): int;
+
+    /**
+     * 通过协作者目标ID获取项目Id列表（排除OWNER角色）.
+     *
+     * @param array $targetIds 目标ID数组（用户ID或部门ID）
+     * @return array 项目Ids
+     */
+    public function getProjectIdsByCollaboratorTargets(array $targetIds, array $roles): array;
+
+    /**
+     * 批量获取用户在项目中的成员记录.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param array $targetIds 目标ID数组（用户ID和部门ID）
+     * @return ProjectMemberEntity[] 成员实体数组
+     */
+    public function getProjectMembersByTargetIds(array $projectIds, array $targetIds): array;
 }

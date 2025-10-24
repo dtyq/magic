@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
@@ -65,6 +66,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly FileDomainService $fileDomainService,
         private readonly LockerInterface $locker,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -455,12 +457,14 @@ class FileProcessAppService extends AbstractAppService
             $storageType = StorageBucketType::SandBox->value;
             $expires = 3600; // Credential valid for 1 hour
 
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($taskEntity->getProjectId());
+
             // Create user authorization object
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
 
             // Use unified FileAppService to get STS Token
-            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $projectDir, $expires, false);
+            return $this->fileAppService->getStsTemporaryCredentialV2($projectEntity->getUserOrganizationCode(), $storageType, $projectDir, $expires, false);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to refresh STS Token: %s, Organization code: %s, Sandbox ID: %s',
@@ -989,7 +993,7 @@ class FileProcessAppService extends AbstractAppService
             $taskFileEntity->getFileKey(),
             $taskFileEntity->getFileName(),
             $taskFileEntity->getFileExtension(),
-            $authorization->getOrganizationCode(),
+            $taskFileEntity->getOrganizationCode(),
             $taskFileEntity->getFileId()
         );
 

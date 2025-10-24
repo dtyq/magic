@@ -30,6 +30,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         ?string $updatedAt,
         ?string $tag,
         ?string $userId,
+        ?bool $isCollaborationEnabled,
+        ?string $defaultJoinPermission,
 
         // 新增字段
         public readonly ?CreatorInfoDTO $creator,
@@ -39,6 +41,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         public readonly ?string $lastActiveAt = null,
         public readonly bool $isBindWorkspace = false,
         public readonly string $bindWorkspaceId = '',
+        public readonly ?string $userRole = null,
     ) {
         parent::__construct(
             $id,
@@ -54,7 +57,9 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             $createdAt,
             $updatedAt,
             $tag,
-            $userId
+            $userId,
+            $isCollaborationEnabled,
+            $defaultJoinPermission,
         );
     }
 
@@ -71,7 +76,8 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
         bool $isPinned = false,
         ?string $lastActiveAt = null,
         bool $isBindWorkspace = false,
-        string $bindWorkspaceId = ''
+        string $bindWorkspaceId = '',
+        ?string $userRole = null
     ): self {
         return new self(
             id: (string) $project->getId(),
@@ -93,8 +99,11 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             lastActiveAt: $lastActiveAt,
             isBindWorkspace: $isBindWorkspace,
             bindWorkspaceId: $bindWorkspaceId,
+            userRole: $userRole,
             tag: 'collaboration',
             userId: $project->getUserId(),
+            isCollaborationEnabled: $project->getIsCollaborationEnabled(),
+            defaultJoinPermission: $project->getDefaultJoinPermission()->value,
         );
     }
 
@@ -112,6 +121,7 @@ class CollaborationProjectItemDTO extends ProjectItemDTO
             'last_active_at' => $this->lastActiveAt,
             'is_bind_workspace' => $this->isBindWorkspace,
             'bind_workspace_id' => $this->bindWorkspaceId,
+            'user_role' => $this->userRole,
         ]);
     }
 }
