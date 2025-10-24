@@ -71,9 +71,10 @@ interface TaskFileRepositoryInterface
      * @param int $pageSize 每页数量
      * @param array $fileType 文件类型过滤
      * @param string $storageType 存储类型过滤
+     * @param null|string $updatedAfter 更新时间过滤（查询此时间之后更新的文件）
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = ''): array;
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array;
 
     /**
      * 根据任务ID获取文件列表.

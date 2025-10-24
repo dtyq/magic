@@ -45,6 +45,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsV2RequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
@@ -448,6 +449,23 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
+     * 获取项目附件列表 V2（登录用户模式，不返回树状结构，支持时间过滤）.
+     */
+    public function getProjectAttachmentsV2(RequestContext $requestContext, GetProjectAttachmentsV2RequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        // 验证项目存在性和所有权
+        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 创建基于用户的数据隔离
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 获取附件列表，不返回树状结构，不使用 storage_type 过滤
+        return $this->getProjectAttachmentListV2($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+    }
+
+    /**
      * 审查页面获取的项目附件列表.
      */
     public function getProjectAttachmentsFromAudit(RequestContext $requestContext, GetProjectAttachmentsRequestDTO $requestDTO): array
@@ -511,6 +529,57 @@ class ProjectAppService extends AbstractAppService
 
         // 令牌模式不需要workDir处理，传空字符串
         return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir);
+    }
+
+    /**
+     * 通过访问令牌获取项目附件列表 V2（不返回树状结构）.
+     */
+    public function getProjectAttachmentsByAccessTokenV2(GetProjectAttachmentsV2RequestDTO $requestDto): array
+    {
+        $token = $requestDto->getToken();
+
+        // 从缓存里获取数据
+        if (! AccessTokenUtil::validate($token)) {
+            ExceptionBuilder::throw(ShareErrorCode::PARAMETER_CHECK_FAILURE, 'share.parameter_check_failure');
+        }
+
+        $shareId = AccessTokenUtil::getShareId($token);
+        $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
+        }
+
+        // 由于前端当前的分享话题也会获取项目列表的接口，所以这里需要兼容分享类型是话题的情况，否则直接处理 ResourceType::Project 即可
+        $projectId = '';
+        $workDir = '';
+        switch ($shareEntity->getResourceType()) {
+            case ResourceType::Topic->value:
+                $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
+                if (empty($topicEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+                }
+                $projectId = (string) $topicEntity->getProjectId();
+                $workDir = $topicEntity->getWorkDir();
+                break;
+            case ResourceType::Project->value:
+                $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $shareEntity->getResourceId());
+                if (empty($projectEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+                }
+                $projectId = (string) $projectEntity->getId();
+                $workDir = $projectEntity->getWorkDir();
+                break;
+            default:
+                ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
+        }
+
+        $requestDto->setProjectId($projectId);
+        $organizationCode = AccessTokenUtil::getOrganizationCode($token);
+        // 创建DataIsolation
+        $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
+
+        // 令牌模式不需要workDir处理，传空字符串，V2 不返回树状结构
+        return $this->getProjectAttachmentListV2($dataIsolation, $requestDto, $workDir);
     }
 
     public function getCloudFiles(RequestContext $requestContext, int $projectId): array
@@ -823,6 +892,69 @@ class ProjectAppService extends AbstractAppService
             'total' => $result['total'],
             'list' => $list,
             'tree' => $tree,
+        ];
+    }
+
+    /**
+     * 获取项目附件列表的核心逻辑 V2（不返回树状结构，支持数据库级别的更新时间过滤）.
+     */
+    public function getProjectAttachmentListV2(DataIsolation $dataIsolation, GetProjectAttachmentsV2RequestDTO $requestDTO, string $workDir = ''): array
+    {
+        // 通过任务领域服务获取项目下的附件列表，使用数据库级别的时间过滤
+        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
+            (int) $requestDTO->getProjectId(),
+            $dataIsolation,
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            $requestDTO->getFileType(),
+            StorageType::WORKSPACE->value,  // V2 固定使用 workspace 存储类型
+            $requestDTO->getUpdatedAfter()  // 数据库级别的时间过滤
+        );
+
+        // 处理文件 URL
+        $list = [];
+        $fileKeys = [];
+        // 遍历附件列表，使用TaskFileItemDTO处理
+        foreach ($result['list'] as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
+            // 创建DTO
+            $dto = new TaskFileItemDTO();
+            $dto->fileId = (string) $entity->getFileId();
+            $dto->taskId = (string) $entity->getTaskId();
+            $dto->fileType = $entity->getFileType();
+            $dto->fileName = $entity->getFileName();
+            $dto->fileExtension = $entity->getFileExtension();
+            $dto->fileKey = $entity->getFileKey();
+            $dto->fileSize = $entity->getFileSize();
+            $dto->isHidden = $entity->getIsHidden();
+            $dto->updatedAt = $entity->getUpdatedAt();
+            $dto->topicId = (string) $entity->getTopicId();
+            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            $dto->isDirectory = $entity->getIsDirectory();
+            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
+            // 添加 project_id 字段
+            $dto->projectId = (string) $entity->getProjectId();
+            // 设置排序字段
+            $dto->sort = $entity->getSort();
+            $dto->fileUrl = '';
+            $dto->parentId = (string) $entity->getParentId();
+            $dto->source = $entity->getSource();
+            // 添加 file_url 字段
+            $fileKey = $entity->getFileKey();
+            // 判断file key是否重复，如果重复，则跳过
+            // 如果根目录，也跳过
+            if (in_array($fileKey, $fileKeys) || empty($entity->getParentId())) {
+                continue;
+            }
+            $fileKeys[] = $fileKey;
+            $list[] = $dto->toArray();
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
         ];
     }
 }

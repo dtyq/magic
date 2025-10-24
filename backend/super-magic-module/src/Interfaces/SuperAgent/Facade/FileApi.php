@@ -194,9 +194,6 @@ class FileApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
 
-        // 并发执行沙箱保存和OSS保存
-        // $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
-
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 

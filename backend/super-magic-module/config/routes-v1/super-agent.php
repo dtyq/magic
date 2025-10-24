@@ -284,3 +284,15 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // Router::post('/batch-urls', [FileApi::class, 'getFileUrls']);
     });
 });
+
+// V2 API Routes
+Router::addGroup(
+    '/api/v2/super-agent',
+    static function () {
+        // 获取项目的附件列表 V2 (不返回树状结构)
+        Router::addGroup('/projects', static function () {
+            Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachmentsV2']);
+        });
+    },
+    ['middleware' => [RequestContextMiddlewareV2::class]]
+);

@@ -12,6 +12,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileVersionEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
@@ -24,6 +25,7 @@ class TaskFileVersionDomainService
 
     public function __construct(
         protected TaskFileVersionRepositoryInterface $taskFileVersionRepository,
+        protected TaskFileRepositoryInterface $taskFileRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {
@@ -80,7 +82,16 @@ class TaskFileVersionDomainService
 
         $savedEntity = $this->taskFileVersionRepository->insert($versionEntity);
 
-        // 5. 清理旧版本
+        // 5. 更新文件实体的最新版本号
+        $fileEntity->setLatestVersion($nextVersion);
+        $this->taskFileRepository->updateById($fileEntity);
+
+        $this->logger->info('Updated file latest version', [
+            'file_id' => $fileEntity->getFileId(),
+            'latest_version' => $nextVersion,
+        ]);
+
+        // 6. 清理旧版本
         $maxVersions = (int) config('super-magic.file_version.max_versions', 10);
         $this->cleanupOldVersions($fileEntity->getFileId(), $maxVersions);
 
