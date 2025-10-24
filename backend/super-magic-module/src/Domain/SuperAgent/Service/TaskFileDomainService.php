@@ -491,7 +491,7 @@ class TaskFileDomainService
             $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $taskFileEntity->setOrganizationCode($projectOrganizationCode);
+            $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             $taskFileEntity->setIsHidden(false);
             $taskFileEntity->setSort(0);
 
