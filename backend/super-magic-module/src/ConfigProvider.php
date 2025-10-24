@@ -16,7 +16,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ProjectOperatorLogSub
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageScheduleAppService;
@@ -140,8 +139,6 @@ class ConfigProvider
                 MessageQueueAppService::class => MessageQueueAppService::class,
                 // 添加MessageScheduleAppService的依赖注入
                 MessageScheduleAppService::class => MessageScheduleAppService::class,
-                // 添加SandboxFileEditAppService的依赖注入
-                FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
                 ShareableResourceFactory::class => ShareableResourceFactory::class,
                 TopicShareableResource::class => TopicShareableResource::class,

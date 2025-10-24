@@ -198,9 +198,10 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * @param int $pageSize 每页数量
      * @param array $fileType 文件类型过滤
      * @param string $storageType 存储类型过滤
+     * @param null|string $updatedAfter 更新时间过滤（查询此时间之后更新的文件）
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = ''): array
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array
     {
         $offset = ($page - 1) * $pageSize;
 
@@ -215,6 +216,11 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 如果指定了存储类型，添加存储类型过滤条件
         if (! empty($storageType)) {
             $query->where('storage_type', $storageType);
+        }
+
+        // 如果指定了更新时间过滤，添加时间过滤条件（数据库级别过滤）
+        if ($updatedAfter !== null) {
+            $query->where('updated_at', '>', $updatedAfter);
         }
 
         // 过滤已经被删除的， deleted_at 不为空
