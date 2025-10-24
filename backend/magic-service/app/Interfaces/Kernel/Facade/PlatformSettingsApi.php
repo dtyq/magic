@@ -53,6 +53,9 @@ class PlatformSettingsApi
         if (array_key_exists('favicon_url', $payload) && $payload['favicon_url'] !== null) {
             $data['favicon_url'] = (string) $payload['favicon_url'];
         }
+        if (array_key_exists('minimal_logo_url', $payload) && $payload['minimal_logo_url'] !== null) {
+            $data['minimal_logo_url'] = (string) $payload['minimal_logo_url'];
+        }
         if (array_key_exists('default_language', $payload) && $payload['default_language'] !== null) {
             $data['default_language'] = (string) $payload['default_language'];
         }
@@ -91,6 +94,7 @@ class PlatformSettingsApi
         $urls[] = $data['favicon_url'] ?? '';
         $urls[] = $data['logo_urls']['zh_CN'] ?? '';
         $urls[] = $data['logo_urls']['en_US'] ?? '';
+        $urls[] = $data['minimal_logo_url'] ?? '';
         foreach ($urls as $u) {
             if ($u !== '' && ! str_starts_with($u, 'https://')) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'platform_settings.invalid_url');
@@ -108,9 +112,14 @@ class PlatformSettingsApi
         if (! empty($settings['favicon_url'] ?? '')) {
             $favicon = ['url' => (string) $settings['favicon_url']];
         }
+        $minimalLogo = [];
+        if (! empty($settings['minimal_logo_url'] ?? '')) {
+            $minimalLogo = ['url' => (string) $settings['minimal_logo_url']];
+        }
         $resp = [
             'logo' => $logo,
             'favicon' => $favicon,
+            'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n'] as $key) {

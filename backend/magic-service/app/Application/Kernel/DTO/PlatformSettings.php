@@ -18,6 +18,8 @@ class PlatformSettings
      */
     private array $logoUrls = [];
 
+    private string $minimalLogoUrl = '';
+
     /** @var array<string,string> */
     private array $nameI18n = [];
 
@@ -64,6 +66,16 @@ class PlatformSettings
     public function setLogoUrls(array $logoUrls): void
     {
         $this->logoUrls = $logoUrls;
+    }
+
+    public function getMinimalLogoUrl(): string
+    {
+        return $this->minimalLogoUrl;
+    }
+
+    public function setMinimalLogoUrl(string $minimalLogoUrl): void
+    {
+        $this->minimalLogoUrl = $minimalLogoUrl;
     }
 
     /**
@@ -136,6 +148,7 @@ class PlatformSettings
             'default_language' => $this->defaultLanguage,
             'favicon_url' => $this->faviconUrl,
             'logo_urls' => $this->logoUrls,
+            'minimal_logo_url' => $this->minimalLogoUrl,
             'name_i18n' => $this->nameI18n,
             'title_i18n' => $this->titleI18n,
             'keywords_i18n' => $this->keywordsI18n,
@@ -149,6 +162,7 @@ class PlatformSettings
         $i->setDefaultLanguage((string) ($data['default_language'] ?? 'zh_CN'));
         $i->setFaviconUrl((string) ($data['favicon_url'] ?? ''));
         $i->setLogoUrls((array) ($data['logo_urls'] ?? []));
+        $i->setMinimalLogoUrl((string) ($data['minimal_logo_url'] ?? ''));
         $i->setNameI18n((array) ($data['name_i18n'] ?? []));
         $i->setTitleI18n((array) ($data['title_i18n'] ?? []));
         $i->setKeywordsI18n((array) ($data['keywords_i18n'] ?? []));

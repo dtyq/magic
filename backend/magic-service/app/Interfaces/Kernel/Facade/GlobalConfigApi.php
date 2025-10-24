@@ -67,9 +67,14 @@ class GlobalConfigApi
         if (! empty($settings['favicon_url'] ?? '')) {
             $favicon = ['url' => (string) $settings['favicon_url']];
         }
+        $minimalLogo = [];
+        if (! empty($settings['minimal_logo_url'] ?? '')) {
+            $minimalLogo = ['url' => (string) $settings['minimal_logo_url']];
+        }
         $resp = [
             'logo' => $logo,
             'favicon' => $favicon,
+            'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n'] as $key) {
