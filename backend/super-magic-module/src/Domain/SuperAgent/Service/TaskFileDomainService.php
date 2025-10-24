@@ -348,7 +348,7 @@ class TaskFileDomainService
             // id 相关设置
             $fileEntity->setProjectId($projectEntity->getId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $fileEntity->setOrganizationCode($projectEntity->getUserOrganizationCode());
             if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
                 $fileEntity->setLatestModifiedTopicId($taskFileEntity->getTopicId());
             }
@@ -379,7 +379,7 @@ class TaskFileDomainService
                 $parentId = $this->findOrCreateDirectoryAndGetParentId(
                     $projectEntity->getId(),
                     $dataIsolation->getCurrentUserId(),
-                    $dataIsolation->getCurrentOrganizationCode(),
+                    $projectEntity->getUserOrganizationCode(),
                     $fileEntity->getFileKey(),
                     $projectEntity->getWorkDir(),
                     $fileEntity->getSource()
