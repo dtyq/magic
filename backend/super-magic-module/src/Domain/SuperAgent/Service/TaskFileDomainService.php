@@ -267,7 +267,7 @@ class TaskFileDomainService
         $parentId = $this->findOrCreateDirectoryAndGetParentId(
             projectId: $projectId,
             userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+            organizationCode: $fileEntities[0]->getOrganizationCode(),
             fullFileKey: $fileEntities[0]->getFileKey(),
             workDir: $workDir,
         );
@@ -433,14 +433,14 @@ class TaskFileDomainService
         bool $isDirectory,
         int $sortValue = 0
     ): TaskFileEntity {
-        $organizationCode = $projectEntity->getUserOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
         $workDir = $projectEntity->getWorkDir();
 
         if (empty($workDir)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
         }
 
-        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
         if (! empty($parentId)) {
             $parentFIleEntity = $this->taskFileRepository->getById($parentId);
             if ($parentFIleEntity === null || $parentFIleEntity->getProjectId() != $projectEntity->getId()) {
@@ -470,9 +470,9 @@ class TaskFileDomainService
         try {
             // Create object in cloud storage
             if ($isDirectory) {
-                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::SandBox);
+                $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
             } else {
-                $this->cloudFileRepository->createFileByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, '', StorageBucketType::SandBox);
+                $this->cloudFileRepository->createFileByCredential(WorkDirectoryUtil::getPrefix($workDir), $projectOrganizationCode, $fileKey, '', StorageBucketType::SandBox);
             }
 
             // Create file entity
@@ -488,7 +488,7 @@ class TaskFileDomainService
             $taskFileEntity->setSource(TaskFileSource::PROJECT_DIRECTORY);
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $taskFileEntity->setOrganizationCode($organizationCode);
+            $taskFileEntity->setOrganizationCode($projectOrganizationCode);
             $taskFileEntity->setIsHidden(false);
             $taskFileEntity->setSort(0);
 
@@ -869,7 +869,7 @@ class TaskFileDomainService
         // Build full target file key
         $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($dataIsolation->getCurrentOrganizationCode()),
+            $this->getFullPrefix($fileEntity->getOrganizationCode()),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {

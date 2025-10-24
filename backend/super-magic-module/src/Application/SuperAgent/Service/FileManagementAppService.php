@@ -246,7 +246,7 @@ class FileManagementAppService extends AbstractAppService
                 $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
                     projectId: (int) $projectId,
                     userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    organizationCode: $projectEntity->getUserOrganizationCode(),
                     fullFileKey: $requestDTO->getFileKey(),
                     workDir: $projectEntity->getWorkDir()
                 );

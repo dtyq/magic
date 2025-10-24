@@ -358,8 +358,11 @@ class HandleApiMessageAppService extends AbstractAppService
      */
     private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
     {
+        // Get projectEntity
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($taskContext->getProjectId());
+
         // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
 
         if (empty($taskContext->getSandboxId())) {

@@ -351,6 +351,9 @@ class TopicAppService extends AbstractAppService
         if (empty($topicEntity)) {
             return [];
         }
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
+
         $sandboxId = $topicEntity->getSandboxId();
         $workDir = $topicEntity->getWorkDir();
 
@@ -365,7 +368,7 @@ class TopicAppService extends AbstractAppService
 
         // 处理文件 URL
         $list = [];
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
 
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
@@ -393,7 +396,7 @@ class TopicAppService extends AbstractAppService
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
+                $fileLink = $this->fileAppService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
                 if ($fileLink) {
                     $dto->fileUrl = $fileLink->getUrl();
                 } else {
