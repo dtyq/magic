@@ -41,7 +41,6 @@ enum MagicResourceEnum: string
     case PLATFORM_SETTING_PLATFORM_INFO = 'platform.setting.platform_info'; # 平台管理 - 系统设置 - 平台信息
     case PLATFORM_SETTING_MAINTENANCE = 'platform.setting.maintenance'; # 平台管理 - 系统信息 - 维护管理
     case PLATFORM_ORGANIZATION_LIST = 'platform.organization.list'; # 平台管理 - 组织管理 - 组织列表
-    case PLATFORM_ORGANIZATION_WHITELIST = 'platform.organization.whitelist'; # 平台管理 - 组织管理 - 组织白名单
     case ADMINPLUS_AI_MODEL = 'admin_plus.ai.model_management'; # 组织管理后台plus-AI管理-模型管理
 
     /**
@@ -67,7 +66,6 @@ enum MagicResourceEnum: string
             self::PLATFORM_SETTING_MAINTENANCE => 'permission.resource.platform_setting_maintenance',
             self::PLATFORM_ORGANIZATION => 'permission.resource.platform_organization',
             self::PLATFORM_ORGANIZATION_LIST => 'permission.resource.platform_organization_list',
-            self::PLATFORM_ORGANIZATION_WHITELIST => 'permission.resource.platform_organization_whitelist',
         };
     }
 
@@ -97,7 +95,6 @@ enum MagicResourceEnum: string
             self::PLATFORM_SETTING_PLATFORM_INFO => self::PLATFORM_SETTING,
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
             self::PLATFORM_ORGANIZATION_LIST => self::PLATFORM_ORGANIZATION,
-            self::PLATFORM_ORGANIZATION_WHITELIST => self::PLATFORM_ORGANIZATION,
             self::ADMINPLUS_AI_MODEL => self::ADMINPLUS_AI,
         };
     }
