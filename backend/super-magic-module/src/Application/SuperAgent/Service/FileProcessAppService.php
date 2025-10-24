@@ -975,6 +975,8 @@ class FileProcessAppService extends AbstractAppService
         // 1. Validate file permission
         $taskFileEntity = $this->validateFilePermission((int) $requestDTO->getFileId(), $authorization);
 
+        $projectEntity = $this->getAccessibleProjectWithEditor($taskFileEntity->getProjectId(), $authorization->getId(), $authorization->getOrganizationCode());
+
         // 2. Process content (decode shadow if enabled)
         $content = $requestDTO->getContent();
         if ($requestDTO->getEnableShadow()) {
@@ -1001,7 +1003,7 @@ class FileProcessAppService extends AbstractAppService
         $this->updateFileMetadata($taskFileEntity, $result);
 
         // 5. 创建文件版本
-        $this->taskFileVersionDomainService->createFileVersion($taskFileEntity);
+        $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),
@@ -1044,11 +1046,11 @@ class FileProcessAppService extends AbstractAppService
      * @param string $fileKey File key
      * @param string $fileName File name
      * @param string $fileExtension File extension
-     * @param string $organizationCode Organization code
+     * @param string $projectOrganizationCode Organization code
      * @param null|int $fileId File ID (optional, for logging)
      * @return array Upload result
      */
-    private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $organizationCode, ?int $fileId = null): array
+    private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $projectOrganizationCode, ?int $fileId = null): array
     {
         try {
             // Log debug information
@@ -1058,7 +1060,7 @@ class FileProcessAppService extends AbstractAppService
                 $fileKey,
                 $fileName,
                 $fileExtension,
-                $organizationCode,
+                $projectOrganizationCode,
                 strlen($content)
             ));
 
@@ -1081,7 +1083,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 2: Build UploadFile object
-            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($projectOrganizationCode);
             $uploadFileKey = str_replace($uploadKeyPrefix, '', $fileKey);
             $uploadFileKey = ltrim($uploadFileKey, '/');
             $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);
@@ -1092,9 +1094,9 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 3: Upload using FileDomainService uploadByCredential method
-            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
+            $this->fileDomainService->uploadByCredential($projectOrganizationCode, $uploadFile, StorageBucketType::SandBox, false);
 
-            $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
+            $fileLink = $this->fileDomainService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
 
             $this->logger->info(sprintf(
                 'Successfully uploaded file using uploadByCredential with key: %s, file_link: %s',
@@ -1126,7 +1128,7 @@ class FileProcessAppService extends AbstractAppService
                 'File upload failed: %s, file_id: %s, organization: %s',
                 $e->getMessage(),
                 $fileId ?? 'N/A',
-                $organizationCode
+                $projectOrganizationCode
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED, 'file.upload_failed');
         }

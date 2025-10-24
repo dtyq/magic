@@ -236,7 +236,7 @@ class FileConverterAppService extends AbstractAppService
 
             // Build file keys and get temporary credentials
             $fileKeys = $this->buildFileKeys($validFiles, $fullWorkdir);
-            $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir());
+            $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine

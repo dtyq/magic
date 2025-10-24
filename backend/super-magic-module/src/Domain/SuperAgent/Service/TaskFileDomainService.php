@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -64,6 +65,7 @@ class TaskFileDomainService
         protected WorkspaceVersionRepositoryInterface $workspaceVersionRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected ProjectRepositoryInterface $projectRepository,
         protected ProjectForkRepositoryInterface $projectForkRepository,
         protected SandboxGatewayInterface $sandboxGateway,
         protected LockerInterface $locker,
@@ -235,14 +237,13 @@ class TaskFileDomainService
      * If files are from different directories, they will all be placed in the same parent directory.
      *
      * @param DataIsolation $dataIsolation Data isolation context for permission check
-     * @param int $projectId Project ID to bind files to
      * @param array $fileIds Array of file IDs to bind
      * @param string $workDir Project work directory
      * @return bool Whether binding was successful
      */
     public function bindProjectFiles(
         DataIsolation $dataIsolation,
-        int $projectId,
+        ProjectEntity $projectEntity,
         array $fileIds,
         string $workDir
     ): bool {
@@ -265,9 +266,10 @@ class TaskFileDomainService
 
         // 2. Find or create project root directory as parent directory
         $parentId = $this->findOrCreateDirectoryAndGetParentId(
-            projectId: $projectId,
+            projectId: $projectEntity->getId(),
             userId: $dataIsolation->getCurrentUserId(),
-            organizationCode: $fileEntities[0]->getOrganizationCode(),
+            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+            projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
             fullFileKey: $fileEntities[0]->getFileKey(),
             workDir: $workDir,
         );
@@ -287,7 +289,7 @@ class TaskFileDomainService
         // 4. Batch update: set both project_id and parent_id atomically
         $this->taskFileRepository->batchBindToProject(
             $unboundFileIds,
-            $projectId,
+            $projectEntity->getId(),
             $parentId
         );
 
@@ -348,7 +350,7 @@ class TaskFileDomainService
             // id 相关设置
             $fileEntity->setProjectId($projectEntity->getId());
             $fileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $fileEntity->setOrganizationCode($projectEntity->getUserOrganizationCode());
+            $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
                 $fileEntity->setLatestModifiedTopicId($taskFileEntity->getTopicId());
             }
@@ -377,12 +379,13 @@ class TaskFileDomainService
 
             if (empty($taskFileEntity->getParentId())) {
                 $parentId = $this->findOrCreateDirectoryAndGetParentId(
-                    $projectEntity->getId(),
-                    $dataIsolation->getCurrentUserId(),
-                    $projectEntity->getUserOrganizationCode(),
-                    $fileEntity->getFileKey(),
-                    $projectEntity->getWorkDir(),
-                    $fileEntity->getSource()
+                    projectId: $projectEntity->getId(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                    fullFileKey: $fileEntity->getFileKey(),
+                    workDir: $projectEntity->getWorkDir(),
+                    source: $fileEntity->getSource()
                 );
                 $fileEntity->setParentId($parentId);
             } else {
@@ -514,9 +517,9 @@ class TaskFileDomainService
         }
     }
 
-    public function deleteProjectFiles(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir): bool
+    public function deleteProjectFiles(string $projectOrganizationCode, TaskFileEntity $fileEntity, string $workDir): bool
     {
-        $fullPrefix = $this->getFullPrefix($fileEntity->getOrganizationCode());
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileEntity->getFileKey())) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
@@ -525,20 +528,18 @@ class TaskFileDomainService
         // Delete cloud file
         try {
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->deleteObjectByCredential($prefix, $fileEntity->getOrganizationCode(), $fileEntity->getFileKey(), StorageBucketType::SandBox);
+            $this->cloudFileRepository->deleteObjectByCredential($prefix, $projectOrganizationCode, $fileEntity->getFileKey(), StorageBucketType::SandBox);
         } catch (Throwable $e) {
             $this->logger->warning('Failed to delete cloud file', ['file_key' => $fileEntity->getFileKey(), 'error' => $e->getMessage()]);
         }
 
         // Delete file record
         $this->taskFileRepository->deleteById($fileEntity->getFileId());
-        // Delete the same file in projects
-        $this->taskFileRepository->deleteByFileKeyAndProjectId($fileEntity->getFileKey(), $fileEntity->getProjectId());
 
         return true;
     }
 
-    public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath, string $fileOrganizationCode): int
+    public function deleteDirectoryFiles(DataIsolation $dataIsolation, string $workDir, int $projectId, string $targetPath, string $projectOrganizationCode): int
     {
         Db::beginTransaction();
         try {
@@ -550,7 +551,7 @@ class TaskFileDomainService
                 return 0;
             }
             $deletedCount = 0;
-            $fullPrefix = $this->getFullPrefix($fileOrganizationCode);
+            $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
@@ -567,7 +568,7 @@ class TaskFileDomainService
                 try {
                     $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
                         $prefix,
-                        $fileOrganizationCode,
+                        $projectOrganizationCode,
                         $fileKeys,
                         StorageBucketType::SandBox
                     );
@@ -724,9 +725,10 @@ class TaskFileDomainService
         }
     }
 
-    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetName): TaskFileEntity
+    public function renameProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, ProjectEntity $projectEntity, string $targetName): TaskFileEntity
     {
-        $fileOrganizationCode = $fileEntity->getOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        $workDir = $projectEntity->getWorkDir();
 
         $dir = dirname($fileEntity->getFileKey());
         $fullTargetFileKey = $dir . DIRECTORY_SEPARATOR . $targetName;
@@ -736,7 +738,7 @@ class TaskFileDomainService
         }
 
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($fileOrganizationCode),
+            $this->getFullPrefix($projectOrganizationCode),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fullTargetFileKey)) {
@@ -747,7 +749,7 @@ class TaskFileDomainService
         try {
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
             // call cloud file service
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $fileOrganizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $projectOrganizationCode, $fileEntity->getFileKey(), $fullTargetFileKey, StorageBucketType::SandBox);
 
             // rename file record
             $fileEntity->setFileKey($fullTargetFileKey);
@@ -765,9 +767,10 @@ class TaskFileDomainService
         }
     }
 
-    public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, string $workDir, string $newDirName): int
+    public function renameDirectoryFiles(DataIsolation $dataIsolation, TaskFileEntity $dirEntity, ProjectEntity $projectEntity, string $newDirName): int
     {
-        $fileOrganizationCode = $dirEntity->getOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        $workDir = $projectEntity->getWorkDir();
 
         $oldDirKey = $dirEntity->getFileKey();
         $parentDir = dirname($oldDirKey);
@@ -781,7 +784,7 @@ class TaskFileDomainService
 
         // Validate new directory key is within work directory
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($fileOrganizationCode),
+            $this->getFullPrefix($projectOrganizationCode),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newDirKey)) {
@@ -799,7 +802,7 @@ class TaskFileDomainService
             }
 
             $renamedCount = 0;
-            $fullPrefix = $this->getFullPrefix($fileOrganizationCode);
+            $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
 
             // 2. Batch update file keys in database
@@ -825,7 +828,7 @@ class TaskFileDomainService
 
                 // 3. Rename in cloud storage
                 try {
-                    $this->cloudFileRepository->renameObjectByCredential($prefix, $fileOrganizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
+                    $this->cloudFileRepository->renameObjectByCredential($prefix, $projectOrganizationCode, $oldFileKey, $newFileKey, StorageBucketType::SandBox);
                     ++$renamedCount;
                 } catch (Throwable $e) {
                     $this->logger->error('Failed to rename file in cloud storage', [
@@ -844,8 +847,9 @@ class TaskFileDomainService
         }
     }
 
-    public function moveProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, int $targetParentId): void
+    public function moveProjectFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, ProjectEntity $projectEntity, int $targetParentId): void
     {
+        $workDir = $projectEntity->getWorkDir();
         if ($targetParentId <= 0) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
         }
@@ -869,7 +873,7 @@ class TaskFileDomainService
         // Build full target file key
         $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($fileEntity->getOrganizationCode()),
+            $this->getFullPrefix($projectEntity->getUserOrganizationCode()),
             $workDir
         );
         if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {
@@ -885,7 +889,7 @@ class TaskFileDomainService
 
         Db::beginTransaction();
         try {
-            $this->moveFile($dataIsolation, $fileEntity, $workDir, $targetPath, $targetParentId);
+            $this->moveFile($projectEntity->getUserOrganizationCode(), $fileEntity, $workDir, $targetPath, $targetParentId);
             if (! empty($existingTargetFile)) {
                 $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
             }
@@ -896,7 +900,7 @@ class TaskFileDomainService
         }
     }
 
-    public function moveFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
+    public function moveFile(string $projectOrganizationCode, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): void
     {
         try {
             if ($fileEntity->getFileKey() === $targetPath) {
@@ -905,7 +909,7 @@ class TaskFileDomainService
 
             // Call cloud file service to move the file
             $prefix = WorkDirectoryUtil::getPrefix($workDir);
-            $this->cloudFileRepository->renameObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
+            $this->cloudFileRepository->renameObjectByCredential($prefix, $projectOrganizationCode, $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
 
             // Update file record (parentId and sort have already been set by handleFileSortOnMove)
             $this->taskFileRepository->updateFileByCondition(['file_id' => $fileEntity->getFileId()], ['file_key' => $targetPath, 'parent_id' => $targetParentId, 'updated_at' => date('Y-m-d H:i:s')]);
@@ -1003,10 +1007,11 @@ class TaskFileDomainService
      * @param string $workDir Project work directory
      * @param string $userId User ID
      * @param string $organizationCode Organization code
+     * @param string $projectOrganizationCode Project organization code
      * @param TaskFileSource $source File source
      * @return int The file_id of the direct parent directory
      */
-    public function findOrCreateDirectoryAndGetParentId(int $projectId, string $userId, string $organizationCode, string $fullFileKey, string $workDir, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    public function findOrCreateDirectoryAndGetParentId(int $projectId, string $userId, string $organizationCode, string $projectOrganizationCode, string $fullFileKey, string $workDir, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // 1. Get relative path of the file
         $relativePath = WorkDirectoryUtil::getRelativeFilePath($fullFileKey, $workDir);
@@ -1016,11 +1021,11 @@ class TaskFileDomainService
 
         // 3. If file is in root directory, return project root directory ID
         if ($parentDirPath === '.' || $parentDirPath === '/' || empty($parentDirPath)) {
-            return $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $source);
+            return $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
         }
 
         // 4. Ensure all directory levels exist and return the final parent ID
-        return $this->ensureDirectoryPathExists($projectId, $parentDirPath, $workDir, $userId, $organizationCode, $source);
+        return $this->ensureDirectoryPathExists($projectId, $parentDirPath, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
     }
 
     /**
@@ -1108,10 +1113,11 @@ class TaskFileDomainService
      * @param string $workDir Project work directory
      * @param string $userId User ID
      * @param string $organizationCode Organization code
+     * @param string $projectOrganizationCode Project organization code
      * @param TaskFileSource $source File source
      * @return int Root directory file_id
      */
-    public function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    public function findOrCreateProjectRootDirectory(int $projectId, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // Look for existing root directory (parent_id IS NULL and is_directory = true)
         $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
@@ -1119,13 +1125,13 @@ class TaskFileDomainService
         if ($rootDir !== null) {
             return $rootDir->getFileId();
         }
-        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
         $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
         $fileKey = rtrim($fullWorkDir, '/') . '/';
 
         // Call remote file system
         $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
-        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $organizationCode, $fileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
+        $this->cloudFileRepository->createFolderByCredential(WorkDirectoryUtil::getPrefix($workDir), $projectOrganizationCode, $fileKey, StorageBucketType::SandBox, ['metadata' => $metadata]);
 
         // Create root directory if not exists
         $rootDirEntity = new TaskFileEntity();
@@ -1156,14 +1162,14 @@ class TaskFileDomainService
     /**
      * Get file URLs for multiple files.
      *
-     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $projectOrganizationCode Project organization code
      * @param array $fileIds Array of file IDs
      * @param string $downloadMode Download mode (download, preview, etc.)
      * @param array $options Additional options
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = [], bool $addWatermark = true): array
+    public function getFileUrls(string $projectOrganizationCode, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = [], bool $addWatermark = true): array
     {
         $result = [];
 
@@ -1197,7 +1203,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
+                $result[] = $this->generateFileUrlForEntity($projectOrganizationCode, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1211,15 +1217,19 @@ class TaskFileDomainService
     /**
      * getFileUrls for project id.
      *
-     * @param DataIsolation $dataIsolation Data isolation context
      * @param array $fileIds Array of file IDs
      * @param int $projectId Project ID
      * @param string $downloadMode Download mode
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode, array $fileVersions = [], bool $addWatermark = true): array
+    public function getFileUrlsByProjectId(array $fileIds, int $projectId, string $downloadMode, array $fileVersions = [], bool $addWatermark = true): array
     {
+        $projectEntity = $this->projectRepository->findById($projectId);
+        if (empty($projectEntity)) {
+            $this->logger->warning(sprintf('分享获取项目不存在, project_id:%d', $projectId));
+            return [];
+        }
         // 从token获取内容
         $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
         if (empty($fileEntities)) {
@@ -1252,7 +1262,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
+                $result[] = $this->generateFileUrlForEntity($projectEntity->getUserOrganizationCode(), $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1271,14 +1281,14 @@ class TaskFileDomainService
     /**
      * Get pre-signed URL for file download or upload.
      *
-     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $projectOrganizationCode Project organization code
      * @param TaskFileEntity $fileEntity File entity to generate URL for
      * @param array $options Additional options (method, expires, filename, etc.)
      * @return string Pre-signed URL
      * @throws Throwable
      */
     public function getFilePreSignedUrl(
-        DataIsolation $dataIsolation,
+        string $projectOrganizationCode,
         TaskFileEntity $fileEntity,
         array $options = []
     ): string {
@@ -1302,7 +1312,7 @@ class TaskFileDomainService
 
         try {
             return $this->cloudFileRepository->getPreSignedUrlByCredential(
-                $fileEntity->getOrganizationCode(),
+                $projectOrganizationCode,
                 $fileEntity->getFileKey(),
                 $bucketType,
                 $options
@@ -1358,8 +1368,8 @@ class TaskFileDomainService
         );
 
         // 根节点单独处理
-        $sourceRootFileId = $this->findOrCreateProjectRootDirectory($sourceProjectEntity->getId(), $sourceProjectEntity->getWorkDir(), $sourceProjectEntity->getUserId(), $sourceProjectEntity->getUserOrganizationCode());
-        $forkRootFileId = $this->findOrCreateProjectRootDirectory($forkProjectEntity->getId(), $forkProjectEntity->getWorkDir(), $forkProjectEntity->getUserId(), $forkProjectEntity->getUserOrganizationCode(), TaskFileSource::COPY);
+        $sourceRootFileId = $this->findOrCreateProjectRootDirectory($sourceProjectEntity->getId(), $sourceProjectEntity->getWorkDir(), $sourceProjectEntity->getUserId(), $sourceProjectEntity->getUserOrganizationCode(), $sourceProjectEntity->getUserOrganizationCode());
+        $forkRootFileId = $this->findOrCreateProjectRootDirectory($forkProjectEntity->getId(), $forkProjectEntity->getWorkDir(), $forkProjectEntity->getUserId(), $forkProjectEntity->getUserOrganizationCode(), $forkProjectEntity->getUserOrganizationCode(), TaskFileSource::COPY);
         $sourceToNewIdMap[$sourceRootFileId] = $forkRootFileId;
 
         try {
@@ -1668,11 +1678,11 @@ class TaskFileDomainService
      * @param TaskFileSource $source File source
      * @return int The file_id of the final directory in the path
      */
-    private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         // Split path into parts and process each level
         $pathParts = array_filter(explode('/', trim($dirPath, '/')));
-        $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $source);
+        $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
         $currentPath = '';
 
         foreach ($pathParts as $dirName) {
@@ -1685,7 +1695,7 @@ class TaskFileDomainService
                 $currentParentId = $existingDir->getFileId();
             } else {
                 // Create new directory
-                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode, $source);
+                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
                 $currentParentId = $newDirId;
             }
         }
@@ -1732,7 +1742,7 @@ class TaskFileDomainService
      * @param string $workDir Project work directory
      * @return int Created directory file_id
      */
-    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         $dirEntity = new TaskFileEntity();
         $dirEntity->setFileId(IdGenerator::getSnowId());
@@ -1742,7 +1752,7 @@ class TaskFileDomainService
         $dirEntity->setFileName($dirName);
 
         // Build complete file_key: workDir + relativePath + trailing slash
-        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
         $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
         $fileKey = ltrim($fileKey, '/') . '/';
         $dirEntity->setFileKey($fileKey);
@@ -1865,14 +1875,14 @@ class TaskFileDomainService
     /**
      * Generate file URL for a single file entity.
      *
-     * @param DataIsolation $dataIsolation Data isolation context
+     * @param string $projectOrganizationCode Project organization code
      * @param TaskFileEntity $fileEntity File entity
      * @param string $downloadMode Download mode
      * @param string $fileId File ID for result array
      * @return array URL result array or null if failed
      */
     private function generateFileUrlForEntity(
-        DataIsolation $dataIsolation,
+        string $projectOrganizationCode,
         TaskFileEntity $fileEntity,
         string $downloadMode,
         string $fileId,
@@ -1883,7 +1893,7 @@ class TaskFileDomainService
         $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode, $addWatermark);
 
         // 生成预签名URL（水印参数已包含在签名中）
-        $preSignedUrl = $this->getFilePreSignedUrl($dataIsolation, $fileEntity, $urlOptions);
+        $preSignedUrl = $this->getFilePreSignedUrl($projectOrganizationCode, $fileEntity, $urlOptions);
 
         // 返回结果数组
         return [

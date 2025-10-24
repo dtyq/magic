@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -187,7 +188,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $topicId = $topicEntity->getId();
 
             // 检查项目是否有权限
-            $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId());
@@ -252,7 +253,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
             // Create and send message to agent
-            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext, $projectEntity);
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
@@ -365,10 +366,10 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Initialize agent environment.
      */
-    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
+    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ProjectEntity $projectEntity): string
     {
         // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
         if (empty($taskContext->getSandboxId())) {
             $sandboxId = (string) $taskContext->getTopicId();
@@ -388,8 +389,6 @@ class HandleUserMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId(),
             (string) $taskContext->getProjectId(),
         );
-
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($taskContext->getTask()->getProjectId());
 
         // Initialize agent
         $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectEntity->getUserOrganizationCode());

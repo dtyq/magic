@@ -123,7 +123,7 @@ class FileBatchAppService extends AbstractAppService
         $this->statusManager->initializeTask($batchKey, $userId, count($userFiles));
 
         // Publish message queue task
-        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $userAuthorization->getOrganizationCode(), $targetName, $workdir);
+        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $projectEntity->getUserOrganizationCode(), $targetName, $workdir);
 
         return new CreateBatchDownloadResponseDTO(
             'processing',

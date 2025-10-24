@@ -167,7 +167,7 @@ class ProjectAppService extends AbstractAppService
             if ($requestDTO->getFiles()) {
                 $this->taskFileDomainService->bindProjectFiles(
                     $dataIsolation,
-                    $projectEntity->getId(),
+                    $projectEntity,
                     $requestDTO->getFiles(),
                     $projectEntity->getWorkDir()
                 );
@@ -178,6 +178,7 @@ class ProjectAppService extends AbstractAppService
                     workDir: $projectEntity->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
                     organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
                 );
             }
 

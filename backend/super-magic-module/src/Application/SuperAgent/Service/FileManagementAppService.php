@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -246,9 +245,10 @@ class FileManagementAppService extends AbstractAppService
                 $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
                     projectId: (int) $projectId,
                     userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $projectEntity->getUserOrganizationCode(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
                     fullFileKey: $requestDTO->getFileKey(),
-                    workDir: $projectEntity->getWorkDir()
+                    workDir: $projectEntity->getWorkDir(),
                 );
                 $requestDTO->setParentId((string) $parentId);
             } else {
@@ -434,10 +434,11 @@ class FileManagementAppService extends AbstractAppService
             // 如果 parent_id 为空，则设置为根目录
             if (empty($parentId)) {
                 $parentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                    $projectId,
-                    $projectEntity->getWorkDir(),
-                    $dataIsolation->getCurrentUserId(),
-                    $dataIsolation->getCurrentOrganizationCode()
+                    projectId: $projectId,
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode()
                 );
             }
 
@@ -499,13 +500,13 @@ class FileManagementAppService extends AbstractAppService
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
-                $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey(), $fileEntity->getOrganizationCode());
+                $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey(), $projectEntity->getUserOrganizationCode());
                 // 发布目录已删除事件
                 $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
                 $this->eventDispatcher->dispatch($directoryDeletedEvent);
             } else {
                 $deletedCount = 1;
-                $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $fileEntity, $projectEntity->getWorkDir());
+                $this->taskFileDomainService->deleteProjectFiles($projectEntity->getUserOrganizationCode(), $fileEntity, $projectEntity->getWorkDir());
                 // 发布文件已删除事件
                 $fileDeletedEvent = new FileDeletedEvent($fileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
                 $this->eventDispatcher->dispatch($fileDeletedEvent);
@@ -559,7 +560,7 @@ class FileManagementAppService extends AbstractAppService
             $targetPath = $fileEntity->getFileKey();
 
             // 4. 调用领域服务执行批量删除
-            $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath, $fileEntity->getOrganizationCode());
+            $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath, $projectEntity->getUserOrganizationCode());
 
             // 发布目录已删除事件
             $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
@@ -668,14 +669,14 @@ class FileManagementAppService extends AbstractAppService
                 $renamedCount = $this->taskFileDomainService->renameDirectoryFiles(
                     $dataIsolation,
                     $fileEntity,
-                    $projectEntity->getWorkDir(),
+                    $projectEntity,
                     $targetName
                 );
                 // Get the updated entity after rename
                 $newFileEntity = $this->taskFileDomainService->getById($fileId);
             } else {
                 // Single file rename: use existing method
-                $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $targetName);
+                $newFileEntity = $this->taskFileDomainService->renameProjectFile($dataIsolation, $fileEntity, $projectEntity, $targetName);
             }
 
             // 发布文件已重命名事件
@@ -718,7 +719,8 @@ class FileManagementAppService extends AbstractAppService
                     projectId: $projectEntity->getId(),
                     workDir: $projectEntity->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $projectEntity->getUserOrganizationCode(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode()
                 );
             }
 
@@ -732,7 +734,7 @@ class FileManagementAppService extends AbstractAppService
                 $event = FileBatchMoveEvent::fromDTO(
                     $batchKey,
                     $dataIsolation->getCurrentUserId(),
-                    $projectEntity->getUserOrganizationCode(),
+                    $dataIsolation->getCurrentOrganizationCode(),
                     $fileIds,
                     $projectEntity->getId(),
                     $preFileId,
@@ -756,7 +758,7 @@ class FileManagementAppService extends AbstractAppService
                 $this->taskFileDomainService->moveProjectFile(
                     $dataIsolation,
                     $fileEntity,
-                    $projectEntity->getWorkDir(),
+                    $projectEntity,
                     $targetParentId
                 );
             }
@@ -815,7 +817,7 @@ class FileManagementAppService extends AbstractAppService
             $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             return $this->taskFileDomainService->getFileUrls(
-                $dataIsolation,
+                $projectEntity->getUserOrganizationCode(),
                 $projectEntity->getId(),
                 $fileIds,
                 $downloadMode,
@@ -883,10 +885,7 @@ class FileManagementAppService extends AbstractAppService
                     ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
             }
 
-            $organizationCode = AccessTokenUtil::getOrganizationCode($accessToken);
-            $dataIsolation = DataIsolation::simpleMake($organizationCode);
-
-            return $this->taskFileDomainService->getFileUrlsByProjectId($dataIsolation, $fileIds, $projectId, $downloadMode, $fileVersions);
+            return $this->taskFileDomainService->getFileUrlsByProjectId($fileIds, $projectId, $downloadMode, $fileVersions);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs by token: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
@@ -952,14 +951,20 @@ class FileManagementAppService extends AbstractAppService
             // Create and publish batch move event
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
             if (empty($requestDTO->getTargetParentId())) {
-                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory($projectEntity->getId(), $projectEntity->getWorkDir(), $dataIsolation->getCurrentUserId(), $projectEntity->getUserOrganizationCode());
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode()
+                );
             } else {
                 $targetParentId = (int) $requestDTO->getTargetParentId();
             }
             $event = FileBatchMoveEvent::fromDTO(
                 $batchKey,
                 $dataIsolation->getCurrentUserId(),
-                $projectEntity->getUserOrganizationCode(),
+                $dataIsolation->getCurrentOrganizationCode(),
                 $requestDTO->getFileIds(),
                 $projectEntity->getId(),
                 $preFileId,

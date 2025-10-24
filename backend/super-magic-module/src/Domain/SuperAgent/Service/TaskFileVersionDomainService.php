@@ -33,7 +33,7 @@ class TaskFileVersionDomainService
     /**
      * 创建文件版本.
      */
-    public function createFileVersion(TaskFileEntity $fileEntity, int $editType = 1): ?TaskFileVersionEntity
+    public function createFileVersion(string $projectOrganizationCode, TaskFileEntity $fileEntity, int $editType = 1): ?TaskFileVersionEntity
     {
         // 仅对非目录文件创建版本
         if ($fileEntity->getIsDirectory()) {
@@ -58,7 +58,7 @@ class TaskFileVersionDomainService
         ]);
 
         $this->copyFile(
-            $fileEntity->getOrganizationCode(),
+            $projectOrganizationCode,
             $fileEntity->getFileKey(),
             $versionFileKey
         );
@@ -161,15 +161,14 @@ class TaskFileVersionDomainService
     /**
      * 文件回滚到指定版本.
      */
-    public function rollbackFileToVersion(TaskFileEntity $fileEntity, int $targetVersion): ?TaskFileVersionEntity
+    public function rollbackFileToVersion(string $projectOrganizationCode, TaskFileEntity $fileEntity, int $targetVersion): ?TaskFileVersionEntity
     {
         $fileId = $fileEntity->getFileId();
-        $organizationCode = $fileEntity->getOrganizationCode();
 
         $this->logger->info('Starting file rollback to version', [
             'file_id' => $fileId,
             'target_version' => $targetVersion,
-            'organization_code' => $organizationCode,
+            'organization_code' => $projectOrganizationCode,
         ]);
 
         // 1. 验证目标版本是否存在
@@ -198,7 +197,7 @@ class TaskFileVersionDomainService
         ]);
 
         $this->copyFile(
-            $organizationCode,
+            $projectOrganizationCode,
             $versionFileKey,
             $currentFileKey
         );
@@ -213,7 +212,7 @@ class TaskFileVersionDomainService
             'file_id' => $fileId,
         ]);
 
-        $newVersionEntity = $this->createFileVersion($fileEntity);
+        $newVersionEntity = $this->createFileVersion($projectOrganizationCode, $fileEntity);
 
         if (! $newVersionEntity) {
             $this->logger->error('Failed to create version record after rollback', [

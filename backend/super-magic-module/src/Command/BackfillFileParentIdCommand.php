@@ -455,8 +455,9 @@ class BackfillFileParentIdCommand extends HyperfCommand
             projectId: $project->getId(),
             userId: $file->user_id,
             organizationCode: $file->organization_code,
+            projectOrganizationCode: $project->getUserOrganizationCode(),
             fullFileKey: $file->file_key,
-            workDir: $project->getWorkDir()
+            workDir: $project->getWorkDir(),
         );
 
         // 将结果存入缓存

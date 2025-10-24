@@ -1830,7 +1830,8 @@ readonly class AsrFileAppService
             (int) $projectId,
             $workDir,
             $userId,
-            $organizationCode
+            $organizationCode,
+            $projectEntity->getUserOrganizationCode()
         );
     }
 
