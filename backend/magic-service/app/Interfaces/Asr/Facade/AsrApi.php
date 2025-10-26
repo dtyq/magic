@@ -7,12 +7,13 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Asr\Facade;
 
-use App\Application\Asr\DTO\DownloadMergedAudioResponseDTO;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Speech\Assembler\AsrPromptAssembler;
+use App\Application\Speech\DTO\AsrRecordingDirectoryDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
+use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
 use App\ErrorCode\GenericErrorCode;
@@ -20,6 +21,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -29,6 +31,7 @@ use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -175,64 +178,6 @@ class AsrApi extends AbstractApi
     }
 
     /**
-     * 获取合并后录音文件的下载URL
-     * GET /api/v1/asr/download-url.
-     *
-     * @param RequestInterface $request 包含 task_key 参数
-     */
-    public function downloadMergedAudio(RequestInterface $request): array
-    {
-        $userAuthorization = $this->getAuthorization();
-        $userId = $userAuthorization->getId();
-        $organizationCode = $userAuthorization->getOrganizationCode();
-
-        // 获取task_key参数
-        $taskKey = $request->input('task_key', '');
-        if (empty($taskKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
-        }
-
-        // 获取并验证任务状态 - 委托给应用服务
-        $taskStatus = $this->asrFileAppService->getAndValidateTaskStatus($taskKey, $userId);
-
-        try {
-            // 调用应用服务进行文件下载、合并、上传和注册删除
-            $result = $this->asrFileAppService->downloadMergedAudio(
-                $organizationCode,
-                $taskStatus->businessDirectory,
-                $taskKey
-            );
-
-            return DownloadMergedAudioResponseDTO::createSuccessResponse(
-                $taskKey,
-                $result['url'],
-                $result['file_key'],
-                $userId,
-                $organizationCode
-            )->toArray();
-        } catch (Throwable $e) {
-            // 处理业务异常
-            if (str_contains($e->getMessage(), 'audio_file_not_found')) {
-                return DownloadMergedAudioResponseDTO::createFailureResponse(
-                    $taskKey,
-                    $userId,
-                    $organizationCode,
-                    'asr.download.file_not_exist'
-                )->toArray();
-            }
-
-            return DownloadMergedAudioResponseDTO::createFailureResponse(
-                $taskKey,
-                $userId,
-                $organizationCode,
-                'asr.download.get_link_error',
-                null,
-                ['error' => $e->getMessage()]
-            )->toArray();
-        }
-    }
-
-    /**
      * 获取ASR录音文件上传STS Token
      * GET /api/v1/asr/upload-tokens.
      *
@@ -251,6 +196,15 @@ class AsrApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
 
+        // 获取必填参数：topic_id
+        $topicId = $request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id 不能为空');
+        }
+
+        // 通过话题获取项目ID
+        $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
+
         // 检查task_key是否已存在，如果存在则使用已有目录，如果不存在则生成新目录
         $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
 
@@ -258,19 +212,33 @@ class AsrApi extends AbstractApi
         $storageType = StorageBucketType::SandBox->value;
         $expires = 60 * 60;
 
-        // 区分业务目录和STS完整目录
-        if (! $taskStatus->isEmpty()) {
-            // task_key已存在，使用已保存的业务目录重新获取STS Token
-            $businessDirectory = $taskStatus->businessDirectory;
-        } else {
-            // task_key不存在，生成新的业务目录
-            $businessDirectory = $this->generateAsrUploadDirectory($userId, $taskKey);
+        // 准备录音目录（包含话题验证和目录创建）
+        $directories = $this->asrFileAppService->validateTopicAndPrepareDirectories(
+            $topicId,
+            $projectId,
+            $userId,
+            $organizationCode,
+            $taskKey
+        );
+
+        // 使用隐藏目录路径作为上传目标
+        $hiddenDir = $this->findDirectoryByType($directories, true);
+        if ($hiddenDir === null) {
+            throw new InvalidArgumentException('未找到隐藏录音目录');
         }
-        // 调用FileAppService获取STS Token（使用业务目录）
+
+        $this->logger->info('使用隐藏目录作为上传目标', [
+            'task_key' => $taskKey,
+            'hidden_directory' => $hiddenDir->directoryPath,
+            'project_id' => $projectId,
+            'topic_id' => $topicId,
+        ]);
+
+        // 调用FileAppService获取STS Token（使用隐藏目录）
         $tokenData = $this->fileAppService->getStsTemporaryCredential(
             $userAuthorization,
             $storageType,
-            $businessDirectory,
+            $hiddenDir->directoryPath,
             $expires, // 最大有效期只能一个小时，前端需要报错重新获取
             false // 避免自动给 dir 加前缀导致不好查询目录下的文件
         );
@@ -280,12 +248,12 @@ class AsrApi extends AbstractApi
             unset($tokenData['magic_service_host']);
         }
 
-        // 🔧 获取STS返回的完整路径，用于前端上传
+        // 获取STS返回的完整路径，用于前端上传
         if (empty($tokenData['temporary_credential']['dir'])) {
             // 记录详细的调试信息
             $this->logger->error(trans('asr.api.token.sts_get_failed'), [
                 'task_key' => $taskKey,
-                'business_directory' => $businessDirectory,
+                'hidden_directory' => $hiddenDir->directoryPath,
                 'user_id' => $userId,
                 'organization_code' => $organizationCode,
                 'token_data_keys' => array_keys($tokenData),
@@ -294,21 +262,35 @@ class AsrApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.token.sts_get_failed'));
         }
 
-        $stsFullDirectory = $tokenData['temporary_credential']['dir'];
+        $stsUploadDirectory = $tokenData['temporary_credential']['dir'];
 
-        // 创建或更新任务状态，保存两个目录
+        // 提取目录信息
+        $displayDir = $this->findDirectoryByType($directories, false);
+
+        // 创建或更新任务状态
         if ($taskStatus->isEmpty()) {
             // 新任务：创建任务状态
             $taskStatus = new AsrTaskStatusDTO([
                 'task_key' => $taskKey,
                 'user_id' => $userId,
-                'business_directory' => $businessDirectory,  // 业务目录，与task_key绑定
-                'sts_full_directory' => $stsFullDirectory,   // STS完整目录，用于前端上传
-                'status' => AsrTaskStatusEnum::FAILED->value, // 初始设为失败，直至流程成功
+                'organization_code' => $organizationCode,
+                'status' => AsrTaskStatusEnum::FAILED->value,
+                'project_id' => $projectId,
+                'topic_id' => $topicId,
+                'temp_hidden_directory' => $hiddenDir->directoryPath,
+                'display_directory' => $displayDir?->directoryPath,
+                'temp_hidden_directory_id' => $hiddenDir->directoryId,
+                'display_directory_id' => $displayDir?->directoryId,
             ]);
         } else {
-            // 现有任务：更新STS完整目录
-            $taskStatus->stsFullDirectory = $stsFullDirectory;   // 更新STS完整目录
+            // 现有任务：更新目录信息
+            $taskStatus->organizationCode = $organizationCode;
+            $taskStatus->projectId = $projectId;
+            $taskStatus->topicId = $topicId;
+            $taskStatus->tempHiddenDirectory = $hiddenDir->directoryPath;
+            $taskStatus->displayDirectory = $displayDir?->directoryPath;
+            $taskStatus->tempHiddenDirectoryId = $hiddenDir->directoryId;
+            $taskStatus->displayDirectoryId = $displayDir?->directoryId;
         }
 
         // 保存更新的任务状态
@@ -320,8 +302,8 @@ class AsrApi extends AbstractApi
         return [
             'sts_token' => $tokenData,
             'task_key' => $taskKey,
-            'upload_directory' => $stsFullDirectory,  // 使用STS完整路径
-            'workspace_directory_name' => $workspaceDirectoryName,  // 新增：工作区目录名
+            'upload_directory' => $stsUploadDirectory,
+            'workspace_directory_name' => $workspaceDirectoryName,
             'expires_in' => $expires,
             'storage_type' => $storageType,
             'user' => [
@@ -330,19 +312,87 @@ class AsrApi extends AbstractApi
                 'organization_code' => $organizationCode,
             ],
             'usage_note' => trans('asr.api.token.usage_note'),
+            'directories' => array_map(
+                static fn ($dir) => $dir->toArray(),
+                $directories
+            ),
+            'project_id' => $projectId,
+            'topic_id' => $topicId,
         ];
     }
 
     /**
-     * 生成ASR录音文件专用上传目录.
+     * 录音状态上报接口
+     * POST /api/v1/asr/status.
+     *
+     * @param RequestInterface $request 包含 task_key、status、model_id、note、asr_stream_content 参数
      */
-    private function generateAsrUploadDirectory(string $userId, string $taskKey): string
+    public function reportStatus(RequestInterface $request): array
     {
-        // 使用当前日期作为分区，便于管理和清理
-        $currentDate = date('Y_m_d');
+        /** @var MagicUserAuthorization $userAuthorization */
+        $userAuthorization = $this->getAuthorization();
+        $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
-        // ASR录音文件目录结构: /asr/recordings/{date}/{user_id}/{task_key}/
-        return sprintf('/asr/recordings/%s/%s/%s/', $currentDate, $userId, $taskKey);
+        // 获取并验证参数
+        $taskKey = $request->input('task_key', '');
+        $status = $request->input('status', '');
+        $modelId = $request->input('model_id', '');
+        $asrStreamContent = $request->input('asr_stream_content', '');
+        $noteData = $request->input('note');
+
+        // 从上下文获取语种（已由 LocaleMiddleware 处理）
+        $language = CoContext::getLanguage();
+
+        // 验证 task_key
+        if (empty($taskKey)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_key 不能为空');
+        }
+
+        // 验证并转换 status 为枚举
+        $statusEnum = AsrRecordingStatusEnum::tryFromString($status);
+        if ($statusEnum === null) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterMissing,
+                sprintf('无效的状态，有效值：%s', implode(', ', ['start', 'recording', 'paused', 'stopped']))
+            );
+        }
+
+        // 处理 note 参数
+        $noteContent = null;
+        $noteFileType = null;
+        if (! empty($noteData) && is_array($noteData)) {
+            $noteContent = $noteData['content'] ?? '';
+            $noteFileType = $noteData['file_type'] ?? 'md';
+        }
+
+        // 调用应用服务处理，获取消息（传入枚举类型）
+        $message = $this->asrFileAppService->handleStatusReport(
+            $taskKey,
+            $statusEnum,
+            $modelId,
+            $asrStreamContent,
+            $noteContent,
+            $noteFileType,
+            $language,
+            $userId,
+            $organizationCode
+        );
+
+        return [
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * 从目录数组中查找指定类型的目录.
+     *
+     * @param array $directories 目录数组
+     * @param bool $hidden 是否查找隐藏目录
+     */
+    private function findDirectoryByType(array $directories, bool $hidden): ?AsrRecordingDirectoryDTO
+    {
+        return array_find($directories, static fn ($directory) => $directory->hidden === $hidden);
     }
 
     /**

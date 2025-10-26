@@ -19,17 +19,10 @@ class AsrTaskStatusDTO
 
     public string $userId = '';
 
-    // 类似：/asr/recordings/2025_09_10/usi_1111/task_key
-    public string $businessDirectory = ''; // 小段音频的业务目录，与 task_key 绑定
-
-    // 类似：DT001/588417216353927169/asr/recordings/2025_09_10/usi_1111/task_key/
-    public string $stsFullDirectory = ''; // 小段音频的STS完整目录，用于前端上传
+    public ?string $organizationCode = null; // 组织编码（用于自动总结）
 
     // 类似：project_821749697183776769/workspace/录音总结_20250910_174251/原始录音文件.webm
     public ?string $filePath = null; // 工作区文件路径
-
-    // 类似：project_821749697183776769/workspace/录音总结_20250910_174251
-    public ?string $workspaceRelativeDir = null; // 工作区相对目录，确保音频和note文件在同一目录
 
     // 文件ID（数据库中的实际ID）
     public ?string $audioFileId = null; // 音频文件ID（写入magic_super_agent_task_files表后返回的ID）
@@ -39,30 +32,76 @@ class AsrTaskStatusDTO
 
     public ?string $noteFileId = null; // note文件ID（用于聊天消息中的文件引用）
 
+    // 项目和话题信息
+    public ?string $projectId = null; // 项目ID
+
+    public ?string $topicId = null; // 话题ID
+
+    // 录音目录信息
+    public ?string $tempHiddenDirectory = null; // 隐藏目录路径（存放分片文件）
+
+    public ?string $displayDirectory = null; // 显示目录路径（存放流式文本和笔记）
+
+    public ?int $tempHiddenDirectoryId = null; // 隐藏目录的文件ID
+
+    public ?int $displayDirectoryId = null; // 显示目录的文件ID
+
     public AsrTaskStatusEnum $status = AsrTaskStatusEnum::FAILED;
 
-    public ?string $mergedAudioFileKey = null; // 合并后的音频文件key，用于复用
+    // 录音状态管理字段
+    public ?string $modelId = null; // AI 模型ID，用于自动总结
 
-    public ?string $workspaceFileKey = null; // 外部传入的工作区文件key
+    public ?string $recordingStatus = null; // 录音状态：start|recording|paused|stopped
 
-    public ?string $workspaceFileUrl = null; // 生成的工作区文件下载URL
+    public bool $sandboxTaskCreated = false; // 沙箱任务是否已创建
+
+    public bool $isPaused = false; // 是否处于暂停状态（用于超时判断）
+
+    public ?string $sandboxId = null; // 沙箱ID
+
+    // ASR 内容和笔记（用于生成标题）
+    public ?string $asrStreamContent = null; // ASR 流式识别内容
+
+    public ?string $noteContent = null; // 笔记内容
+
+    public ?string $noteFileType = null; // 笔记文件类型（md、txt、json）
+
+    public ?string $language = null; // 语种（zh_CN、en_US等），用于生成标题时使用
 
     public function __construct(array $data = [])
     {
         $this->taskKey = $data['task_key'] ?? $data['taskKey'] ?? '';
         $this->userId = $data['user_id'] ?? $data['userId'] ?? '';
-        $this->businessDirectory = $data['business_directory'] ?? $data['businessDirectory'] ?? '';
-        $this->stsFullDirectory = $data['sts_full_directory'] ?? $data['stsFullDirectory'] ?? '';
+        $this->organizationCode = $data['organization_code'] ?? $data['organizationCode'] ?? null;
 
         $this->status = AsrTaskStatusEnum::fromString($data['status'] ?? 'failed');
-        $this->mergedAudioFileKey = $data['merged_audio_file_key'] ?? $data['mergedAudioFileKey'] ?? null;
-        $this->workspaceFileKey = $data['workspace_file_key'] ?? $data['workspaceFileKey'] ?? null;
-        $this->workspaceFileUrl = $data['workspace_file_url'] ?? $data['workspaceFileUrl'] ?? null;
         $this->filePath = $data['file_path'] ?? $data['filePath'] ?? $data['file_name'] ?? $data['fileName'] ?? null;
-        $this->workspaceRelativeDir = $data['workspace_relative_dir'] ?? $data['workspaceRelativeDir'] ?? null;
         $this->audioFileId = $data['audio_file_id'] ?? $data['audioFileId'] ?? null;
         $this->noteFileName = $data['note_file_name'] ?? $data['noteFileName'] ?? null;
         $this->noteFileId = $data['note_file_id'] ?? $data['noteFileId'] ?? null;
+
+        // 项目和话题信息
+        $this->projectId = $data['project_id'] ?? $data['projectId'] ?? null;
+        $this->topicId = $data['topic_id'] ?? $data['topicId'] ?? null;
+
+        // 录音目录信息
+        $this->tempHiddenDirectory = $data['temp_hidden_directory'] ?? $data['tempHiddenDirectory'] ?? null;
+        $this->displayDirectory = $data['display_directory'] ?? $data['displayDirectory'] ?? null;
+        $this->tempHiddenDirectoryId = isset($data['temp_hidden_directory_id']) ? (int) $data['temp_hidden_directory_id'] : (isset($data['tempHiddenDirectoryId']) ? (int) $data['tempHiddenDirectoryId'] : null);
+        $this->displayDirectoryId = isset($data['display_directory_id']) ? (int) $data['display_directory_id'] : (isset($data['displayDirectoryId']) ? (int) $data['displayDirectoryId'] : null);
+
+        // 录音状态管理字段
+        $this->modelId = $data['model_id'] ?? $data['modelId'] ?? null;
+        $this->recordingStatus = $data['recording_status'] ?? $data['recordingStatus'] ?? null;
+        $this->sandboxTaskCreated = ($data['sandbox_task_created'] ?? $data['sandboxTaskCreated'] ?? false) === true || ($data['sandbox_task_created'] ?? $data['sandboxTaskCreated'] ?? '0') === '1';
+        $this->isPaused = ($data['is_paused'] ?? $data['isPaused'] ?? false) === true || ($data['is_paused'] ?? $data['isPaused'] ?? '0') === '1';
+        $this->sandboxId = $data['sandbox_id'] ?? $data['sandboxId'] ?? null;
+
+        // ASR 内容和笔记
+        $this->asrStreamContent = $data['asr_stream_content'] ?? $data['asrStreamContent'] ?? null;
+        $this->noteContent = $data['note_content'] ?? $data['noteContent'] ?? null;
+        $this->noteFileType = $data['note_file_type'] ?? $data['noteFileType'] ?? null;
+        $this->language = $data['language'] ?? null;
     }
 
     /**
@@ -76,24 +115,34 @@ class AsrTaskStatusDTO
     /**
      * 转换为数组（用于存储到Redis）.
      *
-     * @return array<string, null|bool|string>
+     * @return array<string, null|bool|int|string>
      */
     public function toArray(): array
     {
         return [
             'task_key' => $this->taskKey,
             'user_id' => $this->userId,
-            'business_directory' => $this->businessDirectory, // 业务目录，与task_key绑定
-            'sts_full_directory' => $this->stsFullDirectory, // STS完整目录，用于前端上传
+            'organization_code' => $this->organizationCode,
             'status' => $this->status->value,
-            'merged_audio_file_key' => $this->mergedAudioFileKey,
-            'workspace_file_key' => $this->workspaceFileKey,
-            'workspace_file_url' => $this->workspaceFileUrl,
             'file_path' => $this->filePath,
-            'workspace_relative_dir' => $this->workspaceRelativeDir,
             'audio_file_id' => $this->audioFileId,
             'note_file_name' => $this->noteFileName,
             'note_file_id' => $this->noteFileId,
+            'project_id' => $this->projectId,
+            'topic_id' => $this->topicId,
+            'temp_hidden_directory' => $this->tempHiddenDirectory,
+            'display_directory' => $this->displayDirectory,
+            'temp_hidden_directory_id' => $this->tempHiddenDirectoryId,
+            'display_directory_id' => $this->displayDirectoryId,
+            'model_id' => $this->modelId,
+            'recording_status' => $this->recordingStatus,
+            'sandbox_task_created' => $this->sandboxTaskCreated,
+            'is_paused' => $this->isPaused,
+            'sandbox_id' => $this->sandboxId,
+            'asr_stream_content' => $this->asrStreamContent,
+            'note_content' => $this->noteContent,
+            'note_file_type' => $this->noteFileType,
+            'language' => $this->language,
         ];
     }
 
@@ -102,7 +151,7 @@ class AsrTaskStatusDTO
      */
     public function isEmpty(): bool
     {
-        return empty($this->taskKey) && empty($this->userId) && empty($this->businessDirectory);
+        return empty($this->taskKey) && empty($this->userId);
     }
 
     /**
