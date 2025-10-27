@@ -928,18 +928,33 @@ class FileManagementAppService extends AbstractAppService
                 $fileIdsHash
             );
 
-            // Initialize task status
-            $fileCount = count($requestDTO->getFileIds());
+            // Expand directory file IDs to include all nested files
+            $expandedFileIds = $this->expandDirectoryFileIds(
+                $dataIsolation,
+                $requestDTO->getFileIds(),
+                $projectEntity->getId()
+            );
+
+            $this->logger->info('Expanded directory file IDs for batch move', [
+                'batch_key' => $batchKey,
+                'original_file_ids' => $requestDTO->getFileIds(),
+                'expanded_file_ids' => $expandedFileIds,
+                'original_count' => count($requestDTO->getFileIds()),
+                'expanded_count' => count($expandedFileIds),
+            ]);
+
+            // Initialize task status with expanded file count
             $this->batchOperationStatusManager->initializeTask(
                 $batchKey,
                 FileBatchOperationStatusManager::OPERATION_MOVE,
                 $dataIsolation->getCurrentUserId(),
-                $fileCount
+                count($expandedFileIds)
             );
 
             // Print request data
             $this->logger->info(sprintf('Batch move file request data, batchKey: %s', $batchKey), [
                 'file_ids' => $requestDTO->getFileIds(),
+                'expanded_file_ids' => $expandedFileIds,
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'pre_file_id' => $requestDTO->getPreFileId(),
             ]);
@@ -955,7 +970,7 @@ class FileManagementAppService extends AbstractAppService
                 $batchKey,
                 $dataIsolation->getCurrentUserId(),
                 $dataIsolation->getCurrentOrganizationCode(),
-                $requestDTO->getFileIds(),
+                $expandedFileIds,
                 $projectEntity->getId(),
                 $preFileId,
                 $targetParentId
@@ -1045,5 +1060,46 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
         }
+    }
+
+    /**
+     * Expand directory file IDs to include all nested files.
+     *
+     * This method processes a list of file IDs and expands any directories
+     * to include all their nested files. This ensures that when moving or
+     * operating on directories, all contained files are included.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param array $fileIds Original file IDs (may contain directories)
+     * @param int $projectId Project ID
+     * @return array Expanded file IDs (includes all nested files from directories)
+     */
+    private function expandDirectoryFileIds(DataIsolation $dataIsolation, array $fileIds, int $projectId): array
+    {
+        $allFileIds = [];
+
+        // Get all file entities
+        $fileEntities = $this->taskFileDomainService->getProjectFilesByIds($projectId, $fileIds);
+
+        foreach ($fileEntities as $fileEntity) {
+            // Always include the file/directory itself
+            $allFileIds[] = $fileEntity->getFileId();
+
+            // If it's a directory, expand to get all nested files
+            if ($fileEntity->getIsDirectory()) {
+                $nestedFileIds = $this->taskFileDomainService->getDirectoryFileIds(
+                    $dataIsolation,
+                    $fileEntity
+                );
+
+                // Merge nested file IDs
+                if (! empty($nestedFileIds)) {
+                    $allFileIds = array_merge($allFileIds, $nestedFileIds);
+                }
+            }
+        }
+
+        // Remove duplicates and reindex
+        return array_values(array_unique($allFileIds));
     }
 }
