@@ -16,6 +16,7 @@ use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
+use App\Application\Speech\Enum\AsrDirectoryTypeEnum;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Domain\Chat\DTO\Request\ChatRequest;
@@ -31,6 +32,7 @@ use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus as SuperAgentTaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -172,7 +174,7 @@ readonly class AsrFileAppService
                 }
             }
 
-            // 5. 使用协程异步执行录音总结流程（下载/合并/上传/清理/发消息），对外直接返回
+            // 5. 使用协程异步执行录音总结流程（沙箱合并音频并发送总结消息），对外直接返回
             // 协程透传语言和 requestId
             $language = $this->translator->getLocale();
             $requestId = CoContext::getRequestId();
@@ -216,7 +218,12 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 处理异步事件：执行下载、合并、上传、清理并发送总结消息（支持重复执行）。
+     * 处理ASR总结任务的异步执行流程（支持重复执行）.
+     *
+     * 流程说明：
+     * - 场景一（实时录音）：沙箱合并音频碎片，重命名目录，发送总结消息
+     * - 场景二（上传已有文件）：直接发送总结消息
+     *
      * @throws Throwable
      */
     public function handleAsrSummary(
@@ -232,14 +239,23 @@ readonly class AsrFileAppService
         $chatTopicId = $topicEntity->getChatTopicId();
         $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
 
-        // 2. 使用传入的 SummaryRequestDTO
-
-        // 3. 任务状态准备
+        // 2. 任务状态准备
         if ($summaryRequest->hasFileId()) {
             $taskStatus = $this->createVirtualTaskStatusFromFileId($summaryRequest, $userId);
         } else {
             $taskStatus = $this->getAndValidateTaskStatus($summaryRequest->taskKey, $userId);
             $existingWorkspaceFilePath = $taskStatus->filePath;
+
+            // 如果有智能标题，重命名显示目录
+            if (! empty($summaryRequest->generatedTitle)) {
+                $newDisplayDirectory = $this->renameDisplayDirectory(
+                    $taskStatus,
+                    $summaryRequest->generatedTitle,
+                    $summaryRequest->projectId
+                );
+                // 更新 taskStatus 中的显示目录路径
+                $taskStatus->displayDirectory = $newDisplayDirectory;
+            }
 
             try {
                 // 统一使用沙箱合并流程
@@ -467,16 +483,17 @@ readonly class AsrFileAppService
             // 2. 生成隐藏目录路径
             $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
             $workDir = $projectEntity->getWorkDir();
-            $hiddenDirName = sprintf('.asr_recordings/%s', $taskKey);
-            $hiddenDirPath = trim(sprintf('%s/%s', $workDir, $hiddenDirName), '/');
+            $relativePath = sprintf('.asr_recordings/%s', $taskKey);
+            $hiddenDirPath = trim(sprintf('%s/%s', $workDir, $relativePath), '/');
 
             // 3. 检查目录是否已存在
             $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $hiddenDirPath);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
-                    $hiddenDirPath,
+                    $relativePath,
                     $existingDir->getFileId(),
-                    true
+                    true,
+                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
                 );
             }
 
@@ -485,7 +502,7 @@ readonly class AsrFileAppService
                 $userId,
                 $organizationCode,
                 (int) $projectId,
-                $hiddenDirName,
+                $relativePath,
                 $hiddenDirPath,
                 $rootDirectoryId,
                 $taskKey
@@ -495,9 +512,10 @@ readonly class AsrFileAppService
             $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
             if ($result !== null) {
                 return new AsrRecordingDirectoryDTO(
-                    $hiddenDirPath,
+                    $relativePath,
                     $result->getFileId(),
-                    true
+                    true,
+                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
                 );
             }
 
@@ -505,9 +523,10 @@ readonly class AsrFileAppService
             $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $hiddenDirPath);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
-                    $hiddenDirPath,
+                    $relativePath,
                     $existingDir->getFileId(),
-                    true
+                    true,
+                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
                 );
             }
 
@@ -542,6 +561,7 @@ readonly class AsrFileAppService
 
             // 2. 生成显示目录名称
             $directoryName = $this->generateAsrDirectoryName();
+            $relativePath = $directoryName;  // 显示目录直接用目录名作为相对路径
 
             // 3. 生成完整路径
             $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
@@ -562,9 +582,10 @@ readonly class AsrFileAppService
             $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
             if ($result !== null) {
                 return new AsrRecordingDirectoryDTO(
-                    $displayDirPath,
+                    $relativePath,
                     $result->getFileId(),
-                    false
+                    false,
+                    AsrDirectoryTypeEnum::ASR_DISPLAY_DIR
                 );
             }
 
@@ -572,9 +593,10 @@ readonly class AsrFileAppService
             $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $displayDirPath);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
-                    $displayDirPath,
+                    $relativePath,
                     $existingDir->getFileId(),
-                    false
+                    false,
+                    AsrDirectoryTypeEnum::ASR_DISPLAY_DIR
                 );
             }
 
@@ -687,7 +709,7 @@ readonly class AsrFileAppService
      * @param string $language 语种（zh_CN、en_US等）
      * @param string $userId 用户ID
      * @param string $organizationCode 组织编码
-     * @return string 返回消息
+     * @return bool 处理是否成功
      * @throws InvalidArgumentException
      */
     public function handleStatusReport(
@@ -700,7 +722,7 @@ readonly class AsrFileAppService
         string $language,
         string $userId,
         string $organizationCode
-    ): string {
+    ): bool {
         $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
 
         if ($taskStatus->isEmpty()) {
@@ -748,6 +770,18 @@ readonly class AsrFileAppService
     }
 
     /**
+     * 获取项目的 workspace 路径（供 API 层使用）.
+     *
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return string workspace 路径
+     */
+    public function getWorkspacePathForProject(string $projectId, string $userId): string
+    {
+        return $this->getWorkspacePath($projectId, $userId);
+    }
+
+    /**
      * 确保工作区根目录存在，如果不存在则创建.
      *
      * 使用TaskFileDomainService的findOrCreateProjectRootDirectory方法
@@ -769,6 +803,7 @@ readonly class AsrFileAppService
         }
 
         // 使用TaskFileDomainService查找或创建项目根目录
+        // 使用默认的 TaskFileSource::PROJECT_DIRECTORY
         return $this->taskFileDomainService->findOrCreateProjectRootDirectory(
             (int) $projectId,
             $workDir,
@@ -778,12 +813,19 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 从沙箱获取合并后的音频文件并创建工作区记录.
-     * 沙箱负责在隐藏目录中合并音频文件，本方法负责：
-     * 1. 生成沙箱ID并确保沙箱可用
-     * 2. 轮询沙箱合并状态
-     * 3. 创建从隐藏目录到显示目录的文件记录
-     * 4. 更新任务状态
+     * 调用沙箱处理音频合并并创建工作区文件记录.
+     *
+     * 沙箱负责：
+     * - 合并隐藏目录中的音频碎片
+     * - 根据实际格式添加音频扩展名（webm/mp3/m4a/wav等）
+     * - 将合并后的文件移动到显示目录
+     * - 生成笔记文件（如果有笔记内容）
+     *
+     * 本方法负责：
+     * - 准备沙箱ID和文件标题
+     * - 调用沙箱finish接口并轮询等待完成
+     * - 在数据库中创建文件记录
+     * - 更新任务状态
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $organizationCode 组织编码
@@ -851,10 +893,17 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 合并音频并更新任务状态（公共方法）.
+     * 调用沙箱合并音频并更新任务状态.
+     *
+     * 该方法协调沙箱音频合并流程：
+     * 1. 调用沙箱finish接口，传入不含扩展名的文件标题
+     * 2. 轮询等待沙箱完成合并，沙箱会根据实际音频格式添加扩展名
+     * 3. 从沙箱响应中获取实际文件名（含扩展名）
+     * 4. 在数据库中创建文件记录
+     * 5. 更新任务状态为已完成
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
-     * @param string $fileTitle 文件标题（不含扩展名）
+     * @param string $fileTitle 文件标题（不含扩展名），沙箱会自动添加
      * @param string $organizationCode 组织编码
      * @throws InvalidArgumentException
      */
@@ -898,8 +947,13 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 从沙箱合并结果创建音频文件记录（从隐藏目录到显示目录）.
-     * 注意：这里只创建数据库记录，实际的文件移动由沙箱完成.
+     * 根据沙箱合并结果在数据库中创建音频文件记录.
+     *
+     * 注意：
+     * - 本方法仅在数据库中创建文件记录（task_files表）
+     * - 实际的文件合并和移动操作由沙箱完成
+     * - 文件最终位置：显示目录（用户可见）
+     * - 文件来源：隐藏目录中的音频碎片（沙箱合并）
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param AsrSandboxMergeResultDTO $mergeResult 沙箱合并结果
@@ -919,16 +973,21 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException('显示目录ID不存在，无法创建文件记录');
         }
 
-        $displayDirectory = $taskStatus->displayDirectory;
-        if (empty($displayDirectory)) {
+        $relativeDisplayDir = $taskStatus->displayDirectory;
+        if (empty($relativeDisplayDir)) {
             throw new InvalidArgumentException('显示目录路径不存在，无法创建文件记录');
         }
 
         $userId = $taskStatus->userId;
         $projectId = $taskStatus->projectId;
 
-        // 2. 构建显示目录中的文件路径
-        $fileKey = rtrim($displayDirectory, '/') . '/' . $fileName;
+        // 2. 构建显示目录中的文件路径（需要完整路径）
+        $fullDisplayPath = $this->getFullPath(
+            $projectId,
+            $userId,
+            $relativeDisplayDir
+        );
+        $fileKey = rtrim($fullDisplayPath, '/') . '/' . $fileName;
 
         $this->logger->info('创建沙箱音频文件记录', [
             'task_key' => $taskStatus->taskKey,
@@ -1021,35 +1080,16 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 从file_id创建虚拟任务状态（支持ASR总结的场景二：直接上传已有音频文件）.
+     * 从已上传文件ID创建虚拟任务状态（场景二：直接总结已有音频文件）.
      *
-     * 【为什么需要这个方法】
-     * ASR总结支持两种场景，需要统一处理流程：
+     * 使用场景：
+     * - 场景一（实时录音）：任务状态存储在Redis中，通过 getTaskStatusFromRedis() 获取
+     * - 场景二（上传已有文件）：从数据库文件记录临时构建虚拟任务状态（本方法）
      *
-     * 场景一（实时录音）：
-     *   - 前端实时录音 → 上传音频碎片 → 沙箱合并 → 总结
-     *   - 请求携带 task_key，任务状态存储在 Redis 中
-     *   - 通过 getTaskStatusFromRedis() 获取任务状态
-     *
-     * 场景二（上传已有文件）：
-     *   - 用户选择已存在的音频文件 → 直接总结
-     *   - 请求携带 file_id（没有 task_key）
-     *   - 需要从数据库文件记录构建"虚拟"任务状态（本方法）
-     *
-     * 【"虚拟"的含义】
-     * - 任务状态不是从 Redis 缓存读取的
-     * - 而是从数据库的文件记录临时构建的
-     * - 目的是为了统一两种场景的后续处理流程（发送聊天消息、处理note等）
-     *
-     * 【调用位置】
-     * handleAsrSummary() 方法根据是否有 file_id 来决定使用哪种方式：
-     * ```
-     * if ($summaryRequest->hasFileId()) {
-     *     $taskStatus = $this->createVirtualTaskStatusFromFileId(...);  // 场景二
-     * } else {
-     *     $taskStatus = $this->getAndValidateTaskStatus(...);            // 场景一
-     * }
-     * ```
+     * 虚拟状态说明：
+     * - 不从Redis读取，而是从数据库文件记录即时构建
+     * - 目的是统一两种场景的后续处理流程（发送聊天消息等）
+     * - 直接标记为COMPLETED状态，跳过沙箱合并流程
      *
      * @param SummaryRequestDTO $summaryRequest 总结请求DTO（必须包含file_id）
      * @param string $userId 用户ID
@@ -1084,20 +1124,14 @@ readonly class AsrFileAppService
 
         // 提取工作区相对路径
         $workspaceRelativePath = $this->chatMessageAssembler->extractWorkspaceRelativePath($fileEntity->getFileKey());
-        $workspaceDirectory = dirname($fileEntity->getFileKey());
 
         // 创建虚拟任务状态，用于构建聊天消息
         return new AsrTaskStatusDTO([
             'task_key' => $summaryRequest->taskKey,
             'user_id' => $userId,
-            'business_directory' => $workspaceDirectory,
-            'sts_full_directory' => $workspaceDirectory,
-            'status' => AsrTaskStatusEnum::COMPLETED->value, // 直接标记为已完成
-            'workspace_file_key' => $fileEntity->getFileKey(),
-            'workspace_file_url' => '', // 这里可以为空，因为不需要下载URL
-            'file_path' => $workspaceRelativePath, // 工作区相对路径
-            'audio_file_id' => $fileId, // 保存音频文件ID
-            'workspace_relative_dir' => dirname($workspaceRelativePath), // 保存工作区相对目录，供note文件使用
+            'status' => AsrTaskStatusEnum::COMPLETED->value,
+            'file_path' => $workspaceRelativePath,
+            'audio_file_id' => $fileId,
         ]);
     }
 
@@ -1286,13 +1320,13 @@ readonly class AsrFileAppService
 
     /**
      * 处理开始录音.
-     * @return string 返回消息
+     * @return bool 处理是否成功
      */
     private function handleStartRecording(
         AsrTaskStatusDTO $taskStatus,
         string $userId,
         string $organizationCode
-    ): string {
+    ): bool {
         // 如果沙箱任务未创建，则创建
         if (! $taskStatus->sandboxTaskCreated) {
             // 生成沙箱ID
@@ -1318,11 +1352,16 @@ readonly class AsrFileAppService
                 'actual_sandbox_id' => $actualSandboxId,
             ]);
 
-            // 调用沙箱启动任务
+            // 调用沙箱启动任务（需要完整路径）
+            $fullHiddenPath = $this->getFullPath(
+                $taskStatus->projectId,
+                $userId,
+                $taskStatus->tempHiddenDirectory
+            );
             $response = $this->asrRecorder->startTask(
                 $actualSandboxId,
                 $taskStatus->taskKey,
-                $taskStatus->tempHiddenDirectory,
+                $fullHiddenPath,
             );
 
             if (! $response->isSuccess()) {
@@ -1346,28 +1385,28 @@ readonly class AsrFileAppService
         // 设置 Redis 心跳 key（TTL 5分钟）
         $this->setHeartbeatKey($taskStatus->taskKey, $taskStatus->userId);
 
-        return '开始录音';
+        return true;
     }
 
     /**
      * 处理录音心跳.
-     * @return string 返回消息
+     * @return bool 处理是否成功
      */
-    private function handleRecordingHeartbeat(AsrTaskStatusDTO $taskStatus): string
+    private function handleRecordingHeartbeat(AsrTaskStatusDTO $taskStatus): bool
     {
         $taskStatus->recordingStatus = 'recording';
         $this->saveTaskStatusToRedis($taskStatus);
 
         $this->setHeartbeatKey($taskStatus->taskKey, $taskStatus->userId);
 
-        return '心跳更新';
+        return true;
     }
 
     /**
      * 处理暂停录音.
-     * @return string 返回消息
+     * @return bool 处理是否成功
      */
-    private function handlePauseRecording(AsrTaskStatusDTO $taskStatus): string
+    private function handlePauseRecording(AsrTaskStatusDTO $taskStatus): bool
     {
         $taskStatus->recordingStatus = 'paused';
         $taskStatus->isPaused = true;
@@ -1376,18 +1415,18 @@ readonly class AsrFileAppService
         // 删除心跳 key，停止超时检测
         $this->deleteHeartbeatKey($taskStatus->taskKey, $taskStatus->userId);
 
-        return '暂停录音';
+        return true;
     }
 
     /**
      * 处理终止录音.
-     * @return string 返回消息
+     * @return bool 处理是否成功
      */
     private function handleStopRecording(
         AsrTaskStatusDTO $taskStatus,
         string $userId,
         string $organizationCode
-    ): string {
+    ): bool {
         $taskStatus->recordingStatus = 'stopped';
         $this->saveTaskStatusToRedis($taskStatus);
 
@@ -1403,7 +1442,7 @@ readonly class AsrFileAppService
             $this->autoTriggerSummary($taskStatus, $userId, $organizationCode);
         });
 
-        return '终止录音，正在启动自动总结';
+        return true;
     }
 
     /**
@@ -1450,6 +1489,17 @@ readonly class AsrFileAppService
             // 生成文件标题（使用保存的 ASR 内容和笔记内容）
             // 不含扩展名，扩展名由沙箱根据实际音频格式添加
             $fileTitle = $this->generateTitleFromTaskStatus($taskStatus);
+
+            // 如果生成了标题，重命名显示目录
+            if (! empty($fileTitle)) {
+                $newDisplayDirectory = $this->renameDisplayDirectory(
+                    $taskStatus,
+                    $fileTitle,
+                    $taskStatus->projectId
+                );
+                // 更新 taskStatus 中的显示目录路径
+                $taskStatus->displayDirectory = $newDisplayDirectory;
+            }
 
             // 合并音频并更新任务状态
             // 传入不含扩展名的标题，沙箱会根据实际音频格式添加相应扩展名
@@ -1508,12 +1558,23 @@ readonly class AsrFileAppService
 
         // 首次调用 finish，传递不含扩展名的标题
         // 沙箱会根据实际音频格式（webm/mp3/m4a/wav等）添加相应扩展名
+        // 需要传递完整路径给沙箱
+        $fullDisplayPath = $this->getFullPath(
+            $taskStatus->projectId,
+            $taskStatus->userId,
+            $taskStatus->displayDirectory
+        );
+        $fullHiddenPath = $this->getFullPath(
+            $taskStatus->projectId,
+            $taskStatus->userId,
+            $taskStatus->tempHiddenDirectory
+        );
         $response = $this->asrRecorder->finishTask(
             $sandboxId,
             $taskStatus->taskKey,
-            $taskStatus->displayDirectory,
+            $fullDisplayPath,
             $fileTitle,  // 不含扩展名
-            $taskStatus->tempHiddenDirectory,
+            $fullHiddenPath,
             '.workspace',
             $noteFilename,
             $noteContent
@@ -1558,13 +1619,13 @@ readonly class AsrFileAppService
 
             sleep($interval);
 
-            // 继续轮询（传递不含扩展名的标题）
+            // 继续轮询（传递不含扩展名的标题和完整路径）
             $response = $this->asrRecorder->finishTask(
                 $sandboxId,
                 $taskStatus->taskKey,
-                $taskStatus->displayDirectory,
+                $fullDisplayPath,
                 $fileTitle,  // 不含扩展名
-                $taskStatus->tempHiddenDirectory,
+                $fullHiddenPath,
                 '.workspace',
                 $noteFilename,
                 $noteContent
@@ -1572,6 +1633,121 @@ readonly class AsrFileAppService
         }
 
         throw new InvalidArgumentException('沙箱合并超时');
+    }
+
+    /**
+     * 重命名显示目录（使用智能标题）.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param string $intelligentTitle 智能生成的标题
+     * @param string $projectId 项目ID
+     * @return string 新的相对路径
+     */
+    private function renameDisplayDirectory(
+        AsrTaskStatusDTO $taskStatus,
+        string $intelligentTitle,
+        string $projectId
+    ): string {
+        // 1. 获取原显示目录信息（相对路径）
+        $relativeOldPath = $taskStatus->displayDirectory;
+        $oldDirectoryId = $taskStatus->displayDirectoryId;
+
+        if (empty($relativeOldPath) || $oldDirectoryId === null) {
+            $this->logger->warning('显示目录信息不完整，跳过重命名', [
+                'task_key' => $taskStatus->taskKey,
+                'old_path' => $relativeOldPath,
+                'old_id' => $oldDirectoryId,
+            ]);
+            return $relativeOldPath;
+        }
+
+        // 2. 提取原目录名并获取时间戳
+        $oldDirectoryName = basename($relativeOldPath);
+        // 从 "录音总结_20251026_210626" 中提取时间戳 "_20251026_210626"
+        if (preg_match('/_(\d{8}_\d{6})$/', $oldDirectoryName, $matches)) {
+            $timestamp = '_' . $matches[1];
+        } else {
+            // 如果没有匹配到时间戳，使用当前时间
+            $timestamp = '_' . date('Ymd_His');
+            $this->logger->info('未找到原时间戳，使用当前时间', [
+                'task_key' => $taskStatus->taskKey,
+                'old_directory_name' => $oldDirectoryName,
+            ]);
+        }
+
+        // 3. 构建新目录名（智能标题 + 原时间戳）
+        $safeTitle = $this->sanitizeTitleForPath($intelligentTitle);
+        if (empty($safeTitle)) {
+            $this->logger->warning('智能标题为空，跳过重命名', [
+                'task_key' => $taskStatus->taskKey,
+                'intelligent_title' => $intelligentTitle,
+            ]);
+            return $relativeOldPath;
+        }
+        $newDirectoryName = $safeTitle . $timestamp;
+        $newRelativePath = $newDirectoryName;  // 新的相对路径
+
+        // 4. 构建新旧完整路径（用于数据库操作）
+        $fullOldPath = $this->getFullPath(
+            $projectId,
+            $taskStatus->userId,
+            $relativeOldPath
+        );
+        $fullNewPath = $this->getFullPath(
+            $projectId,
+            $taskStatus->userId,
+            $newRelativePath
+        );
+
+        // 如果新旧路径相同，无需重命名
+        if ($newRelativePath === $relativeOldPath) {
+            $this->logger->info('新旧目录路径相同，无需重命名', [
+                'task_key' => $taskStatus->taskKey,
+                'directory_path' => $newRelativePath,
+            ]);
+            return $relativeOldPath;
+        }
+
+        // 5. 更新 task_files 表中的目录记录
+        try {
+            $dirEntity = $this->taskFileDomainService->getById($oldDirectoryId);
+            if ($dirEntity === null) {
+                $this->logger->error('目录记录不存在', [
+                    'task_key' => $taskStatus->taskKey,
+                    'directory_id' => $oldDirectoryId,
+                ]);
+                return $relativeOldPath;
+            }
+
+            // 更新数据库时使用完整路径
+            $dirEntity->setFileName($newDirectoryName);
+            $dirEntity->setFileKey($fullNewPath);
+            $dirEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $this->taskFileDomainService->updateById($dirEntity);
+
+            $this->logger->info('显示目录重命名成功', [
+                'task_key' => $taskStatus->taskKey,
+                'old_relative_path' => $relativeOldPath,
+                'new_relative_path' => $newRelativePath,
+                'old_full_path' => $fullOldPath,
+                'new_full_path' => $fullNewPath,
+                'intelligent_title' => $intelligentTitle,
+                'directory_id' => $oldDirectoryId,
+            ]);
+
+            // 返回新的相对路径（用于更新 Redis）
+            return $newRelativePath;
+        } catch (Throwable $e) {
+            $this->logger->error('重命名显示目录失败', [
+                'task_key' => $taskStatus->taskKey,
+                'old_path' => $relativeOldPath,
+                'new_path' => $newRelativePath,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // 失败时返回原路径，不影响后续流程
+            return $relativeOldPath;
+        }
     }
 
     /**
@@ -1679,5 +1855,33 @@ readonly class AsrFileAppService
         $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
 
         $this->sendSummaryChatMessage($processSummaryTaskDTO, $userAuthorization);
+    }
+
+    /**
+     * 将相对路径转换为完整路径（用于沙箱和数据库操作）.
+     *
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param string $relativePath 相对路径（如 ".asr_recordings/task_xxx"）
+     * @return string 完整路径（如 "project_xxx/workspace/.asr_recordings/task_xxx"）
+     */
+    private function getFullPath(string $projectId, string $userId, string $relativePath): string
+    {
+        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+        $workDir = $projectEntity->getWorkDir();
+        return trim(sprintf('%s/%s', $workDir, $relativePath), '/');
+    }
+
+    /**
+     * 获取项目的 workspace 路径.
+     *
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return string workspace 路径（如 "project_xxx/workspace/"）
+     */
+    private function getWorkspacePath(string $projectId, string $userId): string
+    {
+        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+        return rtrim($projectEntity->getWorkDir(), '/') . '/';
     }
 }

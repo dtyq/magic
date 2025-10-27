@@ -84,9 +84,9 @@ class AsrTaskStatusDTO
         $this->projectId = $data['project_id'] ?? $data['projectId'] ?? null;
         $this->topicId = $data['topic_id'] ?? $data['topicId'] ?? null;
 
-        // 录音目录信息
-        $this->tempHiddenDirectory = $data['temp_hidden_directory'] ?? $data['tempHiddenDirectory'] ?? null;
-        $this->displayDirectory = $data['display_directory'] ?? $data['displayDirectory'] ?? null;
+        // 录音目录信息（自动清洗为相对路径）
+        $this->tempHiddenDirectory = self::extractRelativePath($data['temp_hidden_directory'] ?? $data['tempHiddenDirectory'] ?? null);
+        $this->displayDirectory = self::extractRelativePath($data['display_directory'] ?? $data['displayDirectory'] ?? null);
         $this->tempHiddenDirectoryId = isset($data['temp_hidden_directory_id']) ? (int) $data['temp_hidden_directory_id'] : (isset($data['tempHiddenDirectoryId']) ? (int) $data['tempHiddenDirectoryId'] : null);
         $this->displayDirectoryId = isset($data['display_directory_id']) ? (int) $data['display_directory_id'] : (isset($data['displayDirectoryId']) ? (int) $data['displayDirectoryId'] : null);
 
@@ -176,5 +176,28 @@ class AsrTaskStatusDTO
     public function hasNoteFile(): bool
     {
         return ! empty($this->noteFileName);
+    }
+
+    /**
+     * 提取相对于 workspace 的相对路径
+     * 如果路径包含 workspace/，提取其后的部分
+     * 这样可以自动修正 Redis 中存储的旧格式数据（完整路径）.
+     *
+     * @param null|string $path 原始路径
+     * @return null|string 相对路径
+     */
+    private static function extractRelativePath(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return $path;
+        }
+
+        // 如果路径包含 workspace/，提取 workspace/ 后面的部分
+        if (str_contains($path, 'workspace/')) {
+            $parts = explode('workspace/', $path, 2);
+            return $parts[1] ?? $path;
+        }
+
+        return $path;
     }
 }

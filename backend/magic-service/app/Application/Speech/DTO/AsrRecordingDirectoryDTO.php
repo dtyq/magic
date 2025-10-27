@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\DTO;
 
+use App\Application\Speech\Enum\AsrDirectoryTypeEnum;
+
 /**
  * 录音目录信息 DTO.
  */
@@ -15,7 +17,8 @@ readonly class AsrRecordingDirectoryDTO
     public function __construct(
         public string $directoryPath,
         public int $directoryId,
-        public bool $hidden
+        public bool $hidden,
+        public AsrDirectoryTypeEnum $type
     ) {
     }
 
@@ -28,6 +31,7 @@ readonly class AsrRecordingDirectoryDTO
             'directory_path' => $this->directoryPath,
             'directory_id' => $this->directoryId,
             'hidden' => $this->hidden,
+            'type' => $this->type->value,
         ];
     }
 }

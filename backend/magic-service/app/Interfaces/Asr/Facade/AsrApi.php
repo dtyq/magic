@@ -185,140 +185,40 @@ class AsrApi extends AbstractApi
      */
     public function getUploadToken(RequestInterface $request): array
     {
-        /** @var MagicUserAuthorization $userAuthorization */
         $userAuthorization = $this->getAuthorization();
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
 
-        // 获取task_key参数
-        $taskKey = $request->input('task_key', '');
-        if (empty($taskKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
-        }
+        // 1. 验证并获取请求参数
+        [$taskKey, $topicId, $projectId] = $this->validateUploadTokenParams($request, $userId);
 
-        // 获取必填参数：topic_id
-        $topicId = $request->input('topic_id', '');
-        if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id 不能为空');
-        }
-
-        // 通过话题获取项目ID
-        $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
-
-        // 检查task_key是否已存在，如果存在则使用已有目录，如果不存在则生成新目录
-        $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
-
-        // 使用沙盒存储类型，适合临时录音文件
-        $storageType = StorageBucketType::SandBox->value;
-        $expires = 60 * 60;
-
-        // 准备录音目录（包含话题验证和目录创建）
-        $directories = $this->asrFileAppService->validateTopicAndPrepareDirectories(
+        // 2. 创建或更新任务状态（第一次创建目录，后续使用已有目录）
+        $taskStatus = $this->createOrUpdateTaskStatus(
+            $taskKey,
             $topicId,
             $projectId,
             $userId,
-            $organizationCode,
-            $taskKey
+            $organizationCode
         );
 
-        // 使用隐藏目录路径作为上传目标
-        $hiddenDir = $this->findDirectoryByType($directories, true);
-        if ($hiddenDir === null) {
-            throw new InvalidArgumentException('未找到隐藏录音目录');
-        }
-
-        $this->logger->info('使用隐藏目录作为上传目标', [
-            'task_key' => $taskKey,
-            'hidden_directory' => $hiddenDir->directoryPath,
-            'project_id' => $projectId,
-            'topic_id' => $topicId,
-        ]);
-
-        // 调用FileAppService获取STS Token（使用隐藏目录）
-        $tokenData = $this->fileAppService->getStsTemporaryCredential(
+        // 3. 获取STS Token（到 workspace 级别）
+        $tokenData = $this->getStsToken(
             $userAuthorization,
-            $storageType,
-            $hiddenDir->directoryPath,
-            $expires, // 最大有效期只能一个小时，前端需要报错重新获取
-            false // 避免自动给 dir 加前缀导致不好查询目录下的文件
+            $projectId,
+            $userId,
+            $taskKey,
+            $organizationCode
         );
 
-        // 移除sts_token中的magic_service_host字段
-        if (isset($tokenData['magic_service_host'])) {
-            unset($tokenData['magic_service_host']);
-        }
-
-        // 获取STS返回的完整路径，用于前端上传
-        if (empty($tokenData['temporary_credential']['dir'])) {
-            // 记录详细的调试信息
-            $this->logger->error(trans('asr.api.token.sts_get_failed'), [
-                'task_key' => $taskKey,
-                'hidden_directory' => $hiddenDir->directoryPath,
-                'user_id' => $userId,
-                'organization_code' => $organizationCode,
-                'token_data_keys' => array_keys($tokenData),
-                'temporary_credential_keys' => isset($tokenData['temporary_credential']) ? array_keys($tokenData['temporary_credential']) : 'not_exists',
-            ]);
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.token.sts_get_failed'));
-        }
-
-        $stsUploadDirectory = $tokenData['temporary_credential']['dir'];
-
-        // 提取目录信息
-        $displayDir = $this->findDirectoryByType($directories, false);
-
-        // 创建或更新任务状态
-        if ($taskStatus->isEmpty()) {
-            // 新任务：创建任务状态
-            $taskStatus = new AsrTaskStatusDTO([
-                'task_key' => $taskKey,
-                'user_id' => $userId,
-                'organization_code' => $organizationCode,
-                'status' => AsrTaskStatusEnum::FAILED->value,
-                'project_id' => $projectId,
-                'topic_id' => $topicId,
-                'temp_hidden_directory' => $hiddenDir->directoryPath,
-                'display_directory' => $displayDir?->directoryPath,
-                'temp_hidden_directory_id' => $hiddenDir->directoryId,
-                'display_directory_id' => $displayDir?->directoryId,
-            ]);
-        } else {
-            // 现有任务：更新目录信息
-            $taskStatus->organizationCode = $organizationCode;
-            $taskStatus->projectId = $projectId;
-            $taskStatus->topicId = $topicId;
-            $taskStatus->tempHiddenDirectory = $hiddenDir->directoryPath;
-            $taskStatus->displayDirectory = $displayDir?->directoryPath;
-            $taskStatus->tempHiddenDirectoryId = $hiddenDir->directoryId;
-            $taskStatus->displayDirectoryId = $displayDir?->directoryId;
-        }
-
-        // 保存更新的任务状态
+        // 4. 保存任务状态
         $this->saveTaskStatusToRedis($taskStatus);
 
-        // 生成工作区目录名（调用统一的目录名生成方法）
-        $workspaceDirectoryName = $this->asrFileAppService->generateAsrDirectoryName();
-
-        return [
-            'sts_token' => $tokenData,
-            'task_key' => $taskKey,
-            'upload_directory' => $stsUploadDirectory,
-            'workspace_directory_name' => $workspaceDirectoryName,
-            'expires_in' => $expires,
-            'storage_type' => $storageType,
-            'user' => [
-                'user_id' => $userId,
-                'magic_id' => $userAuthorization->getMagicId(),
-                'organization_code' => $organizationCode,
-            ],
-            'usage_note' => trans('asr.api.token.usage_note'),
-            'directories' => array_map(
-                static fn ($dir) => $dir->toArray(),
-                $directories
-            ),
-            'project_id' => $projectId,
-            'topic_id' => $topicId,
-        ];
+        // 5. 构建并返回响应
+        return $this->buildUploadTokenResponse(
+            $tokenData,
+            $taskStatus,
+            $taskKey
+        );
     }
 
     /**
@@ -366,8 +266,8 @@ class AsrApi extends AbstractApi
             $noteFileType = $noteData['file_type'] ?? 'md';
         }
 
-        // 调用应用服务处理，获取消息（传入枚举类型）
-        $message = $this->asrFileAppService->handleStatusReport(
+        // 调用应用服务处理（传入枚举类型）
+        $success = $this->asrFileAppService->handleStatusReport(
             $taskKey,
             $statusEnum,
             $modelId,
@@ -380,7 +280,7 @@ class AsrApi extends AbstractApi
         );
 
         return [
-            'message' => $message,
+            'success' => $success,
         ];
     }
 
@@ -681,5 +581,202 @@ class AsrApi extends AbstractApi
             'project_name' => $result['project_name'] ?? null,
             'workspace_name' => $result['workspace_name'] ?? null,
         ];
+    }
+
+    /**
+     * 验证上传Token请求参数.
+     *
+     * @return array{0: string, 1: string, 2: string} [taskKey, topicId, projectId]
+     */
+    private function validateUploadTokenParams(RequestInterface $request, string $userId): array
+    {
+        $taskKey = $request->input('task_key', '');
+        if (empty($taskKey)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
+        }
+
+        $topicId = $request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id 不能为空');
+        }
+
+        $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
+
+        return [$taskKey, $topicId, $projectId];
+    }
+
+    /**
+     * 创建或更新任务状态.
+     * 第一次调用：创建新目录和任务状态
+     * 后续调用：使用已有目录，只更新必要字段.
+     */
+    private function createOrUpdateTaskStatus(
+        string $taskKey,
+        string $topicId,
+        string $projectId,
+        string $userId,
+        string $organizationCode
+    ): AsrTaskStatusDTO {
+        $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
+
+        if ($taskStatus->isEmpty()) {
+            // 第一次调用：创建新目录
+            return $this->createNewTaskStatus(
+                $taskKey,
+                $topicId,
+                $projectId,
+                $userId,
+                $organizationCode
+            );
+        }
+
+        // 后续调用：验证权限并更新必要字段
+        $this->asrFileAppService->validateProjectAccess($projectId, $userId, $organizationCode);
+        $taskStatus->projectId = $projectId;
+        $taskStatus->topicId = $topicId;
+
+        $this->logger->info('后续调用 getUploadToken，使用已有目录', [
+            'task_key' => $taskKey,
+            'hidden_directory' => $taskStatus->tempHiddenDirectory,
+            'display_directory' => $taskStatus->displayDirectory,
+        ]);
+
+        return $taskStatus;
+    }
+
+    /**
+     * 创建新任务状态（第一次调用）.
+     */
+    private function createNewTaskStatus(
+        string $taskKey,
+        string $topicId,
+        string $projectId,
+        string $userId,
+        string $organizationCode
+    ): AsrTaskStatusDTO {
+        $this->logger->info('第一次调用 getUploadToken，创建新目录', [
+            'task_key' => $taskKey,
+            'project_id' => $projectId,
+            'topic_id' => $topicId,
+        ]);
+
+        // 准备录音目录（包含话题验证和目录创建）
+        $directories = $this->asrFileAppService->validateTopicAndPrepareDirectories(
+            $topicId,
+            $projectId,
+            $userId,
+            $organizationCode,
+            $taskKey
+        );
+
+        // 提取目录信息
+        $hiddenDir = $this->findDirectoryByType($directories, true);
+        $displayDir = $this->findDirectoryByType($directories, false);
+
+        if ($hiddenDir === null) {
+            throw new InvalidArgumentException('未找到隐藏录音目录');
+        }
+
+        // 创建任务状态
+        return new AsrTaskStatusDTO([
+            'task_key' => $taskKey,
+            'user_id' => $userId,
+            'organization_code' => $organizationCode,
+            'status' => AsrTaskStatusEnum::FAILED->value,
+            'project_id' => $projectId,
+            'topic_id' => $topicId,
+            'temp_hidden_directory' => $hiddenDir->directoryPath,
+            'display_directory' => $displayDir?->directoryPath,
+            'temp_hidden_directory_id' => $hiddenDir->directoryId,
+            'display_directory_id' => $displayDir?->directoryId,
+        ]);
+    }
+
+    /**
+     * 获取STS Token（只到 workspace 级别）.
+     */
+    private function getStsToken(
+        MagicUserAuthorization $userAuthorization,
+        string $projectId,
+        string $userId,
+        string $taskKey,
+        string $organizationCode
+    ): array {
+        $storageType = StorageBucketType::SandBox->value;
+        $expires = 60 * 60;
+
+        // 获取 workspace 路径（到 workspace 级别）
+        $workspacePath = $this->asrFileAppService->getWorkspacePathForProject($projectId, $userId);
+
+        $tokenData = $this->fileAppService->getStsTemporaryCredential(
+            $userAuthorization,
+            $storageType,
+            $workspacePath,  // 只传入到 workspace 级别
+            $expires,
+            false
+        );
+
+        // 移除不需要的字段
+        unset($tokenData['magic_service_host']);
+
+        // 验证返回数据
+        if (empty($tokenData['temporary_credential']['dir'])) {
+            $this->logger->error(trans('asr.api.token.sts_get_failed'), [
+                'task_key' => $taskKey,
+                'workspace_path' => $workspacePath,
+                'user_id' => $userId,
+                'organization_code' => $organizationCode,
+            ]);
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.token.sts_get_failed'));
+        }
+
+        return $tokenData;
+    }
+
+    /**
+     * 构建上传Token响应数据（简化版）.
+     */
+    private function buildUploadTokenResponse(
+        array $tokenData,
+        AsrTaskStatusDTO $taskStatus,
+        string $taskKey
+    ): array {
+        $expires = 60 * 60;
+        $directories = $this->buildDirectoriesArray($taskStatus);
+
+        return [
+            'sts_token' => $tokenData,
+            'task_key' => $taskKey,
+            'expires_in' => $expires,
+            'directories' => $directories,
+        ];
+    }
+
+    /**
+     * 从任务状态构建目录信息 map.
+     */
+    private function buildDirectoriesArray(AsrTaskStatusDTO $taskStatus): array
+    {
+        $directories = [];
+
+        if (! empty($taskStatus->tempHiddenDirectory)) {
+            $directories['asr_hidden_dir'] = [
+                'directory_path' => $taskStatus->tempHiddenDirectory,
+                'directory_id' => $taskStatus->tempHiddenDirectoryId,
+                'hidden' => true,
+                'type' => 'asr_hidden_dir',
+            ];
+        }
+
+        if (! empty($taskStatus->displayDirectory)) {
+            $directories['asr_display_dir'] = [
+                'directory_path' => $taskStatus->displayDirectory,
+                'directory_id' => $taskStatus->displayDirectoryId,
+                'hidden' => false,
+                'type' => 'asr_display_dir',
+            ];
+        }
+
+        return $directories;
     }
 }
