@@ -16,6 +16,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
@@ -49,6 +50,7 @@ class FileConverterAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly SandboxGatewayInterface $sandboxGateway,
         private readonly FileCleanupAppService $fileCleanupAppService,
+        private readonly ProjectDomainService $projectDomainService,
     ) {
         $this->logger = $loggerFactory->get('FileConverter');
     }
@@ -231,7 +233,7 @@ class FileConverterAppService extends AbstractAppService
             ]);
 
             // Get full workdir first
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuthorization->getOrganizationCode());
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
             // Build file keys and get temporary credentials

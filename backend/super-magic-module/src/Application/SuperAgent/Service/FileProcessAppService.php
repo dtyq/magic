@@ -829,6 +829,9 @@ class FileProcessAppService extends AbstractAppService
         int $topicId,
         int $taskId
     ): int {
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+
         $this->logger->info(sprintf(
             'Starting to save tool message content, File name: %s, File size: %d bytes, Task ID: %d',
             $fileName,
@@ -838,8 +841,7 @@ class FileProcessAppService extends AbstractAppService
 
         try {
             // Construct complete file path
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrganizationCode);
             $fullFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileKey);
 
             // 1. Check if file already exists
@@ -860,7 +862,7 @@ class FileProcessAppService extends AbstractAppService
                 $fullFileKey,
                 $fileName,
                 pathinfo($fileName, PATHINFO_EXTENSION),
-                $dataIsolation->getCurrentOrganizationCode()
+                $projectOrganizationCode
             );
 
             // 3. Build file data
@@ -995,7 +997,7 @@ class FileProcessAppService extends AbstractAppService
             $taskFileEntity->getFileKey(),
             $taskFileEntity->getFileName(),
             $taskFileEntity->getFileExtension(),
-            $taskFileEntity->getOrganizationCode(),
+            $projectEntity->getUserOrganizationCode(),
             $taskFileEntity->getFileId()
         );
 
