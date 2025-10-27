@@ -19,6 +19,7 @@
  - 文件服务代理的 阿里云、火山云
  - 阿里云
  - 火山云
+ - MinIO / S3 (AWS S3 兼容)
 
 ## 重要功能
 - [x] 获取临时凭证
@@ -92,6 +93,20 @@ $configs = [
                 'sk' => 'xxx',
                 'bucket' => 'xxx',
                 'trn' => 'xxx',
+            ],
+        ],
+        // MinIO/S3 配置示例
+        's3_test' => [
+            'adapter' => 's3', // 或 'minio'
+            'config' => [
+                'region' => 'us-east-1',
+                'endpoint' => 'http://localhost:9000', // MinIO 服务地址
+                'accessKey' => 'xxx',
+                'secretKey' => 'xxx',
+                'bucket' => 'xxx',
+                'use_path_style_endpoint' => true, // MinIO 必须为 true
+                'version' => 'latest',
+                'role_arn' => 'xxx', // 可选，用于 STS 临时凭证
             ],
         ],
     ],
@@ -238,4 +253,68 @@ $list = $filesystem->getLinks([
 ], [], 7200, $options);
 
 $link = $list[0]->getUrl();
+```
+
+### Hyperf 中使用 MinIO
+```php
+// 在 .env 中配置
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_REGION=us-east-1
+MINIO_ACCESS_KEY=your-access-key
+MINIO_SECRET_KEY=your-secret-key
+MINIO_BUCKET=your-bucket
+
+// 在代码中使用
+$cloudFile = \Hyperf\Support\make(CloudFileFactory::class)->create();
+$filesystem = $cloudFile->get('minio');
+
+// 上传文件
+$uploadFile = new UploadFile('/path/to/file.txt', 'my-folder');
+$credentialPolicy = new CredentialPolicy(['sts' => false]);
+$filesystem->uploadByCredential($uploadFile, $credentialPolicy);
+
+// 获取文件链接
+$links = $filesystem->getLinks(['my-folder/file.txt'], [], 3600);
+```
+
+## MinIO / S3 使用说明
+
+### 配置要点
+MinIO 是 AWS S3 兼容的对象存储，使用时需要注意：
+- `use_path_style_endpoint` 必须设置为 `true`
+- `endpoint` 设置为 MinIO 服务地址（如 `http://localhost:9000`）
+- 支持 STS 临时凭证功能（需配置 `role_arn`）
+
+### 基本使用示例
+
+```php
+$filesystem = $cloudFile->get('s3_test');
+
+// 获取临时凭证
+$credentialPolicy = new CredentialPolicy([
+    'sts' => false, // 简单签名模式
+    'roleSessionName' => 'test',
+]);
+$credential = $filesystem->getUploadCredential($credentialPolicy);
+
+// 上传文件
+$realPath = __DIR__ . '/test.txt';
+$uploadFile = new UploadFile($realPath, 'my-folder');
+$filesystem->uploadByCredential($uploadFile, $credentialPolicy);
+
+// 获取文件链接
+$links = $filesystem->getLinks(['my-folder/test.txt'], [], 3600);
+$downloadUrl = $links[0]->getUrl();
+
+// 复制文件
+$newPath = $filesystem->duplicate('my-folder/test.txt', 'my-folder/test-copy.txt');
+
+// 删除文件
+$filesystem->destroy('my-folder/test.txt');
+```
+
+### MinIO 与 AWS S3 的区别
+- MinIO 默认使用 path-style 访问（`http://endpoint/bucket/key`）
+- AWS S3 默认使用 virtual-hosted-style 访问（`http://bucket.endpoint/key`）
+- 通过设置 `use_path_style_endpoint => true` 可统一使用 path-style
 ```
