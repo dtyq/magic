@@ -120,6 +120,7 @@ return [
         ],
         'lock' => [
             'acquire_failed' => 'Failed to acquire lock, another summary task is in progress, please try again later',
+            'system_busy' => 'System is busy, please try again later',
         ],
     ],
 
@@ -160,5 +161,42 @@ return [
         'summary_prefix_with_note' => 'Please help me organize the recording content in ',
         'summary_middle_with_note' => ' and my note content in ',
         'summary_suffix_with_note' => ' into a minutes document.',
+    ],
+
+    // Exception messages i18n
+    'exception' => [
+        // API layer exceptions
+        'task_key_empty' => 'task_key cannot be empty',
+        'topic_id_empty' => 'topic_id cannot be empty',
+        'hidden_directory_not_found' => 'Hidden recording directory not found',
+        'task_already_completed' => 'Task already completed, cannot continue uploading',
+        'sandbox_start_retry_exceeded' => 'Sandbox startup failed too many times, please try again later',
+
+        // Service layer exceptions
+        'task_not_exist_get_upload_token' => 'Task does not exist, please call getUploadToken first',
+        'file_not_exist' => 'File does not exist: :fileId',
+        'file_not_belong_to_project' => 'File does not belong to current project: :fileId',
+        'audio_file_id_empty' => 'Audio file ID is empty',
+        'topic_not_exist' => 'Topic does not exist: :topicId',
+        'topic_not_exist_simple' => 'Topic does not exist',
+        'user_not_exist' => 'User does not exist',
+        'task_not_belong_to_user' => 'Task does not belong to current user',
+
+        // Directory service exceptions
+        'create_hidden_directory_failed_project' => 'Unable to create hidden recording directory, project ID: :projectId',
+        'create_hidden_directory_failed_error' => 'Failed to create hidden recording directory: :error',
+        'create_display_directory_failed_project' => 'Unable to create display recording directory, project ID: :projectId',
+        'create_display_directory_failed_error' => 'Failed to create display recording directory: :error',
+        'workspace_directory_empty' => 'Workspace directory for project :projectId is empty',
+
+        // Sandbox service exceptions
+        'sandbox_task_creation_failed' => 'Failed to create sandbox task: :message',
+        'display_directory_id_not_exist' => 'Display directory ID does not exist, cannot create file record',
+        'display_directory_path_not_exist' => 'Display directory path does not exist, cannot create file record',
+        'create_file_record_failed_no_query' => 'Failed to create file record and unable to query existing record',
+        'create_file_record_failed_error' => 'Failed to create file record: :error',
+        'sandbox_id_not_exist' => 'Sandbox ID does not exist, cannot complete recording task',
+        'sandbox_merge_failed' => 'Sandbox merge failed: :message',
+        'sandbox_merge_timeout' => 'Sandbox merge timeout',
     ],
 ];

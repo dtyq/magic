@@ -120,6 +120,7 @@ return [
         ],
         'lock' => [
             'acquire_failed' => '获取锁失败，另一个总结任务正在进行中，请稍后再试',
+            'system_busy' => '系统繁忙，请稍后重试',
         ],
     ],
 
@@ -160,5 +161,42 @@ return [
         'summary_prefix_with_note' => '帮我把 ',
         'summary_middle_with_note' => ' 中的录音内容和 ',
         'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档。',
+    ],
+
+    // 异常信息国际化
+    'exception' => [
+        // API 层异常
+        'task_key_empty' => 'task_key 不能为空',
+        'topic_id_empty' => 'topic_id 不能为空',
+        'hidden_directory_not_found' => '未找到隐藏录音目录',
+        'task_already_completed' => '任务已完成，无法继续上传',
+        'sandbox_start_retry_exceeded' => '沙箱启动失败次数过多，请稍后重试',
+
+        // Service 层异常
+        'task_not_exist_get_upload_token' => '任务不存在，请先调用 getUploadToken',
+        'file_not_exist' => '文件不存在: :fileId',
+        'file_not_belong_to_project' => '文件不属于当前项目: :fileId',
+        'audio_file_id_empty' => '音频文件ID为空',
+        'topic_not_exist' => '话题不存在: :topicId',
+        'topic_not_exist_simple' => '话题不存在',
+        'user_not_exist' => '用户不存在',
+        'task_not_belong_to_user' => '任务不属于当前用户',
+
+        // Directory 服务异常
+        'create_hidden_directory_failed_project' => '无法创建隐藏录音目录，项目ID: :projectId',
+        'create_hidden_directory_failed_error' => '创建隐藏录音目录失败: :error',
+        'create_display_directory_failed_project' => '无法创建显示录音目录，项目ID: :projectId',
+        'create_display_directory_failed_error' => '创建显示录音目录失败: :error',
+        'workspace_directory_empty' => '项目 :projectId 的工作区目录为空',
+
+        // Sandbox 服务异常
+        'sandbox_task_creation_failed' => '创建沙箱任务失败: :message',
+        'display_directory_id_not_exist' => '显示目录ID不存在，无法创建文件记录',
+        'display_directory_path_not_exist' => '显示目录路径不存在，无法创建文件记录',
+        'create_file_record_failed_no_query' => '创建文件记录失败且无法查询到现有记录',
+        'create_file_record_failed_error' => '创建文件记录失败: :error',
+        'sandbox_id_not_exist' => '沙箱ID不存在，无法完成录音任务',
+        'sandbox_merge_failed' => '沙箱合并失败: :message',
+        'sandbox_merge_timeout' => '沙箱合并超时',
     ],
 ];

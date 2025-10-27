@@ -7,7 +7,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Mock;
 
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
+use App\Domain\Asr\Constants\AsrRedisKeys;
+use App\Domain\Asr\Constants\AsrTimeouts;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -17,10 +18,10 @@ use Psr\Container\NotFoundExceptionInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * 沙箱 ASR API Mock 服务
+ * ASR 任务 Mock 服务
  * 模拟沙箱中的音频合并和 ASR 任务处理.
  */
-class SandboxAsrApi
+class AsrApi
 {
     private Redis $redis;
 
@@ -33,66 +34,9 @@ class SandboxAsrApi
         } catch (ContainerExceptionInterface|NotFoundExceptionInterface) {
         }
         try {
-            $this->logger = $container->get(LoggerFactory::class)->get('MockSandboxAsrApi');
+            $this->logger = $container->get(LoggerFactory::class)->get('MockAsrApi');
         } catch (ContainerExceptionInterface|NotFoundExceptionInterface) {
         }
-    }
-
-    /**
-     * 查询沙箱状态
-     * GET /api/v1/sandboxes/{sandboxId}.
-     */
-    public function getSandboxStatus(RequestInterface $request): array
-    {
-        $sandboxId = $request->route('sandboxId');
-
-        $this->logger->info('[Mock Sandbox] Get sandbox status', [
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        // 模拟沙箱已存在且运行中
-        // 使用 SandboxStatus 枚举值确保类型安全
-        return [
-            'code' => 1000,
-            'message' => 'Success',
-            'data' => [
-                'sandbox_id' => $sandboxId,
-                'status' => SandboxStatus::RUNNING, // 使用枚举常量
-                'project_id' => 'mock_project_id',
-                'created_at' => date('Y-m-d H:i:s'),
-            ],
-        ];
-    }
-
-    /**
-     * 创建沙箱
-     * POST /api/v1/sandboxes.
-     */
-    public function createSandbox(RequestInterface $request): array
-    {
-        $projectId = $request->input('project_id', '');
-        $sandboxId = $request->input('sandbox_id', '');
-        $projectOssPath = $request->input('project_oss_path', '');
-
-        $this->logger->info('[Mock Sandbox] Create sandbox', [
-            'project_id' => $projectId,
-            'sandbox_id' => $sandboxId,
-            'project_oss_path' => $projectOssPath,
-        ]);
-
-        // 模拟沙箱创建成功
-        // 使用 SandboxStatus 枚举值确保类型安全
-        return [
-            'code' => 1000,
-            'message' => 'Sandbox created successfully',
-            'data' => [
-                'sandbox_id' => $sandboxId,
-                'status' => SandboxStatus::RUNNING, // 使用枚举常量
-                'project_id' => $projectId,
-                'project_oss_path' => $projectOssPath,
-                'created_at' => date('Y-m-d H:i:s'),
-            ],
-        ];
     }
 
     /**
@@ -115,7 +59,7 @@ class SandboxAsrApi
         ]);
 
         // 初始化任务状态（重置轮询计数）
-        $countKey = sprintf('mock:asr:task:%s:finish_count', $taskKey);
+        $countKey = sprintf(AsrRedisKeys::MOCK_FINISH_COUNT, $taskKey);
         $this->redis->del($countKey);
 
         return [
@@ -149,9 +93,9 @@ class SandboxAsrApi
         $noteContent = $request->input('note_content');
 
         // 使用 Redis 计数器模拟轮询进度
-        $countKey = sprintf('mock:asr:task:%s:finish_count', $taskKey);
+        $countKey = sprintf(AsrRedisKeys::MOCK_FINISH_COUNT, $taskKey);
         $count = (int) $this->redis->incr($countKey);
-        $this->redis->expire($countKey, 600); // 10分钟过期
+        $this->redis->expire($countKey, AsrTimeouts::MOCK_POLLING_TTL); // 10分钟过期
 
         // 记录调用日志
         $this->logger->info('[Mock Sandbox ASR] Finish task called', [

@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Response\AsrRecorderResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Constants\SandboxEndpoints;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -49,7 +50,7 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                'api/asr/task/start',
+                SandboxEndpoints::ASR_TASK_START,
                 $requestData
             );
 
@@ -129,7 +130,7 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                'api/asr/task/finish',
+                SandboxEndpoints::ASR_TASK_FINISH,
                 $requestData
             );
 

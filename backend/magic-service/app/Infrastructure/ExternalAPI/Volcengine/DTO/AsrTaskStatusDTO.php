@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Volcengine\DTO;
 
+use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 
 /**
@@ -59,6 +60,8 @@ class AsrTaskStatusDTO
 
     public ?string $sandboxId = null; // 沙箱ID
 
+    public int $sandboxRetryCount = 0; // 沙箱启动重试次数
+
     // ASR 内容和笔记（用于生成标题）
     public ?string $asrStreamContent = null; // ASR 流式识别内容
 
@@ -70,37 +73,42 @@ class AsrTaskStatusDTO
 
     public function __construct(array $data = [])
     {
-        $this->taskKey = $data['task_key'] ?? $data['taskKey'] ?? '';
-        $this->userId = $data['user_id'] ?? $data['userId'] ?? '';
-        $this->organizationCode = $data['organization_code'] ?? $data['organizationCode'] ?? null;
+        $this->taskKey = self::getStringValue($data, ['task_key', 'taskKey'], '');
+        $this->userId = self::getStringValue($data, ['user_id', 'userId'], '');
+        $this->organizationCode = self::getStringValue($data, ['organization_code', 'organizationCode']);
 
         $this->status = AsrTaskStatusEnum::fromString($data['status'] ?? 'failed');
-        $this->filePath = $data['file_path'] ?? $data['filePath'] ?? $data['file_name'] ?? $data['fileName'] ?? null;
-        $this->audioFileId = $data['audio_file_id'] ?? $data['audioFileId'] ?? null;
-        $this->noteFileName = $data['note_file_name'] ?? $data['noteFileName'] ?? null;
-        $this->noteFileId = $data['note_file_id'] ?? $data['noteFileId'] ?? null;
+        $this->filePath = self::getStringValue($data, ['file_path', 'filePath', 'file_name', 'fileName']);
+        $this->audioFileId = self::getStringValue($data, ['audio_file_id', 'audioFileId']);
+        $this->noteFileName = self::getStringValue($data, ['note_file_name', 'noteFileName']);
+        $this->noteFileId = self::getStringValue($data, ['note_file_id', 'noteFileId']);
 
         // 项目和话题信息
-        $this->projectId = $data['project_id'] ?? $data['projectId'] ?? null;
-        $this->topicId = $data['topic_id'] ?? $data['topicId'] ?? null;
+        $this->projectId = self::getStringValue($data, ['project_id', 'projectId']);
+        $this->topicId = self::getStringValue($data, ['topic_id', 'topicId']);
 
         // 录音目录信息（自动清洗为相对路径）
-        $this->tempHiddenDirectory = self::extractRelativePath($data['temp_hidden_directory'] ?? $data['tempHiddenDirectory'] ?? null);
-        $this->displayDirectory = self::extractRelativePath($data['display_directory'] ?? $data['displayDirectory'] ?? null);
-        $this->tempHiddenDirectoryId = isset($data['temp_hidden_directory_id']) ? (int) $data['temp_hidden_directory_id'] : (isset($data['tempHiddenDirectoryId']) ? (int) $data['tempHiddenDirectoryId'] : null);
-        $this->displayDirectoryId = isset($data['display_directory_id']) ? (int) $data['display_directory_id'] : (isset($data['displayDirectoryId']) ? (int) $data['displayDirectoryId'] : null);
+        $this->tempHiddenDirectory = self::extractRelativePath(
+            self::getStringValue($data, ['temp_hidden_directory', 'tempHiddenDirectory'])
+        );
+        $this->displayDirectory = self::extractRelativePath(
+            self::getStringValue($data, ['display_directory', 'displayDirectory'])
+        );
+        $this->tempHiddenDirectoryId = self::getIntValue($data, ['temp_hidden_directory_id', 'tempHiddenDirectoryId']);
+        $this->displayDirectoryId = self::getIntValue($data, ['display_directory_id', 'displayDirectoryId']);
 
         // 录音状态管理字段
-        $this->modelId = $data['model_id'] ?? $data['modelId'] ?? null;
-        $this->recordingStatus = $data['recording_status'] ?? $data['recordingStatus'] ?? null;
-        $this->sandboxTaskCreated = ($data['sandbox_task_created'] ?? $data['sandboxTaskCreated'] ?? false) === true || ($data['sandbox_task_created'] ?? $data['sandboxTaskCreated'] ?? '0') === '1';
-        $this->isPaused = ($data['is_paused'] ?? $data['isPaused'] ?? false) === true || ($data['is_paused'] ?? $data['isPaused'] ?? '0') === '1';
-        $this->sandboxId = $data['sandbox_id'] ?? $data['sandboxId'] ?? null;
+        $this->modelId = self::getStringValue($data, ['model_id', 'modelId']);
+        $this->recordingStatus = self::getStringValue($data, ['recording_status', 'recordingStatus']);
+        $this->sandboxTaskCreated = self::getBoolValue($data, ['sandbox_task_created', 'sandboxTaskCreated']);
+        $this->isPaused = self::getBoolValue($data, ['is_paused', 'isPaused']);
+        $this->sandboxId = self::getStringValue($data, ['sandbox_id', 'sandboxId']);
+        $this->sandboxRetryCount = self::getIntValue($data, ['sandbox_retry_count', 'sandboxRetryCount'], 0);
 
         // ASR 内容和笔记
-        $this->asrStreamContent = $data['asr_stream_content'] ?? $data['asrStreamContent'] ?? null;
-        $this->noteContent = $data['note_content'] ?? $data['noteContent'] ?? null;
-        $this->noteFileType = $data['note_file_type'] ?? $data['noteFileType'] ?? null;
+        $this->asrStreamContent = self::getStringValue($data, ['asr_stream_content', 'asrStreamContent']);
+        $this->noteContent = self::getStringValue($data, ['note_content', 'noteContent']);
+        $this->noteFileType = self::getStringValue($data, ['note_file_type', 'noteFileType']);
         $this->language = $data['language'] ?? null;
     }
 
@@ -139,6 +147,7 @@ class AsrTaskStatusDTO
             'sandbox_task_created' => $this->sandboxTaskCreated,
             'is_paused' => $this->isPaused,
             'sandbox_id' => $this->sandboxId,
+            'sandbox_retry_count' => $this->sandboxRetryCount,
             'asr_stream_content' => $this->asrStreamContent,
             'note_content' => $this->noteContent,
             'note_file_type' => $this->noteFileType,
@@ -155,14 +164,6 @@ class AsrTaskStatusDTO
     }
 
     /**
-     * 检查任务是否已提交（基于状态判断）.
-     */
-    public function isTaskSubmitted(): bool
-    {
-        return $this->status->isTaskSubmitted();
-    }
-
-    /**
      * 更新状态
      */
     public function updateStatus(AsrTaskStatusEnum $status): void
@@ -171,11 +172,14 @@ class AsrTaskStatusDTO
     }
 
     /**
-     * 检查是否有笔记文件.
+     * 检查总结是否已完成（幂等性判断）.
+     * 判断标准：音频文件已合并（audioFileId 存在）且录音已停止.
      */
-    public function hasNoteFile(): bool
+    public function isSummaryCompleted(): bool
     {
-        return ! empty($this->noteFileName);
+        return ! empty($this->audioFileId)
+            && $this->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
+            && $this->status === AsrTaskStatusEnum::COMPLETED;
     }
 
     /**
@@ -199,5 +203,75 @@ class AsrTaskStatusDTO
         }
 
         return $path;
+    }
+
+    /**
+     * 从数组中按优先级获取字符串值（支持 snake_case 和 camelCase）.
+     *
+     * @param array<string, mixed> $data 数据数组
+     * @param array<string> $keys 键名列表（按优先级排序）
+     * @param null|string $default 默认值
+     */
+    private static function getStringValue(array $data, array $keys, ?string $default = null): ?string
+    {
+        foreach ($keys as $key) {
+            if (isset($data[$key])) {
+                return (string) $data[$key];
+            }
+        }
+        return $default;
+    }
+
+    /**
+     * 从数组中按优先级获取整数值（支持 snake_case 和 camelCase）.
+     *
+     * @param array<string, mixed> $data 数据数组
+     * @param array<string> $keys 键名列表（按优先级排序）
+     * @param null|int $default 默认值
+     */
+    private static function getIntValue(array $data, array $keys, ?int $default = null): ?int
+    {
+        foreach ($keys as $key) {
+            if (isset($data[$key])) {
+                return (int) $data[$key];
+            }
+        }
+        return $default;
+    }
+
+    /**
+     * 从数组中按优先级获取布尔值（支持多种格式：true/false、1/0、'1'/'0'）.
+     *
+     * @param array<string, mixed> $data 数据数组
+     * @param array<string> $keys 键名列表（按优先级排序）
+     */
+    private static function getBoolValue(array $data, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if (! isset($data[$key])) {
+                continue;
+            }
+
+            $value = $data[$key];
+
+            // 处理布尔类型
+            if (is_bool($value)) {
+                return $value;
+            }
+
+            // 处理字符串 '1' 或 '0'
+            if ($value === '1' || $value === 1) {
+                return true;
+            }
+
+            if ($value === '0' || $value === 0) {
+                return false;
+            }
+
+            // 其他值按真值判断
+            return (bool) $value;
+        }
+
+        return false;
     }
 }

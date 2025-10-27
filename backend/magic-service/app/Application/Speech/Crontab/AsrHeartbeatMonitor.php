@@ -9,8 +9,11 @@ namespace App\Application\Speech\Crontab;
 
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
+use App\Domain\Asr\Constants\AsrRedisKeys;
+use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
+use App\Infrastructure\Util\Redis\RedisUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Crontab\Annotation\Crontab;
 use Hyperf\Logger\LoggerFactory;
@@ -18,6 +21,8 @@ use Hyperf\Redis\Redis;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * ASR 录音心跳监控定时任务.
@@ -52,30 +57,22 @@ class AsrHeartbeatMonitor
         try {
             $this->logger->info('开始执行 ASR 录音心跳监控任务');
 
-            // 扫描所有心跳 key
-            $pattern = 'asr:heartbeat:*';
-            $cursor = 0;
+            // 扫描所有心跳 key（使用 RedisUtil::scanKeys 防止阻塞）
+            $keys = RedisUtil::scanKeys(AsrRedisKeys::HEARTBEAT_SCAN_PATTERN, 200, 2000);
             $timeoutCount = 0;
 
-            do {
-                $result = $this->redis->scan($cursor, $pattern, 100);
-                if ($result === false) {
-                    break;
-                }
-
-                [$cursor, $keys] = $result;
-
-                foreach ($keys as $key) {
-                    try {
-                        $this->checkHeartbeatTimeout($key);
-                    } catch (Throwable $e) {
-                        $this->logger->error('检查心跳超时失败', [
-                            'key' => $key,
-                            'error' => $e->getMessage(),
-                        ]);
+            foreach ($keys as $key) {
+                try {
+                    if ($this->checkHeartbeatTimeout($key)) {
+                        ++$timeoutCount;
                     }
+                } catch (Throwable $e) {
+                    $this->logger->error('检查心跳超时失败', [
+                        'key' => $key,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
-            } while ($cursor !== 0);
+            }
 
             $this->logger->info('ASR 录音心跳监控任务执行完成', [
                 'timeout_count' => $timeoutCount,
@@ -91,14 +88,18 @@ class AsrHeartbeatMonitor
     /**
      * 检查心跳是否超时.
      */
-    private function checkHeartbeatTimeout(string $key): void
+    private function checkHeartbeatTimeout(string $key): bool
     {
-        // 检查 key 是否存在
-        $exists = $this->redis->exists($key);
-        if (! $exists) {
-            // Key 已经过期，说明心跳超时
-            $this->handleHeartbeatTimeout($key);
+        // 读取心跳时间戳
+        $last = (int) $this->redis->get($key);
+        // 超时阈值：90 秒
+        if (($last > 0) && (time() - $last) <= AsrTimeouts::HEARTBEAT_TIMEOUT) {
+            return false;
         }
+
+        // Key 不存在或时间戳超时，触发处理
+        $this->handleHeartbeatTimeout($key);
+        return true;
     }
 
     /**
@@ -128,47 +129,37 @@ class AsrHeartbeatMonitor
     private function findAndTriggerTimeoutTask(string $heartbeatKey): void
     {
         // 扫描所有任务
-        $pattern = 'asr:task:*';
-        $cursor = 0;
+        $keys = RedisUtil::scanKeys(AsrRedisKeys::TASK_SCAN_PATTERN, 200, 2000);
 
-        do {
-            $result = $this->redis->scan($cursor, $pattern, 100);
-            if ($result === false) {
-                break;
-            }
-
-            [$cursor, $keys] = $result;
-
-            foreach ($keys as $taskKey) {
-                try {
-                    $taskData = $this->redis->hGetAll($taskKey);
-                    if (empty($taskData)) {
-                        continue;
-                    }
-
-                    $taskStatus = AsrTaskStatusDTO::fromArray($taskData);
-
-                    // 检查是否匹配当前心跳 key
-                    $expectedHeartbeatKey = sprintf(
-                        'asr:heartbeat:%s',
-                        md5($taskStatus->userId . ':' . $taskStatus->taskKey)
-                    );
-
-                    if ($expectedHeartbeatKey === $heartbeatKey) {
-                        // 找到匹配的任务，检查是否需要触发自动总结
-                        if ($this->shouldTriggerAutoSummary($taskStatus)) {
-                            $this->triggerAutoSummary($taskStatus);
-                        }
-                        return;
-                    }
-                } catch (Throwable $e) {
-                    $this->logger->error('检查任务失败', [
-                        'task_key' => $taskKey,
-                        'error' => $e->getMessage(),
-                    ]);
+        foreach ($keys as $taskKey) {
+            try {
+                $taskData = $this->redis->hGetAll($taskKey);
+                if (empty($taskData)) {
+                    continue;
                 }
+
+                $taskStatus = AsrTaskStatusDTO::fromArray($taskData);
+
+                // 检查是否匹配当前心跳 key
+                $expectedHeartbeatKey = sprintf(
+                    AsrRedisKeys::HEARTBEAT,
+                    md5($taskStatus->userId . ':' . $taskStatus->taskKey)
+                );
+
+                if ($expectedHeartbeatKey === $heartbeatKey) {
+                    // 找到匹配的任务，检查是否需要触发自动总结
+                    if ($this->shouldTriggerAutoSummary($taskStatus)) {
+                        $this->triggerAutoSummary($taskStatus);
+                    }
+                    return;
+                }
+            } catch (Throwable $e) {
+                $this->logger->error('检查任务失败', [
+                    'task_key' => $taskKey,
+                    'error' => $e->getMessage(),
+                ]);
             }
-        } while ($cursor !== 0);
+        }
     }
 
     /**
@@ -205,6 +196,16 @@ class AsrHeartbeatMonitor
     private function triggerAutoSummary(AsrTaskStatusDTO $taskStatus): void
     {
         try {
+            // 幂等性检查：如果任务已完成，跳过处理
+            if ($taskStatus->isSummaryCompleted()) {
+                $this->logger->info('任务已完成，跳过心跳超时处理', [
+                    'task_key' => $taskStatus->taskKey,
+                    'audio_file_id' => $taskStatus->audioFileId,
+                    'status' => $taskStatus->status->value,
+                ]);
+                return;
+            }
+
             $this->logger->info('触发心跳超时自动总结', [
                 'task_key' => $taskStatus->taskKey,
                 'user_id' => $taskStatus->userId,
@@ -215,14 +216,14 @@ class AsrHeartbeatMonitor
             // 获取用户实体
             $userEntity = $this->magicUserDomainService->getUserById($taskStatus->userId);
             if ($userEntity === null) {
-                throw new InvalidArgumentException('用户不存在');
+                throw new InvalidArgumentException(trans('asr.exception.user_not_exist'));
             }
 
             $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
             $organizationCode = $taskStatus->organizationCode ?? $userAuthorization->getOrganizationCode();
 
             // 更新任务状态为 stopped
-            $taskStatus->recordingStatus = 'stopped';
+            $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
             $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
 
             // 调用 handleStatusReport 来触发 stopped 状态（触发自动总结）

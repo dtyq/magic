@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\Interrupt
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\SaveFilesRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Constants\SandboxEndpoints;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Exception;
 use Hyperf\Logger\LoggerFactory;
@@ -54,7 +55,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                'api/v1/messages/chat',
+                SandboxEndpoints::AGENT_MESSAGES_CHAT,
                 $request->toArray()
             );
 
@@ -107,7 +108,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                'api/v1/messages/chat',
+                SandboxEndpoints::AGENT_MESSAGES_CHAT,
                 $request->toArray()
             );
 
@@ -152,7 +153,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'POST',
-                'api/v1/messages/chat',
+                SandboxEndpoints::AGENT_MESSAGES_CHAT,
                 $request->toArray()
             );
 

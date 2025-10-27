@@ -7,15 +7,15 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Asr\Facade;
 
-use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\File\Service\FileAppService;
-use App\Application\Speech\Assembler\AsrPromptAssembler;
 use App\Application\Speech\DTO\AsrRecordingDirectoryDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Application\Speech\Service\AsrDirectoryService;
 use App\Application\Speech\Service\AsrFileAppService;
+use App\Application\Speech\Service\AsrTitleGeneratorService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -26,11 +26,9 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Exception;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Redis\Redis;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -46,14 +44,14 @@ class AsrApi extends AbstractApi
     public function __construct(
         protected ByteDanceSTSService $stsService,
         protected FileAppService $fileAppService,
-        protected Redis $redis,
         protected AsrFileAppService $asrFileAppService,
+        protected AsrTitleGeneratorService $titleGeneratorService,
+        protected AsrDirectoryService $directoryService,
         protected LockerInterface $locker,
-        protected MagicChatMessageAppService $magicChatMessageAppService,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
     ) {
-        $this->logger = $loggerFactory->get('AsrTokenApi');
+        $this->logger = $loggerFactory->get('AsrApi');
         parent::__construct($request);
     }
 
@@ -67,13 +65,9 @@ class AsrApi extends AbstractApi
         $userAuthorization = $this->getAuthorization();
         $magicId = $userAuthorization->getMagicId();
 
-        // 获取请求参数
         $refresh = (bool) $request->input('refresh', false);
+        $duration = 60 * 60 * 12; // 12小时
 
-        // duration最大 12小时
-        $duration = 60 * 60 * 12; // 单位：秒
-
-        // 获取用户的JWT token（带缓存和刷新功能）
         $tokenData = $this->stsService->getJwtTokenForUser($magicId, $duration, $refresh);
 
         return [
@@ -99,7 +93,6 @@ class AsrApi extends AbstractApi
         $userAuthorization = $this->getAuthorization();
         $magicId = $userAuthorization->getMagicId();
 
-        // 清除用户的JWT Token缓存
         $cleared = $this->stsService->clearUserJwtTokenCache($magicId);
 
         return [
@@ -116,120 +109,89 @@ class AsrApi extends AbstractApi
     /**
      * 查询录音总结状态
      * POST /api/v1/asr/summary.
-     *
-     * @param RequestInterface $request 包含 task_key、project_id、topic_id、model_id、workspace_file_path 和 note 参数
      */
     public function summary(RequestInterface $request): array
     {
+        /** @var MagicUserAuthorization $userAuthorization */
         $userAuthorization = $this->getAuthorization();
-        // 验证并获取请求参数
-        $summaryRequest = $this->validateSummaryParams($request, $userAuthorization);
+        $summaryRequest = $this->validateAndBuildSummaryRequest($request, $userAuthorization);
 
-        // 生成锁名称和拥有者标识
-        $lockName = sprintf('asr:summary:topic:%s', $summaryRequest->topicId);
-        $lockOwner = sprintf('%s:%s:%s', $userAuthorization->getId(), $summaryRequest->taskKey, microtime(true));
-
-        // 获取自旋锁，最多等待 30 秒
-        $lockAcquired = false;
+        // 应用层已有分布式锁，这里无需再加锁，直接调用
         try {
-            $lockAcquired = $this->locker->spinLock($lockName, $lockOwner, 30);
+            // 处理总结任务
+            $result = $this->asrFileAppService->processSummaryWithChat($summaryRequest, $userAuthorization);
 
-            if (! $lockAcquired) {
-                return $this->createSummaryFailureResponse(
-                    $summaryRequest,
-                    trans('asr.api.lock.acquire_failed')
-                );
-            }
-
-            // 处理ASR总结任务的完整流程（包含聊天消息发送）
-            $result = $this->asrFileAppService->processSummaryWithChat(
-                $summaryRequest,
-                $userAuthorization
-            );
-
-            // 如果处理失败，直接返回错误
             if (! $result['success']) {
-                return $this->createSummaryFailureResponse(
-                    $summaryRequest,
-                    $result['error']
-                );
+                return $this->buildSummaryResponse(false, $summaryRequest, $result['error']);
             }
 
-            return $this->createSummarySuccessResponse($summaryRequest, $result);
+            return $this->buildSummaryResponse(true, $summaryRequest, null, $result);
         } catch (Throwable $e) {
             $this->logger->error('ASR总结处理异常', [
                 'task_key' => $summaryRequest->taskKey,
-                'topic_id' => $summaryRequest->topicId,
                 'error' => $e->getMessage(),
-                'user_id' => $userAuthorization->getId(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            return $this->createSummaryFailureResponse(
-                $summaryRequest,
-                sprintf('处理异常: %s', $e->getMessage())
-            );
-        } finally {
-            // 确保释放锁
-            if ($lockAcquired) {
-                $this->locker->release($lockName, $lockOwner);
-            }
+            return $this->buildSummaryResponse(false, $summaryRequest, sprintf('处理异常: %s', $e->getMessage()));
         }
     }
 
     /**
      * 获取ASR录音文件上传STS Token
      * GET /api/v1/asr/upload-tokens.
-     *
-     * @param RequestInterface $request 包含 task_key 参数
      */
     public function getUploadToken(RequestInterface $request): array
     {
+        $operationId = uniqid('op_', true);
+
+        /** @var MagicUserAuthorization $userAuthorization */
         $userAuthorization = $this->getAuthorization();
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
 
-        // 1. 验证并获取请求参数
+        // 1. 验证参数
         [$taskKey, $topicId, $projectId] = $this->validateUploadTokenParams($request, $userId);
 
-        // 2. 创建或更新任务状态（第一次创建目录，后续使用已有目录）
-        $taskStatus = $this->createOrUpdateTaskStatus(
-            $taskKey,
-            $topicId,
-            $projectId,
-            $userId,
-            $organizationCode
-        );
+        $this->logger->info('getUploadToken 开始处理', [
+            'operation_id' => $operationId,
+            'task_key' => $taskKey,
+            'user_id' => $userId,
+        ]);
 
-        // 3. 获取STS Token（到 workspace 级别）
-        $tokenData = $this->getStsToken(
-            $userAuthorization,
-            $projectId,
-            $userId,
-            $taskKey,
-            $organizationCode
-        );
+        // 2. 获取分布式锁（防止并发创建目录）
+        $lockName = sprintf('asr:upload_token:lock:%s:%s', $userId, $taskKey);
+        $lockOwner = sprintf('%s:%s', $userId, microtime(true));
+        $locked = $this->locker->spinLock($lockName, $lockOwner);
 
-        // 4. 保存任务状态
-        $this->saveTaskStatusToRedis($taskStatus);
+        if (! $locked) {
+            throw new InvalidArgumentException(trans('asr.api.lock.system_busy'));
+        }
 
-        // 5. 构建并返回响应
-        return $this->buildUploadTokenResponse(
-            $tokenData,
-            $taskStatus,
-            $taskKey
-        );
+        try {
+            // 3. 创建或更新任务状态
+            $taskStatus = $this->createOrUpdateTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
+
+            // 4. 获取STS Token
+            $tokenData = $this->buildStsToken($userAuthorization, $projectId, $userId);
+
+            // 5. 保存任务状态
+            $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
+
+            // 6. 返回响应
+            return $this->buildUploadTokenResponse($tokenData, $taskStatus, $taskKey);
+        } finally {
+            $this->locker->release($lockName, $lockOwner);
+        }
     }
 
     /**
      * 录音状态上报接口
      * POST /api/v1/asr/status.
-     *
-     * @param RequestInterface $request 包含 task_key、status、model_id、note、asr_stream_content 参数
      */
     public function reportStatus(RequestInterface $request): array
     {
-        /** @var MagicUserAuthorization $userAuthorization */
+        $operationId = uniqid('op_', true);
+
         $userAuthorization = $this->getAuthorization();
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
@@ -241,15 +203,21 @@ class AsrApi extends AbstractApi
         $asrStreamContent = $request->input('asr_stream_content', '');
         $noteData = $request->input('note');
 
-        // 从上下文获取语种（已由 LocaleMiddleware 处理）
+        // 获取语种
         $language = CoContext::getLanguage();
 
-        // 验证 task_key
+        $this->logger->info('reportStatus 开始处理', [
+            'operation_id' => $operationId,
+            'task_key' => $taskKey,
+            'status' => $status,
+            'user_id' => $userId,
+        ]);
+
+        // 验证参数
         if (empty($taskKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_key 不能为空');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.exception.task_key_empty'));
         }
 
-        // 验证并转换 status 为枚举
         $statusEnum = AsrRecordingStatusEnum::tryFromString($status);
         if ($statusEnum === null) {
             ExceptionBuilder::throw(
@@ -266,7 +234,7 @@ class AsrApi extends AbstractApi
             $noteFileType = $noteData['file_type'] ?? 'md';
         }
 
-        // 调用应用服务处理（传入枚举类型）
+        // 调用应用服务处理
         $success = $this->asrFileAppService->handleStatusReport(
             $taskKey,
             $statusEnum,
@@ -279,117 +247,33 @@ class AsrApi extends AbstractApi
             $organizationCode
         );
 
-        return [
-            'success' => $success,
-        ];
+        return ['success' => $success];
     }
 
     /**
-     * 从目录数组中查找指定类型的目录.
-     *
-     * @param array $directories 目录数组
-     * @param bool $hidden 是否查找隐藏目录
+     * 验证并构建总结请求DTO.
      */
-    private function findDirectoryByType(array $directories, bool $hidden): ?AsrRecordingDirectoryDTO
+    private function validateAndBuildSummaryRequest(RequestInterface $request, MagicUserAuthorization $userAuthorization): SummaryRequestDTO
     {
-        return array_find($directories, static fn ($directory) => $directory->hidden === $hidden);
-    }
-
-    /**
-     * 从Redis获取任务状态.
-     *
-     * @param string $taskKey 任务键
-     * @param string $userId 用户ID
-     * @return AsrTaskStatusDTO 任务状态DTO
-     */
-    private function getTaskStatusFromRedis(string $taskKey, string $userId): AsrTaskStatusDTO
-    {
-        $redisKey = $this->generateTaskRedisKey($taskKey, $userId);
-
-        try {
-            $taskData = $this->redis->hGetAll($redisKey);
-
-            if (empty($taskData)) {
-                return new AsrTaskStatusDTO();
-            }
-
-            return AsrTaskStatusDTO::fromArray($taskData);
-        } catch (Throwable) {
-            return new AsrTaskStatusDTO();
-        }
-    }
-
-    /**
-     * 保存任务状态到Redis.
-     *
-     * @param AsrTaskStatusDTO $taskStatus 任务状态DTO
-     */
-    private function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus): void
-    {
-        try {
-            $redisKey = $this->generateTaskRedisKey($taskStatus->taskKey, $taskStatus->userId);
-
-            // 保存任务状态数据
-            $this->redis->hMSet($redisKey, $taskStatus->toArray());
-
-            // 设置过期时间（7天）
-            $this->redis->expire($redisKey, 3600 * 24 * 7);
-        } catch (Throwable $e) {
-            // Redis操作失败时记录但不抛出异常
-            $this->logger->warning(trans('asr.api.redis.save_task_status_failed'), [
-                'task_key' => $taskStatus->taskKey ?? 'unknown',
-                'user_id' => $taskStatus->userId ?? 'unknown',
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * 生成任务状态的统一Redis键名.
-     *
-     * @param string $taskKey 任务键
-     * @param string $userId 用户ID
-     * @return string Redis键名
-     */
-    private function generateTaskRedisKey(string $taskKey, string $userId): string
-    {
-        // 按统一规则生成字符串，然后MD5避免键名过长
-        $keyString = $userId . ':' . $taskKey;
-        $keyHash = md5($keyString);
-        return sprintf('asr:task:%s', $keyHash);
-    }
-
-    /**
-     * 验证 summary 请求参数.
-     */
-    private function validateSummaryParams(RequestInterface $request, MagicUserAuthorization $userAuthorization): SummaryRequestDTO
-    {
-        // 获取task_key参数
         $taskKey = $request->input('task_key', '');
-        // 获取project_id参数（必传参数）
         $projectId = $request->input('project_id', '');
-        // 获取topic_id参数（必传参数）
         $topicId = $request->input('topic_id', '');
-        // 获取model_id参数（必传参数）
         $modelId = $request->input('model_id', '');
-        // 获取file_id参数（可选参数，场景二：直接上传已有音频文件）
         $fileId = $request->input('file_id');
-        // 获取note参数（可选参数）
         $noteData = $request->input('note');
-        // 获取asr_stream_content（可选参数）
         $asrStreamContent = $request->input('asr_stream_content', '');
 
-        // 限制 asr_stream_content 最大长度为 10000 字符
+        // 限制内容长度
         if (! empty($asrStreamContent) && mb_strlen($asrStreamContent) > 10000) {
             $asrStreamContent = mb_substr($asrStreamContent, 0, 10000);
         }
 
-        // 如果存在file_id且task_key为空，则生成UUID作为task_key
+        // 如果有file_id且没有task_key，生成一个
         if (! empty($fileId) && empty($taskKey)) {
             $taskKey = uniqid('', true);
         }
 
-        // 如果既没有task_key也没有file_id，则抛出异常
+        // 验证必传参数
         if (empty($taskKey) && empty($fileId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.task_key_required'));
         }
@@ -406,177 +290,83 @@ class AsrApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.model_id_required'));
         }
 
-        // 处理note参数
-        $note = null;
-        if (! empty($noteData) && is_array($noteData)) {
-            $noteContent = $noteData['content'] ?? '';
-
-            // 只支持file_type字段，默认为md
-            $noteFileType = $noteData['file_type'] ?? 'md';
-
-            if (! empty(trim($noteContent))) {
-                // 验证note内容长度，最大25000字符
-                $contentLength = mb_strlen($noteContent);
-                if ($contentLength > 25000) {
-                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.api.validation.note_content_too_long', ['length' => $contentLength]));
-                }
-
-                $note = new NoteDTO($noteContent, $noteFileType);
-
-                // 验证文件类型是否有效
-                if (! $note->isValidFileType()) {
-                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, sprintf('不支持的文件类型: %s，支持的类型: txt, md, json', $noteFileType));
-                }
-            }
-        }
+        // 处理笔记
+        $note = $this->parseNoteData($noteData);
 
         // 生成标题
-        $generatedTitle = $this->generateTitleForScenario($userAuthorization, $asrStreamContent, $fileId, $note, $taskKey);
+        $generatedTitle = $this->titleGeneratorService->generateTitleForScenario(
+            $userAuthorization,
+            $asrStreamContent,
+            $fileId,
+            $note,
+            $taskKey
+        );
 
         return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $fileId, $note, $asrStreamContent ?: null, $generatedTitle);
     }
 
     /**
-     * 根据不同场景生成标题.
-     *
-     * 场景一：有 asr_stream_content（前端实时录音），直接用内容生成标题
-     * 场景二：有 file_id（上传已有文件），构建提示词生成标题
-     *
-     * @param MagicUserAuthorization $userAuthorization 用户授权
-     * @param string $asrStreamContent ASR流式识别内容
-     * @param null|string $fileId 文件ID
-     * @param null|NoteDTO $note 笔记内容
-     * @param string $taskKey 任务键（用于日志）
-     * @return null|string 生成的标题
+     * 解析笔记数据.
      */
-    private function generateTitleForScenario(
-        MagicUserAuthorization $userAuthorization,
-        string $asrStreamContent,
-        ?string $fileId,
-        ?NoteDTO $note,
-        string $taskKey
-    ): ?string {
-        try {
-            $translator = di(TranslatorInterface::class);
-            $language = $translator->getLocale() ?: 'zh_CN';
-
-            // 场景一：有 asr_stream_content（前端实时录音）
-            if (! empty($asrStreamContent)) {
-                // 获取完整的录音总结提示词（在 Assembler 内部处理内容格式化）
-                $customPrompt = AsrPromptAssembler::getTitlePrompt($asrStreamContent, $note, $language);
-                // 使用自定义提示词生成标题
-                $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
-                    $userAuthorization,
-                    $customPrompt
-                );
-                return $this->sanitizeTitleForPath($title);
-            }
-
-            // 场景二：有 file_id（上传已有文件）
-            if (! empty($fileId)) {
-                // 根据文件ID查询文件信息获取工作区文件路径
-                $fileEntity = $this->asrFileAppService->getFileEntityById((int) $fileId);
-                if ($fileEntity === null) {
-                    $this->logger->warning('生成标题时未找到文件', [
-                        'file_id' => $fileId,
-                        'task_key' => $taskKey,
-                    ]);
-                    return null;
-                }
-
-                // 提取工作区相对路径
-                $workspaceFilePath = $fileEntity->getFileKey();
-
-                // 构建提示词：使用聊天消息的模板
-                if ($note !== null && $note->hasContent()) {
-                    // 有笔记的情况：生成笔记文件路径（使用默认文件名，因为此时还没有标题）
-                    $audioFileDirectory = dirname($workspaceFilePath);
-                    $noteFileName = $note->generateFileName(); // 使用默认笔记文件名
-                    $noteFilePath = ltrim(sprintf('%s/%s', $audioFileDirectory, $noteFileName), './');
-
-                    $promptContent = sprintf(
-                        '%s@%s%s@%s%s',
-                        $translator->trans('asr.messages.summary_prefix_with_note'),
-                        $workspaceFilePath,
-                        $translator->trans('asr.messages.summary_middle_with_note'),
-                        $noteFilePath,
-                        $translator->trans('asr.messages.summary_suffix_with_note')
-                    );
-                } else {
-                    // 只有音频文件的情况
-                    $promptContent = sprintf(
-                        '%s@%s%s',
-                        $translator->trans('asr.messages.summary_prefix'),
-                        $workspaceFilePath,
-                        $translator->trans('asr.messages.summary_suffix')
-                    );
-                }
-
-                $title = $this->magicChatMessageAppService->summarizeText(
-                    $userAuthorization,
-                    $promptContent,
-                    $language
-                );
-                return $this->sanitizeTitleForPath($title);
-            }
-
-            return null;
-        } catch (Throwable $e) {
-            $this->logger->warning('生成标题失败', [
-                'task_key' => $taskKey,
-                'has_asr_content' => ! empty($asrStreamContent),
-                'has_file_id' => ! empty($fileId),
-                'error' => $e->getMessage(),
-            ]);
+    private function parseNoteData(mixed $noteData): ?NoteDTO
+    {
+        if (empty($noteData) || ! is_array($noteData)) {
             return null;
         }
-    }
 
-    /**
-     * 生成安全的标题，移除文件/目录不允许的字符并截断长度.
-     */
-    private function sanitizeTitleForPath(string $title): ?string
-    {
-        $title = trim($title);
-        // 移除非法字符 \/:*?"<>|
-        $title = preg_replace('/[\\\\\/\:\*\?\"\<\>\|]/u', '', $title) ?? '';
-        // 压缩空白
-        $title = preg_replace('/\s+/u', ' ', $title) ?? '';
-        // 限制长度，避免过长路径
-        if (mb_strlen($title) > 50) {
-            $title = mb_substr($title, 0, 50);
+        $noteContent = $noteData['content'] ?? '';
+        $noteFileType = $noteData['file_type'] ?? 'md';
+
+        if (empty(trim($noteContent))) {
+            return null;
         }
-        return $title ?: null;
+
+        // 验证长度
+        $contentLength = mb_strlen($noteContent);
+        if ($contentLength > 25000) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterMissing,
+                trans('asr.api.validation.note_content_too_long', ['length' => $contentLength])
+            );
+        }
+
+        $note = new NoteDTO($noteContent, $noteFileType);
+
+        // 验证文件类型
+        if (! $note->isValidFileType()) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterMissing,
+                sprintf('不支持的文件类型: %s，支持的类型: txt, md, json', $noteFileType)
+            );
+        }
+
+        return $note;
     }
 
     /**
-     * 创建ASR总结失败响应.
+     * 构建总结响应.
      */
-    private function createSummaryFailureResponse(SummaryRequestDTO $request, string $error): array
+    private function buildSummaryResponse(bool $success, SummaryRequestDTO $request, ?string $error = null, ?array $result = null): array
     {
-        return [
-            'success' => false,
-            'error' => $error,
-            'task_key' => $request->taskKey,
-            'project_id' => $request->projectId,
-            'topic_id' => $request->topicId,
-            'topic_name' => null,
-            'project_name' => null,
-            'workspace_name' => null,
-        ];
-    }
+        if (! $success) {
+            return [
+                'success' => false,
+                'error' => $error,
+                'task_key' => $request->taskKey,
+                'project_id' => $request->projectId,
+                'topic_id' => $request->topicId,
+                'topic_name' => null,
+                'project_name' => null,
+                'workspace_name' => null,
+            ];
+        }
 
-    /**
-     * 创建ASR总结成功响应.
-     */
-    private function createSummarySuccessResponse(SummaryRequestDTO $request, array $result): array
-    {
         return [
             'success' => true,
             'task_key' => $request->taskKey,
             'project_id' => $request->projectId,
             'topic_id' => $request->topicId,
-            'conversation_id' => $result['conversation_id'],
+            'conversation_id' => $result['conversation_id'] ?? null,
             'topic_name' => $result['topic_name'] ?? null,
             'project_name' => $result['project_name'] ?? null,
             'workspace_name' => $result['workspace_name'] ?? null,
@@ -585,8 +375,6 @@ class AsrApi extends AbstractApi
 
     /**
      * 验证上传Token请求参数.
-     *
-     * @return array{0: string, 1: string, 2: string} [taskKey, topicId, projectId]
      */
     private function validateUploadTokenParams(RequestInterface $request, string $userId): array
     {
@@ -597,7 +385,7 @@ class AsrApi extends AbstractApi
 
         $topicId = $request->input('topic_id', '');
         if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id 不能为空');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.exception.topic_id_empty'));
         }
 
         $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
@@ -607,8 +395,6 @@ class AsrApi extends AbstractApi
 
     /**
      * 创建或更新任务状态.
-     * 第一次调用：创建新目录和任务状态
-     * 后续调用：使用已有目录，只更新必要字段.
      */
     private function createOrUpdateTaskStatus(
         string $taskKey,
@@ -617,20 +403,19 @@ class AsrApi extends AbstractApi
         string $userId,
         string $organizationCode
     ): AsrTaskStatusDTO {
-        $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
+        $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
 
         if ($taskStatus->isEmpty()) {
-            // 第一次调用：创建新目录
-            return $this->createNewTaskStatus(
-                $taskKey,
-                $topicId,
-                $projectId,
-                $userId,
-                $organizationCode
-            );
+            // 第一次调用：创建新任务状态
+            return $this->createNewTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
         }
 
-        // 后续调用：验证权限并更新必要字段
+        // 幂等性检查：如果任务已完成，不允许继续上传
+        if ($taskStatus->isSummaryCompleted()) {
+            throw new InvalidArgumentException(trans('asr.exception.task_already_completed'));
+        }
+
+        // 后续调用：更新必要字段
         $this->asrFileAppService->validateProjectAccess($projectId, $userId, $organizationCode);
         $taskStatus->projectId = $projectId;
         $taskStatus->topicId = $topicId;
@@ -645,7 +430,7 @@ class AsrApi extends AbstractApi
     }
 
     /**
-     * 创建新任务状态（第一次调用）.
+     * 创建新任务状态.
      */
     private function createNewTaskStatus(
         string $taskKey,
@@ -660,7 +445,6 @@ class AsrApi extends AbstractApi
             'topic_id' => $topicId,
         ]);
 
-        // 准备录音目录（包含话题验证和目录创建）
         $directories = $this->asrFileAppService->validateTopicAndPrepareDirectories(
             $topicId,
             $projectId,
@@ -669,20 +453,18 @@ class AsrApi extends AbstractApi
             $taskKey
         );
 
-        // 提取目录信息
         $hiddenDir = $this->findDirectoryByType($directories, true);
         $displayDir = $this->findDirectoryByType($directories, false);
 
         if ($hiddenDir === null) {
-            throw new InvalidArgumentException('未找到隐藏录音目录');
+            throw new InvalidArgumentException(trans('asr.exception.hidden_directory_not_found'));
         }
 
-        // 创建任务状态
         return new AsrTaskStatusDTO([
             'task_key' => $taskKey,
             'user_id' => $userId,
             'organization_code' => $organizationCode,
-            'status' => AsrTaskStatusEnum::FAILED->value,
+            'status' => AsrTaskStatusEnum::PROCESSING->value,
             'project_id' => $projectId,
             'topic_id' => $topicId,
             'temp_hidden_directory' => $hiddenDir->directoryPath,
@@ -693,39 +475,29 @@ class AsrApi extends AbstractApi
     }
 
     /**
-     * 获取STS Token（只到 workspace 级别）.
+     * 构建STS Token.
      */
-    private function getStsToken(
-        MagicUserAuthorization $userAuthorization,
-        string $projectId,
-        string $userId,
-        string $taskKey,
-        string $organizationCode
-    ): array {
+    private function buildStsToken(MagicUserAuthorization $userAuthorization, string $projectId, string $userId): array
+    {
         $storageType = StorageBucketType::SandBox->value;
         $expires = 60 * 60;
 
-        // 获取 workspace 路径（到 workspace 级别）
-        $workspacePath = $this->asrFileAppService->getWorkspacePathForProject($projectId, $userId);
+        $workspacePath = $this->directoryService->getWorkspacePath($projectId, $userId);
 
         $tokenData = $this->fileAppService->getStsTemporaryCredential(
             $userAuthorization,
             $storageType,
-            $workspacePath,  // 只传入到 workspace 级别
+            $workspacePath,
             $expires,
             false
         );
 
-        // 移除不需要的字段
         unset($tokenData['magic_service_host']);
 
-        // 验证返回数据
         if (empty($tokenData['temporary_credential']['dir'])) {
             $this->logger->error(trans('asr.api.token.sts_get_failed'), [
-                'task_key' => $taskKey,
                 'workspace_path' => $workspacePath,
                 'user_id' => $userId,
-                'organization_code' => $organizationCode,
             ]);
             ExceptionBuilder::throw(GenericErrorCode::SystemError, trans('asr.api.token.sts_get_failed'));
         }
@@ -734,26 +506,22 @@ class AsrApi extends AbstractApi
     }
 
     /**
-     * 构建上传Token响应数据（简化版）.
+     * 构建上传Token响应.
      */
-    private function buildUploadTokenResponse(
-        array $tokenData,
-        AsrTaskStatusDTO $taskStatus,
-        string $taskKey
-    ): array {
-        $expires = 60 * 60;
+    private function buildUploadTokenResponse(array $tokenData, AsrTaskStatusDTO $taskStatus, string $taskKey): array
+    {
         $directories = $this->buildDirectoriesArray($taskStatus);
 
         return [
             'sts_token' => $tokenData,
             'task_key' => $taskKey,
-            'expires_in' => $expires,
+            'expires_in' => 60 * 60,
             'directories' => $directories,
         ];
     }
 
     /**
-     * 从任务状态构建目录信息 map.
+     * 构建目录数组.
      */
     private function buildDirectoriesArray(AsrTaskStatusDTO $taskStatus): array
     {
@@ -762,7 +530,7 @@ class AsrApi extends AbstractApi
         if (! empty($taskStatus->tempHiddenDirectory)) {
             $directories['asr_hidden_dir'] = [
                 'directory_path' => $taskStatus->tempHiddenDirectory,
-                'directory_id' => $taskStatus->tempHiddenDirectoryId,
+                'directory_id' => (string) $taskStatus->tempHiddenDirectoryId,
                 'hidden' => true,
                 'type' => 'asr_hidden_dir',
             ];
@@ -771,12 +539,20 @@ class AsrApi extends AbstractApi
         if (! empty($taskStatus->displayDirectory)) {
             $directories['asr_display_dir'] = [
                 'directory_path' => $taskStatus->displayDirectory,
-                'directory_id' => $taskStatus->displayDirectoryId,
+                'directory_id' => (string) $taskStatus->displayDirectoryId,
                 'hidden' => false,
                 'type' => 'asr_display_dir',
             ];
         }
 
         return $directories;
+    }
+
+    /**
+     * 从目录数组中查找指定类型的目录.
+     */
+    private function findDirectoryByType(array $directories, bool $hidden): ?AsrRecordingDirectoryDTO
+    {
+        return array_find($directories, static fn ($directory) => $directory->hidden === $hidden);
     }
 }
