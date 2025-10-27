@@ -1044,7 +1044,7 @@ class TaskFileDomainService
         SandboxFileNotificationDataValueObject $data,
         MessageMetadata $metadata
     ): TaskFileEntity {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
         Db::beginTransaction();
         try {
             $taskEntity = $this->taskRepository->getTaskById((int) $metadata->getSuperMagicTaskId());
@@ -1064,7 +1064,7 @@ class TaskFileDomainService
             }
 
             // Get file information from cloud storage
-            $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $organizationCode);
+            $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $projectOrganizationCode);
             $taskFileEntity->setFileSize($fileInfo['size']);
 
             $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, withTrash: true);
