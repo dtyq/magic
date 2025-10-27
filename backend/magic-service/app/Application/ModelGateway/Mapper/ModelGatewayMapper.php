@@ -430,6 +430,10 @@ class ModelGatewayMapper extends ModelMapper
                     'embedding' => $embedding,
                     'multi_modal' => $multiModal,
                     'vector_size' => $vectorSize,
+                    'max_tokens' => $providerModelEntity->getConfig()?->getMaxTokens(),
+                    'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
+                    'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
+                    'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
                 ],
             ]),
             attributes: new OdinModelAttributes(

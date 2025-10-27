@@ -72,7 +72,8 @@ class OpenAIProxyApi extends AbstractOpenApi
     {
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
-        $list = $this->llmAppService->models($accessToken, $withInfo);
+        $type = $this->request->input('type', '');
+        $list = $this->llmAppService->models($accessToken, $withInfo, $type);
         return LLMAssembler::createModels($list, $withInfo);
     }
 
