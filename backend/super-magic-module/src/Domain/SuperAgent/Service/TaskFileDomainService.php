@@ -141,6 +141,31 @@ class TaskFileDomainService
     }
 
     /**
+     * Get children files by parent_id and project_id.
+     * Uses existing index: idx_project_parent_sort.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param int $limit Maximum number of files to return
+     * @return TaskFileEntity[] File entity list
+     */
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array
+    {
+        return $this->taskFileRepository->getChildrenByParentAndProject($projectId, $parentId, $limit);
+    }
+
+    /**
+     * Batch update file_key for multiple files.
+     *
+     * @param array $updateBatch Array of [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '2025-10-27 18:00:00'], ...]
+     * @return int Number of updated files
+     */
+    public function batchUpdateFileKeys(array $updateBatch): int
+    {
+        return $this->taskFileRepository->batchUpdateFileKeys($updateBatch);
+    }
+
+    /**
      * Get the latest updated file by project ID.
      */
     public function getLatestUpdatedByProjectId(int $projectId): string

@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
+use Hyperf\DbConnection\Db;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {
@@ -574,6 +575,70 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $list;
+    }
+
+    /**
+     * 根据 parent_id 和 project_id 查找子文件列表.
+     * 此查询会使用索引: idx_project_parent_sort (project_id, parent_id, sort, file_id).
+     */
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $parentId)
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
+     * 批量更新文件的 file_key.
+     * 使用 CASE WHEN 语句实现一次性批量更新.
+     *
+     * @param array $updateBatch [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '...'], ...]
+     * @return int 更新的文件数量
+     */
+    public function batchUpdateFileKeys(array $updateBatch): int
+    {
+        if (empty($updateBatch)) {
+            return 0;
+        }
+
+        $fileIds = array_column($updateBatch, 'file_id');
+
+        // 构建 CASE WHEN 语句
+        $fileKeyCases = [];
+        $updatedAtCases = [];
+        $bindings = [];
+
+        foreach ($updateBatch as $item) {
+            $fileKeyCases[] = 'WHEN ? THEN ?';
+            $updatedAtCases[] = 'WHEN ? THEN ?';
+            $bindings[] = $item['file_id'];
+            $bindings[] = $item['file_key'];
+            $bindings[] = $item['file_id'];
+            $bindings[] = $item['updated_at'];
+        }
+
+        $fileKeyCasesSql = implode(' ', $fileKeyCases);
+        $updatedAtCasesSql = implode(' ', $updatedAtCases);
+
+        // 构建 SQL
+        $sql = "UPDATE {$this->model->getTable()} SET 
+                file_key = CASE file_id {$fileKeyCasesSql} END,
+                updated_at = CASE file_id {$updatedAtCasesSql} END
+                WHERE file_id IN (" . implode(',', array_fill(0, count($fileIds), '?')) . ')';
+
+        $bindings = array_merge($bindings, $fileIds);
+
+        return Db::update($sql, $bindings);
     }
 
     /**

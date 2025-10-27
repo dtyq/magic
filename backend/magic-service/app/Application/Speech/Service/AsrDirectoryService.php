@@ -269,6 +269,15 @@ readonly class AsrDirectoryService
             $dirEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $this->taskFileDomainService->updateById($dirEntity);
 
+            // 更新目录下所有子文件的 file_key 路径
+            $updatedCount = $this->updateChildrenFilePaths(
+                (int) $projectId,
+                $oldDirectoryId,
+                $fullOldPath,
+                $fullNewPath,
+                $taskStatus->taskKey
+            );
+
             $this->logger->info('显示目录重命名成功', [
                 'task_key' => $taskStatus->taskKey,
                 'old_relative_path' => $relativeOldPath,
@@ -277,6 +286,7 @@ readonly class AsrDirectoryService
                 'new_full_path' => $fullNewPath,
                 'intelligent_title' => $intelligentTitle,
                 'directory_id' => $oldDirectoryId,
+                'children_updated' => $updatedCount,
             ]);
 
             return $newRelativePath;
@@ -375,5 +385,93 @@ readonly class AsrDirectoryService
             $userId,
             $organizationCode
         );
+    }
+
+    /**
+     * 更新目录下所有子文件和子目录的 file_key 路径.
+     *
+     * @param int $projectId 项目ID
+     * @param int $oldDirectoryId 旧目录ID（用于查询子文件）
+     * @param string $oldDirPath 旧目录完整路径（末尾带 /）
+     * @param string $newDirPath 新目录完整路径（末尾带 /）
+     * @param string $taskKey 任务键（用于日志）
+     * @return int 更新的文件数量
+     */
+    private function updateChildrenFilePaths(
+        int $projectId,
+        int $oldDirectoryId,
+        string $oldDirPath,
+        string $newDirPath,
+        string $taskKey
+    ): int {
+        // 确保目录路径以 / 结尾
+        $oldDirPath = rtrim($oldDirPath, '/') . '/';
+        $newDirPath = rtrim($newDirPath, '/') . '/';
+
+        try {
+            // 1. 使用 parent_id 查询子文件（利用现有索引 idx_project_parent_sort）
+            $fileEntities = $this->taskFileDomainService->getChildrenByParentAndProject(
+                $projectId,
+                $oldDirectoryId
+            );
+
+            if (empty($fileEntities)) {
+                $this->logger->info('目录下无子文件，无需更新路径', [
+                    'task_key' => $taskKey,
+                    'old_dir_path' => $oldDirPath,
+                ]);
+                return 0;
+            }
+
+            // 2. 准备批量更新数据
+            $updateBatch = [];
+            $now = date('Y-m-d H:i:s');
+
+            foreach ($fileEntities as $fileEntity) {
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // 计算新的 file_key（替换目录路径部分）
+                $newFileKey = str_replace($oldDirPath, $newDirPath, $oldFileKey);
+
+                if ($newFileKey === $oldFileKey) {
+                    continue; // 路径未改变，跳过
+                }
+
+                $updateBatch[] = [
+                    'file_id' => $fileEntity->getFileId(),
+                    'file_key' => $newFileKey,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (empty($updateBatch)) {
+                $this->logger->info('无需更新任何文件路径', [
+                    'task_key' => $taskKey,
+                ]);
+                return 0;
+            }
+
+            // 3. 批量更新
+            $updatedCount = $this->taskFileDomainService->batchUpdateFileKeys($updateBatch);
+
+            $this->logger->info('批量更新子文件路径完成', [
+                'task_key' => $taskKey,
+                'old_dir_path' => $oldDirPath,
+                'new_dir_path' => $newDirPath,
+                'total_files' => count($fileEntities),
+                'updated_count' => $updatedCount,
+            ]);
+
+            return $updatedCount;
+        } catch (Throwable $e) {
+            $this->logger->error('更新子文件路径失败', [
+                'task_key' => $taskKey,
+                'old_dir_path' => $oldDirPath,
+                'new_dir_path' => $newDirPath,
+                'error' => $e->getMessage(),
+            ]);
+            // 不抛出异常，避免影响主流程
+            return 0;
+        }
     }
 }
