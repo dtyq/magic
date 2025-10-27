@@ -20,6 +20,7 @@ class FileServiceSimpleUpload extends SimpleUpload
         AdapterName::ALIYUN => AliyunSimpleUpload::class,
         AdapterName::TOS => TosSimpleUpload::class,
         AdapterName::OBS => ObsSimpleUpload::class,
+        AdapterName::MINIO => S3SimpleUpload::class,
     ];
 
     /**
