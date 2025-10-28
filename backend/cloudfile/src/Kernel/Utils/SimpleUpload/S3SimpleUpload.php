@@ -30,7 +30,7 @@ class S3SimpleUpload extends SimpleUpload
         }
 
         // Check required parameters
-        if (! isset($credential['access_key_id']) || ! isset($credential['access_key_secret']) || ! isset($credential['bucket'])) {
+        if (! isset($credential['access_key_id']) || ! isset($credential['secret_access_key']) || ! isset($credential['bucket'])) {
             throw new CloudFileException('S3 upload credential is invalid');
         }
 
@@ -135,7 +135,7 @@ class S3SimpleUpload extends SimpleUpload
 
         $key = ($credential['dir'] ?? '') . $appendUploadFile->getKeyPath();
 
-        if (! isset($credential['access_key_id']) || ! isset($credential['access_key_secret']) || ! isset($credential['bucket'])) {
+        if (! isset($credential['access_key_id']) || ! isset($credential['secret_access_key']) || ! isset($credential['bucket'])) {
             throw new CloudFileException('S3 upload credential is invalid');
         }
 
@@ -349,13 +349,13 @@ class S3SimpleUpload extends SimpleUpload
         if (isset($credential['session_token'])) {
             $config['credentials'] = new Credentials(
                 $credential['access_key_id'],
-                $credential['access_key_secret'],
+                $credential['secret_access_key'],
                 $credential['session_token']
             );
         } else {
             $config['credentials'] = [
                 'key' => $credential['access_key_id'],
-                'secret' => $credential['access_key_secret'],
+                'secret' => $credential['secret_access_key'],
             ];
         }
 
