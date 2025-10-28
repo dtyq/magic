@@ -8,18 +8,20 @@ declare(strict_types=1);
 namespace App\Interfaces\Asr\Facade;
 
 use App\Application\File\Service\FileAppService;
+use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrRecordingDirectoryDTO;
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrDirectoryService;
 use App\Application\Speech\Service\AsrFileAppService;
+use App\Application\Speech\Service\AsrPresetFileService;
 use App\Application\Speech\Service\AsrTitleGeneratorService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Asr\Service\ByteDanceSTSService;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -47,6 +49,7 @@ class AsrApi extends AbstractApi
         protected AsrFileAppService $asrFileAppService,
         protected AsrTitleGeneratorService $titleGeneratorService,
         protected AsrDirectoryService $directoryService,
+        protected AsrPresetFileService $presetFileService,
         protected LockerInterface $locker,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
@@ -174,10 +177,50 @@ class AsrApi extends AbstractApi
             // 4. 获取STS Token
             $tokenData = $this->buildStsToken($userAuthorization, $projectId, $userId);
 
-            // 5. 保存任务状态
+            // 5. 创建预设文件（如果还未创建）
+            if (empty($taskStatus->presetNoteFileId)
+                && ! empty($taskStatus->displayDirectory)
+                && ! empty($taskStatus->displayDirectoryId)
+                && ! empty($taskStatus->tempHiddenDirectory)
+                && ! empty($taskStatus->tempHiddenDirectoryId)) {
+                try {
+                    $presetFiles = $this->presetFileService->createPresetFiles(
+                        $userId,
+                        $organizationCode,
+                        (int) $projectId,
+                        $taskStatus->displayDirectory,
+                        (int) $taskStatus->displayDirectoryId,
+                        $taskStatus->tempHiddenDirectory,
+                        (int) $taskStatus->tempHiddenDirectoryId,
+                        $taskKey
+                    );
+
+                    // 保存预设文件ID和路径到任务状态
+                    $taskStatus->presetNoteFileId = (string) $presetFiles['note_file']->getFileId();
+                    $taskStatus->presetTranscriptFileId = (string) $presetFiles['transcript_file']->getFileId();
+                    $taskStatus->presetNoteFilePath = $presetFiles['note_file']->getFileKey();
+                    $taskStatus->presetTranscriptFilePath = $presetFiles['transcript_file']->getFileKey();
+
+                    $this->logger->info('预设文件创建成功', [
+                        'task_key' => $taskKey,
+                        'note_file_id' => $taskStatus->presetNoteFileId,
+                        'transcript_file_id' => $taskStatus->presetTranscriptFileId,
+                        'note_file_path' => $taskStatus->presetNoteFilePath,
+                        'transcript_file_path' => $taskStatus->presetTranscriptFilePath,
+                    ]);
+                } catch (Throwable $e) {
+                    // 预设文件创建失败不影响主流程
+                    $this->logger->warning('创建预设文件失败', [
+                        'task_key' => $taskKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // 6. 保存任务状态
             $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
 
-            // 6. 返回响应
+            // 7. 返回响应
             return $this->buildUploadTokenResponse($tokenData, $taskStatus, $taskKey);
         } finally {
             $this->locker->release($lockName, $lockOwner);
@@ -511,13 +554,21 @@ class AsrApi extends AbstractApi
     private function buildUploadTokenResponse(array $tokenData, AsrTaskStatusDTO $taskStatus, string $taskKey): array
     {
         $directories = $this->buildDirectoriesArray($taskStatus);
+        $presetFiles = $this->buildPresetFilesArray($taskStatus);
 
-        return [
+        $response = [
             'sts_token' => $tokenData,
             'task_key' => $taskKey,
             'expires_in' => 60 * 60,
             'directories' => $directories,
         ];
+
+        // 只有当预设文件存在时才添加到返回中
+        if (! empty($presetFiles)) {
+            $response['preset_files'] = $presetFiles;
+        }
+
+        return $response;
     }
 
     /**
@@ -546,6 +597,40 @@ class AsrApi extends AbstractApi
         }
 
         return $directories;
+    }
+
+    /**
+     * 构建预设文件数组.
+     */
+    private function buildPresetFilesArray(AsrTaskStatusDTO $taskStatus): array
+    {
+        $presetFiles = [];
+
+        // 笔记文件
+        if (! empty($taskStatus->presetNoteFileId) && ! empty($taskStatus->presetNoteFilePath)) {
+            $relativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetNoteFilePath);
+            $fileName = basename($relativePath);
+
+            $presetFiles['note_file'] = [
+                'file_id' => $taskStatus->presetNoteFileId,
+                'file_name' => $fileName,
+                'file_path' => $relativePath,
+            ];
+        }
+
+        // 流式识别文件
+        if (! empty($taskStatus->presetTranscriptFileId) && ! empty($taskStatus->presetTranscriptFilePath)) {
+            $relativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetTranscriptFilePath);
+            $fileName = basename($relativePath);
+
+            $presetFiles['transcript_file'] = [
+                'file_id' => $taskStatus->presetTranscriptFileId,
+                'file_name' => $fileName,
+                'file_path' => $relativePath,
+            ];
+        }
+
+        return $presetFiles;
     }
 
     /**

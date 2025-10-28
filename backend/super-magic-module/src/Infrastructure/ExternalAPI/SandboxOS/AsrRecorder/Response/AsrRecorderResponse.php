@@ -12,11 +12,23 @@ namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Respo
  */
 class AsrRecorderResponse
 {
-    private int $code;
+    public int $code {
+        get {
+            return $this->code;
+        }
+    }
 
-    private string $message;
+    public string $message {
+        get {
+            return $this->message;
+        }
+    }
 
-    private array $data;
+    private array $data {
+        get {
+            return $this->data;
+        }
+    }
 
     public function __construct(int $code, string $message, array $data)
     {
@@ -27,9 +39,8 @@ class AsrRecorderResponse
 
     /**
      * 从沙箱网关结果创建响应.
-     * @param mixed $result
      */
-    public static function fromGatewayResult($result): self
+    public static function fromGatewayResult(mixed $result): self
     {
         if (! $result->isSuccess()) {
             return new self(
@@ -76,27 +87,45 @@ class AsrRecorderResponse
     }
 
     /**
-     * 获取文件路径.
+     * 获取文件路径 (兼容 V2 和旧格式).
      */
     public function getFilePath(): ?string
     {
+        // V2 格式：从 files.audio_file.path 读取
+        if (isset($this->data['files']['audio_file']['path'])) {
+            return $this->data['files']['audio_file']['path'];
+        }
+
+        // 旧格式：从 file_path 读取（向后兼容）
         $path = $this->data['file_path'] ?? null;
         return $path !== '' ? $path : null;
     }
 
     /**
-     * 获取音频时长（秒）.
+     * 获取音频时长（秒） (兼容 V2 和旧格式).
      */
     public function getDuration(): ?int
     {
+        // V2 格式：从 files.audio_file.duration 读取
+        if (isset($this->data['files']['audio_file']['duration'])) {
+            return (int) $this->data['files']['audio_file']['duration'];
+        }
+
+        // 旧格式：从 duration 读取（向后兼容）
         return $this->data['duration'] ?? null;
     }
 
     /**
-     * 获取文件大小（字节）.
+     * 获取文件大小（字节） (兼容 V2 和旧格式).
      */
     public function getFileSize(): ?int
     {
+        // V2 格式：从 files.audio_file.size 读取
+        if (isset($this->data['files']['audio_file']['size'])) {
+            return (int) $this->data['files']['audio_file']['size'];
+        }
+
+        // 旧格式：从 file_size 读取（向后兼容）
         return $this->data['file_size'] ?? null;
     }
 
@@ -109,23 +138,7 @@ class AsrRecorderResponse
     }
 
     /**
-     * 获取响应码.
-     */
-    public function getCode(): int
-    {
-        return $this->code;
-    }
-
-    /**
-     * 获取响应消息.
-     */
-    public function getMessage(): string
-    {
-        return $this->message;
-    }
-
-    /**
-     * 获取响应数据.
+     * 获取完整的 data 数组（用于响应处理）.
      */
     public function getData(): array
     {

@@ -9,9 +9,9 @@ namespace App\Application\Speech\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Speech\Assembler\AsrPromptAssembler;
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Contract\TranslatorInterface;

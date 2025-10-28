@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\DTO;
 
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use App\Application\Speech\Enum\SandboxAsrStatusEnum;
 
 /**
  * ASR 沙箱合并结果 DTO.
@@ -15,7 +15,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 readonly class AsrSandboxMergeResultDTO
 {
     public function __construct(
-        public TaskStatus $status,
+        public SandboxAsrStatusEnum $status,
         public string $filePath,
         public ?int $duration = null,
         public ?int $fileSize = null,
@@ -28,8 +28,11 @@ readonly class AsrSandboxMergeResultDTO
      */
     public static function fromSandboxResponse(array $response): self
     {
+        $statusValue = $response['status'] ?? 'error';
+        $status = SandboxAsrStatusEnum::fromString($statusValue) ?? SandboxAsrStatusEnum::ERROR;
+
         return new self(
-            status: TaskStatus::from($response['status'] ?? 'error'),
+            status: $status,
             filePath: $response['file_path'] ?? '',
             duration: $response['duration'] ?? null,
             fileSize: $response['file_size'] ?? null,
@@ -42,7 +45,7 @@ readonly class AsrSandboxMergeResultDTO
      */
     public function isFinished(): bool
     {
-        return $this->status === TaskStatus::FINISHED;
+        return $this->status->isCompleted();
     }
 
     /**
@@ -50,7 +53,7 @@ readonly class AsrSandboxMergeResultDTO
      */
     public function isError(): bool
     {
-        return $this->status === TaskStatus::ERROR;
+        return $this->status->isError();
     }
 
     /**

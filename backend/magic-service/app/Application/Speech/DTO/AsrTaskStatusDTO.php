@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Infrastructure\ExternalAPI\Volcengine\DTO;
+namespace App\Application\Speech\DTO;
 
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
@@ -32,6 +32,15 @@ class AsrTaskStatusDTO
     public ?string $noteFileName = null; // note文件名（与音频文件在同一目录，为空表示无笔记文件）
 
     public ?string $noteFileId = null; // note文件ID（用于聊天消息中的文件引用）
+
+    // 预设文件信息（用于前端写入）
+    public ?string $presetNoteFileId = null; // 预设笔记文件ID
+
+    public ?string $presetTranscriptFileId = null; // 预设流式识别文件ID
+
+    public ?string $presetNoteFilePath = null; // 预设笔记文件相对路径
+
+    public ?string $presetTranscriptFilePath = null; // 预设流式识别文件相对路径
 
     // 项目和话题信息
     public ?string $projectId = null; // 项目ID
@@ -105,6 +114,12 @@ class AsrTaskStatusDTO
         $this->sandboxId = self::getStringValue($data, ['sandbox_id', 'sandboxId']);
         $this->sandboxRetryCount = self::getIntValue($data, ['sandbox_retry_count', 'sandboxRetryCount'], 0);
 
+        // 预设文件信息
+        $this->presetNoteFileId = self::getStringValue($data, ['preset_note_file_id', 'presetNoteFileId']);
+        $this->presetTranscriptFileId = self::getStringValue($data, ['preset_transcript_file_id', 'presetTranscriptFileId']);
+        $this->presetNoteFilePath = self::getStringValue($data, ['preset_note_file_path', 'presetNoteFilePath']);
+        $this->presetTranscriptFilePath = self::getStringValue($data, ['preset_transcript_file_path', 'presetTranscriptFilePath']);
+
         // ASR 内容和笔记
         $this->asrStreamContent = self::getStringValue($data, ['asr_stream_content', 'asrStreamContent']);
         $this->noteContent = self::getStringValue($data, ['note_content', 'noteContent']);
@@ -148,6 +163,10 @@ class AsrTaskStatusDTO
             'is_paused' => $this->isPaused,
             'sandbox_id' => $this->sandboxId,
             'sandbox_retry_count' => $this->sandboxRetryCount,
+            'preset_note_file_id' => $this->presetNoteFileId,
+            'preset_transcript_file_id' => $this->presetTranscriptFileId,
+            'preset_note_file_path' => $this->presetNoteFilePath,
+            'preset_transcript_file_path' => $this->presetTranscriptFilePath,
             'asr_stream_content' => $this->asrStreamContent,
             'note_content' => $this->noteContent,
             'note_file_type' => $this->noteFileType,

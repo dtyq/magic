@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Speech\Assembler;
 
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
+use App\Application\Speech\DTO\Response\AsrFileDataDTO;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\Codec\Json;
@@ -28,11 +29,11 @@ readonly class ChatMessageAssembler
      * 构建聊天请求对象用于总结任务
      *
      * @param ProcessSummaryTaskDTO $dto 处理总结任务DTO
-     * @param array $audioFileData 音频文件数据（包含file_id, file_name, file_path, file_size等）
-     * @param null|array $noteFileData 笔记文件数据（包含file_id, file_name, file_path, file_size等），可选
+     * @param AsrFileDataDTO $audioFileData 音频文件数据
+     * @param null|AsrFileDataDTO $noteFileData 笔记文件数据，可选
      * @return ChatRequest 聊天请求对象
      */
-    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, array $audioFileData, ?array $noteFileData = null): ChatRequest
+    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, AsrFileDataDTO $audioFileData, ?AsrFileDataDTO $noteFileData = null): ChatRequest
     {
         // 构建消息内容
         $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData);
@@ -60,14 +61,14 @@ readonly class ChatMessageAssembler
      * 构建rich_text消息内容.
      *
      * @param string $modelId 模型ID
-     * @param array $fileData 文件数据（包含file_id, file_name, file_path等）
-     * @param null|array $noteData 笔记文件数据（包含file_id, file_name, file_path等），可选
+     * @param AsrFileDataDTO $fileData 文件数据
+     * @param null|AsrFileDataDTO $noteData 笔记文件数据，可选
      * @return array 消息内容数组
      */
-    public function buildMessageContent(string $modelId, array $fileData, ?array $noteData = null): array
+    public function buildMessageContent(string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null): array
     {
         // 构建消息内容
-        if ($noteData !== null && ! empty($noteData['file_name']) && ! empty($noteData['file_path'])) {
+        if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
             // 有笔记时的消息内容：同时提到录音文件和笔记文件
 
             $messageContent = [
@@ -82,7 +83,7 @@ readonly class ChatMessageAssembler
                         'label' => null,
                         'mentionSuggestionChar' => '@',
                         'type' => 'project_file',
-                        'data' => $fileData,
+                        'data' => $fileData->toArray(),
                     ],
                 ],
                 [
@@ -96,7 +97,7 @@ readonly class ChatMessageAssembler
                         'label' => null,
                         'mentionSuggestionChar' => '@',
                         'type' => 'project_file',
-                        'data' => $noteData,
+                        'data' => $noteData->toArray(),
                     ],
                 ],
                 [
@@ -118,7 +119,7 @@ readonly class ChatMessageAssembler
                         'label' => null,
                         'mentionSuggestionChar' => '@',
                         'type' => 'project_file',
-                        'data' => $fileData,
+                        'data' => $fileData->toArray(),
                     ],
                 ],
                 [
@@ -145,19 +146,19 @@ readonly class ChatMessageAssembler
             'attachments' => [],
             'extra' => [
                 'super_agent' => [
-                    'mentions' => $noteData !== null && ! empty($noteData['file_name']) && ! empty($noteData['file_path']) ? [
+                    'mentions' => $noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath) ? [
                         [
                             'type' => 'mention',
                             'attrs' => [
                                 'type' => 'project_file',
-                                'data' => $fileData,
+                                'data' => $fileData->toArray(),
                             ],
                         ],
                         [
                             'type' => 'mention',
                             'attrs' => [
                                 'type' => 'project_file',
-                                'data' => $noteData,
+                                'data' => $noteData->toArray(),
                             ],
                         ],
                     ] : [
@@ -165,7 +166,7 @@ readonly class ChatMessageAssembler
                             'type' => 'mention',
                             'attrs' => [
                                 'type' => 'project_file',
-                                'data' => $fileData,
+                                'data' => $fileData->toArray(),
                             ],
                         ],
                     ],
@@ -189,35 +190,13 @@ readonly class ChatMessageAssembler
      *
      * 如果传入的已经是相对路径，直接返回原始路径
      *
+     * @deprecated 请使用 AsrAssembler::extractWorkspaceRelativePath() 代替
      * @param string $fullPath 完整文件路径或相对路径
      * @return string 工作区相对路径或原始路径
      */
     public function extractWorkspaceRelativePath(string $fullPath): string
     {
-        // 标准化路径分隔符
-        $normalizedPath = str_replace('\\', '/', trim($fullPath, '/'));
-
-        // 查找 workspace/ 的位置
-        $workspacePos = strpos($normalizedPath, '/workspace/');
-        if ($workspacePos !== false) {
-            // 提取 workspace/ 后面的部分
-            $relativePath = substr($normalizedPath, $workspacePos + 11); // 11 = strlen('/workspace/')
-
-            // 如果相对路径不为空，返回相对路径
-            if (! empty($relativePath)) {
-                return $relativePath;
-            }
-        }
-
-        // 如果没有找到 /workspace/，尝试查找 workspace/ 开头的情况
-        if (str_starts_with($normalizedPath, 'workspace/')) {
-            $relativePath = substr($normalizedPath, 10); // 移除 'workspace/' 前缀
-            if (! empty($relativePath)) {
-                return $relativePath;
-            }
-        }
-
-        // 如果都没找到workspace标识，直接返回原始路径（可能已经是相对路径）
-        return $normalizedPath;
+        // 向后兼容：委托给 AsrAssembler 处理
+        return AsrAssembler::extractWorkspaceRelativePath($fullPath);
     }
 }

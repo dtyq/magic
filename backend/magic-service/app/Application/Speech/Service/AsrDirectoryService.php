@@ -7,11 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Service;
 
-use App\Application\Speech\Assembler\AsrDirectoryAssembler;
+use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrRecordingDirectoryDTO;
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrDirectoryTypeEnum;
 use App\Domain\Asr\Constants\AsrPaths;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Contract\TranslatorInterface;
@@ -58,12 +58,20 @@ readonly class AsrDirectoryService
 
             // 2. 生成隐藏目录路径
             $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-            $workDir = $projectEntity->getWorkDir();
-            $relativePath = AsrPaths::getHiddenDirPath($taskKey);
-            $hiddenDirPath = trim(sprintf('%s/%s', $workDir, $relativePath), '/');
 
-            // 3. 检查目录是否已存在
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $hiddenDirPath);
+            // 工作区相对路径 (如: .asr_recordings/session_xxx)
+            $relativePath = AsrPaths::getHiddenDirPath($taskKey);
+
+            // 项目工作目录 (如: project_123/workspace)
+            $workDir = $projectEntity->getWorkDir();
+
+            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+
+            // 3. 检查目录是否已存在（使用 AsrAssembler 构建完整 file_key）
+            // 完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/.asr_recordings/session_xxx)
+            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
@@ -74,14 +82,16 @@ readonly class AsrDirectoryService
             }
 
             // 4. 创建隐藏目录实体
-            $taskFileEntity = AsrDirectoryAssembler::createHiddenDirectoryEntity(
+            $taskFileEntity = AsrAssembler::createDirectoryEntity(
                 $userId,
                 $organizationCode,
                 (int) $projectId,
                 $relativePath,
-                $hiddenDirPath,
+                $fullPrefix,
+                $workDir,
                 $rootDirectoryId,
-                $taskKey
+                isHidden: true,
+                taskKey: $taskKey
             );
 
             // 5. 插入或忽略
@@ -96,7 +106,7 @@ readonly class AsrDirectoryService
             }
 
             // 6. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $hiddenDirPath);
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
@@ -138,20 +148,27 @@ readonly class AsrDirectoryService
 
             // 2. 生成显示目录名称
             $directoryName = $this->generateDirectoryName();
+
+            // 工作区相对路径 (如: 录音总结_20251027_230949)
             $relativePath = $directoryName;
 
-            // 3. 生成完整路径
+            // 3. 获取工作目录和前缀
             $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+
+            // 项目工作目录 (如: project_123/workspace)
             $workDir = $projectEntity->getWorkDir();
-            $displayDirPath = trim(sprintf('%s/%s', $workDir, $directoryName), '/');
+
+            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
             // 4. 创建显示目录实体
-            $taskFileEntity = AsrDirectoryAssembler::createDisplayDirectoryEntity(
+            $taskFileEntity = AsrAssembler::createDirectoryEntity(
                 $userId,
                 $organizationCode,
                 (int) $projectId,
-                $directoryName,
-                $displayDirPath,
+                $relativePath,
+                $fullPrefix,
+                $workDir,
                 $rootDirectoryId
             );
 
@@ -166,8 +183,10 @@ readonly class AsrDirectoryService
                 );
             }
 
-            // 6. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $displayDirPath);
+            // 6. 如果插入被忽略，查询现有目录（使用 AsrAssembler 构建完整 file_key）
+            // 完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/录音总结_20251027_230949)
+            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
@@ -230,17 +249,9 @@ readonly class AsrDirectoryService
         }
 
         $newDirectoryName = $safeTitle . $timestamp;
-        $newRelativePath = $newDirectoryName;
 
-        // 3.1 冲突检测：如果新路径已存在，追加短哈希后缀保证唯一
-        $fullNewPath = $this->getFullPath($projectId, $taskStatus->userId, $newRelativePath);
-        $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fullNewPath);
-        if ($existingDir !== null) {
-            $shortHash = substr(md5($taskStatus->taskKey), 0, 6);
-            $newDirectoryName = sprintf('%s-%s', $newDirectoryName, $shortHash);
-            $newRelativePath = $newDirectoryName;
-            $fullNewPath = $this->getFullPath($projectId, $taskStatus->userId, $newRelativePath);
-        }
+        // 新的工作区相对路径 (如: 被讨厌的勇气笔记_20251027_230949)
+        $newRelativePath = $newDirectoryName;
 
         // 如果新旧路径相同，无需重命名
         if ($newRelativePath === $relativeOldPath) {
@@ -252,9 +263,21 @@ readonly class AsrDirectoryService
         }
 
         // 4. 构建完整路径并更新数据库
-        $fullOldPath = $this->getFullPath($projectId, $taskStatus->userId, $relativeOldPath);
-
         try {
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $taskStatus->userId);
+
+            // 项目工作目录 (如: project_123/workspace)
+            $workDir = $projectEntity->getWorkDir();
+
+            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode ?? '');
+
+            // 旧目录的完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/录音总结_20251027_230949)
+            $fullOldPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativeOldPath);
+
+            // 新目录的完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/被讨厌的勇气笔记_20251027_230949)
+            $fullNewPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $newRelativePath);
+
             $dirEntity = $this->taskFileDomainService->getById($oldDirectoryId);
             if ($dirEntity === null) {
                 $this->logger->error('目录记录不存在', [
@@ -302,21 +325,6 @@ readonly class AsrDirectoryService
     }
 
     /**
-     * 将相对路径转换为完整路径.
-     *
-     * @param string $projectId 项目ID
-     * @param string $userId 用户ID
-     * @param string $relativePath 相对路径
-     * @return string 完整路径
-     */
-    public function getFullPath(string $projectId, string $userId, string $relativePath): string
-    {
-        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-        $workDir = $projectEntity->getWorkDir();
-        return trim(sprintf('%s/%s', $workDir, $relativePath), '/');
-    }
-
-    /**
      * 获取项目的 workspace 路径.
      *
      * @param string $projectId 项目ID
@@ -327,6 +335,45 @@ readonly class AsrDirectoryService
     {
         $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
         return rtrim($projectEntity->getWorkDir(), '/') . '/';
+    }
+
+    /**
+     * 批量更新文件的 file_key（从旧目录路径替换为新目录路径）.
+     *
+     * @param array $fileEntities 文件实体列表
+     * @param string $oldDirPath 旧目录完整路径
+     * @param string $newDirPath 新目录完整路径
+     * @return array ['updateBatch' => array, 'now' => string] 返回批量更新数据和时间戳
+     */
+    public function buildFileKeyUpdateBatch(
+        array $fileEntities,
+        string $oldDirPath,
+        string $newDirPath
+    ): array {
+        $updateBatch = [];
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($fileEntities as $fileEntity) {
+            $oldFileKey = $fileEntity->getFileKey();
+
+            // 计算新的 file_key（替换目录路径部分）
+            $newFileKey = str_replace($oldDirPath, $newDirPath, $oldFileKey);
+
+            if ($newFileKey === $oldFileKey) {
+                continue; // 路径未改变，跳过
+            }
+
+            $updateBatch[] = [
+                'file_id' => $fileEntity->getFileId(),
+                'file_key' => $newFileKey,
+                'updated_at' => $now,
+            ];
+        }
+
+        return [
+            'updateBatch' => $updateBatch,
+            'now' => $now,
+        ];
     }
 
     /**
@@ -424,25 +471,8 @@ readonly class AsrDirectoryService
             }
 
             // 2. 准备批量更新数据
-            $updateBatch = [];
-            $now = date('Y-m-d H:i:s');
-
-            foreach ($fileEntities as $fileEntity) {
-                $oldFileKey = $fileEntity->getFileKey();
-
-                // 计算新的 file_key（替换目录路径部分）
-                $newFileKey = str_replace($oldDirPath, $newDirPath, $oldFileKey);
-
-                if ($newFileKey === $oldFileKey) {
-                    continue; // 路径未改变，跳过
-                }
-
-                $updateBatch[] = [
-                    'file_id' => $fileEntity->getFileId(),
-                    'file_key' => $newFileKey,
-                    'updated_at' => $now,
-                ];
-            }
+            $result = $this->buildFileKeyUpdateBatch($fileEntities, $oldDirPath, $newDirPath);
+            $updateBatch = $result['updateBatch'];
 
             if (empty($updateBatch)) {
                 $this->logger->info('无需更新任何文件路径', [

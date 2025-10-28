@@ -7,12 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Service;
 
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;

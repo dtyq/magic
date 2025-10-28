@@ -613,30 +613,42 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $fileIds = array_column($updateBatch, 'file_id');
 
-        // 构建 CASE WHEN 语句
+        // 构建 CASE WHEN 语句和绑定参数（正确的顺序）
         $fileKeyCases = [];
         $updatedAtCases = [];
-        $bindings = [];
+        $fileKeyBindings = [];
+        $updatedAtBindings = [];
 
         foreach ($updateBatch as $item) {
             $fileKeyCases[] = 'WHEN ? THEN ?';
             $updatedAtCases[] = 'WHEN ? THEN ?';
-            $bindings[] = $item['file_id'];
-            $bindings[] = $item['file_key'];
-            $bindings[] = $item['file_id'];
-            $bindings[] = $item['updated_at'];
+
+            // file_key 的参数
+            $fileKeyBindings[] = $item['file_id'];
+            $fileKeyBindings[] = $item['file_key'];
+
+            // updated_at 的参数
+            $updatedAtBindings[] = $item['file_id'];
+            $updatedAtBindings[] = $item['updated_at'];
         }
 
         $fileKeyCasesSql = implode(' ', $fileKeyCases);
         $updatedAtCasesSql = implode(' ', $updatedAtCases);
 
-        // 构建 SQL
-        $sql = "UPDATE {$this->model->getTable()} SET 
-                file_key = CASE file_id {$fileKeyCasesSql} END,
-                updated_at = CASE file_id {$updatedAtCasesSql} END
-                WHERE file_id IN (" . implode(',', array_fill(0, count($fileIds), '?')) . ')';
+        // 构建 SQL（按照正确的顺序合并参数）
+        $sql = sprintf(
+            'UPDATE %s SET 
+                file_key = CASE file_id %s END,
+                updated_at = CASE file_id %s END
+                WHERE file_id IN (%s)',
+            $this->model->getTable(),
+            $fileKeyCasesSql,
+            $updatedAtCasesSql,
+            implode(',', array_fill(0, count($fileIds), '?'))
+        );
 
-        $bindings = array_merge($bindings, $fileIds);
+        // 正确的参数顺序：先 file_key 的 CASE，再 updated_at 的 CASE，最后是 WHERE IN
+        $bindings = array_merge($fileKeyBindings, $updatedAtBindings, $fileIds);
 
         return Db::update($sql, $bindings);
     }

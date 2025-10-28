@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Asr\Repository;
 
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Domain\Asr\Constants\AsrRedisKeys;
 use App\Domain\Asr\Constants\AsrTimeouts;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;

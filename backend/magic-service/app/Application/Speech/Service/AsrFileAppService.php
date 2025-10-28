@@ -8,8 +8,11 @@ declare(strict_types=1);
 namespace App\Application\Speech\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\Assembler\ChatMessageAssembler;
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
+use App\Application\Speech\DTO\Response\AsrFileDataDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
@@ -22,7 +25,6 @@ use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -67,6 +69,7 @@ readonly class AsrFileAppService
         private AsrDirectoryService $directoryService,
         private AsrTitleGeneratorService $titleGeneratorService,
         private AsrSandboxService $sandboxService,
+        private AsrPresetFileService $presetFileService,
         private LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
@@ -264,6 +267,11 @@ readonly class AsrFileAppService
 
             // 5. 保存任务状态
             $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
+            // 6. 清理流式识别文件（总结完成后不再需要）
+            if (! empty($taskStatus->presetTranscriptFileId)) {
+                $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
+            }
 
             $this->logger->info('总结任务完成', [
                 'task_key' => $summaryRequest->taskKey,
@@ -477,7 +485,7 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException(trans('asr.exception.file_not_belong_to_project', ['fileId' => $summaryRequest->fileId]));
         }
 
-        $workspaceRelativePath = $this->chatMessageAssembler->extractWorkspaceRelativePath($fileEntity->getFileKey());
+        $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($fileEntity->getFileKey());
 
         return new AsrTaskStatusDTO([
             'task_key' => $summaryRequest->taskKey,
@@ -507,7 +515,7 @@ readonly class AsrFileAppService
     /**
      * 根据任务状态构建文件数据.
      */
-    private function buildFileDataFromTaskStatus(AsrTaskStatusDTO $taskStatus): array
+    private function buildFileDataFromTaskStatus(AsrTaskStatusDTO $taskStatus): AsrFileDataDTO
     {
         $fileId = $taskStatus->audioFileId;
         if (empty($fileId)) {
@@ -519,15 +527,9 @@ readonly class AsrFileAppService
             throw new InvalidArgumentException(trans('asr.exception.file_not_exist', ['fileId' => $fileId]));
         }
 
-        $workspaceRelativePath = $this->chatMessageAssembler->extractWorkspaceRelativePath($fileEntity->getFileKey());
+        $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($fileEntity->getFileKey());
 
-        return [
-            'file_id' => (string) $fileEntity->getFileId(),
-            'file_name' => $fileEntity->getFileName(),
-            'file_path' => $workspaceRelativePath,
-            'file_extension' => $fileEntity->getFileExtension(),
-            'file_size' => $fileEntity->getFileSize(),
-        ];
+        return AsrFileDataDTO::fromTaskFileEntity($fileEntity, $workspaceRelativePath);
     }
 
     /**
@@ -785,6 +787,11 @@ readonly class AsrFileAppService
             $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
             $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
             $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
+            // 清理流式识别文件（总结完成后不再需要）
+            if (! empty($taskStatus->presetTranscriptFileId)) {
+                $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
+            }
 
             $this->logger->info('自动总结完成', [
                 'task_key' => $taskStatus->taskKey,

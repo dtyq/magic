@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder;
 
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrAudioConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrNoteFileConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrTranscriptFileConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Response\AsrRecorderResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Constants\SandboxEndpoints;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -66,8 +69,8 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
                 $this->logger->error('ASR Recorder: Failed to start task', [
                     'sandbox_id' => $sandboxId,
                     'task_key' => $taskKey,
-                    'code' => $response->getCode(),
-                    'message' => $response->getMessage(),
+                    'code' => $response->code,
+                    'message' => $response->message,
                 ]);
             }
 
@@ -90,40 +93,36 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
     public function finishTask(
         string $sandboxId,
         string $taskKey,
-        string $targetDir,
-        string $outputFilename,
-        ?string $sourceDir = null,
-        string $workspaceDir = '.workspace',
-        ?string $noteFilename = null,
-        ?string $noteContent = null
+        string $workspaceDir,
+        AsrAudioConfig $audioConfig,
+        ?AsrNoteFileConfig $noteFileConfig = null,
+        ?AsrTranscriptFileConfig $transcriptFileConfig = null
     ): AsrRecorderResponse {
+        // 构建请求数据（V2 结构化版本）
         $requestData = [
             'task_key' => $taskKey,
-            'target_dir' => $targetDir,
-            'output_filename' => $outputFilename,
             'workspace_dir' => $workspaceDir,
+            'audio' => $audioConfig->toArray(),
         ];
 
-        // 如果提供了 source_dir，添加到请求中
-        if ($sourceDir !== null) {
-            $requestData['source_dir'] = $sourceDir;
+        // 添加笔记文件配置
+        if ($noteFileConfig !== null) {
+            $requestData['note_file'] = $noteFileConfig->toArray();
         }
 
-        // 如果提供了笔记信息，添加到请求中
-        if ($noteFilename !== null && $noteContent !== null) {
-            $requestData['note_filename'] = $noteFilename;
-            $requestData['note_content'] = $noteContent;
+        // 添加流式识别文件配置
+        if ($transcriptFileConfig !== null) {
+            $requestData['transcript_file'] = $transcriptFileConfig->toArray();
         }
 
         try {
-            $this->logger->info('ASR Recorder: Finishing task', [
+            $this->logger->info('ASR Recorder: Finishing task (V2)', [
                 'sandbox_id' => $sandboxId,
                 'task_key' => $taskKey,
-                'target_dir' => $targetDir,
-                'output_filename' => $outputFilename,  // 不含扩展名，沙箱会根据音频格式添加
-                'source_dir' => $sourceDir,
-                'has_note' => ($noteFilename !== null && $noteContent !== null),
-                'note_filename' => $noteFilename,
+                'workspace_dir' => $workspaceDir,
+                'audio_config' => $audioConfig->toArray(),
+                'note_file_config' => $noteFileConfig?->toArray(),
+                'transcript_file_config' => $transcriptFileConfig?->toArray(),
             ]);
 
             // 调用沙箱 API
@@ -147,8 +146,8 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
                 $this->logger->error('ASR Recorder: Failed to finish task', [
                     'sandbox_id' => $sandboxId,
                     'task_key' => $taskKey,
-                    'code' => $response->getCode(),
-                    'message' => $response->getMessage(),
+                    'code' => $response->code,
+                    'message' => $response->message,
                 ]);
             }
 

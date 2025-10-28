@@ -7,21 +7,19 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Service;
 
-use App\Application\Speech\Assembler\ChatMessageAssembler;
+use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
-use App\Application\Speech\DTO\NoteDTO;
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use App\Application\Speech\Enum\SandboxAsrStatusEnum;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrAudioConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrNoteFileConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrTranscriptFileConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use Hyperf\Codec\Json;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use Throwable;
 
 use function Hyperf\Translation\trans;
 
@@ -34,9 +32,7 @@ readonly class AsrSandboxService
     public function __construct(
         private SandboxGatewayInterface $sandboxGateway,
         private AsrRecorderInterface $asrRecorder,
-        private TaskFileDomainService $taskFileDomainService,
-        private ChatMessageAssembler $chatMessageAssembler,
-        private ProjectDomainService $projectDomainService,
+        private AsrSandboxResponseHandler $responseHandler,
         private LoggerInterface $logger
     ) {
     }
@@ -77,21 +73,16 @@ readonly class AsrSandboxService
             'actual_sandbox_id' => $actualSandboxId,
         ]);
 
-        // 调用沙箱启动任务（需要完整路径）
-        $fullHiddenPath = $this->getFullPath(
-            $taskStatus->projectId,
-            $userId,
-            $taskStatus->tempHiddenDirectory
-        );
-
+        // 调用沙箱启动任务
+        // 注意：沙箱 API 只接受工作区相对路径 (如: .asr_recordings/session_xxx)
         $response = $this->asrRecorder->startTask(
             $actualSandboxId,
             $taskStatus->taskKey,
-            $fullHiddenPath
+            $taskStatus->tempHiddenDirectory  // 如: .asr_recordings/session_xxx
         );
 
         if (! $response->isSuccess()) {
-            throw new InvalidArgumentException(trans('asr.exception.sandbox_task_creation_failed', ['message' => $response->getMessage()]));
+            throw new InvalidArgumentException(trans('asr.exception.sandbox_task_creation_failed', ['message' => $response->message]));
         }
 
         $taskStatus->sandboxTaskCreated = true;
@@ -133,32 +124,17 @@ readonly class AsrSandboxService
             $taskStatus->sandboxId = $sandboxId;
         }
 
-        // 调用沙箱 finish 并轮询等待完成
-        $mergeResult = $this->callSandboxFinishAndWait($taskStatus, $fileTitle);
-
-        // 从沙箱返回的文件路径中提取实际的文件名
-        $actualFileName = basename($mergeResult->filePath);
+        // 调用沙箱 finish 并轮询等待完成（会通过响应处理器自动创建/更新文件记录）
+        $mergeResult = $this->callSandboxFinishAndWait($taskStatus, $fileTitle, $organizationCode);
 
         $this->logger->info('沙箱返回的文件信息', [
             'task_key' => $taskStatus->taskKey,
             'sandbox_file_path' => $mergeResult->filePath,
-            'actual_file_name' => $actualFileName,
-            'input_file_title' => $fileTitle,
+            'audio_file_id' => $taskStatus->audioFileId,
+            'note_file_id' => $taskStatus->noteFileId,
         ]);
 
-        // 创建文件记录
-        $audioFileEntity = $this->createFileRecord(
-            $taskStatus,
-            $mergeResult,
-            $actualFileName,
-            $organizationCode
-        );
-
-        // 更新任务状态
-        $taskStatus->audioFileId = (string) $audioFileEntity->getFileId();
-        $taskStatus->filePath = $this->chatMessageAssembler->extractWorkspaceRelativePath(
-            $audioFileEntity->getFileKey()
-        );
+        // 更新任务状态（文件记录已由响应处理器创建）
         $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
 
         $this->logger->info('沙箱音频处理完成', [
@@ -172,121 +148,18 @@ readonly class AsrSandboxService
     }
 
     /**
-     * 创建文件记录.
-     *
-     * @param AsrTaskStatusDTO $taskStatus 任务状态
-     * @param AsrSandboxMergeResultDTO $mergeResult 沙箱合并结果
-     * @param string $fileName 文件名
-     * @param string $organizationCode 组织编码
-     * @return TaskFileEntity 文件实体
-     * @throws InvalidArgumentException
-     */
-    public function createFileRecord(
-        AsrTaskStatusDTO $taskStatus,
-        AsrSandboxMergeResultDTO $mergeResult,
-        string $fileName,
-        string $organizationCode
-    ): TaskFileEntity {
-        // 验证必要信息
-        $displayDirectoryId = $taskStatus->displayDirectoryId;
-        if ($displayDirectoryId === null) {
-            throw new InvalidArgumentException(trans('asr.exception.display_directory_id_not_exist'));
-        }
-
-        $relativeDisplayDir = $taskStatus->displayDirectory;
-        if (empty($relativeDisplayDir)) {
-            throw new InvalidArgumentException(trans('asr.exception.display_directory_path_not_exist'));
-        }
-
-        $userId = $taskStatus->userId;
-        $projectId = $taskStatus->projectId;
-
-        // 构建文件路径
-        $fullDisplayPath = $this->getFullPath($projectId, $userId, $relativeDisplayDir);
-        $fileKey = rtrim($fullDisplayPath, '/') . '/' . $fileName;
-
-        $this->logger->info('创建沙箱音频文件记录', [
-            'task_key' => $taskStatus->taskKey,
-            'source_path' => $mergeResult->filePath,
-            'target_path' => $fileKey,
-            'parent_id' => $displayDirectoryId,
-            'duration' => $mergeResult->duration,
-            'file_size' => $mergeResult->fileSize,
-        ]);
-
-        // 创建文件实体
-        $metadata = [
-            'asr_task' => true,
-            'created_by' => 'asr_sandbox_summary',
-            'created_at' => date('Y-m-d H:i:s'),
-            'sandbox_merge' => true,
-            'source_file' => $mergeResult->filePath,
-        ];
-
-        if ($mergeResult->duration !== null) {
-            $metadata['duration'] = $mergeResult->duration;
-        }
-
-        $taskFileEntity = new TaskFileEntity([
-            'user_id' => $userId,
-            'organization_code' => $organizationCode,
-            'project_id' => (int) $projectId,
-            'topic_id' => 0,
-            'task_id' => 0,
-            'file_type' => 'user_upload',
-            'file_name' => $fileName,
-            'file_extension' => pathinfo($fileName, PATHINFO_EXTENSION),
-            'file_key' => $fileKey,
-            'file_size' => $mergeResult->fileSize ?? 0,
-            'external_url' => '',
-            'storage_type' => 'workspace',
-            'is_hidden' => false,
-            'is_directory' => false,
-            'sort' => 0,
-            'parent_id' => $displayDirectoryId,
-            'source' => 2, // 2-项目目录
-            'metadata' => Json::encode($metadata),
-        ]);
-
-        try {
-            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
-            if ($result !== null) {
-                return $result;
-            }
-
-            // 如果插入被忽略，查询现有记录
-            $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingFile !== null) {
-                $this->logger->info('文件记录已存在，使用现有记录', [
-                    'task_key' => $taskStatus->taskKey,
-                    'file_id' => $existingFile->getFileId(),
-                    'file_key' => $fileKey,
-                ]);
-                return $existingFile;
-            }
-
-            throw new InvalidArgumentException(trans('asr.exception.create_file_record_failed_no_query'));
-        } catch (Throwable $e) {
-            $this->logger->error('创建沙箱音频文件记录失败', [
-                'task_key' => $taskStatus->taskKey,
-                'file_key' => $fileKey,
-                'error' => $e->getMessage(),
-            ]);
-            throw new InvalidArgumentException(trans('asr.exception.create_file_record_failed_error', ['error' => $e->getMessage()]));
-        }
-    }
-
-    /**
      * 调用沙箱 finish 并轮询等待完成.
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
-     * @param string $fileTitle 文件标题（不含扩展名）
+     * @param string $intelligentTitle 智能标题（用于重命名）
+     * @param string $organizationCode 组织编码
      * @return AsrSandboxMergeResultDTO 合并结果
      * @throws InvalidArgumentException
      */
     private function callSandboxFinishAndWait(
         AsrTaskStatusDTO $taskStatus,
-        string $fileTitle
+        string $intelligentTitle,
+        string $organizationCode
     ): AsrSandboxMergeResultDTO {
         $sandboxId = $taskStatus->sandboxId;
 
@@ -294,47 +167,49 @@ readonly class AsrSandboxService
             throw new InvalidArgumentException(trans('asr.exception.sandbox_id_not_exist'));
         }
 
-        // 准备笔记信息
-        $noteFilename = null;
-        $noteContent = null;
-        if (! empty($taskStatus->noteContent)) {
-            $noteDTO = new NoteDTO(
-                $taskStatus->noteContent,
-                $taskStatus->noteFileType ?? 'md'
-            );
-            $noteFilename = $noteDTO->generateFileName($fileTitle);
-            $noteContent = $taskStatus->noteContent;
+        // 构建音频配置对象 (V2 结构化版本)
+        $audioConfig = new AsrAudioConfig(
+            sourceDir: $taskStatus->tempHiddenDirectory,  // 如: .asr_recordings/session_xxx
+            targetDir: $taskStatus->displayDirectory,     // 如: 录音总结_20251027_230949
+            outputFilename: $intelligentTitle              // 如: 被讨厌的勇气
+        );
 
-            $this->logger->info('准备传递笔记到沙箱', [
-                'task_key' => $taskStatus->taskKey,
-                'audio_title' => $fileTitle,
-                'note_filename' => $noteFilename,
-                'note_length' => mb_strlen($noteContent),
-            ]);
+        // 构建笔记文件配置对象
+        $noteFileConfig = null;
+        if (! empty($taskStatus->presetNoteFilePath)) {
+            $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetNoteFilePath);
+            $noteFilename = basename($workspaceRelativePath);
+            $noteFileConfig = new AsrNoteFileConfig(
+                sourcePath: $workspaceRelativePath,  // 如: 录音总结_20251027_230949/笔记.md
+                targetPath: rtrim($taskStatus->displayDirectory, '/') . '/' . $intelligentTitle . '-' . $noteFilename // 如: 录音总结_20251027_230949/被讨厌的勇气-笔记.md
+            );
         }
 
-        // 获取完整路径
-        $fullDisplayPath = $this->getFullPath(
-            $taskStatus->projectId,
-            $taskStatus->userId,
-            $taskStatus->displayDirectory
-        );
-        $fullHiddenPath = $this->getFullPath(
-            $taskStatus->projectId,
-            $taskStatus->userId,
-            $taskStatus->tempHiddenDirectory
-        );
+        // 构建流式识别文件配置对象 (直接删除)
+        $transcriptFileConfig = null;
+        if (! empty($taskStatus->presetTranscriptFilePath)) {
+            $transcriptWorkspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetTranscriptFilePath);
+            $transcriptFileConfig = new AsrTranscriptFileConfig(
+                sourcePath: $transcriptWorkspaceRelativePath  // 如: .asr_recordings/task_2/流式识别.md
+            );
+        }
 
-        // 首次调用 finish
+        $this->logger->info('准备调用沙箱 finish (V2)', [
+            'task_key' => $taskStatus->taskKey,
+            'intelligent_title' => $intelligentTitle,
+            'audio_config' => $audioConfig->toArray(),
+            'note_file_config' => $noteFileConfig?->toArray(),
+            'transcript_file_config' => $transcriptFileConfig?->toArray(),
+        ]);
+
+        // 首次调用 finish (V2 结构化版本)
         $response = $this->asrRecorder->finishTask(
             $sandboxId,
             $taskStatus->taskKey,
-            $fullDisplayPath,
-            $fileTitle,
-            $fullHiddenPath,
             '.workspace',
-            $noteFilename,
-            $noteContent
+            $audioConfig,
+            $noteFileConfig,
+            $transcriptFileConfig
         );
 
         // 轮询等待完成
@@ -342,27 +217,42 @@ readonly class AsrSandboxService
         $interval = 1;
 
         for ($attempt = 1; $attempt <= $maxAttempts; ++$attempt) {
-            $status = $response->getStatus();
+            $statusString = $response->getStatus();
+            $status = SandboxAsrStatusEnum::fromString($statusString);
 
-            if ($status === 'finished') {
-                $this->logger->info('沙箱音频合并完成', [
+            // 检查是否为完成状态（包含 completed 和 finished）
+            if ($status?->isCompleted()) {
+                $this->logger->info('沙箱音频合并完成 (V2)', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
+                    'status' => $status->value,
                     'file_path' => $response->getFilePath(),
                 ]);
 
+                // 处理沙箱响应，更新文件和目录记录
+                $responseData = $response->getData();
+                $this->responseHandler->handleFinishResponse(
+                    $taskStatus,
+                    $responseData,
+                    $organizationCode
+                );
+
                 return AsrSandboxMergeResultDTO::fromSandboxResponse([
-                    'status' => 'finished',
+                    'status' => $status->value,
                     'file_path' => $response->getFilePath(),
                     'duration' => $response->getDuration(),
                     'file_size' => $response->getFileSize(),
                 ]);
             }
 
-            if ($status === 'error') {
+            // 检查是否为错误状态
+            if ($status?->isError()) {
                 throw new InvalidArgumentException(trans('asr.exception.sandbox_merge_failed', ['message' => $response->getErrorMessage()]));
             }
+
+            // 中间状态（waiting, running, finalizing）：继续轮询
+            // 使用枚举判断，符合沙箱 SandboxAsrStatusEnum 定义
 
             // 记录进度
             if ($attempt % 10 === 0) {
@@ -370,40 +260,24 @@ readonly class AsrSandboxService
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
-                    'status' => $status,
+                    'status' => $status->value ?? $statusString,
+                    'status_description' => $status?->getDescription(),
                 ]);
             }
 
             sleep($interval);
 
-            // 继续轮询
+            // 继续轮询（V2 结构化版本）
             $response = $this->asrRecorder->finishTask(
                 $sandboxId,
                 $taskStatus->taskKey,
-                $fullDisplayPath,
-                $fileTitle,
-                $fullHiddenPath,
                 '.workspace',
-                $noteFilename,
-                $noteContent
+                $audioConfig,
+                $noteFileConfig,
+                $transcriptFileConfig
             );
         }
 
         throw new InvalidArgumentException(trans('asr.exception.sandbox_merge_timeout'));
-    }
-
-    /**
-     * 将相对路径转换为完整路径.
-     *
-     * @param string $projectId 项目ID
-     * @param string $userId 用户ID
-     * @param string $relativePath 相对路径
-     * @return string 完整路径
-     */
-    private function getFullPath(string $projectId, string $userId, string $relativePath): string
-    {
-        $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-        $workDir = $projectEntity->getWorkDir();
-        return trim(sprintf('%s/%s', $workDir, $relativePath), '/');
     }
 }

@@ -7,12 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Crontab;
 
+use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
 use App\Domain\Asr\Constants\AsrRedisKeys;
 use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
 use App\Infrastructure\Util\Redis\RedisUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Crontab\Annotation\Crontab;
