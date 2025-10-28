@@ -17,4 +17,8 @@ interface PackageFilterInterface
      * @return array{id: string, info: array}
      */
     public function getCurrentSubscription(BaseDataIsolation $dataIsolation): array;
+
+    public function isPaidSubscription(string $organizationCode): bool;
+
+    public function filterPaidOrganizations(array $organizationCodes): array;
 }

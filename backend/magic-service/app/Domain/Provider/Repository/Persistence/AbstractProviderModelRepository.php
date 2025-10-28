@@ -44,8 +44,11 @@ abstract class AbstractProviderModelRepository extends AbstractRepository
             $modelEntity->setUpdatedAt(new DateTime());
             $modelEntity->setDeletedAt(null);
         }
+
+        $data = $modelEntity->toArray();
+        $data['disabled_by'] = $data['disabled_by'] ?? '';
         // 创建新记录
-        ProviderModelModel::query()->create($modelEntity->toArray());
+        ProviderModelModel::query()->create($data);
         return $modelEntity;
     }
 
