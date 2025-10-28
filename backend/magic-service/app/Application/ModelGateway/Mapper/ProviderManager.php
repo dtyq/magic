@@ -30,9 +30,9 @@ readonly class ProviderManager
     ) {
     }
 
-    public function getAvailableByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId, bool $checkStatus = true): ?ProviderModelEntity
     {
-        return $this->providerModelDomainService->getAvailableByModelIdOrId($providerDataIsolation, $modelIdOrId);
+        return $this->providerModelDomainService->getAvailableByModelIdOrId($providerDataIsolation, $modelIdOrId, $checkStatus);
     }
 
     /**

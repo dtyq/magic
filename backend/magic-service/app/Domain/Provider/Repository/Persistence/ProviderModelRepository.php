@@ -38,7 +38,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     ) {
     }
 
-    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId, bool $checkStatus = true): ?ProviderModelEntity
     {
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
         if (is_numeric($modelId)) {
@@ -46,7 +46,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         } else {
             $builder->where('model_id', $modelId);
         }
-        $builder->where('status', Status::Enabled->value);
+        $checkStatus && $builder->where('status', Status::Enabled->value);
         $result = Db::select($builder->toSql(), $builder->getBindings());
         if (! isset($result[0])) {
             return null;
