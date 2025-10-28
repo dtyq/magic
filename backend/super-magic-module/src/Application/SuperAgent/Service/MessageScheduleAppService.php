@@ -17,6 +17,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -54,6 +55,7 @@ use Dtyq\TaskScheduler\Entity\TaskScheduler;
 use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
 use Dtyq\TaskScheduler\Service\TaskSchedulerDomainService;
+use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
@@ -133,10 +135,15 @@ class MessageScheduleAppService extends AbstractAppService
                 // Validate resource permissions
                 $this->validateResourcePermissions(
                     $dataIsolation,
-                    (int) $requestDTO->getWorkspaceId(),
+                    $requestDTO->getWorkspaceId(), // Keep as string to support "collaboration"
                     $requestDTO->getProjectId() ? (int) $requestDTO->getProjectId() : null,
                     $requestDTO->getTopicId() ? (int) $requestDTO->getTopicId() : null
                 );
+
+                // Convert collaboration to 0 for database storage
+                $workspaceIdForDb = $requestDTO->getWorkspaceId() === 'collaboration'
+                    ? 0
+                    : (int) $requestDTO->getWorkspaceId();
 
                 // 2.1 Create message schedule
                 $messageSchedule = $this->messageScheduleDomainService->createMessageSchedule(
@@ -144,7 +151,7 @@ class MessageScheduleAppService extends AbstractAppService
                     $requestDTO->getTaskName(),
                     $requestDTO->getMessageType(),
                     $requestDTO->getMessageContent(),
-                    (int) $requestDTO->getWorkspaceId(),
+                    $workspaceIdForDb, // Use converted value
                     (int) $requestDTO->getProjectId(),
                     (int) $requestDTO->getTopicId(),
                     $requestDTO->getCompleted(),
@@ -194,6 +201,9 @@ class MessageScheduleAppService extends AbstractAppService
                 GenericErrorCode::ParameterValidationFailed,
                 $e->getMessage()
             );
+        } catch (BusinessException $e) {
+            // Business exception: re-throw to preserve error message
+            throw $e;
         } catch (Throwable $e) {
             // System exception: log details and show generic error message
             $this->logger->error('Schedule create operation system exception', [
@@ -262,6 +272,9 @@ class MessageScheduleAppService extends AbstractAppService
         $projectIds = array_unique($projectIds);
         $topicIds = array_unique($topicIds);
 
+        // Remove 0 (collaboration workspace) from workspace IDs before batch fetching
+        $workspaceIds = array_filter($workspaceIds, fn ($id) => $id > 0);
+
         // Batch get names
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
         $projectNameMap = $this->projectDomainService->getProjectNamesBatch($projectIds);
@@ -270,7 +283,10 @@ class MessageScheduleAppService extends AbstractAppService
         // Convert entities to DTOs with names
         $list = [];
         foreach ($result['list'] as $entity) {
-            $workspaceName = $workspaceNameMap[$entity->getWorkspaceId()] ?? '';
+            // For collaboration workspace (id=0), set name as "Collaboration"
+            $workspaceName = $entity->getWorkspaceId() === 0
+                ? 'Collaboration'
+                : ($workspaceNameMap[$entity->getWorkspaceId()] ?? '');
             $projectName = $entity->getProjectId() ? ($projectNameMap[$entity->getProjectId()] ?? '') : '';
             $topicName = $entity->getTopicId() ? ($topicNameMap[$entity->getTopicId()] ?? '') : '';
 
@@ -304,18 +320,30 @@ class MessageScheduleAppService extends AbstractAppService
                 $currentProjectId = $messageSchedule->getProjectId();
                 $currentTopicId = $messageSchedule->getTopicId();
 
-                // Check raw properties to detect empty strings (which should be converted to 0)
-                $newWorkspaceId = ! empty($requestDTO->getWorkspaceId()) ? (int) $requestDTO->getWorkspaceId() : $currentWorkspaceId;
+                // Process new workspace ID
+                $newWorkspaceIdRaw = null;
+                $newWorkspaceIdForDb = $currentWorkspaceId;
+
+                if (! empty($requestDTO->getWorkspaceId())) {
+                    $newWorkspaceIdRaw = $requestDTO->getWorkspaceId();
+                    $newWorkspaceIdForDb = $newWorkspaceIdRaw === 'collaboration' ? 0 : (int) $newWorkspaceIdRaw;
+                }
+
                 $newProjectId = $requestDTO->projectId !== null ? (int) $requestDTO->getProjectId() : $currentProjectId;
                 $newTopicId = $requestDTO->topicId !== null ? (int) $requestDTO->getTopicId() : $currentTopicId;
 
                 // Check if resource IDs have changed, and validate permissions for new resources
-                if ($newWorkspaceId !== $currentWorkspaceId
+                if ($newWorkspaceIdForDb !== $currentWorkspaceId
                     || $newProjectId !== $currentProjectId
                     || $newTopicId !== $currentTopicId) {
+                    // Use raw value for validation (string or int)
+                    $workspaceIdForValidation = $newWorkspaceIdRaw ?? (
+                        $currentWorkspaceId === 0 ? 'collaboration' : $currentWorkspaceId
+                    );
+
                     $this->validateResourcePermissions(
                         $dataIsolation,
-                        $newWorkspaceId,
+                        $workspaceIdForValidation,
                         $newProjectId > 0 ? $newProjectId : null,
                         $newTopicId > 0 ? $newTopicId : null
                     );
@@ -329,8 +357,9 @@ class MessageScheduleAppService extends AbstractAppService
                 }
 
                 // Update workspace ID
-                if (! empty($requestDTO->getWorkspaceId()) && $newWorkspaceId !== $currentWorkspaceId) {
-                    $messageSchedule->setWorkspaceId($newWorkspaceId);
+                if ($newWorkspaceIdRaw !== null && $newWorkspaceIdForDb !== $currentWorkspaceId) {
+                    $messageSchedule->setWorkspaceId($newWorkspaceIdForDb);
+                    $needUpdateTaskScheduler = true;
                 }
 
                 // Update project ID (check raw property to detect empty string)
@@ -426,6 +455,9 @@ class MessageScheduleAppService extends AbstractAppService
                 GenericErrorCode::ParameterValidationFailed,
                 trans('common.parameter_validation_error') . ': ' . $e->getMessage()
             );
+        } catch (BusinessException $e) {
+            // Business exception: re-throw to preserve error message
+            throw $e;
         } catch (Throwable $e) {
             // System exception: log details and show generic error message
             $this->logger->error('Schedule update operation system exception', [
@@ -1109,11 +1141,50 @@ class MessageScheduleAppService extends AbstractAppService
 
     /**
      * Validate resource permissions for scheduled message creation/update.
+     *
+     * @param int|string $workspaceId Workspace ID (number or "collaboration")
+     * @param null|int $projectId Project ID
+     * @param null|int $topicId Topic ID
+     * @throws Exception
      */
-    private function validateResourcePermissions(DataIsolation $dataIsolation, int $workspaceId, ?int $projectId = null, ?int $topicId = null): void
+    private function validateResourcePermissions(DataIsolation $dataIsolation, int|string $workspaceId, ?int $projectId = null, ?int $topicId = null): void
     {
+        // Handle collaboration workspace
+        if ($workspaceId === 'collaboration') {
+            // 1. Validate project ID is required
+            if (empty($projectId) || $projectId <= 0) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::PROJECT_ID_REQUIRED_FOR_COLLABORATION,
+                    trans('project.project_id_required_for_collaboration')
+                );
+            }
+
+            // 2. Validate user is a member of the project (collaboration project check)
+            $isProjectMember = $this->projectMemberDomainService->isProjectMemberByUser(
+                $projectId,
+                $dataIsolation->getCurrentUserId()
+            );
+
+            if (! $isProjectMember) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::NOT_A_COLLABORATION_PROJECT,
+                    trans('project.not_a_collaboration_project')
+                );
+            }
+
+            // 3. Validate topic access (if topic_id is provided)
+            if ($topicId !== null && $topicId > 0) {
+                $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
+            }
+
+            return;
+        }
+
+        // Handle normal workspace
+        $workspaceIdInt = (int) $workspaceId;
+
         // 1. Validate workspace access
-        $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+        $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceIdInt);
         if (! $workspace) {
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, trans('workspace.workspace_not_found'));
         }
@@ -1124,22 +1195,12 @@ class MessageScheduleAppService extends AbstractAppService
 
         // 2. Validate project access (if project_id is provided)
         if ($projectId !== null && $projectId > 0) {
-            try {
-                $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
-            } catch (Throwable $e) {
-                // Re-throw the exception from getProject method
-                throw $e;
-            }
+            $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         }
 
         // 3. Validate topic access (if topic_id is provided)
         if ($topicId !== null && $topicId > 0) {
-            try {
-                $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
-            } catch (Throwable $e) {
-                // Re-throw the exception from validateTopicForMessageQueue method
-                throw $e;
-            }
+            $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $topicId);
         }
     }
 
@@ -1204,7 +1265,7 @@ class MessageScheduleAppService extends AbstractAppService
             $time = $timeConfig['time'] ?? '';
 
             if (empty($day) || empty($time)) {
-                // Invalid configuration
+                // Invalid configuration, mark as completed to prevent execution
                 return true;
             }
 
@@ -1216,8 +1277,9 @@ class MessageScheduleAppService extends AbstractAppService
             }
             $executionTime = $day . ' ' . $time;
 
-            // Return true if execution time has passed
-            return $executionTime < $currentTime;
+            // Return true if execution time has passed or equals current time
+            // Use <= to handle the exact execution time moment (boundary condition)
+            return $executionTime <= $currentTime;
         }
 
         // Case 2: Repeating task - use task scheduler to get next execution time

@@ -21,6 +21,8 @@ return [
     'update_members_failed' => '更新成员失败',
     'member_validation_failed' => '成员验证失败',
     'cannot_set_shortcut_for_own_project' => '不能为自己的项目设置快捷方式',
+    'project_id_required_for_collaboration' => '在协作空间中创建定时任务，需要选择一个项目',
+    'not_a_collaboration_project' => '您没有权限访问该协作项目，请联系项目管理员',
 
     // 操作日志相关
     'operation_log' => [

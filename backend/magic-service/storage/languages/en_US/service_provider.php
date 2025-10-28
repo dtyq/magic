@@ -29,4 +29,7 @@ return [
     'original_model_id_already_exists' => 'Original model ID already exists',
     'original_model_not_found' => 'Original model not found',
     'invalid_pricing' => 'Pricing cannot be less than 0',
+    'creativity_temperature_conflict' => 'creativity and temperature cannot be set at the same time',
+    'creativity_value_range_error' => 'creativity value must be between 0-2',
+    'temperature_value_range_error' => 'temperature value must be between 0-2',
 ];

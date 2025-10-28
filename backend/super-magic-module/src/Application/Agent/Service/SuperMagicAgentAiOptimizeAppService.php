@@ -230,10 +230,13 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                     break;
                 case SuperMagicAgentOptimizationType::OptimizeContent->value:
                     if (isset($arguments['prompt'])) {
+                        // 处理转义字符，将 \\n、\\t、\\r 等转换为实际的换行符和制表符
+                        $processedPrompt = stripcslashes($arguments['prompt']);
+
                         $promptData = [
                             'version' => '1.0.0',
                             'structure' => [
-                                'string' => $arguments['prompt'],
+                                'string' => $processedPrompt,
                             ],
                         ];
                         $agentEntity->setPrompt($promptData);

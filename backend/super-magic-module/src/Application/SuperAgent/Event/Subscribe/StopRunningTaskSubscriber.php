@@ -353,7 +353,7 @@ class StopRunningTaskSubscriber extends ConsumerMessage
                 // 查询工作区下所有运行中的话题（包括已删除的话题）
                 $topicConditions = [
                     'workspace_id' => $event->getDataId(),
-                    'current_task_status' => [TaskStatus::WAITING->value, TaskStatus::RUNNING->value],
+                    'current_task_status' => TaskStatus::RUNNING->value,
                 ];
                 $topicsResult = $this->queryTopicsIncludeDeleted($topicConditions);
                 $topics = $topicsResult['list'] ?? [];
@@ -368,7 +368,7 @@ class StopRunningTaskSubscriber extends ConsumerMessage
                 // 查询项目下所有运行中的话题（包括已删除的话题）
                 $topicConditions = [
                     'project_id' => $event->getDataId(),
-                    'current_task_status' => [TaskStatus::WAITING->value, TaskStatus::RUNNING->value],
+                    'current_task_status' => TaskStatus::RUNNING->value,
                 ];
                 $topicsResult = $this->queryTopicsIncludeDeleted($topicConditions);
                 $topics = $topicsResult['list'] ?? [];
@@ -404,8 +404,8 @@ class StopRunningTaskSubscriber extends ConsumerMessage
     private function queryTopicsIncludeDeleted(array $conditions): array
     {
         // 由于标准的 getTopicsByConditions 会过滤掉已删除的话题，
-        // 我们需要使用原始查询来获取包括已删除的话题
-        $query = TopicModel::query();
+        // 我们需要使用 withTrashed() 方法来获取包括已删除的话题
+        $query = TopicModel::query()->withTrashed();
 
         // 应用条件过滤
         foreach ($conditions as $field => $value) {

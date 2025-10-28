@@ -222,6 +222,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('invitation_link.invalid_permission')]
     case INVITATION_LINK_INVALID_PERMISSION = 51226;
 
+    #[ErrorMessage('project.project_id_required_for_collaboration')]
+    case PROJECT_ID_REQUIRED_FOR_COLLABORATION = 51237;
+
+    #[ErrorMessage('project.not_a_collaboration_project')]
+    case NOT_A_COLLABORATION_PROJECT = 51238;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
