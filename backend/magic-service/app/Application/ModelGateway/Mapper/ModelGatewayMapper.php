@@ -452,8 +452,13 @@ class ModelGatewayMapper extends ModelMapper
         $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
 
+        $checkStatus = true;
+        if ($dataIsolation->isOfficialOrganization()) {
+            $checkStatus = false;
+        }
+
         // 获取模型
-        $providerModelEntity = $this->providerManager->getAvailableByModelIdOrId($providerDataIsolation, $model);
+        $providerModelEntity = $this->providerManager->getAvailableByModelIdOrId($providerDataIsolation, $model, $checkStatus);
         if (! $providerModelEntity) {
             $this->logger->info('模型不存在', ['model' => $model]);
             return null;

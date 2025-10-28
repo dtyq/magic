@@ -30,7 +30,7 @@ class S3SimpleUpload extends SimpleUpload
         }
 
         // Check required parameters
-        if (! isset($credential['access_key_id']) || ! isset($credential['access_key_secret']) || ! isset($credential['bucket'])) {
+        if (! isset($credential['access_key_id']) || ! isset($credential['secret_access_key']) || ! isset($credential['bucket'])) {
             throw new CloudFileException('S3 upload credential is invalid');
         }
 
@@ -135,7 +135,7 @@ class S3SimpleUpload extends SimpleUpload
 
         $key = ($credential['dir'] ?? '') . $appendUploadFile->getKeyPath();
 
-        if (! isset($credential['access_key_id']) || ! isset($credential['access_key_secret']) || ! isset($credential['bucket'])) {
+        if (! isset($credential['access_key_id']) || ! isset($credential['secret_access_key']) || ! isset($credential['bucket'])) {
             throw new CloudFileException('S3 upload credential is invalid');
         }
 
@@ -183,6 +183,10 @@ class S3SimpleUpload extends SimpleUpload
 
     public function listObjectsByCredential(array $credential, string $prefix = '', array $options = []): array
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $client = $this->createS3Client($credential);
 
         $params = [
@@ -208,6 +212,10 @@ class S3SimpleUpload extends SimpleUpload
 
     public function deleteObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $client = $this->createS3Client($credential);
 
         $client->deleteObject([
@@ -218,6 +226,10 @@ class S3SimpleUpload extends SimpleUpload
 
     public function copyObjectByCredential(array $credential, string $sourceKey, string $destinationKey, array $options = []): void
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $client = $this->createS3Client($credential);
 
         $client->copyObject([
@@ -229,6 +241,10 @@ class S3SimpleUpload extends SimpleUpload
 
     public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $client = $this->createS3Client($credential);
 
         $result = $client->headObject([
@@ -241,6 +257,9 @@ class S3SimpleUpload extends SimpleUpload
 
     public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
         $client = $this->createS3Client($credential);
 
         $params = [
@@ -255,6 +274,9 @@ class S3SimpleUpload extends SimpleUpload
 
     public function getPreSignedUrlByCredential(array $credential, string $objectKey, array $options = []): string
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
         $client = $this->createS3Client($credential);
 
         $command = $client->getCommand($options['method'] ?? 'GetObject', [
@@ -270,6 +292,9 @@ class S3SimpleUpload extends SimpleUpload
 
     public function deleteObjectsByCredential(array $credential, array $objectKeys, array $options = []): array
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
         $client = $this->createS3Client($credential);
 
         $objects = array_map(fn ($key) => ['Key' => $key], $objectKeys);
@@ -289,6 +314,9 @@ class S3SimpleUpload extends SimpleUpload
 
     public function setHeadObjectByCredential(array $credential, string $objectKey, array $metadata, array $options = []): void
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
         $client = $this->createS3Client($credential);
 
         // S3 requires copying the object to itself to update metadata
@@ -303,6 +331,10 @@ class S3SimpleUpload extends SimpleUpload
 
     private function createS3Client(array $credential): S3Client
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $config = [
             'version' => $credential['version'] ?? 'latest',
             'region' => $credential['region'] ?? 'us-east-1',
@@ -317,13 +349,13 @@ class S3SimpleUpload extends SimpleUpload
         if (isset($credential['session_token'])) {
             $config['credentials'] = new Credentials(
                 $credential['access_key_id'],
-                $credential['access_key_secret'],
+                $credential['secret_access_key'],
                 $credential['session_token']
             );
         } else {
             $config['credentials'] = [
                 'key' => $credential['access_key_id'],
-                'secret' => $credential['access_key_secret'],
+                'secret' => $credential['secret_access_key'],
             ];
         }
 

@@ -27,9 +27,9 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?int $maxOutputTokens = null;
 
-    protected float $creativity = 0.5;
+    protected ?float $creativity = null;
 
-    protected float $temperature = 0.7;
+    protected ?float $temperature = null;
 
     protected ?string $billingCurrency = null;
 
@@ -58,7 +58,11 @@ class ModelConfigItem extends AbstractDTO
 
     public function setMaxTokens(null|int|string $maxTokens): void
     {
-        $this->maxTokens = $maxTokens === null ? null : (int) $maxTokens;
+        if ($maxTokens === null) {
+            $this->maxTokens = null;
+        } else {
+            $this->maxTokens = (int) $maxTokens;
+        }
     }
 
     public function getVectorSize(): int
@@ -68,7 +72,11 @@ class ModelConfigItem extends AbstractDTO
 
     public function setVectorSize(null|int|string $vectorSize): void
     {
-        $this->vectorSize = $vectorSize === null ? 2048 : (int) $vectorSize;
+        if ($vectorSize === null) {
+            $this->vectorSize = 2048;
+        } else {
+            $this->vectorSize = (int) $vectorSize;
+        }
     }
 
     public function isSupportMultiModal(): bool
@@ -78,7 +86,13 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportMultiModal(null|bool|int|string $supportMultiModal): void
     {
-        $this->supportMultiModal = $this->parseBooleanValue($supportMultiModal);
+        if ($supportMultiModal === null) {
+            $this->supportMultiModal = false;
+        } elseif (is_string($supportMultiModal)) {
+            $this->supportMultiModal = in_array(strtolower($supportMultiModal), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->supportMultiModal = (bool) $supportMultiModal;
+        }
     }
 
     public function isSupportEmbedding(): bool
@@ -88,7 +102,13 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportEmbedding(null|bool|int|string $supportEmbedding): void
     {
-        $this->supportEmbedding = $this->parseBooleanValue($supportEmbedding);
+        if ($supportEmbedding === null) {
+            $this->supportEmbedding = false;
+        } elseif (is_string($supportEmbedding)) {
+            $this->supportEmbedding = in_array(strtolower($supportEmbedding), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->supportEmbedding = (bool) $supportEmbedding;
+        }
     }
 
     public function isSupportFunction(): bool
@@ -98,7 +118,13 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportFunction(null|bool|int|string $supportFunction): void
     {
-        $this->supportFunction = $this->parseBooleanValue($supportFunction);
+        if ($supportFunction === null) {
+            $this->supportFunction = false;
+        } elseif (is_string($supportFunction)) {
+            $this->supportFunction = in_array(strtolower($supportFunction), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->supportFunction = (bool) $supportFunction;
+        }
     }
 
     public function isSupportDeepThink(): bool
@@ -108,7 +134,13 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportDeepThink(null|bool|int|string $supportDeepThink): void
     {
-        $this->supportDeepThink = $this->parseBooleanValue($supportDeepThink);
+        if ($supportDeepThink === null) {
+            $this->supportDeepThink = false;
+        } elseif (is_string($supportDeepThink)) {
+            $this->supportDeepThink = in_array(strtolower($supportDeepThink), ['true', '1', 'yes', 'on']);
+        } else {
+            $this->supportDeepThink = (bool) $supportDeepThink;
+        }
     }
 
     public function isRecommended(): bool
@@ -126,42 +158,69 @@ class ModelConfigItem extends AbstractDTO
         return $this->maxOutputTokens;
     }
 
-    public function setMaxOutputTokens(?int $maxOutputTokens): void
-    {
-        $this->maxOutputTokens = $maxOutputTokens;
-    }
-
-    public function getCreativity(): float
+    public function getCreativity(): ?float
     {
         return $this->creativity;
     }
 
-    public function setCreativity(?float $creativity): void
-    {
-        if ($creativity === null || $creativity < 0 || $creativity > 2) {
-            $this->creativity = 0.5;
-        } else {
-            $this->creativity = $creativity;
-        }
-    }
-
-    public function getTemperature(): float
+    public function getTemperature(): ?float
     {
         return $this->temperature;
-    }
-
-    public function setTemperature(?float $temperature): void
-    {
-        if ($temperature === null || $temperature < 0 || $temperature > 2) {
-            $this->temperature = 0.7;
-        } else {
-            $this->temperature = $temperature;
-        }
     }
 
     public function getBillingCurrency(): ?string
     {
         return $this->billingCurrency;
+    }
+
+    public function getInputPricing(): ?string
+    {
+        return $this->inputPricing;
+    }
+
+    public function getOutputPricing(): ?string
+    {
+        return $this->outputPricing;
+    }
+
+    public function getCacheWritePricing(): ?string
+    {
+        return $this->cacheWritePricing;
+    }
+
+    public function getCacheHitPricing(): ?string
+    {
+        return $this->cacheHitPricing;
+    }
+
+    public function isOfficialRecommended(): bool
+    {
+        return $this->officialRecommended;
+    }
+
+    public function setMaxOutputTokens(?int $maxOutputTokens): void
+    {
+        $this->maxOutputTokens = $maxOutputTokens;
+    }
+
+    public function setCreativity(?float $creativity): void
+    {
+        if ($creativity !== null && ($creativity < 0 || $creativity > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.creativity_value_range_error');
+        }
+
+        $this->creativity = $creativity;
+        $this->handleCreativityAndTemperatureConflict();
+    }
+
+    public function setTemperature(?float $temperature): void
+    {
+        if ($temperature !== null && ($temperature < 0 || $temperature > 2)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'service_provider.temperature_value_range_error');
+        }
+
+        $this->temperature = $temperature;
+        $this->handleCreativityAndTemperatureConflict();
     }
 
     public function setBillingCurrency(?string $billingCurrency): void
@@ -170,59 +229,79 @@ class ModelConfigItem extends AbstractDTO
             $this->billingCurrency = null;
         } else {
             $currency = strtoupper(trim((string) $billingCurrency));
-            $this->billingCurrency = in_array($currency, ['CNY', 'USD']) ? $currency : null;
+            if (in_array($currency, ['CNY', 'USD'])) {
+                $this->billingCurrency = $currency;
+            } else {
+                $this->billingCurrency = null;
+            }
         }
-    }
-
-    public function getInputPricing(): ?string
-    {
-        return $this->inputPricing;
     }
 
     public function setInputPricing(null|float|string $inputPricing): void
     {
-        $this->inputPricing = $this->validateAndSetPricing($inputPricing);
-    }
-
-    public function getOutputPricing(): ?string
-    {
-        return $this->outputPricing;
+        if ($inputPricing === null) {
+            $this->inputPricing = null;
+        } else {
+            $pricing = (float) $inputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->inputPricing = (string) $inputPricing;
+        }
     }
 
     public function setOutputPricing(null|float|string $outputPricing): void
     {
-        $this->outputPricing = $this->validateAndSetPricing($outputPricing);
-    }
-
-    public function getCacheWritePricing(): ?string
-    {
-        return $this->cacheWritePricing;
+        if ($outputPricing === null) {
+            $this->outputPricing = null;
+        } else {
+            $pricing = (float) $outputPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->outputPricing = (string) $outputPricing;
+        }
     }
 
     public function setCacheWritePricing(null|float|string $cacheWritePricing): void
     {
-        $this->cacheWritePricing = $this->validateAndSetPricing($cacheWritePricing);
-    }
-
-    public function getCacheHitPricing(): ?string
-    {
-        return $this->cacheHitPricing;
+        if ($cacheWritePricing === null) {
+            $this->cacheWritePricing = null;
+        } else {
+            $pricing = (float) $cacheWritePricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheWritePricing = (string) $cacheWritePricing;
+        }
     }
 
     public function setCacheHitPricing(null|float|string $cacheHitPricing): void
     {
-        $this->cacheHitPricing = $this->validateAndSetPricing($cacheHitPricing);
-    }
-
-    public function isOfficialRecommended(): bool
-    {
-        return $this->officialRecommended;
+        if ($cacheHitPricing === null) {
+            $this->cacheHitPricing = null;
+        } else {
+            $pricing = (float) $cacheHitPricing;
+            if ($pricing < 0) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $this->cacheHitPricing = (string) $cacheHitPricing;
+        }
     }
 
     public function setOfficialRecommended(bool $officialRecommended): void
     {
         $this->officialRecommended = $officialRecommended;
     }
+
+    private function handleCreativityAndTemperatureConflict(): void
+    {
+        if ($this->creativity !== null && $this->temperature !== null) {
+            // 优先保留 temperature，将 creativity 设为 null
+            $this->creativity = null;
+        }
+    }
+
 
     public function getInputCost(): ?string
     {
