@@ -10,8 +10,6 @@ namespace App\Interfaces\Kernel\Facade;
 use App\Application\Kernel\DTO\GlobalConfig;
 use App\Application\Kernel\Service\MagicSettingAppService;
 use App\Application\Kernel\Service\PlatformSettingsAppService;
-use App\ErrorCode\PermissionErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Throwable;
@@ -83,15 +81,5 @@ class GlobalConfigApi
             }
         }
         return $resp;
-    }
-
-    private function isCurrentOrganizationOfficial(): bool
-    {
-        $officialOrganization = config('service_provider.office_organization');
-        $organizationCode = $this->getAuthorization()->getOrganizationCode();
-        if ($officialOrganization !== $organizationCode) {
-            ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
-        }
-        return true;
     }
 }
