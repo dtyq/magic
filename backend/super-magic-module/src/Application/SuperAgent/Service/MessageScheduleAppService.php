@@ -228,8 +228,9 @@ class MessageScheduleAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolationFromContext($requestContext);
 
         // Check project permission
-        $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-
+        if (! empty($requestDTO->getProjectId())) {
+            $this->getAccessibleProject((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        }
         $conditions = $requestDTO->buildConditions(
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
