@@ -665,13 +665,21 @@ class MessageScheduleAppService extends AbstractAppService
                 }
 
                 // 2. Get project entity
-                $projectEntity = $this->getProjectOrCreate(
-                    $dataIsolation,
-                    $messageScheduleEntity->getProjectId(),
-                    $messageScheduleEntity->getWorkspaceId(),
-                    $messageScheduleEntity->getMessageType(),
-                    $messageScheduleEntity->getMessageContent(),
-                );
+                if (empty($messageScheduleEntity->getWorkspaceId())) {
+                    $projectEntity = $this->getAccessibleProjectWithEditor(
+                        $messageScheduleEntity->getProjectId(),
+                        $messageScheduleEntity->getUserId(),
+                        $messageScheduleEntity->getOrganizationCode()
+                    );
+                } else {
+                    $projectEntity = $this->getProjectOrCreate(
+                        $dataIsolation,
+                        $messageScheduleEntity->getProjectId(),
+                        $messageScheduleEntity->getWorkspaceId(),
+                        $messageScheduleEntity->getMessageType(),
+                        $messageScheduleEntity->getMessageContent(),
+                    );
+                }
 
                 // Set project MCP configuration if plugins are configured
                 if (! empty($messageScheduleEntity->getPlugins())) {
@@ -789,7 +797,7 @@ class MessageScheduleAppService extends AbstractAppService
         // If project id is not empty, get it directly
         if (! empty($projectId)) {
             // Check Project Permission
-            return $this->getAccessibleProjectWithEditor($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            return $this->projectDomainService->getProjectNotUserId($projectId);
         }
         // If it doesn't exist, create it
         $newProjectId = IdGenerator::getSnowId();
