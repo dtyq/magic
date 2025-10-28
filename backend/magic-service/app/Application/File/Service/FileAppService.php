@@ -206,6 +206,10 @@ class FileAppService extends AbstractAppService
         return $this->defaultFileDomainService->deleteByKey($fileKey, $organizationCode);
     }
 
+    /**
+     * use getStsTemporaryCredentialV2
+     * @deprecated
+     */
     public function getStsTemporaryCredential(Authenticatable $authorization, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true): array
     {
         $organizationCode = $this->getOrganizationCode($authorization);
@@ -234,7 +238,7 @@ class FileAppService extends AbstractAppService
         return $data;
     }
 
-    public function getStsTemporaryCredentialV2(string $organizationCode, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true, ?string $projectOrganizationCode = null): array
+    public function getStsTemporaryCredentialV2(string $organizationCode, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true): array
     {
         // 调用文件服务获取STS Token
         $data = $this->fileDomainService->getStsTemporaryCredential(
