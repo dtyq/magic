@@ -139,6 +139,24 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.move_operation_busy')]
     case FILE_OPERATION_BUSY = 51177;
 
+    #[ErrorMessage('file.file_replace_failed')]
+    case FILE_REPLACE_FAILED = 51178;
+
+    #[ErrorMessage('file.cannot_replace_directory')]
+    case FILE_OPERATION_NOT_ALLOWED = 51179;
+
+    #[ErrorMessage('file.source_file_not_found_in_storage')]
+    case SOURCE_FILE_NOT_FOUND_IN_STORAGE = 51180;
+
+    #[ErrorMessage('file.target_file_already_exists')]
+    case TARGET_FILE_ALREADY_EXISTS = 51181;
+
+    #[ErrorMessage('file.file_is_being_edited')]
+    case FILE_IS_BEING_EDITED = 51182;
+
+    #[ErrorMessage('file.source_file_key_illegal')]
+    case SOURCE_FILE_KEY_ILLEGAL = 51183;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;

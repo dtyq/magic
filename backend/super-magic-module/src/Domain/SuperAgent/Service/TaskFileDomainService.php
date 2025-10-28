@@ -1742,6 +1742,45 @@ class TaskFileDomainService
     }
 
     /**
+     * Get file information from cloud storage.
+     *
+     * @param string $fileKey File key
+     * @param string $organizationCode Organization code
+     * @return array File information
+     */
+    public function getFileInfoFromCloudStorage(string $fileKey, string $organizationCode): array
+    {
+        if (WorkDirectoryUtil::isValidDirectoryName($fileKey)) {
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        }
+
+        try {
+            $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
+            return [
+                'size' => $headObjectResult['content_length'] ?? 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        } catch (Throwable $e) {
+            // File not found or other cloud storage error
+            $this->logger->warning(
+                'Failed to get file info from cloud storage',
+                [
+                    'file_key' => $fileKey,
+                    'organization_code' => $organizationCode,
+                    'error' => $e->getMessage(),
+                ]
+            );
+            return [
+                'size' => 0,
+                'last_modified' => date('Y-m-d H:i:s'),
+            ];
+        }
+    }
+
+    /**
      * Ensure the complete directory path exists, creating missing directories.
      *
      * @param int $projectId Project ID
@@ -1850,45 +1889,6 @@ class TaskFileDomainService
         $this->insert($dirEntity);
 
         return $dirEntity->getFileId();
-    }
-
-    /**
-     * Get file information from cloud storage.
-     *
-     * @param string $fileKey File key
-     * @param string $organizationCode Organization code
-     * @return array File information
-     */
-    private function getFileInfoFromCloudStorage(string $fileKey, string $organizationCode): array
-    {
-        if (WorkDirectoryUtil::isValidDirectoryName($fileKey)) {
-            return [
-                'size' => 0,
-                'last_modified' => date('Y-m-d H:i:s'),
-            ];
-        }
-
-        try {
-            $headObjectResult = $this->cloudFileRepository->getHeadObjectByCredential($organizationCode, $fileKey, StorageBucketType::SandBox);
-            return [
-                'size' => $headObjectResult['content_length'] ?? 0,
-                'last_modified' => date('Y-m-d H:i:s'),
-            ];
-        } catch (Throwable $e) {
-            // File not found or other cloud storage error
-            $this->logger->warning(
-                'Failed to get file info from cloud storage',
-                [
-                    'file_key' => $fileKey,
-                    'organization_code' => $organizationCode,
-                    'error' => $e->getMessage(),
-                ]
-            );
-            return [
-                'size' => 0,
-                'last_modified' => date('Y-m-d H:i:s'),
-            ];
-        }
     }
 
     /**

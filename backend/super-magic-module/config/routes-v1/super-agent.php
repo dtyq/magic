@@ -194,6 +194,8 @@ Router::addGroup(
             Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
             // 文件回滚到指定版本
             Router::post('/{id}/rollback', [FileApi::class, 'rollbackFileToVersion']);
+            // 替换文件
+            Router::post('/{id}/replace', [FileApi::class, 'replaceFile']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
             // 批量删除文件
