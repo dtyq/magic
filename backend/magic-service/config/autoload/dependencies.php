@@ -166,11 +166,13 @@ use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\OperationPermissionRepository;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
+use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderOriginalModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\MagicProviderAndModelsRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
+use App\Domain\Provider\Repository\Persistence\ProviderModelConfigVersionRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderOriginalModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderRepository;
@@ -317,6 +319,7 @@ $dependencies = [
     ProviderRepositoryInterface::class => ProviderRepository::class,
     ProviderConfigRepositoryInterface::class => ProviderConfigRepository::class,
     ProviderModelRepositoryInterface::class => ProviderModelRepository::class,
+    ProviderModelConfigVersionRepositoryInterface::class => ProviderModelConfigVersionRepository::class,
     ProviderOriginalModelRepositoryInterface::class => ProviderOriginalModelRepository::class,
     MagicProviderAndModelsInterface::class => MagicProviderAndModelsRepository::class,
     // mcp
