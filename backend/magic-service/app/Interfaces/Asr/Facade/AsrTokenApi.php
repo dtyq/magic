@@ -294,8 +294,8 @@ class AsrTokenApi extends AbstractApi
             $businessDirectory = $this->generateAsrUploadDirectory($userId, $taskKey);
         }
         // 调用FileAppService获取STS Token（使用业务目录）
-        $tokenData = $this->fileAppService->getStsTemporaryCredential(
-            $userAuthorization,
+        $tokenData = $this->fileAppService->getStsTemporaryCredentialV2(
+            $organizationCode,
             $storageType,
             $businessDirectory,
             $expires, // 最大有效期只能一个小时，前端需要报错重新获取
