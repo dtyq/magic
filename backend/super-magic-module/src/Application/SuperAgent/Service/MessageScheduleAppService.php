@@ -640,10 +640,6 @@ class MessageScheduleAppService extends AbstractAppService
                     $messageScheduleEntity->getMessageType(),
                     $messageScheduleEntity->getMessageContent(),
                 );
-                if (! $projectEntity) {
-                    $this->logger->warning('Project not found', ['project_id' => $messageScheduleEntity->getProjectId()]);
-                    throw new RuntimeException('Project not found');
-                }
 
                 // Set project MCP configuration if plugins are configured
                 if (! empty($messageScheduleEntity->getPlugins())) {
@@ -756,11 +752,12 @@ class MessageScheduleAppService extends AbstractAppService
         }
     }
 
-    private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent): ?ProjectEntity
+    private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent): ProjectEntity
     {
         // If project id is not empty, get it directly
         if (! empty($projectId)) {
-            return $this->projectDomainService->getProjectNotUserId($projectId);
+            // Check Project Permission
+            return $this->getAccessibleProjectWithEditor($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
         }
         // If it doesn't exist, create it
         $newProjectId = IdGenerator::getSnowId();
