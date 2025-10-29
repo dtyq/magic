@@ -154,6 +154,7 @@ class AsrApi extends AbstractApi
         $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. 验证参数
+        /** @var AsrRecordingTypeEnum $recordingType */
         [$taskKey, $topicId, $projectId, $recordingType] = $this->validateUploadTokenParams($request, $userId);
 
         $this->logger->info('getUploadToken 开始处理', [
@@ -177,22 +178,22 @@ class AsrApi extends AbstractApi
             // 3. 创建或更新任务状态
             $taskStatus = $this->createOrUpdateTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
 
-            // 3.1 如果是前端录音类型，创建 .asr_states 目录
-            if ($recordingType !== AsrRecordingTypeEnum::FILE_UPLOAD) {
-                try {
-                    $statesDir = $this->directoryService->createStatesDirectory($organizationCode, $projectId, $userId);
-                    $this->logger->info('.asr_states 目录创建或确认存在', [
-                        'task_key' => $taskKey,
-                        'states_dir_id' => $statesDir->directoryId,
-                        'states_dir_path' => $statesDir->directoryPath,
-                    ]);
-                } catch (Throwable $e) {
-                    // .asr_states 目录创建失败不影响主流程
-                    $this->logger->warning('创建 .asr_states 目录失败', [
-                        'task_key' => $taskKey,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+            // 3.1 创建 .asr_states 目录（所有录音类型都需要）
+            try {
+                $statesDir = $this->directoryService->createStatesDirectory($organizationCode, $projectId, $userId);
+                $this->logger->info('.asr_states 目录创建或确认存在', [
+                    'task_key' => $taskKey,
+                    'recording_type' => $recordingType->value,
+                    'states_dir_id' => $statesDir->directoryId,
+                    'states_dir_path' => $statesDir->directoryPath,
+                ]);
+            } catch (Throwable $e) {
+                // .asr_states 目录创建失败不影响主流程
+                $this->logger->warning('创建 .asr_states 目录失败', [
+                    'task_key' => $taskKey,
+                    'recording_type' => $recordingType->value,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             // 4. 获取STS Token

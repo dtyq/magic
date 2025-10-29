@@ -13,8 +13,8 @@ namespace App\Application\Speech\Enum;
  * 【作用域】接口参数 - /api/v1/asr/upload-tokens
  * 【用途】区分录音来源类型，决定是否创建预设文件
  * 【使用场景】
- * - 前端录音：实时录音生成音频，不需要预设笔记和流式识别文件
- * - 文件上传：用户直传录音文件，需要预设笔记和流式识别文件
+ * - 前端录音：实时录音生成音频，需要预设笔记和流式识别文件供前端实时写入
+ * - 文件上传：用户直传录音文件，不需要预设文件（已有完整录音）
  */
 enum AsrRecordingTypeEnum: string
 {
@@ -38,8 +38,8 @@ enum AsrRecordingTypeEnum: string
     public function needsPresetFiles(): bool
     {
         return match ($this) {
-            self::FRONTEND_RECORDING => false,  // 前端录音不需要预设文件
-            self::FILE_UPLOAD => true,          // 文件上传需要预设文件
+            self::FRONTEND_RECORDING => true,   // 前端录音需要预设文件（实时写入）
+            self::FILE_UPLOAD => false,         // 文件上传不需要预设文件（已有录音）
         };
     }
 
