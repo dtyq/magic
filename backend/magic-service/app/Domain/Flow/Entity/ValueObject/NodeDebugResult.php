@@ -15,12 +15,12 @@ class NodeDebugResult extends AbstractValueObject
     /**
      * Maximum number of loop results to keep at the beginning.
      */
-    private const MAX_LOOP_RESULTS_HEAD = 5;
+    private const MAX_LOOP_RESULTS_HEAD = 10;
 
     /**
      * Maximum number of loop results to keep at the end.
      */
-    private const MAX_LOOP_RESULTS_TAIL = 5;
+    private const MAX_LOOP_RESULTS_TAIL = 10;
 
     /**
      *  节点是否执行成功
