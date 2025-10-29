@@ -167,13 +167,21 @@ class AsrHeartbeatMonitor
      */
     private function shouldTriggerAutoSummary(AsrTaskStatusDTO $taskStatus): bool
     {
+        // 如果已取消，不触发
+        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
+            return false;
+        }
+
         // 如果处于暂停状态，不触发
         if ($taskStatus->isPaused) {
             return false;
         }
 
         // 如果录音状态不是 start 或 recording，不触发
-        if (! in_array($taskStatus->recordingStatus, ['start', 'recording'], true)) {
+        if (! in_array($taskStatus->recordingStatus, [
+            AsrRecordingStatusEnum::START->value,
+            AsrRecordingStatusEnum::RECORDING->value,
+        ], true)) {
             return false;
         }
 
@@ -222,22 +230,8 @@ class AsrHeartbeatMonitor
             $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
             $organizationCode = $taskStatus->organizationCode ?? $userAuthorization->getOrganizationCode();
 
-            // 更新任务状态为 stopped
-            $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
-            $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
-
-            // 调用 handleStatusReport 来触发 stopped 状态（触发自动总结）
-            $this->asrFileAppService->handleStatusReport(
-                $taskStatus->taskKey,
-                AsrRecordingStatusEnum::STOPPED,  // 使用枚举
-                $taskStatus->modelId ?? '',
-                $taskStatus->asrStreamContent ?? '',  // ASR 流式内容
-                $taskStatus->noteContent,             // 笔记内容
-                $taskStatus->noteFileType,            // 笔记文件类型
-                $taskStatus->language ?? 'zh_CN',     // 语种
-                $taskStatus->userId,
-                $organizationCode
-            );
+            // 直接调用自动总结方法（会在方法内部更新状态）
+            $this->asrFileAppService->autoTriggerSummary($taskStatus, $taskStatus->userId, $organizationCode);
 
             $this->logger->info('心跳超时自动总结已触发', [
                 'task_key' => $taskStatus->taskKey,

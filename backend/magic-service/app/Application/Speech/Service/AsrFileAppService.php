@@ -164,18 +164,21 @@ readonly class AsrFileAppService
             return;
         }
         try {
-            // 1. 获取话题及会话信息
-            $topicEntity = $this->validationService->validateTopicOwnership((int) $summaryRequest->topicId, $userId);
-            $chatTopicId = $topicEntity->getChatTopicId();
-            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
-
-            // 2. 准备任务状态
+            // 1. 准备任务状态
             if ($summaryRequest->hasFileId()) {
                 $taskStatus = $this->createVirtualTaskStatusFromFileId($summaryRequest, $userId);
             } else {
                 $taskStatus = $this->validationService->validateTaskStatus($summaryRequest->taskKey, $userId);
+            }
 
-                // 2.1 幂等性检查：如果总结已完成，直接返回（只发送消息，不重复处理）
+            // 2. 使用 Redis 中保存的 topic_id 获取话题及会话信息
+            $topicEntity = $this->validationService->validateTopicOwnership((int) $taskStatus->topicId, $userId);
+            $chatTopicId = $topicEntity->getChatTopicId();
+            $conversationId = $this->magicChatDomainService->getConversationIdByTopicId($chatTopicId);
+
+            // 3. 准备任务状态的后续处理
+            if (! $summaryRequest->hasFileId()) {
+                // 3.1 幂等性检查：如果总结已完成，直接返回（只发送消息，不重复处理）
                 if ($taskStatus->isSummaryCompleted()) {
                     $this->logger->info('检测到总结已完成，跳过重复处理，仅重新发送消息', [
                         'task_key' => $summaryRequest->taskKey,
@@ -189,7 +192,7 @@ readonly class AsrFileAppService
                         $organizationCode,
                         $summaryRequest->projectId,
                         $userId,
-                        $summaryRequest->topicId,
+                        $taskStatus->topicId,
                         $chatTopicId,
                         $conversationId,
                         $summaryRequest->modelId
@@ -199,7 +202,7 @@ readonly class AsrFileAppService
                     return;
                 }
 
-                // 2.2 如果录音未停止，先执行录音终止逻辑
+                // 3.2 如果录音未停止，先执行录音终止逻辑
                 if (in_array($taskStatus->recordingStatus, [
                     AsrRecordingStatusEnum::START->value,
                     AsrRecordingStatusEnum::RECORDING->value,
@@ -246,13 +249,13 @@ readonly class AsrFileAppService
                 }
             }
 
-            // 3. 发送总结消息
+            // 4. 发送总结消息
             $processSummaryTaskDTO = new ProcessSummaryTaskDTO(
                 $taskStatus,
                 $organizationCode,
                 $summaryRequest->projectId,
                 $userId,
-                $summaryRequest->topicId,
+                $taskStatus->topicId,
                 $chatTopicId,
                 $conversationId,
                 $summaryRequest->modelId
@@ -261,14 +264,14 @@ readonly class AsrFileAppService
             $userAuthorization = $this->getUserAuthorizationFromUserId($userId);
             $this->sendSummaryChatMessage($processSummaryTaskDTO, $userAuthorization);
 
-            // 4. 标记任务为已完成（幂等性保证）
+            // 5. 标记任务为已完成（幂等性保证）
             $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
             $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
 
-            // 5. 保存任务状态
+            // 6. 保存任务状态
             $this->asrTaskDomainService->saveTaskStatus($taskStatus);
 
-            // 6. 清理流式识别文件（总结完成后不再需要）
+            // 7. 清理流式识别文件（总结完成后不再需要）
             if (! empty($taskStatus->presetTranscriptFileId)) {
                 $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
             }
@@ -376,9 +379,86 @@ readonly class AsrFileAppService
             AsrRecordingStatusEnum::START => $this->handleStartRecording($taskStatus, $userId, $organizationCode),
             AsrRecordingStatusEnum::RECORDING => $this->handleRecordingHeartbeat($taskStatus),
             AsrRecordingStatusEnum::PAUSED => $this->handlePauseRecording($taskStatus),
-            AsrRecordingStatusEnum::STOPPED => $this->handleStopRecording($taskStatus, $userId, $organizationCode),
-            AsrRecordingStatusEnum::CANCELED => $this->handleCancelRecording($taskStatus, $userId, $organizationCode),
+            AsrRecordingStatusEnum::STOPPED => $this->handleStopRecording($taskStatus),
+            AsrRecordingStatusEnum::CANCELED => $this->handleCancelRecording($taskStatus),
         };
+    }
+
+    /**
+     * 自动触发总结（用于心跳超时定时任务）.
+     */
+    public function autoTriggerSummary(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): void
+    {
+        $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $taskStatus->taskKey);
+        $lockOwner = sprintf('%s:%s:%s', $userId, $taskStatus->taskKey, microtime(true));
+        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
+        if (! $locked) {
+            $this->logger->warning('获取自动总结锁失败，跳过本次处理', [
+                'task_key' => $taskStatus->taskKey,
+                'user_id' => $userId,
+            ]);
+            return;
+        }
+        try {
+            // 幂等性检查：如果总结已完成，跳过处理
+            if ($taskStatus->isSummaryCompleted()) {
+                $this->logger->info('检测到自动总结已完成，跳过重复处理', [
+                    'task_key' => $taskStatus->taskKey,
+                    'audio_file_id' => $taskStatus->audioFileId,
+                    'status' => $taskStatus->status->value,
+                ]);
+                return;
+            }
+
+            $this->logger->info('开始自动总结', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+            ]);
+
+            // 生成标题
+            $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
+
+            // 重命名显示目录
+            if (! empty($fileTitle)) {
+                $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
+                    $taskStatus,
+                    $fileTitle,
+                    $taskStatus->projectId,
+                    $this->titleGeneratorService
+                );
+                $taskStatus->displayDirectory = $newDisplayDirectory;
+            }
+
+            // 合并音频
+            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
+
+            // 发送聊天消息
+            $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
+
+            // 标记任务为已完成（幂等性保证）
+            $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
+            $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
+            $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
+            // 清理流式识别文件（总结完成后不再需要）
+            if (! empty($taskStatus->presetTranscriptFileId)) {
+                $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
+            }
+
+            $this->logger->info('自动总结完成', [
+                'task_key' => $taskStatus->taskKey,
+                'audio_file_id' => $taskStatus->audioFileId,
+                'status' => $taskStatus->status->value,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('自动总结失败', [
+                'task_key' => $taskStatus->taskKey,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        } finally {
+            $this->locker->release($lockName, $lockOwner);
+        }
     }
 
     /**
@@ -720,7 +800,7 @@ readonly class AsrFileAppService
     /**
      * 处理停止录音.
      */
-    private function handleStopRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
+    private function handleStopRecording(AsrTaskStatusDTO $taskStatus): bool
     {
         // 幂等性检查：如果录音已停止，跳过重复处理
         if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value) {
@@ -734,25 +814,13 @@ readonly class AsrFileAppService
         $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
         $this->asrTaskDomainService->saveTaskStatusAndDeleteHeartbeat($taskStatus);
 
-        // 只在任务未完成时触发自动总结
-        if (! $taskStatus->isSummaryCompleted()) {
-            $language = $this->translator->getLocale();
-            $requestId = CoContext::getRequestId();
-
-            Coroutine::create(function () use ($taskStatus, $userId, $organizationCode, $language, $requestId) {
-                $this->translator->setLocale($language);
-                CoContext::setRequestId($requestId);
-                $this->autoTriggerSummary($taskStatus, $userId, $organizationCode);
-            });
-        }
-
         return true;
     }
 
     /**
      * 处理取消录音.
      */
-    private function handleCancelRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
+    private function handleCancelRecording(AsrTaskStatusDTO $taskStatus): bool
     {
         // 幂等性检查：如果录音已取消，跳过重复处理
         if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
@@ -802,83 +870,6 @@ readonly class AsrFileAppService
         ]);
 
         return true;
-    }
-
-    /**
-     * 自动触发总结.
-     */
-    private function autoTriggerSummary(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): void
-    {
-        $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $taskStatus->taskKey);
-        $lockOwner = sprintf('%s:%s:%s', $userId, $taskStatus->taskKey, microtime(true));
-        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
-        if (! $locked) {
-            $this->logger->warning('获取自动总结锁失败，跳过本次处理', [
-                'task_key' => $taskStatus->taskKey,
-                'user_id' => $userId,
-            ]);
-            return;
-        }
-        try {
-            // 幂等性检查：如果总结已完成，跳过处理
-            if ($taskStatus->isSummaryCompleted()) {
-                $this->logger->info('检测到自动总结已完成，跳过重复处理', [
-                    'task_key' => $taskStatus->taskKey,
-                    'audio_file_id' => $taskStatus->audioFileId,
-                    'status' => $taskStatus->status->value,
-                ]);
-                return;
-            }
-
-            $this->logger->info('开始自动总结', [
-                'task_key' => $taskStatus->taskKey,
-                'project_id' => $taskStatus->projectId,
-            ]);
-
-            // 生成标题
-            $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
-
-            // 重命名显示目录
-            if (! empty($fileTitle)) {
-                $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
-                    $taskStatus,
-                    $fileTitle,
-                    $taskStatus->projectId,
-                    $this->titleGeneratorService
-                );
-                $taskStatus->displayDirectory = $newDisplayDirectory;
-            }
-
-            // 合并音频
-            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
-
-            // 发送聊天消息
-            $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
-
-            // 标记任务为已完成（幂等性保证）
-            $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
-            $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
-            $this->asrTaskDomainService->saveTaskStatus($taskStatus);
-
-            // 清理流式识别文件（总结完成后不再需要）
-            if (! empty($taskStatus->presetTranscriptFileId)) {
-                $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
-            }
-
-            $this->logger->info('自动总结完成', [
-                'task_key' => $taskStatus->taskKey,
-                'audio_file_id' => $taskStatus->audioFileId,
-                'status' => $taskStatus->status->value,
-            ]);
-        } catch (Throwable $e) {
-            $this->logger->error('自动总结失败', [
-                'task_key' => $taskStatus->taskKey,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-        } finally {
-            $this->locker->release($lockName, $lockOwner);
-        }
     }
 
     /**
