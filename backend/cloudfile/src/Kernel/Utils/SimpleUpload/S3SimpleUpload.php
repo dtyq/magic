@@ -279,7 +279,19 @@ class S3SimpleUpload extends SimpleUpload
         }
         $client = $this->createS3Client($credential);
 
-        $command = $client->getCommand($options['method'] ?? 'GetObject', [
+        // HTTP 方法转换为 S3 API 操作名
+        // OSS/TOS 使用 HTTP 方法（GET, PUT），但 S3 需要 API 操作名（GetObject, PutObject）
+        $httpMethod = strtoupper($options['method'] ?? 'GET');
+        $methodMap = [
+            'GET' => 'GetObject',
+            'PUT' => 'PutObject',
+            'POST' => 'PostObject',
+            'DELETE' => 'DeleteObject',
+            'HEAD' => 'HeadObject',
+        ];
+        $s3Operation = $methodMap[$httpMethod] ?? 'GetObject';
+
+        $command = $client->getCommand($s3Operation, [
             'Bucket' => $credential['bucket'],
             'Key' => $objectKey,
         ]);
