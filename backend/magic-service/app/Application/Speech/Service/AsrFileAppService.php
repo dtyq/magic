@@ -594,7 +594,7 @@ readonly class AsrFileAppService
     }
 
     /**
-     * 根据任务状态构建文件数据.
+     * 根据任务状态构建音频文件数据.
      */
     private function buildFileDataFromTaskStatus(AsrTaskStatusDTO $taskStatus): AsrFileDataDTO
     {
@@ -614,13 +614,43 @@ readonly class AsrFileAppService
     }
 
     /**
+     * 根据任务状态构建笔记文件数据.
+     */
+    private function buildNoteFileDataFromTaskStatus(AsrTaskStatusDTO $taskStatus): ?AsrFileDataDTO
+    {
+        $noteFileId = $taskStatus->noteFileId;
+        if (empty($noteFileId)) {
+            return null;
+        }
+
+        $fileEntity = $this->taskFileDomainService->getById((int) $noteFileId);
+        if ($fileEntity === null) {
+            $this->logger->warning('笔记文件不存在', [
+                'task_key' => $taskStatus->taskKey,
+                'note_file_id' => $noteFileId,
+            ]);
+            return null;
+        }
+
+        $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($fileEntity->getFileKey());
+
+        return AsrFileDataDTO::fromTaskFileEntity($fileEntity, $workspaceRelativePath);
+    }
+
+    /**
      * 发送总结聊天消息.
      */
     private function sendSummaryChatMessage(ProcessSummaryTaskDTO $dto, MagicUserAuthorization $userAuthorization): void
     {
         try {
+            // 构建音频文件数据
             $audioFileData = $this->buildFileDataFromTaskStatus($dto->taskStatus);
-            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData);
+
+            // 构建笔记文件数据（如果存在）
+            $noteFileData = $this->buildNoteFileDataFromTaskStatus($dto->taskStatus);
+
+            // 构建聊天消息（包含笔记文件）
+            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData);
 
             // 记录消息详细内容
             $messageData = $chatRequest->getData()->getMessage()->getMagicMessage();
@@ -633,6 +663,7 @@ readonly class AsrFileAppService
                 'audio_file_id' => $dto->taskStatus->audioFileId,
                 'audio_file_path' => $dto->taskStatus->filePath,
                 'note_file_id' => $dto->taskStatus->noteFileId,
+                'has_note_file' => $noteFileData !== null,
                 'message_content' => $messageData->toArray(),
                 'is_queued' => $this->shouldQueueMessage($dto->topicId),
             ]);
@@ -863,6 +894,76 @@ readonly class AsrFileAppService
         }
         if (! empty($taskStatus->presetNoteFileId)) {
             $this->presetFileService->deleteTranscriptFile($taskStatus->presetNoteFileId);
+        }
+
+        // 清理正式笔记文件
+        if (! empty($taskStatus->noteFileId)) {
+            try {
+                $this->taskFileDomainService->deleteById((int) $taskStatus->noteFileId);
+                $this->logger->info('删除笔记文件成功', [
+                    'task_key' => $taskStatus->taskKey,
+                    'note_file_id' => $taskStatus->noteFileId,
+                ]);
+            } catch (Throwable $e) {
+                $this->logger->warning('删除笔记文件失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'note_file_id' => $taskStatus->noteFileId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 清理已合并的音频文件
+        if (! empty($taskStatus->audioFileId)) {
+            try {
+                $this->taskFileDomainService->deleteById((int) $taskStatus->audioFileId);
+                $this->logger->info('删除音频文件成功', [
+                    'task_key' => $taskStatus->taskKey,
+                    'audio_file_id' => $taskStatus->audioFileId,
+                ]);
+            } catch (Throwable $e) {
+                $this->logger->warning('删除音频文件失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'audio_file_id' => $taskStatus->audioFileId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 清理隐藏目录（包含目录下的所有文件）
+        if (! empty($taskStatus->tempHiddenDirectoryId)) {
+            try {
+                $this->taskFileDomainService->deleteById((int) $taskStatus->tempHiddenDirectoryId);
+                $this->logger->info('删除隐藏目录成功', [
+                    'task_key' => $taskStatus->taskKey,
+                    'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
+                    'hidden_directory_path' => $taskStatus->tempHiddenDirectory,
+                ]);
+            } catch (Throwable $e) {
+                $this->logger->warning('删除隐藏目录失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 清理显示目录（包含目录下的所有文件）
+        if (! empty($taskStatus->displayDirectoryId)) {
+            try {
+                $this->taskFileDomainService->deleteById((int) $taskStatus->displayDirectoryId);
+                $this->logger->info('删除显示目录成功', [
+                    'task_key' => $taskStatus->taskKey,
+                    'display_directory_id' => $taskStatus->displayDirectoryId,
+                    'display_directory_path' => $taskStatus->displayDirectory,
+                ]);
+            } catch (Throwable $e) {
+                $this->logger->warning('删除显示目录失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'display_directory_id' => $taskStatus->displayDirectoryId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $this->logger->info('录音取消处理完成', [
