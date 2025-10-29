@@ -301,13 +301,15 @@ class S3Expand implements ExpandInterface
 
         return [
             'region' => $this->config['region'] ?? 'us-east-1',
-            'access_key_id' => $credentials['AccessKeyId'],
-            'access_key_secret' => $credentials['SecretAccessKey'],
-            'session_token' => $credentials['SessionToken'],
+            'credentials' => [
+                'access_key_id' => $credentials['AccessKeyId'],
+                'access_key_secret' => $credentials['SecretAccessKey'],
+                'session_token' => $credentials['SessionToken'],
+                'expiration' => $credentials['Expiration'],
+            ],
             'bucket' => $this->getBucket(),
             'dir' => $credentialPolicy->getDir(),
             'expires' => $expires,
-            'expiration' => $credentials['Expiration'],
             'callback' => '',
         ];
     }
@@ -335,7 +337,7 @@ class S3Expand implements ExpandInterface
 
             return new FileMetadata(
                 $path,
-                $result['ContentLength'] ?? 0,
+                $result['ContentLength'] ?? '',
                 $result['ContentType'] ?? '',
                 strtotime($result['LastModified'] ?? 'now'),
                 $result['ETag'] ?? ''
