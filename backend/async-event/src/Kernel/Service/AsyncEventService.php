@@ -54,6 +54,13 @@ class AsyncEventService
         return $this->asyncEventRepository->getById($recordId);
     }
 
+    public function markAsExecuting(int $recordId): void
+    {
+        $this->asyncEventRepository->updateById($recordId, [
+            'status' => Status::STATE_IN_EXECUTION,
+        ]);
+    }
+
     public function complete(int $recordId)
     {
         $this->asyncEventRepository->updateById($recordId, [

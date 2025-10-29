@@ -72,6 +72,7 @@ class AsyncEventDispatcher implements EventDispatcherInterface
                         $listener($event);
                         $this->asyncEventService->delete($recordId);
                     } catch (Throwable $exception) {
+                        $this->asyncEventService->markAsExecuting($recordId);
                     } finally {
                         $this->dump($recordId, $listenerName, $eventName, $exception);
                     }
