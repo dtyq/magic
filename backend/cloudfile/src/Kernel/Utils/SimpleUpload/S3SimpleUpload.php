@@ -358,7 +358,7 @@ class S3SimpleUpload extends SimpleUpload
         }
 
         // Check if using temporary credentials (STS)
-        if (isset($credential['session_token'])) {
+        if (isset($credential['credentials']['session_token'])) {
             $config['credentials'] = new Credentials(
                 $credential['credentials']['access_key_id'],
                 $credential['credentials']['secret_access_key'],
