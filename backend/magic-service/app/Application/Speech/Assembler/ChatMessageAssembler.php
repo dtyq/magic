@@ -180,23 +180,4 @@ readonly class ChatMessageAssembler
             ],
         ];
     }
-
-    /**
-     * 提取工作区下的相对路径.
-     *
-     * 从完整路径中提取相对于workspace/的相对路径
-     * 例如：DT001/588417216353927169/project_821749697183776769/workspace/录音总结_20250908_153820/原始录音文件.webm
-     * 返回：录音总结_20250908_153820/原始录音文件.webm
-     *
-     * 如果传入的已经是相对路径，直接返回原始路径
-     *
-     * @deprecated 请使用 AsrAssembler::extractWorkspaceRelativePath() 代替
-     * @param string $fullPath 完整文件路径或相对路径
-     * @return string 工作区相对路径或原始路径
-     */
-    public function extractWorkspaceRelativePath(string $fullPath): string
-    {
-        // 向后兼容：委托给 AsrAssembler 处理
-        return AsrAssembler::extractWorkspaceRelativePath($fullPath);
-    }
 }
