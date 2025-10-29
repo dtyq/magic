@@ -70,6 +70,7 @@ return [
             'project_id_required' => 'Project ID parameter is required',
             'chat_topic_id_required' => 'Chat topic ID parameter is required',
             'model_id_required' => 'Model ID parameter is required',
+            'invalid_recording_type' => 'Invalid recording type: :type, valid values: frontend_recording, file_upload',
             'retry_files_uploaded' => 'Files have been re-uploaded to project workspace',
             'file_required' => 'File parameter is required',
             'task_not_found' => 'Task not found or expired',

@@ -251,6 +251,12 @@ class HandleUserMessageAppService extends AbstractAppService
             $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
+            // Add dynamic params to task context (if present)
+            if ($userMessageDTO->getDynamicParams() !== null) {
+                $existingDynamicConfig = $taskContext->getDynamicConfig();
+                $taskContext = $taskContext->setDynamicConfig(array_merge($existingDynamicConfig, $userMessageDTO->getDynamicParams()));
+            }
+
             // Create and send message to agent
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);

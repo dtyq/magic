@@ -25,13 +25,17 @@ interface AsrRecorderInterface
      * @param string $taskKey 任务键
      * @param string $sourceDir 音频分片目录（相对路径）
      * @param string $workspaceDir 工作区目录，默认 .workspace
+     * @param null|AsrNoteFileConfig $noteFileConfig 笔记文件配置对象（可选）
+     * @param null|AsrTranscriptFileConfig $transcriptFileConfig 流式识别配置对象（可选）
      * @return AsrRecorderResponse 响应结果
      */
     public function startTask(
         string $sandboxId,
         string $taskKey,
         string $sourceDir,
-        string $workspaceDir = '.workspace'
+        string $workspaceDir = '.workspace',
+        ?AsrNoteFileConfig $noteFileConfig = null,
+        ?AsrTranscriptFileConfig $transcriptFileConfig = null
     ): AsrRecorderResponse;
 
     /**

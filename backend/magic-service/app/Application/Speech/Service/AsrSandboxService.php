@@ -73,12 +73,19 @@ readonly class AsrSandboxService
             'actual_sandbox_id' => $actualSandboxId,
         ]);
 
+        // 构建文件配置对象（复用公共方法）
+        $noteFileConfig = $this->buildNoteFileConfig($taskStatus);
+        $transcriptFileConfig = $this->buildTranscriptFileConfig($taskStatus);
+
         // 调用沙箱启动任务
         // 注意：沙箱 API 只接受工作区相对路径 (如: .asr_recordings/session_xxx)
         $response = $this->asrRecorder->startTask(
             $actualSandboxId,
             $taskStatus->taskKey,
-            $taskStatus->tempHiddenDirectory  // 如: .asr_recordings/session_xxx
+            $taskStatus->tempHiddenDirectory,  // 如: .asr_recordings/session_xxx
+            '.workspace',
+            $noteFileConfig,
+            $transcriptFileConfig
         );
 
         if (! $response->isSuccess()) {
@@ -174,25 +181,15 @@ readonly class AsrSandboxService
             outputFilename: $intelligentTitle              // 如: 被讨厌的勇气
         );
 
-        // 构建笔记文件配置对象
-        $noteFileConfig = null;
-        if (! empty($taskStatus->presetNoteFilePath)) {
-            $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetNoteFilePath);
-            $noteFilename = basename($workspaceRelativePath);
-            $noteFileConfig = new AsrNoteFileConfig(
-                sourcePath: $workspaceRelativePath,  // 如: 录音总结_20251027_230949/笔记.md
-                targetPath: rtrim($taskStatus->displayDirectory, '/') . '/' . $intelligentTitle . '-' . $noteFilename // 如: 录音总结_20251027_230949/被讨厌的勇气-笔记.md
-            );
-        }
+        // 构建笔记文件配置对象（需要重命名）
+        $noteFileConfig = $this->buildNoteFileConfig(
+            $taskStatus,
+            $taskStatus->displayDirectory,
+            $intelligentTitle
+        );
 
-        // 构建流式识别文件配置对象 (直接删除)
-        $transcriptFileConfig = null;
-        if (! empty($taskStatus->presetTranscriptFilePath)) {
-            $transcriptWorkspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetTranscriptFilePath);
-            $transcriptFileConfig = new AsrTranscriptFileConfig(
-                sourcePath: $transcriptWorkspaceRelativePath  // 如: .asr_recordings/task_2/流式识别.md
-            );
-        }
+        // 构建流式识别文件配置对象
+        $transcriptFileConfig = $this->buildTranscriptFileConfig($taskStatus);
 
         $this->logger->info('准备调用沙箱 finish (V2)', [
             'task_key' => $taskStatus->taskKey,
@@ -279,5 +276,59 @@ readonly class AsrSandboxService
         }
 
         throw new InvalidArgumentException(trans('asr.exception.sandbox_merge_timeout'));
+    }
+
+    /**
+     * 构建笔记文件配置对象.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param null|string $targetDirectory 目标目录（可选，默认与源目录相同）
+     * @param null|string $intelligentTitle 智能标题（可选，用于重命名）
+     */
+    private function buildNoteFileConfig(
+        AsrTaskStatusDTO $taskStatus,
+        ?string $targetDirectory = null,
+        ?string $intelligentTitle = null
+    ): ?AsrNoteFileConfig {
+        if (empty($taskStatus->presetNoteFilePath)) {
+            return null;
+        }
+
+        $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($taskStatus->presetNoteFilePath);
+
+        // 如果未指定目标目录，使用源路径（不重命名）
+        if ($targetDirectory === null || $intelligentTitle === null) {
+            return new AsrNoteFileConfig(
+                sourcePath: $workspaceRelativePath,
+                targetPath: $workspaceRelativePath
+            );
+        }
+
+        // 需要重命名：使用智能标题构建目标路径
+        $noteFilename = basename($workspaceRelativePath);
+        return new AsrNoteFileConfig(
+            sourcePath: $workspaceRelativePath,
+            targetPath: rtrim($targetDirectory, '/') . '/' . $intelligentTitle . '-' . $noteFilename
+        );
+    }
+
+    /**
+     * 构建流式识别文件配置对象.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     */
+    private function buildTranscriptFileConfig(AsrTaskStatusDTO $taskStatus): ?AsrTranscriptFileConfig
+    {
+        if (empty($taskStatus->presetTranscriptFilePath)) {
+            return null;
+        }
+
+        $transcriptWorkspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath(
+            $taskStatus->presetTranscriptFilePath
+        );
+
+        return new AsrTranscriptFileConfig(
+            sourcePath: $transcriptWorkspaceRelativePath
+        );
     }
 }

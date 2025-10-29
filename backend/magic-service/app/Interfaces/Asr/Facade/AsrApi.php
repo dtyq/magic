@@ -14,6 +14,7 @@ use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
+use App\Application\Speech\Enum\AsrRecordingTypeEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Service\AsrDirectoryService;
 use App\Application\Speech\Service\AsrFileAppService;
@@ -153,12 +154,14 @@ class AsrApi extends AbstractApi
         $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. 验证参数
-        [$taskKey, $topicId, $projectId] = $this->validateUploadTokenParams($request, $userId);
+        [$taskKey, $topicId, $projectId, $recordingType] = $this->validateUploadTokenParams($request, $userId);
 
         $this->logger->info('getUploadToken 开始处理', [
             'operation_id' => $operationId,
             'task_key' => $taskKey,
             'user_id' => $userId,
+            'recording_type' => $recordingType->value,
+            'needs_preset_files' => $recordingType->needsPresetFiles(),
         ]);
 
         // 2. 获取分布式锁（防止并发创建目录）
@@ -177,8 +180,9 @@ class AsrApi extends AbstractApi
             // 4. 获取STS Token
             $tokenData = $this->buildStsToken($userAuthorization, $projectId, $userId);
 
-            // 5. 创建预设文件（如果还未创建）
-            if (empty($taskStatus->presetNoteFileId)
+            // 5. 创建预设文件（如果还未创建，且录音类型需要预设文件）
+            if ($recordingType->needsPresetFiles()
+                && empty($taskStatus->presetNoteFileId)
                 && ! empty($taskStatus->displayDirectory)
                 && ! empty($taskStatus->displayDirectoryId)
                 && ! empty($taskStatus->tempHiddenDirectory)
@@ -431,9 +435,22 @@ class AsrApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, trans('asr.exception.topic_id_empty'));
         }
 
+        // 验证录音类型参数（可选，默认为 file_upload）
+        $typeString = $request->input('type', '');
+        $recordingType = empty($typeString)
+            ? AsrRecordingTypeEnum::default()
+            : AsrRecordingTypeEnum::fromString($typeString);
+
+        if ($recordingType === null) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                trans('asr.api.validation.invalid_recording_type', ['type' => $typeString])
+            );
+        }
+
         $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
 
-        return [$taskKey, $topicId, $projectId];
+        return [$taskKey, $topicId, $projectId, $recordingType];
     }
 
     /**

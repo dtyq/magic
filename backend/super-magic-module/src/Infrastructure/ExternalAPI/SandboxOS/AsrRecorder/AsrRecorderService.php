@@ -33,7 +33,9 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
         string $sandboxId,
         string $taskKey,
         string $sourceDir,
-        string $workspaceDir = '.workspace'
+        string $workspaceDir = '.workspace',
+        ?AsrNoteFileConfig $noteFileConfig = null,
+        ?AsrTranscriptFileConfig $transcriptFileConfig = null
     ): AsrRecorderResponse {
         $requestData = [
             'task_key' => $taskKey,
@@ -41,12 +43,28 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
             'workspace_dir' => $workspaceDir,
         ];
 
+        // 添加笔记文件配置（start 阶段只传 source_path）
+        if ($noteFileConfig !== null) {
+            $requestData['note_file'] = [
+                'source_path' => $noteFileConfig->getSourcePath(),
+            ];
+        }
+
+        // 添加流式识别文件配置（start 阶段只传 source_path）
+        if ($transcriptFileConfig !== null) {
+            $requestData['transcript_file'] = [
+                'source_path' => $transcriptFileConfig->getSourcePath(),
+            ];
+        }
+
         try {
             $this->logger->info('ASR Recorder: Starting task', [
                 'sandbox_id' => $sandboxId,
                 'task_key' => $taskKey,
                 'source_dir' => $sourceDir,
                 'workspace_dir' => $workspaceDir,
+                'note_file_source_path' => $noteFileConfig?->getSourcePath(),
+                'transcript_file_source_path' => $transcriptFileConfig?->getSourcePath(),
             ]);
 
             // 调用沙箱 API

@@ -50,6 +50,8 @@ class AsrApi
         $taskKey = $request->input('task_key', '');
         $sourceDir = $request->input('source_dir', '');
         $workspaceDir = $request->input('workspace_dir', '.workspace');
+        $noteFileConfig = $request->input('note_file');
+        $transcriptFileConfig = $request->input('transcript_file');
 
         // 记录调用日志
         $this->logger->info('[Mock Sandbox ASR] Start task called', [
@@ -57,6 +59,8 @@ class AsrApi
             'task_key' => $taskKey,
             'source_dir' => $sourceDir,
             'workspace_dir' => $workspaceDir,
+            'note_file_config' => $noteFileConfig,
+            'transcript_file_config' => $transcriptFileConfig,
         ]);
 
         // 初始化任务状态（重置轮询计数）
