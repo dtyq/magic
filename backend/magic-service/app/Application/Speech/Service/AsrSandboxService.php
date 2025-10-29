@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorder
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrAudioConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrNoteFileConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrTranscriptFileConfig;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Response\AsrRecorderResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use InvalidArgumentException;
@@ -105,6 +106,46 @@ readonly class AsrSandboxService
             'sandbox_id' => $actualSandboxId,
             'status' => $response->getStatus(),
         ]);
+    }
+
+    /**
+     * 取消录音任务.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @return AsrRecorderResponse 响应结果
+     * @throws InvalidArgumentException
+     */
+    public function cancelRecordingTask(AsrTaskStatusDTO $taskStatus): AsrRecorderResponse
+    {
+        $sandboxId = $taskStatus->sandboxId;
+
+        if (empty($sandboxId)) {
+            throw new InvalidArgumentException(trans('asr.exception.sandbox_id_not_exist'));
+        }
+
+        $this->logger->info('ASR 录音：准备取消沙箱任务', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        // 调用沙箱取消任务
+        $response = $this->asrRecorder->cancelTask(
+            $sandboxId,
+            $taskStatus->taskKey,
+            '.workspace'
+        );
+
+        if (! $response->isSuccess()) {
+            throw new InvalidArgumentException(trans('asr.exception.sandbox_cancel_failed', ['message' => $response->message]));
+        }
+
+        $this->logger->info('ASR 录音：沙箱任务已取消', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $sandboxId,
+            'status' => $response->getStatus(),
+        ]);
+
+        return $response;
     }
 
     /**

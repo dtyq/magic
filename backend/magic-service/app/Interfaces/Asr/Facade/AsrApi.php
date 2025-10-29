@@ -288,7 +288,7 @@ class AsrApi extends AbstractApi
         if ($statusEnum === null) {
             ExceptionBuilder::throw(
                 GenericErrorCode::ParameterMissing,
-                sprintf('无效的状态，有效值：%s', implode(', ', ['start', 'recording', 'paused', 'stopped']))
+                sprintf('无效的状态，有效值：%s', implode(', ', ['start', 'recording', 'paused', 'stopped', 'canceled']))
             );
         }
 

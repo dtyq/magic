@@ -201,6 +201,7 @@ return [
 
         // Sandbox 服务异常
         'sandbox_task_creation_failed' => '创建沙箱任务失败: :message',
+        'sandbox_cancel_failed' => '取消沙箱任务失败: :message',
         'display_directory_id_not_exist' => '显示目录ID不存在，无法创建文件记录',
         'display_directory_path_not_exist' => '显示目录路径不存在，无法创建文件记录',
         'create_file_record_failed_no_query' => '创建文件记录失败且无法查询到现有记录',

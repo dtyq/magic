@@ -49,12 +49,12 @@ readonly class AsrFileDataDTO
     public function toArray(): array
     {
         return [
-            'file_id' => $this->fileId,
+            'file_id' => (string) $this->fileId,
             'file_name' => $this->fileName,
             'file_path' => $this->filePath,
             'file_size' => $this->fileSize,
             'file_extension' => $this->fileExtension,
-            'project_id' => $this->projectId,
+            'project_id' => (string) $this->projectId,
         ];
     }
 }

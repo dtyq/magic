@@ -201,6 +201,7 @@ return [
 
         // Sandbox service exceptions
         'sandbox_task_creation_failed' => 'Failed to create sandbox task: :message',
+        'sandbox_cancel_failed' => 'Failed to cancel sandbox task: :message',
         'display_directory_id_not_exist' => 'Display directory ID does not exist, cannot create file record',
         'display_directory_path_not_exist' => 'Display directory path does not exist, cannot create file record',
         'create_file_record_failed_no_query' => 'Failed to create file record and unable to query existing record',

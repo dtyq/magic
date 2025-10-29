@@ -59,4 +59,19 @@ interface AsrRecorderInterface
         ?AsrNoteFileConfig $noteFileConfig = null,
         ?AsrTranscriptFileConfig $transcriptFileConfig = null
     ): AsrRecorderResponse;
+
+    /**
+     * 取消 ASR 录音任务
+     * 对应沙箱 POST /api/asr/task/cancel.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskKey 任务键
+     * @param string $workspaceDir 工作区目录，默认 .workspace
+     * @return AsrRecorderResponse 响应结果
+     */
+    public function cancelTask(
+        string $sandboxId,
+        string $taskKey,
+        string $workspaceDir = '.workspace'
+    ): AsrRecorderResponse;
 }

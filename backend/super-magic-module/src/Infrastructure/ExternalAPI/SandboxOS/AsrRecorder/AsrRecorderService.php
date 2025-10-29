@@ -184,4 +184,62 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
             ]);
         }
     }
+
+    public function cancelTask(
+        string $sandboxId,
+        string $taskKey,
+        string $workspaceDir = '.workspace'
+    ): AsrRecorderResponse {
+        $requestData = [
+            'task_key' => $taskKey,
+            'workspace_dir' => $workspaceDir,
+        ];
+
+        try {
+            $this->logger->info('ASR Recorder: Canceling task', [
+                'sandbox_id' => $sandboxId,
+                'task_key' => $taskKey,
+                'workspace_dir' => $workspaceDir,
+            ]);
+
+            // 调用沙箱 API
+            $result = $this->gateway->proxySandboxRequest(
+                $sandboxId,
+                'POST',
+                SandboxEndpoints::ASR_TASK_CANCEL,
+                $requestData
+            );
+
+            $response = AsrRecorderResponse::fromGatewayResult($result);
+
+            if ($response->isSuccess()) {
+                $this->logger->info('ASR Recorder: Task canceled successfully', [
+                    'sandbox_id' => $sandboxId,
+                    'task_key' => $taskKey,
+                    'status' => $response->getStatus(),
+                ]);
+            } else {
+                $this->logger->error('ASR Recorder: Failed to cancel task', [
+                    'sandbox_id' => $sandboxId,
+                    'task_key' => $taskKey,
+                    'code' => $response->code,
+                    'message' => $response->message,
+                ]);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            $this->logger->error('ASR Recorder: Unexpected error during cancel task', [
+                'sandbox_id' => $sandboxId,
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+
+            return AsrRecorderResponse::fromApiResponse([
+                'code' => -1,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
 }

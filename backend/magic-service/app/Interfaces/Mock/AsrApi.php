@@ -198,4 +198,36 @@ class AsrApi
             'data' => $responseData,
         ];
     }
+
+    /**
+     * 取消 ASR 任务
+     * POST /api/v1/sandboxes/{sandboxId}/proxy/api/asr/task/cancel.
+     */
+    public function cancelTask(RequestInterface $request): array
+    {
+        $sandboxId = $request->route('sandboxId');
+        $taskKey = $request->input('task_key', '');
+        $workspaceDir = $request->input('workspace_dir', '.workspace');
+
+        // 记录调用日志
+        $this->logger->info('[Mock Sandbox ASR] Cancel task called', [
+            'sandbox_id' => $sandboxId,
+            'task_key' => $taskKey,
+            'workspace_dir' => $workspaceDir,
+        ]);
+
+        // 清理任务相关的 Redis 状态
+        $countKey = sprintf(AsrRedisKeys::MOCK_FINISH_COUNT, $taskKey);
+        $this->redis->del($countKey);
+
+        return [
+            'code' => 1000,
+            'message' => 'ASR task canceled successfully',
+            'data' => [
+                'status' => 'canceled',
+                'task_key' => $taskKey,
+                'workspace_dir' => $workspaceDir,
+            ],
+        ];
+    }
 }

@@ -377,6 +377,7 @@ readonly class AsrFileAppService
             AsrRecordingStatusEnum::RECORDING => $this->handleRecordingHeartbeat($taskStatus),
             AsrRecordingStatusEnum::PAUSED => $this->handlePauseRecording($taskStatus),
             AsrRecordingStatusEnum::STOPPED => $this->handleStopRecording($taskStatus, $userId, $organizationCode),
+            AsrRecordingStatusEnum::CANCELED => $this->handleCancelRecording($taskStatus, $userId, $organizationCode),
         };
     }
 
@@ -541,6 +542,21 @@ readonly class AsrFileAppService
             $audioFileData = $this->buildFileDataFromTaskStatus($dto->taskStatus);
             $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData);
 
+            // 记录消息详细内容
+            $messageData = $chatRequest->getData()->getMessage()->getMagicMessage();
+
+            $this->logger->info('sendSummaryChatMessage 准备发送ASR总结聊天消息', [
+                'task_key' => $dto->taskStatus->taskKey,
+                'topic_id' => $dto->topicId,
+                'conversation_id' => $dto->conversationId,
+                'model_id' => $dto->modelId,
+                'audio_file_id' => $dto->taskStatus->audioFileId,
+                'audio_file_path' => $dto->taskStatus->filePath,
+                'note_file_id' => $dto->taskStatus->noteFileId,
+                'message_content' => $messageData->toArray(),
+                'is_queued' => $this->shouldQueueMessage($dto->topicId),
+            ]);
+
             if ($this->shouldQueueMessage($dto->topicId)) {
                 $this->queueChatMessage($dto, $chatRequest, $userAuthorization);
             } else {
@@ -550,6 +566,7 @@ readonly class AsrFileAppService
             $this->logger->error('发送聊天消息失败', [
                 'task_key' => $dto->taskStatus->taskKey,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -728,6 +745,61 @@ readonly class AsrFileAppService
                 $this->autoTriggerSummary($taskStatus, $userId, $organizationCode);
             });
         }
+
+        return true;
+    }
+
+    /**
+     * 处理取消录音.
+     */
+    private function handleCancelRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
+    {
+        // 幂等性检查：如果录音已取消，跳过重复处理
+        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
+            $this->logger->info('录音已取消，跳过重复处理', [
+                'task_key' => $taskStatus->taskKey,
+            ]);
+            return true;
+        }
+
+        $this->logger->info('开始处理取消录音', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $taskStatus->sandboxId,
+        ]);
+
+        // 调用沙箱取消任务（如果沙箱任务已创建）
+        if ($taskStatus->sandboxTaskCreated && ! empty($taskStatus->sandboxId)) {
+            try {
+                $response = $this->sandboxService->cancelRecordingTask($taskStatus);
+                $this->logger->info('沙箱录音任务已取消', [
+                    'task_key' => $taskStatus->taskKey,
+                    'sandbox_id' => $taskStatus->sandboxId,
+                    'response_status' => $response->getStatus(),
+                ]);
+            } catch (Throwable $e) {
+                // 沙箱取消失败不阻止本地清理
+                $this->logger->warning('沙箱取消任务失败，继续本地清理', [
+                    'task_key' => $taskStatus->taskKey,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 更新状态为取消并删除心跳
+        $taskStatus->recordingStatus = AsrRecordingStatusEnum::CANCELED->value;
+        $this->asrTaskDomainService->saveTaskStatusAndDeleteHeartbeat($taskStatus);
+
+        // 清理预设文件
+        if (! empty($taskStatus->presetTranscriptFileId)) {
+            $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
+        }
+        if (! empty($taskStatus->presetNoteFileId)) {
+            $this->presetFileService->deleteTranscriptFile($taskStatus->presetNoteFileId);
+        }
+
+        $this->logger->info('录音取消处理完成', [
+            'task_key' => $taskStatus->taskKey,
+        ]);
 
         return true;
     }

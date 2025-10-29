@@ -24,6 +24,11 @@ class SandboxEndpoints
     public const ASR_TASK_FINISH = 'api/asr/task/finish';
 
     /**
+     * ASR 任务取消端点.
+     */
+    public const ASR_TASK_CANCEL = 'api/asr/task/cancel';
+
+    /**
      * Agent 消息聊天端点.
      */
     public const AGENT_MESSAGES_CHAT = 'api/v1/messages/chat';

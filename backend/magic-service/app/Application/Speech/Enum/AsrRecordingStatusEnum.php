@@ -31,13 +31,14 @@ enum AsrRecordingStatusEnum: string
     case RECORDING = 'recording'; // 录音中（心跳）：前端持续上报，保持录音会话活跃
     case PAUSED = 'paused';       // 暂停：用户暂停录音，可以继续
     case STOPPED = 'stopped';     // 终止：用户停止录音，触发音频合并
+    case CANCELED = 'canceled';   // 取消：用户取消录音，停止任务并清理数据
 
     /**
      * 验证状态值是否有效.
      */
     public static function isValid(string $status): bool
     {
-        return in_array($status, ['start', 'recording', 'paused', 'stopped'], true);
+        return in_array($status, ['start', 'recording', 'paused', 'stopped', 'canceled'], true);
     }
 
     /**
@@ -50,6 +51,7 @@ enum AsrRecordingStatusEnum: string
             'recording' => self::RECORDING,
             'paused' => self::PAUSED,
             'stopped' => self::STOPPED,
+            'canceled' => self::CANCELED,
             default => null,
         };
     }
