@@ -73,7 +73,12 @@ class AsyncEventService
         ]);
     }
 
-    public function clearHistory()
+    public function delete(int $recordId): int
+    {
+        return $this->asyncEventRepository->deleteById($recordId);
+    }
+
+    public function clearHistory(): void
     {
         // 清除1天前, 消费成功的message以及流水数据
         $this->clearSuccessHistoryRecord();

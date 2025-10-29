@@ -33,7 +33,6 @@ class AsyncEventRetry
             $logger = ApplicationContext::getContainer()->get(StdoutLoggerInterface::class);
             $logger->error(sprintf('Async event retry failed, id: %d, [exception]%s [trace]%s', $id, $throwable->getMessage(), $throwable->getTraceAsString()));
             if (isset($record)) {
-                var_dump(\Hyperf\Config\config('async_event.retry.times', 3));
                 if (($record->retry_times + 1) >= \Hyperf\Config\config('async_event.retry.times', 3)) {
                     $asyncEventService->fail($id);
                     AsyncEventUtil::dispatch(new AsyncEventRetryMaxEvent($record));

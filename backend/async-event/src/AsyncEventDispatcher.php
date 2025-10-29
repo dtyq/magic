@@ -9,6 +9,7 @@ namespace Dtyq\AsyncEvent;
 
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\AsyncEvent\Kernel\Service\AsyncEventService;
+use Dtyq\AsyncEvent\Kernel\Utils\Locker;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Engine\Coroutine;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -27,14 +28,18 @@ class AsyncEventDispatcher implements EventDispatcherInterface
 
     private AsyncEventService $asyncEventService;
 
+    private Locker $locker;
+
     public function __construct(
         ListenerProviderInterface $listeners,
         LoggerInterface $logger,
-        AsyncEventService $asyncEventService
+        AsyncEventService $asyncEventService,
+        Locker $locker
     ) {
         $this->listeners = $listeners;
         $this->logger = $logger;
         $this->asyncEventService = $asyncEventService;
+        $this->locker = $locker;
 
         $this->asyncListeners = AnnotationCollector::getClassesByAnnotation(AsyncListener::class);
     }
@@ -57,14 +62,20 @@ class AsyncEventDispatcher implements EventDispatcherInterface
         // 投递异步事件
         foreach ($asyncListeners as $listenerName => $listener) {
             Coroutine::defer(function () use ($event, $listener, $eventName, $listenerName) {
-                try {
-                    $listener($event);
-                } catch (Throwable $exception) {
-                    $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
-                    $this->asyncEventService->create($eventRecord);
-                } finally {
-                    $this->dump($eventRecord['id'] ?? 0, $listenerName, $eventName, $exception ?? null);
-                }
+                $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
+                $eventModel = $this->asyncEventService->create($eventRecord);
+                $recordId = $eventModel->id;
+
+                $this->locker->get(function () use ($recordId, $listener, $event, $listenerName, $eventName) {
+                    $exception = null;
+                    try {
+                        $listener($event);
+                        $this->asyncEventService->delete($recordId);
+                    } catch (Throwable $exception) {
+                    } finally {
+                        $this->dump($recordId, $listenerName, $eventName, $exception);
+                    }
+                }, "async_event_retry_{$recordId}");
             });
         }
 
