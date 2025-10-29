@@ -15,15 +15,20 @@ export namespace MinIO {
         expires: number
     }
 
+	/** Credentials for MinIO/S3 authentication */
+	export interface Credentials {
+        access_key_id: string
+        secret_access_key: string
+        session_token: string
+        expiration: string
+    }
+
 	/** Upload using AccessKey/SecretKey with Signature V4 */
 	export interface STSAuthParams {
         region: string
         endpoint: string
         bucket: string
-        access_key_id: string
-        secret_access_key: string
-        session_token: string
-        expiration: string
+        credentials: Credentials
         expires: number
         dir: string
     }
