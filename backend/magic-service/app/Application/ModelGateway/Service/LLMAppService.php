@@ -561,6 +561,11 @@ class LLMAppService extends AbstractLLMAppService
             }
             // Record start time
             $startTime = microtime(true);
+            if ($proxyModelRequest instanceof CompletionDTO) {
+                if ($proxyModelRequest->getMaxTokens() === -1) {
+                    $proxyModelRequest->setMaxTokens($model->getModelOptions()->getMaxOutputTokens());
+                }
+            }
 
             $proxyModelRequest->addBusinessParam('model_id', $proxyModelRequest->getModel());
             $proxyModelRequest->addBusinessParam('app_id', $modelGatewayDataIsolation->getAppId());

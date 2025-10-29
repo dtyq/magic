@@ -558,6 +558,7 @@ readonly class AdminProviderAppService
             'user_id' => $authorization->getId(),
             'source_id' => 'connectivity_test',
         ]);
+        $completionDTO->setMaxTokens(-1);
         /* @var ChatCompletionResponse $response */
         try {
             $llmAppService->chatCompletion($completionDTO);
