@@ -17,7 +17,7 @@ const upload: PlatformRequest<
 	PlatformSimpleUploadOption | PlatformMultipartUploadOption
 > = (file, key, params, option) => {
 	// Check if using STS credentials (AccessKey/SecretKey)
-	if (Object.prototype.hasOwnProperty.call(params, "access_key_id")) {
+	if (Object.prototype.hasOwnProperty.call(params, "credentials")) {
 		// Use multipart upload for STS credentials
 		return MultipartUpload(file, key, <MinIO.STSAuthParams>params, option)
 	}
