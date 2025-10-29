@@ -12,6 +12,8 @@ use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrAudioConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrNoteFileConfig;
@@ -33,6 +35,8 @@ readonly class AsrSandboxService
         private SandboxGatewayInterface $sandboxGateway,
         private AsrRecorderInterface $asrRecorder,
         private AsrSandboxResponseHandler $responseHandler,
+        private ProjectDomainService $projectDomainService,
+        private TaskFileDomainService $taskFileDomainService,
         private LoggerInterface $logger
     ) {
     }
@@ -60,17 +64,19 @@ readonly class AsrSandboxService
         // 设置用户上下文
         $this->sandboxGateway->setUserContext($userId, $organizationCode);
 
+        // 获取完整工作目录路径
+        $projectEntity = $this->projectDomainService->getProject((int) $taskStatus->projectId, $userId);
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+
         // 确保沙箱可用
-        $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable(
-            $sandboxId,
-            $taskStatus->projectId,
-            ''
-        );
+        $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $taskStatus->projectId, $fullWorkdir);
 
         $this->logger->info('ASR 录音：沙箱已就绪', [
             'task_key' => $taskStatus->taskKey,
             'requested_sandbox_id' => $sandboxId,
             'actual_sandbox_id' => $actualSandboxId,
+            'full_workdir' => $fullWorkdir,
         ]);
 
         // 构建文件配置对象（复用公共方法）

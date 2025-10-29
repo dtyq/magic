@@ -180,6 +180,8 @@ return [
         'file_not_exist' => '文件不存在: :fileId',
         'file_not_belong_to_project' => '文件不属于当前项目: :fileId',
         'create_preset_file_failed' => '创建预设文件失败',
+        'create_states_directory_failed_project' => '创建 .asr_states 目录失败，项目ID: :projectId',
+        'create_states_directory_failed_error' => '创建 .asr_states 目录失败: :error',
         'directory_rename_failed' => '目录重命名失败: :error',
         'batch_update_children_failed' => '批量更新子文件路径失败: :error',
         'create_audio_file_failed' => '创建音频文件记录失败: :error',

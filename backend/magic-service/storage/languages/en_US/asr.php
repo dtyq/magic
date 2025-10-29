@@ -180,6 +180,8 @@ return [
         'file_not_exist' => 'File does not exist: :fileId',
         'file_not_belong_to_project' => 'File does not belong to current project: :fileId',
         'create_preset_file_failed' => 'Failed to create preset file',
+        'create_states_directory_failed_project' => 'Failed to create .asr_states directory, project ID: :projectId',
+        'create_states_directory_failed_error' => 'Failed to create .asr_states directory: :error',
         'directory_rename_failed' => 'Failed to rename directory: :error',
         'batch_update_children_failed' => 'Failed to batch update child file paths: :error',
         'create_audio_file_failed' => 'Failed to create audio file record: :error',

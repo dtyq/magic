@@ -24,6 +24,11 @@ class AsrPaths
     public const HIDDEN_DIR_PREFIX = '.asr_recordings';
 
     /**
+     * 隐藏状态目录名称.
+     */
+    public const STATES_DIR = '.asr_states';
+
+    /**
      * 生成隐藏目录相对路径.
      *
      * @param string $taskKey 任务键
@@ -32,5 +37,15 @@ class AsrPaths
     public static function getHiddenDirPath(string $taskKey): string
     {
         return sprintf('%s/%s', self::HIDDEN_DIR_PREFIX, $taskKey);
+    }
+
+    /**
+     * 获取状态目录相对路径.
+     *
+     * @return string 格式：.asr_states
+     */
+    public static function getStatesDirPath(): string
+    {
+        return self::STATES_DIR;
     }
 }

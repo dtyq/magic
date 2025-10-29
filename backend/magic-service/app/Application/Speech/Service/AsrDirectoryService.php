@@ -128,6 +128,90 @@ readonly class AsrDirectoryService
     }
 
     /**
+     * 创建 .asr_states 隐藏目录（用于存放前端录音的状态信息）.
+     * 目录格式：.asr_states.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return AsrRecordingDirectoryDTO 目录DTO
+     * @throws InvalidArgumentException
+     */
+    public function createStatesDirectory(
+        string $organizationCode,
+        string $projectId,
+        string $userId
+    ): AsrRecordingDirectoryDTO {
+        try {
+            // 1. 确保项目工作区根目录存在
+            $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+
+            // 2. 获取 .asr_states 目录路径
+            $relativePath = AsrPaths::getStatesDirPath();
+
+            // 3. 获取工作目录和前缀
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+            $workDir = $projectEntity->getWorkDir();
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+
+            // 4. 检查目录是否已存在
+            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            if ($existingDir !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $existingDir->getFileId(),
+                    true,
+                    AsrDirectoryTypeEnum::ASR_STATES_DIR
+                );
+            }
+
+            // 5. 创建 .asr_states 目录实体
+            $taskFileEntity = AsrAssembler::createDirectoryEntity(
+                $userId,
+                $organizationCode,
+                (int) $projectId,
+                $relativePath,
+                $fullPrefix,
+                $workDir,
+                $rootDirectoryId,
+                isHidden: true,
+                taskKey: null // 状态目录不关联具体任务
+            );
+
+            // 6. 插入或忽略
+            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
+            if ($result !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $result->getFileId(),
+                    true,
+                    AsrDirectoryTypeEnum::ASR_STATES_DIR
+                );
+            }
+
+            // 7. 如果插入被忽略，查询现有目录
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            if ($existingDir !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $existingDir->getFileId(),
+                    true,
+                    AsrDirectoryTypeEnum::ASR_STATES_DIR
+                );
+            }
+
+            throw new InvalidArgumentException(trans('asr.exception.create_states_directory_failed_project', ['projectId' => $projectId]));
+        } catch (Throwable $e) {
+            $this->logger->error('创建 .asr_states 目录失败', [
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            throw new InvalidArgumentException(trans('asr.exception.create_states_directory_failed_error', ['error' => $e->getMessage()]));
+        }
+    }
+
+    /**
      * 创建显示的录音纪要目录（用于存放流式文本和笔记）.
      * 目录格式：录音纪要_Ymd_His（国际化）.
      *
