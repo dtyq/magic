@@ -207,11 +207,12 @@ class MagicDepartmentDomainService extends AbstractContactDomainService
      * @param int $page Page number
      * @param int $pageSize Page size
      * @param string $organizationName Organization name for fuzzy search (optional)
+     * @param array $organizationCodes Organization codes for exact match filter (optional)
      * @return array Array containing total and list
      */
-    public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = ''): array
+    public function getAllOrganizationsRootDepartments(int $page = 1, int $pageSize = 20, string $organizationName = '', array $organizationCodes = []): array
     {
-        return $this->departmentRepository->getAllOrganizationsRootDepartments($page, $pageSize, $organizationName);
+        return $this->departmentRepository->getAllOrganizationsRootDepartments($page, $pageSize, $organizationName, $organizationCodes);
     }
 
     public function getOrganizationNameByCode(string $organizationCode): string
