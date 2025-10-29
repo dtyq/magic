@@ -1117,15 +1117,17 @@ class FileManagementAppService extends AbstractAppService
             }
 
             // 4. 构建新的文件名和目标file_key
-            // 场景1：提供了新文件名 -> 保持原目录，使用新文件名
-            // 场景2：未提供文件名 -> 保持原文件名，直接替换内容
+            // 场景1：提供了新文件名 -> 使用用户指定的文件名
+            // 场景2：未提供文件名 -> 从新文件的 file_key 中提取文件名
             if (! empty($requestDTO->getFileName())) {
                 $newFileName = $requestDTO->getFileName();
-                $targetFileKey = dirname($fileEntity->getFileKey()) . '/' . $newFileName;
             } else {
-                $newFileName = $fileEntity->getFileName();
-                $targetFileKey = $fileEntity->getFileKey();
+                // 从新文件路径中提取文件名
+                $newFileName = basename($newFileKey);
             }
+
+            // 构建目标文件路径：原文件目录 + 新文件名
+            $targetFileKey = dirname($fileEntity->getFileKey()) . '/' . $newFileName;
 
             $newFileExtension = pathinfo($newFileName, PATHINFO_EXTENSION);
             $oldFileExtension = $fileEntity->getFileExtension();
