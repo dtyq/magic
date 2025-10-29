@@ -13,6 +13,16 @@ use Dtyq\FlowExprEngine\Kernel\Utils\Functions;
 class NodeDebugResult extends AbstractValueObject
 {
     /**
+     * Maximum number of loop results to keep at the beginning.
+     */
+    private const MAX_LOOP_RESULTS_HEAD = 5;
+
+    /**
+     * Maximum number of loop results to keep at the end.
+     */
+    private const MAX_LOOP_RESULTS_TAIL = 5;
+
+    /**
      *  节点是否执行成功
      */
     protected bool $success = false;
@@ -53,6 +63,16 @@ class NodeDebugResult extends AbstractValueObject
 
     protected bool $throwException = true;
 
+    /**
+     * The total count of loop iterations, including omitted ones.
+     */
+    protected int $totalLoopCount = 0;
+
+    /**
+     * The number of omitted loop results in the middle.
+     */
+    protected int $omittedLoopCount = 0;
+
     public function __construct(string $nodeVersion)
     {
         $this->nodeVersion = $nodeVersion;
@@ -84,9 +104,29 @@ class NodeDebugResult extends AbstractValueObject
 
     public function addLoopDebugResult(NodeDebugResult $nodeDebugResult): void
     {
+        if ($this->loopDebugResults === null) {
+            $this->loopDebugResults = [];
+        }
+
         $debugResult = clone $nodeDebugResult;
         $debugResult->setLoopDebugResults(null);
-        $this->loopDebugResults[] = $debugResult;
+
+        ++$this->totalLoopCount;
+        $currentCount = count($this->loopDebugResults);
+        $maxTotal = self::MAX_LOOP_RESULTS_HEAD + self::MAX_LOOP_RESULTS_TAIL;
+
+        if ($currentCount < $maxTotal) {
+            // Still within the limit, just add it
+            $this->loopDebugResults[] = $debugResult;
+        } else {
+            // We need to maintain sliding window: keep first 5 and last 5
+            // Remove the item at position MAX_LOOP_RESULTS_HEAD (the 6th item, which is the first of the tail section)
+            array_splice($this->loopDebugResults, self::MAX_LOOP_RESULTS_HEAD, 1);
+            // Add the new item at the end
+            $this->loopDebugResults[] = $debugResult;
+            // Increment omitted count
+            ++$this->omittedLoopCount;
+        }
     }
 
     public function isUnAuthorized(): bool
@@ -214,6 +254,16 @@ class NodeDebugResult extends AbstractValueObject
         $this->loopDebugResults = $loopDebugResults;
     }
 
+    public function getTotalLoopCount(): int
+    {
+        return $this->totalLoopCount;
+    }
+
+    public function getOmittedLoopCount(): int
+    {
+        return $this->omittedLoopCount;
+    }
+
     public function toArray(): array
     {
         $loopDebugResults = $this->loopDebugResults ?? [];
@@ -221,6 +271,8 @@ class NodeDebugResult extends AbstractValueObject
         if (count($loopDebugResults) <= 1) {
             $loopDebugResults = [];
         }
+
+        $formattedLoopResults = $this->formatLoopDebugResults($loopDebugResults, false);
 
         return [
             'success' => $this->success,
@@ -235,7 +287,7 @@ class NodeDebugResult extends AbstractValueObject
             'output' => $this->output,
             'children_ids' => $this->childrenIds,
             'debug_log' => $this->debugLog,
-            'loop_debug_results' => array_map(fn (NodeDebugResult $nodeDebugResult) => $nodeDebugResult->toArray(), $loopDebugResults),
+            'loop_debug_results' => $formattedLoopResults,
         ];
     }
 
@@ -247,6 +299,8 @@ class NodeDebugResult extends AbstractValueObject
             $loopDebugResults = [];
         }
 
+        $formattedLoopResults = $this->formatLoopDebugResults($loopDebugResults, true);
+
         return [
             'success' => $this->success,
             'start_time' => $this->startTime,
@@ -256,7 +310,92 @@ class NodeDebugResult extends AbstractValueObject
             'error_message' => $this->errorMessage,
             'node_version' => $this->nodeVersion,
             'children_ids' => $this->childrenIds,
-            'loop_debug_results' => array_map(fn (NodeDebugResult $nodeDebugResult) => $nodeDebugResult->toDesensitizationArray(), $loopDebugResults),
+            'loop_debug_results' => $formattedLoopResults,
         ];
+    }
+
+    /**
+     * Format loop debug results by inserting an omission placeholder when applicable.
+     */
+    private function formatLoopDebugResults(array $loopDebugResults, bool $desensitize): array
+    {
+        if (empty($loopDebugResults)) {
+            return [];
+        }
+
+        // If no omission occurred, return all results
+        if ($this->omittedLoopCount === 0) {
+            return array_map(
+                fn (NodeDebugResult $nodeDebugResult) => $desensitize ? $nodeDebugResult->toDesensitizationArray() : $nodeDebugResult->toArray(),
+                $loopDebugResults
+            );
+        }
+
+        // Split results into head and tail
+        $headResults = array_slice($loopDebugResults, 0, self::MAX_LOOP_RESULTS_HEAD);
+        $tailResults = array_slice($loopDebugResults, self::MAX_LOOP_RESULTS_HEAD);
+
+        $formattedResults = [];
+
+        // Add head results with loop index
+        foreach ($headResults as $index => $result) {
+            $resultArray = $desensitize ? $result->toDesensitizationArray() : $result->toArray();
+            // Add loop iteration index to debug_log
+            if (! $desensitize && isset($resultArray['debug_log'])) {
+                $resultArray['debug_log']['_loop_index'] = $index + 1;
+            }
+            $formattedResults[] = $resultArray;
+        }
+
+        // Calculate time range for omitted iterations
+        $lastHeadResult = end($headResults);
+        $firstTailResult = reset($tailResults);
+        $omissionStartTime = $lastHeadResult ? $lastHeadResult->getEndTime() : 0;
+        $omissionEndTime = $firstTailResult ? $firstTailResult->getStartTime() : 0;
+        $omissionElapsedTime = ($omissionStartTime > 0 && $omissionEndTime > 0)
+            ? (string) Functions::calculateElapsedTime($omissionStartTime, $omissionEndTime)
+            : '0';
+
+        // Add omission placeholder with structure consistent with other results
+        $omissionPlaceholder = [
+            'success' => true,
+            'start_time' => $omissionStartTime,
+            'end_time' => $omissionEndTime,
+            'elapsed_time' => $omissionElapsedTime,
+            'error_code' => 0,
+            'error_message' => '',
+            'node_version' => '',
+            'children_ids' => [],
+        ];
+
+        if (! $desensitize) {
+            // For full output, include params, input, output, and debug_log
+            $omittedStartIndex = self::MAX_LOOP_RESULTS_HEAD + 1;
+            $omittedEndIndex = $this->totalLoopCount - self::MAX_LOOP_RESULTS_TAIL;
+            $omissionPlaceholder['params'] = [];
+            $omissionPlaceholder['input'] = [];
+            $omissionPlaceholder['output'] = [];
+            $omissionPlaceholder['debug_log'] = [
+                '_omitted' => true,
+                'omitted_count' => $this->omittedLoopCount,
+                'omitted_range' => [$omittedStartIndex, $omittedEndIndex],
+                'message' => "Omitted {$this->omittedLoopCount} loop iterations (#{$omittedStartIndex} to #{$omittedEndIndex}) to prevent memory overflow",
+            ];
+        }
+
+        $formattedResults[] = $omissionPlaceholder;
+
+        // Add tail results with correct loop index
+        $tailStartIndex = $this->totalLoopCount - count($tailResults) + 1;
+        foreach ($tailResults as $index => $result) {
+            $resultArray = $desensitize ? $result->toDesensitizationArray() : $result->toArray();
+            // Add loop iteration index to debug_log
+            if (! $desensitize && isset($resultArray['debug_log'])) {
+                $resultArray['debug_log']['_loop_index'] = $tailStartIndex + $index;
+            }
+            $formattedResults[] = $resultArray;
+        }
+
+        return $formattedResults;
     }
 }
