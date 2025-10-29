@@ -72,7 +72,7 @@ readonly class AsrSandboxService
         // 确保沙箱可用
         $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $taskStatus->projectId, $fullWorkdir);
 
-        $this->logger->info('ASR 录音：沙箱已就绪', [
+        $this->logger->info('startRecordingTask ASR 录音：沙箱已就绪', [
             'task_key' => $taskStatus->taskKey,
             'requested_sandbox_id' => $sandboxId,
             'actual_sandbox_id' => $actualSandboxId,
