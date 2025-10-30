@@ -122,7 +122,7 @@ class Message
                 }
         }
 
-        return 'data:' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
+        return 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
     }
 
     public function toApiResponse(): array

@@ -79,7 +79,7 @@ class LLMAssembler
                 'object' => $chatCompletionStreamResponse->getObject(),
                 'usage' => null, // usage is null in all chunks except the last one when include_usage is true
             ];
-            self::getEventStream()->write('data:' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n");
+            self::getEventStream()->write('data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n");
         }
 
         // Send usage information as the last chunk if requested
@@ -94,11 +94,11 @@ class LLMAssembler
                 'object' => $chatCompletionStreamResponse->getObject(),
                 'usage' => $usage,
             ];
-            self::getEventStream()->write('data:' . json_encode($usageData, JSON_UNESCAPED_UNICODE) . "\n\n");
+            self::getEventStream()->write('data: ' . json_encode($usageData, JSON_UNESCAPED_UNICODE) . "\n\n");
         }
 
-        self::getEventStream()->write('data:[DONE]' . "\n\n");
-        self::getEventStream()->end();
+        self::getEventStream()->write('data: [DONE]' . "\n\n");
+        self::getEventStream()->close();
     }
 
     public static function createEmbeddingsResponse(EmbeddingResponse $embeddingResponse): array
