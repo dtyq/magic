@@ -12,14 +12,13 @@ use App\Application\Speech\Assembler\AsrPromptAssembler;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\DTO\NoteDTO;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Contract\TranslatorInterface;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 标题生成服务
@@ -240,13 +239,12 @@ readonly class AsrTitleGeneratorService
      *
      * @param string $userId 用户ID
      * @return MagicUserAuthorization 用户授权对象
-     * @throws InvalidArgumentException 当用户不存在时
      */
     private function getUserAuthorizationFromUserId(string $userId): MagicUserAuthorization
     {
         $userEntity = $this->magicUserDomainService->getUserById($userId);
         if ($userEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.user_not_exist'));
+            ExceptionBuilder::throw(AsrErrorCode::UserNotExist);
         }
         return MagicUserAuthorization::fromUserEntity($userEntity);
     }

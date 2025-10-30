@@ -12,6 +12,8 @@ use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
@@ -21,10 +23,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrT
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Response\AsrRecorderResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 沙箱服务
@@ -48,7 +47,6 @@ readonly class AsrSandboxService
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $userId 用户ID
      * @param string $organizationCode 组织编码
-     * @throws InvalidArgumentException
      */
     public function startRecordingTask(
         AsrTaskStatusDTO $taskStatus,
@@ -96,7 +94,7 @@ readonly class AsrSandboxService
         );
 
         if (! $response->isSuccess()) {
-            throw new InvalidArgumentException(trans('asr.exception.sandbox_task_creation_failed', ['message' => $response->message]));
+            ExceptionBuilder::throw(AsrErrorCode::SandboxTaskCreationFailed, '', ['message' => $response->message]);
         }
 
         $taskStatus->sandboxTaskCreated = true;
@@ -113,14 +111,13 @@ readonly class AsrSandboxService
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @return AsrRecorderResponse 响应结果
-     * @throws InvalidArgumentException
      */
     public function cancelRecordingTask(AsrTaskStatusDTO $taskStatus): AsrRecorderResponse
     {
         $sandboxId = $taskStatus->sandboxId;
 
         if (empty($sandboxId)) {
-            throw new InvalidArgumentException(trans('asr.exception.sandbox_id_not_exist'));
+            ExceptionBuilder::throw(AsrErrorCode::SandboxIdNotExist);
         }
 
         $this->logger->info('ASR 录音：准备取消沙箱任务', [
@@ -131,12 +128,11 @@ readonly class AsrSandboxService
         // 调用沙箱取消任务
         $response = $this->asrRecorder->cancelTask(
             $sandboxId,
-            $taskStatus->taskKey,
-            '.workspace'
+            $taskStatus->taskKey
         );
 
         if (! $response->isSuccess()) {
-            throw new InvalidArgumentException(trans('asr.exception.sandbox_cancel_failed', ['message' => $response->message]));
+            ExceptionBuilder::throw(AsrErrorCode::SandboxCancelFailed, '', ['message' => $response->message]);
         }
 
         $this->logger->info('ASR 录音：沙箱任务已取消', [
@@ -155,7 +151,6 @@ readonly class AsrSandboxService
      * @param string $fileTitle 文件标题（不含扩展名）
      * @param string $organizationCode 组织编码
      * @return AsrSandboxMergeResultDTO 合并结果
-     * @throws InvalidArgumentException
      */
     public function mergeAudioFiles(
         AsrTaskStatusDTO $taskStatus,
@@ -167,6 +162,7 @@ readonly class AsrSandboxService
             'project_id' => $taskStatus->projectId,
             'hidden_directory' => $taskStatus->tempHiddenDirectory,
             'display_directory' => $taskStatus->displayDirectory,
+            'sandbox_id' => $taskStatus->sandboxId,
         ]);
 
         // 准备沙箱ID
@@ -177,6 +173,37 @@ readonly class AsrSandboxService
             );
             $taskStatus->sandboxId = $sandboxId;
         }
+
+        // 设置用户上下文
+        $this->sandboxGateway->setUserContext($taskStatus->userId, $organizationCode);
+
+        // 获取完整工作目录路径
+        $projectEntity = $this->projectDomainService->getProject((int) $taskStatus->projectId, $taskStatus->userId);
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+
+        // 确保沙箱可用（如果沙箱已退出，会自动重启或创建新的）
+        $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable(
+            $taskStatus->sandboxId,
+            $taskStatus->projectId,
+            $fullWorkdir
+        );
+
+        // 更新实际的沙箱ID（可能已经变化）
+        if ($actualSandboxId !== $taskStatus->sandboxId) {
+            $this->logger->warning('沙箱ID发生变化，可能是沙箱重启', [
+                'task_key' => $taskStatus->taskKey,
+                'old_sandbox_id' => $taskStatus->sandboxId,
+                'new_sandbox_id' => $actualSandboxId,
+            ]);
+            $taskStatus->sandboxId = $actualSandboxId;
+        }
+
+        $this->logger->info('沙箱已就绪，准备调用 finish', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $actualSandboxId,
+            'full_workdir' => $fullWorkdir,
+        ]);
 
         // 调用沙箱 finish 并轮询等待完成（会通过响应处理器自动创建/更新文件记录）
         $mergeResult = $this->callSandboxFinishAndWait($taskStatus, $fileTitle, $organizationCode);
@@ -208,7 +235,6 @@ readonly class AsrSandboxService
      * @param string $intelligentTitle 智能标题（用于重命名）
      * @param string $organizationCode 组织编码
      * @return AsrSandboxMergeResultDTO 合并结果
-     * @throws InvalidArgumentException
      */
     private function callSandboxFinishAndWait(
         AsrTaskStatusDTO $taskStatus,
@@ -218,7 +244,7 @@ readonly class AsrSandboxService
         $sandboxId = $taskStatus->sandboxId;
 
         if (empty($sandboxId)) {
-            throw new InvalidArgumentException(trans('asr.exception.sandbox_id_not_exist'));
+            ExceptionBuilder::throw(AsrErrorCode::SandboxIdNotExist);
         }
 
         // 构建音频配置对象 (V2 结构化版本)
@@ -262,10 +288,10 @@ readonly class AsrSandboxService
 
         for ($attempt = 1; $attempt <= $maxAttempts; ++$attempt) {
             $statusString = $response->getStatus();
-            $status = SandboxAsrStatusEnum::fromString($statusString);
+            $status = SandboxAsrStatusEnum::from($statusString);
 
             // 检查是否为完成状态（包含 completed 和 finished）
-            if ($status?->isCompleted()) {
+            if ($status->isCompleted()) {
                 $this->logger->info('沙箱音频合并完成 (V2)', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
@@ -292,7 +318,7 @@ readonly class AsrSandboxService
 
             // 检查是否为错误状态
             if ($status?->isError()) {
-                throw new InvalidArgumentException(trans('asr.exception.sandbox_merge_failed', ['message' => $response->getErrorMessage()]));
+                ExceptionBuilder::throw(AsrErrorCode::SandboxMergeFailed, '', ['message' => $response->getErrorMessage()]);
             }
 
             // 中间状态（waiting, running, finalizing）：继续轮询
@@ -305,7 +331,7 @@ readonly class AsrSandboxService
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
                     'status' => $status->value ?? $statusString,
-                    'status_description' => $status?->getDescription(),
+                    'status_description' => $status->getDescription(),
                 ]);
             }
 
@@ -322,7 +348,7 @@ readonly class AsrSandboxService
             );
         }
 
-        throw new InvalidArgumentException(trans('asr.exception.sandbox_merge_timeout'));
+        ExceptionBuilder::throw(AsrErrorCode::SandboxMergeTimeout);
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -19,10 +20,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use InvalidArgumentException;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 验证服务
@@ -46,7 +44,6 @@ readonly class AsrValidationService
      * @param string $userId 用户ID
      * @param string $organizationCode 组织编码
      * @return ProjectEntity 项目实体
-     * @throws InvalidArgumentException 当项目不存在或无权限时抛出异常
      */
     public function validateProjectAccess(string $projectId, string $userId, string $organizationCode): ProjectEntity
     {
@@ -59,7 +56,7 @@ readonly class AsrValidationService
 
             // 校验项目是否属于当前组织
             if ($projectEntity->getUserOrganizationCode() !== $organizationCode) {
-                throw new InvalidArgumentException(trans('asr.api.validation.project_access_denied_organization'));
+                ExceptionBuilder::throw(AsrErrorCode::ProjectAccessDeniedOrganization);
             }
 
             // 校验项目是否属于当前用户
@@ -81,21 +78,22 @@ readonly class AsrValidationService
             }
 
             // 所有权限检查都失败
-            throw new InvalidArgumentException(trans('asr.api.validation.project_access_denied_user'));
+            ExceptionBuilder::throw(AsrErrorCode::ProjectAccessDeniedUser);
         } catch (BusinessException $e) {
             // 处理 ExceptionBuilder::throw 抛出的业务异常
             if ($e->getCode() === SuperAgentErrorCode::PROJECT_NOT_FOUND->value) {
-                throw new InvalidArgumentException(trans('asr.api.validation.project_not_found'));
+                ExceptionBuilder::throw(AsrErrorCode::ProjectNotFound);
+            }
+            if ($e->getCode() >= 43000 && $e->getCode() < 44000) {
+                // 已经是 AsrErrorCode，直接重新抛出
+                throw $e;
             }
 
             // 其他业务异常转换为权限验证失败
-            throw new InvalidArgumentException(trans('asr.api.validation.project_access_validation_failed', ['error' => $e->getMessage()]));
-        } catch (InvalidArgumentException $e) {
-            // 重新抛出权限相关异常
-            throw $e;
+            ExceptionBuilder::throw(AsrErrorCode::ProjectAccessValidationFailed, '', ['error' => $e->getMessage()]);
         } catch (Throwable $e) {
             // 其他异常统一处理为权限验证失败
-            throw new InvalidArgumentException(trans('asr.api.validation.project_access_validation_failed', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(AsrErrorCode::ProjectAccessValidationFailed, '', ['error' => $e->getMessage()]);
         }
     }
 
@@ -105,7 +103,6 @@ readonly class AsrValidationService
      * @param int $topicId 话题ID
      * @param string $userId 用户ID
      * @return TopicEntity 话题实体
-     * @throws InvalidArgumentException 当话题不存在或不属于当前用户时
      */
     public function validateTopicOwnership(int $topicId, string $userId): TopicEntity
     {
@@ -129,19 +126,18 @@ readonly class AsrValidationService
      * @param string $taskKey 任务键
      * @param string $userId 用户ID
      * @return AsrTaskStatusDTO 任务状态DTO
-     * @throws InvalidArgumentException 当任务不存在或不属于当前用户时
      */
     public function validateTaskStatus(string $taskKey, string $userId): AsrTaskStatusDTO
     {
         $taskStatus = $this->asrTaskDomainService->findTaskByKey($taskKey, $userId);
 
         if ($taskStatus === null) {
-            throw new InvalidArgumentException(trans('asr.api.validation.upload_audio_first'));
+            ExceptionBuilder::throw(AsrErrorCode::UploadAudioFirst);
         }
 
         // 验证用户ID匹配（基本的安全检查）
         if ($taskStatus->userId !== $userId) {
-            throw new InvalidArgumentException(trans('asr.exception.task_not_belong_to_user'));
+            ExceptionBuilder::throw(AsrErrorCode::TaskNotBelongToUser);
         }
 
         return $taskStatus;
@@ -153,7 +149,6 @@ readonly class AsrValidationService
      * @param int $topicId 话题ID
      * @param string $userId 用户ID
      * @return string 项目ID
-     * @throws InvalidArgumentException 当话题不存在或不属于当前用户时
      */
     public function getProjectIdFromTopic(int $topicId, string $userId): string
     {

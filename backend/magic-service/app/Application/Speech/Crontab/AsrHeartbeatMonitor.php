@@ -13,16 +13,15 @@ use App\Application\Speech\Service\AsrFileAppService;
 use App\Domain\Asr\Constants\AsrRedisKeys;
 use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Redis\RedisUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Crontab\Annotation\Crontab;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 录音心跳监控定时任务.
@@ -224,7 +223,7 @@ class AsrHeartbeatMonitor
             // 获取用户实体
             $userEntity = $this->magicUserDomainService->getUserById($taskStatus->userId);
             if ($userEntity === null) {
-                throw new InvalidArgumentException(trans('asr.exception.user_not_exist'));
+                ExceptionBuilder::throw(AsrErrorCode::UserNotExist);
             }
 
             $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);

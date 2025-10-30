@@ -210,4 +210,17 @@ return [
         'sandbox_merge_failed' => '沙箱合并失败: :message',
         'sandbox_merge_timeout' => '沙箱合并超时',
     ],
+
+    // 任务状态错误
+    'task_error' => [
+        'task_already_completed' => '录音任务已完成，无法继续操作',
+        'task_already_canceled' => '录音任务已取消，无法继续操作',
+        'task_is_summarizing' => '正在进行总结，请勿重复提交',
+        'task_auto_stopped_by_timeout' => '录音已因心跳超时自动停止并完成总结',
+        'invalid_status_transition' => '无效的录音状态转换',
+        'recording_already_stopped' => '录音已停止，无法继续操作',
+        'upload_not_allowed' => '当前任务状态不允许上传文件',
+        'status_report_not_allowed' => '当前任务状态不允许报告状态',
+        'summary_not_allowed' => '当前任务状态不允许发起总结',
+    ],
 ];

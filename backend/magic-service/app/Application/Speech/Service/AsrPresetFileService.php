@@ -8,17 +8,16 @@ declare(strict_types=1);
 namespace App\Application\Speech\Service;
 
 use App\Application\Speech\Assembler\AsrAssembler;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Codec\Json;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 预设文件服务
@@ -49,7 +48,6 @@ readonly class AsrPresetFileService
      * @param int $hiddenDirId 隐藏目录ID
      * @param string $taskKey 任务键
      * @return array{note_file: TaskFileEntity, transcript_file: TaskFileEntity}
-     * @throws InvalidArgumentException
      */
     public function createPresetFiles(
         string $userId,
@@ -267,6 +265,6 @@ readonly class AsrPresetFileService
             return $existingFile;
         }
 
-        throw new InvalidArgumentException(trans('asr.exception.create_preset_file_failed'));
+        ExceptionBuilder::throw(AsrErrorCode::CreatePresetFileFailed);
     }
 }

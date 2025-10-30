@@ -210,4 +210,17 @@ return [
         'sandbox_merge_failed' => 'Sandbox merge failed: :message',
         'sandbox_merge_timeout' => 'Sandbox merge timeout',
     ],
+
+    // Task status errors
+    'task_error' => [
+        'task_already_completed' => 'Recording task has been completed, cannot continue operation',
+        'task_already_canceled' => 'Recording task has been canceled, cannot continue operation',
+        'task_is_summarizing' => 'Summary is in progress, please do not submit repeatedly',
+        'task_auto_stopped_by_timeout' => 'Recording has been automatically stopped and summarized due to heartbeat timeout',
+        'invalid_status_transition' => 'Invalid recording status transition',
+        'recording_already_stopped' => 'Recording has stopped, cannot continue operation',
+        'upload_not_allowed' => 'Current task status does not allow file upload',
+        'status_report_not_allowed' => 'Current task status does not allow status report',
+        'summary_not_allowed' => 'Current task status does not allow initiating summary',
+    ],
 ];

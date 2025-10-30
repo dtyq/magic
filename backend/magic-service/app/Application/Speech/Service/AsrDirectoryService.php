@@ -12,14 +12,13 @@ use App\Application\Speech\DTO\AsrRecordingDirectoryDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrDirectoryTypeEnum;
 use App\Domain\Asr\Constants\AsrPaths;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Contract\TranslatorInterface;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 目录管理服务
@@ -44,7 +43,6 @@ readonly class AsrDirectoryService
      * @param string $userId 用户ID
      * @param string $taskKey 任务键
      * @return AsrRecordingDirectoryDTO 目录DTO
-     * @throws InvalidArgumentException
      */
     public function createHiddenDirectory(
         string $organizationCode,
@@ -52,79 +50,21 @@ readonly class AsrDirectoryService
         string $userId,
         string $taskKey
     ): AsrRecordingDirectoryDTO {
-        try {
-            // 1. 确保项目工作区根目录存在
-            $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+        $relativePath = AsrPaths::getHiddenDirPath($taskKey);
 
-            // 2. 生成隐藏目录路径
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-
-            // 工作区相对路径 (如: .asr_recordings/session_xxx)
-            $relativePath = AsrPaths::getHiddenDirPath($taskKey);
-
-            // 项目工作目录 (如: project_123/workspace)
-            $workDir = $projectEntity->getWorkDir();
-
-            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
-
-            // 3. 检查目录是否已存在（使用 AsrAssembler 构建完整 file_key）
-            // 完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/.asr_recordings/session_xxx)
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingDir !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $existingDir->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
-                );
-            }
-
-            // 4. 创建隐藏目录实体
-            $taskFileEntity = AsrAssembler::createDirectoryEntity(
-                $userId,
-                $organizationCode,
-                (int) $projectId,
-                $relativePath,
-                $fullPrefix,
-                $workDir,
-                $rootDirectoryId,
-                isHidden: true,
-                taskKey: $taskKey
-            );
-
-            // 5. 插入或忽略
-            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
-            if ($result !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $result->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
-                );
-            }
-
-            // 6. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingDir !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $existingDir->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_HIDDEN_DIR
-                );
-            }
-
-            throw new InvalidArgumentException(trans('asr.exception.create_hidden_directory_failed_project', ['projectId' => $projectId]));
-        } catch (Throwable $e) {
-            $this->logger->error('创建隐藏录音目录失败', [
-                'project_id' => $projectId,
-                'task_key' => $taskKey,
-                'error' => $e->getMessage(),
-            ]);
-            throw new InvalidArgumentException(trans('asr.exception.create_hidden_directory_failed_error', ['error' => $e->getMessage()]));
-        }
+        return $this->createDirectoryInternal(
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            userId: $userId,
+            relativePath: $relativePath,
+            directoryType: AsrDirectoryTypeEnum::ASR_HIDDEN_DIR,
+            isHidden: true,
+            taskKey: $taskKey,
+            errorContext: ['project_id' => $projectId, 'task_key' => $taskKey],
+            logMessage: '创建隐藏录音目录失败',
+            failedProjectError: AsrErrorCode::CreateHiddenDirectoryFailedProject,
+            failedError: AsrErrorCode::CreateHiddenDirectoryFailedError
+        );
     }
 
     /**
@@ -135,80 +75,27 @@ readonly class AsrDirectoryService
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
      * @return AsrRecordingDirectoryDTO 目录DTO
-     * @throws InvalidArgumentException
      */
     public function createStatesDirectory(
         string $organizationCode,
         string $projectId,
         string $userId
     ): AsrRecordingDirectoryDTO {
-        try {
-            // 1. 确保项目工作区根目录存在
-            $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+        $relativePath = AsrPaths::getStatesDirPath();
 
-            // 2. 获取 .asr_states 目录路径
-            $relativePath = AsrPaths::getStatesDirPath();
-
-            // 3. 获取工作目录和前缀
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-            $workDir = $projectEntity->getWorkDir();
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
-
-            // 4. 检查目录是否已存在
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingDir !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $existingDir->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_STATES_DIR
-                );
-            }
-
-            // 5. 创建 .asr_states 目录实体
-            $taskFileEntity = AsrAssembler::createDirectoryEntity(
-                $userId,
-                $organizationCode,
-                (int) $projectId,
-                $relativePath,
-                $fullPrefix,
-                $workDir,
-                $rootDirectoryId,
-                isHidden: true,
-                taskKey: null // 状态目录不关联具体任务
-            );
-
-            // 6. 插入或忽略
-            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
-            if ($result !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $result->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_STATES_DIR
-                );
-            }
-
-            // 7. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingDir !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $existingDir->getFileId(),
-                    true,
-                    AsrDirectoryTypeEnum::ASR_STATES_DIR
-                );
-            }
-
-            throw new InvalidArgumentException(trans('asr.exception.create_states_directory_failed_project', ['projectId' => $projectId]));
-        } catch (Throwable $e) {
-            $this->logger->error('创建 .asr_states 目录失败', [
-                'project_id' => $projectId,
-                'error' => $e->getMessage(),
-            ]);
-            throw new InvalidArgumentException(trans('asr.exception.create_states_directory_failed_error', ['error' => $e->getMessage()]));
-        }
+        return $this->createDirectoryInternal(
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            userId: $userId,
+            relativePath: $relativePath,
+            directoryType: AsrDirectoryTypeEnum::ASR_STATES_DIR,
+            isHidden: true,
+            taskKey: null,
+            errorContext: ['project_id' => $projectId],
+            logMessage: '创建 .asr_states 目录失败',
+            failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+        );
     }
 
     /**
@@ -219,75 +106,27 @@ readonly class AsrDirectoryService
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
      * @return AsrRecordingDirectoryDTO 目录DTO
-     * @throws InvalidArgumentException
      */
     public function createDisplayDirectory(
         string $organizationCode,
         string $projectId,
         string $userId
     ): AsrRecordingDirectoryDTO {
-        try {
-            // 1. 确保项目工作区根目录存在
-            $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+        $relativePath = $this->generateDirectoryName();
 
-            // 2. 生成显示目录名称
-            $directoryName = $this->generateDirectoryName();
-
-            // 工作区相对路径 (如: 录音总结_20251027_230949)
-            $relativePath = $directoryName;
-
-            // 3. 获取工作目录和前缀
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
-
-            // 项目工作目录 (如: project_123/workspace)
-            $workDir = $projectEntity->getWorkDir();
-
-            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
-
-            // 4. 创建显示目录实体
-            $taskFileEntity = AsrAssembler::createDirectoryEntity(
-                $userId,
-                $organizationCode,
-                (int) $projectId,
-                $relativePath,
-                $fullPrefix,
-                $workDir,
-                $rootDirectoryId
-            );
-
-            // 5. 插入或忽略
-            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
-            if ($result !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $result->getFileId(),
-                    false,
-                    AsrDirectoryTypeEnum::ASR_DISPLAY_DIR
-                );
-            }
-
-            // 6. 如果插入被忽略，查询现有目录（使用 AsrAssembler 构建完整 file_key）
-            // 完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/录音总结_20251027_230949)
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
-            if ($existingDir !== null) {
-                return new AsrRecordingDirectoryDTO(
-                    $relativePath,
-                    $existingDir->getFileId(),
-                    false,
-                    AsrDirectoryTypeEnum::ASR_DISPLAY_DIR
-                );
-            }
-
-            throw new InvalidArgumentException(trans('asr.exception.create_display_directory_failed_project', ['projectId' => $projectId]));
-        } catch (Throwable $e) {
-            $this->logger->error('创建显示录音目录失败', [
-                'project_id' => $projectId,
-                'error' => $e->getMessage(),
-            ]);
-            throw new InvalidArgumentException(trans('asr.exception.create_display_directory_failed_error', ['error' => $e->getMessage()]));
-        }
+        return $this->createDirectoryInternal(
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            userId: $userId,
+            relativePath: $relativePath,
+            directoryType: AsrDirectoryTypeEnum::ASR_DISPLAY_DIR,
+            isHidden: false,
+            taskKey: null,
+            errorContext: ['project_id' => $projectId],
+            logMessage: '创建显示录音目录失败',
+            failedProjectError: AsrErrorCode::CreateDisplayDirectoryFailedProject,
+            failedError: AsrErrorCode::CreateDisplayDirectoryFailedError
+        );
     }
 
     /**
@@ -493,13 +332,104 @@ readonly class AsrDirectoryService
     }
 
     /**
+     * 创建目录的内部实现（提取公共逻辑）.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param string $relativePath 相对路径
+     * @param AsrDirectoryTypeEnum $directoryType 目录类型
+     * @param bool $isHidden 是否隐藏
+     * @param null|string $taskKey 任务键
+     * @param array $errorContext 错误日志上下文
+     * @param string $logMessage 错误日志消息
+     * @param AsrErrorCode $failedProjectError 项目失败错误码
+     * @param AsrErrorCode $failedError 通用失败错误码
+     * @return AsrRecordingDirectoryDTO 目录DTO
+     */
+    private function createDirectoryInternal(
+        string $organizationCode,
+        string $projectId,
+        string $userId,
+        string $relativePath,
+        AsrDirectoryTypeEnum $directoryType,
+        bool $isHidden,
+        ?string $taskKey,
+        array $errorContext,
+        string $logMessage,
+        AsrErrorCode $failedProjectError,
+        AsrErrorCode $failedError
+    ): AsrRecordingDirectoryDTO {
+        try {
+            // 1. 确保项目工作区根目录存在
+            $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+
+            // 2. 获取项目信息
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+            $workDir = $projectEntity->getWorkDir();
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+
+            // 3. 检查目录是否已存在
+            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            if ($existingDir !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $existingDir->getFileId(),
+                    $isHidden,
+                    $directoryType
+                );
+            }
+
+            // 4. 创建目录实体
+            $taskFileEntity = AsrAssembler::createDirectoryEntity(
+                $userId,
+                $organizationCode,
+                (int) $projectId,
+                $relativePath,
+                $fullPrefix,
+                $workDir,
+                $rootDirectoryId,
+                isHidden: $isHidden,
+                taskKey: $taskKey
+            );
+
+            // 5. 插入或忽略
+            $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
+            if ($result !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $result->getFileId(),
+                    $isHidden,
+                    $directoryType
+                );
+            }
+
+            // 6. 如果插入被忽略，查询现有目录
+            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            if ($existingDir !== null) {
+                return new AsrRecordingDirectoryDTO(
+                    $relativePath,
+                    $existingDir->getFileId(),
+                    $isHidden,
+                    $directoryType
+                );
+            }
+
+            ExceptionBuilder::throw($failedProjectError, '', ['projectId' => $projectId]);
+        } catch (Throwable $e) {
+            $this->logger->error($logMessage, array_merge($errorContext, ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw($failedError, '', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * 确保工作区根目录存在.
      *
      * @param string $organizationCode 组织代码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
      * @return int 项目工作区根目录的 file_id
-     * @throws InvalidArgumentException
      */
     private function ensureWorkspaceRootDirectoryExists(string $organizationCode, string $projectId, string $userId): int
     {
@@ -507,7 +437,7 @@ readonly class AsrDirectoryService
         $workDir = $projectEntity->getWorkDir();
 
         if (empty($workDir)) {
-            throw new InvalidArgumentException(trans('asr.exception.workspace_directory_empty', ['projectId' => $projectId]));
+            ExceptionBuilder::throw(AsrErrorCode::WorkspaceDirectoryEmpty, '', ['projectId' => $projectId]);
         }
 
         return $this->taskFileDomainService->findOrCreateProjectRootDirectory(

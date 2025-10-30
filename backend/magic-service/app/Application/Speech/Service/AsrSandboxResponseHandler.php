@@ -9,15 +9,14 @@ namespace App\Application\Speech\Service;
 
 use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
+use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Codec\Json;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR 沙箱响应处理服务
@@ -39,7 +38,6 @@ readonly class AsrSandboxResponseHandler
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param array $sandboxResponse 沙箱响应数据（data 部分）
      * @param string $organizationCode 组织编码
-     * @throws InvalidArgumentException
      */
     public function handleFinishResponse(
         AsrTaskStatusDTO $taskStatus,
@@ -169,7 +167,7 @@ readonly class AsrSandboxResponseHandler
                 'task_key' => $taskStatus->taskKey,
                 'error' => $e->getMessage(),
             ]);
-            throw new InvalidArgumentException(trans('asr.exception.directory_rename_failed', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(AsrErrorCode::DirectoryRenameFailed, '', ['error' => $e->getMessage()]);
         }
     }
 
@@ -234,7 +232,7 @@ readonly class AsrSandboxResponseHandler
                 'directory_id' => $directoryId,
                 'error' => $e->getMessage(),
             ]);
-            throw new InvalidArgumentException(trans('asr.exception.batch_update_children_failed', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(AsrErrorCode::BatchUpdateChildrenFailed, '', ['error' => $e->getMessage()]);
         }
     }
 
@@ -350,7 +348,7 @@ readonly class AsrSandboxResponseHandler
                 'task_key' => $taskStatus->taskKey,
                 'error' => $e->getMessage(),
             ]);
-            throw new InvalidArgumentException(trans('asr.exception.create_audio_file_failed', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => $e->getMessage()]);
         }
     }
 
@@ -461,7 +459,7 @@ readonly class AsrSandboxResponseHandler
                 'note_file_id' => $noteFileId,
                 'error' => $e->getMessage(),
             ]);
-            throw new InvalidArgumentException(trans('asr.exception.update_note_file_failed', ['error' => $e->getMessage()]));
+            ExceptionBuilder::throw(AsrErrorCode::UpdateNoteFileFailed, '', ['error' => $e->getMessage()]);
         }
     }
 }

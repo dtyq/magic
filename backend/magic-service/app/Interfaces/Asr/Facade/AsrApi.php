@@ -20,6 +20,7 @@ use App\Application\Speech\Service\AsrDirectoryService;
 use App\Application\Speech\Service\AsrFileAppService;
 use App\Application\Speech\Service\AsrPresetFileService;
 use App\Application\Speech\Service\AsrTitleGeneratorService;
+use App\ErrorCode\AsrErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -32,7 +33,6 @@ use Exception;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -118,7 +118,29 @@ class AsrApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $userAuthorization */
         $userAuthorization = $this->getAuthorization();
+        $userId = $userAuthorization->getId();
         $summaryRequest = $this->validateAndBuildSummaryRequest($request, $userAuthorization);
+
+        // 状态检查：如果不是通过 file_id 发起的总结，需要检查任务状态
+        if (! $summaryRequest->hasFileId()) {
+            $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($summaryRequest->taskKey, $userId);
+
+            if (! $taskStatus->isEmpty()) {
+                // 状态检查 1：任务已取消，不允许总结
+                if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
+                    ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
+                }
+
+                // 状态检查 2：任务已完成（只在这里记录日志，允许重新总结以更换模型）
+                if ($taskStatus->isSummaryCompleted()) {
+                    $this->logger->info('任务已完成，允许使用新模型重新总结', [
+                        'task_key' => $summaryRequest->taskKey,
+                        'old_model_id' => $taskStatus->modelId,
+                        'new_model_id' => $summaryRequest->modelId,
+                    ]);
+                }
+            }
+        }
 
         // 应用层已有分布式锁，这里无需再加锁，直接调用
         try {
@@ -171,7 +193,7 @@ class AsrApi extends AbstractApi
         $locked = $this->locker->spinLock($lockName, $lockOwner);
 
         if (! $locked) {
-            throw new InvalidArgumentException(trans('asr.api.lock.system_busy'));
+            ExceptionBuilder::throw(AsrErrorCode::SystemBusy);
         }
 
         try {
@@ -200,12 +222,12 @@ class AsrApi extends AbstractApi
             $tokenData = $this->buildStsToken($userAuthorization, $projectId, $userId);
 
             // 5. 创建预设文件（如果还未创建，且录音类型需要预设文件）
-            if ($recordingType->needsPresetFiles()
-                && empty($taskStatus->presetNoteFileId)
+            if (empty($taskStatus->presetNoteFileId)
                 && ! empty($taskStatus->displayDirectory)
                 && ! empty($taskStatus->displayDirectoryId)
                 && ! empty($taskStatus->tempHiddenDirectory)
-                && ! empty($taskStatus->tempHiddenDirectoryId)) {
+                && ! empty($taskStatus->tempHiddenDirectoryId)
+              && $recordingType->needsPresetFiles()) {
                 try {
                     $presetFiles = $this->presetFileService->createPresetFiles(
                         $userId,
@@ -290,6 +312,28 @@ class AsrApi extends AbstractApi
                 GenericErrorCode::ParameterMissing,
                 sprintf('无效的状态，有效值：%s', implode(', ', ['start', 'recording', 'paused', 'stopped', 'canceled']))
             );
+        }
+
+        // 状态检查：获取当前任务状态
+        $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
+        if (! $taskStatus->isEmpty()) {
+            // 状态检查 1：任务已完成，不允许报告状态（除非是 canceled）
+            if ($statusEnum !== AsrRecordingStatusEnum::CANCELED && $taskStatus->isSummaryCompleted()) {
+                ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCompleted);
+            }
+
+            // 状态检查 2：任务已取消，不允许再报告其他状态
+            if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value
+                && $statusEnum !== AsrRecordingStatusEnum::CANCELED) {
+                ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
+            }
+
+            // 状态检查 3：录音已停止且已合并，不允许再 start/recording（可能是心跳超时自动停止）
+            if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
+                && ! empty($taskStatus->audioFileId)
+                && in_array($statusEnum, [AsrRecordingStatusEnum::START, AsrRecordingStatusEnum::RECORDING], true)) {
+                ExceptionBuilder::throw(AsrErrorCode::TaskAutoStoppedByTimeout);
+            }
         }
 
         // 处理 note 参数
@@ -489,9 +533,20 @@ class AsrApi extends AbstractApi
             return $this->createNewTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
         }
 
-        // 幂等性检查：如果任务已完成，不允许继续上传
+        // 状态检查 1：任务已完成，不允许上传
         if ($taskStatus->isSummaryCompleted()) {
-            throw new InvalidArgumentException(trans('asr.exception.task_already_completed'));
+            ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCompleted);
+        }
+
+        // 状态检查 2：任务已取消，不允许上传
+        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
+            ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
+        }
+
+        // 状态检查 3：录音已停止，不允许上传（可能是心跳超时自动停止）
+        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
+            && ! empty($taskStatus->audioFileId)) {
+            ExceptionBuilder::throw(AsrErrorCode::TaskAutoStoppedByTimeout);
         }
 
         // 后续调用：更新必要字段
@@ -503,6 +558,7 @@ class AsrApi extends AbstractApi
             'task_key' => $taskKey,
             'hidden_directory' => $taskStatus->tempHiddenDirectory,
             'display_directory' => $taskStatus->displayDirectory,
+            'recording_status' => $taskStatus->recordingStatus,
         ]);
 
         return $taskStatus;
@@ -536,7 +592,7 @@ class AsrApi extends AbstractApi
         $displayDir = $this->findDirectoryByType($directories, false);
 
         if ($hiddenDir === null) {
-            throw new InvalidArgumentException(trans('asr.exception.hidden_directory_not_found'));
+            ExceptionBuilder::throw(AsrErrorCode::HiddenDirectoryNotFound);
         }
 
         return new AsrTaskStatusDTO([

@@ -24,6 +24,7 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -39,11 +40,8 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Engine\Coroutine;
 use Hyperf\Logger\LoggerFactory;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function Hyperf\Translation\trans;
 
 /**
  * ASR文件管理应用服务 - 负责ASR相关的核心业务编排.
@@ -368,7 +366,7 @@ readonly class AsrFileAppService
         $taskStatus = $this->getTaskStatusFromRedis($taskKey, $userId);
 
         if ($taskStatus->isEmpty()) {
-            throw new InvalidArgumentException(trans('asr.exception.task_not_exist_get_upload_token'));
+            ExceptionBuilder::throw(AsrErrorCode::TaskNotExist);
         }
 
         // 保存 model_id、ASR 内容、笔记内容和语种
@@ -562,11 +560,11 @@ readonly class AsrFileAppService
         $fileEntity = $this->taskFileDomainService->getById((int) $summaryRequest->fileId);
 
         if ($fileEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.file_not_exist', ['fileId' => $summaryRequest->fileId]));
+            ExceptionBuilder::throw(AsrErrorCode::FileNotExist, '', ['fileId' => $summaryRequest->fileId]);
         }
 
         if ((string) $fileEntity->getProjectId() !== $summaryRequest->projectId) {
-            throw new InvalidArgumentException(trans('asr.exception.file_not_belong_to_project', ['fileId' => $summaryRequest->fileId]));
+            ExceptionBuilder::throw(AsrErrorCode::FileNotBelongToProject, '', ['fileId' => $summaryRequest->fileId]);
         }
 
         $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($fileEntity->getFileKey());
@@ -606,12 +604,12 @@ readonly class AsrFileAppService
     {
         $fileId = $taskStatus->audioFileId;
         if (empty($fileId)) {
-            throw new InvalidArgumentException(trans('asr.exception.audio_file_id_empty'));
+            ExceptionBuilder::throw(AsrErrorCode::AudioFileIdEmpty);
         }
 
         $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
         if ($fileEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.file_not_exist', ['fileId' => $fileId]));
+            ExceptionBuilder::throw(AsrErrorCode::FileNotExist, '', ['fileId' => $fileId]);
         }
 
         $workspaceRelativePath = AsrAssembler::extractWorkspaceRelativePath($fileEntity->getFileKey());
@@ -710,7 +708,7 @@ readonly class AsrFileAppService
         $dataIsolation = DataIsolation::create($userAuthorization->getOrganizationCode(), $userAuthorization->getId());
         $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $dto->topicId);
         if ($topicEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.topic_not_exist', ['topicId' => $dto->topicId]));
+            ExceptionBuilder::throw(AsrErrorCode::TopicNotExist, '', ['topicId' => $dto->topicId]);
         }
 
         $messageContent = $chatRequest->getData()->getMessage()->getMagicMessage()->toArray();
@@ -730,7 +728,7 @@ readonly class AsrFileAppService
     {
         $userEntity = $this->magicUserDomainService->getUserById($userId);
         if ($userEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.user_not_exist'));
+            ExceptionBuilder::throw(AsrErrorCode::UserNotExist);
         }
         return MagicUserAuthorization::fromUserEntity($userEntity);
     }
@@ -783,7 +781,7 @@ readonly class AsrFileAppService
         if (! $taskStatus->sandboxTaskCreated) {
             // 检查重试次数
             if ($taskStatus->sandboxRetryCount >= 3) {
-                throw new InvalidArgumentException(trans('asr.exception.sandbox_start_retry_exceeded'));
+                ExceptionBuilder::throw(AsrErrorCode::SandboxStartRetryExceeded);
             }
 
             try {
@@ -986,7 +984,7 @@ readonly class AsrFileAppService
     {
         $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $taskStatus->topicId);
         if ($topicEntity === null) {
-            throw new InvalidArgumentException(trans('asr.exception.topic_not_exist_simple'));
+            ExceptionBuilder::throw(AsrErrorCode::TopicNotExistSimple);
         }
 
         $chatTopicId = $topicEntity->getChatTopicId();
