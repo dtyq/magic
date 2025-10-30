@@ -103,6 +103,38 @@ readonly class AsrPresetFileService
     }
 
     /**
+     * 删除笔记文件（笔记内容为空时清理）.
+     *
+     * @param string $fileId 文件ID
+     * @return bool 是否删除成功
+     */
+    public function deleteNoteFile(string $fileId): bool
+    {
+        try {
+            $fileEntity = $this->taskFileDomainService->getById((int) $fileId);
+            if ($fileEntity === null) {
+                $this->logger->warning('笔记文件不存在', ['file_id' => $fileId]);
+                return false;
+            }
+
+            $this->taskFileDomainService->deleteById($fileEntity->getFileId());
+
+            $this->logger->info('删除笔记文件成功', [
+                'file_id' => $fileId,
+                'file_name' => $fileEntity->getFileName(),
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('删除笔记文件失败', [
+                'file_id' => $fileId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * 删除流式识别文件（总结完成后清理）.
      *
      * @param string $fileId 文件ID

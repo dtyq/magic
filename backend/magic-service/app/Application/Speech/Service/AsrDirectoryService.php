@@ -449,10 +449,11 @@ readonly class AsrDirectoryService
     }
 
     /**
-     * 更新目录下所有子文件和子目录的 file_key 路径.
+     * 更新目录下所有子文件和子目录的 file_key 路径（包括嵌套子目录）.
+     * 使用 parent_id 递归查询，利用 idx_project_parent_sort 索引，性能更优.
      *
      * @param int $projectId 项目ID
-     * @param int $oldDirectoryId 旧目录ID（用于查询子文件）
+     * @param int $oldDirectoryId 旧目录ID（用于递归查询）
      * @param string $oldDirPath 旧目录完整路径（末尾带 /）
      * @param string $newDirPath 新目录完整路径（末尾带 /）
      * @param string $taskKey 任务键（用于日志）
@@ -470,8 +471,9 @@ readonly class AsrDirectoryService
         $newDirPath = rtrim($newDirPath, '/') . '/';
 
         try {
-            // 1. 使用 parent_id 查询子文件（利用现有索引 idx_project_parent_sort）
-            $fileEntities = $this->taskFileDomainService->getChildrenByParentAndProject(
+            // 1. 使用 parent_id 递归查询所有嵌套的子文件和子目录
+            // 利用 idx_project_parent_sort 索引，性能优于 LIKE 查询
+            $fileEntities = $this->taskFileDomainService->findFilesRecursivelyByParentId(
                 $projectId,
                 $oldDirectoryId
             );
@@ -498,12 +500,13 @@ readonly class AsrDirectoryService
             // 3. 批量更新
             $updatedCount = $this->taskFileDomainService->batchUpdateFileKeys($updateBatch);
 
-            $this->logger->info('批量更新子文件路径完成', [
+            $this->logger->info('批量更新子文件路径完成（包括嵌套目录，使用索引优化）', [
                 'task_key' => $taskKey,
                 'old_dir_path' => $oldDirPath,
                 'new_dir_path' => $newDirPath,
                 'total_files' => count($fileEntities),
                 'updated_count' => $updatedCount,
+                'query_method' => 'recursive_parent_id', // 标记查询方法
             ]);
 
             return $updatedCount;

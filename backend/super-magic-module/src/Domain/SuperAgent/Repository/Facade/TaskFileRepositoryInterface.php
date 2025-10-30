@@ -210,6 +210,17 @@ interface TaskFileRepositoryInterface
     public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array;
 
     /**
+     * Get children files by multiple parent_ids and project_id (batch query).
+     * Uses idx_project_parent_sort index to avoid N+1 problem.
+     *
+     * @param int $projectId Project ID
+     * @param array $parentIds Parent directory IDs
+     * @param int $limit Maximum number of files to return
+     * @return TaskFileEntity[] File entity list
+     */
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array;
+
+    /**
      * Batch update file_key for multiple files.
      *
      * @param array $updateBatch Array of [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '...'], ...]

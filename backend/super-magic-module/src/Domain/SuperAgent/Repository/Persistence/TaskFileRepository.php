@@ -599,6 +599,36 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 批量查询多个父目录的子文件（使用 IN 查询，避免 N+1 问题）.
+     * 使用 idx_project_parent_sort 索引.
+     *
+     * @param int $projectId 项目ID
+     * @param array $parentIds 父目录ID数组
+     * @param int $limit 限制数量
+     * @return TaskFileEntity[] 文件实体列表
+     */
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array
+    {
+        if (empty($parentIds)) {
+            return [];
+        }
+
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereIn('parent_id', $parentIds)
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
      * 批量更新文件的 file_key.
      * 使用 CASE WHEN 语句实现一次性批量更新.
      *

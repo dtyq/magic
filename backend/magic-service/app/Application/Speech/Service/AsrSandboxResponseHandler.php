@@ -28,6 +28,7 @@ readonly class AsrSandboxResponseHandler
         private TaskFileDomainService $taskFileDomainService,
         private ProjectDomainService $projectDomainService,
         private AsrDirectoryService $directoryService,
+        private AsrPresetFileService $presetFileService,
         private LoggerInterface $logger
     ) {
     }
@@ -66,9 +67,13 @@ readonly class AsrSandboxResponseHandler
         // 3. 创建音频文件记录
         $this->createAudioFile($taskStatus, $audioFile, $organizationCode);
 
-        // 4. 更新笔记文件记录
+        // 4. 处理笔记文件
         if ($noteFile !== null) {
+            // 笔记文件有内容，更新记录
             $this->updateNoteFile($taskStatus, $noteFile, $audioFile, $organizationCode);
+        } else {
+            // 笔记文件为空或不存在，删除预设的笔记文件记录
+            $this->handleEmptyNoteFile($taskStatus);
         }
 
         $this->logger->info('沙箱 finish 响应处理完成', [
@@ -349,6 +354,40 @@ readonly class AsrSandboxResponseHandler
                 'error' => $e->getMessage(),
             ]);
             ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * 处理空笔记文件（删除预设的笔记文件记录）.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     */
+    private function handleEmptyNoteFile(AsrTaskStatusDTO $taskStatus): void
+    {
+        $noteFileId = $taskStatus->presetNoteFileId;
+        if (empty($noteFileId)) {
+            $this->logger->debug('预设笔记文件ID为空，无需删除', [
+                'task_key' => $taskStatus->taskKey,
+            ]);
+            return;
+        }
+
+        $this->logger->info('笔记文件为空或不存在，删除预设笔记文件记录', [
+            'task_key' => $taskStatus->taskKey,
+            'note_file_id' => $noteFileId,
+        ]);
+
+        $deleted = $this->presetFileService->deleteNoteFile($noteFileId);
+        if ($deleted) {
+            // 清空任务状态中的笔记文件相关字段
+            $taskStatus->presetNoteFileId = null;
+            $taskStatus->presetNoteFilePath = null;
+            $taskStatus->noteFileId = null;
+            $taskStatus->noteFileName = null;
+
+            $this->logger->info('空笔记文件处理完成', [
+                'task_key' => $taskStatus->taskKey,
+            ]);
         }
     }
 

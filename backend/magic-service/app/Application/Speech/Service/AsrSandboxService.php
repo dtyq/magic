@@ -82,6 +82,15 @@ readonly class AsrSandboxService
         $noteFileConfig = $this->buildNoteFileConfig($taskStatus);
         $transcriptFileConfig = $this->buildTranscriptFileConfig($taskStatus);
 
+        $this->logger->info('准备调用沙箱 start 接口', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $actualSandboxId,
+            'temp_hidden_directory' => $taskStatus->tempHiddenDirectory,
+            'workspace' => '.workspace',
+            'note_file_config' => $noteFileConfig?->toArray(),
+            'transcript_file_config' => $transcriptFileConfig?->toArray(),
+        ]);
+
         // 调用沙箱启动任务
         // 注意：沙箱 API 只接受工作区相对路径 (如: .asr_recordings/session_xxx)
         $response = $this->asrRecorder->startTask(
@@ -292,7 +301,7 @@ readonly class AsrSandboxService
 
             // 检查是否为完成状态（包含 completed 和 finished）
             if ($status->isCompleted()) {
-                $this->logger->info('沙箱音频合并完成 (V2)', [
+                $this->logger->info('沙箱音频合并完成', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
@@ -337,7 +346,7 @@ readonly class AsrSandboxService
 
             sleep($interval);
 
-            // 继续轮询（V2 结构化版本）
+            // 继续轮询
             $response = $this->asrRecorder->finishTask(
                 $sandboxId,
                 $taskStatus->taskKey,

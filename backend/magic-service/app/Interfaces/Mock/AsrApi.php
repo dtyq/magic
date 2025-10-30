@@ -159,6 +159,7 @@ class AsrApi
                     'action_performed' => 'merged_and_created',
                     'source_path' => null,
                 ],
+                'note_file' => null, // 默认为 null，表示笔记文件为空或不存在
             ],
             'deleted_files' => [],
             'operations' => [
@@ -168,16 +169,18 @@ class AsrApi
             ],
         ];
 
-        // 如果有笔记文件配置，添加到返回中
+        // 如果有笔记文件配置且文件大小 > 0，添加到返回中（模拟真实沙箱的笔记文件内容检查）
         if ($noteFileConfig !== null && isset($noteFileConfig['target_path'])) {
             // 笔记文件也要使用重命名后的目录路径
             $noteFilename = $outputFilename . '-笔记.md';
             $noteFilePath = rtrim($renamedDir, '/') . '/' . $noteFilename;
 
+            // 模拟真实沙箱行为：只有当笔记文件有内容时才返回详细信息
+            // 这里简化处理，默认假设有内容（真实沙箱会检查文件内容是否为空）
             $responseData['files']['note_file'] = [
                 'filename' => $noteFilename,
                 'path' => $noteFilePath, // 使用重命名后的目录路径
-                'size' => 0,
+                'size' => 256, // 模拟有内容的文件大小
                 'duration' => null,
                 'action_performed' => 'renamed_and_moved',
                 'source_path' => $noteFileConfig['source_path'] ?? '',
