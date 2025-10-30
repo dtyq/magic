@@ -22,7 +22,6 @@ use Hyperf\Codec\Json;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
-use Hyperf\Odin\Message\Role;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -93,25 +92,24 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
             }
 
             // 2. 查询该任务的用户消息，检查是否有 summary_task 标记
+            // 使用 topicId + taskId + sender_type 查询，利用索引并只返回用户消息
             $taskMessageRepository = di(TaskMessageRepositoryInterface::class);
-            $userMessages = $taskMessageRepository->findByTaskId((string) $event->getTaskId());
+            $userMessages = $taskMessageRepository->findUserMessagesByTopicIdAndTaskId($event->getTopicId(), (string) $event->getTaskId());
 
             $hasSummaryTask = false;
             foreach ($userMessages as $message) {
-                if ($message->getSenderType() === Role::User->value) {
-                    $rawContent = $message->getRawContent();
-                    if (! empty($rawContent)) {
-                        // raw_content 直接存储的就是 dynamic_params 的 JSON
-                        $dynamicParams = Json::decode($rawContent);
-                        if (isset($dynamicParams['summary_task'])
-                            && $dynamicParams['summary_task'] === true) {
-                            $hasSummaryTask = true;
-                            $this->logger->info('checkRecordingSummary Found summary_task marker', [
-                                'task_id' => $event->getTaskId(),
-                                'topic_id' => $event->getTopicId(),
-                            ]);
-                            break;
-                        }
+                $rawContent = $message->getRawContent();
+                if (! empty($rawContent)) {
+                    // raw_content 直接存储的就是 dynamic_params 的 JSON
+                    $dynamicParams = Json::decode($rawContent);
+                    if (isset($dynamicParams['summary_task'])
+                        && $dynamicParams['summary_task'] === true) {
+                        $hasSummaryTask = true;
+                        $this->logger->info('checkRecordingSummary Found summary_task marker', [
+                            'task_id' => $event->getTaskId(),
+                            'topic_id' => $event->getTopicId(),
+                        ]);
+                        break;
                     }
                 }
             }
