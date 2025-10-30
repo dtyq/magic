@@ -158,13 +158,16 @@ class OpenAIProxyApi extends AbstractOpenApi
      */
     public function bingSearch(RequestInterface $request): array
     {
-        // 1. Get query parameters
-        $query = (string) $request->input('query', '');
+        // 1. Get query parameters - support both Bing native and underscore naming
+        // Support 'q' (Bing native) or 'query' (our style)
+        $query = (string) ($request->input('q') ?: $request->input('query', ''));
         $count = (int) $request->input('count', 10);
         $offset = (int) $request->input('offset', 0);
         $mkt = (string) $request->input('mkt', 'zh-CN');
-        $setLang = (string) $request->input('set_lang', '');
-        $safeSearch = (string) $request->input('safe_search', '');
+        // Support 'setLang' (Bing native) or 'set_lang' (our style)
+        $setLang = (string) ($request->input('setLang') ?: $request->input('set_lang', ''));
+        // Support 'safeSearch' (Bing native) or 'safe_search' (our style)
+        $safeSearch = (string) ($request->input('safeSearch') ?: $request->input('safe_search', ''));
         $freshness = (string) $request->input('freshness', '');
 
         // 2. Get access token
