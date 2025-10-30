@@ -281,6 +281,9 @@ readonly class AsrSandboxService
             'transcript_file_config' => $transcriptFileConfig?->toArray(),
         ]);
 
+        // 记录开始时间
+        $finishStartTime = microtime(true);
+
         // 首次调用 finish (V2 结构化版本)
         $response = $this->asrRecorder->finishTask(
             $sandboxId,
@@ -301,12 +304,17 @@ readonly class AsrSandboxService
 
             // 检查是否为完成状态（包含 completed 和 finished）
             if ($status->isCompleted()) {
+                // 计算总耗时
+                $finishEndTime = microtime(true);
+                $totalElapsedTime = round($finishEndTime - $finishStartTime);
+
                 $this->logger->info('沙箱音频合并完成', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
                     'status' => $status->value,
                     'file_path' => $response->getFilePath(),
+                    'total_elapsed_time_seconds' => $totalElapsedTime,
                 ]);
 
                 // 处理沙箱响应，更新文件和目录记录
