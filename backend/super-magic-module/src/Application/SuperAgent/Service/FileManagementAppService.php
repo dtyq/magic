@@ -1204,26 +1204,19 @@ class FileManagementAppService extends AbstractAppService
                 }
 
                 // 8.2 移动新文件到目标位置（如果需要）
-                if ($newFileKey !== $targetFileKey) {
-                    $this->cloudFileRepository->renameObjectByCredential(
-                        $prefix,
-                        $organizationCode,
-                        $newFileKey,
-                        $targetFileKey,
-                        StorageBucketType::SandBox
-                    );
+                $this->cloudFileRepository->renameObjectByCredential(
+                    $prefix,
+                    $organizationCode,
+                    $newFileKey,
+                    $targetFileKey,
+                    StorageBucketType::SandBox
+                );
 
-                    $this->logger->info('New file moved to target location', [
-                        'file_id' => $fileId,
-                        'source_key' => $newFileKey,
-                        'target_key' => $targetFileKey,
-                    ]);
-                } else {
-                    $this->logger->info('New file already at target location, skip moving', [
-                        'file_id' => $fileId,
-                        'file_key' => $newFileKey,
-                    ]);
-                }
+                $this->logger->info('New file moved to target location', [
+                    'file_id' => $fileId,
+                    'source_key' => $newFileKey,
+                    'target_key' => $targetFileKey,
+                ]);
 
                 // 9. 更新数据库记录
                 $fileEntity->setFileKey($targetFileKey);
