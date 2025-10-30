@@ -92,30 +92,6 @@ class ModeInitializer
         $creatorId = 'system';
 
         return [
-            // Default Mode
-            [
-                'id' => '821131542438486016',
-                'name_i18n' => json_encode([
-                    'en_US' => 'Default Mode',
-                    'zh_CN' => '默认模式',
-                ]),
-                'placeholder_i18n' => json_encode([]),
-                'identifier' => 'default',
-                'icon' => 'Icon3dCubeSphere',
-                'color' => '#999999',
-                'sort' => 0,
-                'description' => '仅用于创建时初始化模式及重置模式中的配置',
-                'is_default' => 1,
-                'status' => 1,
-                'distribution_type' => 1,
-                'follow_mode_id' => 0,
-                'restricted_mode_identifiers' => json_encode([]),
-                'organization_code' => $orgCode,
-                'creator_id' => $creatorId,
-                'created_at' => $now,
-                'updated_at' => $now,
-                'deleted_at' => null,
-            ],
             // Chat Mode
             [
                 'id' => '821132008052400129',
