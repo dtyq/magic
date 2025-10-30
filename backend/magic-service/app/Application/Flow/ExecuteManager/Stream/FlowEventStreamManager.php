@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\Flow\ExecuteManager\Stream;
 
+use App\Infrastructure\Core\Hyperf\EventStream;
 use Hyperf\Context\Context;
-use Hyperf\Engine\Http\EventStream;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpServer\Contract\ResponseInterface;
 

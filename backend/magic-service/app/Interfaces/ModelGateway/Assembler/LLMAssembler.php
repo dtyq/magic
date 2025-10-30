@@ -9,8 +9,8 @@ namespace App\Interfaces\ModelGateway\Assembler;
 
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
+use App\Infrastructure\Core\Hyperf\EventStream;
 use Hyperf\Context\Context;
-use Hyperf\Engine\Http\EventStream;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpServer\Contract\ResponseInterface;
 use Hyperf\Odin\Api\Response\ChatCompletionChoice;
