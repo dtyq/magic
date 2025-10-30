@@ -1103,13 +1103,13 @@ class FileManagementAppService extends AbstractAppService
 
             // 3. 验证新文件在云存储中存在（边界3：源文件不存在）
             $newFileKey = $requestDTO->getFileKey();
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+            $organizationCode = $projectEntity->getUserOrganizationCode();
             $newFileInfo = $this->taskFileDomainService->getFileInfoFromCloudStorage(
                 $newFileKey,
                 $organizationCode
             );
 
-            if (empty($newFileInfo) || $newFileInfo['size'] <= 0) {
+            if (empty($newFileInfo)) {
                 ExceptionBuilder::throw(
                     SuperAgentErrorCode::FILE_NOT_FOUND,
                     trans('file.source_file_not_found_in_storage')
