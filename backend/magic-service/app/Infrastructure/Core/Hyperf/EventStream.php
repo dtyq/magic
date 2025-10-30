@@ -39,9 +39,7 @@ class EventStream
 
     public function write(string $data): self
     {
-        /* @var ServerConnection $socket */
-        $socket = $this->connection->getSocket();
-        $socket->sendHttpChunk($data);
+        $this->connection->write($data);
         return $this;
     }
 
