@@ -18,6 +18,7 @@ class EventStream
     {
         $headers = [
             'Content-Type' => 'text/event-stream; charset=utf-8',
+            'Transfer-Encoding' => 'chunked',
             'X-Accel-Buffering' => 'no',
             'Cache-Control' => 'no-cache',
         ];
@@ -38,7 +39,9 @@ class EventStream
 
     public function write(string $data): self
     {
-        $this->connection->write($data);
+        /** @var ServerConnection $socket */
+        $socket = $this->connection->getSocket();
+        $socket->sendHttpChunk($data);
         return $this;
     }
 
