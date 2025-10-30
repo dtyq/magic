@@ -137,6 +137,52 @@ class OpenAIProxyApi extends AbstractOpenApi
         return null;
     }
 
+    /**
+     * Bing search proxy - returns native Bing API format.
+     *
+     * GET /v1/search
+     *
+     * Query Parameters:
+     * - query: Search keywords (required)
+     * - count: Number of results (optional, default: 10, max: 50)
+     * - offset: Pagination offset (optional, default: 0, max: 1000)
+     * - mkt: Market code (optional, default: zh-CN)
+     * - set_lang: UI language (optional)
+     * - safe_search: Safe search level (optional, Strict/Moderate/Off)
+     * - freshness: Time filter (optional, Day/Week/Month)
+     *
+     * Headers:
+     * - Authorization: Bearer {access_token}
+     *
+     * @return array Native Bing API response
+     */
+    public function bingSearch(RequestInterface $request): array
+    {
+        // 1. Get query parameters
+        $query = (string) $request->input('query', '');
+        $count = (int) $request->input('count', 10);
+        $offset = (int) $request->input('offset', 0);
+        $mkt = (string) $request->input('mkt', 'zh-CN');
+        $setLang = (string) $request->input('set_lang', '');
+        $safeSearch = (string) $request->input('safe_search', '');
+        $freshness = (string) $request->input('freshness', '');
+
+        // 2. Get access token
+        $accessToken = $this->getAccessToken();
+
+        // 3. Call LLMAppService
+        return $this->llmAppService->bingSearch(
+            $accessToken,
+            $query,
+            $count,
+            $offset,
+            $mkt,
+            $setLang,
+            $safeSearch,
+            $freshness
+        );
+    }
+
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request): void
     {
         $headerConfigs = [];

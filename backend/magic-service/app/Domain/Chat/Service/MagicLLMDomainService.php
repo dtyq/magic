@@ -731,7 +731,7 @@ class MagicLLMDomainService
         $subscriptionKey = config('search.bing.api_key');
         $mkt = BingSearchMarketCode::fromLanguage($language);
         $referenceCount = 30;
-        $data = make(BingSearch::class)->search($query, $subscriptionKey, $mkt);
+        $data = make(BingSearch::class)->search($query, $subscriptionKey, $mkt, 20, 0);
         try {
             $contexts = array_slice($data['webPages']['value'], 0, $referenceCount);
         } catch (Exception $e) {
