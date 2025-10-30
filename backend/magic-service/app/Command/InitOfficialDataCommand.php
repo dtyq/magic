@@ -117,8 +117,15 @@ class InitOfficialDataCommand extends HyperfCommand
                     $this->info('');
                     $this->comment('  Application Code: ' . $result['application_code']);
                     $this->comment('  Access Token: ' . $result['access_token']);
+                    if (isset($result['is_new']) && $result['is_new']) {
+                        $this->comment('  Status: Newly Created');
+                    } else {
+                        $this->comment('  Status: Already Exists');
+                    }
                     $this->info('');
-                    $this->warn('  ⚠ Please save this access token securely!');
+                    if (isset($result['is_new']) && $result['is_new']) {
+                        $this->warn('  WARNING: Please save this access token securely!');
+                    }
                 }
             } else {
                 $this->error('✗ ' . $result['message']);

@@ -12,6 +12,7 @@ use App\Domain\ModelGateway\Entity\ApplicationEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayOfficialApp;
+use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\ModelGateway\Service\ApplicationDomainService;
 use Ramsey\Uuid\Uuid;
@@ -28,7 +29,7 @@ class OfficialAccessTokenInitializer
     /**
      * Initialize official access token with optional custom api-key.
      * @param null|string $apiKey Custom api-key, if null will generate one
-     * @return array{success: bool, message: string, access_token: null|string, application_code: null|string}
+     * @return array{success: bool, message: string, access_token: null|string, application_code: null|string, is_new?: bool}
      */
     public static function init(?string $apiKey = null): array
     {
@@ -54,27 +55,53 @@ class OfficialAccessTokenInitializer
 
             // Step 2: Check or create access token
             $accessTokenDomainService = di(AccessTokenDomainService::class);
-            $accessToken = $accessTokenDomainService->getByName($llmDataIsolation, $application->getCode());
-
+            $accessTokenRepository = di(AccessTokenRepositoryInterface::class);
+            $accessToken = null;
             $isNewToken = false;
-            if (! $accessToken) {
+
+            if ($apiKey !== null && $apiKey !== '') {
+                // If API key is specified, check if this token already exists
+                $accessToken = $accessTokenRepository->getByAccessToken($llmDataIsolation, $apiKey);
+
+                if ($accessToken) {
+                    // Token already exists with this API key
+                    return [
+                        'success' => true,
+                        'message' => 'Access token with this API key already exists.',
+                        'access_token' => $accessToken->getAccessToken(),
+                        'application_code' => $application->getCode(),
+                        'is_new' => false,
+                    ];
+                }
+
+                // Token does not exist, create new one with specified API key
                 $isNewToken = true;
                 $accessToken = new AccessTokenEntity();
-                $accessToken->setName($application->getCode());
+                // Add suffix to name to avoid conflicts when multiple tokens exist
+                $accessToken->setName($application->getCode() . '_' . substr($apiKey, 0, 8));
                 $accessToken->setType(AccessTokenType::Application);
                 $accessToken->setRelationId((string) $application->getId());
                 $accessToken->setOrganizationCode($orgCode);
                 $accessToken->setModels(['all']);
                 $accessToken->setCreator('system');
-
-                // Set custom api-key or generate one
-                if ($apiKey !== null && $apiKey !== '') {
-                    $accessToken->setAccessToken($apiKey);
-                } else {
-                    $accessToken->setAccessToken(self::generateApiKey());
-                }
-
+                $accessToken->setAccessToken($apiKey);
                 $accessToken = $accessTokenDomainService->save($llmDataIsolation, $accessToken);
+            } else {
+                // No API key specified, use original logic (query by name)
+                $accessToken = $accessTokenDomainService->getByName($llmDataIsolation, $application->getCode());
+
+                if (! $accessToken) {
+                    $isNewToken = true;
+                    $accessToken = new AccessTokenEntity();
+                    $accessToken->setName($application->getCode());
+                    $accessToken->setType(AccessTokenType::Application);
+                    $accessToken->setRelationId((string) $application->getId());
+                    $accessToken->setOrganizationCode($orgCode);
+                    $accessToken->setModels(['all']);
+                    $accessToken->setCreator('system');
+                    $accessToken->setAccessToken(self::generateApiKey());
+                    $accessToken = $accessTokenDomainService->save($llmDataIsolation, $accessToken);
+                }
             }
 
             return [
@@ -84,6 +111,7 @@ class OfficialAccessTokenInitializer
                     : 'Official application and access token already exist.',
                 'access_token' => $accessToken->getAccessToken(),
                 'application_code' => $application->getCode(),
+                'is_new' => $isNewToken,
             ];
         } catch (Throwable $e) {
             return [
