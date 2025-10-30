@@ -19,6 +19,7 @@ class EventStream
         $headers = [
             'Content-Type' => 'text/event-stream; charset=utf-8',
             'X-Accel-Buffering' => 'no',
+            'Cache-Control' => 'no-cache',
         ];
         foreach ($response?->getHeaders() ?? [] as $name => $values) {
             $headers[$name] = implode(', ', $values);
