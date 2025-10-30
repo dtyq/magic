@@ -166,7 +166,7 @@ readonly class AsrFileAppService
         try {
             // 1. 准备任务状态
             if ($summaryRequest->hasFileId()) {
-                $taskStatus = $this->createVirtualTaskStatusFromFileId($summaryRequest, $userId);
+                $taskStatus = $this->createVirtualTaskStatusFromFileId($summaryRequest, $userId, $organizationCode);
             } else {
                 $taskStatus = $this->validationService->validateTaskStatus($summaryRequest->taskKey, $userId);
             }
@@ -554,8 +554,11 @@ readonly class AsrFileAppService
     /**
      * 从文件ID创建虚拟任务状态.
      */
-    private function createVirtualTaskStatusFromFileId(SummaryRequestDTO $summaryRequest, string $userId): AsrTaskStatusDTO
-    {
+    private function createVirtualTaskStatusFromFileId(
+        SummaryRequestDTO $summaryRequest,
+        string $userId,
+        string $organizationCode
+    ): AsrTaskStatusDTO {
         $fileEntity = $this->taskFileDomainService->getById((int) $summaryRequest->fileId);
 
         if ($fileEntity === null) {
@@ -571,9 +574,12 @@ readonly class AsrFileAppService
         return new AsrTaskStatusDTO([
             'task_key' => $summaryRequest->taskKey,
             'user_id' => $userId,
+            'organization_code' => $organizationCode,
             'status' => AsrTaskStatusEnum::COMPLETED->value,
             'file_path' => $workspaceRelativePath,
             'audio_file_id' => $summaryRequest->fileId,
+            'project_id' => $summaryRequest->projectId,
+            'topic_id' => $summaryRequest->topicId,
         ]);
     }
 

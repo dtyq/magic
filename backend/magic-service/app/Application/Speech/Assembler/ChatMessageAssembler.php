@@ -176,6 +176,9 @@ readonly class ChatMessageAssembler
                     'model' => [
                         'model_id' => $modelId,
                     ],
+                    'dynamic_params' => [
+                        'summary_task' => true,
+                    ],
                 ],
             ],
         ];
