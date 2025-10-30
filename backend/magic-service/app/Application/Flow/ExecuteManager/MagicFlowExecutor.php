@@ -331,6 +331,7 @@ class MagicFlowExecutor
         // 只有 api 层面需要这样
         if ($this->executionData->getExecutionType()->isApi()) {
             FlowEventStreamManager::write('data: [DONE]' . "\n\n");
+            FlowEventStreamManager::get()->end();
             FlowEventStreamManager::get()->close();
         }
     }

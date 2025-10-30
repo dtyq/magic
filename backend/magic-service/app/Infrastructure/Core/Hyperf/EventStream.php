@@ -18,9 +18,9 @@ class EventStream
     {
         $headers = [
             'Content-Type' => 'text/event-stream; charset=utf-8',
-            //            'X-Accel-Buffering' => 'no',
+            'Transfer-Encoding' => 'chunked',
+            'X-Accel-Buffering' => 'no',
             'Cache-Control' => 'no-cache',
-            'Connection' => 'close',
         ];
         foreach ($response?->getHeaders() ?? [] as $name => $values) {
             $headers[$name] = implode(', ', $values);
@@ -41,18 +41,16 @@ class EventStream
     {
         /* @var ServerConnection $socket */
         $socket = $this->connection->getSocket();
-        $socket->write([$data]);
+        $socket->sendHttpChunk($data);
         return $this;
     }
 
     public function end(): void
     {
+        $this->connection->end();
     }
 
     public function close(): void
     {
-        /** @var ServerConnection $socket */
-        $socket = $this->connection->getSocket();
-        $socket->close();
     }
 }

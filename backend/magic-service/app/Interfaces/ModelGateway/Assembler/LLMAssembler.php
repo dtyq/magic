@@ -98,6 +98,7 @@ class LLMAssembler
         }
 
         self::getEventStream()->write('data: [DONE]' . "\n\n");
+        self::getEventStream()->end();
         self::getEventStream()->close();
     }
 
