@@ -18,7 +18,7 @@ class EventStream
     {
         $headers = [
             'Content-Type' => 'text/event-stream; charset=utf-8',
-            'X-Accel-Buffering' => 'no',
+            //            'X-Accel-Buffering' => 'no',
             'Cache-Control' => 'no-cache',
             'Connection' => 'close',
         ];
