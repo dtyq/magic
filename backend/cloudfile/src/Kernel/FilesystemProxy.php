@@ -235,11 +235,17 @@ class FilesystemProxy extends Filesystem
     public function getLinks(array $paths, array $downloadNames = [], int $expires = 3600, array $options = []): array
     {
         $paths = $this->formatPaths($paths);
+        $platform = $this->config['platform'] ?? '';
         // 如果是公共读，直接返回拼接好的链接
         $list = [];
         if ($this->isPublicRead && ! empty($this->publicDomain) && empty($downloadNames)) {
             foreach ($paths as $path) {
-                $list[$path] = new FileLink($path, $this->publicDomain . '/' . $path, $expires);
+                if($this->adapterName === AdapterName::FILE_SERVICE &&  $platform === 'minio') {
+                    $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . $path;
+                }else{
+                    $uri = $this->publicDomain . '/' . $path;
+                }
+                $list[$path] = new FileLink($path, $uri, $expires);
             }
             return $list;
         }
