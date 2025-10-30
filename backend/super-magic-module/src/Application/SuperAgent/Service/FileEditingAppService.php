@@ -31,10 +31,10 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层处理业务逻辑
-        $this->fileEditingDomainService->joinEditing($fileId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $this->fileEditingDomainService->joinEditing($fileId, $userAuthorization->getId(), $projectEntity->getUserOrganizationCode());
     }
 
     /**
@@ -46,10 +46,10 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层处理业务逻辑
-        $this->fileEditingDomainService->leaveEditing($fileId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $this->fileEditingDomainService->leaveEditing($fileId, $userAuthorization->getId(), $projectEntity->getUserOrganizationCode());
     }
 
     /**
@@ -61,9 +61,9 @@ class FileEditingAppService extends AbstractAppService
 
         // 权限检查
         $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-        $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProject($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 委托Domain层查询编辑用户数量
-        return $this->fileEditingDomainService->getEditingUsersCount($fileId, $userAuthorization->getOrganizationCode());
+        return $this->fileEditingDomainService->getEditingUsersCount($fileId, $projectEntity->getUserOrganizationCode());
     }
 }
