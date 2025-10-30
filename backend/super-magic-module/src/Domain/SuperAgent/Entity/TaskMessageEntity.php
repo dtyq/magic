@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Hyperf\Codec\Json;
 
 class TaskMessageEntity extends AbstractEntity
 {
@@ -330,8 +331,16 @@ class TaskMessageEntity extends AbstractEntity
         return $this->mentions;
     }
 
-    public function setMentions(?array $mentions): self
+    public function setMentions(null|array|string $mentions): self
     {
+        if (is_string($mentions)) {
+            if (! empty($mentions) && json_validate($mentions)) {
+                $mentions = Json::decode($mentions);
+            } else {
+                // 无效的 JSON 字符串或空字符串，设置为 null
+                $mentions = null;
+            }
+        }
         $this->mentions = empty($mentions) ? null : $mentions;
         return $this;
     }
