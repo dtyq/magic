@@ -146,10 +146,10 @@ return [
         'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
         // Tiền tố/hậu tố i18n mới (không có ghi chú)
         'summary_prefix' => 'Vui lòng giúp tôi tóm tắt nội dung ghi âm trong ',
-        'summary_suffix' => ' thành một tài liệu biên bản, và kết hợp nội dung ghi chú để tạo ra một báo cáo HTML chi tiết.',
+        'summary_suffix' => ' thành một tài liệu biên bản, và tạo ra một báo cáo phân tích HTML chi tiết.',
         // Tiền tố/hậu tố i18n mới (có ghi chú)
         'summary_prefix_with_note' => 'Vui lòng giúp tôi tổ chức nội dung ghi âm trong ',
         'summary_middle_with_note' => ' và nội dung ghi chú của tôi trong ',
-        'summary_suffix_with_note' => ' thành một tài liệu biên bản, và kết hợp nội dung ghi chú để tạo ra một báo cáo HTML chi tiết.',
+        'summary_suffix_with_note' => ' thành một tài liệu biên bản, và kết hợp nội dung ghi chú để tạo ra một báo cáo phân tích HTML chi tiết.',
     ],
 ];
