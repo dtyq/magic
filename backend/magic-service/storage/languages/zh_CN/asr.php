@@ -159,6 +159,6 @@ return [
         // 新的前后缀国际化（有笔记）
         'summary_prefix_with_note' => '帮我把 ',
         'summary_middle_with_note' => ' 中的录音内容和 ',
-        'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档。',
+        'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档,并结合笔记内容实现一份详细的html分析报告。',
     ],
 ];

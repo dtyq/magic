@@ -146,7 +146,7 @@ return [
         'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
         // Awalan/akhiran i18n baru (tanpa nota)
         'summary_prefix' => 'Sila bantu saya meringkaskan kandungan rakaman dalam ',
-        'summary_suffix' => ' ke dalam dokumen minit.',
+        'summary_suffix' => ' ke dalam dokumen minit, dan gabungkan kandungan nota saya untuk mencipta laporan HTML analisis yang terperinci.',
         // Awalan/akhiran i18n baru (dengan nota)
         'summary_prefix_with_note' => 'Sila bantu saya menyusun kandungan rakaman dalam ',
         'summary_middle_with_note' => ' dan kandungan nota saya dalam ',
