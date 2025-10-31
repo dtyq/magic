@@ -1181,8 +1181,7 @@ class FileManagementAppService extends AbstractAppService
                     ]);
                 }
 
-                // 8.1 删除原文件（已有版本备份）
-                try {
+                if ($oldFileKey !== $targetFileKey) {
                     $this->cloudFileRepository->deleteObjectByCredential(
                         $prefix,
                         $organizationCode,
@@ -1195,28 +1194,22 @@ class FileManagementAppService extends AbstractAppService
                         'old_file_key' => $oldFileKey,
                         'version_id' => $versionEntity?->getId(),
                     ]);
-                } catch (Throwable $e) {
-                    $this->logger->warning('Failed to delete old file, will be overwritten', [
+
+                    // 8.2 移动新文件到目标位置（如果需要）
+                    $this->cloudFileRepository->renameObjectByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $newFileKey,
+                        $targetFileKey,
+                        StorageBucketType::SandBox
+                    );
+
+                    $this->logger->info('New file moved to target location', [
                         'file_id' => $fileId,
-                        'old_file_key' => $oldFileKey,
-                        'error' => $e->getMessage(),
+                        'source_key' => $newFileKey,
+                        'target_key' => $targetFileKey,
                     ]);
                 }
-
-                // 8.2 移动新文件到目标位置（如果需要）
-                $this->cloudFileRepository->renameObjectByCredential(
-                    $prefix,
-                    $organizationCode,
-                    $newFileKey,
-                    $targetFileKey,
-                    StorageBucketType::SandBox
-                );
-
-                $this->logger->info('New file moved to target location', [
-                    'file_id' => $fileId,
-                    'source_key' => $newFileKey,
-                    'target_key' => $targetFileKey,
-                ]);
 
                 // 9. 更新数据库记录
                 $fileEntity->setFileKey($targetFileKey);
