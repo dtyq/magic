@@ -514,6 +514,7 @@ class LLMAppService extends AbstractLLMAppService
         /** @var null|EndpointDTO $endpointDTO */
         $endpointDTO = null;
         $modelGatewayDataIsolation = null;
+        $modelAttributes = null;
         try {
             // Validate access token and model permissions
             $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($proxyModelRequest->getAccessToken(), $proxyModelRequest->getBusinessParams());
@@ -537,8 +538,6 @@ class LLMAppService extends AbstractLLMAppService
                 // High availability is disabled, use the original model ID directly
                 $modeId = $proxyModelRequest->getModel();
             }
-
-            $modelAttributes = null;
 
             try {
                 $model = match ($proxyModelRequest->getType()) {
@@ -644,9 +643,9 @@ class LLMAppService extends AbstractLLMAppService
                 modelId: $proxyModelRequest->getModel(),
                 modelVersion: $proxyModelRequest->getModel(),
                 usage: new Usage(0, 0, 0),
-                organizationCode: $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                userId: $modelGatewayDataIsolation->getCurrentUserId(),
-                appId: $modelGatewayDataIsolation->getAppId(),
+                organizationCode: $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
+                userId: $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
+                appId: $modelGatewayDataIsolation?->getAppId() ?? '',
                 serviceProviderModelId: $modelAttributes?->getProviderModelId() ?? '',
                 businessParams: $businessParams,
             );
