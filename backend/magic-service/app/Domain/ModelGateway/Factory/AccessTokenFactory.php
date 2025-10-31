@@ -30,6 +30,7 @@ class AccessTokenFactory
         $entity->setUseAmount($model->use_amount);
         $entity->setRpm($model->rpm);
         $entity->setOrganizationCode($model->organization_code);
+        $entity->setEnabled($model->enabled);
         $entity->setCreator($model->creator);
         $entity->setCreatedAt($model->created_at);
         $entity->setModifier($model->modifier);

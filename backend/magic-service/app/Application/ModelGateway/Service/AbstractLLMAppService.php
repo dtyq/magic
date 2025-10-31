@@ -65,6 +65,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         if (! $accessToken) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
+        if (! $accessToken->isEnabled()) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_DISABLED);
+        }
 
         // 兼容
         if (isset($businessParams['organization_id'])) {

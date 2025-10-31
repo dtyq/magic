@@ -86,4 +86,8 @@ enum MagicApiErrorCode: int
     // 通用验证失败
     #[ErrorMessage(message: 'api.validate_failed')]
     case ValidateFailed = 4018;
+
+    // token被禁用
+    #[ErrorMessage(message: 'api.token.disabled')]
+    case TOKEN_DISABLED = 4019;
 }
