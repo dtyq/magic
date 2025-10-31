@@ -25,6 +25,7 @@ use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\FileServiceSimpleUpload;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\ObsSimpleUpload;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\TosSimpleUpload;
 use Dtyq\SdkBase\SdkBase;
+use Hyperf\Stringable\Str;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\PathNormalizer;
@@ -265,6 +266,7 @@ class FilesystemProxy extends Filesystem
         }
         if (! empty($unCachePaths)) {
             $unCachePaths = array_values($unCachePaths);
+            $unCachePaths = $this->filterMinioPaths($unCachePaths);
             $unCachePathsData = $this->expand->getFileLinks($unCachePaths, $downloadNames, $expires, $options);
             foreach ($unCachePathsData as $path => $data) {
                 if (! $data instanceof FileLink) {
@@ -508,6 +510,23 @@ class FilesystemProxy extends Filesystem
             default:
                 throw new CloudFileException("expand not found | [{$adapterName}]");
         }
+    }
+
+    private function filterMinioPaths(array $paths): array
+    {
+        $key = $this->config['key'] ?? '';
+        if($this->adapterName !== AdapterName::FILE_SERVICE || $key !== 'minio') {
+            return $paths;
+        }
+        $newPaths =  [];
+        foreach ($paths as $path) {
+            if(Str::startsWith($path, $key)) {
+                $newPaths[] = Str::replaceFirst($key . '/', '', $path);
+            }else{
+                $newPaths[] = $path;
+            }
+        }
+        return $newPaths;
     }
 
     private function uniqueKey(): string
