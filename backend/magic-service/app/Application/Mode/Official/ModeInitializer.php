@@ -20,23 +20,14 @@ class ModeInitializer
 {
     /**
      * Initialize official modes.
+     * Strategy: Check first, then operate (for default mode).
+     * - If default mode exists, use its real ID
+     * - If not, insert with hardcoded ID
+     * - Other modes use the real default mode ID for follow_mode_id.
      * @return array{success: bool, message: string, count: int}
      */
     public static function init(): array
     {
-        // Check if magic_modes table already has data (excluding default mode)
-        $existingCount = Db::table('magic_modes')
-            ->where('identifier', '!=', 'default')
-            ->count();
-
-        if ($existingCount > 0) {
-            return [
-                'success' => true,
-                'message' => "Magic modes table already has {$existingCount} custom modes, skipping initialization.",
-                'count' => 0,
-            ];
-        }
-
         // Get official organization code from config
         $officialOrgCode = config('service_provider.office_organization', '');
         if (empty($officialOrgCode)) {
@@ -47,16 +38,34 @@ class ModeInitializer
             ];
         }
 
-        $modes = self::getModeData($officialOrgCode);
-        $insertedCount = 0;
-
         try {
             Db::beginTransaction();
 
+            $insertedCount = 0;
+
+            // Step 1: Check if default mode exists for this organization, get its real ID
+            $defaultMode = Db::table('magic_modes')
+                ->where('identifier', 'default')
+                ->first();
+
+            if ($defaultMode) {
+                // Default mode exists, use its real ID
+                $defaultModeId = $defaultMode['id'];
+            } else {
+                // Default mode not exists, insert with hardcoded ID
+                $defaultModeData = self::getDefaultModeData($officialOrgCode);
+                $defaultModeId = Db::table('magic_modes')->insertGetId($defaultModeData);
+                ++$insertedCount;
+            }
+
+            // Step 2: Get other modes with real default mode ID
+            $modes = self::getOtherModesData($officialOrgCode, $defaultModeId);
+
+            // Step 3: Insert other modes if not exist
             foreach ($modes as $mode) {
-                // Check if mode already exists
                 $exists = Db::table('magic_modes')
-                    ->where('id', $mode['id'])
+                    ->where('identifier', $mode['identifier'])
+                    ->where('organization_code', $officialOrgCode)
                     ->exists();
 
                 if (! $exists) {
@@ -65,11 +74,23 @@ class ModeInitializer
                 }
             }
 
+            // Step 4: Initialize default mode groups and models if not exist
+            $defaultGroupExists = Db::table('magic_mode_groups')
+                ->where('mode_id', $defaultModeId)
+                ->where('organization_code', $officialOrgCode)
+                ->exists();
+
+            if (! $defaultGroupExists) {
+                // Create basic model configuration for default mode
+                $modelCount = self::initializeDefaultModeModels($defaultModeId, $officialOrgCode);
+                $insertedCount += $modelCount;
+            }
+
             Db::commit();
 
             return [
                 'success' => true,
-                'message' => "Successfully initialized {$insertedCount} modes.",
+                'message' => "Successfully initialized {$insertedCount} modes (default_mode_id: {$defaultModeId}).",
                 'count' => $insertedCount,
             ];
         } catch (Throwable $e) {
@@ -83,16 +104,144 @@ class ModeInitializer
     }
 
     /**
-     * Get mode data.
+     * Initialize basic model configuration for default mode.
+     * Strategy: Check first, then insert (idempotent).
+     * This allows follow modes to inherit the configuration.
+     * @param int|string $defaultModeId Default mode ID
+     * @param string $orgCode Organization code
+     * @return int Number of items created (group + relations)
+     */
+    private static function initializeDefaultModeModels(int|string $defaultModeId, string $orgCode): int
+    {
+        $count = 0;
+        $now = now();
+
+        // Step 1: Query available models for the organization
+        $availableModels = Db::table('service_provider_models')
+            ->whereIn('organization_code', [$orgCode, 'TGosRaFhvb'])
+            ->where('status', '1')
+            ->whereIn('model_id', ['gpt-4o', 'gpt-4o-mini', 'auto', 'claude-3.7', 'deepseek-chat'])
+            ->orderBy('model_id')
+            ->limit(10)
+            ->get(['id', 'model_id', 'name']);
+
+        if ($availableModels->isEmpty()) {
+            // No available models, skip initialization
+            return 0;
+        }
+
+        // Step 2: Check if default group exists, if not create it
+        $existingGroup = Db::table('magic_mode_groups')
+            ->where('mode_id', $defaultModeId)
+            ->where('organization_code', $orgCode)
+            ->orderBy('sort', 'desc')
+            ->first();
+
+        if ($existingGroup) {
+            // Group exists, use existing group ID
+            $groupId = $existingGroup->id;
+        } else {
+            // Group does not exist, create default group
+            $groupId = Db::table('magic_mode_groups')->insertGetId([
+                'mode_id' => $defaultModeId,
+                'name_i18n' => json_encode([
+                    'en_US' => 'Default Group-1',
+                    'zh_CN' => '默认分组-1',
+                ]),
+                'icon' => 'IconBrain',
+                'description' => '',
+                'sort' => 1,
+                'status' => 1,
+                'organization_code' => $orgCode,
+                'creator_id' => 'system',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            ++$count;
+        }
+
+        // Step 3: Add models to the group (check first, then insert)
+        $sort = 0;
+        foreach ($availableModels as $model) {
+            // Support both array and object access
+            $modelId = $model['model_id'];
+            $providerId = $model['id'];
+
+            // Check if model relation already exists
+            $relationExists = Db::table('magic_mode_group_relations')
+                ->where('mode_id', $defaultModeId)
+                ->where('group_id', $groupId)
+                ->where('model_id', $modelId)
+                ->where('organization_code', $orgCode)
+                ->exists();
+
+            if (! $relationExists) {
+                // Model relation does not exist, insert it
+                Db::table('magic_mode_group_relations')->insert([
+                    'mode_id' => $defaultModeId,
+                    'group_id' => $groupId,
+                    'model_id' => $modelId,
+                    'provider_model_id' => $providerId,
+                    'sort' => $sort,
+                    'organization_code' => $orgCode,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Get default mode data with hardcoded ID.
+     * This is the base mode that other modes will follow.
      * @param string $orgCode Official organization code
      */
-    private static function getModeData(string $orgCode): array
+    private static function getDefaultModeData(string $orgCode): array
     {
         $now = now();
         $creatorId = 'system';
 
         return [
-            // Chat Mode
+            'id' => '842103554687242240', // Hardcoded ID (preferred)
+            'name_i18n' => json_encode([
+                'en_US' => 'Default Mode',
+                'zh_CN' => '默认模式',
+            ]),
+            'placeholder_i18n' => json_encode([]),
+            'identifier' => 'default',
+            'icon' => 'Icon3dCubeSphere',
+            'color' => '#999999',
+            'sort' => 0,
+            'description' => '仅用于创建时初始化模式及重置模式中的配置',
+            'is_default' => 1,
+            'status' => 1,
+            'distribution_type' => 1,
+            'follow_mode_id' => 0,
+            'restricted_mode_identifiers' => json_encode([]),
+            'organization_code' => $orgCode,
+            'creator_id' => $creatorId,
+            'created_at' => $now,
+            'updated_at' => $now,
+            'deleted_at' => null,
+        ];
+    }
+
+    /**
+     * Get other modes data with real default mode ID.
+     * All follow modes use the real default mode ID from database.
+     * @param string $orgCode Official organization code
+     * @param int|string $defaultModeId Real default mode ID from database
+     */
+    private static function getOtherModesData(string $orgCode, int|string $defaultModeId): array
+    {
+        $now = now();
+        $creatorId = 'system';
+
+        return [
+            // Chat Mode (follows default mode)
             [
                 'id' => '821132008052400129',
                 'name_i18n' => json_encode([
@@ -110,8 +259,8 @@ class ModeInitializer
                 'description' => '',
                 'is_default' => 0,
                 'status' => 1,
-                'distribution_type' => 1,
-                'follow_mode_id' => 0,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
@@ -119,7 +268,7 @@ class ModeInitializer
                 'updated_at' => $now,
                 'deleted_at' => null,
             ],
-            // PPT Mode
+            // PPT Mode (follows default mode)
             [
                 'id' => '821139004944207873',
                 'name_i18n' => json_encode([
@@ -137,8 +286,8 @@ class ModeInitializer
                 'description' => '',
                 'is_default' => 0,
                 'status' => 1,
-                'distribution_type' => 1,
-                'follow_mode_id' => 0,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
@@ -146,7 +295,7 @@ class ModeInitializer
                 'updated_at' => $now,
                 'deleted_at' => null,
             ],
-            // Data Analysis Mode
+            // Data Analysis Mode (follows default mode)
             [
                 'id' => '821139625302740993',
                 'name_i18n' => json_encode([
@@ -164,8 +313,8 @@ class ModeInitializer
                 'description' => '',
                 'is_default' => 0,
                 'status' => 1,
-                'distribution_type' => 2, // Follow mode
-                'follow_mode_id' => 821131542438486016,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
@@ -173,7 +322,7 @@ class ModeInitializer
                 'updated_at' => $now,
                 'deleted_at' => null,
             ],
-            // Report Mode
+            // Report Mode (follows default mode, disabled by default)
             [
                 'id' => '821139708794552321',
                 'name_i18n' => json_encode([
@@ -190,9 +339,9 @@ class ModeInitializer
                 'sort' => 96,
                 'description' => '',
                 'is_default' => 0,
-                'status' => 0, // Disabled
-                'distribution_type' => 2, // Follow mode
-                'follow_mode_id' => 821131542438486016,
+                'status' => 0,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
@@ -200,7 +349,7 @@ class ModeInitializer
                 'updated_at' => $now,
                 'deleted_at' => null,
             ],
-            // Recording Summary Mode
+            // Recording Summary Mode (follows default mode)
             [
                 'id' => '821139797042712577',
                 'name_i18n' => json_encode([
@@ -218,8 +367,8 @@ class ModeInitializer
                 'description' => '',
                 'is_default' => 0,
                 'status' => 1,
-                'distribution_type' => 2, // Follow mode
-                'follow_mode_id' => 821131542438486016,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
@@ -227,7 +376,7 @@ class ModeInitializer
                 'updated_at' => $now,
                 'deleted_at' => null,
             ],
-            // General Mode
+            // General Mode (follows default mode)
             [
                 'id' => '821139958364049409',
                 'name_i18n' => json_encode([
@@ -245,8 +394,8 @@ class ModeInitializer
                 'description' => '',
                 'is_default' => 0,
                 'status' => 1,
-                'distribution_type' => 2, // Follow mode
-                'follow_mode_id' => 821131542438486016,
+                'distribution_type' => 2,
+                'follow_mode_id' => $defaultModeId, // Use real default mode ID
                 'restricted_mode_identifiers' => json_encode([]),
                 'organization_code' => $orgCode,
                 'creator_id' => $creatorId,
