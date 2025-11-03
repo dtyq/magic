@@ -14,9 +14,11 @@ use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
+use Hyperf\Codec\Json;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -73,22 +75,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
     private function checkRecordingSummaryCompletion(RunTaskCallbackEvent $event): void
     {
         try {
-            // 获取话题信息
-            $topicDomainService = di(TopicDomainService::class);
-            $topicEntity = $topicDomainService->getTopicById($event->getTopicId());
-            if ($topicEntity === null) {
-                $this->logger->warning('checkRecordingSummary Topic not found for recording summary check', [
-                    'topic_id' => $event->getTopicId(),
-                    'task_id' => $event->getTaskId(),
-                ]);
-                return;
-            }
-
-            // 检查话题模式是否为 summary
-            if ($topicEntity->getTopicMode() !== ProjectMode::SUMMARY->value) {
-                return;
-            }
-
+            // 1. 检查任务状态
             $status = $event->getTaskMessage()->getPayload()->getStatus();
             $taskStatus = TaskStatus::tryFrom($status);
             if ($taskStatus === null) {
@@ -104,7 +91,55 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
 
-            // 获取用户信息
+            // 2. 查询该任务的用户消息，检查是否有 summary_task 标记
+            // 使用 topicId + taskId + sender_type 查询，利用索引并只返回用户消息
+            $taskMessageRepository = di(TaskMessageRepositoryInterface::class);
+            $userMessages = $taskMessageRepository->findUserMessagesByTopicIdAndTaskId($event->getTopicId(), (string) $event->getTaskId());
+
+            $hasSummaryTask = false;
+            foreach ($userMessages as $message) {
+                $rawContent = $message->getRawContent();
+                if (! empty($rawContent)) {
+                    // raw_content 直接存储的就是 dynamic_params 的 JSON
+                    $dynamicParams = Json::decode($rawContent);
+                    if (isset($dynamicParams['summary_task'])
+                        && $dynamicParams['summary_task'] === true) {
+                        $hasSummaryTask = true;
+                        $this->logger->info('checkRecordingSummary Found summary_task marker', [
+                            'task_id' => $event->getTaskId(),
+                            'topic_id' => $event->getTopicId(),
+                        ]);
+                        break;
+                    }
+                }
+            }
+
+            // 3. 如果没有 summary_task 标记，则不推送通知
+            if (! $hasSummaryTask) {
+                $this->logger->info('checkRecordingSummary No summary_task marker found, skipping notification', [
+                    'task_id' => $event->getTaskId(),
+                    'topic_id' => $event->getTopicId(),
+                ]);
+                return;
+            }
+
+            // 4. 获取话题信息并检查模式（双重保障）
+            $topicDomainService = di(TopicDomainService::class);
+            $topicEntity = $topicDomainService->getTopicById($event->getTopicId());
+            if ($topicEntity === null) {
+                $this->logger->warning('checkRecordingSummary Topic not found for recording summary check', [
+                    'topic_id' => $event->getTopicId(),
+                    'task_id' => $event->getTaskId(),
+                ]);
+                return;
+            }
+
+            // 检查话题模式是否为 summary
+            if ($topicEntity->getTopicMode() !== ProjectMode::SUMMARY->value) {
+                return;
+            }
+
+            // 5. 获取用户信息并推送通知
             $userId = $event->getUserId();
             $magicUserDomainService = di(MagicUserDomainService::class);
             $userEntity = $magicUserDomainService->getUserById($userId);
