@@ -34,6 +34,7 @@ class UserMessageDTO
         private readonly string $messageId = '',
         private readonly string $messageSeqId = '',
         private readonly string $chatMessageType = '',
+        private ?array $dynamicParams = null,
     ) {
     }
 
@@ -137,6 +138,24 @@ class UserMessageDTO
         return $this->chatMessageType;
     }
 
+    public function getDynamicParams(): ?array
+    {
+        return $this->dynamicParams;
+    }
+
+    public function setDynamicParams(?array $dynamicParams): void
+    {
+        $this->dynamicParams = $dynamicParams;
+    }
+
+    /**
+     * 获取单个动态参数.
+     */
+    public function getDynamicParam(string $key, mixed $default = null): mixed
+    {
+        return $this->dynamicParams[$key] ?? $default;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -163,6 +182,7 @@ class UserMessageDTO
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
             chatMessageType: $data['chat_message_type'] ?? $data['chatMessageType'] ?? '',
+            dynamicParams: $data['dynamic_params'] ?? $data['dynamicParams'] ?? null,
         );
     }
 
@@ -190,6 +210,7 @@ class UserMessageDTO
             'message_id' => $this->messageId,
             'message_seq_id' => $this->messageSeqId,
             'chat_message_type' => $this->chatMessageType,
+            'dynamic_params' => $this->dynamicParams,
         ];
     }
 }

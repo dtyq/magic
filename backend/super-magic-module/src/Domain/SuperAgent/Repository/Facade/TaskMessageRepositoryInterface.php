@@ -35,6 +35,12 @@ interface TaskMessageRepositoryInterface
     public function findByTaskId(string $taskId): array;
 
     /**
+     * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
+     * @return TaskMessageEntity[]
+     */
+    public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
+
+    /**
      * 根据话题ID获取消息列表，支持分页.
      * @param int $topicId 话题ID
      * @param int $page 页码

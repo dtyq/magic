@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\DTO;
 
-use App\Infrastructure\ExternalAPI\Volcengine\DTO\AsrTaskStatusDTO;
-
 readonly class ProcessSummaryTaskDTO
 {
     public function __construct(

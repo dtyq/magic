@@ -200,6 +200,35 @@ interface TaskFileRepositoryInterface
     public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 1000): array;
 
     /**
+     * Get children files by parent_id and project_id.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param int $limit Maximum number of files to return
+     * @return TaskFileEntity[] File entity list
+     */
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array;
+
+    /**
+     * Get children files by multiple parent_ids and project_id (batch query).
+     * Uses idx_project_parent_sort index to avoid N+1 problem.
+     *
+     * @param int $projectId Project ID
+     * @param array $parentIds Parent directory IDs
+     * @param int $limit Maximum number of files to return
+     * @return TaskFileEntity[] File entity list
+     */
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array;
+
+    /**
+     * Batch update file_key for multiple files.
+     *
+     * @param array $updateBatch Array of [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '...'], ...]
+     * @return int Number of updated files
+     */
+    public function batchUpdateFileKeys(array $updateBatch): int;
+
+    /**
      * 批量删除文件.
      *
      * @param array $fileIds 文件ID数组
