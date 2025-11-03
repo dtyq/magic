@@ -100,6 +100,10 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         // 设置业务参数
         $dataIsolation->setUserName($this->getBusinessParam('user_name', '', $businessParams));
 
+        if ($dataIsolation->getAccessToken()->getType()->isUser()) {
+            $dataIsolation->getSubscriptionManager()->setEnabled(false);
+        }
+
         return $dataIsolation;
     }
 
