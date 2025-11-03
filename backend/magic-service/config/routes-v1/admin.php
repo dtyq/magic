@@ -51,6 +51,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/connectivity-test', [ServiceProviderApi::class, 'connectivityTest']);
         Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/non-official-llm', [ServiceProviderApi::class, 'getNonOfficialLlmProviders']);
+        Router::get('/available-llm', [ServiceProviderApi::class, 'getAllAvailableLlmProviders']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 

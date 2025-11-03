@@ -31,6 +31,11 @@ class ProviderConfigItem extends AbstractDTO
 
     protected string $providerModelId;
 
+    /**
+     * 优先级.
+     */
+    protected ?int $priority = null;
+
     public function getAk(): string
     {
         return $this->ak;
@@ -161,5 +166,15 @@ class ProviderConfigItem extends AbstractDTO
     public function setProviderModelId(string $providerModelId): void
     {
         $this->providerModelId = $providerModelId;
+    }
+
+    public function getPriority(): ?int
+    {
+        return $this->priority;
+    }
+
+    public function setPriority(?int $priority): void
+    {
+        $this->priority = $priority;
     }
 }

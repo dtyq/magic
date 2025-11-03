@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Api\Admin\Provider;
 
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderModelDomainService;
+use Hyperf\Codec\Json;
 use HyperfTest\Cases\BaseTest;
 
 /**
@@ -192,6 +193,67 @@ class ServiceProviderApiTest extends BaseTest
 
         // ========== 步骤6: 验证更新后的配置版本（version=2） ==========
         $this->verifyConfigVersion((int) $modelId, $updateRequestData['config'], 2);
+    }
+
+    /**
+     * 测试返回Magic服务商.
+     */
+    public function testGetOfficialProvider()
+    {
+        $response = $this->get('/org/admin/service-providers/available-llm', [], $this->getCommonHeaders());
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals(true, in_array('Magic', array_column($response['data'], 'name')));
+
+        $response = $this->get('/org/admin/service-providers?category=llm', [], $this->getCommonHeaders());
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals(true, in_array('Official', array_column($response['data'], 'provider_code')));
+    }
+
+    /**
+     * 创建官方服务商.
+     */
+    public function testCreateOfficialProvider(): void
+    {
+        $provider = [
+            'alias' => '官方服务商单元测试',
+            'config' => [
+                'proxy_url' => 'international',
+                'api_key' => 'test',
+                'priority' => 100,
+            ],
+            'service_provider_id' => '766765753990443008',
+            'status' => 1,
+            'translate' => [
+                'alias' => [
+                    'zh_CN' => '官方服务商单元测试',
+                ],
+            ],
+        ];
+        $response = $this->post('/org/admin/service-providers/add', $provider, $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $response = $this->get('/org/admin/service-providers/detail?service_provider_config_id=' . $response['data']['id'], [], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+        $detail = $response['data'];
+        $this->assertEquals('官方服务商单元测试', $detail['alias']);
+        $this->assertEquals('international', $detail['config']['proxy_url']);
+        $this->assertEquals('****', $detail['config']['api_key']);
+        $this->assertEquals('100', $detail['config']['priority']);
+    }
+
+    /**
+     * 测试创建和删除模型.
+     */
+    public function testCreateAndDeleteModel()
+    {
+        $providerId = '843847394915074048';
+        $model = Json::decode('{"model_type":3,"model_id":"test-dabai-test","model_version":"测试","icon":"MAGIC/588417216353927169/default/default.png","name":"测试","description":"测试","config":{"max_output_tokens":64000,"max_tokens":128000,"temperature_type":1,"temperature":null,"billing_currency":"CNY","input_pricing":"1","output_pricing":"1","cache_write_pricing":"1","cache_hit_pricing":"1","input_cost":"1","output_cost":"1","cache_write_cost":"1","cache_hit_cost":"1","vector_size":2048,"support_function":false,"support_multi_modal":false,"support_deep_think":false,"creativity":0.7},"category":"llm","service_provider_config_id":"' . $providerId . '","translate":{"name":{"zh_CN":"测试","en_US":"test"},"description":{"zh_CN":"测试","en_US":"test"}}}');
+        $response = $this->post('/org/admin/service-providers/save-model', $model, $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $newId = $response['data']['id'];
+        $response = $this->post('/org/admin/service-providers/delete-model', ['model_id' => $newId], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
     }
 
     /**

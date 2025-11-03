@@ -26,6 +26,11 @@ class ProviderModelEntity extends AbstractEntity
 
     protected int $serviceProviderConfigId;
 
+    /**
+     * 来源model_id.
+     */
+    protected ?int $sourceModelId = null;
+
     protected string $name = '';
 
     protected string $modelVersion = '';
@@ -99,6 +104,21 @@ class ProviderModelEntity extends AbstractEntity
             $this->serviceProviderConfigId = (int) $serviceProviderConfigId;
         } else {
             $this->serviceProviderConfigId = 0;
+        }
+        return $this;
+    }
+
+    public function getSourceModelId(): ?int
+    {
+        return $this->sourceModelId;
+    }
+
+    public function setSourceModelId(null|int|string $sourceModelId): self
+    {
+        if (is_numeric($sourceModelId)) {
+            $this->sourceModelId = (int) $sourceModelId;
+        } else {
+            $this->sourceModelId = null;
         }
         return $this;
     }

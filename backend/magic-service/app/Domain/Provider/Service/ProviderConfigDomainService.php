@@ -140,9 +140,10 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        if ($provider->getProviderType() === ProviderType::Official) {
+        // 允许创建官方服务商
+        /*if ($provider->getProviderType() === ProviderType::Official) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError);
-        }
+        }*/
 
         $providerConfigEntity->setStatus(Status::Enabled);
 
@@ -239,6 +240,23 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
     public function queries(ProviderDataIsolation $providerDataIsolation, ProviderConfigQuery $query, Page $createNoPage): array
     {
         return $this->serviceProviderConfigRepository->queries($providerDataIsolation, $query, $createNoPage);
+    }
+
+    /**
+     * 获取组织下的所有服务商配置.
+     * @return ProviderConfigEntity[]
+     */
+    public function getAllByOrganization(ProviderDataIsolation $dataIsolation): array
+    {
+        return $this->serviceProviderConfigRepository->getAllByOrganization($dataIsolation);
+    }
+
+    /**
+     * 根据ID获取服务商配置（不过滤组织）.
+     */
+    public function getByIdWithoutOrganizationFilter(int $id): ?ProviderConfigEntity
+    {
+        return $this->serviceProviderConfigRepository->getByIdWithoutOrganizationFilter($id);
     }
 
     /**

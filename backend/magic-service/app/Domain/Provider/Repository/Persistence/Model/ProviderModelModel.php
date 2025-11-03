@@ -14,6 +14,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
 /**
  * @property int $id
  * @property int $service_provider_config_id
+ * @property null|int $source_model_id
  * @property string $name
  * @property string $model_version
  * @property string $category
@@ -44,7 +45,7 @@ class ProviderModelModel extends AbstractModel
     protected ?string $table = 'service_provider_models';
 
     protected array $fillable = [
-        'id', 'service_provider_config_id', 'name', 'model_version', 'category', 'model_id',
+        'id', 'service_provider_config_id', 'source_model_id', 'name', 'model_version', 'category', 'model_id',
         'model_type', 'config', 'description', 'sort', 'icon', 'organization_code',
         'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations', 'visible_applications', 'visible_packages',
         'load_balancing_weight', 'is_office', 'super_magic_display_state', 'created_at', 'updated_at', 'deleted_at',
@@ -53,6 +54,7 @@ class ProviderModelModel extends AbstractModel
     protected array $casts = [
         'id' => 'integer',
         'service_provider_config_id' => 'integer',
+        'source_model_id' => 'integer',
         'name' => 'string',
         'model_version' => 'string',
         'category' => 'string',
