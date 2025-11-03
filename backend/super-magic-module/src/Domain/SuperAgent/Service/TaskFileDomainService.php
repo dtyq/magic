@@ -141,6 +141,75 @@ class TaskFileDomainService
     }
 
     /**
+     * Get children files by parent_id and project_id.
+     * Uses existing index: idx_project_parent_sort.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param int $limit Maximum number of files to return
+     * @return TaskFileEntity[] File entity list
+     */
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array
+    {
+        return $this->taskFileRepository->getChildrenByParentAndProject($projectId, $parentId, $limit);
+    }
+
+    /**
+     * 递归查询目录下所有文件（使用 parent_id 索引，高性能）.
+     * 利用 idx_project_parent_sort 索引进行广度优先遍历.
+     * 使用批量查询避免 N+1 问题.
+     *
+     * @param int $projectId 项目ID
+     * @param int $parentId 父目录ID
+     * @param int $maxDepth 最大递归深度（防止无限递归）
+     * @return TaskFileEntity[] 文件实体列表
+     */
+    public function findFilesRecursivelyByParentId(int $projectId, int $parentId, int $maxDepth = 10): array
+    {
+        $allFiles = [];
+        $currentLevelParentIds = [$parentId];
+
+        // 广度优先遍历，逐层查询
+        for ($depth = 0; $depth < $maxDepth && ! empty($currentLevelParentIds); ++$depth) {
+            // 批量查询当前层所有父目录的子项（一次 SQL 查询，避免 N+1 问题）
+            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
+                $projectId,
+                $currentLevelParentIds,
+                1000
+            );
+
+            if (empty($children)) {
+                break;
+            }
+
+            $nextLevelParentIds = [];
+            foreach ($children as $child) {
+                $allFiles[] = $child;
+
+                // 如果是目录，加入下一层的查询队列
+                if ($child->getIsDirectory()) {
+                    $nextLevelParentIds[] = $child->getFileId();
+                }
+            }
+
+            $currentLevelParentIds = $nextLevelParentIds;
+        }
+
+        return $allFiles;
+    }
+
+    /**
+     * Batch update file_key for multiple files.
+     *
+     * @param array $updateBatch Array of [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '2025-10-27 18:00:00'], ...]
+     * @return int Number of updated files
+     */
+    public function batchUpdateFileKeys(array $updateBatch): int
+    {
+        return $this->taskFileRepository->batchUpdateFileKeys($updateBatch);
+    }
+
+    /**
      * Get the latest updated file by project ID.
      */
     public function getLatestUpdatedByProjectId(int $projectId): string

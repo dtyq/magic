@@ -43,6 +43,11 @@ class SuperAgentExtra extends AbstractDTO
     protected ?string $queueId;
 
     /**
+     * 动态参数（用于向沙箱传递额外参数，如 task_key 等）.
+     */
+    protected ?array $dynamicParams;
+
+    /**
      * 获取 mentions 的 JSON 结构数组.
      */
     public function getMentionsJsonStruct(): ?array
@@ -148,5 +153,34 @@ class SuperAgentExtra extends AbstractDTO
     public function setQueueId(?string $queueId): void
     {
         $this->queueId = $queueId;
+    }
+
+    public function getDynamicParams(): ?array
+    {
+        return $this->dynamicParams ?? null;
+    }
+
+    public function setDynamicParams(?array $dynamicParams): void
+    {
+        $this->dynamicParams = $dynamicParams;
+    }
+
+    /**
+     * 获取单个动态参数.
+     */
+    public function getDynamicParam(string $key, mixed $default = null): mixed
+    {
+        return $this->dynamicParams[$key] ?? $default;
+    }
+
+    /**
+     * 设置单个动态参数.
+     */
+    public function setDynamicParam(string $key, mixed $value): void
+    {
+        if ($this->dynamicParams === null) {
+            $this->dynamicParams = [];
+        }
+        $this->dynamicParams[$key] = $value;
     }
 }

@@ -66,6 +66,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\SandboxInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -128,6 +130,7 @@ class ConfigProvider
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
+                AsrRecorderInterface::class => AsrRecorderService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
                 FileProcessAppService::class => FileProcessAppService::class,

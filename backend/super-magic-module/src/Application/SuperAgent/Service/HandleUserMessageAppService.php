@@ -110,17 +110,17 @@ class HandleUserMessageAppService extends AbstractAppService
             // Send interrupt message directly to client
             $this->clientMessageAppService->sendInterruptMessageToClient(
                 topicId: $topicEntity->getId(),
-                taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+                taskId: (string) ($topicEntity->getCurrentTaskId() ?? '0'),
                 chatTopicId: $dto->getChatTopicId(),
                 chatConversationId: $dto->getChatConversationId(),
                 interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
             );
         }
     }
+
     /*
     * user send message to agent
     */
-
     public function getTaskContext(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): TaskContext
     {
         $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $userMessageDTO->getChatTopicId());
@@ -250,6 +250,12 @@ class HandleUserMessageAppService extends AbstractAppService
             );
             $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
+
+            // Add dynamic params to task context (if present)
+            if ($userMessageDTO->getDynamicParams() !== null) {
+                $existingDynamicConfig = $taskContext->getDynamicConfig();
+                $taskContext = $taskContext->setDynamicConfig(array_merge($existingDynamicConfig, $userMessageDTO->getDynamicParams()));
+            }
 
             // Create and send message to agent
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
@@ -413,6 +419,12 @@ class HandleUserMessageAppService extends AbstractAppService
         // Convert attachments string to array if not null
         $attachmentsArray = $userMessageDTO->getAttachments() !== null ? json_decode($userMessageDTO->getAttachments(), true) : null;
 
+        // 合并原有的 raw_content 和 dynamic_params
+        $rawContentJson = $this->mergeRawContentWithDynamicParams(
+            $userMessageDTO->getRawContent(),
+            $userMessageDTO->getDynamicParams()
+        );
+
         // Create TaskMessageDTO for user message
         $taskMessageDTO = new TaskMessageDTO(
             taskId: (string) $taskEntity->getId(),
@@ -421,7 +433,7 @@ class HandleUserMessageAppService extends AbstractAppService
             receiverUid: $userMessageDTO->getAgentUserId(),
             messageType: $userMessageDTO->getChatMessageType(),
             content: $taskEntity->getPrompt(),
-            rawContent: $userMessageDTO->getRawContent() ?? '',
+            rawContent: $rawContentJson,
             status: null,
             steps: null,
             tool: null,
@@ -582,5 +594,37 @@ class HandleUserMessageAppService extends AbstractAppService
         // parentId will be automatically handled by saveProjectFile
 
         return $taskFileEntity;
+    }
+
+    /**
+     * 合并原有的 raw_content 和 dynamic_params.
+     *
+     * @param null|string $existingRawContent 原有的 raw_content
+     * @param null|array $dynamicParams 动态参数
+     * @return string 合并后的 JSON 字符串
+     */
+    private function mergeRawContentWithDynamicParams(?string $existingRawContent, ?array $dynamicParams): string
+    {
+        $existingRawContent = $existingRawContent ?? '';
+        $dynamicParams = $dynamicParams ?? [];
+
+        if (! empty($existingRawContent)) {
+            // 尝试解析原有内容
+            $rawData = json_decode($existingRawContent, true);
+            if (is_array($rawData)) {
+                // 原内容是 JSON，合并 dynamic_params
+                $rawData = array_merge($rawData, $dynamicParams);
+                return json_encode($rawData, JSON_UNESCAPED_UNICODE);
+            }
+            // 原内容不是 JSON，保留原样（不添加 dynamic_params）
+            return $existingRawContent;
+        }
+
+        if (! empty($dynamicParams)) {
+            // 没有原内容，只存 dynamic_params
+            return json_encode($dynamicParams, JSON_UNESCAPED_UNICODE);
+        }
+
+        return '';
     }
 }
