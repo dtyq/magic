@@ -408,6 +408,18 @@ readonly class AsrFileAppService
                 return;
             }
 
+            if ($taskStatus->serverSummaryRetryCount >= AsrTimeouts::SERVER_SUMMARY_MAX_RETRY) {
+                $this->logger->warning('自动总结重试次数达到上限，跳过本次处理', [
+                    'task_key' => $taskStatus->taskKey,
+                    'retry_count' => $taskStatus->serverSummaryRetryCount,
+                    'max_retry' => AsrTimeouts::SERVER_SUMMARY_MAX_RETRY,
+                ]);
+                return;
+            }
+
+            $taskStatus->markServerSummaryAttempt(time());
+            $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
             $this->logger->info('开始自动总结', [
                 'task_key' => $taskStatus->taskKey,
                 'project_id' => $taskStatus->projectId,
@@ -433,6 +445,8 @@ readonly class AsrFileAppService
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
 
+            $taskStatus->finishServerSummaryAttempt(true);
+
             // 标记任务为已完成（幂等性保证）
             $taskStatus->updateStatus(AsrTaskStatusEnum::COMPLETED);
             $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
@@ -449,6 +463,9 @@ readonly class AsrFileAppService
                 'status' => $taskStatus->status->value,
             ]);
         } catch (Throwable $e) {
+            $taskStatus->finishServerSummaryAttempt(false);
+            $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
             $this->logger->error('自动总结失败', [
                 'task_key' => $taskStatus->taskKey,
                 'error' => $e->getMessage(),

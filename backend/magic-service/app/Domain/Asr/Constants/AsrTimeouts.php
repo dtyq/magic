@@ -21,7 +21,12 @@ class AsrTimeouts
     /**
      * 心跳检测超时阈值（秒）.
      */
-    public const int HEARTBEAT_TIMEOUT = 60;
+    public const int HEARTBEAT_TIMEOUT = 600;
+
+    /**
+     * 服务端自动总结最大重试次数.
+     */
+    public const int SERVER_SUMMARY_MAX_RETRY = 10;
 
     /**
      * 任务状态默认 TTL（秒）- 7天.

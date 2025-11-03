@@ -317,6 +317,15 @@ class AsrApi extends AbstractApi
         // 状态检查：获取当前任务状态
         $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
         if (! $taskStatus->isEmpty()) {
+            if ($taskStatus->hasServerSummaryLock()) {
+                $this->logger->info('reportStatus 服务端总结进行中，拒绝状态上报', [
+                    'task_key' => $taskKey,
+                    'user_id' => $userId,
+                    'retry_count' => $taskStatus->serverSummaryRetryCount,
+                ]);
+                ExceptionBuilder::throw(AsrErrorCode::TaskIsSummarizing);
+            }
+
             // 状态检查 1：任务已完成，不允许报告状态（除非是 canceled）
             if ($statusEnum !== AsrRecordingStatusEnum::CANCELED && $taskStatus->isSummaryCompleted()) {
                 ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCompleted);
@@ -531,6 +540,15 @@ class AsrApi extends AbstractApi
         if ($taskStatus->isEmpty()) {
             // 第一次调用：创建新任务状态
             return $this->createNewTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
+        }
+
+        if ($taskStatus->hasServerSummaryLock()) {
+            $this->logger->info('getUploadToken 服务端总结进行中，拒绝发放上传凭证', [
+                'task_key' => $taskKey,
+                'user_id' => $userId,
+                'retry_count' => $taskStatus->serverSummaryRetryCount,
+            ]);
+            ExceptionBuilder::throw(AsrErrorCode::TaskIsSummarizing);
         }
 
         // 状态检查 1：任务已完成，不允许上传

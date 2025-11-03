@@ -71,6 +71,10 @@ class AsrTaskStatusDTO
 
     public int $sandboxRetryCount = 0; // 沙箱启动重试次数
 
+    public int $serverSummaryRetryCount = 0; // 服务端总结触发重试次数
+
+    public bool $serverSummaryLocked = false; // 服务端总结是否锁定客户端
+
     // ASR 内容和笔记（用于生成标题）
     public ?string $asrStreamContent = null; // ASR 流式识别内容
 
@@ -113,6 +117,8 @@ class AsrTaskStatusDTO
         $this->isPaused = self::getBoolValue($data, ['is_paused', 'isPaused']);
         $this->sandboxId = self::getStringValue($data, ['sandbox_id', 'sandboxId']);
         $this->sandboxRetryCount = self::getIntValue($data, ['sandbox_retry_count', 'sandboxRetryCount'], 0);
+        $this->serverSummaryRetryCount = self::getIntValue($data, ['server_summary_retry_count', 'serverSummaryRetryCount'], 0);
+        $this->serverSummaryLocked = self::getBoolValue($data, ['server_summary_locked', 'serverSummaryLocked']);
 
         // 预设文件信息
         $this->presetNoteFileId = self::getStringValue($data, ['preset_note_file_id', 'presetNoteFileId']);
@@ -163,6 +169,8 @@ class AsrTaskStatusDTO
             'is_paused' => $this->isPaused,
             'sandbox_id' => $this->sandboxId,
             'sandbox_retry_count' => $this->sandboxRetryCount,
+            'server_summary_retry_count' => $this->serverSummaryRetryCount,
+            'server_summary_locked' => $this->serverSummaryLocked,
             'preset_note_file_id' => $this->presetNoteFileId,
             'preset_transcript_file_id' => $this->presetTranscriptFileId,
             'preset_note_file_path' => $this->presetNoteFilePath,
@@ -199,6 +207,34 @@ class AsrTaskStatusDTO
         return ! empty($this->audioFileId)
             && $this->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
             && $this->status === AsrTaskStatusEnum::COMPLETED;
+    }
+
+    /**
+     * 判断服务端总结是否对客户端加锁.
+     */
+    public function hasServerSummaryLock(): bool
+    {
+        return $this->serverSummaryLocked && ! $this->isSummaryCompleted();
+    }
+
+    /**
+     * 记录一次服务端总结尝试.
+     */
+    public function markServerSummaryAttempt(): void
+    {
+        ++$this->serverSummaryRetryCount;
+        $this->serverSummaryLocked = true;
+    }
+
+    /**
+     * 在一次服务端总结结束后更新状态.
+     */
+    public function finishServerSummaryAttempt(bool $success): void
+    {
+        if ($success) {
+            $this->serverSummaryRetryCount = 0;
+            $this->serverSummaryLocked = false;
+        }
     }
 
     /**

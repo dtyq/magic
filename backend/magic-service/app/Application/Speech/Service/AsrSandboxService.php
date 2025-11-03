@@ -12,18 +12,24 @@ use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrAudioConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrNoteFileConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Config\AsrTranscriptFileConfig;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\Response\AsrRecorderResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * ASR 沙箱服务
@@ -31,14 +37,18 @@ use Psr\Log\LoggerInterface;
  */
 readonly class AsrSandboxService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         private SandboxGatewayInterface $sandboxGateway,
         private AsrRecorderInterface $asrRecorder,
         private AsrSandboxResponseHandler $responseHandler,
         private ProjectDomainService $projectDomainService,
         private TaskFileDomainService $taskFileDomainService,
-        private LoggerInterface $logger
+        private AgentDomainService $agentDomainService,
+        LoggerFactory $loggerFactory
     ) {
+        $this->logger = $loggerFactory->get('AsrSandboxService');
     }
 
     /**
@@ -68,8 +78,15 @@ readonly class AsrSandboxService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
-        // 确保沙箱可用
-        $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $taskStatus->projectId, $fullWorkdir);
+        // 创建沙箱并等待工作区可用
+        $actualSandboxId = $this->ensureSandboxWorkspaceReady(
+            $taskStatus,
+            $sandboxId,
+            $taskStatus->projectId,
+            $fullWorkdir,
+            $userId,
+            $organizationCode
+        );
 
         $this->logger->info('startRecordingTask ASR 录音：沙箱已就绪', [
             'task_key' => $taskStatus->taskKey,
@@ -191,21 +208,23 @@ readonly class AsrSandboxService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
-        // 确保沙箱可用（如果沙箱已退出，会自动重启或创建新的）
-        $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable(
-            $taskStatus->sandboxId,
+        $requestedSandboxId = $taskStatus->sandboxId;
+        $actualSandboxId = $this->ensureSandboxWorkspaceReady(
+            $taskStatus,
+            $requestedSandboxId,
             $taskStatus->projectId,
-            $fullWorkdir
+            $fullWorkdir,
+            $taskStatus->userId,
+            $organizationCode
         );
 
         // 更新实际的沙箱ID（可能已经变化）
-        if ($actualSandboxId !== $taskStatus->sandboxId) {
+        if ($actualSandboxId !== $requestedSandboxId) {
             $this->logger->warning('沙箱ID发生变化，可能是沙箱重启', [
                 'task_key' => $taskStatus->taskKey,
-                'old_sandbox_id' => $taskStatus->sandboxId,
+                'old_sandbox_id' => $requestedSandboxId,
                 'new_sandbox_id' => $actualSandboxId,
             ]);
-            $taskStatus->sandboxId = $actualSandboxId;
         }
 
         $this->logger->info('沙箱已就绪，准备调用 finish', [
@@ -256,7 +275,7 @@ readonly class AsrSandboxService
             ExceptionBuilder::throw(AsrErrorCode::SandboxIdNotExist);
         }
 
-        // 构建音频配置对象 (V2 结构化版本)
+        // 构建音频配置对象
         $audioConfig = new AsrAudioConfig(
             sourceDir: $taskStatus->tempHiddenDirectory,  // 如: .asr_recordings/session_xxx
             targetDir: $taskStatus->displayDirectory,     // 如: 录音总结_20251027_230949
@@ -273,7 +292,7 @@ readonly class AsrSandboxService
         // 构建流式识别文件配置对象
         $transcriptFileConfig = $this->buildTranscriptFileConfig($taskStatus);
 
-        $this->logger->info('准备调用沙箱 finish (V2)', [
+        $this->logger->info('准备调用沙箱 finish', [
             'task_key' => $taskStatus->taskKey,
             'intelligent_title' => $intelligentTitle,
             'audio_config' => $audioConfig->toArray(),
@@ -284,7 +303,7 @@ readonly class AsrSandboxService
         // 记录开始时间
         $finishStartTime = microtime(true);
 
-        // 首次调用 finish (V2 结构化版本)
+        // 首次调用 finish
         $response = $this->asrRecorder->finishTask(
             $sandboxId,
             $taskStatus->taskKey,
@@ -366,6 +385,103 @@ readonly class AsrSandboxService
         }
 
         ExceptionBuilder::throw(AsrErrorCode::SandboxMergeTimeout);
+    }
+
+    /**
+     * 通过 AgentDomainService 创建沙箱并等待工作区就绪.
+     */
+    private function ensureSandboxWorkspaceReady(
+        AsrTaskStatusDTO $taskStatus,
+        string $requestedSandboxId,
+        ?string $projectId,
+        string $fullWorkdir,
+        string $userId,
+        string $organizationCode
+    ): string {
+        if ($requestedSandboxId === '') {
+            ExceptionBuilder::throw(AsrErrorCode::SandboxIdNotExist);
+        }
+
+        $projectIdString = (string) $projectId;
+        if ($projectIdString === '') {
+            ExceptionBuilder::throw(AsrErrorCode::SandboxTaskCreationFailed, '', ['message' => '项目ID为空，无法创建沙箱']);
+        }
+
+        try {
+            $this->logger->debug('检查现有沙箱工作区状态', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $requestedSandboxId,
+            ]);
+
+            $workspaceStatusResponse = $this->agentDomainService->getWorkspaceStatus($requestedSandboxId);
+            $existingStatus = (int) $workspaceStatusResponse->getDataValue('status');
+
+            if (WorkspaceStatus::isReady($existingStatus)) {
+                $this->logger->info('检测到沙箱工作区已就绪，跳过创建流程', [
+                    'task_key' => $taskStatus->taskKey,
+                    'sandbox_id' => $requestedSandboxId,
+                    'status' => $existingStatus,
+                    'status_description' => WorkspaceStatus::getDescription($existingStatus),
+                ]);
+
+                $taskStatus->sandboxId = $requestedSandboxId;
+
+                return $requestedSandboxId;
+            }
+
+            $this->logger->info('现有沙箱工作区未就绪，准备重新创建', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $requestedSandboxId,
+                'status' => $existingStatus,
+                'status_description' => WorkspaceStatus::getDescription($existingStatus),
+            ]);
+        } catch (SandboxOperationException $exception) {
+            $this->logger->warning('获取沙箱工作区状态失败，尝试重新创建沙箱', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $requestedSandboxId,
+                'code' => $exception->getCode(),
+                'error' => $exception->getMessage(),
+            ]);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('检查沙箱工作区状态发生异常，尝试重新创建沙箱', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $requestedSandboxId,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+
+        $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
+
+        $this->logger->info('准备调用 AgentDomainService 创建沙箱', [
+            'task_key' => $taskStatus->taskKey,
+            'project_id' => $projectIdString,
+            'requested_sandbox_id' => $requestedSandboxId,
+            'full_workdir' => $fullWorkdir,
+        ]);
+
+        $actualSandboxId = $this->agentDomainService->createSandbox(
+            $dataIsolation,
+            $projectIdString,
+            $requestedSandboxId,
+            $fullWorkdir
+        );
+
+        $this->logger->info('沙箱创建请求完成，开始等待工作区就绪', [
+            'task_key' => $taskStatus->taskKey,
+            'requested_sandbox_id' => $requestedSandboxId,
+            'actual_sandbox_id' => $actualSandboxId,
+        ]);
+
+        $this->agentDomainService->waitForWorkspaceReady($actualSandboxId);
+
+        $this->logger->info('沙箱工作区已就绪', [
+            'task_key' => $taskStatus->taskKey,
+            'actual_sandbox_id' => $actualSandboxId,
+        ]);
+
+        $taskStatus->sandboxId = $actualSandboxId;
+
+        return $actualSandboxId;
     }
 
     /**
