@@ -521,8 +521,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $this->pointComponent->checkPointsSufficient(
                 $proxyModelRequest,
-                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                $modelGatewayDataIsolation->getCurrentUserId()
+                $modelGatewayDataIsolation
             );
 
             // Try to get high availability model configuration
