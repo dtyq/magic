@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -26,9 +27,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileReplacedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -42,6 +45,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusR
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ReplaceFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
@@ -64,6 +68,8 @@ class FileManagementAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly LockerInterface $locker,
@@ -1044,6 +1050,218 @@ class FileManagementAppService extends AbstractAppService
                 'trace' => $e->getTraceAsString(),
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.check_batch_status_failed'));
+        }
+    }
+
+    /**
+     * Replace file with new file.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param int $fileId Target file ID to replace
+     * @param ReplaceFileRequestDTO $requestDTO Request DTO
+     * @return array Replaced file information
+     */
+    public function replaceFile(
+        RequestContext $requestContext,
+        int $fileId,
+        ReplaceFileRequestDTO $requestDTO
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            // 1. 权限验证和文件存在性检查
+            $fileEntity = $this->taskFileDomainService->getById($fileId);
+            if (empty($fileEntity)) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_NOT_FOUND,
+                    trans('file.file_not_found')
+                );
+            }
+
+            // 检查是否为目录（边界1：不允许替换目录）
+            if ($fileEntity->getIsDirectory()) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_OPERATION_NOT_ALLOWED,
+                    trans('file.cannot_replace_directory')
+                );
+            }
+
+            // 检查项目权限
+            $projectEntity = $this->getAccessibleProject(
+                $fileEntity->getProjectId(),
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 2. 检查文件编辑状态（边界2：文件正在被编辑）
+            // TODO: 实现编辑状态检查逻辑
+            // $editingUsers = $this->getFileEditingUsers($fileId);
+            // if (!empty($editingUsers) && !$requestDTO->getForceReplace()) {
+            //     ExceptionBuilder::throw(...);
+            // }
+
+            // 3. 验证新文件在云存储中存在（边界3：源文件不存在）
+            $newFileKey = $requestDTO->getFileKey();
+            $organizationCode = $projectEntity->getUserOrganizationCode();
+            $newFileInfo = $this->taskFileDomainService->getFileInfoFromCloudStorage(
+                $newFileKey,
+                $organizationCode
+            );
+
+            if (empty($newFileInfo)) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_NOT_FOUND,
+                    trans('file.source_file_not_found_in_storage')
+                );
+            }
+
+            // 4. 构建新的文件名和目标file_key
+            // 场景1：提供了新文件名 -> 使用用户指定的文件名
+            // 场景2：未提供文件名 -> 从新文件的 file_key 中提取文件名
+            if (! empty($requestDTO->getFileName())) {
+                $newFileName = $requestDTO->getFileName();
+            } else {
+                // 从新文件路径中提取文件名
+                $newFileName = basename($newFileKey);
+            }
+
+            // 构建目标文件路径：原文件目录 + 新文件名
+            $targetFileKey = dirname($fileEntity->getFileKey()) . '/' . $newFileName;
+
+            $newFileExtension = pathinfo($newFileName, PATHINFO_EXTENSION);
+            $oldFileExtension = $fileEntity->getFileExtension();
+
+            // 检测跨类型替换（边界4：文件类型变化）
+            $isCrossTypeReplace = ($oldFileExtension !== $newFileExtension);
+
+            // 5. 文件名冲突检查（边界5：目标位置已有其他文件）
+            if ($targetFileKey !== $fileEntity->getFileKey()) {
+                $existingFile = $this->taskFileDomainService->getByFileKey($targetFileKey);
+                if (! empty($existingFile)) {
+                    ExceptionBuilder::throw(
+                        SuperAgentErrorCode::FILE_EXIST,
+                        trans('file.target_file_already_exists')
+                    );
+                }
+            }
+
+            // 6. 工作目录安全检查（边界6：防止路径穿越）
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+
+            if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetFileKey)) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_ILLEGAL_KEY,
+                    trans('file.illegal_file_key')
+                );
+            }
+
+            if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $newFileKey)) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_ILLEGAL_KEY,
+                    trans('file.source_file_key_illegal')
+                );
+            }
+
+            Db::beginTransaction();
+            try {
+                $prefix = WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir());
+                $oldFileKey = $fileEntity->getFileKey();
+
+                // 7. 创建版本快照（在替换之前）
+                $versionEntity = $this->taskFileVersionDomainService->createFileVersion(
+                    $fileEntity,
+                    $isCrossTypeReplace ? 2 : 1  // 跨类型替换使用特殊标记
+                );
+
+                if (empty($versionEntity)) {
+                    $this->logger->warning('Failed to create version snapshot before replace', [
+                        'file_id' => $fileId,
+                    ]);
+                }
+
+                if ($oldFileKey !== $targetFileKey) {
+                    $this->cloudFileRepository->deleteObjectByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $oldFileKey,
+                        StorageBucketType::SandBox
+                    );
+
+                    $this->logger->info('Old file deleted after version backup', [
+                        'file_id' => $fileId,
+                        'old_file_key' => $oldFileKey,
+                        'version_id' => $versionEntity?->getId(),
+                    ]);
+
+                    // 8.2 移动新文件到目标位置（如果需要）
+                    $this->cloudFileRepository->renameObjectByCredential(
+                        $prefix,
+                        $organizationCode,
+                        $newFileKey,
+                        $targetFileKey,
+                        StorageBucketType::SandBox
+                    );
+
+                    $this->logger->info('New file moved to target location', [
+                        'file_id' => $fileId,
+                        'source_key' => $newFileKey,
+                        'target_key' => $targetFileKey,
+                    ]);
+                }
+
+                // 9. 更新数据库记录
+                $fileEntity->setFileKey($targetFileKey);
+                $fileEntity->setFileName($newFileName);
+                $fileEntity->setFileExtension($newFileExtension);
+                $fileEntity->setFileSize($newFileInfo['size']);
+                $fileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $newFileEntity = $this->taskFileDomainService->updateById($fileEntity);
+
+                Db::commit();
+
+                // 10. 发布事件
+                $fileReplacedEvent = new FileReplacedEvent(
+                    $newFileEntity,
+                    $versionEntity,
+                    $userAuthorization,
+                    $isCrossTypeReplace
+                );
+                $this->eventDispatcher->dispatch($fileReplacedEvent);
+
+                // 11. 返回结果
+                return TaskFileItemDTO::fromEntity($newFileEntity, $projectEntity->getWorkDir())->toArray();
+            } catch (Throwable $e) {
+                Db::rollBack();
+
+                $this->logger->error('Failed to replace file, transaction rolled back', [
+                    'file_id' => $fileId,
+                    'source_key' => $newFileKey,
+                    'target_key' => $targetFileKey,
+                    'error' => $e->getMessage(),
+                ]);
+
+                throw $e;
+            }
+        } catch (BusinessException $e) {
+            $this->logger->warning(sprintf(
+                'Business logic error in replace file: %s, File ID: %s, Error Code: %d',
+                $e->getMessage(),
+                $fileId,
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'System error in replace file: %s, File ID: %s',
+                $e->getMessage(),
+                $fileId
+            ));
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_REPLACE_FAILED,
+                trans('file.file_replace_failed')
+            );
         }
     }
 }

@@ -48,4 +48,12 @@ return [
     'cannot_version_directory' => '无法为目录创建版本',
     'version_create_failed' => '创建文件版本失败',
     'access_denied' => '访问被拒绝',
+
+    // File replace related
+    'file_replace_failed' => '替换文件失败',
+    'cannot_replace_directory' => '不支持目录替换',
+    'source_file_not_found_in_storage' => '替换的文件不存在，请重试替换',
+    'target_file_already_exists' => '目标文件名在此目录中已存在',
+    'file_is_being_edited' => '文件当前正在被其他用户编辑，使用 force_replace 强制替换',
+    'source_file_key_illegal' => '源文件键非法或不在工作区范围内',
 ];

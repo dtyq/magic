@@ -81,7 +81,10 @@ class AccessTokenEntity extends AbstractEntity
         if (empty($this->createdAt)) {
             $this->createdAt = new DateTime();
         }
-        $this->accessToken = IdGenerator::getUniqueId32();
+        // Only generate access token if not already set
+        if (empty($this->accessToken)) {
+            $this->accessToken = IdGenerator::getUniqueId32();
+        }
 
         $this->modifier = $this->creator;
         $this->updatedAt = $this->createdAt;
