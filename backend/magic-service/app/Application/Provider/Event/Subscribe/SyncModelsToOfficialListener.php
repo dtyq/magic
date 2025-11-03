@@ -13,6 +13,7 @@ use App\Domain\Provider\Event\ProviderConfigUpdatedEvent;
 use App\Domain\Provider\Event\ProviderModelCreatedEvent;
 use App\Domain\Provider\Event\ProviderModelDeletedEvent;
 use App\Domain\Provider\Event\ProviderModelUpdatedEvent;
+use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -24,6 +25,7 @@ use Throwable;
  * 同步模型到Official服务商监听器.
  * 监听服务商配置创建/更新、模型创建/更新/删除事件，自动同步到Official服务商.
  */
+#[AsyncListener]
 #[Listener]
 readonly class SyncModelsToOfficialListener implements ListenerInterface
 {
