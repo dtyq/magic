@@ -14,6 +14,7 @@ use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\AsrErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -388,6 +389,76 @@ readonly class AsrSandboxService
     }
 
     /**
+     * 等待沙箱启动（能够响应接口）.
+     * ASR 功能不需要工作区初始化，只需要沙箱能够响应 getWorkspaceStatus 接口即可.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskKey 任务Key（用于日志）
+     * @param int $timeoutSeconds 超时时间（秒），默认2分钟
+     * @param float $intervalSeconds 轮询间隔（秒），默认0.5秒
+     * @throws BusinessException 当超时时抛出异常
+     */
+    private function waitForSandboxStartup(
+        string $sandboxId,
+        string $taskKey,
+        int $timeoutSeconds = 120,
+        float $intervalSeconds = 1
+    ): void {
+        $this->logger->info('ASR 录音：等待沙箱启动', [
+            'task_key' => $taskKey,
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+            'interval_seconds' => $intervalSeconds,
+        ]);
+
+        $startTime = time();
+        $endTime = $startTime + $timeoutSeconds;
+
+        while (time() < $endTime) {
+            try {
+                // 尝试获取工作区状态，只要接口能成功返回就说明沙箱已启动
+                $response = $this->agentDomainService->getWorkspaceStatus($sandboxId);
+                $status = $response->getDataValue('status');
+
+                $this->logger->info('ASR 录音：沙箱已启动并可响应', [
+                    'task_key' => $taskKey,
+                    'sandbox_id' => $sandboxId,
+                    'status' => $status,
+                    'status_description' => WorkspaceStatus::getDescription($status),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+
+                // 接口成功返回，沙箱已启动
+                return;
+            } catch (Throwable $e) {
+                // 接口调用失败，说明沙箱还未启动，继续等待
+                $this->logger->debug('ASR 录音：沙箱尚未启动，继续等待', [
+                    'task_key' => $taskKey,
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'elapsed_seconds' => time() - $startTime,
+                ]);
+
+                // 等待下一次轮询
+                usleep((int) ($intervalSeconds * 1000000)); // 转换为微秒
+            }
+        }
+
+        // 超时
+        $this->logger->error('ASR 录音：等待沙箱启动超时', [
+            'task_key' => $taskKey,
+            'sandbox_id' => $sandboxId,
+            'timeout_seconds' => $timeoutSeconds,
+        ]);
+
+        ExceptionBuilder::throw(
+            AsrErrorCode::SandboxTaskCreationFailed,
+            '',
+            ['message' => "等待沙箱启动超时（{$timeoutSeconds}秒）"]
+        );
+    }
+
+    /**
      * 通过 AgentDomainService 创建沙箱并等待工作区就绪.
      */
     private function ensureSandboxWorkspaceReady(
@@ -416,25 +487,17 @@ readonly class AsrSandboxService
             $workspaceStatusResponse = $this->agentDomainService->getWorkspaceStatus($requestedSandboxId);
             $existingStatus = (int) $workspaceStatusResponse->getDataValue('status');
 
-            if (WorkspaceStatus::isReady($existingStatus)) {
-                $this->logger->info('检测到沙箱工作区已就绪，跳过创建流程', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $requestedSandboxId,
-                    'status' => $existingStatus,
-                    'status_description' => WorkspaceStatus::getDescription($existingStatus),
-                ]);
-
-                $taskStatus->sandboxId = $requestedSandboxId;
-
-                return $requestedSandboxId;
-            }
-
-            $this->logger->info('现有沙箱工作区未就绪，准备重新创建', [
+            // ASR 功能不需要工作区初始化，只要接口返回成功即可使用沙箱
+            $this->logger->info('检测到沙箱工作区可用（ASR 无需初始化），跳过创建流程', [
                 'task_key' => $taskStatus->taskKey,
                 'sandbox_id' => $requestedSandboxId,
                 'status' => $existingStatus,
                 'status_description' => WorkspaceStatus::getDescription($existingStatus),
             ]);
+
+            $taskStatus->sandboxId = $requestedSandboxId;
+
+            return $requestedSandboxId;
         } catch (SandboxOperationException $exception) {
             $this->logger->warning('获取沙箱工作区状态失败，尝试重新创建沙箱', [
                 'task_key' => $taskStatus->taskKey,
@@ -466,15 +529,16 @@ readonly class AsrSandboxService
             $fullWorkdir
         );
 
-        $this->logger->info('沙箱创建请求完成，开始等待工作区就绪', [
+        $this->logger->info('沙箱创建请求完成，等待沙箱启动', [
             'task_key' => $taskStatus->taskKey,
             'requested_sandbox_id' => $requestedSandboxId,
             'actual_sandbox_id' => $actualSandboxId,
         ]);
 
-        $this->agentDomainService->waitForWorkspaceReady($actualSandboxId);
+        // 等待沙箱启动（能够响应接口），但不需要等待工作区初始化
+        $this->waitForSandboxStartup($actualSandboxId, $taskStatus->taskKey);
 
-        $this->logger->info('沙箱工作区已就绪', [
+        $this->logger->info('沙箱已启动，可以开始使用', [
             'task_key' => $taskStatus->taskKey,
             'actual_sandbox_id' => $actualSandboxId,
         ]);

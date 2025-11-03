@@ -417,7 +417,7 @@ readonly class AsrFileAppService
                 return;
             }
 
-            $taskStatus->markServerSummaryAttempt(time());
+            $taskStatus->markServerSummaryAttempt();
             $this->asrTaskDomainService->saveTaskStatus($taskStatus);
 
             $this->logger->info('开始自动总结', [
