@@ -30,6 +30,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
@@ -631,7 +632,7 @@ class LLMAppService extends AbstractLLMAppService
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
-            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException) {
+            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
             $businessParams = $proxyModelRequest->getBusinessParams();
