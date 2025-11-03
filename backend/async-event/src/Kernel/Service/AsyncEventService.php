@@ -54,6 +54,13 @@ class AsyncEventService
         return $this->asyncEventRepository->getById($recordId);
     }
 
+    public function markAsExecuting(int $recordId): void
+    {
+        $this->asyncEventRepository->updateById($recordId, [
+            'status' => Status::STATE_IN_EXECUTION,
+        ]);
+    }
+
     public function complete(int $recordId)
     {
         $this->asyncEventRepository->updateById($recordId, [
@@ -73,7 +80,12 @@ class AsyncEventService
         ]);
     }
 
-    public function clearHistory()
+    public function delete(int $recordId): int
+    {
+        return $this->asyncEventRepository->deleteById($recordId);
+    }
+
+    public function clearHistory(): void
     {
         // 清除1天前, 消费成功的message以及流水数据
         $this->clearSuccessHistoryRecord();

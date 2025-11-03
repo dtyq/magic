@@ -9,8 +9,8 @@ namespace App\Interfaces\ModelGateway\Assembler;
 
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
+use App\Infrastructure\Core\Hyperf\EventStream;
 use Hyperf\Context\Context;
-use Hyperf\Engine\Http\EventStream;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpServer\Contract\ResponseInterface;
 use Hyperf\Odin\Api\Response\ChatCompletionChoice;
@@ -79,7 +79,7 @@ class LLMAssembler
                 'object' => $chatCompletionStreamResponse->getObject(),
                 'usage' => null, // usage is null in all chunks except the last one when include_usage is true
             ];
-            self::getEventStream()->write('data:' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n");
+            self::getEventStream()->write('data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n");
         }
 
         // Send usage information as the last chunk if requested
@@ -94,11 +94,12 @@ class LLMAssembler
                 'object' => $chatCompletionStreamResponse->getObject(),
                 'usage' => $usage,
             ];
-            self::getEventStream()->write('data:' . json_encode($usageData, JSON_UNESCAPED_UNICODE) . "\n\n");
+            self::getEventStream()->write('data: ' . json_encode($usageData, JSON_UNESCAPED_UNICODE) . "\n\n");
         }
 
-        self::getEventStream()->write('data:[DONE]' . "\n\n");
+        self::getEventStream()->write('data: [DONE]' . "\n\n");
         self::getEventStream()->end();
+        self::getEventStream()->close();
     }
 
     public static function createEmbeddingsResponse(EmbeddingResponse $embeddingResponse): array

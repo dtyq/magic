@@ -26,4 +26,14 @@ class DefaultPackageFilter implements PackageFilterInterface
             'info' => [],
         ];
     }
+
+    public function isPaidSubscription(string $organizationCode): bool
+    {
+        return true;
+    }
+
+    public function filterPaidOrganizations(array $organizationCodes): array
+    {
+        return $organizationCodes;
+    }
 }

@@ -26,6 +26,12 @@ use JetBrains\PhpStorm\ArrayShape;
 
 class ExecutionData
 {
+    /**
+     * Maximum number of full vertex results to keep in memory per node.
+     * Older results will be simplified to reduce memory usage in loops.
+     */
+    private const MAX_FULL_VERTEX_RESULTS = 20;
+
     private string $id;
 
     private ExecutionType $executionType;
@@ -58,6 +64,13 @@ class ExecutionData
     private array $executeNum = [];
 
     private array $nodeVertexResult = [];
+
+    /**
+     * Simplified vertex results (only essential data for retry).
+     * Format: [nodeId => [executeNum => simplified array]]
+     * Only stores: result, childrenIds, success.
+     */
+    private array $simplifiedVertexResults = [];
 
     /**
      * 变量.
@@ -283,12 +296,55 @@ class ExecutionData
     {
         $num = ($this->executeNum[$nodeId] ?? 0) + $step;
         $this->executeNum[$nodeId] = $num;
+
+        if (! isset($this->nodeVertexResult[$nodeId])) {
+            $this->nodeVertexResult[$nodeId] = [];
+        }
+
         $this->nodeVertexResult[$nodeId][$num] = $vertexResult;
+
+        // Simplify old results to prevent OOM in loops
+        if (count($this->nodeVertexResult[$nodeId]) > self::MAX_FULL_VERTEX_RESULTS) {
+            // Find and simplify the oldest result
+            $oldestKey = min(array_keys($this->nodeVertexResult[$nodeId]));
+            $oldestResult = $this->nodeVertexResult[$nodeId][$oldestKey];
+
+            if (! isset($this->simplifiedVertexResults[$nodeId])) {
+                $this->simplifiedVertexResults[$nodeId] = [];
+            }
+
+            // Keep only essential data for retry (discard heavy debug logs, input, etc.)
+            $this->simplifiedVertexResults[$nodeId][$oldestKey] = [
+                'result' => $oldestResult->getResult(),
+                'children_ids' => $oldestResult->getChildrenIds(),
+                'success' => $oldestResult->getSuccess(),
+            ];
+
+            unset($this->nodeVertexResult[$nodeId][$oldestKey]);
+        }
     }
 
     public function getNodeHistoryVertexResult(string $nodeId, int $executeNum): ?VertexResult
     {
-        return $this->nodeVertexResult[$nodeId][$executeNum] ?? null;
+        // First check full in-memory results
+        if (isset($this->nodeVertexResult[$nodeId][$executeNum])) {
+            return $this->nodeVertexResult[$nodeId][$executeNum];
+        }
+
+        // Then check simplified results (for retry scenarios)
+        if (isset($this->simplifiedVertexResults[$nodeId][$executeNum])) {
+            $simplified = $this->simplifiedVertexResults[$nodeId][$executeNum];
+
+            // Reconstruct a minimal VertexResult from simplified data
+            $reconstructed = new VertexResult();
+            $reconstructed->setResult($simplified['result']);
+            $reconstructed->setChildrenIds($simplified['children_ids']);
+            $reconstructed->setSuccess($simplified['success']);
+
+            return $reconstructed;
+        }
+
+        return null;
     }
 
     public function isDebug(): bool

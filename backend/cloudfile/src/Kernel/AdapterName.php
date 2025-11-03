@@ -36,6 +36,11 @@ class AdapterName
      */
     public const LOCAL = 'local';
 
+    /**
+     * S3/MinIO.
+     */
+    public const MINIO = 'minio';
+
     public static function form(string $adapterName): string
     {
         return match (strtolower($adapterName)) {
@@ -44,6 +49,7 @@ class AdapterName
             'obs' => self::OBS,
             'file_service' => self::FILE_SERVICE,
             'local' => self::LOCAL,
+            'minio' => self::MINIO,
             default => throw new CloudFileException("adapter not found | [{$adapterName}]"),
         };
     }
@@ -65,6 +71,11 @@ class AdapterName
                 break;
             case self::FILE_SERVICE:
                 if (empty($config['host']) || empty($config['platform']) || empty($config['key'])) {
+                    throw new CloudFileException("config error | [{$adapterName}]");
+                }
+                break;
+            case self::MINIO:
+                if (empty($config['accessKey']) || empty($config['secretKey']) || empty($config['bucket']) || empty($config['endpoint']) || empty($config['region'])) {
                     throw new CloudFileException("config error | [{$adapterName}]");
                 }
                 break;

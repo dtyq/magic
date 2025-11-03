@@ -51,6 +51,11 @@ class AsyncEventRepository
             ->toArray();
     }
 
+    public function deleteById(int $id): int
+    {
+        return AsyncEventModel::query()->where('id', '=', $id)->delete();
+    }
+
     public function deleteHistory(array $where)
     {
         $ids = AsyncEventModel::query()
