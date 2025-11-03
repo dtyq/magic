@@ -43,9 +43,9 @@ class AfterChatCompletionSubscriber implements ListenerInterface
             $completionRequest->calculateTokenEstimates();
             $completionResponse->calculateTokenEstimates();
             $usage = new Usage(
-                promptTokens: $completionRequest->getTotalTokenEstimate() ?? 0,
-                completionTokens: $completionResponse->calculateTokenEstimates() ?? 0,
-                totalTokens: ($completionRequest->getTotalTokenEstimate() ?? 0) + ($completionResponse->calculateTokenEstimates() ?? 0),
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
             );
         }
 

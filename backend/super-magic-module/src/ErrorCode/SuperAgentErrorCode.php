@@ -48,11 +48,14 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;
 
+    #[ErrorMessage('task.access_denied')]
+    case TASK_ACCESS_DENIED = 51101;
+
     #[ErrorMessage('task.work_dir_not_found')]
-    case WORK_DIR_NOT_FOUND = 51101;
+    case WORK_DIR_NOT_FOUND = 51102;
 
     #[ErrorMessage('task.create_workspace_version_failed')]
-    case CREATE_WORKSPACE_VERSION_FAILED = 51102;
+    case CREATE_WORKSPACE_VERSION_FAILED = 51103;
 
     // File related error codes (51150-51199)
     #[ErrorMessage('file.permission_denied')]
@@ -188,6 +191,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('project.cannot_set_shortcut_for_own_project')]
     case CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT = 51216;
 
+    #[ErrorMessage('project.project_id_required_for_collaboration')]
+    case PROJECT_ID_REQUIRED_FOR_COLLABORATION = 51237;
+
+    #[ErrorMessage('project.not_a_collaboration_project')]
+    case NOT_A_COLLABORATION_PROJECT = 51238;
+
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]
     case CREATE_WORKSPACE_VERSION_FAILED_LEGACY = 51252;
@@ -201,4 +210,11 @@ enum SuperAgentErrorCode: int
     // Message Queue related error codes (51290-51299) - allocated from highest numbers
     #[ErrorMessage('message_queue.status_not_modifiable')]
     case MESSAGE_STATUS_NOT_MODIFIABLE = 51299;
+
+    // Message Schedule related error codes (51297-51298)
+    #[ErrorMessage('message_schedule.not_found')]
+    case MESSAGE_SCHEDULE_NOT_FOUND = 51297;
+
+    #[ErrorMessage('message_schedule.access_denied')]
+    case MESSAGE_SCHEDULE_ACCESS_DENIED = 51298;
 }

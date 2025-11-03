@@ -18,6 +18,7 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
@@ -96,6 +97,14 @@ class TaskFileDomainService
     public function getByFileKey(string $fileKey): ?TaskFileEntity
     {
         return $this->taskFileRepository->getByFileKey($fileKey);
+    }
+
+    /**
+     * Get file by project ID and file key.
+     */
+    public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getByProjectIdAndFileKey($projectId, $fileKey);
     }
 
     /**
@@ -906,6 +915,45 @@ class TaskFileDomainService
         }
     }
 
+    public function copyFile(DataIsolation $dataIsolation, TaskFileEntity $fileEntity, string $workDir, string $targetPath, int $targetParentId): ?TaskFileEntity
+    {
+        try {
+            if ($fileEntity->getFileKey() === $targetPath) {
+                return null;
+            }
+
+            // Call cloud file service to move the file
+            $prefix = WorkDirectoryUtil::getPrefix($workDir);
+            $this->cloudFileRepository->copyObjectByCredential($prefix, $dataIsolation->getCurrentOrganizationCode(), $fileEntity->getFileKey(), $targetPath, StorageBucketType::SandBox);
+
+            // Update file record (parentId and sort have already been set by handleFileSortOnMove)
+            $targetFileEntity = new TaskFileEntity();
+            $targetFileEntity->setFileId(IdGenerator::getSnowId());
+            $targetFileEntity->setProjectId($fileEntity->getProjectId());
+            $targetFileEntity->setUserId($dataIsolation->getCurrentUserId());
+            $targetFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $targetFileEntity->setFileType($fileEntity->getFileType());
+            $targetFileEntity->setFileName(basename($targetPath));
+            $fileInfo = pathinfo($targetPath);
+            $extension = $fileInfo['extension'];
+            $targetFileEntity->setFileExtension($extension);
+            $targetFileEntity->setFileSize($fileEntity->getFileSize());
+            $targetFileEntity->setFileKey($targetPath);
+            $targetFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
+            $targetFileEntity->setStorageType($fileEntity->getStorageType());
+            $targetFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $targetFileEntity->setIsDirectory($fileEntity->getIsDirectory());
+            $targetFileEntity->setParentId($targetParentId);
+            $targetFileEntity->setSort($fileEntity->getSort() + 1);
+            $targetFileEntity->setMetadata($fileEntity->getMetadata());
+            $targetFileEntity->setSource(TaskFileSource::COPY->value);
+
+            return $this->taskFileRepository->insert($targetFileEntity);
+        } catch (Throwable $e) {
+            throw $e;
+        }
+    }
+
     public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
         $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey());
@@ -1155,7 +1203,7 @@ class TaskFileDomainService
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
+    public function getFileUrls(DataIsolation $dataIsolation, int $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = [], bool $addWatermark = true): array
     {
         $result = [];
 
@@ -1189,7 +1237,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1210,7 +1258,7 @@ class TaskFileDomainService
      * @param array $fileVersions File version mapping [file_id => version]
      * @return array Array of file URLs
      */
-    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode, array $fileVersions = []): array
+    public function getFileUrlsByProjectId(DataIsolation $dataIsolation, array $fileIds, int $projectId, string $downloadMode, array $fileVersions = [], bool $addWatermark = true): array
     {
         // 从token获取内容
         $fileEntities = $this->taskFileRepository->getTaskFilesByIds($fileIds, $projectId);
@@ -1244,7 +1292,7 @@ class TaskFileDomainService
                     $fileEntity->setFileKey($versionEntity->getFileKey());
                 }
 
-                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId());
+                $result[] = $this->generateFileUrlForEntity($dataIsolation, $fileEntity, $downloadMode, (string) $fileEntity->getFileId(), $addWatermark);
             } catch (Throwable $e) {
                 // 获取URL失败，记录日志并跳过
                 $this->logger->error(sprintf('获取文件URL失败, file_id:%d, err：%s', $fileEntity->getFileId(), $e->getMessage()));
@@ -1650,6 +1698,50 @@ class TaskFileDomainService
     }
 
     /**
+     * Convert attachment array to TaskFileEntity based on type.
+     * @param array $attachment Attachment data
+     * @param TaskEntity $task Task entity
+     */
+    public function convertMessageAttachmentToTaskFileEntity(array $attachment, TaskEntity $task): TaskFileEntity
+    {
+        $taskFileEntity = new TaskFileEntity();
+        $taskFileEntity->setProjectId($task->getProjectId());
+        $taskFileEntity->setTopicId($task->getTopicId());
+        $taskFileEntity->setTaskId($task->getId());
+
+        // Set basic file information
+        $taskFileEntity->setFileKey($attachment['file_key']);
+        $taskFileEntity->setFileName(! empty($attachment['filename']) ? $attachment['filename'] : (! empty($attachment['display_filename']) ? $attachment['display_filename'] : basename($attachment['file_key'])));
+        $taskFileEntity->setFileExtension($attachment['file_extension']);
+        $taskFileEntity->setFileSize(! empty($attachment['file_size']) ? $attachment['file_size'] : 0);
+
+        // message type
+        $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+        $taskFileEntity->setSource(TaskFileSource::AGENT);
+
+        // Set storage type (will be overridden by saveProjectFile parameter)
+        $taskFileEntity->setStorageType(! empty($attachment['storage_type']) ? $attachment['storage_type'] : StorageType::WORKSPACE->value);
+
+        if (WorkDirectoryUtil::isValidDirectoryName($attachment['file_key'])) {
+            $taskFileEntity->setIsDirectory(true);
+        } else {
+            $taskFileEntity->setIsDirectory(false);
+        }
+        return $taskFileEntity;
+    }
+
+    /**
+     * 根据fileKey数组批量获取文件.
+     *
+     * @param array $fileKeys 文件Key数组
+     * @return TaskFileEntity[] 文件实体数组，以file_key为键
+     */
+    public function getByFileKeys(array $fileKeys): array
+    {
+        return $this->taskFileRepository->getByFileKeys($fileKeys);
+    }
+
+    /**
      * Ensure the complete directory path exists, creating missing directories.
      *
      * @param int $projectId Project ID
@@ -1804,9 +1896,11 @@ class TaskFileDomainService
      *
      * @param string $filename File name
      * @param string $downloadMode Download mode (download, preview, inline)
+     * @param bool $addWatermark Whether to add watermark parameters
+     * @param TaskFileEntity $fileEntity File entity
      * @return array URL options array
      */
-    private function prepareFileUrlOptions(string $filename, string $downloadMode): array
+    private function prepareFileUrlOptions(string $filename, string $downloadMode, bool $addWatermark, TaskFileEntity $fileEntity): array
     {
         $urlOptions = [];
 
@@ -1825,7 +1919,17 @@ class TaskFileDomainService
                     $urlOptions['custom_query']['response-content-disposition']
                         = ContentTypeUtil::buildContentDispositionHeader($filename, 'attachment');
                 }
+
+                // Add watermark parameters if enabled and file is an image
+                if ($addWatermark && $this->isImageFile($filename)) {
+                    $watermarkParams = $this->getWatermarkParameters($fileEntity->getSource());
+                    if (! empty($watermarkParams)) {
+                        $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
+                    }
+                }
+
                 break;
+            case 'high_quality':
             case 'download':
             default:
                 // 下载模式：强制下载，使用标准的 attachment 格式
@@ -1856,13 +1960,14 @@ class TaskFileDomainService
         DataIsolation $dataIsolation,
         TaskFileEntity $fileEntity,
         string $downloadMode,
-        string $fileId
+        string $fileId,
+        bool $addWatermark = true
     ): array {
-        // 准备下载选项
+        // 准备下载选项，包含水印参数
         $filename = $fileEntity->getFileName();
-        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode);
+        $urlOptions = $this->prepareFileUrlOptions($filename, $downloadMode, $addWatermark, $fileEntity);
 
-        // 生成预签名URL
+        // 生成预签名URL（水印参数已包含在签名中）
         $preSignedUrl = $this->getFilePreSignedUrl($dataIsolation, $fileEntity, $urlOptions);
 
         // 返回结果数组
@@ -1870,6 +1975,74 @@ class TaskFileDomainService
             'file_id' => $fileId,
             'url' => $preSignedUrl,
         ];
+    }
+
+    /**
+     * Get watermark text from translation.
+     */
+    private function getWatermarkText(): string
+    {
+        return trans('image_generate.image_watermark');
+    }
+
+    /**
+     * Check if file is an image based on file extension.
+     */
+    private function isImageFile(string $filename): bool
+    {
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        return in_array($extension, $imageExtensions);
+    }
+
+    private function getWatermarkParameters(TaskFileSource $source): array
+    {
+        $driver = env('FILE_SERVICE_PUBLIC_PLATFORM') ?? env('FILE_SERVICE_PRIVATE_PLATFORM');
+
+        if (empty($driver)) {
+            $driver = env('FILE_DRIVER');
+        }
+
+        if (empty($driver)) {
+            return [];
+        }
+
+        $watermarkText = $this->getWatermarkText();
+        // Use base64url encoding for cloud storage compatibility
+        $encodedText = $this->base64UrlEncode($watermarkText);
+
+        if ($source->value === TaskFileSource::AGENT->value) {
+            // $watermark = 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
+            $watermark = 'image/watermark,text_' . $encodedText . ',t_50,size_50,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
+        } else {
+            // $watermark = 'image/resize,p_50';
+            $watermark = '';
+        }
+
+        switch ($driver) {
+            case 'oss':
+                return [
+                    'x-oss-process' => $watermark,
+                ];
+            case 'tos':
+                return [
+                    'x-tos-process' => $watermark,
+                ];
+            default:
+                return [];
+        }
+    }
+
+    /**
+     * Encode string to base64url format (RFC 4648).
+     */
+    private function base64UrlEncode(string $data): string
+    {
+        // First encode to standard base64
+        $base64 = base64_encode($data);
+
+        // Convert to base64url by replacing characters and removing padding
+        return rtrim(strtr($base64, '+/', '-_'), '=');
     }
 
     /**

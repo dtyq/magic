@@ -65,6 +65,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         if (! $accessToken) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
+        if (! $accessToken->isEnabled()) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_DISABLED);
+        }
 
         // 兼容
         if (isset($businessParams['organization_id'])) {
@@ -85,12 +88,16 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         EnvManager::initDataIsolationEnv($dataIsolation);
         $dataIsolation->setAccessToken($accessToken);
 
+        $dataIsolation->setSourceId($this->getBusinessParam('source_id', '', $businessParams));
         if ($accessToken->getType()->isApplication()) {
             $dataIsolation->setAppId($accessToken->getRelationId());
         }
 
+        if ($accessToken->getType()->isUser()) {
+            $dataIsolation->setSourceId('api_platform');
+        }
+
         // 设置业务参数
-        $dataIsolation->setSourceId($this->getBusinessParam('source_id', '', $businessParams));
         $dataIsolation->setUserName($this->getBusinessParam('user_name', '', $businessParams));
 
         return $dataIsolation;

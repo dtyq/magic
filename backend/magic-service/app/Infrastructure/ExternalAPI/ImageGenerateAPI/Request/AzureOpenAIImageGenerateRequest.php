@@ -9,8 +9,6 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
 class AzureOpenAIImageGenerateRequest extends ImageGenerateRequest
 {
-    private string $size = '1024x1024';
-
     private string $quality = 'medium';
 
     private int $n = 1;

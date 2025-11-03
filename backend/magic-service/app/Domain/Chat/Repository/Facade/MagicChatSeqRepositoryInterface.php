@@ -128,4 +128,12 @@ interface MagicChatSeqRepositoryInterface
      * 更新消息接收人列表.
      */
     public function updateReceiveList(MagicSeqEntity $seqEntity): bool;
+
+    /**
+     * Get sequences by conversation ID and seq IDs.
+     * @param string $conversationId 会话ID
+     * @param array $seqIds 序列ID数组
+     * @return MagicSeqEntity[] 序列实体数组
+     */
+    public function getSequencesByConversationIdAndSeqIds(string $conversationId, array $seqIds): array;
 }

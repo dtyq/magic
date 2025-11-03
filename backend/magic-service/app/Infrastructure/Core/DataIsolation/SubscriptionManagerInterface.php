@@ -18,7 +18,7 @@ interface SubscriptionManagerInterface
 
     public function setEnabled(bool $enabled): void;
 
-    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo): void;
+    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo, array $modelIdsGroupByType = []): void;
 
     /**
      * 获取当前订阅ID.
@@ -38,6 +38,8 @@ interface SubscriptionManagerInterface
     public function getAvailableModelIds(?ModelType $modelType): ?array;
 
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool;
+
+    public function isPaidSubscription(): bool;
 
     public function toArray(): array;
 }

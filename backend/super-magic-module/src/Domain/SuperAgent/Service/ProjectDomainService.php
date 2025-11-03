@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ForkStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -48,7 +49,8 @@ class ProjectDomainService
         string $userOrganizationCode,
         string $projectId = '',
         string $workDir = '',
-        ?string $projectMode = null
+        ?string $projectMode = null,
+        int $source = CreationSource::USER_CREATED->value
     ): ProjectEntity {
         $currentTime = date('Y-m-d H:i:s');
         $project = new ProjectEntity();
@@ -61,6 +63,7 @@ class ProjectDomainService
             ->setProjectName($projectName)
             ->setWorkDir($workDir)
             ->setProjectMode($projectMode)
+            ->setSource($source)
             ->setProjectStatus(ProjectStatus::ACTIVE->value)
             ->setCurrentTopicId(null)
             ->setCurrentTopicStatus('')
@@ -364,6 +367,21 @@ class ProjectDomainService
     public function updateUpdatedAtToNow(int $projectId): bool
     {
         return $this->projectRepository->updateUpdatedAtToNow($projectId);
+    }
+
+    /**
+     * Batch get project names by IDs.
+     *
+     * @param array $projectIds Project ID array
+     * @return array ['project_id' => 'project_name'] key-value pairs
+     */
+    public function getProjectNamesBatch(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->projectRepository->getProjectNamesBatch($projectIds);
     }
 
     /**

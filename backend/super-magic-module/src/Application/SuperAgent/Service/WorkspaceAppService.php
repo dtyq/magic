@@ -28,6 +28,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -133,7 +134,8 @@ class WorkspaceAppService extends AbstractAppService
         $workspaceIds = array_unique($workspaceIds);
 
         // 批量获取工作区状态
-        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds);
+        $currentUserId = $dataIsolation->getCurrentUserId();
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch($workspaceIds, $currentUserId);
 
         // 转换为响应DTO并传入状态映射
         return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap);
@@ -649,7 +651,11 @@ class WorkspaceAppService extends AbstractAppService
                 $workspaceEntity->getId(),
                 '',
                 $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
+                $dataIsolation->getCurrentOrganizationCode(),
+                '',
+                '',
+                null,
+                CreationSource::USER_CREATED->value
             );
             $this->logger->info(sprintf('创建默认项目成功, projectId=%s', $projectEntity->getId()));
             // 获取工作区目录

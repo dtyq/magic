@@ -30,6 +30,8 @@ class ModeGroupModelDTO extends AbstractDTO
 
     protected ModelStatus $modelStatus = ModelStatus::Normal;
 
+    protected array $tags = [];
+
     public function getId(): string
     {
         return $this->id;
@@ -122,5 +124,15 @@ class ModeGroupModelDTO extends AbstractDTO
         } else {
             $this->modelStatus = ModelStatus::from($modelStatus);
         }
+    }
+
+    public function getTags(): array
+    {
+        return $this->tags;
+    }
+
+    public function setTags(array $tags): void
+    {
+        $this->tags = $tags;
     }
 }

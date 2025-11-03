@@ -44,8 +44,11 @@ abstract class AbstractProviderModelRepository extends AbstractRepository
             $modelEntity->setUpdatedAt(new DateTime());
             $modelEntity->setDeletedAt(null);
         }
+
+        $data = $modelEntity->toArray();
+        $data['disabled_by'] = $data['disabled_by'] ?? '';
         // 创建新记录
-        ProviderModelModel::query()->create($modelEntity->toArray());
+        ProviderModelModel::query()->create($data);
         return $modelEntity;
     }
 
@@ -60,6 +63,7 @@ abstract class AbstractProviderModelRepository extends AbstractRepository
         $entityArray['visible_organizations'] = Json::encode($entity->getVisibleOrganizations());
         $entityArray['visible_applications'] = Json::encode($entity->getVisibleApplications());
         $entityArray['visible_packages'] = Json::encode($entity->getVisiblePackages());
+        $entityArray['disabled_by'] = $entityArray['disabled_by'] ?? '';
 
         return $entityArray;
     }

@@ -23,6 +23,17 @@ class VolcengineArkRequest extends ImageGenerateRequest
 
     protected array $sequentialImageGenerationOptions = [];
 
+    public function __construct(
+        string $width = '',
+        string $height = '',
+        string $prompt = '',
+        string $negativePrompt = '',
+        string $model = '',
+    ) {
+        parent::__construct($width, $height, $prompt, $negativePrompt, $model);
+        $this->setSize("{$width}x{$height}");
+    }
+
     public function getResponseFormat(): string
     {
         return $this->responseFormat;

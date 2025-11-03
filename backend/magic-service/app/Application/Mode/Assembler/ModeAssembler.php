@@ -13,6 +13,7 @@ use App\Application\Mode\DTO\ModeGroupAggregateDTO;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Application\Mode\DTO\ModeGroupDTO;
 use App\Application\Mode\DTO\ModeGroupModelDTO;
+use App\Application\Mode\DTO\ValueObject\ModelStatus;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
@@ -22,14 +23,14 @@ use Hyperf\Contract\TranslatorInterface;
 
 class ModeAssembler
 {
-    public static function aggregateToDTO(ModeAggregate $aggregate, array $providerModels = []): ModeAggregateDTO
+    public static function aggregateToDTO(ModeAggregate $aggregate, array $providerModels = [], array $upgradeRequiredModelIds = []): ModeAggregateDTO
     {
         $dto = new ModeAggregateDTO();
         $dto->setMode(self::modeToDTO($aggregate->getMode()));
 
         $groupAggregatesDTOs = [];
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels);
+            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels, $upgradeRequiredModelIds);
             // 只有当分组下有模型时才添加（前台过滤空分组）
             if (! empty($groupDTO->getModels())) {
                 $groupAggregatesDTOs[] = $groupDTO;
@@ -44,7 +45,7 @@ class ModeAssembler
     /**
      * @param array<string, ProviderModelEntity> $providerModels
      */
-    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels): ModeGroupAggregateDTO
+    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels, array $upgradeRequiredModelIds = []): ModeGroupAggregateDTO
     {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));
@@ -60,7 +61,11 @@ class ModeAssembler
                 $providerModel = $providerModels[$providerModelId];
                 $modelDTO->setModelName($providerModel->getLocalizedName($locale));
                 $modelDTO->setModelIcon($providerModel->getIcon());
-                $modelDTO->setModelDescription($providerModel->getDescription());
+                $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
+                if (in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
+                    $modelDTO->setTags(['VIP']);
+                    $modelDTO->setModelStatus(ModelStatus::Disabled);
+                }
                 $models[] = $modelDTO;
             }
         }

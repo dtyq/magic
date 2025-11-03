@@ -82,14 +82,17 @@ class TaskApi extends AbstractApi
         if ($isConfusion) {
             // 混淆处理
             $rawData = ShadowCode::unShadow($this->request->input('data', ''));
-            $requestData = json_decode($rawData, true);
         } else {
-            $requestData = $this->request->all();
+            $rawData = $this->request->input('data', '');
         }
+        $requestData = json_decode($rawData, true);
 
         // 从请求中创建DTO
         $messageDTO = TopicTaskMessageDTO::fromArray($requestData);
         // 调用应用服务进行消息投递
+        if (config('super-magic.message.process_mode') === 'direct') {
+            return $this->topicTaskAppService->handleTopicTaskMessage($messageDTO);
+        }
         return $this->topicTaskAppService->deliverTopicTaskMessage($messageDTO);
     }
 

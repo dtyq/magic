@@ -102,19 +102,19 @@ class HandleUserMessageAppService extends AbstractAppService
         // Set task termination flag in Redis to prevent agent messages from being processed
         TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskEntity->getId());
 
-        // Send interrupt message directly to client
-        $this->clientMessageAppService->sendInterruptMessageToClient(
-            topicId: $topicEntity->getId(),
-            taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
-            chatTopicId: $dto->getChatTopicId(),
-            chatConversationId: $dto->getChatConversationId(),
-            interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
-        );
-
         // Get sandbox status, if sandbox is running, send interrupt command
         $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
         if ($result->getStatus() === SandboxStatus::RUNNING) {
-            $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+            $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '');
+        } else {
+            // Send interrupt message directly to client
+            $this->clientMessageAppService->sendInterruptMessageToClient(
+                topicId: $topicEntity->getId(),
+                taskId: (string) $topicEntity->getCurrentTaskId() ?? '0',
+                chatTopicId: $dto->getChatTopicId(),
+                chatConversationId: $dto->getChatConversationId(),
+                interruptReason: $dto->getPrompt() ?: trans('task.agent_stopped')
+            );
         }
     }
     /*
@@ -173,6 +173,7 @@ class HandleUserMessageAppService extends AbstractAppService
 
     public function handleChatMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): void
     {
+        $projectId = 0;
         $topicId = 0;
         $taskId = '';
         $errMsg = '';
@@ -183,12 +184,13 @@ class HandleUserMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+            $projectId = $topicEntity->getProjectId();
 
             // 检查项目是否有权限
             $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage());
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -257,7 +259,7 @@ class HandleUserMessageAppService extends AbstractAppService
             if (TaskTerminationUtil::isTaskTerminated($this->redis, $this->logger, $taskEntity->getId())) {
                 $result = $this->agentDomainService->getSandboxStatus($topicEntity->getSandboxId());
                 if ($result->getStatus() === SandboxStatus::RUNNING) {
-                    $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '任务已终止.');
+                    $this->agentDomainService->sendInterruptMessage($dataIsolation, $taskEntity->getSandboxId(), (string) $taskEntity->getId(), '');
                 }
             } else {
                 $this->topicTaskAppService->updateTaskStatus(
@@ -307,7 +309,7 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language, string $modelId = ''): void
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
@@ -319,7 +321,7 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language, $modelId));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -417,7 +419,7 @@ class HandleUserMessageAppService extends AbstractAppService
             role: Role::User->value,
             senderUid: $dataIsolation->getCurrentUserId(),
             receiverUid: $userMessageDTO->getAgentUserId(),
-            messageType: 'chat',
+            messageType: $userMessageDTO->getChatMessageType(),
             content: $taskEntity->getPrompt(),
             rawContent: $userMessageDTO->getRawContent() ?? '',
             status: null,

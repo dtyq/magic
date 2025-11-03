@@ -346,29 +346,22 @@ class ProjectAppService extends AbstractAppService
             'desc'
         );
 
-        // 提取所有项目ID
-        // $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
-
-        // 提取所有工作区ID
+        // 提取所有项目ID和工作区ID
+        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $result['list'] ?? []));
 
         // 批量获取项目状态
-        // $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds);
+        $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds, $dataIsolation->getCurrentUserId());
 
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
-        $projectIds = [];
-        foreach ($result['list'] as $projectEntity) {
-            $projectIds[] = $projectEntity->getId();
-        }
-
-        // 新增方法，根据$projectIds，判断是否存在数据，如果存在则返回存在的projectIds
+        // 批量获取项目成员数量，判断是否存在协作成员
         $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
         $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap);
 
         return $listResponseDTO->toArray();
     }
@@ -451,6 +444,21 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 获取附件列表（传入workDir用于相对路径计算）
+        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+    }
+
+    /**
+     * 审查页面获取的项目附件列表.
+     */
+    public function getProjectAttachmentsFromAudit(RequestContext $requestContext, GetProjectAttachmentsRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $requestDTO->getProjectId());
+
+        // 创建基于用户的数据隔离
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
         return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
     }
 
@@ -751,7 +759,7 @@ class ProjectAppService extends AbstractAppService
     /**
      * 获取项目附件列表的核心逻辑.
      */
-    private function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
+    public function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
     {
         // 通过任务领域服务获取项目下的附件列表
         $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
@@ -760,22 +768,11 @@ class ProjectAppService extends AbstractAppService
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
             $requestDTO->getFileType(),
-            StorageType::WORKSPACE->value
+            StorageType::WORKSPACE->value,
         );
-
-        //        $workDir = $this->fileDomainService->getFullWorkDir(
-        //            $dataIsolation->getCurrentOrganizationCode(),
-        //            $dataIsolation->getCurrentUserId(),
-        //            (int) $requestDTO->getProjectId(),
-        //            AgentConstant::SUPER_MAGIC_CODE,
-        //            AgentConstant::DEFAULT_PROJECT_DIR
-        //        );
-
-        // $result = $this->workspaceDomainService->filterResultByGitVersion($result, (int) $requestDTO->getProjectId(), $dataIsolation->getCurrentOrganizationCode(), $workDir);
 
         // 处理文件 URL
         $list = [];
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $fileKeys = [];
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
@@ -803,7 +800,7 @@ class ProjectAppService extends AbstractAppService
             $dto->sort = $entity->getSort();
             $dto->fileUrl = '';
             $dto->parentId = (string) $entity->getParentId();
-
+            $dto->source = $entity->getSource();
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             // 判断file key是否重复，如果重复，则跳过

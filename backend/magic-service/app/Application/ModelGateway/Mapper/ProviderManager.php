@@ -30,9 +30,9 @@ readonly class ProviderManager
     ) {
     }
 
-    public function getAvailableByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $providerDataIsolation, string $modelIdOrId, bool $checkStatus = true): ?ProviderModelEntity
     {
-        return $this->providerModelDomainService->getAvailableByModelIdOrId($providerDataIsolation, $modelIdOrId);
+        return $this->providerModelDomainService->getAvailableByModelIdOrId($providerDataIsolation, $modelIdOrId, $checkStatus);
     }
 
     /**
@@ -51,6 +51,21 @@ readonly class ProviderManager
         $query->setOrder(['model_id' => 'asc']);
         $data = $this->providerModelDomainService->queries($providerDataIsolation, $query, Page::createNoPage());
         return $data['list'] ?? [];
+    }
+
+    /**
+     * 获取可用的模型ID列表.
+     *
+     * @param ProviderDataIsolation $providerDataIsolation 数据隔离对象
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $providerDataIsolation): array
+    {
+        $query = new ProviderModelQuery();
+        $query->setStatus(Status::Enabled);
+        $query->setOrder(['model_id' => 'asc']);
+
+        return $this->providerModelDomainService->getModelIdsGroupByType($providerDataIsolation, $query);
     }
 
     /**

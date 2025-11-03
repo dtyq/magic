@@ -82,6 +82,8 @@ class CloudFile
                 return new OssAdapter($config);
             case AdapterName::TOS:
                 return new Kernel\Driver\TOS\TOSDriver($config);
+            case AdapterName::MINIO:
+                return new Kernel\Driver\S3\S3Driver($config);
             case AdapterName::LOCAL:
                 return new LocalDriver($config);
             default:

@@ -157,6 +157,9 @@ return [
             'start_node_not_found' => 'Không tìm thấy nút bắt đầu của công cụ [:flow_code]',
             'end_node_not_found' => 'Không tìm thấy nút kết thúc của công cụ [:flow_code]',
             'execute_failed' => 'Thực thi công cụ [:flow_name] không thành công :error',
+            'name' => [
+                'invalid_format' => 'Tên công cụ chỉ có thể chứa chữ cái, số và dấu gạch dưới',
+            ],
         ],
         'end' => [
             'must_exist' => 'Nút kết thúc phải tồn tại',

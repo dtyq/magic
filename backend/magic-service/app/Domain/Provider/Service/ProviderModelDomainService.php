@@ -28,9 +28,9 @@ readonly class ProviderModelDomainService
     ) {
     }
 
-    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId, bool $checkStatus = true): ?ProviderModelEntity
     {
-        return $this->providerModelRepository->getAvailableByModelIdOrId($dataIsolation, $modelId);
+        return $this->providerModelRepository->getAvailableByModelIdOrId($dataIsolation, $modelId, $checkStatus);
     }
 
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
@@ -159,5 +159,17 @@ readonly class ProviderModelDomainService
     public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
     {
         return $this->providerModelRepository->queries($dataIsolation, $query, $page);
+    }
+
+    /**
+     * 根据查询条件获取按模型类型分组的模型ID列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ProviderModelQuery $query 查询条件
+     * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
+     */
+    public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
+    {
+        return $this->providerModelRepository->getModelIdsGroupByType($dataIsolation, $query);
     }
 }

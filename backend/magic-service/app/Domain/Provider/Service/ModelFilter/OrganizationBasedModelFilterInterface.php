@@ -43,4 +43,12 @@ interface OrganizationBasedModelFilterInterface
      * @return array 模型标识符数组，例如: ['gpt-4o', 'claude-3', ...]
      */
     public function getAvailableModelIdentifiers(string $organizationCode): array;
+
+    /**
+     * 获取组织需要升级才能使用的模型ID列表.
+     *
+     * @param string $organizationCode 组织编码
+     * @return array 需要升级的模型ID数组，例如: ['gpt-4o-advanced', 'claude-3-opus', ...]
+     */
+    public function getUpgradeRequiredModelIds(string $organizationCode): array;
 }

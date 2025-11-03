@@ -131,4 +131,14 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     {
         $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
     }
+
+    public function getImages(): array
+    {
+        return $this->images;
+    }
+
+    public function setImages(array $images): void
+    {
+        $this->images = $images;
+    }
 }

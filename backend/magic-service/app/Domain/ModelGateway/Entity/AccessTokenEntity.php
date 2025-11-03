@@ -43,6 +43,8 @@ class AccessTokenEntity extends AbstractEntity
 
     protected int $rpm = 0;
 
+    protected bool $enabled = true;
+
     protected string $creator;
 
     protected string $modifier;
@@ -325,5 +327,15 @@ class AccessTokenEntity extends AbstractEntity
     public function setUpdatedAt(mixed $updatedAt): void
     {
         $this->updatedAt = $this->createDatetime($updatedAt);
+    }
+
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
     }
 }

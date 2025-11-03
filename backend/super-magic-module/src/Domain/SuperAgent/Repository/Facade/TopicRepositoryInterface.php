@@ -112,9 +112,9 @@ interface TopicRepositoryInterface
      */
     public function countTopicsByProjectId(int $projectId): int;
 
-    public function getRunningWorkspaceIds(array $workspaceIds): array;
+    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array;
 
-    public function getRunningProjectIds(array $projectIds): array;
+    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array;
 
     // ======================= 消息回滚相关方法 =======================
 
@@ -182,4 +182,12 @@ interface TopicRepositoryInterface
      * @return array 撤回状态的消息seq_ids
      */
     public function getRevokedSeqIdsByTopicId(int $topicId, string $userId): array;
+
+    /**
+     * Batch get topic names by IDs.
+     *
+     * @param array $topicIds Topic ID array
+     * @return array ['topic_id' => 'topic_name'] key-value pairs
+     */
+    public function getTopicNamesBatch(array $topicIds): array;
 }

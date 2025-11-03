@@ -827,6 +827,22 @@ class MagicChatDomainService extends AbstractDomainService
     }
 
     /**
+     * 通过 topic_id 获取 conversation_id.
+     *
+     * @param string $topicId 话题ID
+     * @return string conversation_id
+     */
+    public function getConversationIdByTopicId(string $topicId): string
+    {
+        $topic = $this->magicChatTopicRepository->getTopicByTopicId($topicId);
+        if (! $topic) {
+            ExceptionBuilder::throw(ChatErrorCode::TOPIC_NOT_FOUND);
+        }
+
+        return $topic->getConversationId();
+    }
+
+    /**
      * 批量获取会话详情.
      * @param array $conversationIds 会话ID数组
      * @return array<string,MagicConversationEntity> 以会话ID为键的会话实体数组
@@ -964,6 +980,34 @@ class MagicChatDomainService extends AbstractDomainService
         // 前端渲染需要：如果是流式开始时，推一个普通 seq 给前端，用于渲染占位，但是 seq_id 并没有落库。
         SocketIOUtil::sendSequenceId($receiveSeqEntity);
         return $senderSeqEntity;
+    }
+
+    /**
+     * Check if message has already been sent by app message ID.
+     *
+     * @param string $appMessageId Application message ID (primary key from external table)
+     * @param string $messageType Optional message type filter (empty string means no type filter)
+     * @return bool True if message already exists, false otherwise
+     */
+    public function isMessageAlreadySent(string $appMessageId, string $messageType = ''): bool
+    {
+        if (empty($appMessageId)) {
+            return false;
+        }
+
+        try {
+            return $this->magicMessageRepository->isMessageExistsByAppMessageId($appMessageId, $messageType);
+        } catch (Throwable $e) {
+            // Log error but don't throw exception to avoid affecting main process
+            $this->logger->warning(sprintf(
+                'Failed to check duplicate message: %s, App Message ID: %s, Message Type: %s',
+                $e->getMessage(),
+                $appMessageId,
+                $messageType ?: 'any'
+            ));
+            // Return false to allow sending when check fails
+            return false;
+        }
     }
 
     /**

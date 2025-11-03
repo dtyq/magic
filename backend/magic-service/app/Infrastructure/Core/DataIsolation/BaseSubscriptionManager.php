@@ -20,14 +20,17 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
 
     private array $currentSubscriptionInfo = [];
 
+    private array $modelIdsGroupByType = [];
+
     public function __construct(
     ) {
     }
 
-    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo): void
+    public function setCurrentSubscription(string $subscriptionId, array $subscriptionInfo, array $modelIdsGroupByType = []): void
     {
         $this->currentSubscriptionId = $subscriptionId;
         $this->currentSubscriptionInfo = $subscriptionInfo;
+        $this->modelIdsGroupByType = $modelIdsGroupByType;
     }
 
     public function isEnabled(): bool
@@ -64,11 +67,27 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
         return in_array($modelId, $modelIds, true);
     }
 
+    public function getModelIdsGroupByType(): array
+    {
+        return $this->modelIdsGroupByType;
+    }
+
+    public function setModelIdsGroupByType(array $modelIdsGroupByType): void
+    {
+        $this->modelIdsGroupByType = $modelIdsGroupByType;
+    }
+
+    public function isPaidSubscription(): bool
+    {
+        return true;
+    }
+
     public function toArray(): array
     {
         return [
             'current_subscription_id' => $this->getCurrentSubscriptionId(),
             'current_subscription_info' => $this->getCurrentSubscriptionInfo(),
+            'model_ids_group_by_type' => $this->getModelIdsGroupByType(),
         ];
     }
 }

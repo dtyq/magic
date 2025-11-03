@@ -91,6 +91,27 @@ class OrganizationRepository implements OrganizationRepositoryInterface
     }
 
     /**
+     * 根据编码列表批量获取组织.
+     */
+    public function getByCodes(array $codes): array
+    {
+        if (empty($codes)) {
+            return [];
+        }
+
+        $models = OrganizationModel::query()
+            ->whereIn('magic_organization_code', $codes)
+            ->get();
+
+        $organizations = [];
+        foreach ($models as $model) {
+            $organizations[] = $this->mapToEntity($model);
+        }
+
+        return $organizations;
+    }
+
+    /**
      * 根据名称获取组织.
      */
     public function getByName(string $name): ?OrganizationEntity

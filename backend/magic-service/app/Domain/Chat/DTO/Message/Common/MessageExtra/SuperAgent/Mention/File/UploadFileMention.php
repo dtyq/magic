@@ -36,6 +36,7 @@ final class UploadFileMention extends AbstractMention
             'file_key' => $data->getFileKey(),
             'file_path' => $data->getFilePath(),
             'file_name' => $data->getFileName(),
+            'file_size' => $data->getFileSize(),
         ];
     }
 }

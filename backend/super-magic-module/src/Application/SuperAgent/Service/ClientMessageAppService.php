@@ -68,6 +68,7 @@ class ClientMessageAppService extends AbstractAppService
      * Build message using basic parameters.
      */
     public function sendMessageToClient(
+        int $messageId,
         int $topicId,
         string $taskId,
         string $chatTopicId,
@@ -80,9 +81,10 @@ class ClientMessageAppService extends AbstractAppService
         ?array $tool = null,
         ?array $attachments = null,
         ?string $correlationId = null,
-    ): void {
+    ): string {
         try {
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
                 $content,
@@ -95,13 +97,14 @@ class ClientMessageAppService extends AbstractAppService
                 $correlationId
             );
 
-            $this->doSendMessage($message, $chatTopicId, $chatConversationId);
+            $seqId = $this->doSendMessage($message, $chatTopicId, $chatConversationId);
 
             $this->logger->info(sprintf(
                 'Normal message sent to client, Task ID: %s, Message type: %s',
                 $taskId,
                 $messageType
             ));
+            return $seqId;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to send message to client: %s, Task ID: %s',
@@ -109,6 +112,7 @@ class ClientMessageAppService extends AbstractAppService
                 $taskId
             ));
             // Do not throw exception to avoid affecting main process
+            return '';
         }
     }
 
@@ -124,7 +128,9 @@ class ClientMessageAppService extends AbstractAppService
         string $errorMessage
     ): void {
         try {
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
                 $errorMessage,
@@ -164,7 +170,9 @@ class ClientMessageAppService extends AbstractAppService
         string $interruptReason = 'Task terminated'
     ): void {
         try {
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
                 $interruptReason,
@@ -201,7 +209,9 @@ class ClientMessageAppService extends AbstractAppService
         string $remindEvent = ''
     ): void {
         try {
+            $messageId = IdGenerator::getSnowId();
             $message = $this->createSuperAgentMessage(
+                $messageId,
                 $topicId,
                 $taskId,
                 $remind,
@@ -231,14 +241,13 @@ class ClientMessageAppService extends AbstractAppService
     }
 
     /**
-     * Core implementation for sending messages to client
-     * Unified message sending logic.
+     * @return string seq_id
      */
     private function doSendMessage(
         SuperAgentMessage $message,
         string $chatTopicId,
         string $chatConversationId
-    ): void {
+    ): string {
         // Create sequence entity
         $seqDTO = new MagicSeqEntity();
         $seqDTO->setObjectType(ConversationType::Ai);
@@ -252,8 +261,29 @@ class ClientMessageAppService extends AbstractAppService
 
         $this->logger->info('[Send to Client] Sending message to client: ' . json_encode($message->toArray(), JSON_UNESCAPED_UNICODE));
 
+        // Check for duplicate messages to avoid re-sending
+        $appMessageId = $message->getMessageId();
+        if ($this->chatMessageAppService->isMessageAlreadySent($appMessageId, ChatMessageType::SuperAgentCard->value)) {
+            $this->logger->info(sprintf(
+                'Duplicate message detected, skipping send - App Message ID: %s, Task ID: %s',
+                $appMessageId,
+                $message->getTaskId()
+            ));
+            return ''; // Skip sending if message already exists
+        }
+
         // Send message
-        $this->chatMessageAppService->aiSendMessage($seqDTO, (string) IdGenerator::getSnowId());
+        try {
+            $data = $this->chatMessageAppService->aiSendMessage($seqDTO, $message->getMessageId());
+            return $data['seq']['seq_id'] ?? '';
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to send message to client: %s, Task ID: %s',
+                $e->getMessage(),
+                $message->getTaskId()
+            ));
+            return '';
+        }
     }
 
     /**
@@ -261,6 +291,7 @@ class ClientMessageAppService extends AbstractAppService
      * Private method migrated from MessageBuilderDomainService::createSuperAgentMessage.
      */
     private function createSuperAgentMessage(
+        int $messageId,
         int $topicId,
         string $taskId,
         ?string $content,
@@ -273,7 +304,7 @@ class ClientMessageAppService extends AbstractAppService
         ?string $correlationId = null,
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
-        $message->setMessageId((string) IdGenerator::getSnowId());
+        $message->setMessageId((string) $messageId);
         $message->setTopicId((string) $topicId);
         $message->setTaskId($taskId);
         $message->setType($messageType);

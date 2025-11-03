@@ -25,6 +25,7 @@ class DbQueryExecutedListener implements ListenerInterface
         'magic_chat_messages',
         'magic_chat_message_versions',
         'magic_flow_memory_histories',
+        'async_event_records',
     ];
 
     public function __construct(ContainerInterface $container)

@@ -56,5 +56,26 @@ interface MagicChatTopicRepositoryInterface
      */
     public function getTopicMessages(MessagesQueryDTO $messagesQueryDTO): array;
 
+    /**
+     * 通过topic_id获取话题信息（不需要conversation_id）.
+     */
+    public function getTopicByTopicId(string $topicId): ?MagicTopicEntity;
+
     public function deleteTopicByIds(array $ids);
+
+    /**
+     * Get topics by topic ID.
+     * @param string $topicId 话题ID
+     * @return MagicTopicEntity[] 话题实体数组
+     */
+    public function getTopicsByTopicId(string $topicId): array;
+
+    /**
+     * Get topic messages by conversation ID, topic ID and max seq ID.
+     * @param string $conversationId 会话ID
+     * @param string $topicId 话题ID
+     * @param int $maxSeqId 最大序列ID（包含该ID）
+     * @return MagicTopicMessageEntity[] 话题消息实体数组
+     */
+    public function getTopicMessagesBySeqId(string $conversationId, string $topicId, int $maxSeqId): array;
 }

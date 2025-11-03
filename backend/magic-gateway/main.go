@@ -1079,28 +1079,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 		logger.Printf("代理响应状态码: %d", resp.StatusCode)
 
-		// 在调试模式下记录完整响应信息
-		if debugMode {
-			logFullResponse(resp, targetURL)
-		}
-
-		// 读取响应体
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			logger.Printf("读取响应体失败: %v", err)
-			http.Error(w, "读取响应体失败", http.StatusInternalServerError)
-			return
-		}
-
-		// 判断respBody 大小，如果超过100kb 则不打印
-		if len(respBody) > 100*1024 {
-			logger.Printf("响应体大小超过100kb，不打印")
-		} else {
-			logger.Printf("响应体内容: %s", string(respBody))
-		}
-
-		// 重新构建响应体供后续使用
-		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+		// 检查是否为SSE流式响应
+		contentType = resp.Header.Get("Content-Type")
+		isSSEResponse := strings.Contains(strings.ToLower(contentType), "text/event-stream") ||
+			strings.Contains(strings.ToLower(contentType), "text/stream") ||
+			strings.Contains(strings.ToLower(contentType), "application/stream")
 
 		// 设置响应头
 		for key, values := range resp.Header {
@@ -1114,8 +1097,70 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 设置状态码
 		w.WriteHeader(resp.StatusCode)
 
-		// 转发响应体
-		w.Write(respBody)
+		// 处理SSE流式响应
+		if isSSEResponse {
+			logger.Printf("检测到SSE流式响应，开始流式转发")
+
+			// 确保连接保持活跃，设置必要的流式响应头
+			if flusher, ok := w.(http.Flusher); ok {
+				// 实时转发流式数据
+				buffer := make([]byte, 4096)
+				for {
+					n, err := resp.Body.Read(buffer)
+					if n > 0 {
+						// 写入数据到客户端
+						w.Write(buffer[:n])
+						// 立即刷新缓冲区，确保数据实时传输
+						flusher.Flush()
+
+						if debugMode {
+							logger.Printf("转发SSE数据块: %d 字节", n)
+						}
+					}
+					if err != nil {
+						if err == io.EOF {
+							logger.Printf("SSE流结束")
+						} else {
+							logger.Printf("读取SSE流错误: %v", err)
+						}
+						break
+					}
+				}
+			} else {
+				logger.Printf("警告: ResponseWriter不支持Flush，降级为普通响应处理")
+				// 降级处理：读取完整响应体
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					logger.Printf("读取响应体失败: %v", err)
+					return
+				}
+				w.Write(respBody)
+			}
+		} else {
+			// 非流式响应的原有处理逻辑
+			// 在调试模式下记录完整响应信息
+			if debugMode {
+				logFullResponse(resp, targetURL)
+			}
+
+			// 读取响应体
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				logger.Printf("读取响应体失败: %v", err)
+				http.Error(w, "读取响应体失败", http.StatusInternalServerError)
+				return
+			}
+
+		// 判断respBody 大小，如果超过100kb 则不打印
+		if len(respBody) > 100*1024 {
+			logger.Printf("响应体大小超过100kb，不打印")
+		} else {
+			logger.Printf("响应体内容: %s", string(respBody))
+		}
+
+				// 转发响应体
+			w.Write(respBody)
+		}
 	})
 
 	handler(w, r)
@@ -1124,7 +1169,11 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 // 检查是否应跳过请求头
 func shouldSkipHeader(key string) bool {
 	key = strings.ToLower(key)
-	skipHeaders := []string{"host", "content-length", "connection", "x-forwarded-for"}
+	// 对于流式响应，需要保留更多头部信息
+	skipHeaders := []string{"host", "x-forwarded-for"}
+
+	// 对于流式响应，不跳过connection相关的头部
+	// content-length在流式响应中通常不需要或由服务器自动处理
 	for _, h := range skipHeaders {
 		if key == h {
 			return true

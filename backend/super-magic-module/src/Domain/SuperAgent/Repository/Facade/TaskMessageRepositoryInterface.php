@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 
 interface TaskMessageRepositoryInterface
 {
@@ -82,8 +83,9 @@ interface TaskMessageRepositoryInterface
      * 保存原始消息数据并生成seq_id.
      * @param array $rawData 原始消息数据
      * @param TaskMessageEntity $message 消息实体
+     * @param string $processStatus 处理状态
      */
-    public function saveWithRawData(array $rawData, TaskMessageEntity $message): void;
+    public function saveWithRawData(array $rawData, TaskMessageEntity $message, string $processStatus = TaskMessageModel::PROCESSING_STATUS_PENDING): void;
 
     /**
      * 根据seq_id和topic_id查询消息.
@@ -131,4 +133,29 @@ interface TaskMessageRepositoryInterface
         int $maxRetries = 3,
         int $limit = 50
     ): array;
+
+    /**
+     * 根据话题ID和消息ID获取需要复制的消息列表.
+     *
+     * @param int $topicId 话题ID
+     * @param int $messageId 消息ID（获取小于等于此ID的消息）
+     * @return TaskMessageEntity[] 消息实体数组，按id升序排列
+     */
+    public function findMessagesToCopyByTopicIdAndMessageId(int $topicId, int $messageId): array;
+
+    /**
+     * 批量创建消息.
+     *
+     * @param TaskMessageEntity[] $messageEntities 消息实体数组
+     * @return TaskMessageEntity[] 创建成功的消息实体数组（包含生成的ID）
+     */
+    public function batchCreateMessages(array $messageEntities): array;
+
+    /**
+     * 更新消息的IM序列ID.
+     *
+     * @param int $id 消息ID
+     * @param null|int $imSeqId IM序列ID，为空时不更新
+     */
+    public function updateMessageSeqId(int $id, ?int $imSeqId): void;
 }

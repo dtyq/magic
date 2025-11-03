@@ -480,7 +480,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             $credentialPolicy = new CredentialPolicy([
                 'sts' => true,
                 'role_session_name' => 'magic',
-                'dir' => $prefix,
+                'dir' => '',
                 'expires' => 3600,
             ]);
 

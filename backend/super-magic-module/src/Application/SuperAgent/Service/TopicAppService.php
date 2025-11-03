@@ -14,12 +14,15 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
@@ -36,6 +39,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
@@ -50,6 +54,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Coroutine\go;
 
 class TopicAppService extends AbstractAppService
 {
@@ -66,6 +72,7 @@ class TopicAppService extends AbstractAppService
         protected ChatAppService $chatAppService,
         protected Producer $producer,
         protected EventDispatcherInterface $eventDispatcher,
+        protected TopicDuplicateStatusManager $topicDuplicateStatusManager,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -497,5 +504,300 @@ class TopicAppService extends AbstractAppService
             ];
         }
         return $result;
+    }
+
+    /**
+     * Duplicate topic (synchronous) - blocks until completion.
+     * This method performs complete topic duplication synchronously without task management.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $sourceTopicId Source topic ID
+     * @param DuplicateTopicRequestDTO $requestDTO Request DTO
+     * @return array Complete result with topic info
+     * @throws BusinessException If validation fails or operation fails
+     */
+    public function duplicateTopic(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $this->logger->info('Topic duplication sync started', [
+            'user_id' => $userAuthorization->getId(),
+            'source_topic_id' => $sourceTopicId,
+            'target_message_id' => $requestDTO->getTargetMessageId(),
+            'new_topic_name' => $requestDTO->getNewTopicName(),
+        ]);
+
+        // Validate topic and permissions
+        $sourceTopicEntity = $this->topicDomainService->getTopicById((int) $sourceTopicId);
+        if (! $sourceTopicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        if ($sourceTopicEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
+        }
+
+        // Create data isolation
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // Execute complete duplication in transaction
+        Db::beginTransaction();
+        try {
+            // Call domain service - pure business logic
+            $newTopicEntity = $this->topicDomainService->duplicateTopic(
+                $dataIsolation,
+                $sourceTopicEntity,
+                $requestDTO->getNewTopicName(),
+                (int) $requestDTO->getTargetMessageId()
+            );
+
+            Db::commit();
+
+            $this->logger->info('Topic duplication sync completed', [
+                'source_topic_id' => $sourceTopicId,
+                'new_topic_id' => $newTopicEntity->getId(),
+            ]);
+
+            // Return complete result
+            return [
+                'status' => 'completed',
+                'message' => 'Topic duplicated successfully',
+                'topic' => TopicItemDTO::fromEntity($newTopicEntity)->toArray(),
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+
+            $this->logger->error('Topic duplication sync failed', [
+                'source_topic_id' => $sourceTopicId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Duplicate topic (asynchronous) - returns immediately with task_id.
+     * This method creates topic skeleton synchronously, then copies messages asynchronously.
+     *
+     * @param RequestContext $requestContext Request context
+     * @param string $sourceTopicId Source topic ID
+     * @param DuplicateTopicRequestDTO $requestDTO Request DTO
+     * @return array Task info with task_id
+     * @throws BusinessException If validation fails or operation fails
+     */
+    public function duplicateChatAsync(RequestContext $requestContext, string $sourceTopicId, DuplicateTopicRequestDTO $requestDTO): array
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $this->logger->info('Starting topic duplication async (skeleton sync + message copy async)', [
+            'user_id' => $userAuthorization->getId(),
+            'source_topic_id' => $sourceTopicId,
+            'target_message_id' => $requestDTO->getTargetMessageId(),
+            'new_topic_name' => $requestDTO->getNewTopicName(),
+        ]);
+
+        // 验证话题存在和权限
+        $sourceTopicEntity = $this->topicDomainService->getTopicById((int) $sourceTopicId);
+        if (! $sourceTopicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // 判断话题是否是本人
+        if ($sourceTopicEntity->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
+        }
+
+        // === 同步部分：创建话题骨架 ===
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 在事务中创建话题骨架
+        Db::beginTransaction();
+        try {
+            // 调用 Domain 层创建话题骨架（包含 IM 会话）
+            $duplicateResult = $this->topicDomainService->duplicateTopicSkeleton(
+                $dataIsolation,
+                $sourceTopicEntity,
+                $requestDTO->getNewTopicName()
+            );
+
+            $newTopicEntity = $duplicateResult['topic_entity'];
+            $imConversationResult = $duplicateResult['im_conversation'];
+
+            // 提交事务
+            Db::commit();
+
+            $this->logger->info('Topic skeleton created successfully (sync)', [
+                'source_topic_id' => $sourceTopicId,
+                'new_topic_id' => $newTopicEntity->getId(),
+            ]);
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Failed to create topic skeleton (sync)', [
+                'source_topic_id' => $sourceTopicId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        // 将话题实体转换为 DTO
+        $topicItemDTO = TopicItemDTO::fromEntity($newTopicEntity);
+
+        // 生成任务键
+        $taskKey = TopicDuplicateConstant::generateTaskKey($sourceTopicId, $userAuthorization->getId());
+
+        // 初始化异步任务
+        $taskData = [
+            'source_topic_id' => $sourceTopicId,
+            'target_message_id' => $requestDTO->getTargetMessageId(),
+            'new_topic_name' => $requestDTO->getNewTopicName(),
+            'user_id' => $userAuthorization->getId(),
+            'new_topic_id' => $newTopicEntity->getId(), // 保存新话题ID
+            'im_conversation' => $imConversationResult, // 保存 IM 会话信息
+        ];
+
+        $this->topicDuplicateStatusManager->initializeTask($taskKey, $userAuthorization->getId(), $taskData);
+
+        // 获取当前请求ID
+        $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
+
+        // === 异步部分：复制消息 ===
+        go(function () use ($sourceTopicEntity, $newTopicEntity, $requestDTO, $imConversationResult, $taskKey, $requestId) {
+            // 复制请求上下文
+            CoContext::setRequestId($requestId);
+
+            try {
+                // 更新任务状态：开始复制消息
+                $this->topicDuplicateStatusManager->setTaskProgress($taskKey, 10, 'Starting to copy messages');
+
+                // 开始数据库事务
+                Db::beginTransaction();
+                try {
+                    // 执行消息复制逻辑
+                    $this->topicDomainService->copyTopicMessageFromOthers(
+                        $sourceTopicEntity,
+                        $newTopicEntity,
+                        (int) $requestDTO->getTargetMessageId(),
+                        $imConversationResult,
+                        // 进度回调函数
+                        function (string $status, int $progress, string $message) use ($taskKey) {
+                            $this->topicDuplicateStatusManager->setTaskProgress($taskKey, $progress, $message);
+                        }
+                    );
+
+                    // 提交事务
+                    Db::commit();
+
+                    // 任务完成
+                    $this->topicDuplicateStatusManager->setTaskCompleted($taskKey, [
+                        'topic_id' => $newTopicEntity->getId(),
+                        'topic_name' => $newTopicEntity->getTopicName(),
+                        'project_id' => $newTopicEntity->getProjectId(),
+                        'workspace_id' => $newTopicEntity->getWorkspaceId(),
+                    ]);
+
+                    $this->logger->info('Topic message copy completed successfully (async)', [
+                        'task_key' => $taskKey,
+                        'source_topic_id' => $sourceTopicEntity->getId(),
+                        'new_topic_id' => $newTopicEntity->getId(),
+                    ]);
+                } catch (Throwable $e) {
+                    // 回滚事务
+                    Db::rollBack();
+                    throw $e; // 重新抛出异常，让外层catch处理
+                }
+            } catch (Throwable $e) {
+                // 任务失败
+                $this->topicDuplicateStatusManager->setTaskFailed($taskKey, $e->getMessage());
+
+                $this->logger->error('Async topic message copy failed', [
+                    'task_key' => $taskKey,
+                    'source_topic_id' => $sourceTopicEntity->getId(),
+                    'new_topic_id' => $newTopicEntity->getId(),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        });
+
+        // 立即返回任务信息和新创建的话题
+        return [
+            'task_id' => $taskKey,
+            'status' => 'copying',
+            'message' => 'Topic created, copying messages in background',
+            'topic' => $topicItemDTO->toArray(), // 新增：立即返回话题信息
+        ];
+    }
+
+    /**
+     * 检查话题复制状态
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param string $taskKey 任务键
+     * @return array 复制状态信息
+     * @throws BusinessException 如果参数无效或操作失败则抛出异常
+     */
+    public function checkDuplicateChatStatus(RequestContext $requestContext, string $taskKey): array
+    {
+        // 获取用户授权信息
+        $userAuthorization = $requestContext->getUserAuthorization();
+
+        $this->logger->info('Checking topic duplication status', [
+            'user_id' => $userAuthorization->getId(),
+            'task_key' => $taskKey,
+        ]);
+
+        try {
+            // 验证用户权限
+            if (! $this->topicDuplicateStatusManager->verifyUserPermission($taskKey, $userAuthorization->getId())) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TASK_ACCESS_DENIED, 'Task access denied');
+            }
+
+            // 获取任务状态
+            $taskStatus = $this->topicDuplicateStatusManager->getTaskStatus($taskKey);
+            if (! $taskStatus) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'Task not found or expired');
+            }
+
+            // 构建返回结果
+            $result = [
+                'task_id' => $taskKey,
+                'status' => $taskStatus['status'], // running, completed, failed
+                'message' => $taskStatus['message'] ?? 'Topic duplication in progress',
+            ];
+
+            // 添加进度信息
+            if (isset($taskStatus['progress'])) {
+                $result['progress'] = [
+                    'percentage' => $taskStatus['progress']['percentage'],
+                    'message' => $taskStatus['progress']['message'] ?? '',
+                ];
+            }
+
+            // 如果任务完成，返回结果信息
+            if ($taskStatus['status'] === 'completed' && isset($taskStatus['result'])) {
+                $topicEntity = $this->topicDomainService->getTopicById($taskStatus['result']['topic_id']);
+                $result['result'] = TopicItemDTO::fromEntity($topicEntity)->toArray();
+            }
+
+            // 如果任务失败，返回错误信息
+            if ($taskStatus['status'] === 'failed' && isset($taskStatus['error'])) {
+                $result['error'] = $taskStatus['error'];
+            }
+
+            return $result;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to check topic duplication status', [
+                'user_id' => $userAuthorization->getId(),
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }

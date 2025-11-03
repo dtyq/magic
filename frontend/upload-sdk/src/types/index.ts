@@ -5,6 +5,7 @@ import type { Local } from "./Local"
 import type { Method } from "./request"
 import type { TOS } from "./TOS"
 import type { OBS } from "./OBS"
+import type { MinIO } from "./MinIO"
 
 /** 请求类型 */
 export type MethodType = Method
@@ -153,6 +154,7 @@ export enum PlatformType {
 	TOS = "tos",
 	OBS = "obs",
 	Local = "local",
+	Minio = "minio",
 }
 
 /** 聚合平台参数 */
@@ -165,6 +167,8 @@ export type PlatformParams =
 	| TOS.STSAuthParams
 	| OBS.AuthParams
 	| OBS.STSAuthParams
+	| MinIO.AuthParams
+	| MinIO.STSAuthParams
 
 /** 请求临时凭证，返回数据模板 */
 export interface UploadSource<T extends PlatformParams> {

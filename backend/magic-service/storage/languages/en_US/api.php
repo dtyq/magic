@@ -8,6 +8,7 @@ return [
     // Token related errors
     'token' => [
         'not_exist' => 'API token does not exist',
+        'disabled' => 'API token has been disabled',
         'expired' => 'API token has expired',
         'model_not_support' => 'Token does not support this model',
         'organization_not_support' => 'Token does not support this organization',

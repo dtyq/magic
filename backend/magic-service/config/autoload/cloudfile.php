@@ -152,4 +152,5 @@ switch ($fileDriver) {
 
 return [
     'storages' => $storages,
+    'driver' => $fileDriver,
 ];

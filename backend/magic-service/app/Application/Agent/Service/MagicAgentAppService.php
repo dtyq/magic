@@ -890,7 +890,7 @@ class MagicAgentAppService extends AbstractAppService
         $config = [
             'agent_name' => '麦吉助理',
             'agent_description' => '我会回答你一切',
-            'agent_avatar' => 'MAGIC/' . $authorization->getOrganizationCode() . '/default/agent.png',
+            'agent_avatar' => $this->fileDomainService->getDefaultIconPaths()['bot'] ?? '',
             'flow' => $loadPresetConfig['flow'],
         ];
 
@@ -918,7 +918,7 @@ class MagicAgentAppService extends AbstractAppService
         $config = [
             'agent_name' => '文生图助手',
             'agent_description' => '一个强大的AI文本生成图像助手，可以根据您的描述创建精美图像。',
-            'agent_avatar' => 'MAGIC/' . $authorization->getOrganizationCode() . '/default/agent.png',
+            'agent_avatar' => $this->fileDomainService->getDefaultIconPaths()['bot'] ?? '',
             'flow' => $loadPresetConfig['flow'],
             'instruct' => $loadPresetConfig['instructs'],
         ];
@@ -946,7 +946,7 @@ class MagicAgentAppService extends AbstractAppService
         $config = [
             'agent_name' => '文档解析助手',
             'agent_description' => '文档解析助手',
-            'agent_avatar' => 'MAGIC/' . $authorization->getOrganizationCode() . '/default/agent.png',
+            'agent_avatar' => $this->fileDomainService->getDefaultIconPaths()['bot'] ?? '',
             'flow' => $this->loadPresetConfig('document', ['modelName' => $modelName])['flow'],
         ];
 
@@ -969,7 +969,7 @@ class MagicAgentAppService extends AbstractAppService
         $magicAgentDTO = new MagicAgentDTO();
         $magicAgentDTO->setAgentName($config['agent_name']);
         $magicAgentDTO->setAgentDescription($config['agent_description'] ?? '');
-        $magicAgentDTO->setAgentAvatar($config['agent_avatar'] ?? 'MAGIC/' . $authorization->getOrganizationCode() . '/default/agent.png');
+        $magicAgentDTO->setAgentAvatar($config['agent_avatar'] ?? $this->fileDomainService->getDefaultIconPaths()['bot'] ?? '');
         $magicAgentDTO->setCurrentUserId($authorization->getId());
         $magicAgentDTO->setCurrentOrganizationCode($authorization->getOrganizationCode());
 

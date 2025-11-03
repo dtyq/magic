@@ -42,6 +42,11 @@ class TopicEntity extends AbstractEntity
     protected int $projectId = 0;
 
     /**
+     * @var null|int 复制来源话题ID
+     */
+    protected ?int $fromTopicId = null;
+
+    /**
      * @var string Chat话题ID
      */
     protected string $chatTopicId = '';
@@ -90,6 +95,16 @@ class TopicEntity extends AbstractEntity
      * @var float 话题成本
      */
     protected float $cost = 0.0;
+
+    /**
+     * @var int Creation source
+     */
+    protected int $source = 1;
+
+    /**
+     * @var null|string Source ID
+     */
+    protected ?string $sourceId = null;
 
     /**
      * @var null|int 当前任务ID
@@ -149,6 +164,7 @@ class TopicEntity extends AbstractEntity
             'user_organization_code' => $this->userOrganizationCode ?? '',
             'workspace_id' => $this->workspaceId ?? 0,
             'project_id' => $this->projectId ?? 0,
+            'from_topic_id' => $this->fromTopicId,
             'chat_topic_id' => $this->chatTopicId ?? '',
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
@@ -159,6 +175,8 @@ class TopicEntity extends AbstractEntity
             'task_mode' => $this->taskMode ?? 'chat',
             'topic_mode' => $this->topicMode,
             'cost' => $this->cost ?? 0.0,
+            'source' => $this->source,
+            'source_id' => $this->sourceId,
             'current_task_id' => $this->currentTaskId,
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
@@ -243,6 +261,22 @@ class TopicEntity extends AbstractEntity
         }
 
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function getFromTopicId(): ?int
+    {
+        return $this->fromTopicId;
+    }
+
+    public function setFromTopicId($fromTopicId): self
+    {
+        // 当输入不是整数时进行转换，null保持null
+        if ($fromTopicId !== null && ! is_int($fromTopicId)) {
+            $fromTopicId = (int) $fromTopicId;
+        }
+
+        $this->fromTopicId = $fromTopicId;
         return $this;
     }
 
@@ -518,6 +552,23 @@ class TopicEntity extends AbstractEntity
         return $this;
     }
 
+    /**
+     * Get creation source.
+     */
+    public function getSource(): int
+    {
+        return $this->source;
+    }
+
+    /**
+     * Set creation source.
+     */
+    public function setSource(int $source): self
+    {
+        $this->source = $source;
+        return $this;
+    }
+
     public function getWorkspaceCommitHash(): string
     {
         return $this->workspaceCommitHash;
@@ -537,6 +588,23 @@ class TopicEntity extends AbstractEntity
     public function setChatHistoryCommitHash(?string $chatHistoryCommitHash): self
     {
         $this->chatHistoryCommitHash = $chatHistoryCommitHash;
+        return $this;
+    }
+
+    /**
+     * Get source ID.
+     */
+    public function getSourceId(): ?string
+    {
+        return $this->sourceId;
+    }
+
+    /**
+     * Set source ID.
+     */
+    public function setSourceId(?string $sourceId): self
+    {
+        $this->sourceId = $sourceId;
         return $this;
     }
 }

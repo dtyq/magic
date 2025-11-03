@@ -8,6 +8,7 @@ return [
     // Token相关错误
     'token' => [
         'not_exist' => 'API令牌不存在',
+        'disabled' => 'API令牌已被禁用',
         'expired' => 'API令牌已过期',
         'model_not_support' => '令牌不支持此模型',
         'organization_not_support' => '令牌不支持此组织',
