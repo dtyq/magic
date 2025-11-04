@@ -206,52 +206,6 @@ readonly class ProviderModelDomainService
     }
 
     /**
-     * 根据配置ID和源模型ID查询同步的模型.
-     */
-    public function getByConfigIdAndSourceModelId(
-        ProviderDataIsolation $dataIsolation,
-        string $configId,
-        int $sourceModelId
-    ): ?ProviderModelEntity {
-        return $this->providerModelRepository->getByConfigIdAndSourceModelId($dataIsolation, $configId, $sourceModelId);
-    }
-
-    /**
-     * 获取配置下所有同步的模型，按source_model_id索引.
-     * @return array<int, ProviderModelEntity> key为source_model_id
-     */
-    public function getSyncedModelsByConfigId(
-        ProviderDataIsolation $dataIsolation,
-        string $configId
-    ): array {
-        return $this->providerModelRepository->getSyncedModelsByConfigId($dataIsolation, $configId);
-    }
-
-    /**
-     * 删除配置下除了指定源模型ID列表之外的所有同步模型.
-     * @param int[] $sourceModelIds 要保留的源模型ID列表
-     */
-    public function deleteByConfigIdExceptSourceModelIds(
-        ProviderDataIsolation $dataIsolation,
-        string $configId,
-        array $sourceModelIds
-    ): void {
-        $this->providerModelRepository->deleteByConfigIdExceptSourceModelIds($dataIsolation, $configId, $sourceModelIds);
-    }
-
-    /**
-     * 根据多个服务商配置ID查询模型.
-     * @param string[] $configIds
-     * @return ProviderModelEntity[]
-     */
-    public function getByProviderConfigIds(
-        ProviderDataIsolation $dataIsolation,
-        array $configIds
-    ): array {
-        return $this->providerModelRepository->getByProviderConfigIds($dataIsolation, $configIds);
-    }
-
-    /**
      * 保存模型配置版本.
      */
     private function saveConfigVersion(ProviderDataIsolation $dataIsolation, ProviderModelEntity $modelEntity): void
