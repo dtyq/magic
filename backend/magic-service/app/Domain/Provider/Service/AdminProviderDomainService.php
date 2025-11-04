@@ -376,6 +376,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             if (isset($configMap[$targetConfigId])) {
                 $config = $configMap[$targetConfigId]->getConfig();
                 if ($config) {
+                    $config->setProviderModelId((string) $activeModel->getId());
                     $result[] = $config;
                 }
             }
