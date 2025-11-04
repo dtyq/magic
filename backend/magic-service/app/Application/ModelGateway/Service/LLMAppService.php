@@ -131,7 +131,7 @@ class LLMAppService extends AbstractLLMAppService
             $modelConfigEntity->setObject($objectType);
 
             // Only set info for non-image models when withInfo is true
-            if ($withInfo && ! $isImageModel) {
+            if ($withInfo) {
                 $modelConfigEntity->setInfo([
                     'attributes' => $odinModel->getAttributes()->toArray(),
                     'options' => $model->getModelOptions()->toArray(),

@@ -9,19 +9,24 @@ namespace App\Application\Provider\Service;
 
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
+use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
+use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
+
+use function Hyperf\Support\retry;
 
 /**
  * 服务商模型同步应用服务.
- * 负责处理模型同步到Official服务商的业务逻辑.
- * 通过DomainService调用Repository，遵循DDD架构规范.
+ * 负责从外部API拉取模型并同步到Official服务商.
  */
 class ProviderModelSyncAppService
 {
@@ -30,21 +35,21 @@ class ProviderModelSyncAppService
     public function __construct(
         private readonly ProviderConfigDomainService $providerConfigDomainService,
         private readonly ProviderModelDomainService $providerModelDomainService,
-        private readonly AdminProviderDomainService $adminProviderDomainService,
+        private readonly ClientFactory $clientFactory,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('ProviderModelSync');
     }
 
     /**
-     * 处理服务商配置创建事件.
-     * 如果是Official服务商，同步所有非Official服务商的模型.
+     * 从外部API同步模型.
+     * 当服务商配置创建或更新时，如果是Official服务商且是官方组织，则从外部API拉取模型.
      */
-    public function handleProviderConfigCreated(
+    public function syncModelsFromExternalApi(
         ProviderConfigEntity $providerConfigEntity,
         string $organizationCode
     ): void {
-        // 获取服务商信息
+        // 1. 检查是否为Official服务商
         $dataIsolation = ProviderDataIsolation::create($organizationCode);
         $provider = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());
 
@@ -56,379 +61,298 @@ class ProviderModelSyncAppService
             return;
         }
 
-        $this->logger->info('Official服务商创建，开始同步所有模型', [
+        $this->logger->info('开始从外部API同步模型', [
             'config_id' => $providerConfigEntity->getId(),
             'organization_code' => $organizationCode,
+            'provider_code' => $provider->getProviderCode()->value,
         ]);
 
-        $this->syncAllModelsToOfficial($dataIsolation, $providerConfigEntity);
-    }
+        try {
+            // 3. 解析配置
+            $config = $providerConfigEntity->getConfig();
+            if (! $config) {
+                $this->logger->warning('配置为空，跳过同步', [
+                    'config_id' => $providerConfigEntity->getId(),
+                ]);
+                return;
+            }
 
-    /**
-     * 处理服务商配置更新事件.
-     * 如果是Official服务商，重新同步所有非Official服务商的模型.
-     */
-    public function handleProviderConfigUpdated(
-        ProviderConfigEntity $providerConfigEntity,
-        string $organizationCode
-    ): void {
-        // 获取服务商信息
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-        $provider = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());
+            $proxyUrl = $config->getProxyUrl(); // proxy_url 存在 url 字段中
+            $apiKey = $config->getApiKey();
+            if (! $proxyUrl || ! $apiKey) {
+                $this->logger->warning('配置不完整，缺少proxy_url或api_key', [
+                    'config_id' => $providerConfigEntity->getId(),
+                    'has_proxy_url' => ! empty($proxyUrl),
+                    'has_api_key' => ! empty($apiKey),
+                ]);
+                return;
+            }
 
-        if (! $provider || $provider->getProviderCode() !== ProviderCode::Official) {
-            $this->logger->debug('不是Official服务商，跳过同步', [
+            // 4. 根据category确定type参数
+            $types = $this->getModelTypesByCategory($provider->getCategory());
+
+            // 5. 从外部API拉取模型
+            $models = $this->fetchModelsFromApi($proxyUrl, $apiKey, $types);
+
+            if (empty($models)) {
+                $this->logger->warning('未从外部API获取到模型', [
+                    'config_id' => $providerConfigEntity->getId(),
+                    'proxy_url' => $proxyUrl,
+                ]);
+                return;
+            }
+
+            // 6. 同步模型到数据库
+            $this->syncModelsToDatabase($dataIsolation, $providerConfigEntity, $models);
+
+            $this->logger->info('从外部API同步模型完成', [
                 'config_id' => $providerConfigEntity->getId(),
-                'provider_code' => $provider?->getProviderCode()->value,
+                'model_count' => count($models),
             ]);
-            return;
+        } catch (Throwable $e) {
+            $this->logger->error('从外部API同步模型失败', [
+                'config_id' => $providerConfigEntity->getId(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * 根据服务商category确定要拉取的模型type.
+     */
+    private function getModelTypesByCategory(Category $category): array
+    {
+        return match ($category) {
+            Category::LLM => ['chat', 'embedding'],
+            Category::VLM => ['image'],
+            default => [],
+        };
+    }
+
+    /**
+     * 从外部API拉取模型.
+     */
+    private function fetchModelsFromApi(string $proxyUrl, string $apiKey, array $types): array
+    {
+        // 获取API地址
+        $apiUrl = $this->getUrlByProxyUrl($proxyUrl) ?? null;
+        if (! $apiUrl) {
+            $this->logger->error('不支持的proxy_url', [
+                'proxy_url' => $proxyUrl,
+            ]);
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, '不支持的proxy_url: ' . $proxyUrl);
         }
 
-        $this->logger->info('Official服务商更新，重新同步所有模型', [
-            'config_id' => $providerConfigEntity->getId(),
-            'organization_code' => $organizationCode,
+        $allModels = [];
+
+        // 为每个type调用API
+        foreach ($types as $type) {
+            try {
+                $models = retry(3, function () use ($apiUrl, $apiKey, $type) {
+                    return $this->callModelsApi($apiUrl, $apiKey, $type);
+                }, 500);
+                $allModels = array_merge($allModels, $models);
+            } catch (Throwable $e) {
+                $this->logger->error("拉取{$type}类型模型失败", [
+                    'type' => $type,
+                    'api_url' => $apiUrl,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $allModels;
+    }
+
+    /**
+     * 调用外部API获取模型列表.
+     */
+    private function callModelsApi(string $apiUrl, string $apiKey, string $type): array
+    {
+        $client = $this->clientFactory->create([
+            'timeout' => 30,
+            'verify' => false,
         ]);
 
-        $this->syncAllModelsToOfficial($dataIsolation, $providerConfigEntity);
-    }
-
-    /**
-     * 处理模型创建事件.
-     * 如果模型属于非Official服务商，则同步到Official服务商.
-     */
-    public function handleProviderModelCreated(
-        ProviderModelEntity $providerModelEntity,
-        string $organizationCode
-    ): void {
-        // 检查是否为非Official服务商的模型
-        if (! $this->isNonOfficialProviderModel($providerModelEntity, $organizationCode)) {
-            return;
-        }
-
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-
-        // 获取Official服务商配置
-        $officialConfig = $this->getOfficialProviderConfig($dataIsolation);
-        if (! $officialConfig) {
-            $this->logger->debug('未找到Official服务商配置，跳过同步', [
-                'organization_code' => $organizationCode,
-            ]);
-            return;
-        }
-
-        // 创建同步模型
-        $this->createSyncedModel($dataIsolation, $providerModelEntity, $officialConfig);
-
-        $this->logger->info('模型已同步到Official服务商', [
-            'source_model_id' => $providerModelEntity->getId(),
-            'official_config_id' => $officialConfig->getId(),
+        $response = $client->get($apiUrl, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ],
+            'query' => [
+                'with_info' => 1,
+                'type' => $type,
+            ],
         ]);
+
+        $body = $response->getBody()->getContents();
+        $data = json_decode($body, true);
+
+        if (! isset($data['data']) || ! is_array($data['data'])) {
+            $this->logger->warning('API返回格式错误', [
+                'api_url' => $apiUrl,
+                'type' => $type,
+                'response' => $body,
+            ]);
+            return [];
+        }
+
+        $this->logger->info('成功从API拉取模型', [
+            'api_url' => $apiUrl,
+            'type' => $type,
+            'model_count' => count($data['data']),
+        ]);
+
+        return $data['data'];
     }
 
     /**
-     * 处理模型更新事件.
-     * 如果模型属于非Official服务商，则更新Official服务商的对应模型.
+     * 将模型同步到数据库.
      */
-    public function handleProviderModelUpdated(
-        ProviderModelEntity $providerModelEntity,
-        string $organizationCode
-    ): void {
-        // 检查是否为非Official服务商的模型
-        if (! $this->isNonOfficialProviderModel($providerModelEntity, $organizationCode)) {
-            return;
-        }
-
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-
-        // 获取Official服务商配置
-        $officialConfig = $this->getOfficialProviderConfig($dataIsolation);
-        if (! $officialConfig) {
-            return;
-        }
-
-        // 查找已同步的模型
-        $syncedModel = $this->providerModelDomainService->getByConfigIdAndSourceModelId(
-            $dataIsolation,
-            (string) $officialConfig->getId(),
-            $providerModelEntity->getId()
-        );
-
-        if (! empty($syncedModel)) {
-            $this->updateSyncedModel($dataIsolation, $syncedModel, $providerModelEntity, $officialConfig);
-
-            $this->logger->info('已更新Official服务商的同步模型', [
-                'source_model_id' => $providerModelEntity->getId(),
-                'synced_model_id' => $syncedModel->getId(),
-            ]);
-        } else {
-            // 如果不存在，创建新的同步模型
-            $this->createSyncedModel($dataIsolation, $providerModelEntity, $officialConfig);
-
-            $this->logger->info('模型不存在，已创建新的同步模型', [
-                'source_model_id' => $providerModelEntity->getId(),
-                'official_config_id' => $officialConfig->getId(),
-            ]);
-        }
-    }
-
-    /**
-     * 处理模型删除事件.
-     * 如果模型属于非Official服务商，则删除Official服务商的对应模型.
-     */
-    public function handleProviderModelDeleted(
-        string $modelId,
-        int $serviceProviderConfigId,
-        string $organizationCode
-    ): void {
-        // 检查配置是否为非Official服务商
-        $providerConfig = $this->providerConfigDomainService->getByIdWithoutOrganizationFilter($serviceProviderConfigId);
-        if (! $providerConfig) {
-            return;
-        }
-
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-        $provider = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfig->getServiceProviderId());
-        if (! $provider || $provider->getProviderCode() === ProviderCode::Official) {
-            return;
-        }
-
-        // 获取Official服务商配置
-        $officialConfig = $this->getOfficialProviderConfig($dataIsolation);
-        if (! $officialConfig) {
-            return;
-        }
-
-        // 查找并删除已同步的模型
-        $syncedModel = $this->providerModelDomainService->getByConfigIdAndSourceModelId(
-            $dataIsolation,
-            (string) $officialConfig->getId(),
-            (int) $modelId
-        );
-
-        if (! empty($syncedModel)) {
-            $this->providerModelDomainService->deleteById($dataIsolation, (string) $syncedModel->getId());
-
-            $this->logger->info('已删除Official服务商的同步模型', [
-                'source_model_id' => $modelId,
-                'synced_model_id' => $syncedModel->getId(),
-            ]);
-        }
-    }
-
-    /**
-     * 同步所有非Official服务商的模型到Official服务商.
-     * 使用批量查询优化性能.
-     */
-    private function syncAllModelsToOfficial(
+    private function syncModelsToDatabase(
         ProviderDataIsolation $dataIsolation,
-        ProviderConfigEntity $officialConfigEntity
+        ProviderConfigEntity $providerConfigEntity,
+        array $models
     ): void {
-        $officialConfigId = (string) $officialConfigEntity->getId();
+        $configId = $providerConfigEntity->getId();
 
-        // 1. 获取所有配置
-        $allConfigs = $this->providerConfigDomainService->getAllByOrganization($dataIsolation);
+        // 获取现有的所有模型
+        $existingModels = $this->providerModelDomainService->getByProviderConfigId($dataIsolation, (string) $configId);
 
-        if (empty($allConfigs)) {
-            $this->logger->info('没有其他服务商配置，清空Official的所有同步模型');
-            $this->providerModelDomainService->deleteByConfigIdExceptSourceModelIds(
-                $dataIsolation,
-                $officialConfigId,
-                []
-            );
-            return;
+        // 建立model_id -> entity的映射
+        $existingModelMap = [];
+        foreach ($existingModels as $model) {
+            $existingModelMap[$model->getModelId()] = $model;
         }
 
-        // 2. 批量获取所有服务商实体
-        $configIds = array_map(fn ($config) => $config->getId(), $allConfigs);
-        $providerMap = $this->providerConfigDomainService->getProviderEntitiesByConfigIds($dataIsolation, $configIds);
+        // 提取新模型的model_id
+        $newModelIds = array_column($models, 'id');
 
-        // 3. 筛选非Official的配置ID
-        $nonOfficialConfigIds = [];
-        foreach ($allConfigs as $config) {
-            $configId = $config->getId();
-            if (isset($providerMap[$configId])) {
-                $provider = $providerMap[$configId];
-                if ($provider->getProviderCode() !== ProviderCode::Official) {
-                    $nonOfficialConfigIds[] = (string) $configId;
+        // 遍历新模型，创建或更新
+        foreach ($models as $modelData) {
+            $modelId = $modelData['id'] ?? null;
+            if (! $modelId) {
+                continue;
+            }
+
+            try {
+                if (isset($existingModelMap[$modelId])) {
+                    // 更新现有模型
+                    $this->updateModel($dataIsolation, $existingModelMap[$modelId], $modelData, $providerConfigEntity);
+                } else {
+                    // 创建新模型
+                    $this->createModel($dataIsolation, $modelData, $providerConfigEntity);
+                }
+            } catch (Throwable $e) {
+                $this->logger->error('同步模型失败', [
+                    'model_id' => $modelId,
+                    'error' => $e->getMessage(),
+                ]);
+                // 继续处理其他模型
+            }
+        }
+
+        // 删除不再存在的模型
+        foreach ($existingModelMap as $modelId => $existingModel) {
+            if (! in_array($modelId, $newModelIds)) {
+                try {
+                    $this->providerModelDomainService->deleteById($dataIsolation, (string) $existingModel->getId());
+                    $this->logger->info('删除过期模型', [
+                        'model_id' => $modelId,
+                        'entity_id' => $existingModel->getId(),
+                    ]);
+                } catch (Throwable $e) {
+                    $this->logger->error('删除模型失败', [
+                        'model_id' => $modelId,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
         }
+    }
 
-        if (empty($nonOfficialConfigIds)) {
-            $this->logger->info('没有非Official服务商配置，清空Official的所有同步模型');
-            $this->providerModelDomainService->deleteByConfigIdExceptSourceModelIds(
-                $dataIsolation,
-                $officialConfigId,
-                []
-            );
-            return;
-        }
+    /**
+     * 创建新模型.
+     */
+    private function createModel(
+        ProviderDataIsolation $dataIsolation,
+        array $modelData,
+        ProviderConfigEntity $providerConfigEntity
+    ): void {
+        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity);
 
-        // 通过DomainService查询这些配置下的所有启用模型
-        $sourceModels = $this->providerModelDomainService->getByProviderConfigIds(
-            $dataIsolation,
-            $nonOfficialConfigIds
-        );
+        // 保存模型
+        $this->providerModelDomainService->saveModel($dataIsolation, $saveDTO);
 
-        // 通过DomainService获取Official配置下已存在的同步模型
-        $existingSyncedModels = $this->providerModelDomainService->getSyncedModelsByConfigId(
-            $dataIsolation,
-            $officialConfigId
-        );
-
-        // 准备源模型ID集合
-        $sourceModelIds = [];
-
-        // 遍历源模型，进行新增或更新
-        foreach ($sourceModels as $sourceModel) {
-            $sourceModelId = $sourceModel->getId();
-            $sourceModelIds[] = $sourceModelId;
-
-            if (isset($existingSyncedModels[$sourceModelId])) {
-                // 存在，执行更新
-                $existingModel = $existingSyncedModels[$sourceModelId];
-                $this->updateSyncedModel($dataIsolation, $existingModel, $sourceModel, $officialConfigEntity);
-            } else {
-                // 不存在，执行新增
-                $this->createSyncedModel($dataIsolation, $sourceModel, $officialConfigEntity);
-            }
-        }
-
-        // 通过DomainService删除不再存在的模型
-        $this->providerModelDomainService->deleteByConfigIdExceptSourceModelIds(
-            $dataIsolation,
-            $officialConfigId,
-            $sourceModelIds
-        );
-
-        $this->logger->info('完成所有模型同步', [
-            'total_models' => count($sourceModels),
-            'source_model_ids' => $sourceModelIds,
+        $this->logger->info('创建新模型', [
+            'model_id' => $modelData['id'],
+            'name' => $saveDTO->getName(),
         ]);
     }
 
     /**
-     * 创建同步模型 - 使用SaveProviderModelDTO和DomainService的saveModel方法.
+     * 更新现有模型.
      */
-    private function createSyncedModel(
-        ProviderDataIsolation $dataIsolation,
-        ProviderModelEntity $sourceModel,
-        ProviderConfigEntity $officialConfig
-    ): void {
-        // 转换为SaveProviderModelDTO
-        $saveDTO = new SaveProviderModelDTO($sourceModel->toArray());
-
-        // 重置ID（创建新模型）
-        $saveDTO->setId(null);
-
-        // 设置Official配置ID
-        $saveDTO->setServiceProviderConfigId((int) $officialConfig->getId());
-
-        // 设置源模型ID
-        $saveDTO->setSourceModelId($sourceModel->getId());
-
-        // 通过DomainService保存
-        $this->providerModelDomainService->saveModel($dataIsolation, $saveDTO);
-    }
-
-    /**
-     * 更新同步模型 - 使用SaveProviderModelDTO和DomainService的saveModel方法.
-     */
-    private function updateSyncedModel(
+    private function updateModel(
         ProviderDataIsolation $dataIsolation,
         ProviderModelEntity $existingModel,
-        ProviderModelEntity $sourceModel,
-        ProviderConfigEntity $officialConfig
+        array $modelData,
+        ProviderConfigEntity $providerConfigEntity
     ): void {
-        // 转换为SaveProviderModelDTO
-        $saveDTO = new SaveProviderModelDTO($sourceModel->toArray());
+        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity);
 
-        // 保持原有ID（更新模型）
         $saveDTO->setId($existingModel->getId());
+        $saveDTO->setStatus($existingModel->getStatus()); // 保持原有状态
 
-        // 设置Official配置ID
-        $saveDTO->setServiceProviderConfigId((int) $officialConfig->getId());
-
-        // 设置源模型ID
-        $saveDTO->setSourceModelId($sourceModel->getId());
-
-        // 通过DomainService保存
+        // 保存模型
         $this->providerModelDomainService->saveModel($dataIsolation, $saveDTO);
+
+        $this->logger->debug('更新模型', [
+            'model_id' => $modelData['id'],
+            'name' => $saveDTO->getName(),
+        ]);
     }
 
-    /**
-     * 检查模型是否属于非Official服务商.
-     */
-    private function isNonOfficialProviderModel(
-        ProviderModelEntity $providerModelEntity,
-        string $organizationCode
-    ): bool {
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
+    private function modelToReqDTO(
+        ProviderDataIsolation $dataIsolation,
+        array $modelData,
+        ProviderConfigEntity $providerConfigEntity,
+    ): SaveProviderModelDTO {
+        $saveDTO = new SaveProviderModelDTO();
 
-        $providerConfig = $this->providerConfigDomainService->getByIdWithoutOrganizationFilter(
-            $providerModelEntity->getServiceProviderConfigId()
-        );
-
-        if (! $providerConfig) {
-            $this->logger->debug('未找到服务商配置', [
-                'config_id' => $providerModelEntity->getServiceProviderConfigId(),
-            ]);
-            return false;
-        }
-
-        $provider = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfig->getServiceProviderId());
-        if (! $provider) {
-            return false;
-        }
-
-        if ($provider->getProviderCode() === ProviderCode::Official) {
-            $this->logger->debug('模型属于Official服务商，跳过同步', [
-                'model_id' => $providerModelEntity->getId(),
-            ]);
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * 获取Official服务商配置.
-     * 使用批量查询优化，避免N+1查询问题.
-     */
-    private function getOfficialProviderConfig(
-        ProviderDataIsolation $dataIsolation
-    ): ?ProviderConfigEntity {
-        // 1. 获取组织下所有配置
-        $allConfigs = $this->providerConfigDomainService->getAllByOrganization($dataIsolation);
-
-        if (empty($allConfigs)) {
-            $this->logger->debug('组织下没有任何服务商配置', [
-                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-            ]);
-            return null;
-        }
-
-        // 2. 提取所有配置ID
-        $configIds = array_map(fn ($config) => $config->getId(), $allConfigs);
-
-        // 3. 批量获取服务商实体（配置ID -> 服务商实体的映射）
-        $providerMap = $this->providerConfigDomainService->getProviderEntitiesByConfigIds($dataIsolation, $configIds);
-
-        // 4. 在内存中查找Official服务商的配置
-        foreach ($allConfigs as $config) {
-            $configId = $config->getId();
-            if (isset($providerMap[$configId])) {
-                $provider = $providerMap[$configId];
-                if ($provider->getProviderCode() === ProviderCode::Official) {
-                    return $config;
-                }
-            }
-        }
-
-        $this->logger->debug('未找到Official服务商配置', [
-            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+        $saveDTO->setServiceProviderConfigId($providerConfigEntity->getId());
+        $saveDTO->setModelId($modelData['id']);
+        $saveDTO->setModelVersion($modelData['id']);
+        $saveDTO->setName($modelData['info']['attributes']['name'] ?? $modelData['id']);
+        $saveDTO->setDescription($modelData['info']['attributes']['description'] ?? '');
+        $saveDTO->setIcon($modelData['info']['attributes']['icon'] ?? '');
+        $saveDTO->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $saveDTO->setModelType($modelData['info']['attributes']['model_type']);
+        $saveDTO->setConfig([
+            'creativity' => $modelData['info']['options']['default_temperature'] ?? 0.5,
+            'support_function' => $modelData['info']['options']['function_call'] ?? false,
+            'support_multi_modal' => $modelData['info']['options']['multi_modal'] ?? false,
+            'support_embedding' => $modelData['info']['options']['embedding'] ?? false,
+            'max_tokens' => $modelData['info']['options']['max_tokens'] ?? 200000,
+            'max_output_tokens' => $modelData['info']['options']['max_output_tokens'] ?? 8192,
+            'support_deep_think' => false,
         ]);
 
-        return null;
+        // 设置category
+        $objectType = $modelData['object'] ?? 'model';
+        $category = $objectType === 'image' ? Category::VLM : Category::LLM;
+        $saveDTO->setCategory($category);
+        return $saveDTO;
+    }
+
+    private function getUrlByProxyUrl(string $proxyUrl): ?string
+    {
+        return [
+            'domestic_access_points' => config('services.domestic_magic_service.host') . '/v1/models',
+            'international_access_point' => config('services.international_magic_service.host') . '/v1/models',
+        ][$proxyUrl] ?? null;
     }
 }

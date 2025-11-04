@@ -443,6 +443,7 @@ class ModelGatewayMapper extends ModelMapper
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
                 providerModelId: (string) $providerModelEntity->getId(),
                 providerId: (string) $providerConfigEntity->getId(),
+                modelType: $providerModelEntity->getModelType()->value,
             )
         );
     }

@@ -207,18 +207,25 @@ class ServiceProviderApiTest extends BaseTest
         $response = $this->get('/org/admin/service-providers?category=llm', [], $this->getCommonHeaders());
         $this->assertEquals(1000, $response['code']);
         $this->assertEquals(true, in_array('Official', array_column($response['data'], 'provider_code')));
+
+        $response = $this->get('/org/admin/service-providers?category=vlm', [], $this->getCommonHeaders());
+        $this->assertEquals(1000, $response['code']);
+        $this->assertEquals(true, in_array('Official', array_column($response['data'], 'provider_code')));
     }
 
     /**
      * 创建官方服务商.
      */
-    public function testCreateOfficialProvider(): void
+    public function testCreateLLMOfficialProvider(): void
     {
         $provider = [
             'alias' => '官方服务商单元测试',
             'config' => [
-                'proxy_url' => 'international',
-                'api_key' => 'test',
+                // 国际接入点
+                'proxy_url' => 'international_access_point',
+                // 国内接入点
+                //                'proxy_url' => 'domestic_access_points',
+                'api_key' => 'sk-83649403db42583df484142dc9745bab',
                 'priority' => 100,
             ],
             'service_provider_id' => '766765753990443008',
@@ -236,8 +243,43 @@ class ServiceProviderApiTest extends BaseTest
         $this->assertSame(1000, $response['code']);
         $detail = $response['data'];
         $this->assertEquals('官方服务商单元测试', $detail['alias']);
-        $this->assertEquals('international', $detail['config']['proxy_url']);
-        $this->assertEquals('****', $detail['config']['api_key']);
+        $this->assertEquals('international_access_point', $detail['config']['proxy_url']);
+        $this->assertEquals('sk-*****************************bab', $detail['config']['api_key']);
+        $this->assertEquals('100', $detail['config']['priority']);
+    }
+
+    /**
+     * 创建官方服务商.
+     */
+    public function testCreateVLMOfficialProvider(): void
+    {
+        $provider = [
+            'alias' => '官方服务商单元测试',
+            'config' => [
+                // 国际接入点
+                'proxy_url' => 'international_access_point',
+                // 国内接入点
+                //                'proxy_url' => 'domestic_access_points',
+                'api_key' => 'sk-83649403db42583df484142dc9745bab',
+                'priority' => 100,
+            ],
+            'service_provider_id' => '766765755164848128',
+            'status' => 1,
+            'translate' => [
+                'alias' => [
+                    'zh_CN' => '官方服务商单元测试',
+                ],
+            ],
+        ];
+        $response = $this->post('/org/admin/service-providers/add', $provider, $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $response = $this->get('/org/admin/service-providers/detail?service_provider_config_id=' . $response['data']['id'], [], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+        $detail = $response['data'];
+        $this->assertEquals('官方服务商单元测试', $detail['alias']);
+        $this->assertEquals('international_access_point', $detail['config']['proxy_url']);
+        $this->assertEquals('sk-*****************************bab', $detail['config']['api_key']);
         $this->assertEquals('100', $detail['config']['priority']);
     }
 
