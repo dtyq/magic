@@ -155,10 +155,10 @@ return [
         'summary_content_with_note' => '请在总结录音时参考同一目录下的录音笔记文件，并结合笔记与录音内容完成总结。',
         // 新的前后缀国际化（无笔记）
         'summary_prefix' => '请帮我把 ',
-        'summary_suffix' => ' 中的录音内容整理成一份纪要文档，并实现一份详细的 HTML 分析报告。',
+        'summary_suffix' => ' 录音内容整理成一份纪要文档，并实现一份详细的 HTML 分析报告。',
         // 新的前后缀国际化（有笔记）
-        'summary_prefix_with_note' => '帮我把 ',
-        'summary_middle_with_note' => ' 中的录音内容和 ',
-        'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档，并结合笔记内容实现一份详细的 HTML 分析报告.',
+        'summary_prefix_with_note' => '请帮我把 ',
+        'summary_middle_with_note' => ' 录音内容和 ',
+        'summary_suffix_with_note' => ' 我的笔记内容整理成一份纪要文档，并实现一份详细的 HTML 分析报告.',
     ],
 ];
