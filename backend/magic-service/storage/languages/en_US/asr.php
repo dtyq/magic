@@ -158,12 +158,12 @@ return [
         'summary_content' => ' Summarize content',
         'summary_content_with_note' => 'When summarizing the recording, please refer to the recording note file in the same directory and base the summary on both the note and the recording.',
         // New prefix/suffix i18n (without note)
-        'summary_prefix' => 'Please help summarize the recording in ',
-        'summary_suffix' => ' into a minutes document, and create a detailed HTML analysis report.',
+        'summary_prefix' => 'Please help me organize ',
+        'summary_suffix' => ' recording content into a minutes document, and create a detailed HTML analysis report.',
         // New prefix/suffix i18n (with note)
-        'summary_prefix_with_note' => 'Please help me organize the recording content in ',
-        'summary_middle_with_note' => ' and my note content in ',
-        'summary_suffix_with_note' => ' into a minutes document, and combine the note content to create a detailed HTML analysis report.',
+        'summary_prefix_with_note' => 'Please help me organize ',
+        'summary_middle_with_note' => ' recording content and ',
+        'summary_suffix_with_note' => ' my note content into a minutes document, and create a detailed HTML analysis report.',
     ],
 
     // Exception messages i18n
