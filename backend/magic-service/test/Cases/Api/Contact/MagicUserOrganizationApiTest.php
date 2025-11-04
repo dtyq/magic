@@ -19,6 +19,8 @@ class MagicUserOrganizationApiTest extends AbstractHttpTest
 
     private const string SET_CURRENT_ORGANIZATION_API = '/api/v1/contact/accounts/me/organization-code';
 
+    private const string LIST_ORGANIZATIONS_API = '/api/v1/contact/accounts/me/organizations';
+
     /**
      * 测试通过HTTP请求获取当前组织代码
      */
@@ -76,5 +78,32 @@ class MagicUserOrganizationApiTest extends AbstractHttpTest
 
         // 验证响应状态 - 应该返回错误状态码
         $this->assertNotEquals(200, $response['code'] ?? 200);
+    }
+
+    /**
+     * 测试获取账号下可切换的组织列表.
+     */
+    public function testListOrganizationsViaHttp(): void
+    {
+        $headers = $this->getCommonHeaders();
+
+        $response = $this->get(self::LIST_ORGANIZATIONS_API, [], $headers);
+
+        $this->assertEquals(1000, $response['code'] ?? -1);
+        $this->assertArrayHasKey('data', $response);
+        $this->assertIsArray($response['data']);
+        $this->assertArrayHasKey('items', $response['data']);
+        $this->assertIsArray($response['data']['items']);
+
+        if ($response['data']['items'] !== []) {
+            $organization = $response['data']['items'][0];
+            $this->assertArrayHasKey('magic_organization_code', $organization);
+            $this->assertArrayHasKey('name', $organization);
+            $this->assertArrayHasKey('organization_type', $organization);
+            $this->assertArrayHasKey('logo', $organization);
+            $this->assertArrayHasKey('is_current', $organization);
+            $this->assertArrayHasKey('is_admin', $organization);
+            $this->assertArrayHasKey('is_creator', $organization);
+        }
     }
 }
