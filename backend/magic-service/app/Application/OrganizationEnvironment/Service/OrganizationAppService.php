@@ -38,10 +38,6 @@ class OrganizationAppService
      */
     public function getCreators(array $creatorIds): array
     {
-        $creatorIds = array_values(array_unique(array_filter(
-            array_map(static fn ($id) => $id !== null ? (string) $id : '', $creatorIds),
-            static fn ($id) => $id !== ''
-        )));
         if ($creatorIds === []) {
             return [];
         }
