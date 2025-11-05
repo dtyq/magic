@@ -253,8 +253,10 @@ class TopicTaskAppService extends AbstractAppService
                 );
             }
 
-            // 5. 派发回调事件
-            $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
+            // 5. 派发回调事件 - 仅在任务完成或失败时触发，不包括 Stopped 状态
+            if ($taskStatus === TaskStatus::FINISHED || $taskStatus === TaskStatus::ERROR) {
+                $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
+            }
 
             $this->logger->info('话题任务消息处理完成', [
                 'topic_id' => $topicId,
