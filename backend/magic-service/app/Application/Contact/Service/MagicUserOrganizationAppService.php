@@ -136,6 +136,8 @@ class MagicUserOrganizationAppService
             $isAdmin = $this->organizationAdminDomainService->isOrganizationAdmin($dataIsolation, $userId);
             $isCreator = $this->organizationAdminDomainService->isOrganizationCreator($dataIsolation, $userId);
 
+            $subscriptionInfo = $this->organizationProductResolver->resolveSubscriptionInfo($organizationCode, $userId);
+
             $item = new MagicUserOrganizationItemDTO([
                 'magic_organization_code' => $organizationCode,
                 'name' => $organizationEntity->getName(),
@@ -145,7 +147,9 @@ class MagicUserOrganizationAppService
                 'is_current' => $organizationCode === $currentOrganizationCode,
                 'is_admin' => $isAdmin,
                 'is_creator' => $isCreator,
-                'product_name' => $this->organizationProductResolver->resolveProductName($organizationCode, $userId) ?? null,
+                'product_name' => $subscriptionInfo['product_name'] ?? null,
+                'plan_type' => $subscriptionInfo['plan_type'] ?? null,
+                'subscription_tier' => $subscriptionInfo['subscription_tier'] ?? null,
             ]);
 
             $listDTO->addItem($item);

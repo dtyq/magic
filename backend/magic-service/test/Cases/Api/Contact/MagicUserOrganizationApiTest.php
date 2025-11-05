@@ -88,6 +88,7 @@ class MagicUserOrganizationApiTest extends AbstractHttpTest
         $headers = $this->getCommonHeaders();
 
         $response = $this->get(self::LIST_ORGANIZATIONS_API, [], $headers);
+        var_dump($response);
 
         $this->assertEquals(1000, $response['code'] ?? -1);
         $this->assertArrayHasKey('data', $response);
@@ -105,6 +106,8 @@ class MagicUserOrganizationApiTest extends AbstractHttpTest
             $this->assertArrayHasKey('is_admin', $organization);
             $this->assertArrayHasKey('is_creator', $organization);
             $this->assertArrayHasKey('product_name', $organization);
+            $this->assertArrayHasKey('plan_type', $organization);
+            $this->assertArrayHasKey('subscription_tier', $organization);
             $this->assertArrayHasKey('seats', $organization);
         }
     }

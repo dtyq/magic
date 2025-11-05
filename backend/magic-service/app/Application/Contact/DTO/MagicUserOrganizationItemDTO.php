@@ -29,6 +29,10 @@ class MagicUserOrganizationItemDTO extends AbstractDTO
 
     protected int $seats = 0;
 
+    protected ?string $planType = null;
+
+    protected ?string $subscriptionTier = null;
+
     public function getMagicOrganizationCode(): string
     {
         return $this->magicOrganizationCode;
@@ -117,5 +121,25 @@ class MagicUserOrganizationItemDTO extends AbstractDTO
     public function setSeats(?int $seats): void
     {
         $this->seats = $seats ?? 0;
+    }
+
+    public function getPlanType(): ?string
+    {
+        return $this->planType;
+    }
+
+    public function setPlanType(?string $planType): void
+    {
+        $this->planType = $planType;
+    }
+
+    public function getSubscriptionTier(): ?string
+    {
+        return $this->subscriptionTier;
+    }
+
+    public function setSubscriptionTier(?string $subscriptionTier): void
+    {
+        $this->subscriptionTier = $subscriptionTier;
     }
 }
