@@ -25,7 +25,7 @@ class MagicUserOrganizationItemDTO extends AbstractDTO
 
     protected bool $isCreator = false;
 
-    protected string $productName = '';
+    protected ?string $productName = '';
 
     protected int $seats = 0;
 
@@ -99,7 +99,7 @@ class MagicUserOrganizationItemDTO extends AbstractDTO
         $this->isCreator = $isCreator;
     }
 
-    public function getProductName(): string
+    public function getProductName(): ?string
     {
         return $this->productName;
     }
