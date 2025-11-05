@@ -793,12 +793,13 @@ class LLMAppService extends AbstractLLMAppService
         $creator = $modelGatewayDataIsolation->getCurrentUserId();
 
         $modelVersion = $imageModel->getModelVersion();
-        // 如果是官方服务商
-        if ($imageModel->getProviderCode()->isOfficial()) {
-            $modelVersion = $imageModel->getProviderCode()->value;
-        }
 
-        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+        if ($imageModel->getProviderCode()->isOfficial()) {
+            // 使用官方服务商
+            $imageGenerateType = ImageGenerateModelType::fromModel(ImageGenerateModelType::Official->value, false);
+        } else {
+            $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+        }
 
         // 构建图片生成参数
         $imageGenerateParamsVO = new AIImageGenerateParamsVO();
