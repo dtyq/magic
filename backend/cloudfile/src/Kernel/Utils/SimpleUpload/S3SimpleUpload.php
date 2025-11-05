@@ -15,6 +15,7 @@ use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\CloudFile\Kernel\Utils\CurlHelper;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 use Throwable;
 
@@ -25,6 +26,7 @@ class S3SimpleUpload extends SimpleUpload
      */
     public function uploadObject(array $credential, UploadFile $uploadFile): void
     {
+        $this->sdkContainer->getLogger()->info('credential: ' . json_encode($credential, JSON_UNESCAPED_UNICODE));
         if (isset($credential['temporary_credential'])) {
             $credential = $credential['temporary_credential'];
         }
@@ -232,11 +234,52 @@ class S3SimpleUpload extends SimpleUpload
 
         $client = $this->createS3Client($credential);
 
-        $client->copyObject([
+        // Set source bucket and key
+        $sourceBucket = $options['source_bucket'] ?? $credential['bucket'];
+
+        // Build copy parameters
+        $params = [
             'Bucket' => $credential['bucket'],
-            'CopySource' => "{$credential['bucket']}/{$sourceKey}",
+            'CopySource' => "{$sourceBucket}/{$sourceKey}",
             'Key' => $destinationKey,
-        ]);
+        ];
+
+        // Set metadata directive (COPY or REPLACE)
+        $metadataDirective = $options['metadata_directive'] ?? 'COPY';
+        $params['MetadataDirective'] = $metadataDirective;
+
+        // Set content type if provided
+        if (isset($options['content_type'])) {
+            $params['ContentType'] = $options['content_type'];
+        }
+
+        // Set Content-Disposition for download filename
+        if (isset($options['download_name'])) {
+            $downloadName = $options['download_name'];
+            $params['ContentDisposition'] = 'attachment; filename="' . addslashes($downloadName) . '"';
+
+            // When setting Content-Disposition, we should use REPLACE mode
+            if ($metadataDirective === 'COPY') {
+                $params['MetadataDirective'] = 'REPLACE';
+            }
+        }
+
+        // Set custom metadata if provided
+        if (isset($options['metadata']) && is_array($options['metadata'])) {
+            $params['Metadata'] = $options['metadata'];
+        }
+
+        // Set storage class if provided
+        if (isset($options['storage_class'])) {
+            $params['StorageClass'] = $options['storage_class'];
+        }
+
+        // Set source version ID if provided
+        if (isset($options['source_version_id'])) {
+            $params['CopySourceVersionId'] = $options['source_version_id'];
+        }
+
+        $client->copyObject($params);
     }
 
     public function getHeadObjectByCredential(array $credential, string $objectKey, array $options = []): array
@@ -252,7 +295,46 @@ class S3SimpleUpload extends SimpleUpload
             'Key' => $objectKey,
         ]);
 
-        return $result->toArray();
+        return $this->normalizeHeadObjectResponse($result->toArray());
+    }
+
+    /**
+     * Normalize S3 headObject response to snake_case format.
+     * This ensures compatibility with other drivers (TOS, OSS) and business logic.
+     *
+     * @param array $raw Raw response from S3 SDK
+     * @return array Normalized response with snake_case keys
+     */
+    private function normalizeHeadObjectResponse(array $raw): array
+    {
+        // Convert LastModified to string if it's a DateTime object
+        $lastModified = null;
+        if (isset($raw['LastModified'])) {
+            if ($raw['LastModified'] instanceof \DateTimeInterface) {
+                $lastModified = $raw['LastModified']->format('Y-m-d H:i:s');
+            } else {
+                $lastModified = (string) $raw['LastModified'];
+            }
+        }
+
+        // Extract custom metadata (x-amz-meta-* headers)
+        $meta = [];
+        if (isset($raw['Metadata']) && is_array($raw['Metadata'])) {
+            $meta = $raw['Metadata'];
+        }
+
+        return [
+            'content_length' => $raw['ContentLength'] ?? null,
+            'content_type' => $raw['ContentType'] ?? null,
+            'etag' => $raw['ETag'] ?? null,
+            'last_modified' => $lastModified,
+            'version_id' => $raw['VersionId'] ?? null,
+            'storage_class' => $raw['StorageClass'] ?? null,
+            'content_disposition' => $raw['ContentDisposition'] ?? null,
+            'content_encoding' => $raw['ContentEncoding'] ?? null,
+            'expires' => $raw['Expires'] ?? null,
+            'meta' => $meta,
+        ];
     }
 
     public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void

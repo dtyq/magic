@@ -46,7 +46,9 @@ class S3Expand implements ExpandInterface
 
     public function getUploadCredential(CredentialPolicy $credentialPolicy, array $options = []): array
     {
-        return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy) : $this->getUploadCredentialBySimple($credentialPolicy);
+        // return $credentialPolicy->isSts() ? $this->getUploadCredentialBySts($credentialPolicy) : $this->getUploadCredentialBySimple($credentialPolicy);
+        // s3 暂支持 sts 的方式
+        return $this->getUploadCredentialBySts($credentialPolicy);
     }
 
     public function getPreSignedUrls(array $fileNames, int $expires = 3600, array $options = []): array
