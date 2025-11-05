@@ -16,6 +16,7 @@ use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\AccessPointUtil;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
@@ -138,7 +139,7 @@ class ProviderModelSyncAppService
     private function fetchModelsFromApi(string $proxyUrl, string $apiKey, array $types): array
     {
         // 获取API地址
-        $apiUrl = $this->getUrlByProxyUrl($proxyUrl) ?? null;
+        $apiUrl = $this->getAccessPointUrl($proxyUrl) ?? null;
         if (! $apiUrl) {
             $this->logger->error('不支持的proxy_url', [
                 'proxy_url' => $proxyUrl,
@@ -348,11 +349,17 @@ class ProviderModelSyncAppService
         return $saveDTO;
     }
 
-    private function getUrlByProxyUrl(string $proxyUrl): ?string
+    /**
+     * 获取链接.
+     */
+    private function getAccessPointUrl(string $accessPoint): ?string
     {
-        return [
-            'domestic_access_points' => config('services.domestic_magic_service.host') . '/v1/models',
-            'international_access_point' => config('services.international_magic_service.host') . '/v1/models',
-        ][$proxyUrl] ?? null;
+        $url = AccessPointUtil::getAccessPointUrl($accessPoint);
+
+        if (! $url) {
+            return null;
+        }
+
+        return $url . '/v1/models';
     }
 }
