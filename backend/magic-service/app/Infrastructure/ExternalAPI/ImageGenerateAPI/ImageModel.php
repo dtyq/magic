@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+
 class ImageModel
 {
     protected array $config = [];
@@ -15,11 +17,14 @@ class ImageModel
 
     protected string $providerModelId;
 
-    public function __construct(array $config, string $modelVersion, string $providerModelId)
+    protected ProviderCode $providerCode;
+
+    public function __construct(array $config, string $modelVersion, string $providerModelId, ProviderCode $providerCode)
     {
         $this->config = $config;
         $this->modelVersion = $modelVersion;
         $this->providerModelId = $providerModelId;
+        $this->providerCode = $providerCode;
     }
 
     public function getConfig(): array
@@ -50,5 +55,16 @@ class ImageModel
     public function setProviderModelId(string $providerModelId): void
     {
         $this->providerModelId = $providerModelId;
+    }
+
+    public function getProviderCode(): ProviderCode
+    {
+        return $this->providerCode;
+    }
+
+    public function setProviderCode(ProviderCode $providerCode): self
+    {
+        $this->providerCode = $providerCode;
+        return $this;
     }
 }

@@ -39,6 +39,11 @@ class ProviderConfigItem extends AbstractDTO
      */
     protected ?int $priority = null;
 
+    /**
+     * 接入点.
+     */
+    protected ?string $accessPoint = null;
+
     public function getAk(): string
     {
         return $this->ak;
@@ -179,5 +184,15 @@ class ProviderConfigItem extends AbstractDTO
     public function setPriority(?int $priority): void
     {
         $this->priority = $priority;
+    }
+
+    public function getAccessPoint(): ?string
+    {
+        return $this->accessPoint;
+    }
+
+    public function setAccessPoint(?string $accessPoint): void
+    {
+        $this->accessPoint = $accessPoint;
     }
 }
