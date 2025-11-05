@@ -26,11 +26,8 @@ class MessageQueueProcessSubscriber implements ListenerInterface
 {
     protected LoggerInterface $logger;
 
-    private readonly MessageQueueProcessAppService $messageQueueProcessAppService;
-
     public function __construct()
     {
-        $this->messageQueueProcessAppService = di(MessageQueueProcessAppService::class);
         $this->logger = di(LoggerFactory::class)->get(self::class);
     }
 
@@ -61,7 +58,7 @@ class MessageQueueProcessSubscriber implements ListenerInterface
 
         try {
             // Process message queue for this topic
-            $this->messageQueueProcessAppService->processTopicMessageQueue($event->getTopicId());
+            di(MessageQueueProcessAppService::class)->processTopicMessageQueue($event->getTopicId());
         } catch (Throwable $e) {
             $this->logger->error('Failed to process message queue after task callback', [
                 'topic_id' => $event->getTopicId(),
