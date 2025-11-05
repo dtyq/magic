@@ -145,7 +145,7 @@ class MagicUserOrganizationAppService
                 'is_current' => $organizationCode === $currentOrganizationCode,
                 'is_admin' => $isAdmin,
                 'is_creator' => $isCreator,
-                'product_name' => $this->organizationProductResolver->resolveProductName($organizationCode, $userId) ?? '',
+                'product_name' => $this->organizationProductResolver->resolveProductName($organizationCode, $userId) ?? null,
             ]);
 
             $listDTO->addItem($item);

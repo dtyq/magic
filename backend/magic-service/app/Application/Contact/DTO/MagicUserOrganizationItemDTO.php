@@ -106,7 +106,7 @@ class MagicUserOrganizationItemDTO extends AbstractDTO
 
     public function setProductName(?string $productName): void
     {
-        $this->productName = $productName ?? '';
+        $this->productName = $productName;
     }
 
     public function getSeats(): int
