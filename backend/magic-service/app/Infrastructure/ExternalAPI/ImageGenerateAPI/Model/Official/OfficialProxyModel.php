@@ -9,6 +9,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Official;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\OfficialProxyRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\MagicUriTool;
@@ -43,10 +44,12 @@ class OfficialProxyModel extends AbstractImageGenerate
 
     public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
     {
+        $uri = MagicUriTool::getImagesGenerationsUri();
+        $fullUrl = $this->url . $uri;
         try {
-            $data = $imageGenerateRequest->toArray();
-            $uri = MagicUriTool::getImagesGenerationsUri();
-            $fullUrl = $this->url . $uri;
+            /** @var OfficialProxyRequest $imageGenerateRequest */
+            $officialProxyRequest = $imageGenerateRequest;
+            $data = $officialProxyRequest->toArray();
 
             $this->logger->info('官方代理：发送图片生成请求', [
                 'url' => $fullUrl,
@@ -91,7 +94,7 @@ class OfficialProxyModel extends AbstractImageGenerate
             }
 
             $this->logger->error('官方代理：请求失败', [
-                'url' => $this->url . ($uri ?? ''),
+                'url' => $fullUrl,
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'response_body' => $errorBody,
@@ -104,7 +107,7 @@ class OfficialProxyModel extends AbstractImageGenerate
             );
         } catch (Throwable $e) {
             $this->logger->error('官方代理：未知错误', [
-                'url' => $this->url . ($uri ?? ''),
+                'url' => $fullUrl,
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'file' => $e->getFile(),
