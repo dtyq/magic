@@ -41,7 +41,7 @@ readonly class AiAbilityDomainService
         }
 
         if (! $entity->isEnabled()) {
-            new ExceptionBuilder(ServiceProviderErrorCode::AI_ABILITY_DISABLED);
+            ExceptionBuilder::throw(ServiceProviderErrorCode::AI_ABILITY_DISABLED);
         }
 
         // 应用默认值
