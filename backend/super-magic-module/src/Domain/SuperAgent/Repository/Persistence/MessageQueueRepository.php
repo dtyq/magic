@@ -227,14 +227,22 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
 
     /**
      * Get earliest pending message for specific topic.
+     * @param int $topicId Topic ID
+     * @param null|string $maxExecuteTime Max execute time filter (optional, if null then no time filter applied)
      */
-    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity
+    public function getEarliestMessageByTopic(int $topicId, ?string $maxExecuteTime = null): ?MessageQueueEntity
     {
         // Get the earliest pending message for the specified topic
-        $model = $this->model::query()
+        $query = $this->model::query()
             ->where('topic_id', $topicId)
-            ->where('status', MessageQueueStatus::PENDING->value)
-            ->where('except_execute_time', '<=', date('Y-m-d H:i:s'))
+            ->where('status', MessageQueueStatus::PENDING->value);
+
+        // Apply time filter only if maxExecuteTime is provided
+        if ($maxExecuteTime !== null) {
+            $query->where('except_execute_time', '<=', $maxExecuteTime);
+        }
+
+        $model = $query
             ->whereNull('deleted_at')
             ->orderBy('except_execute_time', 'asc')
             ->orderBy('id', 'asc')

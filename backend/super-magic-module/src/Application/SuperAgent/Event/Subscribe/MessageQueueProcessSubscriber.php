@@ -26,11 +26,12 @@ class MessageQueueProcessSubscriber implements ListenerInterface
 {
     protected LoggerInterface $logger;
 
-    public function __construct(
-        private readonly MessageQueueProcessAppService $messageQueueProcessAppService,
-        LoggerFactory $loggerFactory
-    ) {
-        $this->logger = $loggerFactory->get(self::class);
+    private readonly MessageQueueProcessAppService $messageQueueProcessAppService;
+
+    public function __construct()
+    {
+        $this->messageQueueProcessAppService = di(MessageQueueProcessAppService::class);
+        $this->logger = di(LoggerFactory::class)->get(self::class);
     }
 
     /**
