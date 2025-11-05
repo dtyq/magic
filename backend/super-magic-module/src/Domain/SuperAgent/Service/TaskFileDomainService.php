@@ -2082,7 +2082,7 @@ class TaskFileDomainService
 
         if ($source->value === TaskFileSource::AGENT->value) {
             // $watermark = 'image/resize,p_50/watermark,text_' . $encodedText . ',t_50,size_30,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
-            $watermark = 'image/watermark,text_' . $encodedText . ',t_50,size_50,color_FFFFFF,g_se,x_10,y_10,type_d3F5LW1pY3JvaGVp';
+            $watermark = 'image/watermark,text_' . $encodedText . ',t_50,size_50,color_FFFFFF,g_se,x_50,y_50,type_d3F5LW1pY3JvaGVp';
         } else {
             // $watermark = 'image/resize,p_50';
             $watermark = '';
