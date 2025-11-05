@@ -21,6 +21,7 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
 use Exception;
 use GuzzleHttp\Psr7\Utils;
+use League\Flysystem\FileAttributes;
 use Throwable;
 
 class S3Expand implements ExpandInterface
@@ -337,12 +338,19 @@ class S3Expand implements ExpandInterface
                 'Key' => $path,
             ]);
 
+            $fileName = basename($path);
+            $lastModified = isset($result['LastModified']) ? strtotime($result['LastModified']) : null;
+
             return new FileMetadata(
+                $fileName,
                 $path,
-                $result['ContentLength'] ?? '',
-                $result['ContentType'] ?? '',
-                strtotime($result['LastModified'] ?? 'now'),
-                $result['ETag'] ?? ''
+                new FileAttributes(
+                    $path,
+                    $result['ContentLength'] ?? null,
+                    null,
+                    $lastModified,
+                    $result['ContentType'] ?? null
+                )
             );
         } catch (Throwable $throwable) {
             throw new CloudFileException("Failed to get meta for {$path}: " . $throwable->getMessage());
@@ -375,21 +383,16 @@ class S3Expand implements ExpandInterface
 
     private function downloadChunksConcurrently(array $chunks, ChunkDownloadConfig $config, array $options, string $filePath): void
     {
-        $maxConcurrency = $config->getMaxConcurrency();
-        $activeDownloads = [];
-        $completedChunks = 0;
+        // Note: Current implementation is synchronous, so concurrency control is not applicable
+        // Each downloadChunk() call blocks until completion
+        // Future enhancement: Implement true async downloads using Guzzle promises or similar
+
         $totalChunks = count($chunks);
+        $completedChunks = 0;
 
         foreach ($chunks as $chunk) {
-            // Control concurrency
-            while (count($activeDownloads) >= $maxConcurrency) {
-                usleep(10000); // 10ms
-                $activeDownloads = array_filter($activeDownloads, fn ($download) => ! $download['completed']);
-            }
-
-            // Download chunk
+            // Download chunk synchronously
             $this->downloadChunk($chunk, $filePath);
-            $activeDownloads[] = ['completed' => true];
             ++$completedChunks;
         }
     }

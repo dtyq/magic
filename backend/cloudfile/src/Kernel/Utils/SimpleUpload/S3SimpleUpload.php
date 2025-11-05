@@ -10,6 +10,7 @@ namespace Dtyq\CloudFile\Kernel\Utils\SimpleUpload;
 use Aws\Credentials\Credentials;
 use Aws\S3\MultipartUploader;
 use Aws\S3\S3Client;
+use DateTimeInterface;
 use Dtyq\CloudFile\Kernel\Exceptions\ChunkUploadException;
 use Dtyq\CloudFile\Kernel\Exceptions\CloudFileException;
 use Dtyq\CloudFile\Kernel\Struct\AppendUploadFile;
@@ -22,42 +23,30 @@ use Throwable;
 class S3SimpleUpload extends SimpleUpload
 {
     /**
+     * Upload object - supports both SDK mode (STS) and form POST mode (browser).
+     * Auto-detects credential type and chooses appropriate upload method.
+     *
      * @see https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+     * @see https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-post-example.html
      */
     public function uploadObject(array $credential, UploadFile $uploadFile): void
     {
         $this->sdkContainer->getLogger()->info('credential: ' . json_encode($credential, JSON_UNESCAPED_UNICODE));
+
         if (isset($credential['temporary_credential'])) {
             $credential = $credential['temporary_credential'];
         }
 
-        // Check required parameters
-        if (! isset($credential['credentials']['access_key_id']) || ! isset($credential['credentials']['secret_access_key']) || ! isset($credential['bucket'])) {
-            throw new CloudFileException('S3 upload credential is invalid');
+        // Auto-detect credential type and choose upload method
+        if ($this->isStsCredential($credential)) {
+            // SDK mode: Use AWS SDK putObject
+            $this->uploadObjectBySdk($credential, $uploadFile);
+        } elseif ($this->isFormPostCredential($credential)) {
+            // Form POST mode: Use CURL multipart form upload
+            $this->uploadObjectByFormPost($credential, $uploadFile);
+        } else {
+            throw new CloudFileException('S3 upload credential is invalid: missing required fields');
         }
-
-        $key = ($credential['dir'] ?? '') . $uploadFile->getKeyPath();
-
-        try {
-            $client = $this->createS3Client($credential);
-
-            $params = [
-                'Bucket' => $credential['bucket'],
-                'Key' => $key,
-                'Body' => fopen($uploadFile->getRealPath(), 'r'),
-                'ContentType' => $uploadFile->getMimeType(),
-            ];
-
-            $client->putObject($params);
-
-            $this->sdkContainer->getLogger()->info('s3_simple_upload_success', ['key' => $key, 'bucket' => $credential['bucket']]);
-        } catch (Throwable $exception) {
-            $errorMsg = $exception->getMessage();
-            $this->sdkContainer->getLogger()->warning('s3_simple_upload_fail', ['key' => $key, 'bucket' => $credential['bucket'], 'error_msg' => $errorMsg]);
-            throw $exception;
-        }
-
-        $uploadFile->setKey($key);
     }
 
     /**
@@ -298,45 +287,6 @@ class S3SimpleUpload extends SimpleUpload
         return $this->normalizeHeadObjectResponse($result->toArray());
     }
 
-    /**
-     * Normalize S3 headObject response to snake_case format.
-     * This ensures compatibility with other drivers (TOS, OSS) and business logic.
-     *
-     * @param array $raw Raw response from S3 SDK
-     * @return array Normalized response with snake_case keys
-     */
-    private function normalizeHeadObjectResponse(array $raw): array
-    {
-        // Convert LastModified to string if it's a DateTime object
-        $lastModified = null;
-        if (isset($raw['LastModified'])) {
-            if ($raw['LastModified'] instanceof \DateTimeInterface) {
-                $lastModified = $raw['LastModified']->format('Y-m-d H:i:s');
-            } else {
-                $lastModified = (string) $raw['LastModified'];
-            }
-        }
-
-        // Extract custom metadata (x-amz-meta-* headers)
-        $meta = [];
-        if (isset($raw['Metadata']) && is_array($raw['Metadata'])) {
-            $meta = $raw['Metadata'];
-        }
-
-        return [
-            'content_length' => $raw['ContentLength'] ?? null,
-            'content_type' => $raw['ContentType'] ?? null,
-            'etag' => $raw['ETag'] ?? null,
-            'last_modified' => $lastModified,
-            'version_id' => $raw['VersionId'] ?? null,
-            'storage_class' => $raw['StorageClass'] ?? null,
-            'content_disposition' => $raw['ContentDisposition'] ?? null,
-            'content_encoding' => $raw['ContentEncoding'] ?? null,
-            'expires' => $raw['Expires'] ?? null,
-            'meta' => $meta,
-        ];
-    }
-
     public function createObjectByCredential(array $credential, string $objectKey, array $options = []): void
     {
         if (isset($credential['temporary_credential'])) {
@@ -421,6 +371,163 @@ class S3SimpleUpload extends SimpleUpload
             'Metadata' => $metadata,
             'MetadataDirective' => 'REPLACE',
         ]);
+    }
+
+    /**
+     * Check if credential is STS format (SDK mode).
+     * Requires: credentials.access_key_id, credentials.secret_access_key, bucket.
+     */
+    private function isStsCredential(array $credential): bool
+    {
+        return isset($credential['credentials']['access_key_id'])
+            && isset($credential['credentials']['secret_access_key'], $credential['bucket']);
+    }
+
+    /**
+     * Check if credential is form POST format (browser mode).
+     * Requires: fields, host, dir.
+     */
+    private function isFormPostCredential(array $credential): bool
+    {
+        return isset($credential['fields'])
+            && is_array($credential['fields'])
+            && isset($credential['host'], $credential['dir']);
+    }
+
+    /**
+     * Upload using AWS SDK (existing logic for STS credentials).
+     */
+    private function uploadObjectBySdk(array $credential, UploadFile $uploadFile): void
+    {
+        $key = ($credential['dir'] ?? '') . $uploadFile->getKeyPath();
+
+        try {
+            $client = $this->createS3Client($credential);
+
+            $params = [
+                'Bucket' => $credential['bucket'],
+                'Key' => $key,
+                'Body' => fopen($uploadFile->getRealPath(), 'r'),
+                'ContentType' => $uploadFile->getMimeType(),
+            ];
+
+            $client->putObject($params);
+
+            $this->sdkContainer->getLogger()->info('s3_sdk_upload_success', [
+                'key' => $key,
+                'bucket' => $credential['bucket'],
+                'mode' => 'sdk',
+            ]);
+        } catch (Throwable $exception) {
+            $errorMsg = $exception->getMessage();
+            $this->sdkContainer->getLogger()->warning('s3_sdk_upload_fail', [
+                'key' => $key,
+                'bucket' => $credential['bucket'],
+                'error_msg' => $errorMsg,
+                'mode' => 'sdk',
+            ]);
+            throw $exception;
+        }
+
+        $uploadFile->setKey($key);
+    }
+
+    /**
+     * Upload using form POST (new implementation for browser-style credentials).
+     * Uses CURL to simulate browser multipart form upload.
+     *
+     * @see https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-post-example.html
+     */
+    private function uploadObjectByFormPost(array $credential, UploadFile $uploadFile): void
+    {
+        $key = $credential['dir'] . $uploadFile->getKeyPath();
+
+        // Build multipart form data
+        $body = [
+            'key' => $key,
+        ];
+
+        // Add all fields from credential (policy, signature, algorithm, etc.)
+        foreach ($credential['fields'] as $fieldName => $fieldValue) {
+            $body[$fieldName] = $fieldValue;
+        }
+
+        // Add file (must be last in form per AWS S3 requirements)
+        $body['file'] = curl_file_create(
+            $uploadFile->getRealPath(),
+            $uploadFile->getMimeType(),
+            $uploadFile->getName()
+        );
+
+        try {
+            // Determine upload URL (prefer 'url' field, fallback to 'host')
+            $uploadUrl = $credential['url'] ?? $credential['host'];
+
+            // Use CurlHelper to send multipart form request
+            // S3 returns 204 No Content on successful POST upload
+            CurlHelper::sendRequest(
+                $uploadUrl,
+                $body,
+                ['Content-Type' => 'multipart/form-data'],
+                204
+            );
+
+            $this->sdkContainer->getLogger()->info('s3_form_post_upload_success', [
+                'key' => $key,
+                'host' => $credential['host'],
+                'mode' => 'form_post',
+            ]);
+        } catch (Throwable $exception) {
+            $errorMsg = $exception->getMessage();
+            $this->sdkContainer->getLogger()->warning('s3_form_post_upload_fail', [
+                'key' => $key,
+                'host' => $credential['host'],
+                'error_msg' => $errorMsg,
+                'mode' => 'form_post',
+            ]);
+            throw $exception;
+        }
+
+        $uploadFile->setKey($key);
+    }
+
+    /**
+     * Normalize S3 headObject response to snake_case format.
+     * This ensures compatibility with other drivers (TOS, OSS) and business logic.
+     *
+     * @param array $raw Raw response from S3 SDK
+     * @return array Normalized response with snake_case keys
+     */
+    private function normalizeHeadObjectResponse(array $raw): array
+    {
+        // Convert LastModified to string if it's a DateTime object
+        $lastModified = null;
+        if (isset($raw['LastModified'])) {
+            if ($raw['LastModified'] instanceof DateTimeInterface) {
+                $lastModified = $raw['LastModified']->format('Y-m-d H:i:s');
+            } else {
+                $lastModified = (string) $raw['LastModified'];
+            }
+        }
+
+        // Extract custom metadata (x-amz-meta-* headers)
+        $meta = [];
+        if (isset($raw['Metadata']) && is_array($raw['Metadata'])) {
+            $meta = $raw['Metadata'];
+        }
+
+        return [
+            'content_length' => $raw['ContentLength'] ?? null,
+            'content_type' => $raw['ContentType'] ?? null,
+            'etag' => $raw['ETag'] ?? null,
+            'last_modified' => $lastModified,
+            'version_id' => $raw['VersionId'] ?? null,
+            'storage_class' => $raw['StorageClass'] ?? null,
+            'content_disposition' => $raw['ContentDisposition'] ?? null,
+            'content_encoding' => $raw['ContentEncoding'] ?? null,
+            'expires' => $raw['Expires'] ?? null,
+            'meta' => $meta,
+        ];
     }
 
     private function createS3Client(array $credential): S3Client
