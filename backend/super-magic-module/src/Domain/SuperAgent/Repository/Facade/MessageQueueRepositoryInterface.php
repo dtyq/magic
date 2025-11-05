@@ -37,6 +37,11 @@ interface MessageQueueRepositoryInterface
     public function getPendingMessagesByTopic(int $topicId, string $userId): array;
 
     /**
+     * Get message queue by ID.
+     */
+    public function getById(int $id): ?MessageQueueEntity;
+
+    /**
      * Get message queue by ID for specific user.
      */
     public function getByIdForUser(int $id, string $userId): ?MessageQueueEntity;

@@ -76,6 +76,21 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         return $entities;
     }
 
+    public function getById(int $id): ?MessageQueueEntity
+    {
+        $model = $this->model::query()
+            ->whereNull('deleted_at')
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        $data = $this->convertModelToEntityData($model->toArray());
+        return new MessageQueueEntity($data);
+    }
+
     public function getByIdForUser(int $id, string $userId): ?MessageQueueEntity
     {
         $model = $this->model::query()

@@ -51,6 +51,67 @@ class MessageQueueProcessAppService extends AbstractAppService
     }
 
     /**
+     * Process single message - send to agent and notify client.
+     * This method is called by API layer for manual consumption.
+     *
+     * @param int $messageId Message queue ID
+     * @return array Result with success status and error message
+     */
+    public function processSingleMessage(int $messageId): array
+    {
+        try {
+            // 1. Get message entity
+            $message = $this->messageQueueDomainService->getMessageById($messageId);
+            if (! $message) {
+                $this->logger->warning('Message not found', ['message_id' => $messageId]);
+                return [
+                    'success' => false,
+                    'error_message' => 'Message not found',
+                ];
+            }
+
+            // 2. Get topic entity
+            $topicEntity = $this->topicDomainService->getTopicById($message->getTopicId());
+            if (! $topicEntity) {
+                $this->logger->warning('Topic not found for message', [
+                    'message_id' => $messageId,
+                    'topic_id' => $message->getTopicId(),
+                ]);
+                return [
+                    'success' => false,
+                    'error_message' => 'Topic not found',
+                ];
+            }
+
+            $this->logger->info('Processing single message manually', [
+                'message_id' => $messageId,
+                'topic_id' => $message->getTopicId(),
+            ]);
+
+            // 3. Send queued message to agent with status tracking
+            $sendResult = $this->sendQueuedMessageToAgent($message, $topicEntity);
+
+            $this->logger->info('Single message processed successfully', [
+                'message_id' => $messageId,
+                'success' => $sendResult['success'],
+            ]);
+
+            return $sendResult;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to process single message', [
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'error_message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Process message queue for a specific topic after task completion.
      * @param int $topicId Topic ID
      */
@@ -105,38 +166,8 @@ class MessageQueueProcessAppService extends AbstractAppService
                 'message_id' => $message->getId(),
             ]);
 
-            // 3. Convert message content
-            $chatMessageType = ChatMessageType::from($message->getMessageType());
-            $messageStruct = MessageAssembler::getChatMessageStruct(
-                $chatMessageType,
-                $message->getMessageContentAsArray()
-            );
-
-            // 4. Update status to in progress
-            $this->messageQueueDomainService->updateStatus(
-                $message->getId(),
-                MessageQueueStatus::IN_PROGRESS
-            );
-
-            // 5. Send message to agent
-            $sendResult = $this->sendMessageToAgent(
-                $topicEntity->getChatTopicId(),
-                $message,
-                $messageStruct
-            );
-
-            // 6. Update final status
-            $finalStatus = $sendResult['success'] ? MessageQueueStatus::COMPLETED : MessageQueueStatus::FAILED;
-            $this->messageQueueDomainService->updateStatus(
-                $message->getId(),
-                $finalStatus,
-                $sendResult['error_message']
-            );
-
-            // 7. If success, push notification to client
-            if ($sendResult['success']) {
-                $this->pushMessageQueueNotification($topicEntity, $message);
-            }
+            // 3. Send queued message to agent with status tracking
+            $sendResult = $this->sendQueuedMessageToAgent($message, $topicEntity);
 
             $this->logger->info('Message queue processed successfully', [
                 'message_id' => $message->getId(),
@@ -150,6 +181,59 @@ class MessageQueueProcessAppService extends AbstractAppService
                 'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * Send queued message to agent with status tracking and notification.
+     * This method handles the core message delivery workflow:
+     * 1. Convert message content to chat format
+     * 2. Update status to IN_PROGRESS
+     * 3. Send message to agent
+     * 4. Update final status (COMPLETED/FAILED)
+     * 5. Push WebSocket notification (if success).
+     *
+     * @param MessageQueueEntity $message Message entity to process
+     * @param TopicEntity $topicEntity Topic entity
+     * @return array Result with success status and error message
+     */
+    private function sendQueuedMessageToAgent(
+        MessageQueueEntity $message,
+        TopicEntity $topicEntity
+    ): array {
+        // 1. Convert message content
+        $chatMessageType = ChatMessageType::from($message->getMessageType());
+        $messageStruct = MessageAssembler::getChatMessageStruct(
+            $chatMessageType,
+            $message->getMessageContentAsArray()
+        );
+
+        // 2. Update status to in progress
+        $this->messageQueueDomainService->updateStatus(
+            $message->getId(),
+            MessageQueueStatus::IN_PROGRESS
+        );
+
+        // 3. Send message to agent
+        $sendResult = $this->sendMessageToAgent(
+            $topicEntity->getChatTopicId(),
+            $message,
+            $messageStruct
+        );
+
+        // 4. Update final status
+        $finalStatus = $sendResult['success'] ? MessageQueueStatus::COMPLETED : MessageQueueStatus::FAILED;
+        $this->messageQueueDomainService->updateStatus(
+            $message->getId(),
+            $finalStatus,
+            $sendResult['error_message']
+        );
+
+        // 5. If success, push notification to client
+        if ($sendResult['success']) {
+            $this->pushMessageQueueNotification($topicEntity, $message);
+        }
+
+        return $sendResult;
     }
 
     /**

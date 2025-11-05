@@ -11,6 +11,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueProcessAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageScheduleAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConsumeMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageQueueRequestDTO;
@@ -30,6 +31,7 @@ class MessageApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         protected MessageQueueAppService $messageQueueAppService,
+        protected MessageQueueProcessAppService $messageQueueProcessAppService,
         protected MessageScheduleAppService $messageScheduleAppService,
         protected TranslatorInterface $translator,
     ) {
@@ -126,14 +128,40 @@ class MessageApi extends AbstractApi
      */
     public function consumeMessageQueue(RequestContext $requestContext, string $id): array
     {
-        // Set user authorization information
+        // 1. Set user authorization information
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        // Create DTO from request
+        // 2. Create DTO from request (for future extensions)
         $requestDTO = ConsumeMessageQueueRequestDTO::fromRequest($this->request);
 
-        // Call application service to handle business logic
-        return $this->messageQueueAppService->consumeMessage($requestContext, (int) $id, $requestDTO);
+        // 3. Get and validate message (permission check)
+        $messageId = (int) $id;
+        $userId = $requestContext->getUserAuthorization()->getId();
+
+        $messageEntity = $this->messageQueueAppService->getMessageQueueEntity($messageId, $userId);
+
+        if (! $messageEntity) {
+            throw new BusinessException(
+                $this->translator->trans('message_queue.message_not_found')
+            );
+        }
+
+        // 4. Check if message can be consumed
+        if (! $messageEntity->canBeConsumed()) {
+            throw new BusinessException(
+                $this->translator->trans('message_queue.cannot_consume_message')
+            );
+        }
+
+        // 5. Call MessageQueueProcessAppService to send message
+        $sendResult = $this->messageQueueProcessAppService->processSingleMessage($messageId);
+
+        // 6. Return result
+        return [
+            'status' => $sendResult['success'] ? 'completed' : 'failed',
+            'success' => $sendResult['success'],
+            'error_message' => $sendResult['error_message'] ?? null,
+        ];
     }
 
     /**

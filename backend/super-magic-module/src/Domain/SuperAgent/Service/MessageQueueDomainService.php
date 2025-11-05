@@ -256,6 +256,15 @@ class MessageQueueDomainService
     }
 
     /**
+     * Get message by ID without user permission check.
+     * Used for internal processing where permission is already validated.
+     */
+    public function getMessageById(int $messageId): ?MessageQueueEntity
+    {
+        return $this->messageQueueRepository->getById($messageId);
+    }
+
+    /**
      * Get message for specific user with permission check.
      */
     public function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
