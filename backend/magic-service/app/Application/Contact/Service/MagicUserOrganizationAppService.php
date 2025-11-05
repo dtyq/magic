@@ -9,6 +9,7 @@ namespace App\Application\Contact\Service;
 
 use App\Application\Contact\DTO\MagicUserOrganizationItemDTO;
 use App\Application\Contact\DTO\MagicUserOrganizationListDTO;
+use App\Application\Contact\Support\OrganizationProductResolver;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
@@ -38,6 +39,9 @@ class MagicUserOrganizationAppService
 
     #[Inject]
     protected OrganizationAdminDomainService $organizationAdminDomainService;
+
+    #[Inject]
+    protected OrganizationProductResolver $organizationProductResolver;
 
     /**
      * 获取用户当前组织代码
@@ -137,9 +141,11 @@ class MagicUserOrganizationAppService
                 'name' => $organizationEntity->getName(),
                 'organization_type' => $organizationEntity->getType(),
                 'logo' => $organizationEntity->getLogo(),
+                'seats' => $organizationEntity->getSeats(),
                 'is_current' => $organizationCode === $currentOrganizationCode,
                 'is_admin' => $isAdmin,
                 'is_creator' => $isCreator,
+                'product_name' => $this->organizationProductResolver->resolveProductName($organizationCode, $userId) ?? '',
             ]);
 
             $listDTO->addItem($item);

@@ -104,6 +104,8 @@ class MagicUserOrganizationApiTest extends AbstractHttpTest
             $this->assertArrayHasKey('is_current', $organization);
             $this->assertArrayHasKey('is_admin', $organization);
             $this->assertArrayHasKey('is_creator', $organization);
+            $this->assertArrayHasKey('product_name', $organization);
+            $this->assertArrayHasKey('seats', $organization);
         }
     }
 }
