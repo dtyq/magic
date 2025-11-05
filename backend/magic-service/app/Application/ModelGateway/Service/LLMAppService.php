@@ -1393,10 +1393,6 @@ class LLMAppService extends AbstractLLMAppService
         // 计算响应时间（毫秒）
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
-        // 获取 access token 信息
-        $accessTokenId = $accessTokenEntity?->getId();
-        $accessTokenName = $accessTokenEntity?->getName();
-
         // 转换 providerModelId 为整数
         $serviceProviderModelsId = is_numeric($providerModelId) ? (int) $providerModelId : null;
 
@@ -1410,11 +1406,10 @@ class LLMAppService extends AbstractLLMAppService
             $requestDTO,
             $imageCount,
             $providerModelId,
-            $accessTokenId,
-            $accessTokenName,
             $priceId,
             $callTime,
-            $responseTime
+            $responseTime,
+            $accessTokenEntity
         );
         AsyncEventUtil::dispatch($event);
     }
@@ -1435,15 +1430,18 @@ class LLMAppService extends AbstractLLMAppService
         AbstractRequestDTO $requestDTO,
         int $n,
         string $providerModelId,
-        ?int $accessTokenId = null,
-        ?string $accessTokenName = null,
         ?int $priceId = null,
         ?string $callTime = null,
-        ?int $responseTime = null
+        ?int $responseTime = null,
+        ?AccessTokenEntity $accessTokenEntity = null
     ): ImageGeneratedEvent {
         $imageGeneratedEvent = new ImageGeneratedEvent();
 
         $model = $requestDTO->getModel();
+
+        // 获取 access token 信息
+        $accessTokenId = $accessTokenEntity?->getId();
+        $accessTokenName = $accessTokenEntity?->getName();
 
         $imageGeneratedEvent->setOrganizationCode($organizationCode);
         $imageGeneratedEvent->setUserId($creator);
@@ -1459,7 +1457,9 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setCallTime($callTime);
         $imageGeneratedEvent->setResponseTime($responseTime);
 
-        if (! empty($requestDTO->getTopicId())) {
+        if ($accessTokenEntity && $accessTokenEntity->getType()->isUser()) {
+            $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API_PLATFORM);
+        } elseif (! empty($requestDTO->getTopicId())) {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::SUPER_MAGIC);
         } else {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API);
