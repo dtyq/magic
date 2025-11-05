@@ -10,16 +10,12 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
-use Hyperf\Config\Annotation\Value;
 
 /**
  * AI 能力仓储实现.
  */
 class AiAbilityRepository implements AiAbilityRepositoryInterface
 {
-    #[Value('ai_abilities.abilities')]
-    private array $abilities;
-
     /**
      * 根据能力代码获取AI能力实体.
      */
