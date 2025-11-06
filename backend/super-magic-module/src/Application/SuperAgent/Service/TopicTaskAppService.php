@@ -217,8 +217,8 @@ class TopicTaskAppService extends AbstractAppService
             if (is_null($messageEntity)) {
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
+                $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
@@ -678,6 +678,17 @@ class TopicTaskAppService extends AbstractAppService
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
 
+            // Extract source_file_id from attachments if matching filename exists
+            $sourceFileId = '';
+            if (! empty($tool['attachments'])) {
+                foreach ($tool['attachments'] as $attachment) {
+                    if (isset($attachment['filename']) && $attachment['filename'] === $fileName) {
+                        $sourceFileId = $attachment['file_id'] ?? '';
+                        break;
+                    }
+                }
+            }
+
             // 调用FileProcessAppService保存内容
             $fileId = $this->fileProcessAppService->saveToolMessageContent(
                 fileName: $fileName,
@@ -693,14 +704,18 @@ class TopicTaskAppService extends AbstractAppService
             // 修改工具数据结构
             $tool['detail']['data']['file_id'] = (string) $fileId;
             $tool['detail']['data']['content'] = ''; // 清空内容
+            if (! empty($sourceFileId)) {
+                $tool['detail']['data']['source_file_id'] = $sourceFileId;
+            }
 
             $taskMessageEntity->setTool($tool);
 
             $this->logger->info(sprintf(
-                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',
+                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d，source_file_id: %s',
                 $tool['id'] ?? 'unknown',
                 $fileId,
-                strlen($content)
+                strlen($content),
+                $sourceFileId ?: 'null'
             ));
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
