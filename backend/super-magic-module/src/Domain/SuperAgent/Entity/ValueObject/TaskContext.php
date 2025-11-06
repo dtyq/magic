@@ -30,6 +30,7 @@ class TaskContext
      * @param array $mcpConfig MCP配置
      * @param string $workspaceId 工作区ID
      * @param string $messageId 消息ID
+     * @param bool $isFirstTask 是否为首次任务
      */
     public function __construct(
         private readonly TaskEntity $task,
@@ -46,6 +47,7 @@ class TaskContext
         private array $dynamicConfig = [],
         private string $workspaceId = '',
         private string $messageId = '',
+        private bool $isFirstTask = false,
     ) {
     }
 
@@ -194,6 +196,7 @@ class TaskContext
             $this->dynamicConfig,
             $this->workspaceId,
             $this->messageId,
+            $this->isFirstTask,
         );
     }
 
@@ -283,6 +286,23 @@ class TaskContext
     public function setMessageId(string $messageId): self
     {
         $this->messageId = $messageId;
+        return $this;
+    }
+
+    /**
+     * 获取是否为首次任务.
+     */
+    public function getIsFirstTask(): bool
+    {
+        return $this->isFirstTask;
+    }
+
+    /**
+     * 设置是否为首次任务.
+     */
+    public function setIsFirstTask(bool $isFirstTask): self
+    {
+        $this->isFirstTask = $isFirstTask;
         return $this;
     }
 }

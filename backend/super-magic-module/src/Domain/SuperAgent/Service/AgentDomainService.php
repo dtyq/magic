@@ -783,6 +783,7 @@ class AgentDomainService
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
             'model_id' => $taskContext->getModelId(),
+            'fetch_history' => ! $taskContext->getIsFirstTask(),
         ];
     }
 

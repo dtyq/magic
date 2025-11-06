@@ -219,7 +219,7 @@ class TopicTaskAppService extends AbstractAppService
                 $messageEntity->setTopicId($topicId);
                 $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
                 $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
-                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
+                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, [], TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
             // 3. 推送消息给客户端（异步处理）
@@ -679,10 +679,16 @@ class TopicTaskAppService extends AbstractAppService
             $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
 
             // Extract source_file_id from attachments if matching filename exists
+            // Remove .diff suffix for matching if present
+            $matchFileName = $fileName;
+            if (str_ends_with($fileName, '.diff')) {
+                $matchFileName = substr($fileName, 0, -5); // Remove '.diff' suffix
+            }
+
             $sourceFileId = '';
             if (! empty($tool['attachments'])) {
                 foreach ($tool['attachments'] as $attachment) {
-                    if (isset($attachment['filename']) && $attachment['filename'] === $fileName) {
+                    if (isset($attachment['filename']) && $attachment['filename'] === $matchFileName) {
                         $sourceFileId = $attachment['file_id'] ?? '';
                         break;
                     }
