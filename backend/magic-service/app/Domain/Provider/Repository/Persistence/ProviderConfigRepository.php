@@ -244,9 +244,9 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
             }
 
             // 如果是官方组织，过滤掉 Magic 服务商（Official），因为 magic 服务商就是官方组织配置的模型总和
-            if ($isOfficialOrganization && $provider->getProviderCode() === ProviderCode::Official) {
+            /*if ($isOfficialOrganization && $provider->getProviderCode() === ProviderCode::Official) {
                 continue;
-            }
+            }*/
 
             if ($provider->getProviderCode() === ProviderCode::Official) {
                 $magicProvider = $provider;
@@ -335,6 +335,22 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
         $entities = [];
         foreach ($result as $model) {
             $entities[$model['id']] = ProviderConfigAssembler::toEntity($model);
+        }
+
+        return $entities;
+    }
+
+    public function getAllByOrganization(ProviderDataIsolation $dataIsolation): array
+    {
+        $builder = $this->createConfigQuery()
+            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
+            ->where('status', 1);
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        $entities = [];
+        foreach ($result as $model) {
+            $entities[] = ProviderConfigAssembler::toEntity($model);
         }
 
         return $entities;

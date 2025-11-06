@@ -32,4 +32,6 @@ return [
     'creativity_temperature_conflict' => 'creativity and temperature cannot be set at the same time',
     'creativity_value_range_error' => 'creativity value must be between 0-2',
     'temperature_value_range_error' => 'temperature value must be between 0-2',
+    'ai_ability_not_found' => 'AI ability not found',
+    'ai_ability_disabled' => 'AI ability is not enabled',
 ];

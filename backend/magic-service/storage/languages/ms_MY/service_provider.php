@@ -29,4 +29,6 @@ return [
     'creativity_temperature_conflict' => 'creativity dan temperature tidak boleh ditetapkan nilai secara serentak',
     'creativity_value_range_error' => 'nilai creativity mestilah dalam julat 0-2',
     'temperature_value_range_error' => 'nilai temperature mestilah dalam julat 0-2',
+    'ai_ability_not_found' => 'Keupayaan AI tidak dijumpai',
+    'ai_ability_disabled' => 'Keupayaan AI tidak diaktifkan',
 ];

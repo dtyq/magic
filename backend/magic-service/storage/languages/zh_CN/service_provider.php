@@ -29,4 +29,6 @@ return [
     'creativity_temperature_conflict' => 'creativity 和 temperature 不能同时设置值',
     'creativity_value_range_error' => 'creativity 值必须在 0-2 范围内',
     'temperature_value_range_error' => 'temperature 值必须在 0-2 范围内',
+    'ai_ability_not_found' => 'AI能力不存在',
+    'ai_ability_disabled' => 'AI能力未启用',
 ];

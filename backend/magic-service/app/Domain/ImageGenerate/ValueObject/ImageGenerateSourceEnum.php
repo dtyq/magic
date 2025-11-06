@@ -24,4 +24,7 @@ enum ImageGenerateSourceEnum: string
     // API
     case API = 'api';
     case NONE = 'none';
+
+    // API 平台
+    case API_PLATFORM = 'api_platform';
 }

@@ -31,7 +31,36 @@ class ImageGeneratedEvent extends AbstractEvent
 
     protected ImageGenerateSourceEnum $sourceType;
 
+    /**
+     * service_provider_models.id 模型ID.
+     */
     protected string $providerModelId = '';
+
+    /**
+     * 访问令牌实体Id.
+     */
+    protected ?int $accessTokenId = null;
+
+    /**
+     * 访问令牌实体名称.
+     */
+    protected ?string $accessTokenName = null;
+
+    /**
+     * 当前配置版本，用于计价
+     * service_provider_models_config_versions.id.
+     */
+    protected ?int $priceId = null;
+
+    /**
+     * 调用时间.
+     */
+    protected ?string $callTime = null;
+
+    /**
+     * 响应时间.
+     */
+    protected ?int $responseTime = null;
 
     public function getProviderModelId(): string
     {
@@ -41,6 +70,56 @@ class ImageGeneratedEvent extends AbstractEvent
     public function setProviderModelId(string $providerModelId): void
     {
         $this->providerModelId = $providerModelId;
+    }
+
+    public function getAccessTokenId(): ?int
+    {
+        return $this->accessTokenId;
+    }
+
+    public function setAccessTokenId(?int $accessTokenId): void
+    {
+        $this->accessTokenId = $accessTokenId;
+    }
+
+    public function getAccessTokenName(): ?string
+    {
+        return $this->accessTokenName;
+    }
+
+    public function setAccessTokenName(?string $accessTokenName): void
+    {
+        $this->accessTokenName = $accessTokenName;
+    }
+
+    public function getPriceId(): ?int
+    {
+        return $this->priceId;
+    }
+
+    public function setPriceId(?int $priceId): void
+    {
+        $this->priceId = $priceId;
+    }
+
+    public function getCallTime(): ?string
+    {
+        return $this->callTime;
+    }
+
+    public function setCallTime(?string $callTime): void
+    {
+        $this->callTime = $callTime;
+    }
+
+    public function getResponseTime(): ?int
+    {
+        return $this->responseTime;
+    }
+
+    public function setResponseTime(?int $responseTime): void
+    {
+        $this->responseTime = $responseTime;
     }
 
     public function getOrganizationCode(): string
