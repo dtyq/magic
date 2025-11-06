@@ -30,6 +30,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
@@ -54,6 +55,7 @@ use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
+use Carbon\Carbon;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -521,8 +523,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $this->pointComponent->checkPointsSufficient(
                 $proxyModelRequest,
-                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                $modelGatewayDataIsolation->getCurrentUserId()
+                $modelGatewayDataIsolation
             );
 
             // Try to get high availability model configuration
@@ -594,6 +595,7 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('user_id', $modelGatewayDataIsolation->getCurrentUserId());
             $proxyModelRequest->addBusinessParam('access_token_id', $modelGatewayDataIsolation->getAccessToken()->getId());
             $proxyModelRequest->addBusinessParam('access_token_name', $modelGatewayDataIsolation->getAccessToken()->getName());
+            $proxyModelRequest->addBusinessParam('call_time', date('Y-m-d H:i:s'));
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
@@ -632,7 +634,7 @@ class LLMAppService extends AbstractLLMAppService
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
-            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException) {
+            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
             $businessParams = $proxyModelRequest->getBusinessParams();
