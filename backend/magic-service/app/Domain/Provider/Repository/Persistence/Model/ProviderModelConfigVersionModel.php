@@ -34,6 +34,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property float $output_cost
  * @property float $cache_hit_cost
  * @property float $cache_write_cost
+ * @property float $time_cost
  * @property int $version
  * @property bool $is_current_version
  * @property string $created_at
@@ -69,6 +70,7 @@ class ProviderModelConfigVersionModel extends AbstractModel
         'output_cost',
         'cache_hit_cost',
         'cache_write_cost',
+        'time_cost',
         'version',
         'is_current_version',
         'created_at',
@@ -98,6 +100,7 @@ class ProviderModelConfigVersionModel extends AbstractModel
         'output_cost' => 'float',
         'cache_hit_cost' => 'float',
         'cache_write_cost' => 'float',
+        'time_cost' => 'float',
         'version' => 'integer',
         'is_current_version' => 'boolean',
         'created_at' => 'datetime',

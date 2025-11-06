@@ -74,6 +74,7 @@ class ServiceProviderApiTest extends BaseTest
                 'creativity' => 0.7,
                 'billing_type' => 'Times',
                 'time_pricing' => '100',
+                'time_cost' => '50',
             ],
             'category' => 'llm',
             'service_provider_config_id' => $serviceProviderConfigId,
@@ -120,6 +121,7 @@ class ServiceProviderApiTest extends BaseTest
             'output_cost' => 0.002,
             'cache_write_cost' => 0.0005,
             'cache_hit_cost' => 0.0001,
+            'time_cost' => 50,
         ]);
 
         // ========== 步骤3: 验证配置版本（version=1） ==========
@@ -151,6 +153,7 @@ class ServiceProviderApiTest extends BaseTest
                 'support_multi_modal' => true,
                 'support_deep_think' => false,
                 'creativity' => 0.8,
+                'time_cost' => 50,
             ],
             'category' => 'llm',
             'service_provider_config_id' => $serviceProviderConfigId,
@@ -494,6 +497,14 @@ class ServiceProviderApiTest extends BaseTest
                 $versionEntity->getCreativity(),
                 0.0001,
                 'creativity 应该匹配'
+            );
+        }
+
+        if (isset($expectedConfig['time_cost'])) {
+            $this->assertEqualsWithDelta(
+                (float) $expectedConfig['time_cost'],
+                $versionEntity->getTimeCost(), 50,
+                'time_cost 应该匹配'
             );
         }
 

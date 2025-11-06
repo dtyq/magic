@@ -55,6 +55,8 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $cacheWriteCost = null;
 
+    protected ?string $timeCost = null;
+
     public function getMaxTokens(): ?int
     {
         return $this->maxTokens;
@@ -300,6 +302,16 @@ class ModelConfigItem extends AbstractDTO
     public function setCacheWriteCost(null|float|string $cacheWriteCost): void
     {
         $this->cacheWriteCost = $this->validateAndSetPricing($cacheWriteCost);
+    }
+
+    public function getTimeCost(): ?string
+    {
+        return $this->timeCost;
+    }
+
+    public function setTimeCost(null|float|string $timeCost): void
+    {
+        $this->timeCost = $this->validateAndSetPricing($timeCost);
     }
 
     private function handleCreativityAndTemperatureConflict(): void

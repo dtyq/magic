@@ -57,6 +57,8 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
 
     protected ?float $cacheWriteCost = null;
 
+    protected ?float $timeCost = null;
+
     protected int $version = 1;
 
     protected bool $isCurrentVersion = true;
@@ -396,6 +398,20 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
             $this->cacheWriteCost = null;
         } else {
             $this->cacheWriteCost = (float) $cacheWriteCost;
+        }
+    }
+
+    public function getTimeCost(): ?float
+    {
+        return $this->timeCost;
+    }
+
+    public function setTimeCost(null|float|int|string $timeCost): void
+    {
+        if ($timeCost === null || $timeCost === '') {
+            $this->timeCost = null;
+        } else {
+            $this->timeCost = (float) $timeCost;
         }
     }
 }
