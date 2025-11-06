@@ -207,7 +207,7 @@ class FileAppService extends AbstractAppService
     }
 
     /**
-     * use getStsTemporaryCredentialV2
+     * use getStsTemporaryCredentialV2.
      * @deprecated
      */
     public function getStsTemporaryCredential(Authenticatable $authorization, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true): array
