@@ -182,11 +182,11 @@ class ModelGatewayMapper extends ModelMapper
 
         $odinModels = [];
         foreach ($officeModels as $model) {
-            $key = $model->getModelVersion();
+            $key = $model->getModelId();
 
             // Create virtual image generation model
             $imageModel = new ImageGenerationModel(
-                $model->getModelVersion(),
+                $model->getModelId(),
                 [], // Empty config array
                 $this->logger
             );
