@@ -22,6 +22,7 @@ readonly class OdinModelAttributes
         private string $providerAlias = '',
         private string $providerModelId = '',
         private string $providerId = '',
+        private int $modelType = 1,
     ) {
     }
 
@@ -88,6 +89,7 @@ readonly class OdinModelAttributes
             'provider_alias' => $this->providerAlias,
             'provider_model_id' => $this->providerModelId,
             'provider_id' => $this->providerId,
+            'model_type' => $this->modelType,
         ];
     }
 }

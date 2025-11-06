@@ -325,6 +325,18 @@ class AdminProviderDomainService extends AbstractProviderDomainService
     }
 
     /**
+     * 获取所有可用的服务商列表（包括官方服务商），不依赖于组织编码.
+     *
+     * @param Category $category 服务商类别
+     * @return ProviderConfigModelsDTO[]
+     */
+    public function getAllAvailableProviders(Category $category): array
+    {
+        $serviceProviderEntities = $this->serviceProviderRepository->getByCategory($category);
+        return ProviderAssembler::toDTOs($serviceProviderEntities);
+    }
+
+    /**
      * @return ProviderModelEntity[]
      */
     public function getOfficeModels(Category $category): array
@@ -364,6 +376,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             if (isset($configMap[$targetConfigId])) {
                 $config = $configMap[$targetConfigId]->getConfig();
                 if ($config) {
+                    $config->setProviderModelId((string) $activeModel->getId());
                     $result[] = $config;
                 }
             }

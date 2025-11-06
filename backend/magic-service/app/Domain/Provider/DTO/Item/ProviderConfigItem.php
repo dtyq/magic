@@ -29,7 +29,20 @@ class ProviderConfigItem extends AbstractDTO
 
     protected string $modelVersion = '';
 
+    /**
+     * service_provider_models.id 模型ID.
+     */
     protected string $providerModelId;
+
+    /**
+     * 优先级.
+     */
+    protected ?int $priority = null;
+
+    /**
+     * 接入点.
+     */
+    protected ?string $accessPoint = null;
 
     public function getAk(): string
     {
@@ -161,5 +174,25 @@ class ProviderConfigItem extends AbstractDTO
     public function setProviderModelId(string $providerModelId): void
     {
         $this->providerModelId = $providerModelId;
+    }
+
+    public function getPriority(): ?int
+    {
+        return $this->priority;
+    }
+
+    public function setPriority(?int $priority): void
+    {
+        $this->priority = $priority;
+    }
+
+    public function getAccessPoint(): ?string
+    {
+        return $this->accessPoint;
+    }
+
+    public function setAccessPoint(?string $accessPoint): void
+    {
+        $this->accessPoint = $accessPoint;
     }
 }
