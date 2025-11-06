@@ -17,7 +17,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 use App\Interfaces\Provider\DTO\UpdateAiAbilityRequest;
 use Hyperf\Contract\TranslatorInterface;
-use Hyperf\Di\Annotation\Inject;
 use Throwable;
 
 /**
@@ -25,11 +24,11 @@ use Throwable;
  */
 class AiAbilityAppService
 {
-    #[Inject]
-    private AiAbilityDomainService $aiAbilityDomainService;
-
-    #[Inject]
-    private TranslatorInterface $translator;
+    public function __construct(
+        private AiAbilityDomainService $aiAbilityDomainService,
+        private TranslatorInterface $translator
+    ) {
+    }
 
     /**
      * 获取所有AI能力列表.
