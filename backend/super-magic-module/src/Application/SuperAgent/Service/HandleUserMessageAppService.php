@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -31,6 +32,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -67,6 +69,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -187,7 +190,7 @@ class HandleUserMessageAppService extends AbstractAppService
             $projectId = $topicEntity->getProjectId();
 
             // 检查项目是否有权限
-            $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId());
@@ -258,7 +261,7 @@ class HandleUserMessageAppService extends AbstractAppService
             }
 
             // Create and send message to agent
-            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext, $projectEntity);
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
@@ -371,10 +374,10 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Initialize agent environment.
      */
-    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
+    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ProjectEntity $projectEntity): string
     {
         // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
         if (empty($taskContext->getSandboxId())) {
             $sandboxId = (string) $taskContext->getTopicId();
@@ -396,7 +399,7 @@ class HandleUserMessageAppService extends AbstractAppService
         );
 
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectEntity->getUserOrganizationCode());
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());

@@ -43,8 +43,26 @@ return [
 
     // 成员角色描述
     'member_role' => [
+        'manage' => '可管理',
         'owner' => '所有者',
         'editor' => '编辑者',
         'viewer' => '查看者',
     ],
+
+    // 团队邀请功能错误消息
+    'no_invite_permission' => '您没有权限邀请成员',
+    'collaboration_disabled' => '项目协作功能已关闭',
+    'invalid_permission_level' => '无效的权限级别',
+    'no_manage_permission' => '您没有管理权限',
+    'cannot_remove_creator' => '不能移除项目创建者',
+    'last_manager_cannot_be_removed' => '至少需要保留一个管理员',
+    'duplicate_member' => '成员已存在',
+    'member_not_found' => '成员不存在',
+    'invalid_target_type' => '无效的目标类型',
+    'cannot_remove_self' => '不能移除自己',
+    'members_added' => '团队成员添加成功',
+    'collaboration_enabled' => '项目协作已开启',
+    'collaboration_updated' => '项目协作设置已更新',
+    'batch_permission_updated' => '批量权限设置成功',
+    'batch_members_deleted' => '批量删除成员成功',
 ];

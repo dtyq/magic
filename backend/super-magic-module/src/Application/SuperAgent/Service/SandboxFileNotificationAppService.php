@@ -71,7 +71,7 @@ class SandboxFileNotificationAppService extends AbstractAppService
         $projectEntity = $this->getProjectEntity($metadata);
 
         // 5. Build complete file key
-        $fileKey = $this->buildFileKey($metadata, $data, $projectEntity->getWorkDir());
+        $fileKey = $this->buildFileKey($metadata, $data, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
         // 6. Setup spin lock for file_key to prevent concurrent processing
         $this->logger->info(sprintf('processAllAttachments: project_id: %d', $projectEntity->getId()));
@@ -217,14 +217,14 @@ class SandboxFileNotificationAppService extends AbstractAppService
     private function buildFileKey(
         MessageMetadata $metadata,
         SandboxFileNotificationDataValueObject $data,
-        string $workDir
+        string $workDir,
+        string $projectOrganizationCode
     ): string {
-        $organizationCode = $metadata->getOrganizationCode();
         $filePath = $data->getFilePath();
         if ($data->getIsDirectory()) {
             $filePath = rtrim($filePath, '/') . '/';
         }
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrganizationCode);
 
         return WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $filePath);
     }

@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
@@ -68,6 +69,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly FileDomainService $fileDomainService,
         private readonly LockerInterface $locker,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -458,12 +460,14 @@ class FileProcessAppService extends AbstractAppService
             $storageType = StorageBucketType::SandBox->value;
             $expires = 3600; // Credential valid for 1 hour
 
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($taskEntity->getProjectId());
+
             // Create user authorization object
             $userAuthorization = new MagicUserAuthorization();
             $userAuthorization->setOrganizationCode($organizationCode);
 
             // Use unified FileAppService to get STS Token
-            return $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $projectDir, $expires, false);
+            return $this->fileAppService->getStsTemporaryCredentialV2($projectEntity->getUserOrganizationCode(), $storageType, $projectDir, $expires, false);
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
                 'Failed to refresh STS Token: %s, Organization code: %s, Sandbox ID: %s',
@@ -828,6 +832,9 @@ class FileProcessAppService extends AbstractAppService
         int $topicId,
         int $taskId
     ): int {
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+
         $this->logger->info(sprintf(
             'Starting to save tool message content, File name: %s, File size: %d bytes, Task ID: %d',
             $fileName,
@@ -837,8 +844,7 @@ class FileProcessAppService extends AbstractAppService
 
         try {
             // Construct complete file path
-            $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrganizationCode);
             $fullFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileKey);
 
             // 1. Check if file already exists
@@ -859,7 +865,7 @@ class FileProcessAppService extends AbstractAppService
                 $fullFileKey,
                 $fileName,
                 pathinfo($fileName, PATHINFO_EXTENSION),
-                $dataIsolation->getCurrentOrganizationCode()
+                $projectOrganizationCode
             );
 
             // 3. Build file data
@@ -974,6 +980,8 @@ class FileProcessAppService extends AbstractAppService
         // 1. Validate file permission
         $taskFileEntity = $this->validateFilePermission((int) $requestDTO->getFileId(), $authorization);
 
+        $projectEntity = $this->getAccessibleProjectWithEditor($taskFileEntity->getProjectId(), $authorization->getId(), $authorization->getOrganizationCode());
+
         // 2. Process content (decode shadow if enabled)
         $content = $requestDTO->getContent();
         if ($requestDTO->getEnableShadow()) {
@@ -992,7 +1000,7 @@ class FileProcessAppService extends AbstractAppService
             $taskFileEntity->getFileKey(),
             $taskFileEntity->getFileName(),
             $taskFileEntity->getFileExtension(),
-            $authorization->getOrganizationCode(),
+            $projectEntity->getUserOrganizationCode(),
             $taskFileEntity->getFileId()
         );
 
@@ -1000,7 +1008,7 @@ class FileProcessAppService extends AbstractAppService
         $this->updateFileMetadata($taskFileEntity, $result);
 
         // 5. 创建文件版本
-        $this->taskFileVersionDomainService->createFileVersion($taskFileEntity);
+        $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),
@@ -1043,11 +1051,11 @@ class FileProcessAppService extends AbstractAppService
      * @param string $fileKey File key
      * @param string $fileName File name
      * @param string $fileExtension File extension
-     * @param string $organizationCode Organization code
+     * @param string $projectOrganizationCode Organization code
      * @param null|int $fileId File ID (optional, for logging)
      * @return array Upload result
      */
-    private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $organizationCode, ?int $fileId = null): array
+    private function uploadFileContent(string $content, string $fileKey, string $fileName, string $fileExtension, string $projectOrganizationCode, ?int $fileId = null): array
     {
         try {
             // Log debug information
@@ -1057,7 +1065,7 @@ class FileProcessAppService extends AbstractAppService
                 $fileKey,
                 $fileName,
                 $fileExtension,
-                $organizationCode,
+                $projectOrganizationCode,
                 strlen($content)
             ));
 
@@ -1080,7 +1088,7 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 2: Build UploadFile object
-            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+            $uploadKeyPrefix = $this->taskFileDomainService->getFullPrefix($projectOrganizationCode);
             $uploadFileKey = str_replace($uploadKeyPrefix, '', $fileKey);
             $uploadFileKey = ltrim($uploadFileKey, '/');
             $uploadFile = new UploadFile($tempFile, '', $uploadFileKey, false);
@@ -1091,9 +1099,9 @@ class FileProcessAppService extends AbstractAppService
             ));
 
             // Step 3: Upload using FileDomainService uploadByCredential method
-            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::SandBox, false);
+            $this->fileDomainService->uploadByCredential($projectOrganizationCode, $uploadFile, StorageBucketType::SandBox, false);
 
-            $fileLink = $this->fileDomainService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
+            $fileLink = $this->fileDomainService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
 
             $this->logger->info(sprintf(
                 'Successfully uploaded file using uploadByCredential with key: %s, file_link: %s',
@@ -1125,7 +1133,7 @@ class FileProcessAppService extends AbstractAppService
                 'File upload failed: %s, file_id: %s, organization: %s',
                 $e->getMessage(),
                 $fileId ?? 'N/A',
-                $organizationCode
+                $projectOrganizationCode
             ));
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_UPLOAD_FAILED, 'file.upload_failed');
         }

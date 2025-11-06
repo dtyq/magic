@@ -118,12 +118,13 @@ class FileBatchAppService extends AbstractAppService
         // Get workdir path
         $workdir = $projectEntity->getWorkdir();
         $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
+        $organizationCode = $projectEntity->getUserOrganizationCode();
 
-        // Initialize task status
-        $this->statusManager->initializeTask($batchKey, $userId, count($userFiles));
+        // Initialize task status with organization code
+        $this->statusManager->initializeTask($batchKey, $userId, count($userFiles), $organizationCode);
 
         // Publish message queue task
-        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $userAuthorization->getOrganizationCode(), $targetName, $workdir);
+        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $organizationCode, $targetName, $workdir);
 
         return new CreateBatchDownloadResponseDTO(
             'processing',
@@ -171,12 +172,21 @@ class FileBatchAppService extends AbstractAppService
         $progress = $taskStatus['progress'] ?? [];
         $result = $taskStatus['result'] ?? [];
         $error = $taskStatus['error'] ?? '';
+        // Use organization code from Redis instead of current user authorization
+        $organizationCode = $taskStatus['organization_code'] ?? $userAuthorization->getOrganizationCode();
+
+        $this->logger->info('Check batch download status', [
+            'batch_key' => $batchKey,
+            'status' => $status,
+            'organization_code' => $organizationCode,
+            'user_id' => $userId,
+        ]);
 
         switch ($status) {
             case 'ready':
                 $fileKey = $result['zip_file_key'] ?? '';
                 if (! empty($fileKey)) {
-                    $downloadUrl = $this->generateDownloadUrl($fileKey, $userAuthorization->getOrganizationCode());
+                    $downloadUrl = $this->generateDownloadUrl($fileKey, $organizationCode);
                 } else {
                     $downloadUrl = $result['download_url'] ?? '';
                 }

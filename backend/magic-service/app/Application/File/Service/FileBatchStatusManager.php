@@ -38,9 +38,10 @@ class FileBatchStatusManager
      * @param string $batchKey Batch key
      * @param string $userId User ID
      * @param int $totalFiles Total number of files
+     * @param string $organizationCode Organization code
      * @return bool True if successful, false otherwise
      */
-    public function initializeTask(string $batchKey, string $userId, int $totalFiles): bool
+    public function initializeTask(string $batchKey, string $userId, int $totalFiles, string $organizationCode = ''): bool
     {
         try {
             $taskKey = FileBatchConstant::getTaskKey($batchKey);
@@ -48,6 +49,7 @@ class FileBatchStatusManager
             $taskData = [
                 'status' => FileBatchConstant::STATUS_PROCESSING,
                 'message' => FileBatchConstant::MSG_TASK_INITIALIZING,
+                'organization_code' => $organizationCode,
                 'progress' => [
                     'current' => 0,
                     'total' => $totalFiles,
@@ -74,6 +76,7 @@ class FileBatchStatusManager
                     'batch_key' => $batchKey,
                     'user_id' => $userId,
                     'total_files' => $totalFiles,
+                    'organization_code' => $organizationCode,
                 ]);
             }
 

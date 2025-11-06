@@ -118,7 +118,7 @@ class TopicAppService extends AbstractAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();
@@ -135,6 +135,7 @@ class TopicAppService extends AbstractAppService
                 $chatConversationTopicId, // 会话的话题ID
                 $requestDTO->getTopicName(),
                 $projectEntity->getWorkDir(),
+                $requestDTO->getTopicMode()
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
@@ -358,6 +359,9 @@ class TopicAppService extends AbstractAppService
         if (empty($topicEntity)) {
             return [];
         }
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
+
         $sandboxId = $topicEntity->getSandboxId();
         $workDir = $topicEntity->getWorkDir();
 
@@ -372,7 +376,7 @@ class TopicAppService extends AbstractAppService
 
         // 处理文件 URL
         $list = [];
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
 
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
@@ -400,7 +404,7 @@ class TopicAppService extends AbstractAppService
             // 添加 file_url 字段
             $fileKey = $entity->getFileKey();
             if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($organizationCode, $fileKey, StorageBucketType::SandBox);
+                $fileLink = $this->fileAppService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
                 if ($fileLink) {
                     $dto->fileUrl = $fileLink->getUrl();
                 } else {

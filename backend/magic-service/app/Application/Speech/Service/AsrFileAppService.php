@@ -566,6 +566,7 @@ readonly class AsrFileAppService
         }
     }
 
+
     /**
      * 从文件ID创建虚拟任务状态.
      */

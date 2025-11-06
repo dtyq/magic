@@ -10,6 +10,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\MessageApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectInvitationLinkApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SuperAgentMemoryApi;
@@ -67,10 +68,38 @@ Router::addGroup(
             Router::get('/{id}/fork-status', [ProjectApi::class, 'forkStatus']);
             // 移动项目到另一个工作区
             Router::post('/move', [ProjectApi::class, 'moveProject']);
-            // 获取项目协作成员
-            Router::get('/{id}/members', [ProjectMemberApi::class, 'getMembers']);
-            // 更新项目协作成员
-            Router::put('/{id}/members', [ProjectMemberApi::class, 'updateMembers']);
+
+            // 项目成员资源管理
+            Router::addGroup('/{projectId}/members', static function () {
+                // 获取项目协作成员
+                Router::get('', [ProjectMemberApi::class, 'getMembers']);
+                // 更新项目协作成员（新版本不需要此接口）
+                //                Router::put('', [ProjectMemberApi::class, 'updateMembers']);
+                // 添加项目成员
+                Router::post('', [ProjectMemberApi::class, 'createProjectMembers']);
+                // 批量删除成员
+                Router::delete('', [ProjectMemberApi::class, 'deleteProjectMembers']);
+                // 批量更新成员-权限
+                Router::put('/roles', [ProjectMemberApi::class, 'updateProjectMemberRoles']);
+            });
+
+            // 项目邀请链接管理
+            Router::addGroup('/{projectId}/invitation-links', static function () {
+                // 获取项目邀请链接信息
+                Router::get('', [ProjectInvitationLinkApi::class, 'getInvitationLink']);
+                // 开启/关闭邀请链接
+                Router::put('/toggle', [ProjectInvitationLinkApi::class, 'toggleInvitationLink']);
+                // 重置邀请链接
+                Router::post('/reset', [ProjectInvitationLinkApi::class, 'resetInvitationLink']);
+                // 设置密码保护
+                Router::post('/password', [ProjectInvitationLinkApi::class, 'setPassword']);
+                // 重新设置密码
+                Router::post('/reset-password', [ProjectInvitationLinkApi::class, 'resetPassword']);
+                // 修改邀请链接密码
+                Router::put('/change-password', [ProjectInvitationLinkApi::class, 'changePassword']);
+                // 修改权限级别
+                Router::put('/permission', [ProjectInvitationLinkApi::class, 'updateDefaultJoinPermission']);
+            });
         });
         // 协作项目相关路由分组
         Router::addGroup('/collaboration-projects', static function () {
@@ -231,6 +260,15 @@ Router::addGroup(
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
             // 升级沙箱镜像
             Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
+        });
+
+        // 邀请链接访问（需要认证，面向外部用户）
+        Router::addGroup('/invitation', static function () {
+            // 通过Token访问邀请链接（外部用户预览）
+            Router::get('/links/{token}', [ProjectInvitationLinkApi::class, 'getInvitationByToken']);
+
+            // 加入项目（外部用户操作）
+            Router::post('/join', [ProjectInvitationLinkApi::class, 'joinProject']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]

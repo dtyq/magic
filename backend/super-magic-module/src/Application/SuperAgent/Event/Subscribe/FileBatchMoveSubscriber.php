@@ -212,7 +212,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             $targetEntity = $this->taskFileDomainService->getByFileKey($newFileKey);
 
             if ($isDirectory) {
-                $newTargetEntity = $this->handlerDirectory($dataIsolation, $node, $targetParentEntity->getFileId(), $newFileKey, $projectEntity->getWorkDir(), $targetEntity);
+                $newTargetEntity = $this->handlerDirectory($projectEntity->getUserOrganizationCode(), $node, $targetParentEntity->getFileId(), $newFileKey, $projectEntity->getWorkDir(), $targetEntity);
                 if (! empty($children)) {
                     // For children, the parent directory should be the new location of this file/directory
                     $newParentDir = $newFileKey;
@@ -224,7 +224,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 // 先执行复制操作
                 // 如果目标文件已经存在，则把以前的文件进行删除，保留目标的文件id
                 $fileEntity = $this->getFileEntityForCache($fileId);
-                $this->taskFileDomainService->moveFile($dataIsolation, $fileEntity, $projectEntity->getWorkDir(), $newFileKey, $targetParentEntity->getFileId());
+                $this->taskFileDomainService->moveFile($projectEntity->getUserOrganizationCode(), $fileEntity, $projectEntity->getWorkDir(), $newFileKey, $targetParentEntity->getFileId());
                 if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
                     // 覆盖的逻辑
                     $this->taskFileDomainService->deleteById($targetEntity->getFileId());
@@ -434,14 +434,14 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         }
     }
 
-    private function handlerDirectory(DataIsolation $dataIsolation, array $file, int $parentId, string $newFileKey, string $workDir, ?TaskFileEntity $targetFileEntity): TaskFileEntity
+    private function handlerDirectory(string $projectOrganizationCode, array $file, int $parentId, string $newFileKey, string $workDir, ?TaskFileEntity $targetFileEntity): TaskFileEntity
     {
         $oldFileEntity = $this->getFileEntityForCache((int) $file['file_id']);
         $actualChildrenCount = $this->taskFileDomainService->getSiblingCountByParentId((int) $file['file_id'], $oldFileEntity->getProjectId());
 
         // 如果目标文件夹存在，并且源文件夹的子文件已经没有文件了，那么就删除源文件夹, 且不能等于相同的文件
         if (! empty($targetFileEntity) && ($file['file_key'] !== $newFileKey) && ($actualChildrenCount === 0 || count($file['children']) === $actualChildrenCount)) {
-            $this->taskFileDomainService->deleteProjectFiles($dataIsolation, $oldFileEntity, $workDir);
+            $this->taskFileDomainService->deleteProjectFiles($projectOrganizationCode, $oldFileEntity, $workDir);
             return $targetFileEntity;
         }
         // 如果不存在，分为两种情况
