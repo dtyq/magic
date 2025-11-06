@@ -26,6 +26,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property float $use_amount
  * @property int $rpm
  * @property string $organization_code
+ * @property bool $enabled
  * @property string $creator
  * @property Carbon $created_at
  * @property string $modifier
@@ -41,7 +42,7 @@ class AccessTokenModel extends Model
 
     protected array $fillable = [
         'id', 'type', 'access_token', 'relation_id', 'name', 'description', 'models', 'ip_limit',
-        'expire_time', 'total_amount', 'use_amount', 'rpm',
+        'expire_time', 'total_amount', 'use_amount', 'rpm', 'enabled',
         'organization_code', 'creator', 'created_at', 'modifier', 'updated_at', 'deleted_at',
     ];
 
@@ -57,6 +58,7 @@ class AccessTokenModel extends Model
         'expire_time' => 'datetime',
         'total_amount' => 'float',
         'use_amount' => 'float',
+        'enabled' => 'boolean',
         'rpm' => 'integer',
         'organization_code' => 'string',
         'creator' => 'string',
