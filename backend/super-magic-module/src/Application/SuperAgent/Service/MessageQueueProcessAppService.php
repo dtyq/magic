@@ -334,12 +334,23 @@ class MessageQueueProcessAppService extends AbstractAppService
         MessageQueueEntity $message
     ): array {
         return [
-            'type' => 'super_magic_message_queue_consumed',
-            'project_id' => (string) $topicEntity->getProjectId(),
-            'topic_id' => (string) $topicEntity->getId(),
-            'chat_topic_id' => $topicEntity->getChatTopicId(),
-            'message_id' => (string) $message->getId(),
-            'timestamp' => date('c'),
+            'type' => 'seq',
+            'seq' => [
+                'magic_id' => '',
+                'seq_id' => '',
+                'message_id' => '',
+                'refer_message_id' => '',
+                'sender_message_id' => '',
+                'conversation_id' => $topicEntity->getChatConversationId(),
+                'organization_code' => $topicEntity->getUserOrganizationCode(),
+                'message' => [
+                    'type' => 'super_magic_message_queue_consumed',
+                    'project_id' => (string) $topicEntity->getProjectId(),
+                    'topic_id' => (string) $topicEntity->getId(),
+                    'chat_topic_id' => $topicEntity->getChatTopicId(),
+                    'message_id' => (string) $message->getId(),
+                ],
+            ],
         ];
     }
 
