@@ -17,11 +17,15 @@ use App\Infrastructure\Core\AbstractEntity;
  */
 class AiAbilityEntity extends AbstractEntity
 {
+    protected ?int $id = null;
+
     protected AiAbilityCode $code;
 
-    protected string $name;
+    protected string $organizationCode = '';
 
-    protected string $description;
+    protected array $name = [];
+
+    protected array $description = [];
 
     protected string $icon;
 
@@ -30,6 +34,20 @@ class AiAbilityEntity extends AbstractEntity
     protected Status $status;
 
     protected AiAbilityConfig $config;
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function setId(null|int|string $id): void
+    {
+        if (is_numeric($id)) {
+            $this->id = (int) $id;
+        } else {
+            $this->id = null;
+        }
+    }
 
     public function getCode(): AiAbilityCode
     {
@@ -47,32 +65,64 @@ class AiAbilityEntity extends AbstractEntity
         }
     }
 
-    public function getName(): string
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(string $organizationCode): void
+    {
+        $this->organizationCode = $organizationCode;
+    }
+
+    public function getName(): array
     {
         return $this->name;
     }
 
-    public function setName(null|int|string $name): void
+    public function setName(array|string $name): void
     {
-        if ($name === null) {
-            $this->name = '';
+        if (is_string($name)) {
+            // 如果是字符串，尝试解析JSON
+            $decoded = json_decode($name, true);
+            $this->name = is_array($decoded) ? $decoded : [];
         } else {
-            $this->name = (string) $name;
+            $this->name = $name;
         }
     }
 
-    public function getDescription(): string
+    /**
+     * 获取当前语言的名称.
+     */
+    public function getLocalizedName(?string $locale = null): string
+    {
+        $locale = $locale ?? config('translation.locale', 'zh_CN');
+        return $this->name[$locale] ?? $this->name['zh_CN'] ?? $this->name['en_US'] ?? '';
+    }
+
+    public function getDescription(): array
     {
         return $this->description;
     }
 
-    public function setDescription(null|int|string $description): void
+    public function setDescription(array|string $description): void
     {
-        if ($description === null) {
-            $this->description = '';
+        if (is_string($description)) {
+            // 如果是字符串，尝试解析JSON
+            $decoded = json_decode($description, true);
+            $this->description = is_array($decoded) ? $decoded : [];
         } else {
-            $this->description = (string) $description;
+            $this->description = $description;
         }
+    }
+
+    /**
+     * 获取当前语言的描述.
+     */
+    public function getLocalizedDescription(?string $locale = null): string
+    {
+        $locale = $locale ?? config('translation.locale', 'zh_CN');
+        return $this->description[$locale] ?? $this->description['zh_CN'] ?? $this->description['en_US'] ?? '';
     }
 
     public function getIcon(): string

@@ -34,6 +34,7 @@ enum MagicResourceEnum: string
     case ADMIN_AI_MODEL = 'platform.ai.model_management'; # AI管理-模型管理
     case ADMIN_AI_IMAGE = 'platform.ai.image_generation'; # AI管理-智能绘图管理
     case ADMIN_AI_MODE = 'platform.ai.mode_management'; # AI管理-模式管理管理
+    case ADMIN_AI_ABILITY = 'platform.ai.ability'; # AI管理-能力管理
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 安全管控-子管理员
     case PLATFORM_SETTING_MAINTENANCE = 'platform.setting.maintenance'; # 平台管理 - 系统信息 - 维护管理
 
