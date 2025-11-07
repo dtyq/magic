@@ -229,9 +229,7 @@ class MessageQueueProcessAppService extends AbstractAppService
         );
 
         // 5. If success, push notification to client
-        if ($sendResult['success']) {
-            $this->pushMessageQueueNotification($topicEntity, $message);
-        }
+        $this->pushMessageQueueNotification($topicEntity, $message);
 
         return $sendResult;
     }
