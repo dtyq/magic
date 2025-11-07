@@ -59,38 +59,40 @@ class MessageQueueProcessAppService extends AbstractAppService
      */
     public function processSingleMessage(int $messageId): array
     {
-        try {
-            // 1. Get message entity
-            $message = $this->messageQueueDomainService->getMessageById($messageId);
-            if (! $message) {
-                $this->logger->warning('Message not found', ['message_id' => $messageId]);
-                return [
-                    'success' => false,
-                    'error_message' => 'Message not found',
-                ];
-            }
+        // 1. Get message entity
+        $message = $this->messageQueueDomainService->getMessageById($messageId);
+        if (! $message) {
+            $this->logger->warning('Message not found', ['message_id' => $messageId]);
+            return [
+                'success' => false,
+                'error_message' => 'Message not found',
+            ];
+        }
 
-            // 2. Get topic entity
-            $topicEntity = $this->topicDomainService->getTopicById($message->getTopicId());
-            if (! $topicEntity) {
-                $this->logger->warning('Topic not found for message', [
-                    'message_id' => $messageId,
-                    'topic_id' => $message->getTopicId(),
-                ]);
-                return [
-                    'success' => false,
-                    'error_message' => 'Topic not found',
-                ];
-            }
-
-            $this->logger->info('Processing single message manually', [
+        // 2. Get topic entity
+        $topicEntity = $this->topicDomainService->getTopicById($message->getTopicId());
+        if (! $topicEntity) {
+            $this->logger->warning('Topic not found for message', [
                 'message_id' => $messageId,
                 'topic_id' => $message->getTopicId(),
             ]);
-
-            // 3. Send queued message to agent with status tracking
+            return [
+                'success' => false,
+                'error_message' => 'Topic not found',
+            ];
+        }
+        // Acquire topic lock
+        $lockOwner = $this->messageQueueDomainService->acquireTopicLock($topicEntity->getId(), self::TOPIC_LOCK_EXPIRE);
+        if ($lockOwner === null) {
+            $this->logger->info('Unable to acquire topic lock, skip processing', ['topic_id' => $topicEntity->getId()]);
+            return [
+                'success' => false,
+                'error_message' => 'Unable to acquire topic lock, skip processing',
+            ];
+        }
+        try {
+            // Send queued message to agent with status tracking
             $sendResult = $this->sendQueuedMessageToAgent($message, $topicEntity);
-
             $this->logger->info('Single message processed successfully', [
                 'message_id' => $messageId,
                 'success' => $sendResult['success'],
@@ -103,11 +105,12 @@ class MessageQueueProcessAppService extends AbstractAppService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
             return [
                 'success' => false,
                 'error_message' => $e->getMessage(),
             ];
+        } finally {
+            $this->messageQueueDomainService->releaseTopicLock($topicEntity->getId(), $lockOwner);
         }
     }
 
@@ -366,8 +369,8 @@ class MessageQueueProcessAppService extends AbstractAppService
 
         $this->logger->info('Pushing message queue notification', [
             'magic_id' => $magicId,
-            'topic_id' => $pushData['topic_id'],
-            'message_id' => $pushData['message_id'],
+            'topic_id' => $pushData['seq']['message']['topic_id'],
+            'message_id' => $pushData['seq']['message']['message_id'],
         ]);
 
         // Push via WebSocket
