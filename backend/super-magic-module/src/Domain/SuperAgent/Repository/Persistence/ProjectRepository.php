@@ -300,7 +300,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'work_dir' => $data['work_dir'] ?? '',
             'current_topic_id' => $data['current_topic_id'] ?? '',
             'current_topic_status' => $data['current_topic_status'] ?? '',
-            'is_collaboration_enabled' => $data['is_collaboration_enabled'] ?? 0,
+            'is_collaboration_enabled' => $data['is_collaboration_enabled'] ?? 1,
             'default_join_permission' => MemberRole::fromString(empty($data['default_join_permission']) ? MemberRole::VIEWER->value : $data['default_join_permission']),
             'created_uid' => $data['created_uid'] ?? '',
             'updated_uid' => $data['updated_uid'] ?? '',
