@@ -337,8 +337,8 @@ class AccessTokenEntity extends AbstractEntity
         return $this->enabled;
     }
 
-    public function setEnabled(bool $enabled): void
+    public function setEnabled(bool|int $enabled): void
     {
-        $this->enabled = $enabled;
+        $this->enabled = (bool) $enabled;
     }
 }

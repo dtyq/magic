@@ -479,14 +479,20 @@ readonly class AsrFileAppService
     /**
      * 异步执行总结流程.
      */
-    private function executeAsyncSummary(SummaryRequestDTO $summaryRequest, MagicUserAuthorization $userAuthorization): void
-    {
-        $language = $this->translator->getLocale();
+    private function executeAsyncSummary(
+        SummaryRequestDTO $summaryRequest,
+        MagicUserAuthorization $userAuthorization
+    ): void {
         $requestId = CoContext::getRequestId();
-
+        // ⚠️ 重要：使用 CoContext::getLanguage() 而不是 translator->getLocale()
+        // 因为后续的服务调用可能会修改 translator 的 locale，但 CoContext 中的语言不会被修改
+        $language = CoContext::getLanguage();
         Coroutine::create(function () use ($summaryRequest, $userAuthorization, $language, $requestId) {
-            $this->translator->setLocale($language);
+            // 在协程中需要重新获取 translator 实例并设置语言
+            di(TranslatorInterface::class)->setLocale($language);
+            CoContext::setLanguage($language);
             CoContext::setRequestId($requestId);
+
             try {
                 $this->handleAsrSummary($summaryRequest, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             } catch (Throwable $e) {
@@ -687,6 +693,7 @@ readonly class AsrFileAppService
                 'has_note_file' => $noteFileData !== null,
                 'message_content' => $messageData->toArray(),
                 'is_queued' => $this->shouldQueueMessage($dto->topicId),
+                'language' => CoContext::getLanguage(),
             ]);
 
             if ($this->shouldQueueMessage($dto->topicId)) {

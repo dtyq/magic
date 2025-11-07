@@ -126,6 +126,8 @@ return [
         'original_recording' => 'ไฟล์บันทึกเสียงต้นฉบับ',
         'transcription_prefix' => 'ผลลัพธ์การถอดความ',
         'summary_prefix' => 'สรุปการบันทึกเสียง',
+        'preset_note' => 'บันทึกข้อความ',
+        'preset_transcript' => 'ถอดความ',
         'note_prefix' => 'บันทึกข้อความ',
         'note_suffix' => 'บันทึก', // สำหรับสร้างชื่อไฟล์บันทึกที่มีชื่อ: {title}-บันทึก.{ext}
     ],

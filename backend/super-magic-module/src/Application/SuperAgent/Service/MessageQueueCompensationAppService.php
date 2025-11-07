@@ -14,6 +14,7 @@ use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
@@ -253,6 +254,7 @@ class MessageQueueCompensationAppService extends AbstractAppService
             // Set topic ID in extra
             $seqExtra = new SeqExtra();
             $seqExtra->setTopicId($chatTopicId);
+            $seqExtra->setLanguage(CoContext::getLanguage());
             $seqEntity->setExtra($seqExtra);
 
             // Generate unique app message ID for deduplication

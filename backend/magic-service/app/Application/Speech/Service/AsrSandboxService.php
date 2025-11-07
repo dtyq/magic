@@ -32,6 +32,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * ASR 沙箱服务
  * 负责沙箱任务启动、合并、轮询和文件记录创建.
@@ -602,11 +604,14 @@ readonly class AsrSandboxService
             );
         }
 
-        // 需要重命名：使用智能标题构建目标路径
-        $noteFilename = basename($workspaceRelativePath);
+        // 需要重命名：使用智能标题和国际化的笔记后缀构建目标路径
+        $fileExtension = pathinfo($workspaceRelativePath, PATHINFO_EXTENSION);
+        $noteSuffix = trans('asr.file_names.note_suffix'); // 根据语言获取国际化的"笔记"/"Note"
+        $noteFilename = sprintf('%s-%s.%s', $intelligentTitle, $noteSuffix, $fileExtension);
+
         return new AsrNoteFileConfig(
             sourcePath: $workspaceRelativePath,
-            targetPath: rtrim($targetDirectory, '/') . '/' . $intelligentTitle . '-' . $noteFilename
+            targetPath: rtrim($targetDirectory, '/') . '/' . $noteFilename
         );
     }
 

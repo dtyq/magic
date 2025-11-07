@@ -15,6 +15,7 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
@@ -269,6 +270,7 @@ class UserMessageToAgentAppService extends AbstractAppService
         // Set topic ID in extra
         $seqExtra = new SeqExtra();
         $seqExtra->setTopicId($chatTopicId);
+        $seqExtra->setLanguage(CoContext::getLanguage());
         $seqEntity->setExtra($seqExtra);
 
         return $seqEntity;

@@ -126,6 +126,8 @@ return [
         'original_recording' => 'Tệp ghi âm gốc',
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
+        'preset_note' => 'ghi-chú',
+        'preset_transcript' => 'phiên-âm',
         'note_prefix' => 'Ghi chú ghi âm',
         'note_suffix' => 'Ghi chú', // Để tạo tên tệp ghi chú với tiêu đề: {title}-Ghi chú.{ext}
     ],

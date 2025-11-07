@@ -53,6 +53,7 @@ use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Constants\Order;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Odin\AgentFactory;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -62,7 +63,6 @@ use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
@@ -721,7 +721,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR);
         }
 
-        $language = di(TranslatorInterface::class)->getLocale();
+        $language = CoContext::getLanguage();
         // 审计需求：如果是编辑消息，写入消息版本表，并更新原消息的version_id
         $extra = $senderSeqDTO->getExtra();
         // 设置语言信息

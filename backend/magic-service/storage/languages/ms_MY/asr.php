@@ -126,6 +126,8 @@ return [
         'original_recording' => 'Fail Rakaman Asal',
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
+        'preset_note' => 'nota',
+        'preset_transcript' => 'transkripsi',
         'note_prefix' => 'Nota Rakaman',
         'note_suffix' => 'Nota', // Untuk menjana nama fail nota dengan tajuk: {title}-Nota.{ext}
     ],
