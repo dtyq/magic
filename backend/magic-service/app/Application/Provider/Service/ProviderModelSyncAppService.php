@@ -14,9 +14,6 @@ use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
-use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\AccessPointUtil;
 use App\Infrastructure\Util\MagicUriTool;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use Hyperf\Guzzle\ClientFactory;
@@ -79,12 +76,12 @@ class ProviderModelSyncAppService
                 return;
             }
 
-            $accessPoint = $config->getAccessPoint(); // proxy_url 存在 url 字段中
+            $url = $config->getUrl();
             $apiKey = $config->getApiKey();
-            if (! $accessPoint || ! $apiKey) {
-                $this->logger->warning('配置不完整，缺少proxy_url或api_key', [
+            if (! $url || ! $apiKey) {
+                $this->logger->warning('配置不完整，缺少url或api_key', [
                     'config_id' => $providerConfigEntity->getId(),
-                    'access_point' => ! empty($accessPoint),
+                    'has_url' => ! empty($url),
                     'has_api_key' => ! empty($apiKey),
                 ]);
                 return;
@@ -94,12 +91,12 @@ class ProviderModelSyncAppService
             $types = $this->getModelTypesByCategory($provider->getCategory());
 
             // 5. 从外部API拉取模型
-            $models = $this->fetchModelsFromApi($accessPoint, $apiKey, $types);
+            $models = $this->fetchModelsFromApi($url, $apiKey, $types);
 
             if (empty($models)) {
                 $this->logger->warning('未从外部API获取到模型', [
                     'config_id' => $providerConfigEntity->getId(),
-                    'proxy_url' => $accessPoint,
+                    'url' => $url,
                 ]);
                 return;
             }
@@ -137,16 +134,10 @@ class ProviderModelSyncAppService
     /**
      * 从外部API拉取模型.
      */
-    private function fetchModelsFromApi(string $accessPoint, string $apiKey, array $types): array
+    private function fetchModelsFromApi(string $url, string $apiKey, array $types): array
     {
         // 获取API地址
-        $apiUrl = $this->getAccessPointUrl($accessPoint) ?? null;
-        if (! $apiUrl) {
-            $this->logger->error('不支持的 access_point', [
-                'access_point' => $accessPoint,
-            ]);
-            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'not allow access_point: ' . $accessPoint);
-        }
+        $apiUrl = $this->buildModelsApiUrl($url);
 
         $allModels = [];
 
@@ -351,16 +342,10 @@ class ProviderModelSyncAppService
     }
 
     /**
-     * 获取链接.
+     * 构建模型API链接.
      */
-    private function getAccessPointUrl(string $accessPoint): ?string
+    private function buildModelsApiUrl(string $baseUrl): string
     {
-        $url = AccessPointUtil::getAccessPointUrl($accessPoint);
-
-        if (! $url) {
-            return null;
-        }
-
-        return $url . MagicUriTool::getModelsUri();
+        return rtrim($baseUrl, '/') . MagicUriTool::getModelsUri();
     }
 }

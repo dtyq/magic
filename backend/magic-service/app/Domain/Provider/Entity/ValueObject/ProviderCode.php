@@ -8,9 +8,6 @@ declare(strict_types=1);
 namespace App\Domain\Provider\Entity\ValueObject;
 
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
-use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\AccessPointUtil;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Model\AzureOpenAIModel;
 use Hyperf\Odin\Model\DoubaoModel;
@@ -72,19 +69,6 @@ enum ProviderCode: string
 
     private function getModelUrl(ProviderConfigItem $config): string
     {
-        if (! empty($config->getUrl())) {
-            return $config->getUrl();
-        }
-
-        // 官方服务商，采用接入点模式
-        if ($config->getAccessPoint()) {
-            $url = AccessPointUtil::getAccessPointUrl($config->getAccessPoint());
-            if (! $url) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'not allow access_point: ' . $config->getAccessPoint());
-            }
-            return $url;
-        }
-
-        return '';
+        return $config->getUrl() ?? '';
     }
 }

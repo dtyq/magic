@@ -7,18 +7,6 @@ declare(strict_types=1);
 use function Hyperf\Support\env;
 
 return [
-    // 接入点配置映射
-    /*'access_points' => [
-        'domestic_access_points' => 'domestic_access_points',              // 中国接入点
-        'international_access_point' => 'international_access_point',  // 国际接入点
-    ],*/
-
-    // 默认接入点
-    'default_access_point' => env('AI_ABILITY_DEFAULT_ACCESS_POINT', ''),
-
-    // 默认APIKEY
-    'default_api_key' => env('AI_ABILITY_DEFAULT_API_KEY', ''),
-
     // AI 能力列表配置
     'abilities' => [
         // OCR 识别
@@ -36,8 +24,8 @@ return [
             'sort_order' => 1,
             'status' => env('AI_ABILITY_OCR_STATUS', true),
             'config' => [
+                'url' => env('AI_ABILITY_OCR_URL', ''),
                 'provider_code' => env('AI_ABILITY_OCR_PROVIDER', 'Official'),
-                'access_point' => env('AI_ABILITY_OCR_ACCESS_POINT', null), // null 则使用默认接入点
                 'api_key' => env('AI_ABILITY_OCR_API_KEY', ''),
             ],
         ],
@@ -57,8 +45,8 @@ return [
             'sort_order' => 2,
             'status' => env('AI_ABILITY_WEB_SEARCH_STATUS', true),
             'config' => [
+                'url' => env('AI_ABILITY_WEB_SEARCH_URL', ''),
                 'provider_code' => env('AI_ABILITY_WEB_SEARCH_PROVIDER', 'Official'),
-                'access_point' => env('AI_ABILITY_WEB_SEARCH_ACCESS_POINT', null), // null 则使用默认接入点
                 'api_key' => env('AI_ABILITY_WEB_SEARCH_API_KEY', ''),
             ],
         ],
@@ -78,8 +66,8 @@ return [
             'sort_order' => 3,
             'status' => env('AI_ABILITY_REALTIME_SPEECH_STATUS', true),
             'config' => [
+                'url' => env('AI_ABILITY_REALTIME_SPEECH_URL', ''),
                 'provider_code' => env('AI_ABILITY_REALTIME_SPEECH_PROVIDER', 'Official'),
-                'access_point' => env('AI_ABILITY_REALTIME_SPEECH_ACCESS_POINT', null), // null 则使用默认接入点
                 'api_key' => env('AI_ABILITY_REALTIME_SPEECH_API_KEY', ''),
             ],
         ],
@@ -99,8 +87,8 @@ return [
             'sort_order' => 4,
             'status' => env('AI_ABILITY_AUDIO_FILE_STATUS', true),
             'config' => [
+                'url' => env('AI_ABILITY_AUDIO_FILE_URL', ''),
                 'provider_code' => env('AI_ABILITY_AUDIO_FILE_PROVIDER', 'Official'),
-                'access_point' => env('AI_ABILITY_AUDIO_FILE_ACCESS_POINT', null), // null 则使用默认接入点
                 'api_key' => env('AI_ABILITY_AUDIO_FILE_API_KEY', ''),
             ],
         ],

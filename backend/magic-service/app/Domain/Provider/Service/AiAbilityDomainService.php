@@ -12,7 +12,6 @@ use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\AccessPointUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Exception;
 use Hyperf\Contract\ConfigInterface;
@@ -134,46 +133,4 @@ class AiAbilityDomainService
 
         return $count;
     }
-
-    /*
-     * 应用默认配置.
-     */
-    /*private function applyDefaults(AiAbilityEntity $entity): void
-    {
-        $config = $entity->getConfig();
-        $configArray = $config->toArray();
-
-        // 如果没有设置接入点，使用默认接入点
-        if (! $config->hasAccessPoint()) {
-            $configArray['access_point'] = $this->getDefaultAccessPoint();
-        }
-
-        // 如果没有设置 API Key，使用默认 API Key
-        if (! $config->hasApiKey()) {
-            $configArray['api_key'] = $this->getDefaultApiKey();
-        }
-
-        if (! empty($configArray['access_point'])) {
-            $configArray['url'] = AccessPointUtil::getAccessPointUrl($configArray['access_point']);
-        }
-
-        // 重新设置配置
-        $entity->setConfig($configArray);
-    }*/
-
-    /*
-     * 获取默认接入点.
-     */
-    /*private function getDefaultAccessPoint(): string
-    {
-        return $this->config->get('ai_abilities.default_access_point', '');
-    }*/
-
-    /*
-     * 获取默认 API Key.
-     */
-    /*private function getDefaultApiKey(): string
-    {
-        return $this->config->get('ai_abilities.default_api_key', '');
-    }*/
 }

@@ -15,22 +15,18 @@ class AiAbilityConfig
     // 服务商code
     private ?string $providerCode = null;
 
-    // 接入点
-    private ?string $accessPoint = null;
-
     // apikey
     private ?string $apiKey = null;
 
     // model_id，对应service_provider_models.model_id
     private ?string $modelId = null;
 
-    // 如果有接入点，则会转换成真实url
+    // url
     private ?string $url = null;
 
     public function __construct(array $config = [])
     {
         $this->providerCode = $config['provider_code'] ?? null;
-        $this->accessPoint = $config['access_point'] ?? null;
         $this->apiKey = $config['api_key'] ?? null;
         $this->url = $config['url'] ?? null;
         $this->modelId = isset($config['model_id']) ? (string) $config['model_id'] : null;
@@ -39,11 +35,6 @@ class AiAbilityConfig
     public function getProviderCode(): ?string
     {
         return $this->providerCode;
-    }
-
-    public function getAccessPoint(): ?string
-    {
-        return $this->accessPoint;
     }
 
     public function getApiKey(): ?string
@@ -62,14 +53,6 @@ class AiAbilityConfig
     public function hasProviderCode(): bool
     {
         return $this->providerCode !== null && $this->providerCode !== '';
-    }
-
-    /**
-     * 判断是否有接入点.
-     */
-    public function hasAccessPoint(): bool
-    {
-        return $this->accessPoint !== null && $this->accessPoint !== '';
     }
 
     /**
@@ -105,7 +88,6 @@ class AiAbilityConfig
     {
         return [
             'provider_code' => $this->providerCode,
-            'access_point' => $this->accessPoint,
             'api_key' => $this->apiKey,
             'model_id' => $this->modelId,
             'url' => $this->url,
