@@ -163,7 +163,7 @@ return [
         // 新的前后缀国际化（有笔记）
         'summary_prefix_with_note' => '请帮我把 ',
         'summary_middle_with_note' => ' 录音内容和 ',
-        'summary_suffix_with_note' => ' 我的笔记内容整理成一份纪要文档，并实现一份详细的 HTML 分析报告.',
+        'summary_suffix_with_note' => ' 我的笔记内容整理成一份纪要文档，并实现一份详细的 HTML 分析报告。',
     ],
 
     // 异常信息国际化
