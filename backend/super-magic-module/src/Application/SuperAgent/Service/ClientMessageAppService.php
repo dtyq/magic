@@ -12,7 +12,6 @@ use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
-use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\Item\SuperAgentTool;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
@@ -257,7 +256,6 @@ class ClientMessageAppService extends AbstractAppService
 
         $extra = new SeqExtra();
         $extra->setTopicId($chatTopicId);
-        $extra->setLanguage(CoContext::getLanguage());
         $seqDTO->setExtra($extra);
         $seqDTO->setConversationId($chatConversationId);
 

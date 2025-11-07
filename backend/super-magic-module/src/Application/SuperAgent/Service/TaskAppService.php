@@ -1085,7 +1085,6 @@ class TaskAppService extends AbstractAppService
 
         $extra = new SeqExtra();
         $extra->setTopicId($chatTopicId);
-        $extra->setLanguage(CoContext::getLanguage());
         $seqDTO->setExtra($extra);
         $seqDTO->setConversationId($chatConversationId);
 
