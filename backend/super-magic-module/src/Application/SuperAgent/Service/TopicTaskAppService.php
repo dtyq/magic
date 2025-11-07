@@ -620,27 +620,46 @@ class TopicTaskAppService extends AbstractAppService
     private function processToolContentImage(TaskMessageEntity $taskMessageEntity): void
     {
         $tool = $taskMessageEntity->getTool();
+
         // 获取文件名称
         $fileName = $tool['detail']['data']['file_name'] ?? '';
         if (empty($fileName)) {
             return;
         }
+
         $fileKey = '';
         $attachments = $tool['attachments'] ?? [];
         foreach ($attachments as $attachment) {
             if ($attachment['filename'] === $fileName) {
                 $fileKey = $attachment['file_key'];
+                break; // Exit loop once found
             }
         }
+
         if (empty($fileKey)) {
             return;
         }
+
         $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
         if ($taskFileEntity === null) {
             return;
         }
+
+        // Extract source_file_id using the helper method
+        $sourceFileId = $this->extractSourceFileIdFromAttachments(
+            $attachments,
+            $fileName,
+            false // Image files typically don't have .diff suffix
+        );
+
         $tool['detail']['data']['file_id'] = (string) $taskFileEntity->getFileId();
         $tool['detail']['data']['file_extension'] = pathinfo($fileName, PATHINFO_EXTENSION);
+
+        // Add source_file_id if found
+        if (! empty($sourceFileId)) {
+            $tool['detail']['data']['source_file_id'] = $sourceFileId;
+        }
+
         $taskMessageEntity->setTool($tool);
     }
 
@@ -678,22 +697,12 @@ class TopicTaskAppService extends AbstractAppService
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
 
-            // Extract source_file_id from attachments if matching filename exists
-            // Remove .diff suffix for matching if present
-            $matchFileName = $fileName;
-            if (str_ends_with($fileName, '.diff')) {
-                $matchFileName = substr($fileName, 0, -5); // Remove '.diff' suffix
-            }
-
-            $sourceFileId = '';
-            if (! empty($tool['attachments'])) {
-                foreach ($tool['attachments'] as $attachment) {
-                    if (isset($attachment['filename']) && $attachment['filename'] === $matchFileName) {
-                        $sourceFileId = $attachment['file_id'] ?? '';
-                        break;
-                    }
-                }
-            }
+            // Extract source_file_id using the helper method
+            $sourceFileId = $this->extractSourceFileIdFromAttachments(
+                $tool['attachments'] ?? [],
+                $fileName,
+                true // Remove .diff suffix for matching
+            );
 
             // 调用FileProcessAppService保存内容
             $fileId = $this->fileProcessAppService->saveToolMessageContent(
@@ -760,5 +769,38 @@ class TopicTaskAppService extends AbstractAppService
             $messageDTO,
             $messageDTO->getMetadata()->getLanguage()
         ));
+    }
+
+    /**
+     * Extract source_file_id from attachments by matching filename.
+     *
+     * @param array $attachments Tool attachments array
+     * @param string $fileName File name to match
+     * @param bool $removeDiffSuffix Whether to remove .diff suffix for matching (default: true)
+     * @return string Returns source_file_id if found, empty string otherwise
+     */
+    private function extractSourceFileIdFromAttachments(
+        array $attachments,
+        string $fileName,
+        bool $removeDiffSuffix = true
+    ): string {
+        if (empty($attachments) || empty($fileName)) {
+            return '';
+        }
+
+        // Prepare match filename
+        $matchFileName = $fileName;
+        if ($removeDiffSuffix && str_ends_with($fileName, '.diff')) {
+            $matchFileName = substr($fileName, 0, -5); // Remove '.diff' suffix
+        }
+
+        // Find matching attachment
+        foreach ($attachments as $attachment) {
+            if (isset($attachment['filename']) && $attachment['filename'] === $matchFileName) {
+                return $attachment['file_id'] ?? '';
+            }
+        }
+
+        return '';
     }
 }
