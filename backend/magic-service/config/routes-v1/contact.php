@@ -20,6 +20,8 @@ Router::addGroup('/api/v1/contact/accounts', function () {
     Router::get('/me/organization-code', [MagicUserOrganizationApi::class, 'getCurrentOrganizationCode']);
     // 修改我的当前组织
     Router::put('/me/organization-code', [MagicUserOrganizationApi::class, 'setCurrentOrganizationCode']);
+    // 获取账号下可切换的组织列表
+    Router::get('/me/organizations', [MagicUserOrganizationApi::class, 'listOrganizations']);
 });
 
 // 通讯录（需要组织上下文）

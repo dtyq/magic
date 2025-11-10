@@ -31,6 +31,10 @@ class OrganizationResponseDTO extends AbstractDTO
 
     public string $createdAt = '';
 
+    public ?string $creatorId = null;
+
+    public ?OrganizationCreatorResponseDTO $creator = null;
+
     public function setId(?int $id): void
     {
         $this->id = $id;
@@ -79,5 +83,15 @@ class OrganizationResponseDTO extends AbstractDTO
     public function setCreatedAt(string $createdAt): void
     {
         $this->createdAt = $createdAt;
+    }
+
+    public function setCreatorId(?string $creatorId): void
+    {
+        $this->creatorId = $creatorId;
+    }
+
+    public function setCreator(?OrganizationCreatorResponseDTO $creator): void
+    {
+        $this->creator = $creator;
     }
 }
