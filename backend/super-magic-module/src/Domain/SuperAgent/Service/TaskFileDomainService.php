@@ -401,8 +401,8 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
-
+            // $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
+            $newFileEntity = $this->taskFileRepository->insertOrIgnore($fileEntity);
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
             if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
@@ -510,7 +510,8 @@ class TaskFileDomainService
             $taskFileEntity->setUpdatedAt($now);
 
             // Save to database
-            $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
+            // $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
+            $taskFileEntity = $this->insertOrIgnore($taskFileEntity);
 
             Db::commit();
             return $taskFileEntity;
@@ -1187,7 +1188,8 @@ class TaskFileDomainService
         $rootDirEntity->setUpdatedAt($now);
         $rootDirEntity->setDeletedAt(null);
 
-        $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
+        // $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
+        $rootDirEntity = $this->insertOrIgnore($rootDirEntity);
 
         return $rootDirEntity->getFileId();
     }
@@ -1846,7 +1848,8 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        $this->insertOrUpdate($dirEntity);
+        // $this->insertOrUpdate($dirEntity);
+        $this->insertOrIgnore($dirEntity);
 
         return $dirEntity->getFileId();
     }
