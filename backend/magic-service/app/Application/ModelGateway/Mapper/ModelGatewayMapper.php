@@ -182,7 +182,7 @@ class ModelGatewayMapper extends ModelMapper
 
         $odinModels = [];
         foreach ($officeModels as $model) {
-            $key = $model->getName();
+            $key = $model->getModelId();
 
             // Create virtual image generation model
             $imageModel = new ImageGenerationModel(
@@ -414,7 +414,7 @@ class ModelGatewayMapper extends ModelMapper
 
         // 根据模型类型返回不同的包装对象
         if ($providerModelEntity->getModelType()->isVLM()) {
-            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId());
+            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode());
         }
 
         // 对于LLM/Embedding模型，保持原有逻辑
@@ -430,6 +430,10 @@ class ModelGatewayMapper extends ModelMapper
                     'embedding' => $embedding,
                     'multi_modal' => $multiModal,
                     'vector_size' => $vectorSize,
+                    'max_tokens' => $providerModelEntity->getConfig()?->getMaxTokens(),
+                    'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
+                    'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
+                    'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
                 ],
             ]),
             attributes: new OdinModelAttributes(
@@ -443,6 +447,7 @@ class ModelGatewayMapper extends ModelMapper
                 providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
                 providerModelId: (string) $providerModelEntity->getId(),
                 providerId: (string) $providerConfigEntity->getId(),
+                modelType: $providerModelEntity->getModelType()->value,
             )
         );
     }

@@ -32,6 +32,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $modifier
  * @property Carbon $updated_at
  * @property Carbon $deleted_at
+ * @property bool $enabled
  */
 class AccessTokenModel extends Model
 {
@@ -66,6 +67,7 @@ class AccessTokenModel extends Model
         'modifier' => 'string',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'enabled' => 'boolean',
     ];
 
     public function setModelsAttribute(mixed $models): void

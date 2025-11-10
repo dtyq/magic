@@ -51,6 +51,7 @@ class AfterChatCompletionSubscriber implements ListenerInterface
 
         $modelVersion = $completionRequest->getModel();
         $businessParams = $completionRequest->getBusinessParams();
+        $businessParams['response_duration'] = $event->getDuration();
         $modelId = empty($businessParams['model_id']) ? $modelVersion : $businessParams['model_id'];
 
         $chatUsageEvent = new ModelUsageEvent(

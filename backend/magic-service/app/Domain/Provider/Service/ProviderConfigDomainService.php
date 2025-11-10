@@ -242,6 +242,23 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
     }
 
     /**
+     * 获取组织下的所有服务商配置.
+     * @return ProviderConfigEntity[]
+     */
+    public function getAllByOrganization(ProviderDataIsolation $dataIsolation): array
+    {
+        return $this->serviceProviderConfigRepository->getAllByOrganization($dataIsolation);
+    }
+
+    /**
+     * 根据ID获取服务商配置（不过滤组织）.
+     */
+    public function getByIdWithoutOrganizationFilter(int $id): ?ProviderConfigEntity
+    {
+        return $this->serviceProviderConfigRepository->getByIdWithoutOrganizationFilter($id);
+    }
+
+    /**
      * 创建虚拟的服务商配置实体（支持所有服务商类型）.
      */
     private function createVirtualProviderConfig(ProviderDataIsolation $dataIsolation, ProviderEntity $providerEntity, string $templateId): ProviderConfigEntity
@@ -337,10 +354,10 @@ class ProviderConfigDomainService extends AbstractProviderDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        // 不可修改官方服务商
-        if ($provider->getProviderType() === ProviderType::Official) {
+        // 支持修改官方服务商
+        /*if ($provider->getProviderType() === ProviderType::Official) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError);
-        }
+        }*/
 
         // 使用统一的配置更新逻辑
         return $this->updateProviderConfigData($dataIsolation, $existingConfigEntity, $providerConfigEntity);
