@@ -147,11 +147,11 @@ return [
         'summary_content' => ' Ringkaskan kandungan',
         'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
         // Awalan/akhiran i18n baru (tanpa nota)
-        'summary_prefix' => 'Sila bantu saya menyusun ',
-        'summary_suffix' => ' kandungan rakaman ke dalam dokumen minit, dan cipta laporan analisis HTML yang terperinci.',
+        'summary_prefix' => 'Sila bantu saya mengubah ',
+        'summary_suffix' => ' kandungan rakaman menjadi artifak super',
         // Awalan/akhiran i18n baru (dengan nota)
-        'summary_prefix_with_note' => 'Sila bantu saya menyusun ',
+        'summary_prefix_with_note' => 'Sila bantu saya mengubah ',
         'summary_middle_with_note' => ' kandungan rakaman dan ',
-        'summary_suffix_with_note' => ' kandungan nota saya ke dalam dokumen minit, dan cipta laporan analisis HTML yang terperinci.',
+        'summary_suffix_with_note' => ' kandungan nota saya menjadi artifak super',
     ],
 ];

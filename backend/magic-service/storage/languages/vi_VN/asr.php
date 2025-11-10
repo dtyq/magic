@@ -147,11 +147,11 @@ return [
         'summary_content' => ' Tóm tắt nội dung',
         'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
         // Tiền tố/hậu tố i18n mới (không có ghi chú)
-        'summary_prefix' => 'Vui lòng giúp tôi tổ chức ',
-        'summary_suffix' => ' nội dung ghi âm thành một tài liệu biên bản, và tạo ra một báo cáo phân tích HTML chi tiết.',
+        'summary_prefix' => 'Vui lòng giúp tôi chuyển đổi ',
+        'summary_suffix' => ' nội dung ghi âm thành một sản phẩm siêu việt',
         // Tiền tố/hậu tố i18n mới (có ghi chú)
-        'summary_prefix_with_note' => 'Vui lòng giúp tôi tổ chức ',
+        'summary_prefix_with_note' => 'Vui lòng giúp tôi chuyển đổi ',
         'summary_middle_with_note' => ' nội dung ghi âm và ',
-        'summary_suffix_with_note' => ' nội dung ghi chú của tôi thành một tài liệu biên bản, và tạo ra một báo cáo phân tích HTML chi tiết.',
+        'summary_suffix_with_note' => ' nội dung ghi chú của tôi thành một sản phẩm siêu việt',
     ],
 ];
