@@ -1746,8 +1746,8 @@ readonly class AsrFileAppService
      */
     private function ensureAsrRecordingsDirectoryExists(string $organizationCode, string $projectId, string $userId, string $directoryPath): int
     {
-        // 直接使用传入的目录路径作为key
-        $asrDirKey = $directoryPath;
+        // Ensure directory path has trailing slash to comply with file_key standard
+        $asrDirKey = rtrim($directoryPath, '/') . '/';
         $asrDirName = basename($directoryPath);
 
         // 先查找是否已存在该目录

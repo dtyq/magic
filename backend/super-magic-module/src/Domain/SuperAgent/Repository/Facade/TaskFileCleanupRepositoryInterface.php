@@ -32,25 +32,28 @@ interface TaskFileCleanupRepositoryInterface
     public function countFileDuplicates(): int;
 
     /**
-     * Get fully deleted duplicate file_keys with pagination.
+     * Get fully deleted duplicate file_keys (fixed OFFSET=0 pagination strategy).
+     * @param int $limit Maximum number of file_keys to return
      * @param null|int $projectId Filter by project ID
      * @param null|string $fileKey Filter by specific file_key
      */
-    public function getFullyDeletedDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
+    public function getFullyDeletedDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
-     * Get duplicate directory file_keys with pagination.
+     * Get duplicate directory file_keys (fixed OFFSET=0 pagination strategy).
+     * @param int $limit Maximum number of file_keys to return
      * @param null|int $projectId Filter by project ID
      * @param null|string $fileKey Filter by specific file_key
      */
-    public function getDirectoryDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
+    public function getDirectoryDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
-     * Get duplicate file file_keys with pagination.
+     * Get duplicate file file_keys (fixed OFFSET=0 pagination strategy).
+     * @param int $limit Maximum number of file_keys to return
      * @param null|int $projectId Filter by project ID
      * @param null|string $fileKey Filter by specific file_key
      */
-    public function getFileDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array;
+    public function getFileDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
      * Get all records by file_key, ordered by priority.

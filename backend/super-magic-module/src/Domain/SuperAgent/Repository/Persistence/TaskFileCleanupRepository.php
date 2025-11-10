@@ -145,17 +145,28 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
-     * Get fully deleted duplicate file_keys with pagination.
+     * Get fully deleted duplicate file_keys.
+     *
+     * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
+     * Always queries from OFFSET 0 because processed records are deleted.
+     * After each batch is processed and deleted, the next query naturally returns the new first batch.
+     * This avoids the "pagination offset drift" problem.
+     *
+     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
-    public function getFullyDeletedDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array
+    public function getFullyDeletedDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
-        $whereConditions = ['file_key IS NOT NULL', "file_key != ''"];
+        $whereConditions = [];
         $params = [];
 
+        // OPTIMIZATION: Put indexed columns (project_id) first for better index utilization
         if ($projectId !== null) {
             $whereConditions[] = 'project_id = ?';
             $params[] = $projectId;
         }
+
+        $whereConditions[] = 'file_key IS NOT NULL';
+        $whereConditions[] = "file_key != ''";
 
         if ($fileKey !== null) {
             $whereConditions[] = 'file_key = ?';
@@ -165,7 +176,6 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
         $whereClause = implode(' AND ', $whereConditions);
 
         $params[] = $limit;
-        $params[] = $offset;
 
         $results = Db::select(
             "SELECT file_key
@@ -174,7 +184,8 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
             GROUP BY file_key
             HAVING COUNT(*) > 1
                AND COUNT(*) = SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
-            LIMIT ? OFFSET ?",
+            ORDER BY file_key ASC
+            LIMIT ?",
             $params
         );
 
@@ -182,17 +193,29 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
-     * Get duplicate directory file_keys with pagination.
+     * Get duplicate directory file_keys.
+     *
+     * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
+     * Always queries from OFFSET 0 because processed records are deleted.
+     * After each batch is processed and deleted, the next query naturally returns the new first batch.
+     * This avoids the "pagination offset drift" problem.
+     *
+     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
-    public function getDirectoryDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array
+    public function getDirectoryDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
-        $whereConditions = ['file_key IS NOT NULL', "file_key != ''", 'is_directory = 1'];
+        $whereConditions = [];
         $params = [];
 
+        // OPTIMIZATION: Put indexed columns (project_id) first for better index utilization
         if ($projectId !== null) {
             $whereConditions[] = 'project_id = ?';
             $params[] = $projectId;
         }
+
+        $whereConditions[] = 'file_key IS NOT NULL';
+        $whereConditions[] = "file_key != ''";
+        $whereConditions[] = 'is_directory = 1';
 
         if ($fileKey !== null) {
             $whereConditions[] = 'file_key = ?';
@@ -202,7 +225,6 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
         $whereClause = implode(' AND ', $whereConditions);
 
         $params[] = $limit;
-        $params[] = $offset;
 
         $results = Db::select(
             "SELECT file_key
@@ -211,7 +233,8 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
             GROUP BY file_key
             HAVING COUNT(*) > 1
                AND COUNT(*) > SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
-            LIMIT ? OFFSET ?",
+            ORDER BY file_key ASC
+            LIMIT ?",
             $params
         );
 
@@ -219,17 +242,29 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
-     * Get duplicate file file_keys with pagination.
+     * Get duplicate file file_keys.
+     *
+     * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
+     * Always queries from OFFSET 0 because processed records are deleted.
+     * After each batch is processed and deleted, the next query naturally returns the new first batch.
+     * This avoids the "pagination offset drift" problem.
+     *
+     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
-    public function getFileDuplicateKeys(int $limit, int $offset, ?int $projectId = null, ?string $fileKey = null): array
+    public function getFileDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
-        $whereConditions = ['file_key IS NOT NULL', "file_key != ''", 'is_directory = 0'];
+        $whereConditions = [];
         $params = [];
 
+        // OPTIMIZATION: Put indexed columns (project_id) first for better index utilization
         if ($projectId !== null) {
             $whereConditions[] = 'project_id = ?';
             $params[] = $projectId;
         }
+
+        $whereConditions[] = 'file_key IS NOT NULL';
+        $whereConditions[] = "file_key != ''";
+        $whereConditions[] = 'is_directory = 0';
 
         if ($fileKey !== null) {
             $whereConditions[] = 'file_key = ?';
@@ -239,7 +274,6 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
         $whereClause = implode(' AND ', $whereConditions);
 
         $params[] = $limit;
-        $params[] = $offset;
 
         $results = Db::select(
             "SELECT file_key
@@ -248,7 +282,8 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
             GROUP BY file_key
             HAVING COUNT(*) > 1
                AND COUNT(*) > SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
-            LIMIT ? OFFSET ?",
+            ORDER BY file_key ASC
+            LIMIT ?",
             $params
         );
 

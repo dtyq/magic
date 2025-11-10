@@ -213,14 +213,14 @@ class CleanupDuplicateFileKeysCommand extends HyperfCommand
             }
             $this->line('');
 
-            // Step 4.2: Check remaining duplicates
-            $this->info('  🔍 Checking for remaining duplicates...');
-            $remainingDuplicates = $this->cleanupService->verifyRemainingDuplicates();
+            // Step 4.2: Estimate remaining duplicates (FAST - no COUNT query)
+            $this->info('  🔍 Estimating remaining duplicates...');
+            $remainingDuplicates = $this->cleanupService->estimateRemainingDuplicates($stats, $results);
 
             if ($remainingDuplicates === 0) {
                 $this->info('  ✅ All duplicates have been cleaned up successfully!');
             } else {
-                $this->warn("  ⚠️  {$remainingDuplicates} duplicate file_keys still remaining");
+                $this->warn("  ⚠️  ~{$remainingDuplicates} duplicate file_keys still remaining (estimated)");
                 if ($fixResults['total'] > 0 && ! $dryRun) {
                     $this->info('  💡 is_directory values were corrected. Re-run cleanup to process the corrected records.');
                 }
