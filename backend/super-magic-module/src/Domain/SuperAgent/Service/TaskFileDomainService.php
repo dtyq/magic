@@ -1131,11 +1131,32 @@ class TaskFileDomainService
             return true;
         }
 
+        // todo 等所有文件迁移完成后，再删除备份文件
+        if ($existingFile->getIsDirectory()) {
+            // 去除文件key的末尾的/
+            $fileKey = rtrim($fileKey, '/');
+            $backupFile = $this->taskFileRepository->getByFileKey($fileKey);
+            // 如果备份文件存在，则删除备份文件
+            if ($backupFile !== null) {
+                try {
+                    $this->taskFileRepository->deleteById($backupFile->getFileId());
+                } catch (Throwable $e) {
+                    $this->logger->error('Delete backup file failed', [
+                        'file_key' => $fileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
         try {
             $this->taskFileRepository->deleteById($existingFile->getFileId());
             return true;
         } catch (Throwable $e) {
-            // Log error if needed
+            $this->logger->error('Delete file failed', [
+                'file_key' => $fileKey,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }
