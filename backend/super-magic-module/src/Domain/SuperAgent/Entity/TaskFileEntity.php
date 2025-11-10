@@ -61,8 +61,6 @@ class TaskFileEntity extends AbstractEntity
 
     protected ?int $latestModifiedTaskId = null;
 
-    protected int $latestVersion = 0;
-
     public function getFileId(): int
     {
         return $this->fileId;
@@ -314,16 +312,6 @@ class TaskFileEntity extends AbstractEntity
         $this->latestModifiedTaskId = $latestModifiedTaskId;
     }
 
-    public function getLatestVersion(): int
-    {
-        return $this->latestVersion;
-    }
-
-    public function setLatestVersion(int $latestVersion): void
-    {
-        $this->latestVersion = $latestVersion;
-    }
-
     public function toArray(): array
     {
         return [
@@ -351,7 +339,6 @@ class TaskFileEntity extends AbstractEntity
             'deleted_at' => $this->deletedAt,
             'latest_modified_topic_id' => $this->latestModifiedTopicId,
             'latest_modified_task_id' => $this->latestModifiedTaskId,
-            'latest_version' => $this->latestVersion,
         ];
     }
 }

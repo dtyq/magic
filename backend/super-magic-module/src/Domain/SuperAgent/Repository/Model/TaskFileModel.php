@@ -45,7 +45,6 @@ class TaskFileModel extends AbstractModel
         'parent_id', // 父级ID
         'metadata', // 文件元数据，存储 JSON
         'source', // 来源字段：1-首页，2-项目目录，3-agent
-        'latest_version', // 最新版本号
         'created_at',
         'updated_at',
         'deleted_at',
