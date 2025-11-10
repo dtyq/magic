@@ -8,6 +8,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileKeyCleanupApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\MessageApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectMemberApi;
@@ -229,6 +230,16 @@ Router::addGroup(
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
             // 升级沙箱镜像
             Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
+        });
+
+        // 文件键清理管理
+        Router::addGroup('/file-keys/cleanup', static function () {
+            // 获取清理统计信息
+            Router::get('/statistics', [FileKeyCleanupApi::class, 'getStatistics']);
+            // 执行清理
+            Router::post('', [FileKeyCleanupApi::class, 'cleanup']);
+            // 预览清理（dry-run模式）
+            Router::post('/preview', [FileKeyCleanupApi::class, 'preview']);
         });
     },
     ['middleware' => [RequestContextMiddlewareV2::class]]
