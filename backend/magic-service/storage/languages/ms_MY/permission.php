@@ -12,6 +12,7 @@ return [
         'safe_sub_admin' => 'Sub pentadbir',
         'ai_model' => 'Model besar',
         'ai_image' => 'Lukisan pintar',
+        'ai_ability' => 'Pengurusan keupayaan',
         'ai_mode' => 'Mod',
         'console' => 'Konsol',
         'api' => 'Antara muka',

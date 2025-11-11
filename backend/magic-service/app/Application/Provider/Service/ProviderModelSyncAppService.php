@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Service;
 
+use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
@@ -15,7 +16,10 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\MagicUriTool;
+use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
 use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -35,6 +39,7 @@ class ProviderModelSyncAppService
         private readonly ProviderConfigDomainService $providerConfigDomainService,
         private readonly ProviderModelDomainService $providerModelDomainService,
         private readonly ClientFactory $clientFactory,
+        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('ProviderModelSync');
@@ -314,14 +319,28 @@ class ProviderModelSyncAppService
         array $modelData,
         ProviderConfigEntity $providerConfigEntity,
     ): SaveProviderModelDTO {
-        $saveDTO = new SaveProviderModelDTO();
+        // 如果是一个链接，那么需要对 url 进行限制
+        $iconUrl = $modelData['info']['attributes']['icon'] ?? '';
+        try {
+            $iconUrl = str_replace(' ', '%20', $iconUrl);
+            if (EasyFileTools::isUrl($iconUrl)) {
+                $iconUrl = SSRFUtil::getSafeUrl($iconUrl, replaceIp: false);
+                $uploadFile = new UploadFile($iconUrl);
+                $this->fileDomainService->uploadByCredential('TGosRaFhvb', $uploadFile);
+                $iconUrl = $uploadFile->getKey();
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('上传文件失败:'.$e->getMessage(), ['icon_url' => $iconUrl]);
+        }
 
+
+        $saveDTO = new SaveProviderModelDTO();
+        $saveDTO->setIcon($iconUrl);
         $saveDTO->setServiceProviderConfigId($providerConfigEntity->getId());
         $saveDTO->setModelId($modelData['id']);
         $saveDTO->setModelVersion($modelData['id']);
         $saveDTO->setName($modelData['id']);
         $saveDTO->setDescription($modelData['info']['attributes']['description'] ?? '');
-        $saveDTO->setIcon($modelData['info']['attributes']['icon'] ?? '');
         $saveDTO->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $saveDTO->setModelType($modelData['info']['attributes']['model_type']);
         $saveDTO->setConfig([
