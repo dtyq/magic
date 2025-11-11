@@ -64,18 +64,10 @@ class MessageQueueNotificationSubscriber implements ListenerInterface
         ]);
 
         try {
-            // Only handle MessageQueueConsumedEvent with success status
-            if ($event instanceof MessageQueueConsumedEvent && $event->isSuccess()) {
-                $this->pushMessageQueueNotification(
-                    $event->getTopicEntity(),
-                    $event->getMessageQueueEntity()
-                );
-            } else {
-                // Log other events for future extension
-                $this->logger->debug('Message queue event received (no action needed)', [
-                    'event_class' => get_class($event),
-                ]);
-            }
+            $this->pushMessageQueueNotification(
+                $event->getTopicEntity(),
+                $event->getMessageQueueEntity()
+            );
         } catch (Throwable $e) {
             $this->logger->error('Failed to process message queue event', [
                 'event_class' => get_class($event),
