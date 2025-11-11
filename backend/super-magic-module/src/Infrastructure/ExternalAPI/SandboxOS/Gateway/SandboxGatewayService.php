@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway;
 
+use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
@@ -21,8 +23,7 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ServerException;
 use Hyperf\Logger\LoggerFactory;
 use Throwable;
-use App\Infrastructure\Util\Context\CoContext;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
+
 use function Hyperf\Support\retry;
 
 /**
@@ -724,7 +725,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $headers['magic-organization-code'] = $this->organizationCode;
         }
 
-        #判断header中是否包含request_id，如果没有，从上下文中获取
+        # 判断header中是否包含request_id，如果没有，从上下文中获取
         if (empty($headers['request-id'])) {
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
             $headers['request-id'] = $requestId;
