@@ -32,6 +32,11 @@ enum TaskFileSource: int
     case COPY = 4;
 
     /**
+     * 移动.
+     */
+    case MOVE = 5;
+
+    /**
      * 获取来源名称.
      */
     public function getName(): string
@@ -42,6 +47,7 @@ enum TaskFileSource: int
             self::PROJECT_DIRECTORY => '项目目录',
             self::AGENT => 'Agent',
             self::COPY => '复制',
+            self::MOVE => '移动',
         };
     }
 
@@ -59,6 +65,7 @@ enum TaskFileSource: int
             2 => self::PROJECT_DIRECTORY,
             3 => self::AGENT,
             4 => self::COPY,
+            5 => self::MOVE,
             default => self::DEFAULT,
         };
     }

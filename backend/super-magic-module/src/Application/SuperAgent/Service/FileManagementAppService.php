@@ -710,31 +710,73 @@ class FileManagementAppService extends AbstractAppService
         }
     }
 
-    public function moveFile(RequestContext $requestContext, int $fileId, int $targetParentId, ?int $preFileId = null): array
-    {
+    /**
+     * Move file to target directory (supports both same-project and cross-project move).
+     *
+     * @param RequestContext $requestContext Request context
+     * @param int $fileId File ID to move
+     * @param int $targetParentId Target parent directory ID
+     * @param null|int $preFileId Previous file ID for positioning
+     * @param null|int $targetProjectId Target project ID (null means same project)
+     * @return array Move result
+     */
+    public function moveFile(
+        RequestContext $requestContext,
+        int $fileId,
+        int $targetParentId,
+        ?int $preFileId = null,
+        ?int $targetProjectId = null
+    ): array {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
+            // 1. Get source file entity
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
-            $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
-            // 2. Handle target parent directory
+            // 2. Get source project and verify permission
+            $sourceProject = $this->getAccessibleProjectWithEditor(
+                $fileEntity->getProjectId(),
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 3. Get target project (if not provided, use source project)
+            $targetProject = $targetProjectId
+                ? $this->getAccessibleProjectWithEditor(
+                    $targetProjectId,
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+                : $sourceProject;
+
+            // 4. Handle target parent directory
             if (empty($targetParentId)) {
                 $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                    projectId: $projectEntity->getId(),
-                    workDir: $projectEntity->getWorkDir(),
+                    projectId: $targetProject->getId(),
+                    workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
                     organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                    projectOrganizationCode: $projectEntity->getUserOrganizationCode()
+                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
                 );
             }
 
-            // Directory move: use asynchronous processing
+            // 5. Directory move: use asynchronous processing
             if ($fileEntity->getIsDirectory()) {
-                $batchKey = $this->batchOperationStatusManager->generateBatchKey(FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), (string) $fileEntity->getFileId());
+                $batchKey = $this->batchOperationStatusManager->generateBatchKey(
+                    FileBatchOperationStatusManager::OPERATION_MOVE,
+                    $dataIsolation->getCurrentUserId(),
+                    (string) $fileEntity->getFileId()
+                );
+
                 // Initialize task status
-                $this->batchOperationStatusManager->initializeTask($batchKey, FileBatchOperationStatusManager::OPERATION_MOVE, $dataIsolation->getCurrentUserId(), 1);
+                $this->batchOperationStatusManager->initializeTask(
+                    $batchKey,
+                    FileBatchOperationStatusManager::OPERATION_MOVE,
+                    $dataIsolation->getCurrentUserId(),
+                    1
+                );
+
                 // Publish move event
                 $fileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
                 $event = FileBatchMoveEvent::fromDTO(
@@ -742,65 +784,79 @@ class FileManagementAppService extends AbstractAppService
                     $dataIsolation->getCurrentUserId(),
                     $dataIsolation->getCurrentOrganizationCode(),
                     $fileIds,
-                    $projectEntity->getId(),
+                    $targetProject->getId(),
+                    $sourceProject->getId(),
                     $preFileId,
                     $targetParentId
                 );
-                $this->logger->info(sprintf('Move file request data, batchKey: %s', $batchKey), [
+
+                $this->logger->info(sprintf('Move directory request data, batchKey: %s', $batchKey), [
                     'file_ids' => $fileIds,
+                    'source_project_id' => $sourceProject->getId(),
+                    'target_project_id' => $targetProject->getId(),
                     'target_parent_id' => $targetParentId,
                     'pre_file_id' => $preFileId,
                 ]);
+
                 $publisher = new FileBatchMovePublisher($event);
                 $this->producer->produce($publisher);
+
                 // Return asynchronous response
                 return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
             }
 
-            // single file sync move
-            // 3. Handle cross-directory move file path update (check BEFORE modifying parent_id)
+            // 6. Single file sync move
+            // Handle file path update if needed
             $originalParentId = $fileEntity->getParentId();
-            if ($originalParentId !== $targetParentId) {
+            $needUpdatePath = ($sourceProject->getId() !== $targetProject->getId())
+                           || ($originalParentId !== $targetParentId);
+
+            if ($needUpdatePath) {
                 $this->taskFileDomainService->moveProjectFile(
                     $dataIsolation,
                     $fileEntity,
-                    $projectEntity,
+                    $sourceProject,
+                    $targetProject,
                     $targetParentId
                 );
             }
 
-            // 4. Use enhanced sorting method to handle move (includes locking and re balancing)
+            // 7. Handle file sorting in target project
             $this->taskFileDomainService->handleFileSortOnMove(
                 $fileEntity,
+                $targetProject,
                 $targetParentId,
                 $preFileId
             );
 
-            // 5. re get file
+            // 8. Re-get file entity with updated data
             $newFileEntity = $this->taskFileDomainService->getById($fileId);
 
-            // 发布文件已移动事件
+            // 9. Dispatch file moved event
             $fileMovedEvent = new FileMovedEvent($newFileEntity, $userAuthorization);
             $this->eventDispatcher->dispatch($fileMovedEvent);
 
             $result = TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
             return FileBatchOperationResponseDTO::createSyncSuccess($result)->toArray();
         } catch (BusinessException $e) {
-            $this->logger->warning(sprintf(
-                'Business logic error in move file: %s, File ID: %s, Target Parent ID: %s, Error Code: %d',
-                $e->getMessage(),
-                $fileId,
-                $targetParentId,
-                $e->getCode()
-            ));
+            $this->logger->warning('Business logic error in move file', [
+                'file_id' => $fileId,
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $targetParentId,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
             throw $e;
         } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                'System error in move project file: %s, File ID: %s, Target Parent ID: %s',
-                $e->getMessage(),
-                $fileId,
-                $targetParentId
-            ));
+            $this->logger->error('System error in move file', [
+                'file_id' => $fileId,
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $targetParentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
         }
     }
@@ -973,6 +1029,7 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $requestDTO->getFileIds(),
                 $projectEntity->getId(),
+                $projectEntity->getId(),  // For same-project batch move, source = target
                 $preFileId,
                 $targetParentId
             );
@@ -1181,6 +1238,7 @@ class FileManagementAppService extends AbstractAppService
 
                 // 7. 创建版本快照（在替换之前）
                 $versionEntity = $this->taskFileVersionDomainService->createFileVersion(
+                    $projectEntity->getUserOrganizationCode(),
                     $fileEntity,
                     $isCrossTypeReplace ? 2 : 1  // 跨类型替换使用特殊标记
                 );

@@ -34,7 +34,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RefreshStsTokenRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ReplaceFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\RollbackFileToVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SandboxFileNotificationRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
@@ -195,9 +194,6 @@ class FileApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
 
-        // 并发执行沙箱保存和OSS保存
-        // $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
-
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 
@@ -249,7 +245,13 @@ class FileApi extends AbstractApi
         // Get request data and create DTO
         $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
+        return $this->fileManagementAppService->moveFile(
+            $requestContext,
+            (int) $id,
+            (int) $requestDTO->getTargetParentId(),
+            (int) $requestDTO->getPreFileId(),
+            ! empty($requestDTO->getTargetProjectId()) ? (int) $requestDTO->getTargetProjectId() : null
+        );
     }
 
     public function batchMoveFile(RequestContext $requestContext): array
@@ -542,19 +544,5 @@ class FileApi extends AbstractApi
             $options,
             $dto->getFileVersions()  // 新增：直接作为方法参数传递
         );
-    }
-
-    /**
-     * Replace file with new file.
-     *
-     * @param RequestContext $requestContext Request context
-     * @return array Replaced file information
-     */
-    public function replaceFile(RequestContext $requestContext): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        $fileId = (int) $this->request->route('id');
-        $requestDTO = ReplaceFileRequestDTO::fromRequest($this->request);
-        return $this->fileManagementAppService->replaceFile($requestContext, $fileId, $requestDTO);
     }
 }

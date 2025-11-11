@@ -913,6 +913,7 @@ class MessageScheduleAppService extends AbstractAppService
                 projectId: $projectEntity->getId(),
                 userId: $projectEntity->getUserId(),
                 organizationCode: $projectEntity->getUserOrganizationCode(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
                 fullFileKey: $targetFileKey,
                 workDir: $projectEntity->getWorkDir(),
                 source: TaskFileSource::COPY,

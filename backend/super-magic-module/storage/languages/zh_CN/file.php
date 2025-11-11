@@ -56,4 +56,9 @@ return [
     'target_file_already_exists' => '目标文件名在此目录中已存在',
     'file_is_being_edited' => '文件当前正在被其他用户编辑，使用 force_replace 强制替换',
     'source_file_key_illegal' => '源文件键非法或不在工作区范围内',
+
+    // Cross-project move related
+    'target_parent_not_found' => '目标父目录未找到',
+    'target_parent_not_in_target_project' => '目标父目录不属于目标项目',
+    'cross_organization_copy_failed' => '跨组织复制文件失败',
 ];

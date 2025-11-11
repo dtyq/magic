@@ -56,4 +56,9 @@ return [
     'target_file_already_exists' => 'Target file name already exists in this directory',
     'file_is_being_edited' => 'File is currently being edited by other users, use force_replace to override',
     'source_file_key_illegal' => 'Source file key is illegal or outside of workspace',
+
+    // Cross-project move related
+    'target_parent_not_found' => 'Target parent directory not found',
+    'target_parent_not_in_target_project' => 'Target parent directory does not belong to the target project',
+    'cross_organization_copy_failed' => 'Failed to copy file across organizations',
 ];

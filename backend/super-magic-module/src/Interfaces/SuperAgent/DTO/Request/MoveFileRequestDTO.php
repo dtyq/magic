@@ -21,6 +21,11 @@ class MoveFileRequestDTO extends AbstractRequestDTO
      */
     public string $preFileId = '-1';
 
+    /**
+     * The ID of the target project (optional, for cross-project move).
+     */
+    public string $targetProjectId = '';
+
     public function getTargetParentId(): string
     {
         return $this->targetParentId;
@@ -31,6 +36,11 @@ class MoveFileRequestDTO extends AbstractRequestDTO
         return $this->preFileId;
     }
 
+    public function getTargetProjectId(): string
+    {
+        return $this->targetProjectId;
+    }
+
     /**
      * Get validation rules.
      */
@@ -39,6 +49,7 @@ class MoveFileRequestDTO extends AbstractRequestDTO
         return [
             'target_parent_id' => 'nullable|string',
             'pre_file_id' => 'string', // -1表示末尾，0表示第一位，>0表示指定位置
+            'target_project_id' => 'nullable|string',
         ];
     }
 
@@ -50,6 +61,7 @@ class MoveFileRequestDTO extends AbstractRequestDTO
         return [
             'target_parent_id.string' => 'Target parent ID must be a string',
             'pre_file_id.string' => 'Pre file ID must be a string',
+            'target_project_id.string' => 'Target project ID must be a string',
         ];
     }
 }

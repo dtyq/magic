@@ -23,7 +23,8 @@ class FileBatchMoveEvent
      * @param string $userId User ID
      * @param string $organizationCode Organization code
      * @param array $fileIds Array of file IDs to move
-     * @param int $projectId Project ID
+     * @param int $targetProjectId Target project ID
+     * @param int $sourceProjectId Source project ID
      * @param null|int $preFileId Previous file ID for positioning (nullable)
      * @param int $targetParentId Target parent directory ID
      */
@@ -32,7 +33,8 @@ class FileBatchMoveEvent
         private readonly string $userId,
         private readonly string $organizationCode,
         private readonly array $fileIds,
-        private readonly int $projectId,
+        private readonly int $targetProjectId,
+        private readonly int $sourceProjectId,
         private readonly ?int $preFileId,
         private readonly int $targetParentId
     ) {
@@ -71,11 +73,29 @@ class FileBatchMoveEvent
     }
 
     /**
-     * Get project ID.
+     * Get target project ID.
+     */
+    public function getTargetProjectId(): int
+    {
+        return $this->targetProjectId;
+    }
+
+    /**
+     * Get source project ID.
+     */
+    public function getSourceProjectId(): int
+    {
+        return $this->sourceProjectId;
+    }
+
+    /**
+     * Get project ID (for backward compatibility).
+     *
+     * @deprecated Use getTargetProjectId() instead
      */
     public function getProjectId(): int
     {
-        return $this->projectId;
+        return $this->targetProjectId;
     }
 
     /**
@@ -107,7 +127,8 @@ class FileBatchMoveEvent
             $data['user_id'] ?? '',
             $data['organization_code'] ?? '',
             $data['file_ids'] ?? [],
-            $data['project_id'] ?? 0,
+            $data['target_project_id'] ?? $data['project_id'] ?? 0,  // Support backward compatibility
+            $data['source_project_id'] ?? $data['project_id'] ?? 0,  // Support backward compatibility
             $data['pre_file_id'] ?? null,
             $data['target_parent_id'] ?? 0
         );
@@ -123,7 +144,8 @@ class FileBatchMoveEvent
             'user_id' => $this->userId,
             'organization_code' => $this->organizationCode,
             'file_ids' => $this->fileIds,
-            'project_id' => $this->projectId,
+            'target_project_id' => $this->targetProjectId,
+            'source_project_id' => $this->sourceProjectId,
             'pre_file_id' => $this->preFileId,
             'target_parent_id' => $this->targetParentId,
         ];
@@ -135,7 +157,8 @@ class FileBatchMoveEvent
      * @param string $batchKey Batch key
      * @param mixed $dataIsolation Data isolation object
      * @param array $fileIds Array of file IDs
-     * @param int $projectId Project ID
+     * @param int $targetProjectId Target project ID
+     * @param int $sourceProjectId Source project ID
      * @param null|int $preFileId Previous file ID
      * @param int $targetParentId Target parent ID
      */
@@ -143,7 +166,8 @@ class FileBatchMoveEvent
         string $batchKey,
         $dataIsolation,
         array $fileIds,
-        int $projectId,
+        int $targetProjectId,
+        int $sourceProjectId,
         ?int $preFileId,
         int $targetParentId
     ): self {
@@ -152,7 +176,8 @@ class FileBatchMoveEvent
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode(),
             $fileIds,
-            $projectId,
+            $targetProjectId,
+            $sourceProjectId,
             $preFileId,
             $targetParentId
         );
@@ -166,7 +191,8 @@ class FileBatchMoveEvent
         string $userId,
         string $organizationCode,
         array $fileIds,
-        int $projectId,
+        int $targetProjectId,
+        int $sourceProjectId,
         ?int $preFileId,
         int $targetParentId
     ): self {
@@ -175,7 +201,8 @@ class FileBatchMoveEvent
             $userId,
             $organizationCode,
             array_map('intval', $fileIds),
-            $projectId,
+            $targetProjectId,
+            $sourceProjectId,
             $preFileId ?? null,
             $targetParentId
         );
