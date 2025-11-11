@@ -16,6 +16,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\MagicUriTool;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -326,7 +327,7 @@ class ProviderModelSyncAppService
             if (EasyFileTools::isUrl($iconUrl)) {
                 $iconUrl = SSRFUtil::getSafeUrl($iconUrl, replaceIp: false);
                 $uploadFile = new UploadFile($iconUrl);
-                $this->fileDomainService->uploadByCredential('TGosRaFhvb', $uploadFile);
+                $this->fileDomainService->uploadByCredential($dataIsolation->getCurrentOrganizationCode(), $uploadFile);
                 $iconUrl = $uploadFile->getKey();
             }
         } catch (Throwable $e) {
