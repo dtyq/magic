@@ -49,6 +49,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleV
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
+use App\Infrastructure\ExternalAPI\Search\BingSearch;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
@@ -302,6 +303,124 @@ class LLMAppService extends AbstractLLMAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig()->toArray());
         return $imageGenerateService->queryTask($taskId);
+    }
+
+    /**
+     * Bing search proxy with access token authentication.
+     *
+     * @param string $accessToken Access token for authentication
+     * @param string $query Search query
+     * @param int $count Number of results (1-50)
+     * @param int $offset Pagination offset (0-1000)
+     * @param string $mkt Market code (e.g., zh-CN, en-US)
+     * @param string $setLang UI language code
+     * @param string $safeSearch Safe search level (Strict, Moderate, Off)
+     * @param string $freshness Time filter (Day, Week, Month)
+     * @return array Native Bing API response
+     */
+    public function bingSearch(
+        string $accessToken,
+        string $query,
+        int $count = 10,
+        int $offset = 0,
+        string $mkt = 'zh-CN',
+        string $setLang = '',
+        string $safeSearch = '',
+        string $freshness = ''
+    ): array {
+        // 1. Validate access token
+        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
+        if (! $accessTokenEntity) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+
+        // 2. Validate search parameters
+        if (empty($query)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Search query is required');
+        }
+
+        if ($count < 1 || $count > 50) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Count must be between 1 and 50');
+        }
+
+        if ($offset < 0 || $offset > 1000) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Offset must be between 0 and 1000');
+        }
+
+        // 3. Create data isolation object (for logging and permission control)
+        $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
+            $accessToken,
+            []
+        );
+
+        // 4. Log search request
+        $this->logger->info('BingSearchRequest', [
+            'access_token_id' => $accessTokenEntity->getId(),
+            'access_token_name' => $accessTokenEntity->getName(),
+            'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+            'query' => $query,
+            'count' => $count,
+            'offset' => $offset,
+            'mkt' => $mkt,
+        ]);
+
+        try {
+            $startTime = microtime(true);
+
+            // 5. Get Bing API key from config
+            $subscriptionKey = config('search.bing.api_key');
+            if (empty($subscriptionKey)) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Bing Search API key is not configured');
+            }
+
+            // 6. Call BingSearch directly for native API response
+            $bingSearch = make(BingSearch::class);
+            $result = $bingSearch->search(
+                $query,
+                $subscriptionKey,
+                $mkt,
+                $count,
+                $offset,
+                $safeSearch,
+                $freshness,
+                $setLang
+            );
+
+            // 7. Calculate response time
+            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+            // 8. Log success
+            $this->logger->info('BingSearchSuccess', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'query' => $query,
+                'result_count' => count($result['webPages']['value'] ?? []),
+                'total_matches' => $result['webPages']['totalEstimatedMatches'] ?? 0,
+                'response_time' => $responseTime,
+            ]);
+
+            // 9. Return native Bing API format
+            return $result;
+        } catch (Throwable $e) {
+            // Log failure
+            $this->logger->error('BingSearchFailed', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'query' => $query,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Bing search failed: ' . $e->getMessage(),
+                throwable: $e
+            );
+        }
     }
 
     public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
