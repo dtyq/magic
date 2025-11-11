@@ -34,7 +34,7 @@ enum TaskFileSource: int
     /**
      * 移动.
      */
-    case MOVE = 5;
+    case MOVE = 6;
 
     /**
      * 获取来源名称.
@@ -65,7 +65,7 @@ enum TaskFileSource: int
             2 => self::PROJECT_DIRECTORY,
             3 => self::AGENT,
             4 => self::COPY,
-            5 => self::MOVE,
+            6 => self::MOVE,
             default => self::DEFAULT,
         };
     }
