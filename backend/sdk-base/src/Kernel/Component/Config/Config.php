@@ -26,4 +26,9 @@ class Config extends Dot
     {
         return $this->get('sdk_name', '');
     }
+
+    public function getRequestTimeout(): int
+    {
+        return (int) $this->get('request_timeout', 30);
+    }
 }
