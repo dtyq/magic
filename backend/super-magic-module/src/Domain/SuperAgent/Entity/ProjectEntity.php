@@ -84,7 +84,7 @@ class ProjectEntity extends AbstractEntity
     /**
      * @var bool 是否启用协作功能
      */
-    protected bool $isCollaborationEnabled = false;
+    protected bool $isCollaborationEnabled = true;
 
     /**
      * @var string 创建者用户ID
