@@ -674,6 +674,22 @@ class TopicTaskAppService extends AbstractAppService
         // 检查工具内容
         $tool = $taskMessageEntity->getTool();
         $content = $tool['detail']['data']['content'] ?? '';
+        $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
+
+        // Extract source_file_id from attachments (regardless of content)
+        $sourceFileId = $this->extractSourceFileIdFromAttachments(
+            $tool['attachments'] ?? [],
+            $fileName,
+            true // Remove .diff suffix for matching
+        );
+
+        // Set source_file_id if available
+        if (! empty($sourceFileId) && ! isset($tool['detail']['data']['source_file_id'])) {
+            $tool['detail']['data']['source_file_id'] = $sourceFileId;
+            $taskMessageEntity->setTool($tool);
+        }
+
+        // If content is empty, return early
         if (empty($content)) {
             return;
         }
@@ -692,17 +708,9 @@ class TopicTaskAppService extends AbstractAppService
 
         try {
             // 构建参数
-            $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
             $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
-
-            // Extract source_file_id using the helper method
-            $sourceFileId = $this->extractSourceFileIdFromAttachments(
-                $tool['attachments'] ?? [],
-                $fileName,
-                true // Remove .diff suffix for matching
-            );
 
             // 调用FileProcessAppService保存内容
             $fileId = $this->fileProcessAppService->saveToolMessageContent(

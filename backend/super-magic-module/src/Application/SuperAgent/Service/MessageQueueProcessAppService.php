@@ -12,20 +12,20 @@ use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
-use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\MessageQueueConsumedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -45,6 +45,7 @@ class MessageQueueProcessAppService extends AbstractAppService
         private readonly MessageQueueDomainService $messageQueueDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly MagicUserDomainService $userDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -231,8 +232,14 @@ class MessageQueueProcessAppService extends AbstractAppService
             $sendResult['error_message']
         );
 
-        // 5. If success, push notification to client
-        $this->pushMessageQueueNotification($topicEntity, $message);
+        // 5. Dispatch MessageQueueConsumedEvent (subscriber will handle notification)
+        $this->eventDispatcher->dispatch(
+            new MessageQueueConsumedEvent(
+                $message,
+                $topicEntity,
+                $sendResult['success']
+            )
+        );
 
         return $sendResult;
     }
@@ -304,98 +311,6 @@ class MessageQueueProcessAppService extends AbstractAppService
                 'error_message' => $e->getMessage(),
                 'result' => null,
             ];
-        }
-    }
-
-    /**
-     * Push message queue consumption notification to client.
-     */
-    private function pushMessageQueueNotification(
-        TopicEntity $topicEntity,
-        MessageQueueEntity $message
-    ): void {
-        try {
-            $pushData = $this->buildMessageQueuePushData($topicEntity, $message);
-            $this->pushNotification($topicEntity->getUserId(), $pushData);
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to push message queue notification', [
-                'topic_id' => $topicEntity->getId(),
-                'message_id' => $message->getId(),
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-        }
-    }
-
-    /**
-     * Build push data structure for message queue consumption.
-     */
-    private function buildMessageQueuePushData(
-        TopicEntity $topicEntity,
-        MessageQueueEntity $message
-    ): array {
-        return [
-            'type' => 'seq',
-            'seq' => [
-                'magic_id' => '',
-                'seq_id' => '',
-                'message_id' => '',
-                'refer_message_id' => '',
-                'sender_message_id' => '',
-                'conversation_id' => $topicEntity->getChatConversationId(),
-                'organization_code' => $topicEntity->getUserOrganizationCode(),
-                'message' => [
-                    'type' => 'super_magic_message_queue_consumed',
-                    'project_id' => (string) $topicEntity->getProjectId(),
-                    'topic_id' => (string) $topicEntity->getId(),
-                    'chat_topic_id' => $topicEntity->getChatTopicId(),
-                    'message_id' => (string) $message->getId(),
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * Push notification via WebSocket.
-     */
-    private function pushNotification(string $userId, array $pushData): void
-    {
-        $magicId = $this->getMagicIdByUserId($userId);
-
-        if (empty($magicId)) {
-            $this->logger->warning('Cannot get magicId for user', ['user_id' => $userId]);
-            return;
-        }
-
-        $this->logger->info('Pushing message queue notification', [
-            'magic_id' => $magicId,
-            'topic_id' => $pushData['seq']['message']['topic_id'],
-            'message_id' => $pushData['seq']['message']['message_id'],
-        ]);
-
-        // Push via WebSocket
-        SocketIOUtil::sendIntermediate(
-            SocketEventType::Intermediate,
-            $magicId,
-            $pushData
-        );
-    }
-
-    /**
-     * Get magicId by userId.
-     */
-    private function getMagicIdByUserId(string $userId): string
-    {
-        try {
-            $userEntity = $this->userDomainService->getUserById($userId);
-            return $userEntity?->getMagicId() ?? '';
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to get magicId by userId', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return '';
         }
     }
 }
