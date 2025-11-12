@@ -981,8 +981,21 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            // 1. Get project information
-            $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            // 1. Get source project and verify permission
+            $sourceProject = $this->getAccessibleProjectWithEditor(
+                (int) $requestDTO->getProjectId(),
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 2. Get target project (if not provided, use source project)
+            $targetProject = ! empty($requestDTO->getTargetProjectId())
+                ? $this->getAccessibleProjectWithEditor(
+                    (int) $requestDTO->getTargetProjectId(),
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+                : $sourceProject;
 
             // Generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();
@@ -1006,6 +1019,8 @@ class FileManagementAppService extends AbstractAppService
             // Print request data
             $this->logger->info(sprintf('Batch move file request data, batchKey: %s', $batchKey), [
                 'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => $sourceProject->getId(),
+                'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'pre_file_id' => $requestDTO->getPreFileId(),
             ]);
@@ -1014,11 +1029,11 @@ class FileManagementAppService extends AbstractAppService
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
             if (empty($requestDTO->getTargetParentId())) {
                 $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                    projectId: $projectEntity->getId(),
-                    workDir: $projectEntity->getWorkDir(),
+                    projectId: $targetProject->getId(),
+                    workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
                     organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                    projectOrganizationCode: $projectEntity->getUserOrganizationCode()
+                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
                 );
             } else {
                 $targetParentId = (int) $requestDTO->getTargetParentId();
@@ -1028,8 +1043,8 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentUserId(),
                 $dataIsolation->getCurrentOrganizationCode(),
                 $requestDTO->getFileIds(),
-                $projectEntity->getId(),
-                $projectEntity->getId(),  // For same-project batch move, source = target
+                $targetProject->getId(),
+                $sourceProject->getId(),
                 $preFileId,
                 $targetParentId
             );
@@ -1042,6 +1057,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
@@ -1050,6 +1067,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('System error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
             ]);

@@ -61,4 +61,5 @@ return [
     'target_parent_not_found' => '目标父目录未找到',
     'target_parent_not_in_target_project' => '目标父目录不属于目标项目',
     'cross_organization_copy_failed' => '跨组织复制文件失败',
+    'batch_move_failed' => '批量移动操作失败',
 ];

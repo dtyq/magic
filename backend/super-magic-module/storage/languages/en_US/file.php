@@ -61,4 +61,5 @@ return [
     'target_parent_not_found' => 'Target parent directory not found',
     'target_parent_not_in_target_project' => 'Target parent directory does not belong to the target project',
     'cross_organization_copy_failed' => 'Failed to copy file across organizations',
+    'batch_move_failed' => 'Batch move operation failed',
 ];
