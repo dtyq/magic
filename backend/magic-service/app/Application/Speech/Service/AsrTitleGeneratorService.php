@@ -79,16 +79,26 @@ readonly class AsrTitleGeneratorService
                     return null;
                 }
 
-                // 提取工作区相对路径
-                $workspaceFilePath = $fileEntity->getFileKey();
+                // 获取音频文件名称
+                $audioFileName = $fileEntity->getFileName();
 
-                // 构建提示词
-                $promptContent = $this->buildPromptForFileScenario($workspaceFilePath, $note);
+                // 构建笔记文件名（如果有）
+                $noteFileName = null;
+                if ($note !== null && $note->hasContent()) {
+                    $noteFileName = $note->generateFileName();
+                }
 
-                $title = $this->magicChatMessageAppService->summarizeText(
-                    $userAuthorization,
-                    $promptContent,
+                // 构建用户请求消息（模拟用户聊天消息）
+                $userRequestMessage = $this->buildUserRequestMessage($audioFileName, $noteFileName);
+
+                // 使用 AsrPromptAssembler 构建提示词
+                $customPrompt = AsrPromptAssembler::getTitlePromptForUploadedFile(
+                    $userRequestMessage,
                     $language
+                );
+                $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
+                    $userAuthorization,
+                    $customPrompt
                 );
                 return $this->sanitizeTitle($title);
             }
@@ -201,35 +211,31 @@ readonly class AsrTitleGeneratorService
     }
 
     /**
-     * 为文件场景构建提示词.
+     * 构建用户请求消息（模拟用户聊天消息，使用国际化文本）.
      *
-     * @param string $workspaceFilePath 工作区文件路径
-     * @param null|NoteDTO $note 笔记内容
-     * @return string 提示词内容
+     * @param string $audioFileName 音频文件名称
+     * @param null|string $noteFileName 笔记文件名称（可选）
+     * @return string 格式化后的用户请求
      */
-    private function buildPromptForFileScenario(string $workspaceFilePath, ?NoteDTO $note): string
+    private function buildUserRequestMessage(string $audioFileName, ?string $noteFileName): string
     {
-        if ($note !== null && $note->hasContent()) {
-            // 有笔记的情况
-            $audioFileDirectory = dirname($workspaceFilePath);
-            $noteFileName = $note->generateFileName();
-            $noteFilePath = ltrim(sprintf('%s/%s', $audioFileDirectory, $noteFileName), './');
-
+        if ($noteFileName !== null) {
+            // 有笔记的情况："请帮我把 @年会方案讨论.webm 录音内容和 @年会笔记.md 的内容转化为一份超级产物"
             return sprintf(
                 '%s@%s%s@%s%s',
                 $this->translator->trans('asr.messages.summary_prefix_with_note'),
-                $workspaceFilePath,
+                $audioFileName,
                 $this->translator->trans('asr.messages.summary_middle_with_note'),
-                $noteFilePath,
+                $noteFileName,
                 $this->translator->trans('asr.messages.summary_suffix_with_note')
             );
         }
 
-        // 只有音频文件的情况
+        // 只有音频文件的情况："请帮我把 @年会方案讨论.webm 录音内容转化为一份超级产物"
         return sprintf(
             '%s@%s%s',
             $this->translator->trans('asr.messages.summary_prefix'),
-            $workspaceFilePath,
+            $audioFileName,
             $this->translator->trans('asr.messages.summary_suffix')
         );
     }

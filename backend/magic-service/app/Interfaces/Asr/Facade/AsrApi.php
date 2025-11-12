@@ -637,8 +637,8 @@ class AsrApi extends AbstractApi
 
         $workspacePath = $this->directoryService->getWorkspacePath($projectId, $userId);
 
-        $tokenData = $this->fileAppService->getStsTemporaryCredential(
-            $userAuthorization,
+        $tokenData = $this->fileAppService->getStsTemporaryCredentialV2(
+            $userAuthorization->getOrganizationCode(),
             $storageType,
             $workspacePath,
             $expires,
