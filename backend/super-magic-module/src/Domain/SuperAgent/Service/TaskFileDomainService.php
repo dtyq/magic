@@ -343,8 +343,10 @@ class TaskFileDomainService
                 return $fileEntity;
             }
 
+            $isCreated = false;
             $currentTime = date('Y-m-d H:i:s');
             if (empty($fileEntity)) {
+                $isCreated = true;
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
@@ -402,7 +404,11 @@ class TaskFileDomainService
             $fileEntity->setUpdatedAt($currentTime);
 
             // $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
-            $newFileEntity = $this->taskFileRepository->insertOrIgnore($fileEntity);
+            if ($isCreated) {
+                $newFileEntity = $this->taskFileRepository->insert($fileEntity);
+            } else {
+                $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
+            }
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
             if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
