@@ -479,14 +479,20 @@ readonly class AsrFileAppService
     /**
      * 异步执行总结流程.
      */
-    private function executeAsyncSummary(SummaryRequestDTO $summaryRequest, MagicUserAuthorization $userAuthorization): void
-    {
-        $language = $this->translator->getLocale();
+    private function executeAsyncSummary(
+        SummaryRequestDTO $summaryRequest,
+        MagicUserAuthorization $userAuthorization
+    ): void {
         $requestId = CoContext::getRequestId();
-
+        // ⚠️ 重要：使用 CoContext::getLanguage() 而不是 translator->getLocale()
+        // 因为后续的服务调用可能会修改 translator 的 locale，但 CoContext 中的语言不会被修改
+        $language = CoContext::getLanguage();
         Coroutine::create(function () use ($summaryRequest, $userAuthorization, $language, $requestId) {
-            $this->translator->setLocale($language);
+            // 在协程中需要重新获取 translator 实例并设置语言
+            di(TranslatorInterface::class)->setLocale($language);
+            CoContext::setLanguage($language);
             CoContext::setRequestId($requestId);
+
             try {
                 $this->handleAsrSummary($summaryRequest, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             } catch (Throwable $e) {
@@ -687,6 +693,7 @@ readonly class AsrFileAppService
                 'has_note_file' => $noteFileData !== null,
                 'message_content' => $messageData->toArray(),
                 'is_queued' => $this->shouldQueueMessage($dto->topicId),
+                'language' => CoContext::getLanguage(),
             ]);
 
             if ($this->shouldQueueMessage($dto->topicId)) {
@@ -784,18 +791,43 @@ readonly class AsrFileAppService
      */
     private function handleStartRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
     {
-        // 幂等性检查：如果录音已开始且沙箱已创建，跳过重复处理
-        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::START->value
-            && $taskStatus->sandboxTaskCreated) {
-            $this->logger->info('录音已开始，跳过重复处理', [
+        // 每次 start 都检查沙箱是否存在，防止沙箱被回收导致音频丢失
+        // 原因：如果暂停超过 20 分钟，沙箱可能被回收，需要重新启动以确保音频实时合并
+
+        $needStartTask = false;
+
+        // 如果任务未创建，需要启动
+        if (! $taskStatus->sandboxTaskCreated) {
+            $needStartTask = true;
+            $this->logger->info('沙箱任务未创建，需要启动', [
                 'task_key' => $taskStatus->taskKey,
-                'sandbox_id' => $taskStatus->sandboxId,
             ]);
-            return true;
+        } else {
+            // 任务已创建，检查沙箱是否还存在
+            $isSandboxAvailable = $this->sandboxService->isSandboxAvailable(
+                $taskStatus->sandboxId ?? '',
+                $userId,
+                $organizationCode
+            );
+
+            if ($isSandboxAvailable) {
+                $this->logger->info('沙箱仍然存在，跳过启动', [
+                    'task_key' => $taskStatus->taskKey,
+                    'sandbox_id' => $taskStatus->sandboxId,
+                ]);
+            } else {
+                // 沙箱不存在或不可用，需要重新启动
+                $needStartTask = true;
+                $taskStatus->sandboxTaskCreated = false; // 重置标志
+                $this->logger->warning('沙箱不存在或不可用，需要重新启动', [
+                    'task_key' => $taskStatus->taskKey,
+                    'sandbox_id' => $taskStatus->sandboxId,
+                ]);
+            }
         }
 
-        // 启动沙箱任务（带重试次数限制）
-        if (! $taskStatus->sandboxTaskCreated) {
+        // 如果需要启动任务
+        if ($needStartTask) {
             // 检查重试次数
             if ($taskStatus->sandboxRetryCount >= 3) {
                 ExceptionBuilder::throw(AsrErrorCode::SandboxStartRetryExceeded);
