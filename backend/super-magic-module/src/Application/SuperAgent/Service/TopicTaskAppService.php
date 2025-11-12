@@ -254,7 +254,7 @@ class TopicTaskAppService extends AbstractAppService
             }
 
             // 5. 派发回调事件 - 仅在任务完成或失败时触发，不包括 Stopped 状态
-            if ($taskStatus === TaskStatus::FINISHED || $taskStatus === TaskStatus::ERROR) {
+            if ($taskStatus->isFinal()) {
                 $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
             }
 
