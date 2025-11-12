@@ -100,7 +100,7 @@ class DynamicConfigManager
             $redisKey = $this->buildRedisKey($taskId);
             $result = $this->redis->del($redisKey);
 
-            return $result > 0;
+            return is_int($result) && $result > 0;
         } catch (Throwable) {
             return false;
         }
