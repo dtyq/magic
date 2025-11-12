@@ -718,6 +718,7 @@ class FileManagementAppService extends AbstractAppService
      * @param int $targetParentId Target parent directory ID
      * @param null|int $preFileId Previous file ID for positioning
      * @param null|int $targetProjectId Target project ID (null means same project)
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      * @return array Move result
      */
     public function moveFile(
@@ -725,7 +726,8 @@ class FileManagementAppService extends AbstractAppService
         int $fileId,
         int $targetParentId,
         ?int $preFileId = null,
-        ?int $targetProjectId = null
+        ?int $targetProjectId = null,
+        array $keepBothFileIds = []
     ): array {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
@@ -787,7 +789,8 @@ class FileManagementAppService extends AbstractAppService
                     $targetProject->getId(),
                     $sourceProject->getId(),
                     $preFileId,
-                    $targetParentId
+                    $targetParentId,
+                    $keepBothFileIds
                 );
 
                 $this->logger->info(sprintf('Move directory request data, batchKey: %s', $batchKey), [
@@ -796,6 +799,7 @@ class FileManagementAppService extends AbstractAppService
                     'target_project_id' => $targetProject->getId(),
                     'target_parent_id' => $targetParentId,
                     'pre_file_id' => $preFileId,
+                    'keep_both_file_ids' => $keepBothFileIds,
                 ]);
 
                 $publisher = new FileBatchMovePublisher($event);
@@ -817,7 +821,8 @@ class FileManagementAppService extends AbstractAppService
                     $fileEntity,
                     $sourceProject,
                     $targetProject,
-                    $targetParentId
+                    $targetParentId,
+                    $keepBothFileIds
                 );
             }
 
@@ -1023,6 +1028,7 @@ class FileManagementAppService extends AbstractAppService
                 'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'pre_file_id' => $requestDTO->getPreFileId(),
+                'keep_both_file_ids' => $requestDTO->getKeepBothFileIds(),
             ]);
 
             // Create and publish batch move event
@@ -1046,7 +1052,8 @@ class FileManagementAppService extends AbstractAppService
                 $targetProject->getId(),
                 $sourceProject->getId(),
                 $preFileId,
-                $targetParentId
+                $targetParentId,
+                $requestDTO->getKeepBothFileIds()
             );
             $publisher = new FileBatchMovePublisher($event);
             $this->producer->produce($publisher);

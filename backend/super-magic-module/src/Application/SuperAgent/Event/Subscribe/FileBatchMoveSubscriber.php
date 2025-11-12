@@ -197,7 +197,8 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
         string $parentDir,
-        TaskFileEntity $targetParentEntity
+        TaskFileEntity $targetParentEntity,
+        array $keepBothFileIds = []
     ) {
         try {
             // Extract file information from node
@@ -229,23 +230,37 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                     // For children, the parent directory should be the new location of this file/directory
                     $newParentDir = $newFileKey;
                     foreach ($children as $child) {
-                        $this->moveFile($dataIsolation, $child, $sourceProject, $targetProject, $newParentDir, $newTargetEntity);
+                        $this->moveFile($dataIsolation, $child, $sourceProject, $targetProject, $newParentDir, $newTargetEntity, $keepBothFileIds);
                     }
                 }
             } else {
-                // 先执行复制操作
-                // 如果目标文件已经存在，则把以前的文件进行删除，保留目标的文件id
+                // Check if current file ID is in keep_both_file_ids
                 $fileEntity = $this->getFileEntityForCache($fileId);
-                $this->taskFileDomainService->moveFile(
-                    $fileEntity,
-                    $sourceProject,
-                    $targetProject,
-                    $newFileKey,
-                    $targetParentEntity->getFileId()
-                );
-                if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
-                    // 覆盖的逻辑
-                    $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+                $sourceFileIdStr = (string) $fileId;
+
+                if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
+                    // Use moveProjectFile method which supports conflict resolution
+                    $this->taskFileDomainService->moveProjectFile(
+                        $dataIsolation,
+                        $fileEntity,
+                        $sourceProject,
+                        $targetProject,
+                        $targetParentEntity->getFileId(),
+                        $keepBothFileIds
+                    );
+                } else {
+                    // Original overwrite logic
+                    $this->taskFileDomainService->moveFile(
+                        $fileEntity,
+                        $sourceProject,
+                        $targetProject,
+                        $newFileKey,
+                        $targetParentEntity->getFileId()
+                    );
+                    if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
+                        // Overwrite logic: delete target file
+                        $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+                    }
                 }
             }
 
@@ -356,6 +371,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         $targetProjectId = $event->getTargetProjectId();
         $preFileId = $event->getPreFileId();
         $targetParentId = $event->getTargetParentId();
+        $keepBothFileIds = $event->getKeepBothFileIds();
 
         // Initialize progress tracking
         $this->currentBatchKey = $batchKey;
@@ -369,6 +385,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             'target_project_id' => $targetProjectId,
             'pre_file_id' => $preFileId,
             'target_parent_id' => $targetParentId,
+            'keep_both_file_ids' => $keepBothFileIds,
             'file_count' => count($fileIds),
         ]);
 
@@ -416,7 +433,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
 
         // File moving phase (10% - 90%)
         $this->updateProgress(10, 'Starting file move operations');
-        $this->moveFileByTree($dataIsolation, $fileTree, $sourceProject, $targetProject, $targetParentId);
+        $this->moveFileByTree($dataIsolation, $fileTree, $sourceProject, $targetProject, $targetParentId, $keepBothFileIds);
 
         // Rebalancing phase (90% - 95%)
         $this->updateProgress(90, 'Rebalancing directory sort order');
@@ -450,7 +467,8 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         array $fileTree,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        int $targetParentId
+        int $targetParentId,
+        array $keepBothFileIds = []
     ) {
         $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
 
@@ -467,7 +485,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             }
 
             // For top-level nodes, use target parent directory
-            $this->moveFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentDir, $targetParentEntity);
+            $this->moveFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentDir, $targetParentEntity, $keepBothFileIds);
 
             // Update progress after each file move
             ++$this->processedTopLevelFiles;

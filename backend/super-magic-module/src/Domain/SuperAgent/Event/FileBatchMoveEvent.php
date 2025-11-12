@@ -27,6 +27,7 @@ class FileBatchMoveEvent
      * @param int $sourceProjectId Source project ID
      * @param null|int $preFileId Previous file ID for positioning (nullable)
      * @param int $targetParentId Target parent directory ID
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      */
     public function __construct(
         private readonly string $batchKey,
@@ -36,7 +37,8 @@ class FileBatchMoveEvent
         private readonly int $targetProjectId,
         private readonly int $sourceProjectId,
         private readonly ?int $preFileId,
-        private readonly int $targetParentId
+        private readonly int $targetParentId,
+        private readonly array $keepBothFileIds = []
     ) {
     }
 
@@ -115,6 +117,14 @@ class FileBatchMoveEvent
     }
 
     /**
+     * Get keep both file IDs.
+     */
+    public function getKeepBothFileIds(): array
+    {
+        return $this->keepBothFileIds;
+    }
+
+    /**
      * Create event from array data.
      *
      * @param array $data Event data
@@ -130,7 +140,8 @@ class FileBatchMoveEvent
             $data['target_project_id'] ?? $data['project_id'] ?? 0,  // Support backward compatibility
             $data['source_project_id'] ?? $data['project_id'] ?? 0,  // Support backward compatibility
             $data['pre_file_id'] ?? null,
-            $data['target_parent_id'] ?? 0
+            $data['target_parent_id'] ?? 0,
+            $data['keep_both_file_ids'] ?? []
         );
     }
 
@@ -148,6 +159,7 @@ class FileBatchMoveEvent
             'source_project_id' => $this->sourceProjectId,
             'pre_file_id' => $this->preFileId,
             'target_parent_id' => $this->targetParentId,
+            'keep_both_file_ids' => $this->keepBothFileIds,
         ];
     }
 
@@ -161,6 +173,7 @@ class FileBatchMoveEvent
      * @param int $sourceProjectId Source project ID
      * @param null|int $preFileId Previous file ID
      * @param int $targetParentId Target parent ID
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      */
     public static function fromDomainObjects(
         string $batchKey,
@@ -169,7 +182,8 @@ class FileBatchMoveEvent
         int $targetProjectId,
         int $sourceProjectId,
         ?int $preFileId,
-        int $targetParentId
+        int $targetParentId,
+        array $keepBothFileIds = []
     ): self {
         return new self(
             $batchKey,
@@ -179,12 +193,23 @@ class FileBatchMoveEvent
             $targetProjectId,
             $sourceProjectId,
             $preFileId,
-            $targetParentId
+            $targetParentId,
+            $keepBothFileIds
         );
     }
 
     /**
      * Create from DTO and domain objects.
+     *
+     * @param string $batchKey Batch key
+     * @param string $userId User ID
+     * @param string $organizationCode Organization code
+     * @param array $fileIds Array of file IDs
+     * @param int $targetProjectId Target project ID
+     * @param int $sourceProjectId Source project ID
+     * @param null|int $preFileId Previous file ID
+     * @param int $targetParentId Target parent ID
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      */
     public static function fromDTO(
         string $batchKey,
@@ -194,7 +219,8 @@ class FileBatchMoveEvent
         int $targetProjectId,
         int $sourceProjectId,
         ?int $preFileId,
-        int $targetParentId
+        int $targetParentId,
+        array $keepBothFileIds = []
     ): self {
         return new self(
             $batchKey,
@@ -204,7 +230,8 @@ class FileBatchMoveEvent
             $targetProjectId,
             $sourceProjectId,
             $preFileId ?? null,
-            $targetParentId
+            $targetParentId,
+            $keepBothFileIds
         );
     }
 }

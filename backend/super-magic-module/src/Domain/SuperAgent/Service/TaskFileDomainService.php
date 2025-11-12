@@ -931,7 +931,8 @@ class TaskFileDomainService
         TaskFileEntity $fileEntity,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        int $targetParentId
+        int $targetParentId,
+        array $keepBothFileIds = []
     ): void {
         if ($targetParentId <= 0) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
@@ -959,8 +960,9 @@ class TaskFileDomainService
             );
         }
 
-        // 4. Build target file path
-        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . basename($fileEntity->getFileKey());
+        // 4. Build initial target file path
+        $baseFileName = basename($fileEntity->getFileKey());
+        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . $baseFileName;
 
         // 5. Validate target path is within target project's work directory
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
@@ -980,9 +982,45 @@ class TaskFileDomainService
         // 7. Check if target file already exists
         $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
 
-        // 8. Execute move operation
+        // 8. Determine conflict resolution strategy
+        $shouldKeepBoth = false;
+        if (! empty($existingTargetFile)) {
+            // Check if current SOURCE file ID is in keep_both_file_ids
+            $sourceFileIdStr = (string) $fileEntity->getFileId();
+            if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
+                $shouldKeepBoth = true;
+
+                // Generate new TARGET filename to avoid conflict
+                $targetPath = $this->generateUniqueFileName(
+                    $targetParentEntity->getFileKey(),
+                    $baseFileName,
+                    $targetProject->getId()
+                );
+
+                $this->logger->info('Conflict resolved by renaming target path', [
+                    'source_file_id' => $fileEntity->getFileId(),
+                    'original_target' => $baseFileName,
+                    'new_target_path' => $targetPath,
+                    'existing_file_id' => $existingTargetFile->getFileId(),
+                ]);
+            }
+        }
+
+        // 9. Execute move operation
         Db::beginTransaction();
         try {
+            // Delete existing target file BEFORE updating source file to avoid unique key conflict
+            if (! empty($existingTargetFile) && ! $shouldKeepBoth) {
+                $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
+
+                $this->logger->info('Deleted existing target file before move', [
+                    'deleted_file_id' => $existingTargetFile->getFileId(),
+                    'deleted_file_key' => $existingTargetFile->getFileKey(),
+                    'source_file_id' => $fileEntity->getFileId(),
+                ]);
+            }
+
+            // Now safe to update source file path
             $this->moveFile(
                 $fileEntity,
                 $sourceProject,
@@ -990,11 +1028,6 @@ class TaskFileDomainService
                 $targetPath,
                 $targetParentId
             );
-
-            // Delete existing target file if exists
-            if (! empty($existingTargetFile)) {
-                $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
-            }
 
             Db::commit();
         } catch (Throwable $e) {
@@ -1005,6 +1038,8 @@ class TaskFileDomainService
                 'source_project_id' => $sourceProject->getId(),
                 'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $targetParentId,
+                'should_keep_both' => $shouldKeepBoth,
+                'target_path' => $targetPath,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -1982,6 +2017,72 @@ class TaskFileDomainService
     }
 
     /**
+     * Generate unique filename by appending (1), (2), etc. when file exists.
+     * Optimized: batch generate candidates and query once.
+     *
+     * @param string $parentPath Parent directory path
+     * @param string $originalFileName Original file name
+     * @param int $projectId Project ID for checking existence
+     * @return string Unique file path
+     */
+    private function generateUniqueFileName(
+        string $parentPath,
+        string $originalFileName,
+        int $projectId
+    ): string {
+        $parentPath = rtrim($parentPath, '/');
+
+        // Parse file name and extension
+        $pathInfo = pathinfo($originalFileName);
+        $baseName = $pathInfo['filename'];
+        $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+
+        // Handle double extensions like .tar.gz
+        if (preg_match('/^(.+?)(\.[a-z0-9]+\.[a-z0-9]+)$/i', $originalFileName, $matches)) {
+            $baseName = $matches[1];
+            $extension = $matches[2];
+        }
+
+        // Generate 10 candidate filenames at once
+        $candidatePaths = [];
+        for ($i = 1; $i <= 10; ++$i) {
+            $newFileName = $baseName . '(' . $i . ')' . $extension;
+            $newPath = $parentPath . '/' . $newFileName;
+            $candidatePaths[] = $newPath;
+        }
+
+        // Batch query: use existing getByFileKeys method
+        $existingFiles = $this->taskFileRepository->getByFileKeys($candidatePaths);
+        $existingPaths = array_keys($existingFiles);
+
+        // Find first available candidate
+        foreach ($candidatePaths as $candidatePath) {
+            if (! in_array($candidatePath, $existingPaths, true)) {
+                $this->logger->info('Generated unique filename', [
+                    'original' => $originalFileName,
+                    'result' => basename($candidatePath),
+                    'project_id' => $projectId,
+                ]);
+                return $candidatePath;
+            }
+        }
+
+        // Fallback: all 10 candidates exist, use timestamp
+        $timestamp = time();
+        $microtime = substr((string) microtime(true), -6);  // Last 6 digits for uniqueness
+        $fallbackName = $baseName . '_' . $timestamp . $microtime . $extension;
+        $fallbackPath = $parentPath . '/' . $fallbackName;
+
+        $this->logger->warning('All 10 candidates existed, using timestamp fallback', [
+            'original' => $originalFileName,
+            'fallback' => $fallbackName,
+            'project_id' => $projectId,
+        ]);
+
+        return $fallbackPath;
+    }
+
+    /**
      * Move file in cloud storage.
      *
      * @param TaskFileEntity $fileEntity File entity
@@ -2060,6 +2161,7 @@ class TaskFileDomainService
         // Build update fields
         $updateFields = [
             'file_key' => $targetPath,
+            'file_name' => basename($targetPath),  // Extract filename from path
             'parent_id' => $targetParentId,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
