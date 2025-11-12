@@ -61,8 +61,8 @@ class MessageQueueAppService extends AbstractAppService
         $projectId = (int) $requestDTO->getProjectId();
         $topicId = (int) $requestDTO->getTopicId();
 
-        // Validate topic status and ownership (only running topics can add messages)
-        $this->topicDomainService->validateTopicForMessageQueue(
+        // Validate topic status and ownership (only running topics can add messages) and get TopicEntity
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
             $dataIsolation,
             $topicId
         );
@@ -89,6 +89,7 @@ class MessageQueueAppService extends AbstractAppService
         $this->eventDispatcher->dispatch(
             new MessageQueueCreatedEvent(
                 $messageEntity,
+                $topicEntity,
                 $userAuthorization->getId(),
                 $userAuthorization->getOrganizationCode()
             )
@@ -145,6 +146,12 @@ class MessageQueueAppService extends AbstractAppService
             );
         }
 
+        // Validate topic and get TopicEntity
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
+            $dataIsolation,
+            $topicId
+        );
+
         // Update message queue
         $messageEntity = $this->messageQueueDomainService->updateMessage(
             $dataIsolation,
@@ -159,6 +166,7 @@ class MessageQueueAppService extends AbstractAppService
         $this->eventDispatcher->dispatch(
             new MessageQueueUpdatedEvent(
                 $messageEntity,
+                $topicEntity,
                 $userAuthorization->getId(),
                 $userAuthorization->getOrganizationCode()
             )
@@ -208,17 +216,26 @@ class MessageQueueAppService extends AbstractAppService
             );
         }
 
-        // Dispatch MessageQueueDeletedEvent before deletion
-        $this->eventDispatcher->dispatch(
-            new MessageQueueDeletedEvent(
-                $existingMessage,
-                $userAuthorization->getId(),
-                $userAuthorization->getOrganizationCode()
-            )
+        // Validate topic and get TopicEntity (before deletion, for event)
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
+            $dataIsolation,
+            $existingMessage->getTopicId()
         );
 
         // Delete message queue
         $success = $this->messageQueueDomainService->deleteMessage($dataIsolation, $messageId);
+
+        // Dispatch MessageQueueDeletedEvent after successful deletion
+        if ($success) {
+            $this->eventDispatcher->dispatch(
+                new MessageQueueDeletedEvent(
+                    $existingMessage,
+                    $topicEntity,
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+            );
+        }
 
         $this->logger->info('Message queue deleted successfully', [
             'message_id' => $messageId,

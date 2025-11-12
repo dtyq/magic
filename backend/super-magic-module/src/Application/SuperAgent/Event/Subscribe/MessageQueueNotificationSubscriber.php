@@ -121,7 +121,7 @@ class MessageQueueNotificationSubscriber implements ListenerInterface
                 'conversation_id' => $topicEntity->getChatConversationId(),
                 'organization_code' => $topicEntity->getUserOrganizationCode(),
                 'message' => [
-                    'type' => 'super_magic_message_queue_consumed',
+                    'type' => 'super_magic_message_queue_change',
                     'project_id' => (string) $topicEntity->getProjectId(),
                     'topic_id' => (string) $topicEntity->getId(),
                     'chat_topic_id' => $topicEntity->getChatTopicId(),

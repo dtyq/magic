@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 
 /**
  * Message Queue Created Event.
@@ -16,6 +17,7 @@ class MessageQueueCreatedEvent extends AbstractEvent
 {
     public function __construct(
         private readonly MessageQueueEntity $messageQueueEntity,
+        private readonly TopicEntity $topicEntity,
         private readonly string $userId,
         private readonly string $organizationCode,
     ) {
@@ -25,6 +27,11 @@ class MessageQueueCreatedEvent extends AbstractEvent
     public function getMessageQueueEntity(): MessageQueueEntity
     {
         return $this->messageQueueEntity;
+    }
+
+    public function getTopicEntity(): TopicEntity
+    {
+        return $this->topicEntity;
     }
 
     public function getUserId(): string
