@@ -177,7 +177,7 @@ class AsrApi extends AbstractApi
 
         // 1. 验证参数
         /** @var AsrRecordingTypeEnum $recordingType */
-        [$taskKey, $topicId, $projectId, $recordingType] = $this->validateUploadTokenParams($request, $userId);
+        [$taskKey, $topicId, $projectId, $recordingType, $fileName] = $this->validateUploadTokenParams($request, $userId);
 
         $this->logger->info('getUploadToken 开始处理', [
             'operation_id' => $operationId,
@@ -185,6 +185,7 @@ class AsrApi extends AbstractApi
             'user_id' => $userId,
             'recording_type' => $recordingType->value,
             'needs_preset_files' => $recordingType->needsPresetFiles(),
+            'has_file_name' => ! empty($fileName),
         ]);
 
         // 2. 获取分布式锁（防止并发创建目录）
@@ -200,7 +201,36 @@ class AsrApi extends AbstractApi
             // 3. 创建或更新任务状态
             $taskStatus = $this->createOrUpdateTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
 
-            // 3.1 创建 .asr_states 目录（所有录音类型都需要）
+            // 3.1 为文件直传类型生成标题（如果有文件名且还未生成过标题）
+            if ($recordingType === AsrRecordingTypeEnum::FILE_UPLOAD
+                && ! empty($fileName)
+                && empty($taskStatus->uploadGeneratedTitle)) {
+                try {
+                    $generatedTitle = $this->titleGeneratorService->generateTitleForFileUpload(
+                        $userAuthorization,
+                        $fileName,
+                        $taskKey
+                    );
+
+                    if (! empty($generatedTitle)) {
+                        $taskStatus->uploadGeneratedTitle = $generatedTitle;
+                        $this->logger->info('文件直传标题生成成功', [
+                            'task_key' => $taskKey,
+                            'file_name' => $fileName,
+                            'generated_title' => $generatedTitle,
+                        ]);
+                    }
+                } catch (Throwable $e) {
+                    // 标题生成失败不影响主流程
+                    $this->logger->warning('文件直传标题生成失败', [
+                        'task_key' => $taskKey,
+                        'file_name' => $fileName,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // 3.2 创建 .asr_states 目录（所有录音类型都需要）
             try {
                 $statesDir = $this->directoryService->createStatesDirectory($organizationCode, $projectId, $userId);
                 $this->logger->info('.asr_states 目录创建或确认存在', [
@@ -412,14 +442,31 @@ class AsrApi extends AbstractApi
         // 处理笔记
         $note = $this->parseNoteData($noteData);
 
-        // 生成标题
-        $generatedTitle = $this->titleGeneratorService->generateTitleForScenario(
-            $userAuthorization,
-            $asrStreamContent,
-            $fileId,
-            $note,
-            $taskKey
-        );
+        // 生成标题：优先从 Redis 中复用 upload-tokens 生成的标题
+        $generatedTitle = null;
+
+        // 1. 尝试从 Redis 中获取已生成的标题（文件直传场景）
+        if (! empty($taskKey)) {
+            $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userAuthorization->getId());
+            if (! $taskStatus->isEmpty() && ! empty($taskStatus->uploadGeneratedTitle)) {
+                $generatedTitle = $taskStatus->uploadGeneratedTitle;
+                $this->logger->info('复用 upload-tokens 生成的标题', [
+                    'task_key' => $taskKey,
+                    'title' => $generatedTitle,
+                ]);
+            }
+        }
+
+        // 2. 如果没有从 Redis 获取到标题，则重新生成（前端录音或旧逻辑）
+        if (empty($generatedTitle)) {
+            $generatedTitle = $this->titleGeneratorService->generateTitleForScenario(
+                $userAuthorization,
+                $asrStreamContent,
+                $fileId,
+                $note,
+                $taskKey
+            );
+        }
 
         return new SummaryRequestDTO($taskKey, $projectId, $topicId, $modelId, $fileId, $note, $asrStreamContent ?: null, $generatedTitle);
     }
@@ -522,7 +569,10 @@ class AsrApi extends AbstractApi
 
         $projectId = $this->asrFileAppService->getProjectIdFromTopic((int) $topicId, $userId);
 
-        return [$taskKey, $topicId, $projectId, $recordingType];
+        // 获取文件名（仅在 file_upload 类型时使用）
+        $fileName = $request->input('file_name', '');
+
+        return [$taskKey, $topicId, $projectId, $recordingType, $fileName];
     }
 
     /**

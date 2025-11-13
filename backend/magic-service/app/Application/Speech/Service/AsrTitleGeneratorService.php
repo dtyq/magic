@@ -211,6 +211,47 @@ readonly class AsrTitleGeneratorService
     }
 
     /**
+     * 为文件直传场景生成标题（仅根据文件名）.
+     *
+     * @param MagicUserAuthorization $userAuthorization 用户授权
+     * @param string $fileName 文件名
+     * @param string $taskKey 任务键（用于日志）
+     * @return null|string 生成的标题
+     */
+    public function generateTitleForFileUpload(
+        MagicUserAuthorization $userAuthorization,
+        string $fileName,
+        string $taskKey
+    ): ?string {
+        try {
+            $language = $this->translator->getLocale() ?: 'zh_CN';
+
+            // 构建用户请求消息（模拟用户聊天消息）
+            $userRequestMessage = $this->buildUserRequestMessage($fileName, null);
+
+            // 使用 AsrPromptAssembler 构建提示词
+            $customPrompt = AsrPromptAssembler::getTitlePromptForUploadedFile(
+                $userRequestMessage,
+                $language
+            );
+
+            $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
+                $userAuthorization,
+                $customPrompt
+            );
+
+            return $this->sanitizeTitle($title);
+        } catch (Throwable $e) {
+            $this->logger->warning('为文件直传生成标题失败', [
+                'task_key' => $taskKey,
+                'file_name' => $fileName,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * 构建用户请求消息（模拟用户聊天消息，使用国际化文本）.
      *
      * @param string $audioFileName 音频文件名称

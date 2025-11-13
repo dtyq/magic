@@ -119,6 +119,7 @@ class ModeAppService extends AbstractModeAppService
                     'icon' => $agent->getIcon()['type'] ?? '',
                     'color' => $agent->getIcon()['color'] ?? '',
                     'sort' => 0,
+                    'is_hidden' => $this->isHiddenMode($agent->getCode()),
                 ],
                 'agent' => [
                     'type' => $agent->getType()->value,
@@ -150,6 +151,17 @@ class ModeAppService extends AbstractModeAppService
         $this->processModeGroupDetailIcons($authorization, $modeGroupDetailDTOS);
 
         return $modeGroupDetailDTOS;
+    }
+
+    /**
+     * 判断 mode 是否为隐藏模式.
+     * @param string $identifier mode 标识符
+     * @return bool 是否隐藏
+     */
+    private function isHiddenMode(string $identifier): bool
+    {
+        $hiddenModes = config('mode.hidden_modes', []);
+        return in_array($identifier, $hiddenModes, true);
     }
 
     /**
