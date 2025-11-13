@@ -11,9 +11,11 @@ use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Provider\DTO\AiAbilityDetailDTO;
 use App\Application\Provider\DTO\AiAbilityListDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 use App\Interfaces\Provider\DTO\UpdateAiAbilityRequest;
@@ -37,14 +39,15 @@ class AiAbilityAppService extends AbstractKernelAppService
      * @param MagicUserAuthorization $authorization 用户授权信息
      * @return array<AiAbilityListDTO>
      */
-    public function getList(MagicUserAuthorization $authorization): array
+    public function queries(MagicUserAuthorization $authorization): array
     {
         $dataIsolation = $this->createProviderDataIsolation($authorization);
 
         $locale = $this->translator->getLocale();
-        $entities = $this->aiAbilityDomainService->getAll($dataIsolation);
+        $query = new AiAbilityQuery();
+        $result = $this->aiAbilityDomainService->queries($dataIsolation, $query, Page::createNoPage());
 
-        return AiAbilityAssembler::entitiesToListDTOs($entities, $locale);
+        return AiAbilityAssembler::entitiesToListDTOs($result['list'], $locale);
     }
 
     /**

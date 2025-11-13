@@ -10,9 +10,11 @@ namespace App\Domain\Provider\Service;
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use Exception;
 use Hyperf\Contract\ConfigInterface;
 
@@ -47,14 +49,30 @@ class AiAbilityDomainService
     }
 
     /**
-     * 获取所有AI能力列表.
+     * 获取所有AI能力列表（无分页）.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离信息
      * @return array<AiAbilityEntity> AI能力实体列表
      */
     public function getAll(ProviderDataIsolation $dataIsolation): array
     {
-        return $this->aiAbilityRepository->getAll($dataIsolation);
+        $query = new AiAbilityQuery();
+        $page = Page::createNoPage();
+        $result = $this->aiAbilityRepository->queries($dataIsolation, $query, $page);
+        return $result['list'];
+    }
+
+    /**
+     * 分页查询AI能力列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
+     * @param AiAbilityQuery $query 查询条件
+     * @param Page $page 分页信息
+     * @return array{total: int, list: array<AiAbilityEntity>}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, AiAbilityQuery $query, Page $page): array
+    {
+        return $this->aiAbilityRepository->queries($dataIsolation, $query, $page);
     }
 
     /**

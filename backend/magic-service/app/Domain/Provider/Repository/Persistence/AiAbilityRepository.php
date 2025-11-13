@@ -10,8 +10,10 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\AiAbilityModel;
+use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Codec\Json;
 
 /**
@@ -131,6 +133,28 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
 
         $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
         return $builder->where('code', $code->value)->update($data) > 0;
+    }
+
+    /**
+     * 分页查询AI能力列表.
+     *
+     * @return array{total: int, list: array<AiAbilityEntity>}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, AiAbilityQuery $query, Page $page): array
+    {
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+
+        $result = $this->getByPage($builder, $page, $query);
+
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->modelToEntity($model);
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
     }
 
     /**

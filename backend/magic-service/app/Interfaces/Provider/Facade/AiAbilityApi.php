@@ -27,12 +27,12 @@ class AiAbilityApi extends AbstractApi
      * 获取所有AI能力列表.
      */
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::QUERY)]
-    public function list(): array
+    public function queries(): array
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
 
-        $list = $this->aiAbilityAppService->getList($authorization);
+        $list = $this->aiAbilityAppService->queries($authorization);
 
         return AiAbilityAssembler::listDTOsToArray($list);
     }
