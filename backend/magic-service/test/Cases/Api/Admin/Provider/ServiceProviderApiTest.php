@@ -503,7 +503,8 @@ class ServiceProviderApiTest extends BaseTest
         if (isset($expectedConfig['time_cost'])) {
             $this->assertEqualsWithDelta(
                 (float) $expectedConfig['time_cost'],
-                $versionEntity->getTimeCost(), 50,
+                $versionEntity->getTimeCost(),
+                50,
                 'time_cost 应该匹配'
             );
         }

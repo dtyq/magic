@@ -9,27 +9,28 @@ namespace App\Domain\Provider\Repository\Persistence;
 
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\AiAbilityModel;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Codec\Json;
 
 /**
  * AI 能力仓储实现.
  */
-class AiAbilityRepository implements AiAbilityRepositoryInterface
+class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRepositoryInterface
 {
+    protected bool $filterOrganizationCode = true;
+
     /**
      * 根据能力代码获取AI能力实体.
      */
-    public function getByCode(MagicUserAuthorization $authorization, AiAbilityCode $code): ?AiAbilityEntity
+    public function getByCode(ProviderDataIsolation $dataIsolation, AiAbilityCode $code): ?AiAbilityEntity
     {
-        $organizationCode = $authorization->getOrganizationCode();
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+        $model = $builder->where('code', $code->value)->first();
 
-        $model = AiAbilityModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('code', $code->value)
-            ->first();
         if ($model === null) {
             return null;
         }
@@ -40,14 +41,10 @@ class AiAbilityRepository implements AiAbilityRepositoryInterface
     /**
      * 获取所有AI能力列表.
      */
-    public function getAll(MagicUserAuthorization $authorization): array
+    public function getAll(ProviderDataIsolation $dataIsolation): array
     {
-        $organizationCode = $authorization->getOrganizationCode();
-
-        $models = AiAbilityModel::query()
-            ->where('organization_code', $organizationCode)
-            ->orderBy('sort_order')
-            ->get();
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+        $models = $builder->orderBy('sort_order')->get();
 
         $entities = [];
         foreach ($models as $model) {
@@ -60,14 +57,11 @@ class AiAbilityRepository implements AiAbilityRepositoryInterface
     /**
      * 根据ID获取AI能力实体.
      */
-    public function getById(MagicUserAuthorization $authorization, int $id): ?AiAbilityEntity
+    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?AiAbilityEntity
     {
-        $organizationCode = $authorization->getOrganizationCode();
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+        $model = $builder->where('id', $id)->first();
 
-        $model = AiAbilityModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('id', $id)
-            ->first();
         if ($model === null) {
             return null;
         }
@@ -125,7 +119,7 @@ class AiAbilityRepository implements AiAbilityRepositoryInterface
     /**
      * 根据code更新（支持选择性更新）.
      */
-    public function updateByCode(MagicUserAuthorization $authorization, AiAbilityCode $code, array $data): bool
+    public function updateByCode(ProviderDataIsolation $dataIsolation, AiAbilityCode $code, array $data): bool
     {
         if (empty($data)) {
             return false;
@@ -135,13 +129,32 @@ class AiAbilityRepository implements AiAbilityRepositoryInterface
             $data['config'] = Json::encode($data['config']);
         }
 
-        $organizationCode = $authorization->getOrganizationCode();
         $data['updated_at'] = date('Y-m-d H:i:s');
 
-        return AiAbilityModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('code', $code->value)
-            ->update($data) > 0;
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+        return $builder->where('code', $code->value)->update($data) > 0;
+    }
+
+    /**
+     * 分页查询AI能力列表.
+     *
+     * @return array{total: int, list: array<AiAbilityEntity>}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, AiAbilityQuery $query, Page $page): array
+    {
+        $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+
+        $result = $this->getByPage($builder, $page, $query);
+
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->modelToEntity($model);
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
     }
 
     /**

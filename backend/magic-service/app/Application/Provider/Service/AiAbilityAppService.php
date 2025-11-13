@@ -7,12 +7,15 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Service;
 
+use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Provider\DTO\AiAbilityDetailDTO;
 use App\Application\Provider\DTO\AiAbilityListDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 use App\Interfaces\Provider\DTO\UpdateAiAbilityRequest;
@@ -22,7 +25,7 @@ use Throwable;
 /**
  * AI能力应用服务.
  */
-class AiAbilityAppService
+class AiAbilityAppService extends AbstractKernelAppService
 {
     public function __construct(
         private AiAbilityDomainService $aiAbilityDomainService,
@@ -36,12 +39,15 @@ class AiAbilityAppService
      * @param MagicUserAuthorization $authorization 用户授权信息
      * @return array<AiAbilityListDTO>
      */
-    public function getList(MagicUserAuthorization $authorization): array
+    public function queries(MagicUserAuthorization $authorization): array
     {
-        $locale = $this->translator->getLocale();
-        $entities = $this->aiAbilityDomainService->getAll($authorization);
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
 
-        return AiAbilityAssembler::entitiesToListDTOs($entities, $locale);
+        $locale = $this->translator->getLocale();
+        $query = new AiAbilityQuery();
+        $result = $this->aiAbilityDomainService->queries($dataIsolation, $query, Page::createNoPage());
+
+        return AiAbilityAssembler::entitiesToListDTOs($result['list'], $locale);
     }
 
     /**
@@ -52,6 +58,8 @@ class AiAbilityAppService
      */
     public function getDetail(MagicUserAuthorization $authorization, string $code): AiAbilityDetailDTO
     {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
         // 验证code是否有效
         try {
             $codeEnum = AiAbilityCode::from($code);
@@ -60,7 +68,7 @@ class AiAbilityAppService
         }
 
         // 获取能力详情
-        $entity = $this->aiAbilityDomainService->getByCode($authorization, $codeEnum);
+        $entity = $this->aiAbilityDomainService->getByCode($dataIsolation, $codeEnum);
 
         $locale = $this->translator->getLocale();
         return AiAbilityAssembler::entityToDetailDTO($entity, $locale);
@@ -75,6 +83,8 @@ class AiAbilityAppService
      */
     public function update(MagicUserAuthorization $authorization, UpdateAiAbilityRequest $request): bool
     {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
         // 验证code是否有效
         try {
             $code = AiAbilityCode::from($request->getCode());
@@ -97,7 +107,7 @@ class AiAbilityAppService
         }
 
         // 通过 DomainService 更新
-        return $this->aiAbilityDomainService->updateByCode($authorization, $code, $updateData);
+        return $this->aiAbilityDomainService->updateByCode($dataIsolation, $code, $updateData);
     }
 
     /**
@@ -108,6 +118,8 @@ class AiAbilityAppService
      */
     public function initializeAbilities(MagicUserAuthorization $authorization): int
     {
-        return $this->aiAbilityDomainService->initializeAbilities($authorization);
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
+        return $this->aiAbilityDomainService->initializeAbilities($dataIsolation);
     }
 }

@@ -9,7 +9,9 @@ namespace App\Domain\Provider\Repository\Facade;
 
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
+use App\Infrastructure\Core\ValueObject\Page;
 
 /**
  * AI 能力仓储接口.
@@ -19,28 +21,28 @@ interface AiAbilityRepositoryInterface
     /**
      * 根据能力代码获取AI能力实体.
      *
-     * @param MagicUserAuthorization $authorization 用户授权信息
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
      * @param AiAbilityCode $code 能力代码
      * @return null|AiAbilityEntity AI能力实体
      */
-    public function getByCode(MagicUserAuthorization $authorization, AiAbilityCode $code): ?AiAbilityEntity;
+    public function getByCode(ProviderDataIsolation $dataIsolation, AiAbilityCode $code): ?AiAbilityEntity;
 
     /**
      * 获取所有AI能力列表.
      *
-     * @param MagicUserAuthorization $authorization 用户授权信息
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
      * @return array<AiAbilityEntity> AI能力实体列表
      */
-    public function getAll(MagicUserAuthorization $authorization): array;
+    public function getAll(ProviderDataIsolation $dataIsolation): array;
 
     /**
      * 根据ID获取AI能力实体.
      *
-     * @param MagicUserAuthorization $authorization 用户授权信息
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
      * @param int $id 能力ID
      * @return null|AiAbilityEntity AI能力实体
      */
-    public function getById(MagicUserAuthorization $authorization, int $id): ?AiAbilityEntity;
+    public function getById(ProviderDataIsolation $dataIsolation, int $id): ?AiAbilityEntity;
 
     /**
      * 保存AI能力实体.
@@ -61,10 +63,20 @@ interface AiAbilityRepositoryInterface
     /**
      * 根据code更新（支持选择性更新）.
      *
-     * @param MagicUserAuthorization $authorization 用户授权信息
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
      * @param AiAbilityCode $code 能力代码
      * @param array $data 更新数据（status、config等）
      * @return bool 是否更新成功
      */
-    public function updateByCode(MagicUserAuthorization $authorization, AiAbilityCode $code, array $data): bool;
+    public function updateByCode(ProviderDataIsolation $dataIsolation, AiAbilityCode $code, array $data): bool;
+
+    /**
+     * 分页查询AI能力列表.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离信息
+     * @param AiAbilityQuery $query 查询条件
+     * @param Page $page 分页信息
+     * @return array{total: int, list: array<AiAbilityEntity>}
+     */
+    public function queries(ProviderDataIsolation $dataIsolation, AiAbilityQuery $query, Page $page): array;
 }

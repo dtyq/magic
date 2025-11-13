@@ -16,7 +16,6 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\MagicUriTool;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -331,9 +330,8 @@ class ProviderModelSyncAppService
                 $iconUrl = $uploadFile->getKey();
             }
         } catch (Throwable $e) {
-            $this->logger->error('上传文件失败:'.$e->getMessage(), ['icon_url' => $iconUrl]);
+            $this->logger->error('上传文件失败:' . $e->getMessage(), ['icon_url' => $iconUrl]);
         }
-
 
         $saveDTO = new SaveProviderModelDTO();
         $saveDTO->setIcon($iconUrl);

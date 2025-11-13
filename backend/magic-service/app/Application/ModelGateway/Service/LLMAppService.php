@@ -291,7 +291,6 @@ class LLMAppService extends AbstractLLMAppService
         return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
     }
 
-
     /**
      * @throws Exception
      */

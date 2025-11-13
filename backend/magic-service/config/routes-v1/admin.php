@@ -60,7 +60,7 @@ Router::addGroup('/api/v1/admin', static function () {
 
     // AI能力管理
     Router::addGroup('/ai-abilities', static function () {
-        Router::get('', [AiAbilityApi::class, 'list']);
+        Router::get('', [AiAbilityApi::class, 'queries']);
         Router::get('/{code}', [AiAbilityApi::class, 'detail']);
         Router::put('/{code}', [AiAbilityApi::class, 'update']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
