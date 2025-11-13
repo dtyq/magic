@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity;
 
-use App\Domain\Provider\DTO\AiAbilityConfig;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\AiAbilityConfig;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Infrastructure\Core\AbstractEntity;
 
