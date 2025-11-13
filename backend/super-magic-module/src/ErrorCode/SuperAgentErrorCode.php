@@ -157,6 +157,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.source_file_key_illegal')]
     case SOURCE_FILE_KEY_ILLEGAL = 51183;
 
+    #[ErrorMessage('file.content_field_required')]
+    case CONTENT_FIELD_REQUIRED = 51184;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;
