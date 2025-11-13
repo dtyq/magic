@@ -14,6 +14,7 @@ use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -56,6 +57,7 @@ class AgentDomainService
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly CloudFileRepositoryInterface $cloudFileRepository,
+        private readonly DynamicConfigManager $dynamicConfigManager,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -202,6 +204,14 @@ class AgentDomainService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        $taskDynamicConfig = $taskContext->getDynamicConfig();
+
+        // 添加任意注册到 DynamicConfigManager 的动态配置。暂时通过 TaskId 进行区分。
+        $dynamicConfigs = $this->dynamicConfigManager->getByTaskId((string) $taskContext->getTask()->getId());
+        foreach ($dynamicConfigs as $key => $dynamicConfig) {
+            $taskDynamicConfig[$key] = $dynamicConfig;
+        }
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -211,7 +221,7 @@ class AgentDomainService
             'mentions' => $taskContext->getTask()->getMentions(),
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
-            'dynamic_config' => $taskContext->getDynamicConfig(),
+            'dynamic_config' => $taskDynamicConfig,
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -226,7 +236,7 @@ class AgentDomainService
             mentions: $mentionsJsonStruct,
             mcpConfig: $taskContext->getMcpConfig(),
             modelId: $taskContext->getModelId(),
-            dynamicConfig: $taskContext->getDynamicConfig(),
+            dynamicConfig: $taskDynamicConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
