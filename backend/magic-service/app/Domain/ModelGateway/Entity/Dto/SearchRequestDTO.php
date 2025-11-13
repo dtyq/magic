@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\Domain\Chat\Entity\ValueObject\SearchEngineType;
 use RuntimeException;
 
 /**
@@ -73,6 +74,20 @@ class SearchRequestDTO extends AbstractRequestDTO
         $this->safeSearch = (string) ($data['safeSearch'] ?? $data['safe_search'] ?? '');
 
         $this->freshness = (string) ($data['freshness'] ?? '');
+    }
+
+    public static function createDTO(array $data): self
+    {
+        $searchRequestDTO = new self();
+        $searchRequestDTO->setQuery((string) ($data['q'] ?? $data['query'] ?? ''));
+        $searchRequestDTO->setEngine(! empty($data['engine']) ? (string) $data['engine'] : SearchEngineType::Bing->value);
+        $searchRequestDTO->setCount((int) ($data['count'] ?? 10));
+        $searchRequestDTO->setOffset((int) ($data['offset'] ?? 0));
+        $searchRequestDTO->setMkt((string) ($data['mkt'] ?? 'zh-CN'));
+        $searchRequestDTO->setSetLang((string) ($data['setLang'] ?? $data['set_lang'] ?? ''));
+        $searchRequestDTO->setSafeSearch((string) ($data['safeSearch'] ?? $data['safe_search'] ?? ''));
+        $searchRequestDTO->setFreshness((string) ($data['freshness'] ?? ''));
+        return $searchRequestDTO;
     }
 
     public function getType(): string

@@ -7,7 +7,7 @@ declare(strict_types=1);
 use function Hyperf\Support\env;
 
 return [
-    'backend' => env('SEARCH_BACKEND', 'tavily'),
+    'backend' => env('SEARCH_BACKEND', 'bing'),
     'tavily' => [
         'api_key' => env('TAVILY_API_KEY', ''),
     ],
