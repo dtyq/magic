@@ -18,7 +18,7 @@ class AddCollaborationEnabledToMagicSuperAgentProjectTable extends Migration
         Schema::table('magic_super_agent_project', function (Blueprint $table) {
             // 添加协作功能开关字段
             $table->tinyInteger('is_collaboration_enabled')
-                ->default(0)
+                ->default(1)
                 ->comment('是否开启协作功能（0=关闭，1=开启）')
                 ->after('project_status');
 

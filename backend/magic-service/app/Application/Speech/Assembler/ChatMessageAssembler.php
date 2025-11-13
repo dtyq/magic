@@ -10,6 +10,7 @@ namespace App\Application\Speech\Assembler;
 use App\Application\Speech\DTO\ProcessSummaryTaskDTO;
 use App\Application\Speech\DTO\Response\AsrFileDataDTO;
 use App\Domain\Chat\DTO\Request\ChatRequest;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\Codec\Json;
 use Hyperf\Contract\TranslatorInterface;
@@ -21,7 +22,6 @@ use Hyperf\Contract\TranslatorInterface;
 readonly class ChatMessageAssembler
 {
     public function __construct(
-        private TranslatorInterface $translator,
     ) {
     }
 
@@ -35,13 +35,16 @@ readonly class ChatMessageAssembler
      */
     public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, AsrFileDataDTO $audioFileData, ?AsrFileDataDTO $noteFileData = null): ChatRequest
     {
+        // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale(CoContext::getLanguage());
         // 构建消息内容
         $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData);
 
         // 构建聊天请求数据
         $chatRequestData = [
             'context' => [
-                'language' => $this->translator->getLocale(),
+                'language' => $translator->getLocale(),
             ],
             'data' => [
                 'conversation_id' => $dto->conversationId,
@@ -67,6 +70,9 @@ readonly class ChatMessageAssembler
      */
     public function buildMessageContent(string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null): array
     {
+        // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale(CoContext::getLanguage());
         // 构建消息内容
         if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
             // 有笔记时的消息内容：同时提到录音文件和笔记文件
@@ -74,7 +80,7 @@ readonly class ChatMessageAssembler
             $messageContent = [
                 [
                     'type' => 'text',
-                    'text' => $this->translator->trans('asr.messages.summary_prefix_with_note'),
+                    'text' => $translator->trans('asr.messages.summary_prefix_with_note'),
                 ],
                 [
                     'type' => 'mention',
@@ -88,7 +94,7 @@ readonly class ChatMessageAssembler
                 ],
                 [
                     'type' => 'text',
-                    'text' => $this->translator->trans('asr.messages.summary_middle_with_note'),
+                    'text' => $translator->trans('asr.messages.summary_middle_with_note'),
                 ],
                 [
                     'type' => 'mention',
@@ -102,7 +108,7 @@ readonly class ChatMessageAssembler
                 ],
                 [
                     'type' => 'text',
-                    'text' => $this->translator->trans('asr.messages.summary_suffix_with_note'),
+                    'text' => $translator->trans('asr.messages.summary_suffix_with_note'),
                 ],
             ];
         } else {
@@ -110,7 +116,7 @@ readonly class ChatMessageAssembler
             $messageContent = [
                 [
                     'type' => 'text',
-                    'text' => $this->translator->trans('asr.messages.summary_prefix'),
+                    'text' => $translator->trans('asr.messages.summary_prefix'),
                 ],
                 [
                     'type' => 'mention',
@@ -124,7 +130,7 @@ readonly class ChatMessageAssembler
                 ],
                 [
                     'type' => 'text',
-                    'text' => $this->translator->trans('asr.messages.summary_suffix'),
+                    'text' => $translator->trans('asr.messages.summary_suffix'),
                 ],
             ];
         }

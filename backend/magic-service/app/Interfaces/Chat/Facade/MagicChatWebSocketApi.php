@@ -378,6 +378,9 @@ class MagicChatWebSocketApi extends BaseNamespace
     // 设置语言
     private function setLocale(?string $language): void
     {
-        ! empty($language) && $this->translator->setLocale($language);
+        if (! empty($language)) {
+            CoContext::setLanguage($language);
+            $this->translator->setLocale($language);
+        }
     }
 }

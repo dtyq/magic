@@ -14,6 +14,7 @@ return [
         'safe_sub_admin' => 'Sub Admin',
         'ai_model' => 'AI Model',
         'ai_image' => 'AI Image',
+        'ai_ability' => 'Ability Management',
         'ai_mode' => 'AI Mode',
         'console' => 'Console',
         'api' => 'API',

@@ -565,7 +565,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     /**
      * 根据目录路径查找文件列表.
      */
-    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 1000): array
     {
         $models = $this->model::query()
             ->where('project_id', $projectId)

@@ -32,6 +32,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * ASR 沙箱服务
  * 负责沙箱任务启动、合并、轮询和文件记录创建.
@@ -50,6 +52,36 @@ readonly class AsrSandboxService
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('AsrSandboxService');
+    }
+
+    /**
+     * 检查沙箱是否存在且可用.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织编码
+     * @return bool 沙箱是否存在且可用
+     */
+    public function isSandboxAvailable(
+        string $sandboxId,
+        string $userId,
+        string $organizationCode
+    ): bool {
+        if (empty($sandboxId)) {
+            return false;
+        }
+
+        try {
+            $this->sandboxGateway->setUserContext($userId, $organizationCode);
+            $this->agentDomainService->getWorkspaceStatus($sandboxId);
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->debug('沙箱不可用', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -395,20 +427,18 @@ readonly class AsrSandboxService
      * @param string $sandboxId 沙箱ID
      * @param string $taskKey 任务Key（用于日志）
      * @param int $timeoutSeconds 超时时间（秒），默认2分钟
-     * @param float $intervalSeconds 轮询间隔（秒），默认0.5秒
      * @throws BusinessException 当超时时抛出异常
      */
     private function waitForSandboxStartup(
         string $sandboxId,
         string $taskKey,
-        int $timeoutSeconds = 120,
-        float $intervalSeconds = 1
+        int $timeoutSeconds = 120
     ): void {
         $this->logger->info('ASR 录音：等待沙箱启动', [
             'task_key' => $taskKey,
             'sandbox_id' => $sandboxId,
             'timeout_seconds' => $timeoutSeconds,
-            'interval_seconds' => $intervalSeconds,
+            'interval_seconds' => 1,
         ]);
 
         $startTime = time();
@@ -440,7 +470,7 @@ readonly class AsrSandboxService
                 ]);
 
                 // 等待下一次轮询
-                usleep((int) ($intervalSeconds * 1000000)); // 转换为微秒
+                usleep(1000000); // 转换为微秒
             }
         }
 
@@ -536,7 +566,7 @@ readonly class AsrSandboxService
         ]);
 
         // 等待沙箱启动（能够响应接口），但不需要等待工作区初始化
-        $this->waitForSandboxStartup($actualSandboxId, $taskStatus->taskKey);
+        $this->waitForSandboxStartup($actualSandboxId, $taskStatus->taskKey, 121);
 
         $this->logger->info('沙箱已启动，可以开始使用', [
             'task_key' => $taskStatus->taskKey,
@@ -574,11 +604,14 @@ readonly class AsrSandboxService
             );
         }
 
-        // 需要重命名：使用智能标题构建目标路径
-        $noteFilename = basename($workspaceRelativePath);
+        // 需要重命名：使用智能标题和国际化的笔记后缀构建目标路径
+        $fileExtension = pathinfo($workspaceRelativePath, PATHINFO_EXTENSION);
+        $noteSuffix = trans('asr.file_names.note_suffix'); // 根据语言获取国际化的"笔记"/"Note"
+        $noteFilename = sprintf('%s-%s.%s', $intelligentTitle, $noteSuffix, $fileExtension);
+
         return new AsrNoteFileConfig(
             sourcePath: $workspaceRelativePath,
-            targetPath: rtrim($targetDirectory, '/') . '/' . $intelligentTitle . '-' . $noteFilename
+            targetPath: rtrim($targetDirectory, '/') . '/' . $noteFilename
         );
     }
 

@@ -448,7 +448,7 @@ readonly class AsrDirectoryService
             $workDir,
             $userId,
             $organizationCode,
-            $projectOrganizationCode
+            $projectEntity->getUserOrganizationCode()
         );
     }
 
