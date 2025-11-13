@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 
-namespace App\Domain\Provider\Entity\ValueObject;
+namespace App\Domain\Provider\DTO;
 
 /**
  * AI 能力配置值对象.

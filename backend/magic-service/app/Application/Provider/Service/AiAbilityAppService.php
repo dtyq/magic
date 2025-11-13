@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Service;
 
+use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Provider\DTO\AiAbilityDetailDTO;
 use App\Application\Provider\DTO\AiAbilityListDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
@@ -22,7 +23,7 @@ use Throwable;
 /**
  * AI能力应用服务.
  */
-class AiAbilityAppService
+class AiAbilityAppService extends AbstractKernelAppService
 {
     public function __construct(
         private AiAbilityDomainService $aiAbilityDomainService,
@@ -38,8 +39,10 @@ class AiAbilityAppService
      */
     public function getList(MagicUserAuthorization $authorization): array
     {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
         $locale = $this->translator->getLocale();
-        $entities = $this->aiAbilityDomainService->getAll($authorization);
+        $entities = $this->aiAbilityDomainService->getAll($dataIsolation);
 
         return AiAbilityAssembler::entitiesToListDTOs($entities, $locale);
     }
@@ -52,6 +55,8 @@ class AiAbilityAppService
      */
     public function getDetail(MagicUserAuthorization $authorization, string $code): AiAbilityDetailDTO
     {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
         // 验证code是否有效
         try {
             $codeEnum = AiAbilityCode::from($code);
@@ -60,7 +65,7 @@ class AiAbilityAppService
         }
 
         // 获取能力详情
-        $entity = $this->aiAbilityDomainService->getByCode($authorization, $codeEnum);
+        $entity = $this->aiAbilityDomainService->getByCode($dataIsolation, $codeEnum);
 
         $locale = $this->translator->getLocale();
         return AiAbilityAssembler::entityToDetailDTO($entity, $locale);
@@ -75,6 +80,8 @@ class AiAbilityAppService
      */
     public function update(MagicUserAuthorization $authorization, UpdateAiAbilityRequest $request): bool
     {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
         // 验证code是否有效
         try {
             $code = AiAbilityCode::from($request->getCode());
@@ -97,7 +104,7 @@ class AiAbilityAppService
         }
 
         // 通过 DomainService 更新
-        return $this->aiAbilityDomainService->updateByCode($authorization, $code, $updateData);
+        return $this->aiAbilityDomainService->updateByCode($dataIsolation, $code, $updateData);
     }
 
     /**
@@ -108,6 +115,8 @@ class AiAbilityAppService
      */
     public function initializeAbilities(MagicUserAuthorization $authorization): int
     {
-        return $this->aiAbilityDomainService->initializeAbilities($authorization);
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
+        return $this->aiAbilityDomainService->initializeAbilities($dataIsolation);
     }
 }
