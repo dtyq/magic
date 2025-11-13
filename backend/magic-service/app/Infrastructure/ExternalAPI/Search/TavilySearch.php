@@ -26,6 +26,40 @@ class TavilySearch
         $this->apiKeys = explode(',', $apiKey);
     }
 
+    /**
+     * Execute Tavily search with unified parameters.
+     *
+     * @param string $query Search query
+     * @param string $mkt Market code (not directly supported by Tavily)
+     * @param int $count Number of results (maxResults, typically capped at 10)
+     * @param int $offset Pagination offset (not supported by Tavily)
+     * @param string $safeSearch Safe search level (not directly supported by Tavily)
+     * @param string $freshness Time filter (not directly supported by Tavily)
+     * @param string $setLang UI language code (not directly supported by Tavily)
+     * @return array Search results
+     */
+    public function search(
+        string $query,
+        string $mkt = '',
+        int $count = 5,
+        int $offset = 0,
+        string $safeSearch = '',
+        string $freshness = '',
+        string $setLang = ''
+    ): array {
+        // Tavily does not support offset pagination
+        // Return empty results if offset is requested
+        if ($offset > 0) {
+            return [];
+        }
+
+        // Cap count at 10 (Tavily typical limit)
+        $maxResults = min($count, 10);
+
+        // Call the existing results() method
+        return $this->results($query, $maxResults);
+    }
+
     public function results(
         string $query,
         int $maxResults = 5,

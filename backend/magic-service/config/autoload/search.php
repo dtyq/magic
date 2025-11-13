@@ -29,4 +29,9 @@ return [
         'api_key' => env('JINA_SEARCH_API_KEY', ''),
         'region' => env('JINA_SEARCH_REGION'),
     ],
+    'cloudsway' => [
+        'base_path' => env('CLOUDSWAY_BASE_PATH', ''),
+        'endpoint' => env('CLOUDSWAY_ENDPOINT', ''),  // 从 console.cloudsway.ai 获取
+        'access_key' => env('CLOUDSWAY_ACCESS_KEY', ''),  // 从 console.cloudsway.ai 获取
+    ],
 ];

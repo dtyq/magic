@@ -20,6 +20,7 @@ use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
+use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
@@ -50,6 +51,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRe
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Search\BingSearch;
+use App\Infrastructure\ExternalAPI\Search\Factory\SearchEngineAdapterFactory;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
@@ -417,6 +419,120 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Bing search failed: ' . $e->getMessage(),
+                throwable: $e
+            );
+        }
+    }
+
+    /**
+     * Unified search proxy - supports multiple search engines with unified response format.
+     *
+     * @param SearchRequestDTO $searchRequestDTO Search request DTO with unified parameters
+     * @return array Unified Bing-compatible format response
+     */
+    public function unifiedSearch(SearchRequestDTO $searchRequestDTO): array
+    {
+        // 1. Validate access token
+        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken(
+            $searchRequestDTO->getAccessToken()
+        );
+        if (! $accessTokenEntity) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+
+        // 2. Validate search parameters
+        $searchRequestDTO->validate();
+
+        // 3. Create data isolation object (for logging and permission control)
+        $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
+            $searchRequestDTO->getAccessToken(),
+            []
+        );
+
+        // 4. Log search request
+        $this->logger->info('UnifiedSearchRequest', [
+            'access_token_id' => $accessTokenEntity->getId(),
+            'access_token_name' => $accessTokenEntity->getName(),
+            'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+            'engine' => $searchRequestDTO->getEngine() ?? 'default',
+            'query' => $searchRequestDTO->getQuery(),
+            'count' => $searchRequestDTO->getCount(),
+            'offset' => $searchRequestDTO->getOffset(),
+            'mkt' => $searchRequestDTO->getMkt(),
+        ]);
+
+        try {
+            $startTime = microtime(true);
+
+            // 5. Create adapter via factory
+            $factory = make(SearchEngineAdapterFactory::class);
+            $adapter = $factory->create($searchRequestDTO->getEngine());
+
+            // 6. Check engine availability
+            if (! $adapter->isAvailable()) {
+                ExceptionBuilder::throw(
+                    MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                    "Search engine '{$adapter->getEngineName()}' is not available (API key not configured or service unavailable)"
+                );
+            }
+
+            // 7. Execute search with unified parameters - adapter returns unified format
+            $unifiedResponse = $adapter->search(
+                $searchRequestDTO->getQuery(),
+                $searchRequestDTO->getMkt(),
+                $searchRequestDTO->getCount(),
+                $searchRequestDTO->getOffset(),
+                $searchRequestDTO->getSafeSearch(),
+                $searchRequestDTO->getFreshness(),
+                $searchRequestDTO->getSetLang()
+            );
+
+            // 8. Calculate response time
+            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+            // 9. Add metadata to response
+            $unifiedResponse['_metadata'] = [
+                'engine' => $adapter->getEngineName(),
+                'responseTime' => $responseTime,
+                'query' => $searchRequestDTO->getQuery(),
+                'count' => $searchRequestDTO->getCount(),
+                'offset' => $searchRequestDTO->getOffset(),
+            ];
+
+            // 10. Log success
+            $this->logger->info('UnifiedSearchSuccess', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'engine' => $adapter->getEngineName(),
+                'query' => $searchRequestDTO->getQuery(),
+                'result_count' => count($unifiedResponse['webPages']['value'] ?? []),
+                'total_matches' => $unifiedResponse['webPages']['totalEstimatedMatches'] ?? 0,
+                'response_time' => $responseTime,
+            ]);
+
+            // 11. Return unified response (Bing-compatible format)
+            return $unifiedResponse;
+        } catch (BusinessException $e) {
+            // Re-throw business exceptions
+            throw $e;
+        } catch (Throwable $e) {
+            // Log failure
+            $this->logger->error('UnifiedSearchFailed', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'engine' => $searchRequestDTO->getEngine() ?? 'unknown',
+                'query' => $searchRequestDTO->getQuery(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Unified search failed: ' . $e->getMessage(),
                 throwable: $e
             );
         }

@@ -16,12 +16,15 @@ Router::addGroup('/v1', function () {
     Router::get('/models', [OpenAIProxyApi::class, 'models']);
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImage']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEdit']);
+    // @deprecated Use /v2/search instead - supports multiple search engines
     Router::get('/search', [OpenAIProxyApi::class, 'bingSearch']);
 });
 
 Router::addGroup('/v2', function () {
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
+    // Unified search endpoint - supports multiple search engines (bing, google, tavily, duckduckgo, jina)
+    Router::get('/search', [OpenAIProxyApi::class, 'unifiedSearch']);
 });
 
 // 前台模型接口
