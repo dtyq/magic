@@ -1047,6 +1047,165 @@ class TaskFileDomainService
     }
 
     /**
+     * Copy file to target directory (supports both same-project and cross-project copy).
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param TaskFileEntity $fileEntity Source file entity to copy
+     * @param ProjectEntity $sourceProject Source project entity
+     * @param ProjectEntity $targetProject Target project entity
+     * @param int $targetParentId Target parent directory ID
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
+     * @return TaskFileEntity Newly created file entity
+     */
+    public function copyProjectFile(
+        DataIsolation $dataIsolation,
+        TaskFileEntity $fileEntity,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        int $targetParentId,
+        array $keepBothFileIds = []
+    ): TaskFileEntity {
+        if ($targetParentId <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+
+        // 1. Get and validate target parent directory
+        $targetParentEntity = $this->taskFileRepository->getById($targetParentId);
+        if ($targetParentEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.target_parent_not_found'));
+        }
+
+        // 2. Validate target parent is a directory
+        if (! $targetParentEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(
+                GenericErrorCode::ParameterValidationFailed,
+                trans('file.target_parent_not_directory')
+            );
+        }
+
+        // 3. Validate target parent belongs to target project
+        if ($targetParentEntity->getProjectId() !== $targetProject->getId()) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_PERMISSION_DENIED,
+                trans('file.target_parent_not_in_target_project')
+            );
+        }
+
+        // 4. Build initial target file path
+        $baseFileName = basename($fileEntity->getFileKey());
+        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . $baseFileName;
+
+        // 5. Validate target path is within target project's work directory
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
+            $this->getFullPrefix($targetProject->getUserOrganizationCode()),
+            $targetProject->getWorkDir()
+        );
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+        }
+
+        // 6. Check if target file already exists
+        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
+
+        // 7. Determine conflict resolution strategy
+        $shouldKeepBoth = false;
+        if (! empty($existingTargetFile)) {
+            // Check if current SOURCE file ID is in keep_both_file_ids
+            $sourceFileIdStr = (string) $fileEntity->getFileId();
+            if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
+                $shouldKeepBoth = true;
+
+                // Generate new TARGET filename to avoid conflict
+                $targetPath = $this->generateUniqueFileName(
+                    $targetParentEntity->getFileKey(),
+                    $baseFileName,
+                    $targetProject->getId()
+                );
+
+                $this->logger->info('Conflict resolved by renaming target path', [
+                    'source_file_id' => $fileEntity->getFileId(),
+                    'original_target' => $baseFileName,
+                    'new_target_path' => $targetPath,
+                    'existing_file_id' => $existingTargetFile->getFileId(),
+                ]);
+            }
+        }
+
+        // 8. Execute copy operation
+        Db::beginTransaction();
+        try {
+            // Delete existing target file BEFORE copying to avoid unique key conflict (overwrite mode)
+            if (! empty($existingTargetFile) && ! $shouldKeepBoth) {
+                $this->taskFileRepository->deleteById($existingTargetFile->getFileId(), true);
+
+                $this->logger->info('Deleted existing target file before copy', [
+                    'deleted_file_id' => $existingTargetFile->getFileId(),
+                    'deleted_file_key' => $existingTargetFile->getFileKey(),
+                    'source_file_id' => $fileEntity->getFileId(),
+                ]);
+            }
+
+            // Copy file in cloud storage
+            $this->copyFileInCloudStorage(
+                $fileEntity,
+                $sourceProject,
+                $targetProject,
+                $targetPath
+            );
+
+            // Create new file record
+            $newFileEntity = new TaskFileEntity();
+            $newFileEntity->setFileId(IdGenerator::getSnowId());
+            $newFileEntity->setProjectId($targetProject->getId());
+            $newFileEntity->setUserId($dataIsolation->getCurrentUserId());
+            $newFileEntity->setOrganizationCode($targetProject->getUserOrganizationCode());
+            $newFileEntity->setFileType($fileEntity->getFileType());
+            $newFileEntity->setFileName(basename($targetPath));
+            $fileInfo = pathinfo($targetPath);
+            $extension = isset($fileInfo['extension']) ? $fileInfo['extension'] : '';
+            $newFileEntity->setFileExtension($extension);
+            $newFileEntity->setFileSize($fileEntity->getFileSize());
+            $newFileEntity->setFileKey($targetPath);
+            $newFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
+            $newFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $newFileEntity->setStorageType($fileEntity->getStorageType());
+            $newFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $newFileEntity->setIsDirectory($fileEntity->getIsDirectory());
+            $newFileEntity->setParentId($targetParentId);
+            $newFileEntity->setMetadata($fileEntity->getMetadata());
+            $newFileEntity->setSource(TaskFileSource::COPY->value);
+
+            $createdFileEntity = $this->taskFileRepository->insert($newFileEntity);
+
+            Db::commit();
+
+            $this->logger->info('File copied successfully', [
+                'source_file_id' => $fileEntity->getFileId(),
+                'new_file_id' => $createdFileEntity->getFileId(),
+                'source_project_id' => $sourceProject->getId(),
+                'target_project_id' => $targetProject->getId(),
+                'target_path' => $targetPath,
+                'should_keep_both' => $shouldKeepBoth,
+            ]);
+
+            return $createdFileEntity;
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('copyProjectFile error', [
+                'file_id' => $fileEntity->getFileId(),
+                'file_key' => $fileEntity->getFileKey(),
+                'source_project_id' => $sourceProject->getId(),
+                'target_project_id' => $targetProject->getId(),
+                'target_parent_id' => $targetParentId,
+                'should_keep_both' => $shouldKeepBoth,
+                'target_path' => $targetPath,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Move file in cloud storage and update database record.
      *
      * @param TaskFileEntity $fileEntity File entity to move
@@ -1161,6 +1320,25 @@ class TaskFileDomainService
     /**
      * Handle file sorting on move with project-level locking and rebalancing.
      */
+    /**
+     * Handle file sort on copy operation.
+     * Reuses handleFileSortOnMove logic since sorting logic is identical.
+     *
+     * @param TaskFileEntity $fileEntity File entity being copied
+     * @param ProjectEntity $targetProject Target project entity
+     * @param int $targetParentId Target parent directory ID
+     * @param null|int $preFileId Previous file ID for positioning
+     */
+    public function handleFileSortOnCopy(
+        TaskFileEntity $fileEntity,
+        ProjectEntity $targetProject,
+        int $targetParentId,
+        ?int $preFileId = null
+    ): void {
+        // Reuse move logic since sorting is identical
+        $this->handleFileSortOnMove($fileEntity, $targetProject, $targetParentId, $preFileId);
+    }
+
     /**
      * Handle file sort on move operation.
      *
@@ -2080,6 +2258,55 @@ class TaskFileDomainService
         ]);
 
         return $fallbackPath;
+    }
+
+    /**
+     * Copy file in cloud storage (without deleting source file).
+     *
+     * @param TaskFileEntity $fileEntity File entity
+     * @param ProjectEntity $sourceProject Source project
+     * @param ProjectEntity $targetProject Target project
+     * @param string $targetPath Target path
+     */
+    private function copyFileInCloudStorage(
+        TaskFileEntity $fileEntity,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        string $targetPath
+    ): void {
+        if ($sourceProject->getUserOrganizationCode() === $targetProject->getUserOrganizationCode()) {
+            // Same organization: use copy operation
+            $this->cloudFileRepository->copyObjectByCredential(
+                '',
+                $targetProject->getUserOrganizationCode(),
+                $fileEntity->getFileKey(),
+                $targetPath,
+                StorageBucketType::SandBox
+            );
+        } else {
+            // Different organization: use sandbox gateway for cross-organization copy
+            $copyResult = $this->sandboxGateway->copyFiles([
+                [
+                    'source_oss_path' => $fileEntity->getFileKey(),
+                    'target_oss_path' => $targetPath,
+                ],
+            ]);
+
+            if (! $copyResult->isSuccess()) {
+                $this->logger->error('Failed to copy file across organizations', [
+                    'source_file_key' => $fileEntity->getFileKey(),
+                    'target_path' => $targetPath,
+                    'source_org' => $sourceProject->getUserOrganizationCode(),
+                    'target_org' => $targetProject->getUserOrganizationCode(),
+                ]);
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_COPY_FAILED,
+                    trans('file.cross_organization_copy_failed')
+                );
+            }
+
+            // Note: Do NOT delete source file (this is copy, not move)
+        }
     }
 
     /**

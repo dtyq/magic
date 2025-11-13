@@ -11,6 +11,7 @@ return [
     'target_parent_not_directory' => 'Target parent is not a directory',
     'cannot_move_to_subdirectory' => 'Cannot move directory to its subdirectory',
     'file_move_failed' => 'Failed to move file',
+    'file_copy_failed' => 'Failed to copy file',
     'file_save_failed' => 'Failed to save file',
     'file_create_failed' => 'Failed to create file',
     'file_delete_failed' => 'Failed to delete file',
@@ -62,4 +63,6 @@ return [
     'target_parent_not_in_target_project' => 'Target parent directory does not belong to the target project',
     'cross_organization_copy_failed' => 'Failed to copy file across organizations',
     'batch_move_failed' => 'Batch move operation failed',
+    'batch_copy_failed' => 'Batch copy operation failed',
+    'directory_copy_not_supported_yet' => 'Directory copy is not supported yet, please use batch copy instead',
 ];

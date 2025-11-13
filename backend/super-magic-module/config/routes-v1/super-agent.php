@@ -219,6 +219,8 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 复制文件
+            Router::post('/{id}/copy', [FileApi::class, 'copyFile']);
             // 获取文件版本列表
             Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
             // 文件回滚到指定版本
@@ -227,6 +229,8 @@ Router::addGroup(
             Router::post('/{id}/replace', [FileApi::class, 'replaceFile']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
+            // 批量复制文件
+            Router::post('/batch-copy', [FileApi::class, 'batchCopyFile']);
             // 批量删除文件
             Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
 

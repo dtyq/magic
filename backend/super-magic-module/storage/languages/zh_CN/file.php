@@ -11,6 +11,7 @@ return [
     'target_parent_not_directory' => '目标父级不是目录',
     'cannot_move_to_subdirectory' => '不能将目录移动到其子目录',
     'file_move_failed' => '移动文件失败',
+    'file_copy_failed' => '复制文件失败',
     'file_save_failed' => '保存文件失败',
     'file_create_failed' => '创建文件失败',
     'file_delete_failed' => '删除文件失败',
@@ -62,4 +63,6 @@ return [
     'target_parent_not_in_target_project' => '目标父目录不属于目标项目',
     'cross_organization_copy_failed' => '跨组织复制文件失败',
     'batch_move_failed' => '批量移动操作失败',
+    'batch_copy_failed' => '批量复制操作失败',
+    'directory_copy_not_supported_yet' => '目录复制功能暂未支持，请使用批量复制',
 ];

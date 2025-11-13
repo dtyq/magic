@@ -17,11 +17,13 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchCopyPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\FileBatchMovePublisher;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchCopyEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
@@ -38,6 +40,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchCopyFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
@@ -867,6 +870,151 @@ class FileManagementAppService extends AbstractAppService
     }
 
     /**
+     * Copy file to target directory (supports both same-project and cross-project copy).
+     *
+     * @param RequestContext $requestContext Request context
+     * @param int $fileId File ID to copy
+     * @param int $targetParentId Target parent directory ID
+     * @param null|int $preFileId Previous file ID for positioning
+     * @param null|int $targetProjectId Target project ID (null means same project)
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
+     * @return array Copy result
+     */
+    public function copyFile(
+        RequestContext $requestContext,
+        int $fileId,
+        int $targetParentId,
+        ?int $preFileId = null,
+        ?int $targetProjectId = null,
+        array $keepBothFileIds = []
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            // 1. Get source file entity
+            $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
+
+            // 2. Get source project and verify permission
+            $sourceProject = $this->getAccessibleProjectWithEditor(
+                $fileEntity->getProjectId(),
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 3. Get target project (if not provided, use source project)
+            $targetProject = $targetProjectId
+                ? $this->getAccessibleProjectWithEditor(
+                    $targetProjectId,
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+                : $sourceProject;
+
+            // 4. Handle target parent directory
+            if (empty($targetParentId)) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $targetProject->getId(),
+                    workDir: $targetProject->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
+                );
+            }
+
+            // 5. Directory copy: use asynchronous processing
+            if ($fileEntity->getIsDirectory()) {
+                $batchKey = $this->batchOperationStatusManager->generateBatchKey(
+                    FileBatchOperationStatusManager::OPERATION_COPY,
+                    $dataIsolation->getCurrentUserId(),
+                    (string) $fileEntity->getFileId()
+                );
+
+                // Initialize task status
+                $this->batchOperationStatusManager->initializeTask(
+                    $batchKey,
+                    FileBatchOperationStatusManager::OPERATION_COPY,
+                    $dataIsolation->getCurrentUserId(),
+                    1
+                );
+
+                // Publish copy event
+                $fileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
+                $event = FileBatchCopyEvent::fromDTO(
+                    $batchKey,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $fileIds,
+                    $targetProject->getId(),
+                    $sourceProject->getId(),
+                    $preFileId,
+                    $targetParentId,
+                    $keepBothFileIds
+                );
+
+                $this->logger->info(sprintf('Copy directory request data, batchKey: %s', $batchKey), [
+                    'file_ids' => $fileIds,
+                    'source_project_id' => $sourceProject->getId(),
+                    'target_project_id' => $targetProject->getId(),
+                    'target_parent_id' => $targetParentId,
+                    'pre_file_id' => $preFileId,
+                    'keep_both_file_ids' => $keepBothFileIds,
+                ]);
+
+                $publisher = new FileBatchCopyPublisher($event);
+                $this->producer->produce($publisher);
+
+                // Return asynchronous response
+                return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
+            }
+
+            // 6. Single file sync copy
+            $newFileEntity = $this->taskFileDomainService->copyProjectFile(
+                $dataIsolation,
+                $fileEntity,
+                $sourceProject,
+                $targetProject,
+                $targetParentId,
+                $keepBothFileIds
+            );
+
+            // 7. Handle file sorting in target project
+            $this->taskFileDomainService->handleFileSortOnCopy(
+                $newFileEntity,
+                $targetProject,
+                $targetParentId,
+                $preFileId
+            );
+
+            // 8. Re-get file entity with updated data
+            $newFileEntity = $this->taskFileDomainService->getById($newFileEntity->getFileId());
+
+            $result = TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
+            return FileBatchOperationResponseDTO::createSyncSuccess($result)->toArray();
+        } catch (BusinessException $e) {
+            $this->logger->warning('Business logic error in copy file', [
+                'file_id' => $fileId,
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $targetParentId,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('System error in copy file', [
+                'file_id' => $fileId,
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $targetParentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_COPY_FAILED, trans('file.file_copy_failed'));
+        }
+    }
+
+    /**
      * Get file URLs for multiple files.
      *
      * @param RequestContext $requestContext Request context
@@ -1080,6 +1228,115 @@ class FileManagementAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.batch_move_failed'));
+        }
+    }
+
+    /**
+     * Batch copy files to target directory (supports both same-project and cross-project copy).
+     *
+     * @param RequestContext $requestContext Request context
+     * @param BatchCopyFileRequestDTO $requestDTO Request DTO
+     * @return array Batch copy result
+     */
+    public function batchCopyFile(RequestContext $requestContext, BatchCopyFileRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        try {
+            // 1. Get source project and verify permission
+            $sourceProject = $this->getAccessibleProjectWithEditor(
+                (int) $requestDTO->getProjectId(),
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            );
+
+            // 2. Get target project (if not provided, use source project)
+            $targetProject = ! empty($requestDTO->getTargetProjectId())
+                ? $this->getAccessibleProjectWithEditor(
+                    (int) $requestDTO->getTargetProjectId(),
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+                : $sourceProject;
+
+            // Generate batch key for tracking
+            $fileIds = $requestDTO->getFileIds();
+            sort($fileIds); // Ensure consistent hash for same file IDs
+            $fileIdsHash = md5(implode(',', $fileIds));
+            $batchKey = $this->batchOperationStatusManager->generateBatchKey(
+                FileBatchOperationStatusManager::OPERATION_COPY,
+                $dataIsolation->getCurrentUserId(),
+                $fileIdsHash
+            );
+
+            // Initialize task status
+            $fileCount = count($requestDTO->getFileIds());
+            $this->batchOperationStatusManager->initializeTask(
+                $batchKey,
+                FileBatchOperationStatusManager::OPERATION_COPY,
+                $dataIsolation->getCurrentUserId(),
+                $fileCount
+            );
+
+            // Print request data
+            $this->logger->info(sprintf('Batch copy file request data, batchKey: %s', $batchKey), [
+                'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => $sourceProject->getId(),
+                'target_project_id' => $targetProject->getId(),
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'pre_file_id' => $requestDTO->getPreFileId(),
+                'keep_both_file_ids' => $requestDTO->getKeepBothFileIds(),
+            ]);
+
+            // Create and publish batch copy event
+            $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
+            if (empty($requestDTO->getTargetParentId())) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $targetProject->getId(),
+                    workDir: $targetProject->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
+                );
+            } else {
+                $targetParentId = (int) $requestDTO->getTargetParentId();
+            }
+            $event = FileBatchCopyEvent::fromDTO(
+                $batchKey,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $requestDTO->getFileIds(),
+                $targetProject->getId(),
+                $sourceProject->getId(),
+                $preFileId,
+                $targetParentId,
+                $requestDTO->getKeepBothFileIds()
+            );
+            $publisher = new FileBatchCopyPublisher($event);
+            $this->producer->produce($publisher);
+
+            // Return asynchronous response
+            return FileBatchOperationResponseDTO::createAsyncProcessing($batchKey)->toArray();
+        } catch (BusinessException $e) {
+            $this->logger->warning('Business logic error in batch copy file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->logger->error('System error in batch copy file', [
+                'file_ids' => $requestDTO->getFileIds(),
+                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
+                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'error' => $e->getMessage(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_COPY_FAILED, trans('file.batch_copy_failed'));
         }
     }
 
