@@ -249,7 +249,18 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                         $keepBothFileIds
                     );
                 } else {
-                    // Original overwrite logic
+                    // Original overwrite logic: delete target file BEFORE moving source file
+                    if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
+                        // Overwrite logic: delete target file first to avoid unique key conflict
+                        $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+
+                        $this->logger->info('Deleted existing target file before move in batch operation', [
+                            'deleted_file_id' => $targetEntity->getFileId(),
+                            'deleted_file_key' => $targetEntity->getFileKey(),
+                            'source_file_id' => $fileEntity->getFileId(),
+                        ]);
+                    }
+
                     $this->taskFileDomainService->moveFile(
                         $fileEntity,
                         $sourceProject,
@@ -257,10 +268,6 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                         $newFileKey,
                         $targetParentEntity->getFileId()
                     );
-                    if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
-                        // Overwrite logic: delete target file
-                        $this->taskFileDomainService->deleteById($targetEntity->getFileId());
-                    }
                 }
             }
 

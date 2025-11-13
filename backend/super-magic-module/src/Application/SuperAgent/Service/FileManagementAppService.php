@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -1285,18 +1286,33 @@ class FileManagementAppService extends AbstractAppService
                 $fileIdsHash
             );
 
-            // Initialize task status
-            $fileCount = count($requestDTO->getFileIds());
+            // Expand directory file IDs to include all nested files
+            $expandedFileIds = $this->expandDirectoryFileIds(
+                $dataIsolation,
+                $requestDTO->getFileIds(),
+                $sourceProject->getId()
+            );
+
+            $this->logger->info('Expanded directory file IDs for batch copy', [
+                'batch_key' => $batchKey,
+                'original_file_ids' => $requestDTO->getFileIds(),
+                'expanded_file_ids' => $expandedFileIds,
+                'original_count' => count($requestDTO->getFileIds()),
+                'expanded_count' => count($expandedFileIds),
+            ]);
+
+            // Initialize task status with expanded file count
             $this->batchOperationStatusManager->initializeTask(
                 $batchKey,
                 FileBatchOperationStatusManager::OPERATION_COPY,
                 $dataIsolation->getCurrentUserId(),
-                $fileCount
+                count($expandedFileIds)
             );
 
             // Print request data
             $this->logger->info(sprintf('Batch copy file request data, batchKey: %s', $batchKey), [
                 'file_ids' => $requestDTO->getFileIds(),
+                'expanded_file_ids' => $expandedFileIds,
                 'source_project_id' => $sourceProject->getId(),
                 'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
@@ -1321,7 +1337,7 @@ class FileManagementAppService extends AbstractAppService
                 $batchKey,
                 $dataIsolation->getCurrentUserId(),
                 $dataIsolation->getCurrentOrganizationCode(),
-                $requestDTO->getFileIds(),
+                $expandedFileIds,
                 $targetProject->getId(),
                 $sourceProject->getId(),
                 $preFileId,
