@@ -30,7 +30,7 @@ class CoContext
 
     public static function getTraceId(): string
     {
-        if (!empty(Context::get('tracer.trace_id'))) {
+        if (! empty(Context::get('tracer.trace_id'))) {
             return (string) Context::get('tracer.trace_id');
         }
 
