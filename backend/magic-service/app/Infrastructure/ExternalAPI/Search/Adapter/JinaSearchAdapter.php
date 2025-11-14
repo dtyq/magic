@@ -33,14 +33,21 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
     ): array {
         $apiKey = $this->config->get('search.jina.api_key');
 
-        // Map mkt to region for Jina (use X-Locale header)
-        $region = ! empty($mkt) ? $mkt : $this->config->get('search.jina.region');
-
-        // Call Jina search
-        $rawResponse = $this->jinaSearch->search($query, $apiKey, $region);
+        // Call Jina search with all parameters
+        // The service now handles parameter mapping internally
+        $rawResponse = $this->jinaSearch->search(
+            $query,
+            $apiKey,
+            $mkt,
+            $count,
+            $offset,
+            $safeSearch,
+            $freshness,
+            $setLang
+        );
 
         // Convert Jina response to unified Bing-compatible format
-        return $this->convertToUnifiedFormat($rawResponse, $count, $offset);
+        return $this->convertToUnifiedFormat($rawResponse);
     }
 
     public function getEngineName(): string
@@ -57,12 +64,8 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
     /**
      * Convert Jina response to Bing-compatible format.
      */
-    private function convertToUnifiedFormat(array $jinaResponse, int $count, int $offset): array
+    private function convertToUnifiedFormat(array $jinaResponse): array
     {
-        // Jina returns data array directly
-        // Apply offset and count manually
-        $slicedResults = array_slice($jinaResponse, $offset, $count);
-
         return [
             'webPages' => [
                 'totalEstimatedMatches' => count($jinaResponse),
@@ -75,7 +78,7 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
                         'displayUrl' => $this->extractDomain($item['url'] ?? ''),
                         'dateLastCrawled' => '', // Jina doesn't provide this
                     ];
-                }, $slicedResults, array_keys($slicedResults)),
+                }, $jinaResponse, array_keys($jinaResponse)),
             ],
             '_rawResponse' => $jinaResponse,
         ];

@@ -34,11 +34,18 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
         $apiKey = $this->config->get('search.google.api_key');
         $cx = $this->config->get('search.google.cx');
 
-        // Note: Google Search has limitations:
-        // - count is capped at 10 per request (Google API limitation)
-        // - offset/pagination works differently
-        // Original GoogleSearch.php doesn't accept these parameters, so we call with basic params
-        $rawResponse = $this->googleSearch->search($query, $apiKey, $cx);
+        // Call GoogleSearch with all parameters
+        $rawResponse = $this->googleSearch->search(
+            $query,
+            $apiKey,
+            $cx,
+            $mkt,
+            $count,
+            $offset,
+            $safeSearch,
+            $freshness,
+            $setLang
+        );
 
         // Convert Google response to unified Bing-compatible format
         return $this->convertToUnifiedFormat($rawResponse);

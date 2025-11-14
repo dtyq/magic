@@ -31,18 +31,31 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): array {
+        // Adapter's job: Map unified parameters to DuckDuckGo-specific format
+
         // Map market code to DuckDuckGo region (e.g., zh-CN -> cn-zh)
         $region = $this->mapMktToRegion($mkt);
 
-        // Map freshness to DuckDuckGo time parameter
+        // Map freshness to DuckDuckGo time parameter (Day -> d, Week -> w, Month -> m)
         $time = $this->mapFreshnessToTime($freshness);
 
-        // Note: DuckDuckGo doesn't support offset pagination natively
-        // and doesn't provide count control in the lite API
-        $rawResponse = $this->duckDuckGoSearch->search($query, $region, $time);
+        // Call DuckDuckGo API with its native parameters
+        // Note: DuckDuckGo Lite API doesn't support native pagination
+        // count and offset will be applied via array slicing in the service
+        $rawResponse = $this->duckDuckGoSearch->search(
+            $query,
+            $mkt,
+            $count,
+            $offset,
+            $safeSearch,
+            $freshness,
+            $setLang,
+            $region,  // Pass mapped region
+            $time     // Pass mapped time
+        );
 
         // Convert DuckDuckGo response to unified Bing-compatible format
-        return $this->convertToUnifiedFormat($rawResponse, $count, $offset);
+        return $this->convertToUnifiedFormat($rawResponse);
     }
 
     public function getEngineName(): string
@@ -59,11 +72,8 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
     /**
      * Convert DuckDuckGo response to Bing-compatible format.
      */
-    private function convertToUnifiedFormat(array $duckduckgoResponse, int $count, int $offset): array
+    private function convertToUnifiedFormat(array $duckduckgoResponse): array
     {
-        // Apply offset and count manually since DDG doesn't support them
-        $slicedResults = array_slice($duckduckgoResponse, $offset, $count);
-
         return [
             'webPages' => [
                 'totalEstimatedMatches' => count($duckduckgoResponse),
@@ -76,7 +86,7 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
                         'displayUrl' => $this->extractDomain($item['url'] ?? ''),
                         'dateLastCrawled' => '', // DuckDuckGo doesn't provide this
                     ];
-                }, $slicedResults, array_keys($slicedResults)),
+                }, $duckduckgoResponse, array_keys($duckduckgoResponse)),
             ],
             '_rawResponse' => $duckduckgoResponse,
         ];
@@ -84,7 +94,9 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
 
     /**
      * Map market code (mkt) to DuckDuckGo region code.
-     * Examples: zh-CN -> cn-zh, en-US -> us-en.
+     *
+     * DuckDuckGo uses reversed format: language-COUNTRY → country-language
+     * Examples: zh-CN -> cn-zh, en-US -> us-en
      */
     private function mapMktToRegion(string $mkt): string
     {
@@ -102,8 +114,10 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
     }
 
     /**
-     * Map freshness to DuckDuckGo time parameter.
-     * Freshness: Day/Week/Month -> Time: d/w/m.
+     * Map freshness (Bing-style) to DuckDuckGo time parameter.
+     *
+     * Bing uses full words, DuckDuckGo uses single letters
+     * Freshness: Day/Week/Month -> Time: d/w/m
      */
     private function mapFreshnessToTime(string $freshness): ?string
     {
