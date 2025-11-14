@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Event\ModelUsageEvent;
+use App\Application\ModelGateway\Event\WebSearchUsageEvent;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
@@ -499,6 +500,16 @@ class LLMAppService extends AbstractLLMAppService
                 'count' => $searchRequestDTO->getCount(),
                 'offset' => $searchRequestDTO->getOffset(),
             ];
+
+            $businessParams = $searchRequestDTO->getBusinessParams();
+            $businessParams['response_time'] = $responseTime;
+            $webSearchUsageEvent = new WebSearchUsageEvent(
+                $searchRequestDTO->getEngine(),
+                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                $modelGatewayDataIsolation->getCurrentUserId(),
+                $businessParams
+            );
+            AsyncEventUtil::dispatch($webSearchUsageEvent);
 
             // 10. Log success
             $this->logger->info('UnifiedSearchSuccess', [

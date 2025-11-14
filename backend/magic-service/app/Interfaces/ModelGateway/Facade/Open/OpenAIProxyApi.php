@@ -217,6 +217,7 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         // 2. Create SearchRequestDTO
         $searchRequestDTO = SearchRequestDTO::createDTO($requestData);
+        $this->setHeaderConfigs($searchRequestDTO, $request);
         $searchRequestDTO->setAccessToken($this->getAccessToken());
         $searchRequestDTO->setIps($this->getClientIps());
 
