@@ -13,6 +13,7 @@ use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
@@ -60,6 +61,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             FileRenamedEvent::class,
             FileMovedEvent::class,
             FileBatchMoveEvent::class,
+            FileContentSavedEvent::class,
         ];
     }
 
@@ -77,6 +79,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 $event instanceof FileRenamedEvent => $this->handleFileRenamed($event),
                 $event instanceof FileMovedEvent => $this->handleFileMoved($event),
                 $event instanceof FileBatchMoveEvent => $this->handleBatchMoved($event),
+                $event instanceof FileContentSavedEvent => $this->handleFileContentSaved($event),
                 default => null,
             };
         } catch (Throwable $e) {
@@ -132,6 +135,35 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         $pushData = $this->buildPushData(
             operation: 'delete',
+            projectId: (string) $fileEntity->getProjectId(),
+            workspaceId: $projectEntity->getWorkDir(),
+            fileEntity: $fileEntity,
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $event->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
+        );
+
+        $this->pushNotification($event->getUserId(), $pushData);
+    }
+
+    /**
+     * Handle file content saved event.
+     */
+    private function handleFileContentSaved(FileContentSavedEvent $event): void
+    {
+        $fileEntity = $event->getFileEntity();
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
+
+        if (! $projectEntity) {
+            $this->logger->warning('Project not found for file content saved notification', [
+                'project_id' => $fileEntity->getProjectId(),
+            ]);
+            return;
+        }
+
+        $pushData = $this->buildPushData(
+            operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
