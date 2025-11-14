@@ -109,7 +109,10 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
-            workDir: $projectEntity->getWorkDir()
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $event->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
@@ -132,7 +135,10 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
-            workDir: $projectEntity->getWorkDir()
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $event->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
@@ -150,15 +156,19 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
+        $userAuthorization = $event->getUserAuthorization();
         $pushData = $this->buildPushData(
             operation: 'delete',
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
-            workDir: $projectEntity->getWorkDir()
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
         );
 
-        $this->pushNotification($event->getUserAuthorization()->getId(), $pushData);
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**
@@ -174,6 +184,8 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
+        $userAuthorization = $event->getUserAuthorization();
+
         // Build batch changes
         $changes = [];
         foreach ($fileIds as $fileId) {
@@ -183,15 +195,15 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             ];
         }
 
-        $pushData = [
-            'type' => 'super_magic_file_change',
-            'project_id' => (string) $projectId,
-            'workspace_id' => $projectEntity->getWorkDir(),
-            'changes' => $changes,
-            'timestamp' => date('c'),
-        ];
+        $pushData = $this->buildBatchPushData(
+            projectId: (string) $projectId,
+            workspaceId: $projectEntity->getWorkDir(),
+            changes: $changes,
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            topicId: ''
+        );
 
-        $this->pushNotification($event->getUserAuthorization()->getId(), $pushData);
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**
@@ -206,15 +218,19 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
+        $userAuthorization = $event->getUserAuthorization();
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
-            workDir: $projectEntity->getWorkDir()
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
         );
 
-        $this->pushNotification($event->getUserAuthorization()->getId(), $pushData);
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**
@@ -229,15 +245,19 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
+        $userAuthorization = $event->getUserAuthorization();
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
             workspaceId: $projectEntity->getWorkDir(),
             fileEntity: $fileEntity,
-            workDir: $projectEntity->getWorkDir()
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
         );
 
-        $this->pushNotification($event->getUserAuthorization()->getId(), $pushData);
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**
@@ -255,6 +275,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         // Build batch changes
         $changes = [];
+        $topicId = '';
         foreach ($fileIds as $fileId) {
             try {
                 $fileEntity = $this->taskFileDomainService->getById($fileId);
@@ -265,6 +286,10 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                         'file_id' => (string) $fileId,
                         'file' => $fileDto->toArray(),
                     ];
+                    // Use the first file's topicId if available
+                    if (empty($topicId) && $fileEntity->getTopicId() > 0) {
+                        $topicId = (string) $fileEntity->getTopicId();
+                    }
                 }
             } catch (Throwable $e) {
                 $this->logger->warning('Failed to get file info for batch move notification', [
@@ -278,19 +303,19 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
-        $pushData = [
-            'type' => 'super_magic_file_change',
-            'project_id' => (string) $projectId,
-            'workspace_id' => $projectEntity->getWorkDir(),
-            'changes' => $changes,
-            'timestamp' => date('c'),
-        ];
+        $pushData = $this->buildBatchPushData(
+            projectId: (string) $projectId,
+            workspaceId: $projectEntity->getWorkDir(),
+            changes: $changes,
+            organizationCode: $event->getOrganizationCode(),
+            topicId: $topicId
+        );
 
         $this->pushNotification($event->getUserId(), $pushData);
     }
 
     /**
-     * Build push data structure.
+     * Build push data structure for single file operation.
      * @param mixed $fileEntity
      */
     private function buildPushData(
@@ -298,22 +323,61 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         string $projectId,
         string $workspaceId,
         $fileEntity,
-        string $workDir
+        string $workDir,
+        string $organizationCode = '',
+        string $conversationId = '',
+        string $topicId = ''
     ): array {
         $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir);
 
+        $changes = [
+            [
+                'operation' => $operation,
+                'file_id' => (string) $fileEntity->getFileId(),
+                'file' => $fileDto->toArray(),
+            ],
+        ];
+
+        return $this->buildBatchPushData(
+            projectId: $projectId,
+            workspaceId: $workspaceId,
+            changes: $changes,
+            organizationCode: $organizationCode,
+            conversationId: $conversationId,
+            topicId: $topicId
+        );
+    }
+
+    /**
+     * Build batch push data structure.
+     */
+    private function buildBatchPushData(
+        string $projectId,
+        string $workspaceId,
+        array $changes,
+        string $organizationCode = '',
+        string $conversationId = '',
+        string $topicId = ''
+    ): array {
         return [
-            'type' => 'super_magic_file_change',
-            'project_id' => $projectId,
-            'workspace_id' => $workspaceId,
-            'changes' => [
-                [
-                    'operation' => $operation,
-                    'file_id' => (string) $fileEntity->getFileId(),
-                    'file' => $fileDto->toArray(),
+            'type' => 'seq',
+            'seq' => [
+                'magic_id' => '',
+                'seq_id' => '',
+                'message_id' => '',
+                'refer_message_id' => '',
+                'sender_message_id' => '',
+                'conversation_id' => $conversationId,
+                'organization_code' => $organizationCode,
+                'message' => [
+                    'type' => 'super_magic_file_change',
+                    'project_id' => $projectId,
+                    'workspace_id' => $workspaceId,
+                    'topic_id' => $topicId,
+                    'changes' => $changes,
+                    'timestamp' => date('c'),
                 ],
             ],
-            'timestamp' => date('c'),
         ];
     }
 
@@ -330,10 +394,11 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
+        $message = $pushData['seq']['message'] ?? [];
         $this->logger->info('Pushing file change notification', [
             'magic_id' => $magicId,
-            'project_id' => $pushData['project_id'],
-            'changes_count' => count($pushData['changes']),
+            'project_id' => $message['project_id'] ?? '',
+            'changes_count' => count($message['changes'] ?? []),
         ]);
 
         // Push via WebSocket

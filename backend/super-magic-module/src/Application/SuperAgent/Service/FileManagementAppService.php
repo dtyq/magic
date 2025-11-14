@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -1196,6 +1197,7 @@ class FileManagementAppService extends AbstractAppService
 
                 // 7. 创建版本快照（在替换之前）
                 $versionEntity = $this->taskFileVersionDomainService->createFileVersion(
+                    $projectEntity->getUserOrganizationCode(),
                     $fileEntity,
                     $isCrossTypeReplace ? 2 : 1  // 跨类型替换使用特殊标记
                 );
