@@ -1959,6 +1959,7 @@ class TaskFileDomainService
         $dirEntity->setStorageType($oldFileEntity->getStorageType());
         $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
         $dirEntity->setSort($oldFileEntity->getSort());
+        $dirEntity->setMetadata($oldFileEntity->getMetadata());  // Preserve metadata when creating folder
         $dirEntity->setFileId(IdGenerator::getSnowId());
         $dirEntity->setFileName($oldFileEntity->getFileName());
         $dirEntity->setFileKey($newFileKey);
@@ -2390,6 +2391,7 @@ class TaskFileDomainService
             'file_key' => $targetPath,
             'file_name' => basename($targetPath),  // Extract filename from path
             'parent_id' => $targetParentId,
+            'metadata' => $fileEntity->getMetadata(),  // Preserve metadata when moving
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
