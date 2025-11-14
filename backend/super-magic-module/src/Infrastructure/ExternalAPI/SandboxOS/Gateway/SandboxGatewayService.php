@@ -731,6 +731,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             $headers['request-id'] = $requestId;
         }
 
+        $traceId = CoContext::getTraceId() ?: (string) IdGenerator::getSnowId();
+        $headers['x-b3-trace-id'] = $traceId;
+        $headers['tracer.trace_id'] = $traceId;
+
         return $headers;
     }
 
