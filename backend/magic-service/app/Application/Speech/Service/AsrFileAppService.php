@@ -219,19 +219,19 @@ readonly class AsrFileAppService
                 $existingWorkspaceFilePath = $taskStatus->filePath;
 
                 try {
-                    // 调用沙箱合并音频（沙箱会先完成物理文件的移动和重命名）
-                    $this->updateAudioFromSandbox($taskStatus, $organizationCode, $summaryRequest->generatedTitle);
-
-                    // 沙箱合并成功后，重命名显示目录（更新数据库记录）
+                    // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
                     if (! empty($summaryRequest->generatedTitle)) {
-                        $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
+                        $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
                             $taskStatus,
                             $summaryRequest->generatedTitle,
-                            $summaryRequest->projectId,
                             $this->titleGeneratorService
                         );
                         $taskStatus->displayDirectory = $newDisplayDirectory;
                     }
+
+                    // 调用沙箱合并音频（沙箱会先完成物理文件的移动和重命名）
+                    // 沙箱移动文件后，会有其他机制来保障数据库的更新，不需要主动调用 renameDisplayDirectory
+                    $this->updateAudioFromSandbox($taskStatus, $organizationCode, $summaryRequest->generatedTitle);
                 } catch (Throwable $mergeException) {
                     // 回退到已有文件
                     if (! empty($existingWorkspaceFilePath)) {
@@ -428,19 +428,19 @@ readonly class AsrFileAppService
             // 生成标题
             $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
 
-            // 合并音频（沙箱会先完成物理文件的移动和重命名）
-            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
-
-            // 沙箱合并成功后，重命名显示目录（更新数据库记录）
+            // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
             if (! empty($fileTitle)) {
-                $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
+                $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
                     $taskStatus,
                     $fileTitle,
-                    $taskStatus->projectId,
                     $this->titleGeneratorService
                 );
                 $taskStatus->displayDirectory = $newDisplayDirectory;
             }
+
+            // 合并音频（沙箱会先完成物理文件的移动和重命名）
+            // 沙箱移动文件后，会有其他机制来保障数据库的更新，不需要主动调用 renameDisplayDirectory
+            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
 
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
