@@ -347,8 +347,8 @@ readonly class AsrSandboxService
         );
 
         // 轮询等待完成
-        $maxAttempts = 60;
-        $interval = 1;
+        $maxAttempts = 200;
+        $interval = 5;
 
         for ($attempt = 1; $attempt <= $maxAttempts; ++$attempt) {
             $statusString = $response->getStatus();
