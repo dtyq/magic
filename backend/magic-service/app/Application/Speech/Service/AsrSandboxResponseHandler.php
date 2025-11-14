@@ -61,7 +61,7 @@ readonly class AsrSandboxResponseHandler
             return;
         }
 
-        // 2. 检查并处理目录重命名
+        // 2. 检查并处理目录重命名（沙箱有bug，会重命名目录但是没有通知文件变动，没有改数据库记录）
         $this->handleDirectoryRename($taskStatus, $audioFile, $organizationCode);
 
         // 3. 创建音频文件记录

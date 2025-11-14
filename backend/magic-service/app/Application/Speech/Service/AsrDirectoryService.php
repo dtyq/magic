@@ -192,6 +192,108 @@ readonly class AsrDirectoryService
     }
 
     /**
+     * 重命名显示目录（更新数据库记录）.
+     * 用于沙箱操作后手动更新数据库中的目录和子文件路径。
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态（displayDirectory 已更新为新路径）
+     * @param string $oldRelativePath 旧的相对路径
+     * @param string $projectId 项目ID
+     * @return bool 是否重命名成功
+     */
+    public function renameDisplayDirectory(
+        mixed $taskStatus,
+        string $oldRelativePath,
+        string $projectId
+    ): bool {
+        $newRelativePath = $taskStatus->displayDirectory;
+        $oldDirectoryId = $taskStatus->displayDirectoryId;
+
+        // 1. 基本校验
+        if (empty($oldRelativePath) || empty($newRelativePath) || $oldDirectoryId === null) {
+            $this->logger->warning('显示目录信息不完整，跳过重命名', [
+                'task_key' => $taskStatus->taskKey,
+                'old_path' => $oldRelativePath,
+                'new_path' => $newRelativePath,
+                'old_id' => $oldDirectoryId,
+            ]);
+            return false;
+        }
+
+        // 如果新旧路径相同，无需重命名
+        if ($newRelativePath === $oldRelativePath) {
+            $this->logger->info('新旧目录路径相同，无需执行重命名', [
+                'task_key' => $taskStatus->taskKey,
+                'directory_path' => $newRelativePath,
+            ]);
+            return true;
+        }
+
+        // 2. 构建完整路径并更新数据库
+        try {
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $taskStatus->userId);
+
+            // 项目工作目录 (如: project_123/workspace)
+            $workDir = $projectEntity->getWorkDir();
+
+            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode ?? '');
+
+            // 旧目录的完整 file_key，末尾带 / (如: DT001/open/.../录音总结_20251027_230949/)
+            $fullOldPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $oldRelativePath);
+            $fullOldPath = rtrim($fullOldPath, '/') . '/';
+
+            // 新目录的完整 file_key，末尾带 / (如: DT001/open/.../被讨厌的勇气笔记_20251027_230949/)
+            $fullNewPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $newRelativePath);
+            $fullNewPath = rtrim($fullNewPath, '/') . '/';
+
+            // 3. 更新目录实体本身
+            $dirEntity = $this->taskFileDomainService->getById($oldDirectoryId);
+            if ($dirEntity === null) {
+                $this->logger->error('目录记录不存在', [
+                    'task_key' => $taskStatus->taskKey,
+                    'directory_id' => $oldDirectoryId,
+                ]);
+                return false;
+            }
+
+            $newDirectoryName = basename($newRelativePath);
+            $dirEntity->setFileName($newDirectoryName);
+            $dirEntity->setFileKey($fullNewPath);
+            $dirEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $this->taskFileDomainService->updateById($dirEntity);
+
+            // 4. 更新目录下所有子文件的 file_key 路径（递归更新）
+            $updatedCount = $this->updateChildrenFilePaths(
+                (int) $projectId,
+                $oldDirectoryId,
+                $fullOldPath,
+                $fullNewPath,
+                $taskStatus->taskKey
+            );
+
+            $this->logger->info('显示目录重命名成功', [
+                'task_key' => $taskStatus->taskKey,
+                'old_relative_path' => $oldRelativePath,
+                'new_relative_path' => $newRelativePath,
+                'old_full_path' => $fullOldPath,
+                'new_full_path' => $fullNewPath,
+                'directory_id' => $oldDirectoryId,
+                'children_updated' => $updatedCount,
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->logger->error('重命名显示目录失败', [
+                'task_key' => $taskStatus->taskKey,
+                'old_path' => $oldRelativePath,
+                'new_path' => $newRelativePath,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * 获取项目的 workspace 路径.
      *
      * @param string $projectId 项目ID
@@ -391,5 +493,79 @@ readonly class AsrDirectoryService
             $organizationCode,
             $projectEntity->getUserOrganizationCode()
         );
+    }
+
+    /**
+     * 更新目录下所有子文件和子目录的 file_key 路径（包括嵌套子目录）.
+     * 使用 parent_id 递归查询，利用 idx_project_parent_sort 索引，性能更优.
+     *
+     * @param int $projectId 项目ID
+     * @param int $oldDirectoryId 旧目录ID（用于递归查询）
+     * @param string $oldDirPath 旧目录完整路径（末尾带 /）
+     * @param string $newDirPath 新目录完整路径（末尾带 /）
+     * @param string $taskKey 任务键（用于日志）
+     * @return int 更新的文件数量
+     */
+    private function updateChildrenFilePaths(
+        int $projectId,
+        int $oldDirectoryId,
+        string $oldDirPath,
+        string $newDirPath,
+        string $taskKey
+    ): int {
+        // 确保目录路径以 / 结尾
+        $oldDirPath = rtrim($oldDirPath, '/') . '/';
+        $newDirPath = rtrim($newDirPath, '/') . '/';
+
+        try {
+            // 1. 使用 parent_id 递归查询所有嵌套的子文件和子目录
+            // 利用 idx_project_parent_sort 索引，性能优于 LIKE 查询
+            $fileEntities = $this->taskFileDomainService->findFilesRecursivelyByParentId(
+                $projectId,
+                $oldDirectoryId
+            );
+
+            if (empty($fileEntities)) {
+                $this->logger->info('目录下无子文件，无需更新路径', [
+                    'task_key' => $taskKey,
+                    'old_dir_path' => $oldDirPath,
+                ]);
+                return 0;
+            }
+
+            // 2. 准备批量更新数据
+            $result = $this->buildFileKeyUpdateBatch($fileEntities, $oldDirPath, $newDirPath);
+            $updateBatch = $result['updateBatch'];
+
+            if (empty($updateBatch)) {
+                $this->logger->info('无需更新任何文件路径', [
+                    'task_key' => $taskKey,
+                ]);
+                return 0;
+            }
+
+            // 3. 批量更新
+            $updatedCount = $this->taskFileDomainService->batchUpdateFileKeys($updateBatch);
+
+            $this->logger->info('批量更新子文件路径完成（包括嵌套目录，使用索引优化）', [
+                'task_key' => $taskKey,
+                'old_dir_path' => $oldDirPath,
+                'new_dir_path' => $newDirPath,
+                'total_files' => count($fileEntities),
+                'updated_count' => $updatedCount,
+                'query_method' => 'recursive_parent_id', // 标记查询方法
+            ]);
+
+            return $updatedCount;
+        } catch (Throwable $e) {
+            $this->logger->error('更新子文件路径失败', [
+                'task_key' => $taskKey,
+                'old_dir_path' => $oldDirPath,
+                'new_dir_path' => $newDirPath,
+                'error' => $e->getMessage(),
+            ]);
+            // 不抛出异常，避免影响主流程
+            return 0;
+        }
     }
 }
