@@ -504,7 +504,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams = $searchRequestDTO->getBusinessParams();
             $businessParams['response_time'] = $responseTime;
             $webSearchUsageEvent = new WebSearchUsageEvent(
-                $searchRequestDTO->getEngine(),
+                $adapter->getEngineName(),
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 $modelGatewayDataIsolation->getCurrentUserId(),
                 $businessParams
