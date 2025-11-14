@@ -80,7 +80,7 @@ class SearchRequestDTO extends AbstractRequestDTO
     {
         $searchRequestDTO = new self();
         $searchRequestDTO->setQuery((string) ($data['q'] ?? $data['query'] ?? ''));
-        $searchRequestDTO->setEngine(! empty($data['engine']) ? (string) $data['engine'] : SearchEngineType::Bing->value);
+        $searchRequestDTO->setEngine(! empty($data['engine']) ? null);
         $searchRequestDTO->setCount((int) ($data['count'] ?? 10));
         $searchRequestDTO->setOffset((int) ($data['offset'] ?? 0));
         $searchRequestDTO->setMkt((string) ($data['mkt'] ?? 'zh-CN'));
