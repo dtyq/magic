@@ -56,4 +56,5 @@ return [
     'target_file_already_exists' => 'Target file name already exists in this directory',
     'file_is_being_edited' => 'File is currently being edited by other users, use force_replace to override',
     'source_file_key_illegal' => 'Source file key is illegal or outside of workspace',
+    'content_field_required' => 'Content field is required',
 ];

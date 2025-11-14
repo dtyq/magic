@@ -157,6 +157,9 @@ class HandleUserMessageAppService extends AbstractAppService
             taskEntity: $taskEntity
         );
 
+        // Check if this is the first task for the topic
+        $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()));
+
         // Send message to agent
         return new TaskContext(
             task: $taskEntity,
@@ -168,6 +171,7 @@ class HandleUserMessageAppService extends AbstractAppService
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
             agentMode: $userMessageDTO->getTopicMode(),
+            isFirstTask: $isFirstTask,
         );
     }
 
@@ -189,6 +193,7 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
             $projectId = $topicEntity->getProjectId();
+            $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()));
 
             // 提前初始化 task_id
             $taskId = (string) IdGenerator::getSnowId();
@@ -249,6 +254,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
                 messageId: $userMessageDTO->getMessageId(),
+                isFirstTask: $isFirstTask,
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(

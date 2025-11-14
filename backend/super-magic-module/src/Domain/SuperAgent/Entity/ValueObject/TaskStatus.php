@@ -79,7 +79,7 @@ enum TaskStatus: string
      */
     public function isFinal(): bool
     {
-        return in_array($this, [self::FINISHED, self::ERROR, self::Stopped], true);
+        return in_array($this, [self::FINISHED, self::ERROR, self::Stopped, self::Suspended], true);
     }
 
     /**
