@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
-use App\Domain\Chat\Entity\ValueObject\SearchEngineType;
 use RuntimeException;
 
 /**
@@ -80,7 +79,7 @@ class SearchRequestDTO extends AbstractRequestDTO
     {
         $searchRequestDTO = new self();
         $searchRequestDTO->setQuery((string) ($data['q'] ?? $data['query'] ?? ''));
-        $searchRequestDTO->setEngine(! empty($data['engine']) ? null);
+        $searchRequestDTO->setEngine($data['engine'] ?? null);
         $searchRequestDTO->setCount((int) ($data['count'] ?? 10));
         $searchRequestDTO->setOffset((int) ($data['offset'] ?? 0));
         $searchRequestDTO->setMkt((string) ($data['mkt'] ?? 'zh-CN'));
