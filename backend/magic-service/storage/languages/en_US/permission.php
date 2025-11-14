@@ -7,11 +7,14 @@ declare(strict_types=1);
 return [
     'resource' => [
         'admin' => 'Admin',
+        'admin_plus' => 'Admin Plus',
         'admin_ai' => 'AI Management',
+        'admin_plus_ai' => 'AI Management',
         'admin_safe' => 'Security & Permission',
         'safe_sub_admin' => 'Sub Admin',
         'ai_model' => 'AI Model',
         'ai_image' => 'AI Image',
+        'ai_ability' => 'Ability Management',
         'ai_mode' => 'AI Mode',
         'console' => 'Console',
         'api' => 'API',
@@ -19,7 +22,10 @@ return [
         'platform' => 'Platform',
         'platform_ai' => 'Platform AI',
         'platform_setting' => 'System Settings',
+        'platform_setting_platform_info' => 'Platform Info',
         'platform_setting_maintenance' => 'Maintenance',
+        'platform_organization' => 'Organization',
+        'platform_organization_list' => 'Organization List',
     ],
     'operation' => [
         'query' => 'Query',

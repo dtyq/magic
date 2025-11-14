@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
+use InvalidArgumentException;
 
 class WorkDirectoryUtil
 {
@@ -232,17 +233,26 @@ class WorkDirectoryUtil
     }
 
     /**
-     * Generate a unique 8-character alphanumeric string from a snowflake ID.
+     * Generate a unique alphanumeric string from a snowflake ID.
      * The same snowflake ID will always produce the same result.
      *
-     * Risk: Theoretical collision probability is ~50% at 2.1M different snowflake IDs
-     * due to birthday paradox with 36^8 possible combinations.
+     * Collision probability (birthday paradox):
+     * - 8 chars (36^8 ≈ 2.8T): ~50% at 2.1M inputs
+     * - 10 chars (36^10 ≈ 101T): ~50% at 12.6M inputs
+     * - 12 chars (36^12 ≈ 4700T): ~50% at 2.8B inputs
+     * - 16 chars (36^16 ≈ 7.9×10^24): ~50% at 3.5×10^12 inputs
      *
      * @param string $snowflakeId Snowflake ID (e.g., "785205968218931200")
-     * @return string 8-character alphanumeric string
+     * @param int $length Output length (default: 8 for backward compatibility)
+     * @return string Alphanumeric string of specified length
      */
-    public static function generateUniqueCodeFromSnowflakeId(string $snowflakeId): string
+    public static function generateUniqueCodeFromSnowflakeId(string $snowflakeId, int $length = 8): string
     {
+        // Validate length
+        if ($length < 1 || $length > 64) {
+            throw new InvalidArgumentException('Length must be between 1 and 64');
+        }
+
         // Use SHA-256 hash to ensure deterministic output and good distribution
         $hash = hash('sha256', $snowflakeId);
 
@@ -263,12 +273,12 @@ class WorkDirectoryUtil
         // Convert to base36 for alphanumeric output
         $base36 = base_convert($combined, 16, 36);
 
-        // Take first 8 characters
-        $result = substr($base36, 0, 8);
+        // Take first N characters
+        $result = substr($base36, 0, $length);
 
-        // Ensure we have exactly 8 characters by padding if necessary
-        if (strlen($result) < 8) {
-            $result = str_pad($result, 8, '0', STR_PAD_LEFT);
+        // Ensure we have exactly N characters by padding if necessary
+        if (strlen($result) < $length) {
+            $result = str_pad($result, $length, '0', STR_PAD_LEFT);
         }
 
         return $result;

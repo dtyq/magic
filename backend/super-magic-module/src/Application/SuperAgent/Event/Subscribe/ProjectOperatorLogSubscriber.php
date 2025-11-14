@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileReplacedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectCreatedEvent;
@@ -82,6 +83,7 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
             FileRenamedEvent::class,
             FileMovedEvent::class,
             FileContentSavedEvent::class,
+            FileReplacedEvent::class,
             DirectoryDeletedEvent::class,
             FileBatchMoveEvent::class,
             FilesBatchDeletedEvent::class,
@@ -165,6 +167,11 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserId();
                 $organizationCode = $event->getOrganizationCode();
+                break;
+            case $event instanceof FileReplacedEvent:
+                $projectId = $event->getFileEntity()->getProjectId();
+                $userId = $event->getUserAuthorization()->getId();
+                $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof DirectoryDeletedEvent:
                 $projectId = $event->getDirectoryEntity()->getProjectId();
@@ -398,6 +405,32 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $entity->setResourceType(ResourceType::FILE);
                 $entity->setResourceId((string) $file->getFileId());
                 $entity->setOperationDetails([]);
+                break;
+            case $event instanceof FileReplacedEvent:
+                $file = $event->getFileEntity();
+                $versionEntity = $event->getVersionEntity();
+                // 获取用户授权信息
+                $userAuthorization = $event->getUserAuthorization();
+                $entity->setUserId($userAuthorization->getId());
+                $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
+                $entity->setOperationStatus('success');
+                $entity->setIpAddress($ip);
+                $entity->setProjectId($file->getProjectId());
+                $entity->setOperationAction(OperationAction::REPLACE_FILE);
+                $entity->setResourceType(ResourceType::FILE);
+                $entity->setResourceId((string) $file->getFileId());
+                // 详细的操作信息
+                $operationDetails = [
+                    'file_name' => $file->getFileName(),
+                    'file_extension' => $file->getFileExtension(),
+                    'file_size' => $file->getFileSize(),
+                    'is_cross_type_replace' => $event->isCrossTypeReplace(),
+                ];
+                // 如果创建了版本快照，记录版本ID
+                if ($versionEntity !== null) {
+                    $operationDetails['version_id'] = $versionEntity->getId();
+                }
+                $entity->setOperationDetails($operationDetails);
                 break;
             case $event instanceof DirectoryDeletedEvent:
                 $directory = $event->getDirectoryEntity();

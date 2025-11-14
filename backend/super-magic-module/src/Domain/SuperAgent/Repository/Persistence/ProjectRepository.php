@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
 use Hyperf\DbConnection\Db;
@@ -35,7 +36,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         if (! $model) {
             return null;
         }
-        return $this->modelToEntity($model);
+        return $this->toEntity($model->toArray());
     }
 
     /**
@@ -55,7 +56,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             }
             $model->fill($attributes);
             $model->save();
-            return $this->modelToEntity($model);
+            return $this->toEntity($model->toArray());
         }
 
         // 创建
@@ -171,7 +172,7 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         $entities = [];
         foreach ($list as $model) {
             /* @var ProjectModel $model */
-            $entities[] = $this->modelToEntity($model);
+            $entities[] = $this->toEntity($model->toArray());
         }
 
         return [
@@ -210,6 +211,17 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
                 return (string) $id;
             })
             ->toArray();
+    }
+
+    public function getOrganizationCodesByProjectIds(array $projectIds): array
+    {
+        $organizationCodes = $this->projectModel::query()
+            ->whereIn('id', $projectIds)
+            ->select('user_organization_code')
+            ->pluck('user_organization_code')
+            ->toArray();
+
+        return array_values(array_unique($organizationCodes));
     }
 
     /**
@@ -284,9 +296,12 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'workspace_id' => $data['workspace_id'] ?? 0,
             'project_name' => $data['project_name'] ?? '',
             'project_mode' => $data['project_mode'] ?? '',
+            'project_status' => $data['project_status'] ?? 1,
             'work_dir' => $data['work_dir'] ?? '',
             'current_topic_id' => $data['current_topic_id'] ?? '',
             'current_topic_status' => $data['current_topic_status'] ?? '',
+            'is_collaboration_enabled' => $data['is_collaboration_enabled'] ?? 1,
+            'default_join_permission' => MemberRole::fromString(empty($data['default_join_permission']) ? MemberRole::VIEWER->value : $data['default_join_permission']),
             'created_uid' => $data['created_uid'] ?? '',
             'updated_uid' => $data['updated_uid'] ?? '',
             'created_at' => $data['created_at'] ?? null,
@@ -306,11 +321,15 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'workspace_id' => $entity->getWorkspaceId(),
             'project_name' => $entity->getProjectName(),
             'project_mode' => $entity->getProjectMode(),
+            'project_status' => $entity->getProjectStatus()->value,
             'work_dir' => $entity->getWorkDir(),
             'current_topic_id' => $entity->getCurrentTopicId(),
             'current_topic_status' => $entity->getCurrentTopicStatus(),
+            'is_collaboration_enabled' => $entity->getIsCollaborationEnabled() ? 1 : 0,
+            'default_join_permission' => $entity->getDefaultJoinPermission()->value,
             'created_uid' => $entity->getCreatedUid(),
             'updated_uid' => $entity->getUpdatedUid(),
+            'updated_at' => $entity->getUpdatedAt(),
         ];
     }
 }

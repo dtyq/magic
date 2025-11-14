@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Hyperf\Codec\Json;
 
 class TaskMessageEntity extends AbstractEntity
 {
@@ -291,7 +292,11 @@ class TaskMessageEntity extends AbstractEntity
     public function setSteps(null|array|string $steps): self
     {
         if (is_string($steps)) {
-            $steps = json_decode($steps, true);
+            if (! empty($steps) && json_validate($steps)) {
+                $steps = Json::decode($steps);
+            } else {
+                $steps = null;
+            }
         }
         $this->steps = empty($steps) ? null : $steps;
         return $this;
@@ -305,7 +310,11 @@ class TaskMessageEntity extends AbstractEntity
     public function setTool(null|array|string $tool): self
     {
         if (is_string($tool)) {
-            $tool = json_decode($tool, true);
+            if (! empty($tool) && json_validate($tool)) {
+                $tool = Json::decode($tool);
+            } else {
+                $tool = null;
+            }
         }
         $this->tool = empty($tool) ? null : $tool;
         return $this;
@@ -319,7 +328,11 @@ class TaskMessageEntity extends AbstractEntity
     public function setAttachments(null|array|string $attachments): self
     {
         if (is_string($attachments)) {
-            $attachments = json_decode($attachments, true);
+            if (! empty($attachments) && json_validate($attachments)) {
+                $attachments = Json::decode($attachments);
+            } else {
+                $attachments = null;
+            }
         }
         $this->attachments = empty($attachments) ? null : $attachments;
         return $this;
@@ -330,8 +343,16 @@ class TaskMessageEntity extends AbstractEntity
         return $this->mentions;
     }
 
-    public function setMentions(?array $mentions): self
+    public function setMentions(null|array|string $mentions): self
     {
+        if (is_string($mentions)) {
+            if (! empty($mentions) && json_validate($mentions)) {
+                $mentions = Json::decode($mentions);
+            } else {
+                // 无效的 JSON 字符串或空字符串，设置为 null
+                $mentions = null;
+            }
+        }
         $this->mentions = empty($mentions) ? null : $mentions;
         return $this;
     }
@@ -357,9 +378,9 @@ class TaskMessageEntity extends AbstractEntity
         return $this->showInUi;
     }
 
-    public function setShowInUi(bool $showInUi): self
+    public function setShowInUi(bool|int $showInUi): self
     {
-        $this->showInUi = $showInUi;
+        $this->showInUi = (bool) $showInUi;
         return $this;
     }
 
@@ -379,9 +400,9 @@ class TaskMessageEntity extends AbstractEntity
         return $this->seqId;
     }
 
-    public function setSeqId(?int $seqId): self
+    public function setSeqId(null|int|string $seqId): self
     {
-        $this->seqId = $seqId;
+        $this->seqId = $seqId !== null ? (int) $seqId : null;
         return $this;
     }
 
@@ -412,9 +433,9 @@ class TaskMessageEntity extends AbstractEntity
         return $this->retryCount;
     }
 
-    public function setRetryCount(int $retryCount): self
+    public function setRetryCount(int|string $retryCount): self
     {
-        $this->retryCount = $retryCount;
+        $this->retryCount = (int) $retryCount;
         return $this;
     }
 
@@ -434,9 +455,9 @@ class TaskMessageEntity extends AbstractEntity
         return $this->imSeqId;
     }
 
-    public function setImSeqId(?int $imSeqId): self
+    public function setImSeqId(null|int|string $imSeqId): self
     {
-        $this->imSeqId = $imSeqId;
+        $this->imSeqId = $imSeqId !== null ? (int) $imSeqId : null;
         return $this;
     }
 
@@ -445,9 +466,9 @@ class TaskMessageEntity extends AbstractEntity
         return $this->imStatus;
     }
 
-    public function setImStatus(?int $imStatus): self
+    public function setImStatus(null|int|string $imStatus): self
     {
-        $this->imStatus = $imStatus;
+        $this->imStatus = $imStatus !== null ? (int) $imStatus : null;
         return $this;
     }
 

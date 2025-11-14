@@ -139,6 +139,27 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.move_operation_busy')]
     case FILE_OPERATION_BUSY = 51177;
 
+    #[ErrorMessage('file.file_replace_failed')]
+    case FILE_REPLACE_FAILED = 51178;
+
+    #[ErrorMessage('file.cannot_replace_directory')]
+    case FILE_OPERATION_NOT_ALLOWED = 51179;
+
+    #[ErrorMessage('file.source_file_not_found_in_storage')]
+    case SOURCE_FILE_NOT_FOUND_IN_STORAGE = 51180;
+
+    #[ErrorMessage('file.target_file_already_exists')]
+    case TARGET_FILE_ALREADY_EXISTS = 51181;
+
+    #[ErrorMessage('file.file_is_being_edited')]
+    case FILE_IS_BEING_EDITED = 51182;
+
+    #[ErrorMessage('file.source_file_key_illegal')]
+    case SOURCE_FILE_KEY_ILLEGAL = 51183;
+
+    #[ErrorMessage('file.content_field_required')]
+    case CONTENT_FIELD_REQUIRED = 51184;
+
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]
     case PROJECT_NOT_FOUND = 51200;
@@ -190,6 +211,43 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('project.cannot_set_shortcut_for_own_project')]
     case CANNOT_SET_SHORTCUT_FOR_OWN_PROJECT = 51216;
+
+    // Project invitation link related error codes (51217-51230)
+    #[ErrorMessage('invitation_link.not_found')]
+    case INVITATION_LINK_NOT_FOUND = 51217;
+
+    #[ErrorMessage('invitation_link.invalid')]
+    case INVITATION_LINK_INVALID = 51218;
+
+    #[ErrorMessage('invitation_link.permission_denied')]
+    case INVITATION_LINK_PERMISSION_DENIED = 51219;
+
+    #[ErrorMessage('invitation_link.password_incorrect')]
+    case INVITATION_LINK_PASSWORD_INCORRECT = 51220;
+
+    #[ErrorMessage('invitation_link.expired')]
+    case INVITATION_LINK_EXPIRED = 51221;
+
+    #[ErrorMessage('invitation_link.disabled')]
+    case INVITATION_LINK_DISABLED = 51222;
+
+    #[ErrorMessage('invitation_link.create_failed')]
+    case INVITATION_LINK_CREATE_FAILED = 51223;
+
+    #[ErrorMessage('invitation_link.update_failed')]
+    case INVITATION_LINK_UPDATE_FAILED = 51224;
+
+    #[ErrorMessage('invitation_link.already_joined')]
+    case INVITATION_LINK_ALREADY_JOINED = 51225;
+
+    #[ErrorMessage('invitation_link.invalid_permission')]
+    case INVITATION_LINK_INVALID_PERMISSION = 51226;
+
+    #[ErrorMessage('project.project_id_required_for_collaboration')]
+    case PROJECT_ID_REQUIRED_FOR_COLLABORATION = 51237;
+
+    #[ErrorMessage('project.not_a_collaboration_project')]
+    case NOT_A_COLLABORATION_PROJECT = 51238;
 
     // Reserved2 area - keeping original error codes that were outside planned ranges
     #[ErrorMessage('task.create_workspace_version_failed')]

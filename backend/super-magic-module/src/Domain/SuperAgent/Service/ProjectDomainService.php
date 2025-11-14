@@ -67,6 +67,7 @@ class ProjectDomainService
             ->setProjectStatus(ProjectStatus::ACTIVE->value)
             ->setCurrentTopicId(null)
             ->setCurrentTopicStatus('')
+            ->setIsCollaborationEnabled(true)
             ->setCreatedUid($userId)
             ->setUpdatedUid($userId)
             ->setCreatedAt($currentTime)
@@ -369,6 +370,11 @@ class ProjectDomainService
         return $this->projectRepository->updateUpdatedAtToNow($projectId);
     }
 
+    public function getOrganizationCodesByProjectIds(array $projectIds): array
+    {
+        return $this->projectRepository->getOrganizationCodesByProjectIds($projectIds);
+    }
+
     /**
      * Batch get project names by IDs.
      *
@@ -406,6 +412,7 @@ class ProjectDomainService
             ->setProjectStatus(ProjectStatus::ACTIVE->value)
             ->setCurrentTopicId(null)
             ->setCurrentTopicStatus('')
+            ->setIsCollaborationEnabled(true)
             ->setCreatedUid($userId)
             ->setUpdatedUid($userId)
             ->setCreatedAt($currentTime)

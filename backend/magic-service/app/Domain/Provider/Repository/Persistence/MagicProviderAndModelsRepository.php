@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Repository\Persistence;
 
+use App\Domain\Provider\DTO\Item\ModelConfigItem;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
@@ -369,7 +370,7 @@ class MagicProviderAndModelsRepository extends AbstractProviderModelRepository i
         $organizationModel->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $organizationModel->setId(IdGenerator::getSnowId());
         // 避免错误复制 config
-        $organizationModel->setConfig('');
+        $organizationModel->setConfig(new ModelConfigItem());
         return $this->create($dataIsolation, $organizationModel);
     }
 }

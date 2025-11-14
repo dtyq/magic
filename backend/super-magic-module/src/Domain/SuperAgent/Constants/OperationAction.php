@@ -41,6 +41,8 @@ final class OperationAction
 
     public const SAVE_FILE_CONTENT = 'save_file_content';
 
+    public const REPLACE_FILE = 'replace_file';
+
     public const DELETE_DIRECTORY = 'delete_directory';
 
     public const BATCH_MOVE_FILE = 'batch_move_file';
@@ -74,6 +76,7 @@ final class OperationAction
             self::RENAME_FILE,
             self::MOVE_FILE,
             self::SAVE_FILE_CONTENT,
+            self::REPLACE_FILE,
             self::DELETE_DIRECTORY,
             self::BATCH_MOVE_FILE,
             self::BATCH_DELETE_FILE,

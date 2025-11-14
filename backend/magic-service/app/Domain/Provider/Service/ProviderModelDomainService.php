@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Service;
 
+use App\Domain\Provider\Entity\ProviderModelConfigVersionEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
@@ -14,10 +15,12 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
+use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 
 readonly class ProviderModelDomainService
@@ -25,12 +28,13 @@ readonly class ProviderModelDomainService
     public function __construct(
         private ProviderModelRepositoryInterface $providerModelRepository,
         private ProviderConfigRepositoryInterface $providerConfigRepository,
+        private ProviderModelConfigVersionRepositoryInterface $providerModelConfigVersionRepository,
     ) {
     }
 
-    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId): ?ProviderModelEntity
+    public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId, bool $checkStatus = true): ?ProviderModelEntity
     {
-        return $this->providerModelRepository->getAvailableByModelIdOrId($dataIsolation, $modelId);
+        return $this->providerModelRepository->getAvailableByModelIdOrId($dataIsolation, $modelId, $checkStatus);
     }
 
     public function getById(ProviderDataIsolation $dataIsolation, string $id): ProviderModelEntity
@@ -106,6 +110,10 @@ readonly class ProviderModelDomainService
         // 目前保存模型的接口只有大模型使用，因此强制类型是 llm
         $providerModelDTO->setCategory(Category::LLM);
         $modelEntity = $this->providerModelRepository->saveModel($dataIsolation, $providerModelDTO);
+
+        // 创建配置版本记录
+        $this->saveConfigVersion($dataIsolation, $modelEntity);
+
         return new SaveProviderModelDTO($modelEntity->toArray());
     }
 
@@ -171,5 +179,44 @@ readonly class ProviderModelDomainService
     public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
     {
         return $this->providerModelRepository->getModelIdsGroupByType($dataIsolation, $query);
+    }
+
+    /**
+     * 获取指定模型的最新配置版本ID.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param int $serviceProviderModelId 模型ID
+     * @return null|int 最新版本的ID，如果不存在则返回null
+     */
+    public function getLatestConfigVersionId(ProviderDataIsolation $dataIsolation, int $serviceProviderModelId): ?int
+    {
+        return $this->providerModelConfigVersionRepository->getLatestVersionId($dataIsolation, $serviceProviderModelId);
+    }
+
+    /**
+     * 获取指定模型的最新配置版本实体.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param int $serviceProviderModelId 模型ID
+     * @return null|ProviderModelConfigVersionEntity 最新版本的实体，如果不存在则返回null
+     */
+    public function getLatestConfigVersionEntity(ProviderDataIsolation $dataIsolation, int $serviceProviderModelId): ?ProviderModelConfigVersionEntity
+    {
+        return $this->providerModelConfigVersionRepository->getLatestVersionEntity($dataIsolation, $serviceProviderModelId);
+    }
+
+    /**
+     * 保存模型配置版本.
+     */
+    private function saveConfigVersion(ProviderDataIsolation $dataIsolation, ProviderModelEntity $modelEntity): void
+    {
+        // 如果配置为空，不创建版本记录
+        if ($modelEntity->getConfig() === null) {
+            return;
+        }
+
+        // 转换为配置版本实体并保存（事务、版本号递增、标记当前版本都在 Repository 内完成）
+        $versionEntity = ProviderModelAssembler::toConfigVersionEntity($modelEntity);
+        $this->providerModelConfigVersionRepository->saveVersionWithTransaction($dataIsolation, $versionEntity);
     }
 }

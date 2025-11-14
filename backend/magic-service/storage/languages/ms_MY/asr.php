@@ -126,6 +126,8 @@ return [
         'original_recording' => 'Fail Rakaman Asal',
         'transcription_prefix' => 'Hasil Transkripsi',
         'summary_prefix' => 'Ringkasan Rakaman',
+        'preset_note' => 'nota',
+        'preset_transcript' => 'transkripsi',
         'note_prefix' => 'Nota Rakaman',
         'note_suffix' => 'Nota', // Untuk menjana nama fail nota dengan tajuk: {title}-Nota.{ext}
     ],
@@ -145,11 +147,11 @@ return [
         'summary_content' => ' Ringkaskan kandungan',
         'summary_content_with_note' => 'Semasa merumuskan rakaman, sila rujuk fail nota rakaman dalam direktori yang sama dan dasarkan ringkasan pada kedua-dua nota dan rakaman.',
         // Awalan/akhiran i18n baru (tanpa nota)
-        'summary_prefix' => 'Sila bantu saya meringkaskan kandungan rakaman dalam ',
-        'summary_suffix' => ' ke dalam dokumen minit.',
+        'summary_prefix' => 'Sila bantu saya mengubah ',
+        'summary_suffix' => ' kandungan rakaman menjadi artifak super',
         // Awalan/akhiran i18n baru (dengan nota)
-        'summary_prefix_with_note' => 'Sila bantu saya menyusun kandungan rakaman dalam ',
-        'summary_middle_with_note' => ' dan kandungan nota saya dalam ',
-        'summary_suffix_with_note' => ' ke dalam dokumen minit.',
+        'summary_prefix_with_note' => 'Sila bantu saya mengubah ',
+        'summary_middle_with_note' => ' kandungan rakaman dan ',
+        'summary_suffix_with_note' => ' kandungan nota saya menjadi artifak super',
     ],
 ];

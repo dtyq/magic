@@ -48,6 +48,6 @@ class AccountApi extends AbstractApi
         $userAuthorization->setOrganizationCode($requestContext->getOrganizationCode());
         $userAuthorization->setUserType(UserType::Human);
         $dir = $this->request->input('dir', '');
-        return $this->fileAppService->getStsTemporaryCredential($userAuthorization, 'private', $dir, 3600 * 2);
+        return $this->fileAppService->getStsTemporaryCredentialV2($requestContext->getOrganizationCode(), 'private', $dir, 3600 * 2);
     }
 }

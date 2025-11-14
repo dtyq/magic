@@ -164,13 +164,17 @@ use App\Domain\Permission\Repository\Facade\OperationPermissionRepositoryInterfa
 use App\Domain\Permission\Repository\Facade\OrganizationAdminRepositoryInterface;
 use App\Domain\Permission\Repository\Facade\RoleRepositoryInterface;
 use App\Domain\Permission\Repository\Persistence\OperationPermissionRepository;
+use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
+use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderOriginalModelRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderRepositoryInterface;
+use App\Domain\Provider\Repository\Persistence\AiAbilityRepository;
 use App\Domain\Provider\Repository\Persistence\MagicProviderAndModelsRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderConfigRepository;
+use App\Domain\Provider\Repository\Persistence\ProviderModelConfigVersionRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderOriginalModelRepository;
 use App\Domain\Provider\Repository\Persistence\ProviderRepository;
@@ -236,6 +240,7 @@ use Dtyq\PhpMcp\Shared\Auth\AuthenticatorInterface;
 use Hyperf\Config\ProviderConfig;
 use Hyperf\Crontab\Strategy\CoroutineStrategy;
 use Hyperf\Crontab\Strategy\StrategyInterface;
+use Hyperf\Di\Definition\PriorityDefinition;
 use Hyperf\HttpServer\Server;
 use Hyperf\SocketIOServer\BaseNamespace;
 use Hyperf\SocketIOServer\NamespaceInterface;
@@ -246,6 +251,8 @@ use Hyperf\SocketIOServer\SidProvider\SidProviderInterface;
 use Psr\Http\Client\ClientInterface;
 
 $dependencies = [
+    PointComponentInterface::class => new PriorityDefinition(PointComponent::class, 10),
+
     SmsInterface::class => VolceApiClient::class,
     LockerInterface::class => RedisLocker::class,
     MagicTokenRepositoryInterface::class => MagicMagicTokenRepository::class,
@@ -317,8 +324,10 @@ $dependencies = [
     ProviderRepositoryInterface::class => ProviderRepository::class,
     ProviderConfigRepositoryInterface::class => ProviderConfigRepository::class,
     ProviderModelRepositoryInterface::class => ProviderModelRepository::class,
+    ProviderModelConfigVersionRepositoryInterface::class => ProviderModelConfigVersionRepository::class,
     ProviderOriginalModelRepositoryInterface::class => ProviderOriginalModelRepository::class,
     MagicProviderAndModelsInterface::class => MagicProviderAndModelsRepository::class,
+    AiAbilityRepositoryInterface::class => AiAbilityRepository::class,
     // mcp
     MCPServerRepositoryInterface::class => MCPServerRepository::class,
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
@@ -424,7 +433,6 @@ $dependencies = [
     LongTermMemoryRepositoryInterface::class => MySQLLongTermMemoryRepository::class,
 
     WatermarkConfigInterface::class => DefaultWatermarkConfig::class,
-    PointComponentInterface::class => PointComponent::class,
 
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
@@ -440,15 +448,58 @@ $dependencies = [
     OrganizationBasedModelFilterInterface::class => DefaultOrganizationModelFilter::class,
 ];
 
-// 如果存在重复,优先取dependencies_priority的配置,不存在重复，就合并
+/**
+ * Load and merge dependency priority configurations from all vendor packages.
+ *
+ * Hyperf's ProviderConfig::load() uses array_merge_recursive to merge configurations.
+ * When multiple packages define PriorityDefinition for the same interface, the internal
+ * dependencies arrays are merged into nested arrays, requiring manual parsing to select
+ * the highest priority class.
+ */
 $configFromProviders = [];
 if (class_exists(ProviderConfig::class)) {
     $configFromProviders = ProviderConfig::load();
 }
 
 $dependenciesPriority = $configFromProviders['dependencies_priority'] ?? [];
-foreach ($dependenciesPriority as $key => $value) {
-    $dependencies[$key] = $value;
+
+// Process priority dependency configurations
+foreach ($dependenciesPriority as $interface => $definition) {
+    // Case 1: Direct PriorityDefinition object (not merged)
+    if ($definition instanceof PriorityDefinition) {
+        $dependencies[$interface] = $definition->getDefinition();
+        continue;
+    }
+
+    // Case 2: Plain string binding
+    if (! is_array($definition)) {
+        $dependencies[$interface] = $definition;
+        continue;
+    }
+
+    // Case 3: Multiple PriorityDefinition objects merged by array_merge_recursive
+    // Structure example: [' * dependencies' => ['ClassA' => 20, 'ClassB' => 99]]
+    // Need to find the dependencies array and select the highest priority class
+    $priorityMap = null;
+    foreach ($definition as $key => $value) {
+        if (is_array($value) && str_contains($key, 'dependencies')) {
+            $priorityMap = $value;
+            break;
+        }
+    }
+
+    if ($priorityMap) {
+        // Select the class with highest priority
+        $selectedClass = null;
+        $maxPriority = -1;
+        foreach ($priorityMap as $className => $priority) {
+            if ($priority > $maxPriority) {
+                $maxPriority = $priority;
+                $selectedClass = $className;
+            }
+        }
+        $dependencies[$interface] = $selectedClass;
+    }
 }
 
 return $dependencies;

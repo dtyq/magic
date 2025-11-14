@@ -103,8 +103,9 @@ class HandleAgentMessageAppService extends AbstractAppService
             // 3. Status update
             $this->updateTaskStatus($messageDTO, $taskContext);
 
-            // 4. Event dispatch
-            if (TaskStatus::tryFrom($messageDTO->getPayload()->getStatus())?->isFinal()) {
+            // 4. Event dispatch - only trigger on finished or error (not stopped)
+            $taskStatus = TaskStatus::tryFrom($messageDTO->getPayload()->getStatus());
+            if ($taskStatus->isFinal()) {
                 $this->dispatchCallbackEvent($messageDTO, $taskContext, $topicEntity);
             }
 

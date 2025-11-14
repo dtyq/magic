@@ -7,9 +7,12 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\Agent\AdminAgentApi;
 use App\Interfaces\Admin\Facade\Agent\AgentGlobalSettingsApi;
+use App\Interfaces\Kernel\Facade\PlatformSettingsApi;
+use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
+use App\Interfaces\Provider\Facade\AiAbilityApi;
 use App\Interfaces\Provider\Facade\Open\ServiceProviderOpenApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
@@ -51,7 +54,15 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/connectivity-test', [ServiceProviderApi::class, 'connectivityTest']);
         Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/non-official-llm', [ServiceProviderApi::class, 'getNonOfficialLlmProviders']);
+        Router::get('/available-llm', [ServiceProviderApi::class, 'getAllAvailableLlmProviders']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // AI能力管理
+    Router::addGroup('/ai-abilities', static function () {
+        Router::get('', [AiAbilityApi::class, 'queries']);
+        Router::get('/{code}', [AiAbilityApi::class, 'detail']);
+        Router::put('/{code}', [AiAbilityApi::class, 'update']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
     Router::addGroup('/globals', static function () {
@@ -87,4 +98,15 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::delete('/sub-admins/{id}', [RoleApi::class, 'deleteSubAdmin']);
         Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    // 组织列表
+    Router::addGroup('/organizations', static function () {
+        Router::get('', [OrganizationApi::class, 'queries']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
 });
+
+// 平台设置（管理端）
+Router::addGroup('/api/v1/platform', static function () {
+    Router::get('/setting', [PlatformSettingsApi::class, 'show']);
+    Router::put('/setting', [PlatformSettingsApi::class, 'update']);
+}, ['middleware' => [RequestContextMiddleware::class]]);

@@ -53,6 +53,7 @@ use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Constants\Order;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\Odin\AgentFactory;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -62,7 +63,6 @@ use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Memory\MessageHistory;
@@ -634,6 +634,25 @@ class MagicChatMessageAppService extends MagicSeqAppService
         return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId);
     }
 
+    /**
+     * 使用大模型对文本进行总结（使用自定义提示词）.
+     *
+     * @param MagicUserAuthorization $authorization 用户授权
+     * @param string $customPrompt 完整的自定义提示词（不做任何替换处理）
+     * @return string 生成的标题
+     */
+    public function summarizeTextWithCustomPrompt(MagicUserAuthorization $authorization, string $customPrompt): string
+    {
+        if (empty($customPrompt)) {
+            return '';
+        }
+
+        $conversationId = uniqid('', true);
+        $messageHistory = new MessageHistory();
+        $messageHistory->addMessages(new SystemMessage($customPrompt), $conversationId);
+        return $this->getSummaryFromLLM($authorization, $messageHistory, $conversationId);
+    }
+
     public function getMessageReceiveList(string $messageId, MagicUserAuthorization $userAuthorization): array
     {
         $dataIsolation = $this->createDataIsolation($userAuthorization);
@@ -702,7 +721,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_TYPE_ERROR);
         }
 
-        $language = di(TranslatorInterface::class)->getLocale();
+        $language = CoContext::getLanguage();
         // 审计需求：如果是编辑消息，写入消息版本表，并更新原消息的version_id
         $extra = $senderSeqDTO->getExtra();
         // 设置语言信息

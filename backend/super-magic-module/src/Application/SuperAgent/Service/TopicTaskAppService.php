@@ -217,9 +217,9 @@ class TopicTaskAppService extends AbstractAppService
             if (is_null($messageEntity)) {
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
-                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, $messageDTO->toArray(), TaskMessageModel::PROCESSING_STATUS_COMPLETED);
+                $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
+                $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, [], TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
             // 3. 推送消息给客户端（异步处理）
@@ -253,8 +253,10 @@ class TopicTaskAppService extends AbstractAppService
                 );
             }
 
-            // 5. 派发回调事件
-            $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
+            // 5. 派发回调事件 - 仅在任务完成或失败时触发，不包括 Stopped 状态
+            if ($taskStatus->isFinal()) {
+                $this->dispatchCallbackEvent($messageDTO, $dataIsolation, $topicId, $taskEntity);
+            }
 
             $this->logger->info('话题任务消息处理完成', [
                 'topic_id' => $topicId,
@@ -600,27 +602,46 @@ class TopicTaskAppService extends AbstractAppService
     private function processToolContentImage(TaskMessageEntity $taskMessageEntity): void
     {
         $tool = $taskMessageEntity->getTool();
+
         // 获取文件名称
         $fileName = $tool['detail']['data']['file_name'] ?? '';
         if (empty($fileName)) {
             return;
         }
+
         $fileKey = '';
         $attachments = $tool['attachments'] ?? [];
         foreach ($attachments as $attachment) {
             if ($attachment['filename'] === $fileName) {
                 $fileKey = $attachment['file_key'];
+                break; // Exit loop once found
             }
         }
+
         if (empty($fileKey)) {
             return;
         }
+
         $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
         if ($taskFileEntity === null) {
             return;
         }
+
+        // Extract source_file_id using the helper method
+        $sourceFileId = $this->extractSourceFileIdFromAttachments(
+            $attachments,
+            $fileName,
+            false // Image files typically don't have .diff suffix
+        );
+
         $tool['detail']['data']['file_id'] = (string) $taskFileEntity->getFileId();
         $tool['detail']['data']['file_extension'] = pathinfo($fileName, PATHINFO_EXTENSION);
+
+        // Add source_file_id if found
+        if (! empty($sourceFileId)) {
+            $tool['detail']['data']['source_file_id'] = $sourceFileId;
+        }
+
         $taskMessageEntity->setTool($tool);
     }
 
@@ -635,6 +656,22 @@ class TopicTaskAppService extends AbstractAppService
         // 检查工具内容
         $tool = $taskMessageEntity->getTool();
         $content = $tool['detail']['data']['content'] ?? '';
+        $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
+
+        // Extract source_file_id from attachments (regardless of content)
+        $sourceFileId = $this->extractSourceFileIdFromAttachments(
+            $tool['attachments'] ?? [],
+            $fileName,
+            true // Remove .diff suffix for matching
+        );
+
+        // Set source_file_id if available
+        if (! empty($sourceFileId) && ! isset($tool['detail']['data']['source_file_id'])) {
+            $tool['detail']['data']['source_file_id'] = $sourceFileId;
+            $taskMessageEntity->setTool($tool);
+        }
+
+        // If content is empty, return early
         if (empty($content)) {
             return;
         }
@@ -653,7 +690,6 @@ class TopicTaskAppService extends AbstractAppService
 
         try {
             // 构建参数
-            $fileName = $tool['detail']['data']['file_name'] ?? 'tool_content.txt';
             $fileExtension = pathinfo($fileName, PATHINFO_EXTENSION) ?: 'txt';
             $fileKey = ($tool['id'] ?? 'unknown') . '.' . $fileExtension;
             $workDir = WorkDirectoryUtil::getTopicMessageDir($taskEntity->getUserId(), $taskEntity->getProjectId(), $taskEntity->getTopicId());
@@ -673,14 +709,18 @@ class TopicTaskAppService extends AbstractAppService
             // 修改工具数据结构
             $tool['detail']['data']['file_id'] = (string) $fileId;
             $tool['detail']['data']['content'] = ''; // 清空内容
+            if (! empty($sourceFileId)) {
+                $tool['detail']['data']['source_file_id'] = $sourceFileId;
+            }
 
             $taskMessageEntity->setTool($tool);
 
             $this->logger->info(sprintf(
-                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d',
+                '工具内容存储完成，工具ID: %s，文件ID: %d，原内容长度: %d，source_file_id: %s',
                 $tool['id'] ?? 'unknown',
                 $fileId,
-                strlen($content)
+                strlen($content),
+                $sourceFileId ?: 'null'
             ));
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
@@ -719,5 +759,38 @@ class TopicTaskAppService extends AbstractAppService
             $messageDTO,
             $messageDTO->getMetadata()->getLanguage()
         ));
+    }
+
+    /**
+     * Extract source_file_id from attachments by matching filename.
+     *
+     * @param array $attachments Tool attachments array
+     * @param string $fileName File name to match
+     * @param bool $removeDiffSuffix Whether to remove .diff suffix for matching (default: true)
+     * @return string Returns source_file_id if found, empty string otherwise
+     */
+    private function extractSourceFileIdFromAttachments(
+        array $attachments,
+        string $fileName,
+        bool $removeDiffSuffix = true
+    ): string {
+        if (empty($attachments) || empty($fileName)) {
+            return '';
+        }
+
+        // Prepare match filename
+        $matchFileName = $fileName;
+        if ($removeDiffSuffix && str_ends_with($fileName, '.diff')) {
+            $matchFileName = substr($fileName, 0, -5); // Remove '.diff' suffix
+        }
+
+        // Find matching attachment
+        foreach ($attachments as $attachment) {
+            if (isset($attachment['filename']) && $attachment['filename'] === $matchFileName) {
+                return $attachment['file_id'] ?? '';
+            }
+        }
+
+        return '';
     }
 }

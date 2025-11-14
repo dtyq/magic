@@ -20,6 +20,7 @@ use function Hyperf\Translation\trans;
 enum MemberRole: string
 {
     case OWNER = 'owner';
+    case MANAGE = 'manage';
     case EDITOR = 'editor';
     case VIEWER = 'viewer';
 
@@ -30,6 +31,7 @@ enum MemberRole: string
     {
         return match ($role) {
             'owner' => self::OWNER,
+            'manage' => self::MANAGE,
             'editor' => self::EDITOR,
             'viewer' => self::VIEWER,
             default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'))
@@ -61,6 +63,14 @@ enum MemberRole: string
     }
 
     /**
+     * 是否为管理者角色.
+     */
+    public function isManager(): bool
+    {
+        return $this === self::MANAGE;
+    }
+
+    /**
      * 是否为编辑者角色.
      */
     public function isEditor(): bool
@@ -77,36 +87,12 @@ enum MemberRole: string
     }
 
     /**
-     * 获取中文描述.
-     */
-    public function getDescription(): string
-    {
-        return match ($this) {
-            self::OWNER => '所有者',
-            self::EDITOR => '编辑者',
-            self::VIEWER => '查看者',
-        };
-    }
-
-    /**
-     * 获取英文描述.
-     */
-    public function getEnglishDescription(): string
-    {
-        return match ($this) {
-            self::OWNER => 'Owner',
-            self::EDITOR => 'Editor',
-            self::VIEWER => 'Viewer',
-        };
-    }
-
-    /**
      * 是否有写入权限.
      */
     public function hasWritePermission(): bool
     {
         return match ($this) {
-            self::OWNER, self::EDITOR => true,
+            self::OWNER, self::MANAGE, self::EDITOR => true,
             self::VIEWER => false,
         };
     }
@@ -124,7 +110,10 @@ enum MemberRole: string
      */
     public function hasManagePermission(): bool
     {
-        return $this === self::OWNER;
+        return match ($this) {
+            self::OWNER, self::MANAGE => true,
+            self::EDITOR, self::VIEWER => false,
+        };
     }
 
     /**
@@ -133,7 +122,7 @@ enum MemberRole: string
     public function hasSharePermission(): bool
     {
         return match ($this) {
-            self::OWNER, self::EDITOR => true,
+            self::OWNER, self::MANAGE, self::EDITOR => true,
             self::VIEWER => false,
         };
     }
@@ -152,9 +141,10 @@ enum MemberRole: string
     public function getPermissionLevel(): int
     {
         return match ($this) {
-            self::OWNER => 3,
-            self::EDITOR => 2,
             self::VIEWER => 1,
+            self::EDITOR => 2,
+            self::MANAGE => 3,
+            self::OWNER => 4,
         };
     }
 
@@ -167,19 +157,11 @@ enum MemberRole: string
     }
 
     /**
-     * 比较角色权限等级.
-     */
-    public function isLowerThan(self $other): bool
-    {
-        return $this->getPermissionLevel() < $other->getPermissionLevel();
-    }
-
-    /**
      * 获取所有可用的角色.
      */
     public static function getAllRoles(): array
     {
-        return [self::OWNER, self::EDITOR, self::VIEWER];
+        return [self::OWNER, self::MANAGE, self::EDITOR, self::VIEWER];
     }
 
     /**
@@ -188,5 +170,23 @@ enum MemberRole: string
     public static function getAllRoleValues(): array
     {
         return array_map(fn ($role) => $role->value, self::getAllRoles());
+    }
+
+    /**
+     * 验证权限级别.
+     */
+    public static function validatePermissionLevel(string $permission): MemberRole
+    {
+        $validPermissions = [
+            MemberRole::MANAGE->value,
+            MemberRole::EDITOR->value,
+            MemberRole::VIEWER->value,
+        ];
+
+        if (! in_array($permission, $validPermissions, true)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'));
+        }
+
+        return MemberRole::from($permission);
     }
 }

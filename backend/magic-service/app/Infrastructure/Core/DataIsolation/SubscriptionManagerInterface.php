@@ -39,5 +39,7 @@ interface SubscriptionManagerInterface
 
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool;
 
+    public function isPaidSubscription(): bool;
+
     public function toArray(): array;
 }

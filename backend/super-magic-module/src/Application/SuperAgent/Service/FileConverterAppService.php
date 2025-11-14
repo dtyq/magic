@@ -231,12 +231,12 @@ class FileConverterAppService extends AbstractAppService
             ]);
 
             // Get full workdir first
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($userAuthorization->getOrganizationCode());
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
             // Build file keys and get temporary credentials
             $fileKeys = $this->buildFileKeys($validFiles, $fullWorkdir);
-            $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir());
+            $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
@@ -721,11 +721,12 @@ class FileConverterAppService extends AbstractAppService
     /**
      * Gets temporary STS credentials.
      */
-    private function getStsCredential(MagicUserAuthorization $userAuthorization, string $workDir): array
+    private function getStsCredential(MagicUserAuthorization $userAuthorization, string $workDir, ?string $projectOrganizationCode = null): array
     {
+        $projectOrganizationCode = $projectOrganizationCode ?? $userAuthorization->getOrganizationCode();
         $tempDir = $this->generateTempDir($workDir);
-        return $this->fileAppService->getStsTemporaryCredential(
-            $userAuthorization,
+        return $this->fileAppService->getStsTemporaryCredentialV2(
+            $projectOrganizationCode,
             'private',
             $tempDir // Expires in 2 hours
         );

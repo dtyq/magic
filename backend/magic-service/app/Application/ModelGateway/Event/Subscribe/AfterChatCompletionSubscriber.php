@@ -43,14 +43,15 @@ class AfterChatCompletionSubscriber implements ListenerInterface
             $completionRequest->calculateTokenEstimates();
             $completionResponse->calculateTokenEstimates();
             $usage = new Usage(
-                promptTokens: $completionRequest->getTotalTokenEstimate() ?? 0,
-                completionTokens: $completionResponse->calculateTokenEstimates() ?? 0,
-                totalTokens: ($completionRequest->getTotalTokenEstimate() ?? 0) + ($completionResponse->calculateTokenEstimates() ?? 0),
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
             );
         }
 
         $modelVersion = $completionRequest->getModel();
         $businessParams = $completionRequest->getBusinessParams();
+        $businessParams['response_duration'] = $event->getDuration();
         $modelId = empty($businessParams['model_id']) ? $modelVersion : $businessParams['model_id'];
 
         $chatUsageEvent = new ModelUsageEvent(

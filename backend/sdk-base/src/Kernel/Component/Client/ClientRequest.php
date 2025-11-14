@@ -35,6 +35,12 @@ class ClientRequest implements ClientInterface
 
         $start = microtime(true);
         $content = '';
+
+        // Set default timeout from config if not specified
+        if (! isset($options['timeout'])) {
+            $options['timeout'] = $this->sdkBase->getConfig()->getRequestTimeout();
+        }
+
         try {
             $response = $client->request($method->value, $uri, $options);
             $content = $response->getBody()->getContents();

@@ -48,4 +48,13 @@ return [
     'cannot_version_directory' => 'Cannot create version for directory',
     'version_create_failed' => 'Failed to create file version',
     'access_denied' => 'Access denied',
+
+    // File replace related
+    'file_replace_failed' => 'Failed to replace file',
+    'cannot_replace_directory' => 'Cannot replace directory, only files can be replaced',
+    'source_file_not_found_in_storage' => 'Source file not found in cloud storage',
+    'target_file_already_exists' => 'Target file name already exists in this directory',
+    'file_is_being_edited' => 'File is currently being edited by other users, use force_replace to override',
+    'source_file_key_illegal' => 'Source file key is illegal or outside of workspace',
+    'content_field_required' => 'Content field is required',
 ];

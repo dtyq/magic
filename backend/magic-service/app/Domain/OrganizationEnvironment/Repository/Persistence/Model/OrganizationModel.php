@@ -28,6 +28,10 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $status 状态 1:正常 2:禁用
  * @property null|string $creator_id 创建人
  * @property int $type
+ * @property null|int $seats 席位数
+ * @property null|string $sync_type 同步类型
+ * @property null|int $sync_status 同步状态
+ * @property null|Carbon $sync_time 同步时间
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 更新时间
  * @property null|Carbon $deleted_at 删除时间
@@ -66,6 +70,10 @@ class OrganizationModel extends AbstractModel
         'status',
         'creator_id',
         'type',
+        'seats',
+        'sync_type',
+        'sync_status',
+        'sync_time',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -88,6 +96,10 @@ class OrganizationModel extends AbstractModel
         'status' => 'int',
         'creator_id' => 'string',
         'type' => 'int',
+        'seats' => 'int',
+        'sync_type' => 'string',
+        'sync_status' => 'int',
+        'sync_time' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

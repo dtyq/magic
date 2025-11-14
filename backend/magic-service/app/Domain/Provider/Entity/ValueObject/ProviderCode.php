@@ -40,6 +40,8 @@ enum ProviderCode: string
 
     public function getImplementationConfig(ProviderConfigItem $config, string $name = ''): array
     {
+        $config->setUrl($this->getModelUrl($config));
+
         return match ($this) {
             self::MicrosoftAzure => [
                 'api_key' => $config->getApiKey(),
@@ -51,12 +53,25 @@ enum ProviderCode: string
                 'access_key' => $config->getAk(),
                 'secret_key' => $config->getSk(),
                 'region' => $config->getRegion(),
-                'auto_cache' => true,
+                'auto_cache' => config('llm.aws_bedrock_auto_cache', true),
             ],
             default => [
                 'api_key' => $config->getApiKey(),
                 'base_url' => $config->getUrl(),
+                'auto_cache_config' => [
+                    'auto_enabled' => config('llm.openai_auto_cache', true),
+                ],
             ],
         };
+    }
+
+    public function isOfficial(): bool
+    {
+        return $this === self::Official;
+    }
+
+    private function getModelUrl(ProviderConfigItem $config): string
+    {
+        return $config->getUrl() ?? '';
     }
 }

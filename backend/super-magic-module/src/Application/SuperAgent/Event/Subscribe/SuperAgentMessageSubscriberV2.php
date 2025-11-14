@@ -130,6 +130,9 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // Parse topic mode from super agent extra (support custom strings)
             $topicMode = $superAgentExtra?->getTopicPattern() ?? 'general';
 
+            // Extract dynamic params from super agent extra (if present)
+            $dynamicParams = $superAgentExtra?->getDynamicParams();
+
             // Create user message DTO
             $userMessageDTO = new UserMessageDTO(
                 agentUserId: $agentUserId,
@@ -150,6 +153,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 messageId: $messageId,
                 messageSeqId: $messageSeqId,
                 chatMessageType: $chatMessageType,
+                dynamicParams: $dynamicParams,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {

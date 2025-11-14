@@ -70,6 +70,7 @@ return [
             'project_id_required' => 'Project ID parameter is required',
             'chat_topic_id_required' => 'Chat topic ID parameter is required',
             'model_id_required' => '模型ID参数是必需的',
+            'invalid_recording_type' => '无效的录音类型: :type，有效值: frontend_recording, file_upload',
             'retry_files_uploaded' => 'Files have been re-uploaded to project workspace',
             'file_required' => 'File parameter is required',
             'task_not_found' => 'Task not found or expired',
@@ -120,6 +121,7 @@ return [
         ],
         'lock' => [
             'acquire_failed' => '获取锁失败，另一个总结任务正在进行中，请稍后再试',
+            'system_busy' => '系统繁忙，请稍后重试',
         ],
     ],
 
@@ -135,6 +137,8 @@ return [
         'original_recording' => '原始录音文件',
         'transcription_prefix' => '录音转文字结果',
         'summary_prefix' => '录音的总结',
+        'preset_note' => '笔记',
+        'preset_transcript' => '流式识别',
         'note_prefix' => '录音的笔记',
         'note_suffix' => '笔记', // 用于生成带标题的笔记文件名：{title}-笔记.{ext}
     ],
@@ -155,10 +159,68 @@ return [
         'summary_content_with_note' => '请在总结录音时参考同一目录下的录音笔记文件，并结合笔记与录音内容完成总结。',
         // 新的前后缀国际化（无笔记）
         'summary_prefix' => '请帮我把 ',
-        'summary_suffix' => ' 中的录音内容整理成一份纪要文档。',
+        'summary_suffix' => ' 录音内容转化为一份超级产物',
         // 新的前后缀国际化（有笔记）
-        'summary_prefix_with_note' => '帮我把 ',
-        'summary_middle_with_note' => ' 中的录音内容和 ',
-        'summary_suffix_with_note' => ' 中的我的笔记内容整理成一份纪要文档。',
+        'summary_prefix_with_note' => '请帮我把 ',
+        'summary_middle_with_note' => ' 录音内容和 ',
+        'summary_suffix_with_note' => ' 我的笔记内容转化为一份超级产物',
+    ],
+
+    // 异常信息国际化
+    'exception' => [
+        // API 层异常
+        'task_key_empty' => 'task_key 不能为空',
+        'topic_id_empty' => 'topic_id 不能为空',
+        'hidden_directory_not_found' => '未找到隐藏录音目录',
+        'task_already_completed' => '任务已完成，无法继续上传',
+        'sandbox_start_retry_exceeded' => '沙箱启动失败次数过多，请稍后重试',
+
+        // Service 层异常
+        'task_not_exist_get_upload_token' => '任务不存在，请先调用 getUploadToken',
+        'file_not_exist' => '文件不存在: :fileId',
+        'file_not_belong_to_project' => '文件不属于当前项目: :fileId',
+        'create_preset_file_failed' => '创建预设文件失败',
+        'create_states_directory_failed_project' => '创建 .asr_states 目录失败，项目ID: :projectId',
+        'create_states_directory_failed_error' => '创建 .asr_states 目录失败: :error',
+        'directory_rename_failed' => '目录重命名失败: :error',
+        'batch_update_children_failed' => '批量更新子文件路径失败: :error',
+        'create_audio_file_failed' => '创建音频文件记录失败: :error',
+        'update_note_file_failed' => '更新笔记文件记录失败: :error',
+        'audio_file_id_empty' => '音频文件ID为空',
+        'topic_not_exist' => '话题不存在: :topicId',
+        'topic_not_exist_simple' => '话题不存在',
+        'user_not_exist' => '用户不存在',
+        'task_not_belong_to_user' => '任务不属于当前用户',
+
+        // Directory 服务异常
+        'create_hidden_directory_failed_project' => '无法创建隐藏录音目录，项目ID: :projectId',
+        'create_hidden_directory_failed_error' => '创建隐藏录音目录失败: :error',
+        'create_display_directory_failed_project' => '无法创建显示录音目录，项目ID: :projectId',
+        'create_display_directory_failed_error' => '创建显示录音目录失败: :error',
+        'workspace_directory_empty' => '项目 :projectId 的工作区目录为空',
+
+        // Sandbox 服务异常
+        'sandbox_task_creation_failed' => '创建沙箱任务失败: :message',
+        'sandbox_cancel_failed' => '取消沙箱任务失败: :message',
+        'display_directory_id_not_exist' => '显示目录ID不存在，无法创建文件记录',
+        'display_directory_path_not_exist' => '显示目录路径不存在，无法创建文件记录',
+        'create_file_record_failed_no_query' => '创建文件记录失败且无法查询到现有记录',
+        'create_file_record_failed_error' => '创建文件记录失败: :error',
+        'sandbox_id_not_exist' => '沙箱ID不存在，无法完成录音任务',
+        'sandbox_merge_failed' => '沙箱合并失败: :message',
+        'sandbox_merge_timeout' => '沙箱合并超时',
+    ],
+
+    // 任务状态错误
+    'task_error' => [
+        'task_already_completed' => '录音任务已完成，无法继续操作',
+        'task_already_canceled' => '录音任务已取消，无法继续操作',
+        'task_is_summarizing' => '正在进行总结，请勿重复提交',
+        'task_auto_stopped_by_timeout' => '录音已因心跳超时自动停止并完成总结',
+        'invalid_status_transition' => '无效的录音状态转换',
+        'recording_already_stopped' => '录音已停止，无法继续操作',
+        'upload_not_allowed' => '当前任务状态不允许上传文件',
+        'status_report_not_allowed' => '当前任务状态不允许报告状态',
+        'summary_not_allowed' => '当前任务状态不允许发起总结',
     ],
 ];

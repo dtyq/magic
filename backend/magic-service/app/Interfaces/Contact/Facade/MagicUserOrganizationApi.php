@@ -68,6 +68,19 @@ class MagicUserOrganizationApi extends AbstractApi
         return $this->userOrganizationAppService->setCurrentOrganizationCode($magicId, $organizationCode);
     }
 
+    /**
+     * 获取账号下所有可切换的组织列表。
+     */
+    public function listOrganizations(RequestInterface $request): array
+    {
+        $authorization = (string) $request->header('authorization', '');
+        if ($authorization === '') {
+            ExceptionBuilder::throw(UserErrorCode::ACCOUNT_ERROR);
+        }
+
+        return $this->userOrganizationAppService->getOrganizationsByAuthorization($authorization)->toArray();
+    }
+
     private function getMagicIdByAuthorization(string $authorization): string
     {
         $userDetails = $this->userDomainService->getUsersDetailByAccountFromAuthorization($authorization);

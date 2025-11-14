@@ -54,7 +54,8 @@ function createAbortError(taskId: string | undefined, message: string): Error {
  * Create S3Client instance with provided credentials
  */
 function createS3Client(params: MinIO.STSAuthParams): S3Client {
-	const { endpoint, region, access_key_id, secret_access_key, session_token } = params
+	const { endpoint, region, credentials } = params
+	const { access_key_id, secret_access_key, session_token } = credentials
 
 	return new S3Client({
 		region,
@@ -421,18 +422,19 @@ export const MultipartUpload: PlatformRequest<
 	option: PlatformMultipartUploadOption,
 ) => {
 	const options = { ...option }
-	const { region, bucket, dir, access_key_id, secret_access_key, endpoint } = params
+	const { region, bucket, dir, credentials, endpoint } = params
 
-	if (!region || !bucket || !dir || !access_key_id || !secret_access_key || !endpoint) {
+	if (!region || !bucket || !dir || !endpoint || !credentials || 
+	    !credentials.access_key_id || !credentials.secret_access_key) {
 		throw new InitException(
 			InitExceptionCode.MISSING_CREDENTIALS_PARAMS_FOR_UPLOAD,
 			"s3",
 			"region",
 			"bucket",
 			"dir",
-			"accessKeyId",
-			"secretAccessKey",
 			"endpoint",
+			"credentials.access_key_id",
+			"credentials.secret_access_key",
 		)
 	}
 

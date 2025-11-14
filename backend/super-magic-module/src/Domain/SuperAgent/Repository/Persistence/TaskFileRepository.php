@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
+use Hyperf\DbConnection\Db;
 
 class TaskFileRepository implements TaskFileRepositoryInterface
 {
@@ -628,7 +629,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     /**
      * 根据目录路径查找文件列表.
      */
-    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 500): array
+    public function findFilesByDirectoryPath(int $projectId, string $directoryPath, int $limit = 1000): array
     {
         $models = $this->model::query()
             ->where('project_id', $projectId)
@@ -643,6 +644,112 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         }
 
         return $list;
+    }
+
+    /**
+     * 根据 parent_id 和 project_id 查找子文件列表.
+     * 此查询会使用索引: idx_project_parent_sort (project_id, parent_id, sort, file_id).
+     */
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array
+    {
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $parentId)
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
+     * 批量查询多个父目录的子文件（使用 IN 查询，避免 N+1 问题）.
+     * 使用 idx_project_parent_sort 索引.
+     *
+     * @param int $projectId 项目ID
+     * @param array $parentIds 父目录ID数组
+     * @param int $limit 限制数量
+     * @return TaskFileEntity[] 文件实体列表
+     */
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array
+    {
+        if (empty($parentIds)) {
+            return [];
+        }
+
+        $models = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereIn('parent_id', $parentIds)
+            ->whereNull('deleted_at')
+            ->limit($limit)
+            ->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = new TaskFileEntity($model->toArray());
+        }
+
+        return $list;
+    }
+
+    /**
+     * 批量更新文件的 file_key.
+     * 使用 CASE WHEN 语句实现一次性批量更新.
+     *
+     * @param array $updateBatch [['file_id' => 1, 'file_key' => 'new/path', 'updated_at' => '...'], ...]
+     * @return int 更新的文件数量
+     */
+    public function batchUpdateFileKeys(array $updateBatch): int
+    {
+        if (empty($updateBatch)) {
+            return 0;
+        }
+
+        $fileIds = array_column($updateBatch, 'file_id');
+
+        // 构建 CASE WHEN 语句和绑定参数（正确的顺序）
+        $fileKeyCases = [];
+        $updatedAtCases = [];
+        $fileKeyBindings = [];
+        $updatedAtBindings = [];
+
+        foreach ($updateBatch as $item) {
+            $fileKeyCases[] = 'WHEN ? THEN ?';
+            $updatedAtCases[] = 'WHEN ? THEN ?';
+
+            // file_key 的参数
+            $fileKeyBindings[] = $item['file_id'];
+            $fileKeyBindings[] = $item['file_key'];
+
+            // updated_at 的参数
+            $updatedAtBindings[] = $item['file_id'];
+            $updatedAtBindings[] = $item['updated_at'];
+        }
+
+        $fileKeyCasesSql = implode(' ', $fileKeyCases);
+        $updatedAtCasesSql = implode(' ', $updatedAtCases);
+
+        // 构建 SQL（按照正确的顺序合并参数）
+        $sql = sprintf(
+            'UPDATE %s SET 
+                file_key = CASE file_id %s END,
+                updated_at = CASE file_id %s END
+                WHERE file_id IN (%s)',
+            $this->model->getTable(),
+            $fileKeyCasesSql,
+            $updatedAtCasesSql,
+            implode(',', array_fill(0, count($fileIds), '?'))
+        );
+
+        // 正确的参数顺序：先 file_key 的 CASE，再 updated_at 的 CASE，最后是 WHERE IN
+        $bindings = array_merge($fileKeyBindings, $updatedAtBindings, $fileIds);
+
+        return Db::update($sql, $bindings);
     }
 
     /**

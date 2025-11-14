@@ -21,6 +21,11 @@ use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Domain\Provider\Event\ProviderConfigCreatedEvent;
+use App\Domain\Provider\Event\ProviderConfigUpdatedEvent;
+use App\Domain\Provider\Event\ProviderModelCreatedEvent;
+use App\Domain\Provider\Event\ProviderModelDeletedEvent;
+use App\Domain\Provider\Event\ProviderModelUpdatedEvent;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
@@ -36,6 +41,7 @@ use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 readonly class AdminProviderAppService
@@ -46,6 +52,7 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private LoggerInterface $logger,
+        private EventDispatcherInterface $eventDispatcher,
     ) {
     }
 
@@ -84,6 +91,13 @@ readonly class AdminProviderAppService
         $providerConfigEntity = ProviderAdminAssembler::updateRequestToEntity($updateProviderConfigRequest, $authorization->getOrganizationCode());
 
         $providerConfigEntity = $this->providerConfigDomainService->updateProviderConfig($dataIsolation, $providerConfigEntity);
+
+        // 触发服务商配置更新事件
+        $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
+            $providerConfigEntity,
+            $authorization->getOrganizationCode()
+        ));
+
         return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
     }
 
@@ -98,6 +112,12 @@ readonly class AdminProviderAppService
         $providerConfigEntity = ProviderAdminAssembler::createRequestToEntity($createProviderConfigRequest, $authorization->getOrganizationCode());
 
         $providerConfigEntity = $this->providerConfigDomainService->createProviderConfig($dataIsolation, $providerConfigEntity);
+
+        // 触发服务商配置创建事件
+        $this->eventDispatcher->dispatch(new ProviderConfigCreatedEvent(
+            $providerConfigEntity,
+            $authorization->getOrganizationCode()
+        ));
 
         $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());
         if ($providerEntity === null) {
@@ -158,6 +178,9 @@ readonly class AdminProviderAppService
             $authorization->getId(),
         );
 
+        // 获取模型信息，用于触发事件
+        $modelEntity = $this->providerModelDomainService->getById($dataIsolation, $id);
+
         Db::beginTransaction();
         try {
             if ($this->isOfficialOrganization($authorization->getOrganizationCode())) {
@@ -166,6 +189,14 @@ readonly class AdminProviderAppService
                 $this->providerModelDomainService->deleteByModelParentId($cloneDataIsolation, $id);
             }
             $this->providerModelDomainService->deleteById($dataIsolation, $id);
+
+            // 触发模型删除事件
+            $this->eventDispatcher->dispatch(new ProviderModelDeletedEvent(
+                $id,
+                $modelEntity->getServiceProviderConfigId(),
+                $authorization->getOrganizationCode()
+            ));
+
             Db::commit();
         } catch (Exception $e) {
             $this->logger->error('删除模型失败', ['error' => $e->getMessage()]);
@@ -195,7 +226,27 @@ readonly class AdminProviderAppService
     public function saveModel(MagicUserAuthorization $authorization, SaveProviderModelDTO $saveProviderModelDTO): array
     {
         $dataIsolation = ProviderDataIsolation::create($authorization->getOrganizationCode(), $authorization->getId());
+
+        // 记录是创建还是更新
+        $isCreate = ! $saveProviderModelDTO->getId();
+
         $saveProviderModelDTO = $this->providerModelDomainService->saveModel($dataIsolation, $saveProviderModelDTO);
+
+        // 获取保存后的模型实体
+        $modelEntity = $this->providerModelDomainService->getById($dataIsolation, $saveProviderModelDTO->getId());
+
+        // 触发相应的事件
+        if ($isCreate) {
+            $this->eventDispatcher->dispatch(new ProviderModelCreatedEvent(
+                $modelEntity,
+                $authorization->getOrganizationCode()
+            ));
+        } else {
+            $this->eventDispatcher->dispatch(new ProviderModelUpdatedEvent(
+                $modelEntity,
+                $authorization->getOrganizationCode()
+            ));
+        }
 
         $saveProviderModelData = $saveProviderModelDTO->toArray();
         // icon传入是 url，返回也需要是 url，但是保存在数据库是 file_key
@@ -256,6 +307,28 @@ readonly class AdminProviderAppService
     {
         // 获取所有非官方服务商
         $serviceProviders = $this->adminProviderDomainService->getAllNonOfficialProviders($category);
+
+        if (empty($serviceProviders)) {
+            return [];
+        }
+
+        // 处理图标
+        $this->processServiceProviderEntityListIcons($serviceProviders, $organizationCode);
+
+        return $serviceProviders;
+    }
+
+    /**
+     * 获取所有可用的服务商列表（包括官方服务商），不依赖于组织.
+     *
+     * @param Category $category 服务商分类
+     * @param string $organizationCode 组织编码
+     * @return ProviderConfigModelsDTO[] 所有可用服务商列表
+     */
+    public function getAllAvailableLlmProviders(Category $category, string $organizationCode): array
+    {
+        // 获取所有服务商（包括Official）
+        $serviceProviders = $this->adminProviderDomainService->getAllAvailableProviders($category);
 
         if (empty($serviceProviders)) {
             return [];
@@ -558,6 +631,7 @@ readonly class AdminProviderAppService
             'user_id' => $authorization->getId(),
             'source_id' => 'connectivity_test',
         ]);
+        $completionDTO->setMaxTokens(-1);
         /* @var ChatCompletionResponse $response */
         try {
             $llmAppService->chatCompletion($completionDTO);

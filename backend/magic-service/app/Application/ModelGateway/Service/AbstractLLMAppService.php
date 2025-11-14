@@ -24,6 +24,7 @@ use App\Domain\ModelGateway\Service\OrganizationConfigDomainService;
 use App\Domain\ModelGateway\Service\UserConfigDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
@@ -52,6 +53,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ImageWatermarkProcessor $imageWatermarkProcessor,
         protected PointComponentInterface $pointComponent,
         protected PackageFilterInterface $packageFilter,
+        protected ProviderModelDomainService $providerModelDomainService,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
@@ -64,6 +66,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         $accessToken = $this->accessTokenDomainService->getByAccessToken($accessToken);
         if (! $accessToken) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+        if (! $accessToken->isEnabled()) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_DISABLED);
         }
 
         // 兼容
@@ -85,13 +90,21 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         EnvManager::initDataIsolationEnv($dataIsolation);
         $dataIsolation->setAccessToken($accessToken);
 
+        $dataIsolation->setSourceId($this->getBusinessParam('source_id', '', $businessParams));
         if ($accessToken->getType()->isApplication()) {
             $dataIsolation->setAppId($accessToken->getRelationId());
         }
 
+        if ($accessToken->getType()->isUser()) {
+            $dataIsolation->setSourceId('api_platform');
+        }
+
         // 设置业务参数
-        $dataIsolation->setSourceId($this->getBusinessParam('source_id', '', $businessParams));
         $dataIsolation->setUserName($this->getBusinessParam('user_name', '', $businessParams));
+
+        if ($dataIsolation->getAccessToken()->getType()->isUser()) {
+            $dataIsolation->getSubscriptionManager()->setEnabled(false);
+        }
 
         return $dataIsolation;
     }

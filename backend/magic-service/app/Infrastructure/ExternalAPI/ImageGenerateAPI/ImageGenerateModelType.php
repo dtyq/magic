@@ -27,12 +27,16 @@ enum ImageGenerateModelType: string
     // 目前美图ai超清的model_id
     case MiracleVisionHightModelId = 'miracleVision_mtlab';
 
+    // 官方服务商
+    case Official = 'Official';
+
     /**
      * 从模型名称获取对应的类型.
      */
     public static function fromModel(string $model, bool $throw = true): self
     {
         return match (true) {
+            in_array($model, self::getOfficialModes()) => self::Official,
             in_array($model, self::getMidjourneyModes()) => self::Midjourney,
             in_array($model, self::getFluxModes()) => self::Flux,
             in_array($model, self::getVolcengineModes()) => self::Volcengine,
@@ -121,5 +125,10 @@ enum ImageGenerateModelType: string
     public static function getVolcengineArkModes(): array
     {
         return ['doubao-seedream-4-0-250828', 'VolcengineArk'];
+    }
+
+    public static function getOfficialModes(): array
+    {
+        return ['Official'];
     }
 }

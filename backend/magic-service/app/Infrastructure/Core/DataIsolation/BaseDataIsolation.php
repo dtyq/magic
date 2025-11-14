@@ -58,6 +58,8 @@ class BaseDataIsolation implements DataIsolationInterface
 
     private SubscriptionManagerInterface $subscriptionManager;
 
+    private array $lazyFunctions = [];
+
     public function __construct(string $currentOrganizationCode = '', string $userId = '', string $magicId = '')
     {
         $this->environment = app_env();
@@ -255,6 +257,16 @@ class BaseDataIsolation implements DataIsolationInterface
 
     public function getSubscriptionManager(): SubscriptionManagerInterface
     {
+        if (isset($this->lazyFunctions['initSubscription'])) {
+            $lazyFun = $this->lazyFunctions['initSubscription'];
+            unset($this->lazyFunctions['initSubscription']);
+            $lazyFun();
+        }
         return $this->subscriptionManager;
+    }
+
+    public function addLazyFunction(string $key, callable $function): void
+    {
+        $this->lazyFunctions[$key] = $function;
     }
 }

@@ -126,6 +126,8 @@ return [
         'original_recording' => 'Tệp ghi âm gốc',
         'transcription_prefix' => 'Kết quả phiên âm',
         'summary_prefix' => 'Tóm tắt ghi âm',
+        'preset_note' => 'ghi-chú',
+        'preset_transcript' => 'phiên-âm',
         'note_prefix' => 'Ghi chú ghi âm',
         'note_suffix' => 'Ghi chú', // Để tạo tên tệp ghi chú với tiêu đề: {title}-Ghi chú.{ext}
     ],
@@ -145,11 +147,11 @@ return [
         'summary_content' => ' Tóm tắt nội dung',
         'summary_content_with_note' => 'Khi tóm tắt bản ghi âm, vui lòng tham chiếu tệp ghi chú trong cùng thư mục và tóm tắt dựa trên cả ghi chú và bản ghi âm.',
         // Tiền tố/hậu tố i18n mới (không có ghi chú)
-        'summary_prefix' => 'Vui lòng giúp tôi tóm tắt nội dung ghi âm trong ',
-        'summary_suffix' => ' thành một tài liệu biên bản.',
+        'summary_prefix' => 'Vui lòng giúp tôi chuyển đổi ',
+        'summary_suffix' => ' nội dung ghi âm thành một sản phẩm siêu việt',
         // Tiền tố/hậu tố i18n mới (có ghi chú)
-        'summary_prefix_with_note' => 'Vui lòng giúp tôi tổ chức nội dung ghi âm trong ',
-        'summary_middle_with_note' => ' và nội dung ghi chú của tôi trong ',
-        'summary_suffix_with_note' => ' thành một tài liệu biên bản.',
+        'summary_prefix_with_note' => 'Vui lòng giúp tôi chuyển đổi ',
+        'summary_middle_with_note' => ' nội dung ghi âm và ',
+        'summary_suffix_with_note' => ' nội dung ghi chú của tôi thành một sản phẩm siêu việt',
     ],
 ];

@@ -13,7 +13,8 @@ import { normalizeSuccessResponse } from "../../utils/response"
  * Create S3Client instance with provided credentials
  */
 function createS3Client(params: MinIO.STSAuthParams): S3Client {
-	const { endpoint, region, access_key_id, secret_access_key, session_token } = params
+	const { endpoint, region, credentials } = params
+	const { access_key_id, secret_access_key, session_token } = credentials
 
 	return new S3Client({
 		region,
@@ -92,21 +93,21 @@ export const signedUpload: PlatformRequest<MinIO.STSAuthParams, PlatformSimpleUp
 		bucket,
 		region,
 		dir,
-		access_key_id,
-		secret_access_key,
+		credentials,
 		endpoint,
 	} = params
 
-	if (!bucket || !region || !dir || !access_key_id || !secret_access_key || !endpoint) {
+	if (!bucket || !region || !dir || !endpoint || !credentials || 
+	    !credentials.access_key_id || !credentials.secret_access_key) {
 		throw new InitException(
 			InitExceptionCode.MISSING_CREDENTIALS_PARAMS_FOR_UPLOAD,
 			"s3",
 			"bucket",
 			"region",
 			"dir",
-			"access_key_id",
-			"secret_access_key",
 			"endpoint",
+			"credentials.access_key_id",
+			"credentials.secret_access_key",
 		)
 	}
 

@@ -25,6 +25,7 @@ use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\FileServiceSimpleUpload;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\ObsSimpleUpload;
 use Dtyq\CloudFile\Kernel\Utils\SimpleUpload\TosSimpleUpload;
 use Dtyq\SdkBase\SdkBase;
+use Hyperf\Stringable\Str;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\PathNormalizer;
@@ -235,11 +236,17 @@ class FilesystemProxy extends Filesystem
     public function getLinks(array $paths, array $downloadNames = [], int $expires = 3600, array $options = []): array
     {
         $paths = $this->formatPaths($paths);
+        $platform = $this->config['platform'] ?? '';
         // 如果是公共读，直接返回拼接好的链接
         $list = [];
         if ($this->isPublicRead && ! empty($this->publicDomain) && empty($downloadNames)) {
             foreach ($paths as $path) {
-                $list[$path] = new FileLink($path, $this->publicDomain . '/' . $path, $expires);
+                if ($this->adapterName === AdapterName::FILE_SERVICE && $platform === 'minio') {
+                    $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . $path;
+                } else {
+                    $uri = $this->publicDomain . '/' . $path;
+                }
+                $list[$path] = new FileLink($path, $uri, $expires);
             }
             return $list;
         }
@@ -259,6 +266,7 @@ class FilesystemProxy extends Filesystem
         }
         if (! empty($unCachePaths)) {
             $unCachePaths = array_values($unCachePaths);
+            $unCachePaths = $this->filterMinioPaths($unCachePaths);
             $unCachePathsData = $this->expand->getFileLinks($unCachePaths, $downloadNames, $expires, $options);
             foreach ($unCachePathsData as $path => $data) {
                 if (! $data instanceof FileLink) {
@@ -502,6 +510,23 @@ class FilesystemProxy extends Filesystem
             default:
                 throw new CloudFileException("expand not found | [{$adapterName}]");
         }
+    }
+
+    private function filterMinioPaths(array $paths): array
+    {
+        $key = $this->config['key'] ?? '';
+        if ($this->adapterName !== AdapterName::FILE_SERVICE || $key !== 'minio') {
+            return $paths;
+        }
+        $newPaths = [];
+        foreach ($paths as $path) {
+            if (Str::startsWith($path, $key)) {
+                $newPaths[] = Str::replaceFirst($key . '/', '', $path);
+            } else {
+                $newPaths[] = $path;
+            }
+        }
+        return $newPaths;
     }
 
     private function uniqueKey(): string

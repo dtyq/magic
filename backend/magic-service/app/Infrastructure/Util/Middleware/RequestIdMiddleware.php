@@ -22,6 +22,13 @@ class RequestIdMiddleware implements MiddlewareInterface
         if ($requestId) {
             CoContext::setRequestId($requestId);
         }
+
+        // 处理header的Magic-User-Id 存在["usi_8","xxxxxxxxx"]问题，合并为"usi_8xxxxxxxxx"
+        $magicUserId = $request->getHeader('magic-user-id');
+        if ($magicUserId && count($magicUserId) > 1) {
+            $magicUserId = implode('', $magicUserId);
+            $request = $request->withHeader('magic-user-id', $magicUserId);
+        }
         return $handler->handle($request);
     }
 }
