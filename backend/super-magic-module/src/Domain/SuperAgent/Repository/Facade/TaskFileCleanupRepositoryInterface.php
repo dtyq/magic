@@ -32,6 +32,12 @@ interface TaskFileCleanupRepositoryInterface
     public function countFileDuplicates(): int;
 
     /**
+     * Get distinct project_ids that have fully deleted duplicate file_keys.
+     * Uses covering index optimization - only selects project_id.
+     */
+    public function getProjectIdsWithFullyDeletedDuplicates(?string $fileKey = null): array;
+
+    /**
      * Get fully deleted duplicate file_keys (fixed OFFSET=0 pagination strategy).
      * @param int $limit Maximum number of file_keys to return
      * @param null|int $projectId Filter by project ID
@@ -40,12 +46,24 @@ interface TaskFileCleanupRepositoryInterface
     public function getFullyDeletedDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array;
 
     /**
+     * Get distinct project_ids that have duplicate directory file_keys.
+     * Uses covering index optimization - only selects project_id.
+     */
+    public function getProjectIdsWithDirectoryDuplicates(?string $fileKey = null): array;
+
+    /**
      * Get duplicate directory file_keys (fixed OFFSET=0 pagination strategy).
      * @param int $limit Maximum number of file_keys to return
      * @param null|int $projectId Filter by project ID
      * @param null|string $fileKey Filter by specific file_key
      */
     public function getDirectoryDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array;
+
+    /**
+     * Get distinct project_ids that have duplicate file file_keys.
+     * Uses covering index optimization - only selects project_id.
+     */
+    public function getProjectIdsWithFileDuplicates(?string $fileKey = null): array;
 
     /**
      * Get duplicate file file_keys (fixed OFFSET=0 pagination strategy).
@@ -62,8 +80,9 @@ interface TaskFileCleanupRepositoryInterface
 
     /**
      * Get all records for multiple file_keys, ordered by priority (optimized batch query).
+     * Uses covering index - only selects necessary columns.
      */
-    public function getRecordsByFileKeys(array $fileKeys): array;
+    public function getRecordsByFileKeys(array $fileKeys, ?int $projectId = null): array;
 
     /**
      * Update parent_id references for deleted file IDs.

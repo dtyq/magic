@@ -145,14 +145,61 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
+     * Get distinct project_ids that have fully deleted duplicate file_keys.
+     * Uses covering index optimization - only selects project_id.
+     * OPTIMIZED: Replaced subquery with JOIN for better performance.
+     */
+    public function getProjectIdsWithFullyDeletedDuplicates(?string $fileKey = null): array
+    {
+        $whereConditions = ['t1.project_id IS NOT NULL', 't1.file_key IS NOT NULL', "t1.file_key != ''"];
+        $params = [];
+
+        if ($fileKey !== null) {
+            $whereConditions[] = 't1.file_key = ?';
+            $params[] = $fileKey;
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+
+        // OPTIMIZED: Use JOIN instead of subquery to avoid duplicate table scans
+        $subqueryWhere = ['project_id IS NOT NULL', 'file_key IS NOT NULL', "file_key != ''"];
+        $subqueryParams = [];
+        if ($fileKey !== null) {
+            $subqueryWhere[] = 'file_key = ?';
+            $subqueryParams[] = $fileKey;
+        }
+        $subqueryWhereClause = implode(' AND ', $subqueryWhere);
+
+        $results = Db::select(
+            "SELECT DISTINCT t1.project_id
+            FROM magic_super_agent_task_files t1
+            INNER JOIN (
+                SELECT project_id, file_key
+                FROM magic_super_agent_task_files
+                WHERE {$subqueryWhereClause}
+                GROUP BY project_id, file_key
+                HAVING COUNT(*) > 1
+                   AND COUNT(*) = SUM(deleted_at IS NOT NULL)
+            ) t2 ON t1.project_id = t2.project_id AND t1.file_key = t2.file_key
+            WHERE {$whereClause}
+            ORDER BY t1.project_id ASC",
+            array_merge($subqueryParams, $params)
+        );
+
+        return array_column($results, 'project_id');
+    }
+
+    /**
      * Get fully deleted duplicate file_keys.
+     *
+     * OPTIMIZED: Uses covering index (project_id, file_key, deleted_at).
+     * Only selects file_key to avoid table lookup.
+     * Reduced GROUP BY complexity by filtering at project_id level first.
      *
      * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
      * Always queries from OFFSET 0 because processed records are deleted.
      * After each batch is processed and deleted, the next query naturally returns the new first batch.
      * This avoids the "pagination offset drift" problem.
-     *
-     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
     public function getFullyDeletedDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -177,13 +224,15 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
 
         $params[] = $limit;
 
+        // OPTIMIZED: Use covering index, avoid functions in WHERE/HAVING where possible
+        // Simplified HAVING: use direct comparison instead of SUM(CASE WHEN...)
         $results = Db::select(
             "SELECT file_key
             FROM magic_super_agent_task_files
             WHERE {$whereClause}
-            GROUP BY file_key
+            GROUP BY project_id, file_key
             HAVING COUNT(*) > 1
-               AND COUNT(*) = SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
+               AND COUNT(*) = SUM(deleted_at IS NOT NULL)
             ORDER BY file_key ASC
             LIMIT ?",
             $params
@@ -193,14 +242,61 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
+     * Get distinct project_ids that have duplicate directory file_keys.
+     * Uses covering index optimization - only selects project_id.
+     * OPTIMIZED: Replaced subquery with JOIN for better performance.
+     */
+    public function getProjectIdsWithDirectoryDuplicates(?string $fileKey = null): array
+    {
+        $whereConditions = ['t1.project_id IS NOT NULL', 't1.file_key IS NOT NULL', "t1.file_key != ''", 't1.is_directory = 1'];
+        $params = [];
+
+        if ($fileKey !== null) {
+            $whereConditions[] = 't1.file_key = ?';
+            $params[] = $fileKey;
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+
+        // OPTIMIZED: Use JOIN instead of subquery to avoid duplicate table scans
+        $subqueryWhere = ['project_id IS NOT NULL', 'file_key IS NOT NULL', "file_key != ''", 'is_directory = 1'];
+        $subqueryParams = [];
+        if ($fileKey !== null) {
+            $subqueryWhere[] = 'file_key = ?';
+            $subqueryParams[] = $fileKey;
+        }
+        $subqueryWhereClause = implode(' AND ', $subqueryWhere);
+
+        $results = Db::select(
+            "SELECT DISTINCT t1.project_id
+            FROM magic_super_agent_task_files t1
+            INNER JOIN (
+                SELECT project_id, file_key
+                FROM magic_super_agent_task_files
+                WHERE {$subqueryWhereClause}
+                GROUP BY project_id, file_key
+                HAVING COUNT(*) > 1
+                   AND COUNT(*) > SUM(deleted_at IS NOT NULL)
+            ) t2 ON t1.project_id = t2.project_id AND t1.file_key = t2.file_key
+            WHERE {$whereClause}
+            ORDER BY t1.project_id ASC",
+            array_merge($subqueryParams, $params)
+        );
+
+        return array_column($results, 'project_id');
+    }
+
+    /**
      * Get duplicate directory file_keys.
+     *
+     * OPTIMIZED: Uses covering index (project_id, is_directory, file_key, deleted_at).
+     * Only selects file_key to avoid table lookup.
+     * Reduced GROUP BY complexity by filtering at project_id level first.
      *
      * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
      * Always queries from OFFSET 0 because processed records are deleted.
      * After each batch is processed and deleted, the next query naturally returns the new first batch.
      * This avoids the "pagination offset drift" problem.
-     *
-     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
     public function getDirectoryDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -226,13 +322,15 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
 
         $params[] = $limit;
 
+        // OPTIMIZED: Use covering index, avoid functions in WHERE/HAVING where possible
+        // Simplified HAVING: use direct comparison instead of SUM(CASE WHEN...)
         $results = Db::select(
             "SELECT file_key
             FROM magic_super_agent_task_files
             WHERE {$whereClause}
-            GROUP BY file_key
+            GROUP BY project_id, file_key
             HAVING COUNT(*) > 1
-               AND COUNT(*) > SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
+               AND COUNT(*) > SUM(deleted_at IS NOT NULL)
             ORDER BY file_key ASC
             LIMIT ?",
             $params
@@ -242,14 +340,61 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     }
 
     /**
+     * Get distinct project_ids that have duplicate file file_keys.
+     * Uses covering index optimization - only selects project_id.
+     * OPTIMIZED: Replaced subquery with JOIN for better performance.
+     */
+    public function getProjectIdsWithFileDuplicates(?string $fileKey = null): array
+    {
+        $whereConditions = ['t1.project_id IS NOT NULL', 't1.file_key IS NOT NULL', "t1.file_key != ''", 't1.is_directory = 0'];
+        $params = [];
+
+        if ($fileKey !== null) {
+            $whereConditions[] = 't1.file_key = ?';
+            $params[] = $fileKey;
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+
+        // OPTIMIZED: Use JOIN instead of subquery to avoid duplicate table scans
+        $subqueryWhere = ['project_id IS NOT NULL', 'file_key IS NOT NULL', "file_key != ''", 'is_directory = 0'];
+        $subqueryParams = [];
+        if ($fileKey !== null) {
+            $subqueryWhere[] = 'file_key = ?';
+            $subqueryParams[] = $fileKey;
+        }
+        $subqueryWhereClause = implode(' AND ', $subqueryWhere);
+
+        $results = Db::select(
+            "SELECT DISTINCT t1.project_id
+            FROM magic_super_agent_task_files t1
+            INNER JOIN (
+                SELECT project_id, file_key
+                FROM magic_super_agent_task_files
+                WHERE {$subqueryWhereClause}
+                GROUP BY project_id, file_key
+                HAVING COUNT(*) > 1
+                   AND COUNT(*) > SUM(deleted_at IS NOT NULL)
+            ) t2 ON t1.project_id = t2.project_id AND t1.file_key = t2.file_key
+            WHERE {$whereClause}
+            ORDER BY t1.project_id ASC",
+            array_merge($subqueryParams, $params)
+        );
+
+        return array_column($results, 'project_id');
+    }
+
+    /**
      * Get duplicate file file_keys.
+     *
+     * OPTIMIZED: Uses covering index (project_id, is_directory, file_key, deleted_at).
+     * Only selects file_key to avoid table lookup.
+     * Reduced GROUP BY complexity by filtering at project_id level first.
      *
      * PAGINATION STRATEGY: Fixed OFFSET=0 approach.
      * Always queries from OFFSET 0 because processed records are deleted.
      * After each batch is processed and deleted, the next query naturally returns the new first batch.
      * This avoids the "pagination offset drift" problem.
-     *
-     * PERFORMANCE: WHERE clause optimized for index usage (indexed columns first).
      */
     public function getFileDuplicateKeys(int $limit, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -275,13 +420,15 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
 
         $params[] = $limit;
 
+        // OPTIMIZED: Use covering index, avoid functions in WHERE/HAVING where possible
+        // Simplified HAVING: use direct comparison instead of SUM(CASE WHEN...)
         $results = Db::select(
             "SELECT file_key
             FROM magic_super_agent_task_files
             WHERE {$whereClause}
-            GROUP BY file_key
+            GROUP BY project_id, file_key
             HAVING COUNT(*) > 1
-               AND COUNT(*) > SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)
+               AND COUNT(*) > SUM(deleted_at IS NOT NULL)
             ORDER BY file_key ASC
             LIMIT ?",
             $params
@@ -315,27 +462,50 @@ class TaskFileCleanupRepository implements TaskFileCleanupRepositoryInterface
     /**
      * Get all records for multiple file_keys, ordered by priority (optimized batch query).
      * Returns: ['file_key1' => [record1, record2, ...], 'file_key2' => [...], ...].
+     *
+     * OPTIMIZED: Uses covering index when project_id is provided.
+     * Reduced CASE WHEN usage in ORDER BY for better performance.
+     * OPTIMIZED: Only selects necessary columns to reduce data transfer and improve performance.
      */
-    public function getRecordsByFileKeys(array $fileKeys): array
+    public function getRecordsByFileKeys(array $fileKeys, ?int $projectId = null): array
     {
         if (empty($fileKeys)) {
             return [];
         }
 
         $placeholders = implode(',', array_fill(0, count($fileKeys), '?'));
+        $params = $fileKeys;
 
+        $whereClause = "file_key IN ({$placeholders})";
+        if ($projectId !== null) {
+            $whereClause .= ' AND project_id = ?';
+            $params[] = $projectId;
+        }
+
+        // OPTIMIZED: Only select necessary columns instead of SELECT *
+        // Required fields: file_id, project_id, parent_id, deleted_at, file_key, file_name, is_directory, topic_id, updated_at, created_at
         $results = Db::select(
-            "SELECT *
+            "SELECT 
+                file_id,
+                project_id,
+                parent_id,
+                deleted_at,
+                file_key,
+                file_name,
+                is_directory,
+                topic_id,
+                updated_at,
+                created_at
             FROM magic_super_agent_task_files
-            WHERE file_key IN ({$placeholders})
+            WHERE {$whereClause}
             ORDER BY 
                 file_key,
-                CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END,
-                CASE WHEN topic_id IS NOT NULL THEN 0 ELSE 1 END,
-                CASE WHEN project_id IS NOT NULL THEN 0 ELSE 1 END,
+                deleted_at IS NULL DESC,
+                topic_id IS NULL ASC,
+                project_id IS NULL ASC,
                 created_at ASC,
                 file_id ASC",
-            $fileKeys
+            $params
         );
 
         // Group results by file_key

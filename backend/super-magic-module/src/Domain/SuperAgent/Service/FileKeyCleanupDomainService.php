@@ -112,12 +112,15 @@ class FileKeyCleanupDomainService
      * 2. Fixed OFFSET=0 pagination strategy
      * 3. Added infinite loop protection
      * 4. Added dry-run mode protection
+     * 5. OPTIMIZED: Process by project_id to reduce scan rows and split transactions
      *
      * PAGINATION STRATEGY: Uses fixed OFFSET=0 approach.
      * - Each query always fetches from OFFSET 0
      * - Processed records are deleted immediately
      * - Next query automatically gets new first batch
      * - No offset drift issue
+     *
+     * TRANSACTION STRATEGY: Split by project_id for smaller transactions.
      */
     public function processFullyDeleted(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -125,57 +128,70 @@ class FileKeyCleanupDomainService
         $totalDeleted = 0;
         $totalErrors = 0;
 
-        // Infinite loop protection
-        $maxIterations = 1000;
-        $iteration = 0;
-
-        // OPTIMIZATION: Removed slow COUNT query, process directly
         $this->writeLog('INFO', "Stage 1: Processing fully deleted file_keys (batch size: {$batchSize})");
 
-        while (true) {
-            // Always query from OFFSET 0, as processed records are deleted
-            $fileKeys = $this->repository->getFullyDeletedDuplicateKeys($batchSize, $projectId, $fileKey);
+        // OPTIMIZATION: Get all project_ids with duplicates first to reduce scan rows
+        if ($projectId === null) {
+            $this->writeLog('INFO', 'Fetching project_ids with fully deleted duplicates...');
+            $projectIds = $this->repository->getProjectIdsWithFullyDeletedDuplicates($fileKey);
+            $this->writeLog('INFO', 'Found ' . count($projectIds) . ' project(s) with fully deleted duplicates');
+        } else {
+            $projectIds = [$projectId];
+        }
 
-            if (empty($fileKeys)) {
-                $this->writeLog('INFO', 'No more fully deleted file_keys to process');
-                break;
-            }
+        // Process each project_id separately for smaller transactions
+        foreach ($projectIds as $currentProjectId) {
+            $this->writeLog('INFO', "Processing project_id: {$currentProjectId}");
 
-            // Prevent infinite loop in case of persistent errors
-            ++$iteration;
-            if ($iteration > $maxIterations) {
-                $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}), stopping to prevent infinite loop");
-                break;
-            }
+            // Infinite loop protection per project
+            $maxIterations = 1000;
+            $iteration = 0;
 
-            $this->writeLog('INFO', "Processing batch {$iteration}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+            while (true) {
+                // Always query from OFFSET 0, as processed records are deleted
+                $fileKeys = $this->repository->getFullyDeletedDuplicateKeys($batchSize, $currentProjectId, $fileKey);
 
-            // Optimized: Batch query all records for these file_keys at once
-            $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
-
-            $batchProcessed = 0;
-            foreach ($fileKeys as $currentFileKey) {
-                try {
-                    $records = $recordsGrouped[$currentFileKey] ?? [];
-                    if (empty($records)) {
-                        continue;
-                    }
-
-                    $result = $this->processFullyDeletedFileKeyWithRecords($currentFileKey, $records, $dryRun);
-                    $totalDeleted += $result['deleted'];
-                    ++$totalProcessed;
-                    ++$batchProcessed;
-                } catch (Throwable $e) {
-                    ++$totalErrors;
-                    $this->logError('deleted', $currentFileKey, $e->getMessage());
-                    $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                if (empty($fileKeys)) {
+                    $this->writeLog('INFO', "No more fully deleted file_keys to process for project_id: {$currentProjectId}");
+                    break;
                 }
-            }
 
-            // In dry-run mode, if no records were actually processed, break to avoid infinite loop
-            if ($dryRun && $batchProcessed === 0) {
-                $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
-                break;
+                // Prevent infinite loop in case of persistent errors
+                ++$iteration;
+                if ($iteration > $maxIterations) {
+                    $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}) for project_id {$currentProjectId}, stopping to prevent infinite loop");
+                    break;
+                }
+
+                $this->writeLog('INFO', "Processing batch {$iteration} for project_id {$currentProjectId}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+
+                // OPTIMIZED: Batch query with project_id filter for covering index
+                $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys, $currentProjectId);
+
+                $batchProcessed = 0;
+                foreach ($fileKeys as $currentFileKey) {
+                    try {
+                        $records = $recordsGrouped[$currentFileKey] ?? [];
+                        if (empty($records)) {
+                            continue;
+                        }
+
+                        $result = $this->processFullyDeletedFileKeyWithRecords($currentFileKey, $records, $dryRun);
+                        $totalDeleted += $result['deleted'];
+                        ++$totalProcessed;
+                        ++$batchProcessed;
+                    } catch (Throwable $e) {
+                        ++$totalErrors;
+                        $this->logError('deleted', $currentFileKey, $e->getMessage());
+                        $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                    }
+                }
+
+                // In dry-run mode, if no records were actually processed, break to avoid infinite loop
+                if ($dryRun && $batchProcessed === 0) {
+                    $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
+                    break;
+                }
             }
         }
 
@@ -196,12 +212,15 @@ class FileKeyCleanupDomainService
      * 2. Fixed OFFSET=0 pagination strategy
      * 3. Added infinite loop protection
      * 4. Added dry-run mode protection
+     * 5. OPTIMIZED: Process by project_id to reduce scan rows and split transactions
      *
      * PAGINATION STRATEGY: Uses fixed OFFSET=0 approach.
      * - Each query always fetches from OFFSET 0
      * - Processed records are deleted immediately
      * - Next query automatically gets new first batch
      * - No offset drift issue
+     *
+     * TRANSACTION STRATEGY: Split by project_id for smaller transactions.
      */
     public function processDirectoryDuplicates(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -211,61 +230,74 @@ class FileKeyCleanupDomainService
         $totalParentIdUpdated = 0;
         $totalErrors = 0;
 
-        // Infinite loop protection
-        $maxIterations = 1000;
-        $iteration = 0;
-
-        // OPTIMIZATION: Removed slow COUNT query, process directly
         $this->writeLog('INFO', "Stage 2: Processing duplicate directory file_keys (batch size: {$batchSize})");
 
-        while (true) {
-            // Always query from OFFSET 0, as processed records are deleted
-            $fileKeys = $this->repository->getDirectoryDuplicateKeys($batchSize, $projectId, $fileKey);
+        // OPTIMIZATION: Get all project_ids with duplicates first to reduce scan rows
+        if ($projectId === null) {
+            $this->writeLog('INFO', 'Fetching project_ids with directory duplicates...');
+            $projectIds = $this->repository->getProjectIdsWithDirectoryDuplicates($fileKey);
+            $this->writeLog('INFO', 'Found ' . count($projectIds) . ' project(s) with directory duplicates');
+        } else {
+            $projectIds = [$projectId];
+        }
 
-            if (empty($fileKeys)) {
-                $this->writeLog('INFO', 'No more duplicate directory file_keys to process');
-                break;
-            }
+        // Process each project_id separately for smaller transactions
+        foreach ($projectIds as $currentProjectId) {
+            $this->writeLog('INFO', "Processing project_id: {$currentProjectId}");
 
-            // Prevent infinite loop in case of persistent errors
-            ++$iteration;
-            if ($iteration > $maxIterations) {
-                $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}), stopping to prevent infinite loop");
-                break;
-            }
+            // Infinite loop protection per project
+            $maxIterations = 1000;
+            $iteration = 0;
 
-            $this->writeLog('INFO', "Processing batch {$iteration}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+            while (true) {
+                // Always query from OFFSET 0, as processed records are deleted
+                $fileKeys = $this->repository->getDirectoryDuplicateKeys($batchSize, $currentProjectId, $fileKey);
 
-            // Optimized: Batch query all records for these file_keys at once
-            $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
-
-            $batchProcessed = 0;
-            foreach ($fileKeys as $currentFileKey) {
-                try {
-                    $records = $recordsGrouped[$currentFileKey] ?? [];
-                    if (empty($records)) {
-                        continue;
-                    }
-
-                    $result = $this->processDirectoryFileKeyWithRecords($currentFileKey, $records, $dryRun);
-                    if ($result['kept'] > 0) {
-                        ++$totalKept;
-                    }
-                    $totalDeleted += $result['deleted'];
-                    $totalParentIdUpdated += $result['parent_id_updated'];
-                    ++$totalProcessed;
-                    ++$batchProcessed;
-                } catch (Throwable $e) {
-                    ++$totalErrors;
-                    $this->logError('directory', $currentFileKey, $e->getMessage());
-                    $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                if (empty($fileKeys)) {
+                    $this->writeLog('INFO', "No more duplicate directory file_keys to process for project_id: {$currentProjectId}");
+                    break;
                 }
-            }
 
-            // In dry-run mode, if no records were actually processed, break to avoid infinite loop
-            if ($dryRun && $batchProcessed === 0) {
-                $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
-                break;
+                // Prevent infinite loop in case of persistent errors
+                ++$iteration;
+                if ($iteration > $maxIterations) {
+                    $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}) for project_id {$currentProjectId}, stopping to prevent infinite loop");
+                    break;
+                }
+
+                $this->writeLog('INFO', "Processing batch {$iteration} for project_id {$currentProjectId}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+
+                // OPTIMIZED: Batch query with project_id filter for covering index
+                $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys, $currentProjectId);
+
+                $batchProcessed = 0;
+                foreach ($fileKeys as $currentFileKey) {
+                    try {
+                        $records = $recordsGrouped[$currentFileKey] ?? [];
+                        if (empty($records)) {
+                            continue;
+                        }
+
+                        $result = $this->processDirectoryFileKeyWithRecords($currentFileKey, $records, $dryRun);
+                        if ($result['kept'] > 0) {
+                            ++$totalKept;
+                        }
+                        $totalDeleted += $result['deleted'];
+                        $totalParentIdUpdated += $result['parent_id_updated'];
+                        ++$totalProcessed;
+                        ++$batchProcessed;
+                    } catch (Throwable $e) {
+                        ++$totalErrors;
+                        $this->logError('directory', $currentFileKey, $e->getMessage());
+                        $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                    }
+                }
+
+                // In dry-run mode, if no records were actually processed, break to avoid infinite loop
+                if ($dryRun && $batchProcessed === 0) {
+                    $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
+                    break;
+                }
             }
         }
 
@@ -292,12 +324,15 @@ class FileKeyCleanupDomainService
      * 3. FIXED BUG: Removed break that caused only first batch to be processed
      * 4. Added infinite loop protection
      * 5. Added dry-run mode protection
+     * 6. OPTIMIZED: Process by project_id to reduce scan rows and split transactions
      *
      * PAGINATION STRATEGY: Uses fixed OFFSET=0 approach.
      * - Each query always fetches from OFFSET 0
      * - Processed records are deleted immediately
      * - Next query automatically gets new first batch
      * - No offset drift issue
+     *
+     * TRANSACTION STRATEGY: Split by project_id for smaller transactions.
      */
     public function processFileDuplicates(int $batchSize, bool $dryRun = false, ?int $projectId = null, ?string $fileKey = null): array
     {
@@ -306,62 +341,73 @@ class FileKeyCleanupDomainService
         $totalDeleted = 0;
         $totalErrors = 0;
 
-        // Infinite loop protection
-        $maxIterations = 1000;
-        $iteration = 0;
-
-        // OPTIMIZATION: Removed slow COUNT query, process directly
         $this->writeLog('INFO', "Stage 3: Processing duplicate file file_keys (batch size: {$batchSize})");
 
-        while (true) {
-            // Always query from OFFSET 0, as processed records are deleted
-            $fileKeys = $this->repository->getFileDuplicateKeys($batchSize, $projectId, $fileKey);
+        // OPTIMIZATION: Get all project_ids with duplicates first to reduce scan rows
+        if ($projectId === null) {
+            $this->writeLog('INFO', 'Fetching project_ids with file duplicates...');
+            $projectIds = $this->repository->getProjectIdsWithFileDuplicates($fileKey);
+            $this->writeLog('INFO', 'Found ' . count($projectIds) . ' project(s) with file duplicates');
+        } else {
+            $projectIds = [$projectId];
+        }
 
-            if (empty($fileKeys)) {
-                $this->writeLog('INFO', 'No more duplicate file file_keys to process');
-                break;
-            }
+        // Process each project_id separately for smaller transactions
+        foreach ($projectIds as $currentProjectId) {
+            $this->writeLog('INFO', "Processing project_id: {$currentProjectId}");
 
-            // Prevent infinite loop in case of persistent errors
-            ++$iteration;
-            if ($iteration > $maxIterations) {
-                $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}), stopping to prevent infinite loop");
-                break;
-            }
+            // Infinite loop protection per project
+            $maxIterations = 1000;
+            $iteration = 0;
 
-            $this->writeLog('INFO', "Processing batch {$iteration}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+            while (true) {
+                // Always query from OFFSET 0, as processed records are deleted
+                $fileKeys = $this->repository->getFileDuplicateKeys($batchSize, $currentProjectId, $fileKey);
 
-            // Optimized: Batch query all records for these file_keys at once
-            $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys);
+                if (empty($fileKeys)) {
+                    $this->writeLog('INFO', "No more duplicate file file_keys to process for project_id: {$currentProjectId}");
+                    break;
+                }
 
-            $batchProcessed = 0;
-            foreach ($fileKeys as $currentFileKey) {
-                try {
-                    $records = $recordsGrouped[$currentFileKey] ?? [];
-                    if (empty($records)) {
-                        continue;
+                // Prevent infinite loop in case of persistent errors
+                ++$iteration;
+                if ($iteration > $maxIterations) {
+                    $this->writeLog('WARNING', "Reached maximum iterations ({$maxIterations}) for project_id {$currentProjectId}, stopping to prevent infinite loop");
+                    break;
+                }
+
+                $this->writeLog('INFO', "Processing batch {$iteration} for project_id {$currentProjectId}: {$totalProcessed} file_keys processed so far, " . count($fileKeys) . ' in current batch');
+
+                // OPTIMIZED: Batch query with project_id filter for covering index
+                $recordsGrouped = $this->repository->getRecordsByFileKeys($fileKeys, $currentProjectId);
+
+                $batchProcessed = 0;
+                foreach ($fileKeys as $currentFileKey) {
+                    try {
+                        $records = $recordsGrouped[$currentFileKey] ?? [];
+                        if (empty($records)) {
+                            continue;
+                        }
+                        $result = $this->processFileFileKeyWithRecords($currentFileKey, $records, $dryRun);
+                        if ($result['kept'] > 0) {
+                            ++$totalKept;
+                        }
+                        $totalDeleted += $result['deleted'];
+                        ++$totalProcessed;
+                        ++$batchProcessed;
+                    } catch (Throwable $e) {
+                        ++$totalErrors;
+                        $this->logError('file', $currentFileKey, $e->getMessage());
+                        $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
                     }
-                    $result = $this->processFileFileKeyWithRecords($currentFileKey, $records, $dryRun);
-                    if ($result['kept'] > 0) {
-                        ++$totalKept;
-                    }
-                    $totalDeleted += $result['deleted'];
-                    ++$totalProcessed;
-                    ++$batchProcessed;
-                } catch (Throwable $e) {
-                    ++$totalErrors;
-                    $this->logError('file', $currentFileKey, $e->getMessage());
-                    $this->writeLog('ERROR', "Failed to process file_key '{$currentFileKey}': {$e->getMessage()}");
+                }
+
+                // In dry-run mode, if no records were actually processed, break to avoid infinite loop
+                if ($dryRun && $batchProcessed === 0) {
+                    $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
+                    break;
                 }
             }
-
-            // In dry-run mode, if no records were actually processed, break to avoid infinite loop
-            if ($dryRun && $batchProcessed === 0) {
-                $this->writeLog('WARNING', 'Dry-run mode: No records processed in this batch, stopping to prevent infinite loop');
-                break;
-            }
-
-            // FIXED: Removed break that was here - now processes all batches
         }
 
         $this->writeLog(
@@ -468,66 +514,92 @@ class FileKeyCleanupDomainService
 
     /**
      * Process a single fully deleted file_key with pre-fetched records (optimized).
+     * OPTIMIZED: File I/O operations moved outside transaction to reduce lock time.
      */
     private function processFullyDeletedFileKeyWithRecords(string $fileKey, array $records, bool $dryRun): array
     {
+        $fileIds = array_column($records, 'file_id');
+
+        // Database operations in transaction
         Db::beginTransaction();
         try {
-            $fileIds = array_column($records, 'file_id');
-
             if (! $dryRun) {
                 $this->repository->deleteRecords($fileIds);
             }
-
-            // Log all deleted records
-            foreach ($records as $record) {
-                $this->logDeletion('deleted', 'delete_all', $record, null, $dryRun);
-            }
-
             Db::commit();
-
-            return ['deleted' => count($fileIds)];
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
         }
+
+        // File I/O operations outside transaction (after commit)
+        foreach ($records as $record) {
+            $this->logDeletion('deleted', 'delete_all', $record, null, $dryRun);
+        }
+
+        return ['deleted' => count($fileIds)];
     }
 
     /**
      * Process a single directory file_key with pre-fetched records (optimized).
+     * OPTIMIZED: File I/O operations moved outside transaction to reduce lock time.
      */
     private function processDirectoryFileKeyWithRecords(string $fileKey, array $records, bool $dryRun): array
     {
-        Db::beginTransaction();
-        try {
-            $deletedCount = 0;
-            $parentIdUpdatedCount = 0;
-            $keptCount = 0;
+        $deletedCount = 0;
+        $parentIdUpdatedCount = 0;
+        $keptCount = 0;
 
-            // Step 1: Delete soft deleted records first
-            $softDeleted = array_filter($records, fn ($r) => $r['deleted_at'] !== null);
-            if (! empty($softDeleted)) {
-                $softDeletedIds = array_column($softDeleted, 'file_id');
-                if (! $dryRun) {
-                    $this->repository->deleteRecords($softDeletedIds);
-                }
-                foreach ($softDeleted as $record) {
-                    $this->logDeletion('directory', 'delete_soft_deleted', $record, null, $dryRun);
-                }
-                $deletedCount += count($softDeletedIds);
-                // Remove soft deleted from records
-                $records = array_filter($records, fn ($r) => $r['deleted_at'] === null);
+        // Prepare log entries (collected before transaction)
+        $logEntries = [];
+
+        // Step 1: Delete soft deleted records first
+        $softDeleted = array_filter($records, fn ($r) => $r['deleted_at'] !== null);
+        $softDeletedIds = [];
+        if (! empty($softDeleted)) {
+            $softDeletedIds = array_column($softDeleted, 'file_id');
+            // Collect log entries for soft deleted records
+            foreach ($softDeleted as $record) {
+                $logEntries[] = ['type' => 'deletion', 'stage' => 'directory', 'action' => 'delete_soft_deleted', 'record' => $record, 'kept_file_id' => null];
+            }
+            $deletedCount += count($softDeletedIds);
+            // Remove soft deleted from records
+            $records = array_filter($records, fn ($r) => $r['deleted_at'] === null);
+        }
+
+        // Step 2: Handle remaining duplicates
+        $keptRecord = null;
+        $keptFileId = null;
+        $projectId = null;
+        $deletedFileIds = [];
+        if (count($records) > 1) {
+            $keptRecord = $records[0]; // First record is the one to keep (highest priority)
+            $duplicates = array_slice($records, 1);
+
+            $keptFileId = (int) $keptRecord['file_id'];
+            $projectId = (int) $keptRecord['project_id'];
+            $deletedFileIds = array_values(array_map(fn ($r) => (int) $r['file_id'], $duplicates));
+
+            // Collect log entries for kept and duplicate records
+            $logEntries[] = ['type' => 'deletion', 'stage' => 'directory', 'action' => 'keep', 'record' => $keptRecord, 'kept_file_id' => $keptFileId];
+            foreach ($duplicates as $record) {
+                $logEntries[] = ['type' => 'deletion', 'stage' => 'directory', 'action' => 'delete_duplicate', 'record' => $record, 'kept_file_id' => $keptFileId];
             }
 
-            // Step 2: Handle remaining duplicates
+            $deletedCount += count($deletedFileIds);
+            $keptCount = 1;
+        }
+
+        // Database operations in transaction
+        Db::beginTransaction();
+        try {
+            // Delete soft deleted records
+            if (! empty($softDeletedIds) && ! $dryRun) {
+                $this->repository->deleteRecords($softDeletedIds);
+            }
+
+            // Handle remaining duplicates
             if (count($records) > 1) {
-                $keptRecord = $records[0]; // First record is the one to keep (highest priority)
-                $duplicates = array_slice($records, 1);
-
-                $keptFileId = (int) $keptRecord['file_id'];
-                $projectId = (int) $keptRecord['project_id'];
-                $deletedFileIds = array_values(array_map(fn ($r) => (int) $r['file_id'], $duplicates));
-
                 // Update parent_id references
                 if (! $dryRun) {
                     $parentIdUpdatedCount = $this->repository->updateParentIdReferences(
@@ -541,101 +613,110 @@ class FileKeyCleanupDomainService
                 if (! $dryRun && ! empty($deletedFileIds)) {
                     $this->repository->deleteRecords($deletedFileIds);
                 }
-
-                // Log kept record
-                $this->logDeletion('directory', 'keep', $keptRecord, $keptFileId, $dryRun);
-                $keptCount = 1;
-
-                // Log deleted duplicates
-                foreach ($duplicates as $record) {
-                    $this->logDeletion('directory', 'delete_duplicate', $record, $keptFileId, $dryRun);
-                }
-
-                $deletedCount += count($deletedFileIds);
-
-                // Log parent_id update
-                if ($parentIdUpdatedCount > 0 || $dryRun) {
-                    $this->logParentIdUpdate($fileKey, $keptFileId, $parentIdUpdatedCount, $projectId, $dryRun);
-                }
             }
 
             Db::commit();
-
-            return [
-                'kept' => $keptCount,
-                'deleted' => $deletedCount,
-                'parent_id_updated' => $parentIdUpdatedCount,
-            ];
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
         }
+
+        // File I/O operations outside transaction (after commit)
+        foreach ($logEntries as $entry) {
+            $this->logDeletion($entry['stage'], $entry['action'], $entry['record'], $entry['kept_file_id'], $dryRun);
+        }
+
+        // Log parent_id update if applicable
+        if ($parentIdUpdatedCount > 0 || ($dryRun && count($records) > 1)) {
+            $this->logParentIdUpdate($fileKey, $keptFileId, $parentIdUpdatedCount, $projectId, $dryRun);
+        }
+
+        return [
+            'kept' => $keptCount,
+            'deleted' => $deletedCount,
+            'parent_id_updated' => $parentIdUpdatedCount,
+        ];
     }
 
     /**
      * Process a single file file_key with pre-fetched records (optimized).
      * Enhanced with parent_id validation logic.
+     * OPTIMIZED: File I/O operations moved outside transaction to reduce lock time.
      */
     private function processFileFileKeyWithRecords(string $fileKey, array $records, bool $dryRun): array
     {
-        Db::beginTransaction();
-        try {
-            $deletedCount = 0;
-            $keptCount = 0;
+        $deletedCount = 0;
+        $keptCount = 0;
 
-            // Step 1: Delete soft deleted records first
-            $softDeleted = array_filter($records, fn ($r) => $r['deleted_at'] !== null);
-            if (! empty($softDeleted)) {
-                $softDeletedIds = array_column($softDeleted, 'file_id');
-                if (! $dryRun) {
-                    $this->repository->deleteRecords($softDeletedIds);
-                }
-                foreach ($softDeleted as $record) {
-                    $this->logDeletion('file', 'delete_soft_deleted', $record, null, $dryRun);
-                }
-                $deletedCount += count($softDeletedIds);
-                // Remove soft deleted from records
-                $records = array_filter($records, fn ($r) => $r['deleted_at'] === null);
+        // Prepare log entries (collected before transaction)
+        $logEntries = [];
+
+        // Step 1: Delete soft deleted records first
+        $softDeleted = array_filter($records, fn ($r) => $r['deleted_at'] !== null);
+        $softDeletedIds = [];
+        if (! empty($softDeleted)) {
+            $softDeletedIds = array_column($softDeleted, 'file_id');
+            // Collect log entries for soft deleted records
+            foreach ($softDeleted as $record) {
+                $logEntries[] = ['type' => 'deletion', 'stage' => 'file', 'action' => 'delete_soft_deleted', 'record' => $record, 'kept_file_id' => null];
+            }
+            $deletedCount += count($softDeletedIds);
+            // Remove soft deleted from records
+            $records = array_filter($records, fn ($r) => $r['deleted_at'] === null);
+        }
+
+        // Step 2: Handle remaining duplicates
+        $keptRecord = null;
+        $keptFileId = null;
+        $deletedFileIds = [];
+        if (count($records) > 1) {
+            // Enhanced logic: Check parent_id consistency and validity
+            $keptRecord = $this->selectRecordToKeepForFile($records, $fileKey);
+
+            // Build list of records to delete (all except kept one)
+            $duplicates = array_filter($records, fn ($r) => $r['file_id'] !== $keptRecord['file_id']);
+
+            $keptFileId = (int) $keptRecord['file_id'];
+            $deletedFileIds = array_values(array_map(fn ($r) => (int) $r['file_id'], $duplicates));
+
+            // Collect log entries for kept and duplicate records
+            $logEntries[] = ['type' => 'deletion', 'stage' => 'file', 'action' => 'keep', 'record' => $keptRecord, 'kept_file_id' => $keptFileId];
+            foreach ($duplicates as $record) {
+                $logEntries[] = ['type' => 'deletion', 'stage' => 'file', 'action' => 'delete_duplicate', 'record' => $record, 'kept_file_id' => $keptFileId];
             }
 
-            // Step 2: Handle remaining duplicates
-            if (count($records) > 1) {
-                // Enhanced logic: Check parent_id consistency and validity
-                $keptRecord = $this->selectRecordToKeepForFile($records, $fileKey);
+            $deletedCount += count($deletedFileIds);
+            $keptCount = 1;
+        }
 
-                // Build list of records to delete (all except kept one)
-                $duplicates = array_filter($records, fn ($r) => $r['file_id'] !== $keptRecord['file_id']);
+        // Database operations in transaction
+        Db::beginTransaction();
+        try {
+            // Delete soft deleted records
+            if (! empty($softDeletedIds) && ! $dryRun) {
+                $this->repository->deleteRecords($softDeletedIds);
+            }
 
-                $keptFileId = (int) $keptRecord['file_id'];
-                $deletedFileIds = array_values(array_map(fn ($r) => (int) $r['file_id'], $duplicates));
-
-                // Delete duplicate records
-                if (! $dryRun && ! empty($deletedFileIds)) {
-                    $this->repository->deleteRecords($deletedFileIds);
-                }
-
-                // Log kept record
-                $this->logDeletion('file', 'keep', $keptRecord, $keptFileId, $dryRun);
-                $keptCount = 1;
-
-                // Log deleted duplicates
-                foreach ($duplicates as $record) {
-                    $this->logDeletion('file', 'delete_duplicate', $record, $keptFileId, $dryRun);
-                }
-
-                $deletedCount += count($deletedFileIds);
+            // Delete duplicate records
+            if (! empty($deletedFileIds) && ! $dryRun) {
+                $this->repository->deleteRecords($deletedFileIds);
             }
 
             Db::commit();
-
-            return [
-                'kept' => $keptCount,
-                'deleted' => $deletedCount,
-            ];
         } catch (Throwable $e) {
             Db::rollBack();
             throw $e;
         }
+
+        // File I/O operations outside transaction (after commit)
+        foreach ($logEntries as $entry) {
+            $this->logDeletion($entry['stage'], $entry['action'], $entry['record'], $entry['kept_file_id'], $dryRun);
+        }
+
+        return [
+            'kept' => $keptCount,
+            'deleted' => $deletedCount,
+        ];
     }
 
     /**
