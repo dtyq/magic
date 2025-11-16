@@ -11,6 +11,7 @@ use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\MagicTopicEntity;
 use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
+use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Repository\Facade\MagicChatSeqRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
@@ -21,7 +22,6 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
@@ -694,6 +694,57 @@ class TopicDomainService
     }
 
     /**
+     * Get chat history download URL for topic.
+     *
+     * @param int $topicId Topic ID
+     * @return string Pre-signed download URL
+     * @throws Exception If topic not found
+     */
+    public function getChatHistoryDownloadUrl(int $topicId): string
+    {
+        // Get topic entity
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        // Build file path using WorkDirectoryUtil
+        $filePath = WorkDirectoryUtil::getAgentChatHistoryFilePath(
+            $topicEntity->getUserId(),
+            $topicEntity->getProjectId(),
+            $topicId
+        );
+
+        // Get organization code from topic entity (not current user)
+        $organizationCode = $topicEntity->getUserOrganizationCode();
+
+        // Get full prefix and build complete object key
+        $prefix = $this->cloudFileRepository->getFullPrefix($organizationCode);
+        $objectKey = rtrim($prefix, '/') . '/' . ltrim($filePath, '/');
+
+        // Generate pre-signed URL for download
+        $preSignedUrl = $this->cloudFileRepository->getPreSignedUrlByCredential(
+            organizationCode: $organizationCode,
+            objectKey: $objectKey,
+            bucketType: StorageBucketType::SandBox,
+            options: [
+                'method' => 'GET',
+                'expires' => 3600, // 1 hour expiration
+                'filename' => sprintf('chat_history_%d.zip', $topicId), // Set download filename
+            ]
+        );
+
+        $this->logger->info('Generated chat history download URL', [
+            'topic_id' => $topicId,
+            'file_path' => $filePath,
+            'object_key' => $objectKey,
+            'organization_code' => $organizationCode,
+        ]);
+
+        return $preSignedUrl;
+    }
+
+    /**
      * Duplicate topic skeleton - create topic entity and IM conversation only.
      * This method only creates the topic entity and IM conversation,
      * without copying messages. Use copyTopicMessageFromOthers to copy messages.
@@ -826,7 +877,7 @@ class TopicDomainService
 
         // Copy IM messages
         $progressCallback && $progressCallback('running', 60, 'Copying IM messages');
-        $this->copyImMessages($imConversationResult, $messageIdMapping, $userSeqId, $aiSeqId);
+        $this->copyImMessages($imConversationResult, $messageIdMapping, $userSeqId, $aiSeqId, (string) $targetTopicEntity->getId());
 
         // Copy sandbox chat history
         $progressCallback && $progressCallback('running', 80, 'Copying chat history files');
@@ -856,6 +907,7 @@ class TopicDomainService
         $topicEntity->setChatTopicId($chatTopicId);
         $topicEntity->setChatConversationId($chatConversationId);
         $topicEntity->setTopicName($newTopicName);
+        $topicEntity->setTopicMode($sourceTopicEntity->getTopicMode());
         $topicEntity->setSandboxId('');
         $topicEntity->setSourceId((string) $sourceTopicEntity->getId()); // Initially empty
         $topicEntity->setSource(CreationSource::COPY->value);
@@ -867,87 +919,6 @@ class TopicDomainService
         $topicEntity->setCreatedAt($currentTime);
         $topicEntity->setFromTopicId($sourceTopicEntity->getId());
         return $this->topicRepository->createTopic($topicEntity);
-    }
-
-    private function copyTopicTaskEntity(int $sourceTopicId, int $targetTopicId, array $taskIds): array
-    {
-        $this->logger->info('Starting to copy topic task entities', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'task_ids' => $taskIds,
-        ]);
-
-        // 先通过 topic_id 和 task_id 查询任务的实体
-        $sourceTaskEntities = $this->taskRepository->getTasksByTopicIdAndTaskIds($sourceTopicId, $taskIds);
-
-        if (empty($sourceTaskEntities)) {
-            $this->logger->info('No tasks found to copy', [
-                'source_topic_id' => $sourceTopicId,
-                'task_ids' => $taskIds,
-            ]);
-            return [];
-        }
-
-        $this->logger->info('Found tasks to copy', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'task_count' => count($sourceTaskEntities),
-        ]);
-
-        // 然后参考 copyTopicEntity 方法，进行赋值
-        $newTaskEntities = [];
-        $taskIdMapping = []; // 旧task_id => 新task_id的映射关系
-        $currentTime = date('Y-m-d H:i:s');
-
-        foreach ($sourceTaskEntities as $sourceTask) {
-            $newTaskEntity = new TaskEntity();
-
-            // 提前生成新任务的ID
-            $newTaskId = IdGenerator::getSnowId();
-            $newTaskEntity->setId($newTaskId);
-
-            // 复制所有相关属性
-            $newTaskEntity->setUserId($sourceTask->getUserId());
-            $newTaskEntity->setWorkspaceId($sourceTask->getWorkspaceId());
-            $newTaskEntity->setProjectId($sourceTask->getProjectId());
-            $newTaskEntity->setTopicId($targetTopicId); // 设置为新话题ID
-            $newTaskEntity->setTaskId(''); // 任务ID由沙箱生成，暂时留空
-            $newTaskEntity->setSandboxId(''); // 新的沙箱ID
-            $newTaskEntity->setPrompt($sourceTask->getPrompt());
-            $newTaskEntity->setAttachments($sourceTask->getAttachments());
-            $newTaskEntity->setMentions($sourceTask->getMentions());
-            $newTaskEntity->setTaskStatus($sourceTask->getTaskStatus());
-            $newTaskEntity->setWorkDir($sourceTask->getWorkDir());
-            $newTaskEntity->setTaskMode($sourceTask->getTaskMode());
-            $newTaskEntity->setErrMsg(null); // 清空错误信息
-            $newTaskEntity->setConversationId(null); // 清空会话ID
-
-            // 设置复制来源任务ID
-            $newTaskEntity->setFromTaskId($sourceTask->getId());
-
-            // 设置时间戳
-            $newTaskEntity->setCreatedAt($currentTime);
-            $newTaskEntity->setUpdatedAt($currentTime);
-            $newTaskEntity->setDeletedAt(null);
-
-            $newTaskEntities[] = $newTaskEntity;
-
-            // 直接建立映射关系：旧任务ID => 新任务ID
-            $taskIdMapping[$sourceTask->getId()] = $newTaskId;
-        }
-
-        // 批量创建任务
-        $createdTaskEntities = $this->taskRepository->batchCreateTasks($newTaskEntities);
-
-        $this->logger->info('Successfully copied topic task entities', [
-            'source_topic_id' => $sourceTopicId,
-            'target_topic_id' => $targetTopicId,
-            'copied_count' => count($createdTaskEntities),
-            'task_id_mapping' => $taskIdMapping,
-        ]);
-
-        // 最后返回旧的task_id 和 新的task_id 的映射关系，如 ['old_task_id' => 'new_task_id']
-        return $taskIdMapping;
     }
 
     private function copyTopicShareMessages(int $messageId, TopicEntity $sourceTopicEntity, TopicEntity $targetTopicEntity): array
@@ -985,7 +956,7 @@ class TopicDomainService
                 $taskIds[] = $messageToCopy->getTaskId();
             }
         }
-        $taskIdMapping = $this->copyTopicTaskEntity($sourceTopicEntity->getId(), $targetTopicEntity->getId(), $taskIds);
+        // $taskIdMapping = $this->copyTopicTaskEntity($sourceTopicEntity->getId(), $targetTopicEntity->getId(), $taskIds);
 
         $newMessageEntities = [];
         $messageIdMapping = []; // 旧消息ID => 新消息ID的映射关系
@@ -1000,7 +971,7 @@ class TopicDomainService
             $newMessageEntity->setReceiverUid($messageToCopy->getReceiverUid());
             $newMessageEntity->setMessageId($messageToCopy->getMessageId());
             $newMessageEntity->setType($messageToCopy->getType());
-            $newMessageEntity->setTaskId((string) $taskIdMapping[$messageToCopy->getTaskId()] ?? '');
+            $newMessageEntity->setTaskId('');
             $newMessageEntity->setEvent($messageToCopy->getEvent());
             $newMessageEntity->setStatus($messageToCopy->getStatus());
             $newMessageEntity->setSteps($messageToCopy->getSteps());
@@ -1099,12 +1070,13 @@ class TopicDomainService
         return $result;
     }
 
-    private function copyImMessages(array $imConversationResult, array $messageIdMapping, int $userSeqId, int $aiSeqId): array
+    private function copyImMessages(array $imConversationResult, array $messageIdMapping, int $userSeqId, int $aiSeqId, string $newTopicId): array
     {
         $this->logger->info('开始复制IM消息', [
             'user_seq_id' => $userSeqId,
             'ai_seq_id' => $aiSeqId,
             'im_conversation_result' => $imConversationResult,
+            'new_topic_id' => $newTopicId,
         ]);
 
         // 处理 magic_chat_topic_messages 表
@@ -1222,7 +1194,7 @@ class TopicDomainService
 
             // 处理 app_message_id - 使用 messageIdMapping 映射
             $originalAppMessageId = $userSeq->getAppMessageId();
-            $appMessageId = $messageIdMapping[$originalAppMessageId] ?? '';
+            $appMessageId = ! empty($messageIdMapping[$originalAppMessageId]) ? $messageIdMapping[$originalAppMessageId] : (string) IdGenerator::getSnowId();
 
             // 创建新的 sequence 实体
             $newUserSeq = new MagicSeqEntity();
@@ -1235,7 +1207,7 @@ class TopicDomainService
             $newUserSeq->setContent($userSeq->getContent());
             $newUserSeq->setMagicMessageId($newMagicMessageId);
             $newUserSeq->setMessageId($newSeqId);
-            $newUserSeq->setReferMessageId('');
+            $newUserSeq->setReferMessageId($userSeq->getMessageId());
             $newUserSeq->setSenderMessageId($senderMessageId);
             $newUserSeq->setConversationId($imConversationResult['user_conversation_id']);
             $newUserSeq->setStatus($userSeq->getStatus());
@@ -1334,6 +1306,16 @@ class TopicDomainService
                 continue;
             }
 
+            // Get original content array
+            $contentArray = $originalMessage->getContent()->toArray();
+
+            // For SuperAgentCard type, directly replace fields with fixed structure
+            if ($originalMessage->getMessageType() === ChatMessageType::SuperAgentCard) {
+                $contentArray['message_id'] = $messageIdMapping[$contentArray['message_id']] ?? '';
+                $contentArray['topic_id'] = $newTopicId;
+                $contentArray['task_id'] = '';
+            }
+
             $batchMessageInsertData[] = [
                 'sender_id' => $originalMessage->getSenderId(),
                 'sender_type' => $originalMessage->getSenderType(),
@@ -1342,7 +1324,7 @@ class TopicDomainService
                 'receive_type' => $originalMessage->getReceiveType(),
                 'receive_organization_code' => $originalMessage->getReceiveOrganizationCode(),
                 'message_type' => $originalMessage->getMessageType(),
-                'content' => json_encode($originalMessage->getContent()->toArray(), JSON_UNESCAPED_UNICODE),
+                'content' => json_encode($contentArray, JSON_UNESCAPED_UNICODE),
                 'language' => $originalMessage->getLanguage(),
                 'app_message_id' => $messageIdMapping[$originalMessage->getAppMessageId()] ?? '',
                 'magic_message_id' => $newMagicMessageId,
