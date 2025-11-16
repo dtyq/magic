@@ -856,7 +856,9 @@ class TopicDomainService
         $topicEntity->setChatTopicId($chatTopicId);
         $topicEntity->setChatConversationId($chatConversationId);
         $topicEntity->setTopicName($newTopicName);
-        $topicEntity->setSandboxId(''); // Initially empty
+        $topicEntity->setSandboxId('');
+        $topicEntity->setSourceId((string) $sourceTopicEntity->getId()); // Initially empty
+        $topicEntity->setSource(CreationSource::COPY->value);
         $topicEntity->setWorkDir($sourceTopicEntity->getWorkDir());
         $topicEntity->setCurrentTaskId(0);
         $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // Default status: waiting
