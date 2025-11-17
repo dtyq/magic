@@ -911,8 +911,9 @@ class MessageScheduleAppService extends AbstractAppService
             // Get parent id
             $parentId = $this->taskFileDomainService->findOrCreateDirectoryAndGetParentId(
                 projectId: $projectEntity->getId(),
-                userId: $projectEntity->getUserId(),
-                organizationCode: $projectEntity->getUserOrganizationCode(),
+                userId: $dataIsolation->getCurrentUserId(),
+                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
                 fullFileKey: $targetFileKey,
                 workDir: $projectEntity->getWorkDir(),
                 source: TaskFileSource::COPY,

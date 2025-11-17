@@ -182,6 +182,8 @@ use App\Domain\Provider\Service\ModelFilter\DefaultOrganizationModelFilter;
 use App\Domain\Provider\Service\ModelFilter\DefaultPackageFilter;
 use App\Domain\Provider\Service\ModelFilter\OrganizationBasedModelFilterInterface;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Domain\SuperAgent\Service\UsageCalculator\DefaultUsageCalculator;
+use App\Domain\SuperAgent\Service\UsageCalculator\UsageCalculatorInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
@@ -436,6 +438,9 @@ $dependencies = [
 
     // package filter
     PackageFilterInterface::class => DefaultPackageFilter::class,
+
+    // usage calculator
+    UsageCalculatorInterface::class => DefaultUsageCalculator::class,
 
     FontProviderInterface::class => DefaultFontProvider::class,
     ImageEnhancementProcessorInterface::class => NullImageEnhancementProcessor::class,

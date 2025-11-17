@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\SuperAgent\Service\UsageCalculator\UsageCalculatorInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -62,6 +63,7 @@ class TopicTaskAppService extends AbstractAppService
         protected LockerInterface $locker,
         protected LoggerFactory $loggerFactory,
         protected TranslatorInterface $translator,
+        protected UsageCalculatorInterface $usageCalculator,
     ) {
         $this->logger = $this->loggerFactory->get(get_class($this));
     }
@@ -212,13 +214,27 @@ class TopicTaskAppService extends AbstractAppService
                 ExceptionBuilder::throw(GenericErrorCode::SystemError, 'unable_to_acquire_topic_lock');
             }
 
+            $status = $messageDTO->getPayload()->getStatus();
+            $taskStatus = TaskStatus::tryFrom($status) ?? TaskStatus::ERROR;
+            $usage = [];
+            if ($taskStatus->isFinal()) {
+                // Calculate usage information when task is finished
+                $usage = $this->usageCalculator->calculateUsage((int) $taskId);
+            }
+
             // 2，存储消息
             $messageEntity = $this->taskMessageDomainService->findByTopicIdAndMessageId($topicId, $messageId);
             if (is_null($messageEntity)) {
+                // Create new message
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
                 $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
                 $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
+                // Set usage if task is finished
+                if (! empty($usage)) {
+                    $messageEntity->setUsage($usage);
+                }
+
                 $this->taskMessageDomainService->storeTopicTaskMessage($messageEntity, [], TaskMessageModel::PROCESSING_STATUS_COMPLETED);
             }
 
@@ -238,12 +254,11 @@ class TopicTaskAppService extends AbstractAppService
                     tool: $messageEntity->getTool() ?? [],
                     attachments: $messageEntity->getAttachments() ?? [],
                     correlationId: $messageDTO->getPayload()->getCorrelationId() ?? null,
+                    usage: ! empty($usage) ? $usage : null,
                 );
             }
 
             // 4. 更新话题状态
-            $status = $messageDTO->getPayload()->getStatus();
-            $taskStatus = TaskStatus::tryFrom($status) ?? TaskStatus::ERROR;
             if (TaskStatus::tryFrom($status)) {
                 $this->updateTaskStatus(
                     dataIsolation: $dataIsolation,
