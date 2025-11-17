@@ -561,7 +561,7 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 // 获取可用的环境变量名称
 func getAvailableEnvVarNames() []string {
 	allowedVarNames := []string{}
-	allowedPrefixes := []string{"OPENAI_", "MAGIC_", "DEEPSEEK_", "API_", "PUBLIC_"}
+	allowedPrefixes := []string{"OPENAI_", "MAGIC_", "DEEPSEEK_", "API_", "PUBLIC_", "OTEL_"}
 
 	for key := range envVars {
 		for _, prefix := range allowedPrefixes {
@@ -1067,6 +1067,9 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logger.Printf("已添加目标服务API密钥")
 		}
 
+		// Process OTEL headers if OTEL endpoint is detected
+		processOTELHeaders(proxyReq, targetBase)
+
 		// 发送请求
 		client := &http.Client{Timeout: 30 * time.Minute}
 		resp, err := client.Do(proxyReq)
@@ -1461,4 +1464,77 @@ func isApiKeyField(fieldName string) bool {
 		}
 	}
 	return false
+}
+
+// processOTELHeaders processes OTEL-related headers when OTEL endpoint is detected
+func processOTELHeaders(req *http.Request, targetBase string) {
+	// Define OTEL endpoint environment variables
+	otelEndpoints := []string{
+		"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+	}
+
+	// Check if target URL matches any OTEL endpoint
+	isOTELEndpoint := false
+	for _, endpointKey := range otelEndpoints {
+		if endpointValue, exists := envVars[endpointKey]; exists {
+			// Check if target URL starts with the OTEL endpoint
+			if strings.HasPrefix(targetBase, endpointValue) {
+				isOTELEndpoint = true
+				if debugMode {
+					logger.Printf("检测到OTEL端点匹配: %s => %s", endpointKey, endpointValue)
+				}
+				break
+			}
+			// Also check if the endpoint domain matches
+			if strings.Contains(targetBase, strings.TrimPrefix(strings.TrimPrefix(endpointValue, "http://"), "https://")) {
+				isOTELEndpoint = true
+				if debugMode {
+					logger.Printf("检测到OTEL端点域名匹配: %s", endpointKey)
+				}
+				break
+			}
+		}
+	}
+
+	// If OTEL endpoint is detected, process OTEL headers
+	if isOTELEndpoint {
+		if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists && otelHeaders != "" {
+			// Check if it contains '=' to determine format
+			if strings.Contains(otelHeaders, "=") {
+				// Parse OTEL headers format: "key1=value1,key2=value2"
+				headers := strings.Split(otelHeaders, ",")
+				for _, header := range headers {
+					header = strings.TrimSpace(header)
+					if header == "" {
+						continue
+					}
+
+					// Split by first '=' to handle values that contain '='
+					parts := strings.SplitN(header, "=", 2)
+					if len(parts) == 2 {
+						key := strings.TrimSpace(parts[0])
+						value := strings.TrimSpace(parts[1])
+
+						// Only add header if it doesn't already exist
+						if req.Header.Get(key) == "" {
+							req.Header.Set(key, value)
+							if debugMode {
+								logger.Printf("添加OTEL请求头: %s: %s", key, value)
+							}
+						}
+					}
+				}
+			} else {
+				// Single value format - use as Authorization Bearer token
+				if req.Header.Get("Authorization") == "" {
+					req.Header.Set("Authorization", "Bearer "+otelHeaders)
+					if debugMode {
+						logger.Printf("添加OTEL Authorization请求头: Bearer %s", otelHeaders)
+					}
+				}
+			}
+		}
+	}
 }
