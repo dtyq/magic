@@ -44,6 +44,9 @@ var (
 	// JWT相关安全配置
 	keyRotationInterval = 24 * time.Hour // 密钥轮换间隔
 	lastKeyRotation     time.Time
+
+	// 预编译的正则表达式
+	byteAPMAppKeyRegex = regexp.MustCompile(`X-ByteAPM-AppKey=[^\s,;]*`)
 )
 
 // JWTClaims 定义JWT的声明 - 增强版
@@ -561,7 +564,7 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 // 获取可用的环境变量名称
 func getAvailableEnvVarNames() []string {
 	allowedVarNames := []string{}
-	allowedPrefixes := []string{"OPENAI_", "MAGIC_", "DEEPSEEK_", "API_", "PUBLIC_"}
+	allowedPrefixes := []string{"OPENAI_", "MAGIC_", "DEEPSEEK_", "API_", "PUBLIC_", "OTEL_"}
 
 	for key := range envVars {
 		for _, prefix := range allowedPrefixes {
@@ -894,6 +897,20 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			for _, value := range values {
+
+				// 特殊处理 X-ByteAPM-AppKey= 格式
+				if strings.Contains(value, "X-ByteAPM-AppKey=") {
+					if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists {
+						// 使用预编译的正则表达式替换 X-ByteAPM-AppKey=xxx 为实际的值
+						newValue := byteAPMAppKeyRegex.ReplaceAllString(value, otelHeaders)
+						proxyHeaders.Add(key, newValue)
+						if debugMode {
+							logger.Printf("替换OTEL ByteAPM AppKey格式: %s: %s => %s", key, value, newValue)
+						}
+						continue
+					}
+				}
+
 				// 特殊处理 Authorization 头
 				if key == "Authorization" {
 					// 处理 Bearer env:XXX 格式
