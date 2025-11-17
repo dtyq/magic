@@ -25,4 +25,3 @@ class DefaultUsageCalculator implements UsageCalculatorInterface
         return [];
     }
 }
-

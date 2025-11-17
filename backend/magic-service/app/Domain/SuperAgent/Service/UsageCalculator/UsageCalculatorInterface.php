@@ -17,14 +17,13 @@ interface UsageCalculatorInterface
      * Calculate usage information for a task.
      *
      * @param int $taskId Task ID
-     * @return array Usage information array, format: [
-     *     "type" => "task_points",
-     *     "detail" => [
-     *         "consume" => 100
-     *     ]
-     * ]
-     * Returns empty array [] if no usage data available.
+     * @return array usage information array, format: [
+     *               "type" => "task_points",
+     *               "detail" => [
+     *               "consume" => 100
+     *               ]
+     *               ]
+     *               Returns empty array [] if no usage data available
      */
     public function calculateUsage(int $taskId): array;
 }
-
