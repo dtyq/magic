@@ -20,6 +20,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ServerException;
 use Hyperf\Logger\LoggerFactory;
+use RuntimeException;
 use Throwable;
 
 use function Hyperf\Support\retry;
@@ -65,6 +66,18 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function createSandbox(string $projectId, string $sandboxId, string $workDir): GatewayResult
     {
+        // In local debugging mode, return mock success result
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->info('[Sandbox][Gateway] Local debugging mode: skipping sandbox creation', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'work_dir' => $workDir,
+            ]);
+            return GatewayResult::success([
+                'sandbox_id' => $sandboxId,
+            ], 'Sandbox creation skipped (local debugging mode)');
+        }
+
         $config = ['project_id' => $projectId, 'sandbox_id' => $sandboxId, 'project_oss_path' => $workDir];
 
         $this->logger->info('[Sandbox][Gateway] Creating sandbox', [
@@ -157,6 +170,21 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
+        // In local debugging mode, return mock running status
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: returning mock running status', [
+                'sandbox_id' => $sandboxId,
+            ]);
+            return SandboxStatusResult::fromApiResponse([
+                'code' => ResponseCode::SUCCESS,
+                'message' => 'Success (local debugging mode)',
+                'data' => [
+                    'sandbox_id' => $sandboxId,
+                    'status' => SandboxStatus::RUNNING,
+                ],
+            ]);
+        }
+
         $this->logger->info('[Sandbox][Gateway] Getting sandbox status', [
             'sandbox_id' => $sandboxId,
             'max_retries' => 3,
@@ -241,6 +269,33 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult
     {
+        // In local debugging mode, return mock running status for all sandboxes
+        if (! $this->isEnabledSandbox()) {
+            // Filter out empty or null sandbox IDs
+            $filteredSandboxIds = array_filter($sandboxIds, function ($id) {
+                return ! empty(trim($id));
+            });
+
+            $mockStatuses = [];
+            foreach ($filteredSandboxIds as $sandboxId) {
+                $mockStatuses[] = [
+                    'sandbox_id' => $sandboxId,
+                    'status' => SandboxStatus::RUNNING,
+                ];
+            }
+
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: returning mock batch sandbox status', [
+                'sandbox_ids' => $filteredSandboxIds,
+                'count' => count($mockStatuses),
+            ]);
+
+            return BatchStatusResult::fromApiResponse([
+                'code' => ResponseCode::SUCCESS,
+                'message' => 'Success (local debugging mode)',
+                'data' => $mockStatuses,
+            ]);
+        }
+
         $this->logger->debug('[Sandbox][Gateway] Getting batch sandbox status', [
             'sandbox_ids' => $sandboxIds,
             'count' => count($sandboxIds),
@@ -351,7 +406,11 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         array $data = [],
         array $headers = []
     ): GatewayResult {
-        $this->logger->debug('[Sandbox][Gateway] Proxying request to sandbox', [
+        $isLocalMode = ! $this->isEnabledSandbox();
+        $mode = $isLocalMode ? 'local-direct' : 'sandbox-proxy';
+
+        $this->logger->debug('[Sandbox][Gateway] Proxying request', [
+            'mode' => $mode,
             'sandbox_id' => $sandboxId,
             'method' => $method,
             'path' => $path,
@@ -360,7 +419,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         ]);
 
         try {
-            return retry(3, function () use ($sandboxId, $method, $path, $data, $headers) {
+            return retry(3, function () use ($sandboxId, $method, $path, $data, $headers, $mode) {
                 try {
                     $requestOptions = [
                         'headers' => array_merge($this->getAuthHeaders(), $headers),
@@ -384,6 +443,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     $result = GatewayResult::fromApiResponse($responseData);
 
                     $this->logger->debug('[Sandbox][Gateway] Proxy request completed', [
+                        'mode' => $mode,
                         'sandbox_id' => $sandboxId,
                         'method' => $method,
                         'path' => $path,
@@ -444,6 +504,15 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
      */
     public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir = ''): string
     {
+        // In local debugging mode, skip sandbox creation and status check
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->info('[Sandbox][Gateway] Local debugging mode: skipping sandbox availability check', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
+            return $sandboxId;
+        }
+
         try {
             // 检查沙箱是否可用
             if (! empty($sandboxId)) {
@@ -706,6 +775,47 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             ]);
             return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Override parent getBaseUrl to support local debugging mode.
+     * When SANDBOX_ENABLE=false, SANDBOX_GATEWAY is used as local service URL.
+     */
+    protected function getBaseUrl(): string
+    {
+        // In local debugging mode, use SANDBOX_GATEWAY as local service URL
+        if (! $this->isEnabledSandbox()) {
+            $localServiceUrl = config('super-magic.sandbox.gateway', '');
+            if (empty($localServiceUrl)) {
+                throw new RuntimeException('SANDBOX_GATEWAY environment variable is not set for local debugging mode');
+            }
+            $this->logger->debug('[Sandbox][Gateway] Using local service URL (sandbox disabled)', [
+                'local_service_url' => $localServiceUrl,
+            ]);
+            return $localServiceUrl;
+        }
+
+        // Normal mode: use parent implementation
+        return parent::getBaseUrl();
+    }
+
+    /**
+     * Override parent buildProxyPath to support local debugging mode.
+     * When SANDBOX_ENABLE=false, return original path without sandbox proxy prefix.
+     */
+    protected function buildProxyPath(string $sandboxId, string $agentPath): string
+    {
+        // In local debugging mode, return original path directly
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Building direct proxy path (sandbox disabled)', [
+                'sandbox_id' => $sandboxId,
+                'original_path' => $agentPath,
+            ]);
+            return ltrim($agentPath, '/');
+        }
+
+        // Normal mode: use parent implementation
+        return parent::buildProxyPath($sandboxId, $agentPath);
     }
 
     /**

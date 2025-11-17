@@ -1019,6 +1019,7 @@ class FileManagementAppService extends AbstractAppService
      * Get file URLs for multiple files.
      *
      * @param RequestContext $requestContext Request context
+     * @param string $projectId Project ID
      * @param array $fileIds Array of file IDs
      * @param string $downloadMode Download mode (download, preview)
      * @param array $options Additional options
