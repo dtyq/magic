@@ -37,4 +37,14 @@ class AsrTimeouts
      * Mock 轮询状态 TTL（秒）- 仅测试用.
      */
     public const int MOCK_POLLING_TTL = 600;
+
+    /**
+     * 沙箱音频合并的最长等待时间（秒）.
+     */
+    public const int SANDBOX_MERGE_TIMEOUT = 1200;
+
+    /**
+     * 沙箱音频合并轮询间隔（秒）.
+     */
+    public const int SANDBOX_MERGE_POLLING_INTERVAL = 5;
 }

@@ -417,6 +417,7 @@ readonly class AsrDirectoryService
 
             // 3. 检查目录是否已存在
             $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $fileKey = rtrim($fileKey, '/') . '/';
             $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(

@@ -12,6 +12,7 @@ use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
+use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -346,65 +347,62 @@ readonly class AsrSandboxService
             $transcriptFileConfig
         );
 
-        // 轮询等待完成
-        $maxAttempts = 200;
-        $interval = 5;
+        // 轮询等待完成（基于预设时间与休眠间隔）
+        $timeoutSeconds = AsrTimeouts::SANDBOX_MERGE_TIMEOUT;
+        $pollingInterval = AsrTimeouts::SANDBOX_MERGE_POLLING_INTERVAL;
+        $attempt = 0;
+        $lastLogTime = $finishStartTime;
+        $logInterval = 50; // 每50秒至少记录一次日志
 
-        for ($attempt = 1; $attempt <= $maxAttempts; ++$attempt) {
+        while (true) {
+            $elapsedSeconds = (int) (microtime(true) - $finishStartTime);
+
+            if ($elapsedSeconds >= $timeoutSeconds) {
+                break;
+            }
+
+            ++$attempt;
+
             $statusString = $response->getStatus();
             $status = SandboxAsrStatusEnum::from($statusString);
 
-            // 检查是否为完成状态（包含 completed 和 finished）
-            if ($status->isCompleted()) {
-                // 计算总耗时
-                $finishEndTime = microtime(true);
-                $totalElapsedTime = round($finishEndTime - $finishStartTime);
-
-                $this->logger->info('沙箱音频合并完成', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $sandboxId,
-                    'attempt' => $attempt,
-                    'status' => $status->value,
-                    'file_path' => $response->getFilePath(),
-                    'total_elapsed_time_seconds' => $totalElapsedTime,
-                ]);
-
-                // 处理沙箱响应，更新文件和目录记录
-                $responseData = $response->getData();
-                $this->responseHandler->handleFinishResponse(
-                    $taskStatus,
-                    $responseData,
-                    $organizationCode
-                );
-
-                return AsrSandboxMergeResultDTO::fromSandboxResponse([
-                    'status' => $status->value,
-                    'file_path' => $response->getFilePath(),
-                    'duration' => $response->getDuration(),
-                    'file_size' => $response->getFileSize(),
-                ]);
+            // 检查完成状态或错误状态
+            $result = $this->checkAndHandleResponseStatus(
+                $response,
+                $status,
+                $taskStatus,
+                $sandboxId,
+                $organizationCode,
+                $finishStartTime,
+                $attempt
+            );
+            if ($result !== null) {
+                return $result;
             }
 
-            // 检查是否为错误状态
-            if ($status?->isError()) {
-                ExceptionBuilder::throw(AsrErrorCode::SandboxMergeFailed, '', ['message' => $response->getErrorMessage()]);
-            }
-
-            // 中间状态（waiting, running, finalizing）：继续轮询
-            // 使用枚举判断，符合沙箱 SandboxAsrStatusEnum 定义
-
-            // 记录进度
-            if ($attempt % 10 === 0) {
+            // 中间状态（waiting, running, finalizing）：继续轮询并按间隔记录进度
+            $currentTime = microtime(true);
+            $elapsedSeconds = (int) ($currentTime - $finishStartTime);
+            if ($attempt % 10 === 0 || ($currentTime - $lastLogTime) >= $logInterval) {
+                $remainingSeconds = max(0, $timeoutSeconds - $elapsedSeconds);
                 $this->logger->info('等待沙箱音频合并', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $sandboxId,
                     'attempt' => $attempt,
+                    'elapsed_seconds' => $elapsedSeconds,
+                    'remaining_seconds' => $remainingSeconds,
                     'status' => $status->value ?? $statusString,
                     'status_description' => $status->getDescription(),
                 ]);
+                $lastLogTime = $currentTime;
             }
 
-            sleep($interval);
+            // 时间不足，不再 sleep，直接进行最后一次 finishTask
+            if (($elapsedSeconds + $pollingInterval) >= $timeoutSeconds) {
+                break;
+            }
+
+            sleep($pollingInterval);
 
             // 继续轮询
             $response = $this->asrRecorder->finishTask(
@@ -417,7 +415,95 @@ readonly class AsrSandboxService
             );
         }
 
+        // 时间即将耗尽，进行最后一次检查
+        $statusString = $response->getStatus();
+        $status = SandboxAsrStatusEnum::from($statusString);
+        $result = $this->checkAndHandleResponseStatus(
+            $response,
+            $status,
+            $taskStatus,
+            $sandboxId,
+            $organizationCode,
+            $finishStartTime,
+            $attempt
+        );
+        if ($result !== null) {
+            return $result;
+        }
+
+        // 超时记录
+        $totalElapsedTime = (int) (microtime(true) - $finishStartTime);
+        $this->logger->error('沙箱音频合并超时', [
+            'task_key' => $taskStatus->taskKey,
+            'sandbox_id' => $sandboxId,
+            'total_attempts' => $attempt,
+            'total_elapsed_seconds' => $totalElapsedTime,
+            'timeout_seconds' => $timeoutSeconds,
+            'last_status' => $status->value ?? $statusString,
+        ]);
+
         ExceptionBuilder::throw(AsrErrorCode::SandboxMergeTimeout);
+    }
+
+    /**
+     * 检查并处理沙箱响应状态.
+     *
+     * @param AsrRecorderResponse $response 沙箱响应
+     * @param SandboxAsrStatusEnum $status 状态枚举
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param string $sandboxId 沙箱ID
+     * @param string $organizationCode 组织编码
+     * @param float $finishStartTime 开始时间
+     * @param int $attempt 尝试次数
+     * @return null|AsrSandboxMergeResultDTO 如果完成则返回结果，否则返回null
+     * @throws BusinessException 如果是错误状态则抛出异常
+     */
+    private function checkAndHandleResponseStatus(
+        AsrRecorderResponse $response,
+        SandboxAsrStatusEnum $status,
+        AsrTaskStatusDTO $taskStatus,
+        string $sandboxId,
+        string $organizationCode,
+        float $finishStartTime,
+        int $attempt
+    ): ?AsrSandboxMergeResultDTO {
+        // 检查是否为完成状态（包含 completed 和 finished）
+        if ($status->isCompleted()) {
+            // 计算总耗时
+            $finishEndTime = microtime(true);
+            $totalElapsedTime = round($finishEndTime - $finishStartTime);
+
+            $this->logger->info('沙箱音频合并完成', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $sandboxId,
+                'attempt' => $attempt,
+                'status' => $status->value,
+                'file_path' => $response->getFilePath(),
+                'total_elapsed_time_seconds' => $totalElapsedTime,
+            ]);
+
+            // 处理沙箱响应，更新文件和目录记录
+            $responseData = $response->getData();
+            $this->responseHandler->handleFinishResponse(
+                $taskStatus,
+                $responseData,
+                $organizationCode
+            );
+
+            return AsrSandboxMergeResultDTO::fromSandboxResponse([
+                'status' => $status->value,
+                'file_path' => $response->getFilePath(),
+                'duration' => $response->getDuration(),
+                'file_size' => $response->getFileSize(),
+            ]);
+        }
+
+        // 检查是否为错误状态
+        if ($status->isError()) {
+            ExceptionBuilder::throw(AsrErrorCode::SandboxMergeFailed, '', ['message' => $response->getErrorMessage()]);
+        }
+
+        return null;
     }
 
     /**
