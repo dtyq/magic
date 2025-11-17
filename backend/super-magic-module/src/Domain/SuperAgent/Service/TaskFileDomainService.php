@@ -284,6 +284,16 @@ class TaskFileDomainService
     }
 
     /**
+     * Insert or update file.
+     * Uses INSERT ... ON DUPLICATE KEY UPDATE syntax.
+     * When file_key conflicts, updates the existing record; otherwise inserts a new record.
+     */
+    public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity
+    {
+        return $this->taskFileRepository->insertOrUpdate($entity);
+    }
+
+    /**
      * Update file by ID.
      */
     public function updateById(TaskFileEntity $entity): TaskFileEntity
@@ -465,11 +475,12 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
+            // $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
             if ($isCreated) {
                 $newFileEntity = $this->taskFileRepository->insert($fileEntity);
+            } else {
+                $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
             }
-            $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
-
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
             if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
@@ -563,7 +574,7 @@ class TaskFileDomainService
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
             $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
             $taskFileEntity->setIsHidden(false);
-            $taskFileEntity->setSort(0);
+            $taskFileEntity->setSort($sortValue);
 
             // Extract file extension for files
             if (! $isDirectory && ! empty($fileName)) {
@@ -577,7 +588,8 @@ class TaskFileDomainService
             $taskFileEntity->setUpdatedAt($now);
 
             // Save to database
-            $this->insert($taskFileEntity);
+            // $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
+            $taskFileEntity = $this->insertOrIgnore($taskFileEntity);
 
             Db::commit();
             return $taskFileEntity;
@@ -1502,15 +1514,32 @@ class TaskFileDomainService
             return true;
         }
 
+        // todo 等所有文件迁移完成后，再删除备份文件
+        if ($existingFile->getIsDirectory()) {
+            // 去除文件key的末尾的/
+            $fileKey = rtrim($fileKey, '/');
+            $backupFile = $this->taskFileRepository->getByFileKey($fileKey);
+            // 如果备份文件存在，则删除备份文件
+            if ($backupFile !== null) {
+                try {
+                    $this->taskFileRepository->deleteById($backupFile->getFileId());
+                } catch (Throwable $e) {
+                    $this->logger->error('Delete backup file failed', [
+                        'file_key' => $fileKey,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
         try {
             $this->taskFileRepository->deleteById($existingFile->getFileId());
-
-            // Delete the same file in projects
-            $this->taskFileRepository->deleteByFileKeyAndProjectId($existingFile->getFileKey(), $existingFile->getProjectId());
-
             return true;
         } catch (Throwable $e) {
-            // Log error if needed
+            $this->logger->error('Delete file failed', [
+                'file_key' => $fileKey,
+                'error' => $e->getMessage(),
+            ]);
             return false;
         }
     }
@@ -1562,8 +1591,10 @@ class TaskFileDomainService
         $now = date('Y-m-d H:i:s');
         $rootDirEntity->setCreatedAt($now);
         $rootDirEntity->setUpdatedAt($now);
+        $rootDirEntity->setDeletedAt(null);
 
-        $this->insert($rootDirEntity);
+        // $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
+        $rootDirEntity = $this->insertOrIgnore($rootDirEntity);
 
         return $rootDirEntity->getFileId();
     }
@@ -2517,7 +2548,8 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        $this->insert($dirEntity);
+        // $this->insertOrUpdate($dirEntity);
+        $this->insertOrIgnore($dirEntity);
 
         return $dirEntity->getFileId();
     }

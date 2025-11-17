@@ -71,9 +71,10 @@ interface TaskFileRepositoryInterface
      * @param int $pageSize 每页数量
      * @param array $fileType 文件类型过滤
      * @param string $storageType 存储类型过滤
+     * @param null|string $updatedAfter 更新时间过滤（查询此时间之后更新的文件）
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = ''): array;
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array;
 
     /**
      * 根据任务ID获取文件列表.
@@ -106,6 +107,16 @@ interface TaskFileRepositoryInterface
      * 根据file_key和topic_id判断是否存在冲突
      */
     public function insertOrIgnore(TaskFileEntity $entity): ?TaskFileEntity;
+
+    /**
+     * 插入或更新文件.
+     * 使用 INSERT ... ON DUPLICATE KEY UPDATE 语法
+     * 当 file_key 冲突时更新现有记录，否则插入新记录.
+     *
+     * @param TaskFileEntity $entity 文件实体
+     * @return TaskFileEntity 插入或更新后的文件实体
+     */
+    public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity;
 
     /**
      * 更新文件.

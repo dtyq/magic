@@ -70,4 +70,9 @@ class TaskFileModel extends AbstractModel
         'source' => TaskFileSource::class, // 自动将数据库中的int转换为TaskFileSource枚举
         'storage_type' => StorageType::class, // 自动将数据库中的string转换为StorageType枚举
     ];
+
+    public function getDates(): array
+    {
+        return [];
+    }
 }
