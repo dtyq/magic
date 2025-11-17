@@ -24,6 +24,8 @@ class AdminModeDTO extends AbstractDTO
 
     protected ?string $color = null;
 
+    protected int $iconType = 1;
+
     protected ?string $iconUrl = null;
 
     protected ?string $description = null;
@@ -186,5 +188,15 @@ class AdminModeDTO extends AbstractDTO
     public function setIconUrl(?string $iconUrl): void
     {
         $this->iconUrl = $iconUrl;
+    }
+
+    public function getIconType(): int
+    {
+        return $this->iconType;
+    }
+
+    public function setIconType(int $iconType): void
+    {
+        $this->iconType = $iconType;
     }
 }

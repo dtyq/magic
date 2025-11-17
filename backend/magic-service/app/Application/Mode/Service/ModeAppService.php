@@ -116,6 +116,8 @@ class ModeAppService extends AbstractModeAppService
                     'name' => $agent->getName(),
                     'placeholder' => $agent->getDescription(),
                     'identifier' => $agent->getCode(),
+                    'icon_type' => $agent->getIconType(),
+                    'icon_url' => $agent->getIcon()['icon_url'] ?? '',
                     'icon' => $agent->getIcon()['type'] ?? '',
                     'color' => $agent->getIcon()['color'] ?? '',
                     'sort' => 0,
