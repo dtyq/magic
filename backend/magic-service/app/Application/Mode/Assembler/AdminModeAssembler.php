@@ -214,6 +214,16 @@ class AdminModeAssembler
             $existingEntity->setIcon($request->getIcon());
         }
 
+        $iconType = $request->input('icon_type');
+        if ($iconType !== null) {
+            $existingEntity->setIconType((int) $iconType);
+        }
+
+        $iconUrl = $request->input('icon_url');
+        if ($iconUrl !== null) {
+            $existingEntity->setIconUrl($iconUrl);
+        }
+
         if ($request->getColor() !== null) {
             $existingEntity->setColor($request->getColor());
         }

@@ -25,6 +25,8 @@ class ModeFactory
         $entity->setNameI18n($model->name_i18n);
         $entity->setIdentifier($model->identifier);
         $entity->setIcon($model->icon);
+        $entity->setIconType($model->icon_type ?? 1);
+        $entity->setIconUrl($model->icon_url ?? '');
         $entity->setColor($model->color);
         $entity->setSort($model->sort);
         $entity->setDescription($model->description);

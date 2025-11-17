@@ -22,6 +22,10 @@ class ModeEntity extends AbstractEntity
 
     protected string $icon = '';
 
+    protected int $iconType = 1;
+
+    protected string $iconUrl = '';
+
     protected string $color = '';
 
     protected string $description = '';
@@ -129,6 +133,26 @@ class ModeEntity extends AbstractEntity
     public function setIcon(string $icon): void
     {
         $this->icon = $icon;
+    }
+
+    public function getIconType(): int
+    {
+        return $this->iconType;
+    }
+
+    public function setIconType(int $iconType): void
+    {
+        $this->iconType = $iconType;
+    }
+
+    public function getIconUrl(): string
+    {
+        return $this->iconUrl;
+    }
+
+    public function setIconUrl(string $iconUrl): void
+    {
+        $this->iconUrl = $iconUrl;
     }
 
     public function getColor(): string

@@ -24,6 +24,8 @@ class AdminModeDTO extends AbstractDTO
 
     protected ?string $color = null;
 
+    protected ?string $iconUrl = null;
+
     protected ?string $description = null;
 
     protected DistributionTypeEnum $distributionType = DistributionTypeEnum::INDEPENDENT;
@@ -174,5 +176,15 @@ class AdminModeDTO extends AbstractDTO
     public function isEnabled(): bool
     {
         return $this->status;
+    }
+
+    public function getIconUrl(): ?string
+    {
+        return $this->iconUrl;
+    }
+
+    public function setIconUrl(?string $iconUrl): void
+    {
+        $this->iconUrl = $iconUrl;
     }
 }

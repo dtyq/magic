@@ -19,6 +19,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $name Agent名称
  * @property string $description Agent描述
  * @property array $icon Agent图标
+ * @property int $icon_type 图标类型
  * @property array $prompt 系统提示词
  * @property array $tools 工具列表
  * @property int $type 智能体类型
@@ -43,6 +44,7 @@ class SuperMagicAgentModel extends AbstractModel
         'name',
         'description',
         'icon',
+        'icon_type',
         'prompt',
         'tools',
         'type',
@@ -60,6 +62,7 @@ class SuperMagicAgentModel extends AbstractModel
         'name' => 'string',
         'description' => 'string',
         'icon' => 'array',
+        'icon_type' => 'integer',
         'prompt' => 'array',
         'tools' => 'array',
         'type' => 'integer',
