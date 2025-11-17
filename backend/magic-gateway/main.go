@@ -44,6 +44,9 @@ var (
 	// JWT相关安全配置
 	keyRotationInterval = 24 * time.Hour // 密钥轮换间隔
 	lastKeyRotation     time.Time
+
+	// 预编译的正则表达式
+	byteAPMAppKeyRegex = regexp.MustCompile(`X-ByteAPM-AppKey=[^\s,;]*`)
 )
 
 // JWTClaims 定义JWT的声明 - 增强版
@@ -907,6 +910,19 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
+				// 特殊处理 X-ByteAPM-AppKey= 格式
+				if strings.Contains(value, "X-ByteAPM-AppKey=") {
+					if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists {
+						// 使用预编译的正则表达式替换 X-ByteAPM-AppKey=xxx 为实际的值
+						newValue := byteAPMAppKeyRegex.ReplaceAllString(value, otelHeaders)
+						proxyHeaders.Add(key, newValue)
+						if debugMode {
+							logger.Printf("替换OTEL ByteAPM AppKey格式: %s: %s => %s", key, value, newValue)
+						}
+						continue
+					}
+				}
+
 				// 特殊处理 Authorization 头
 				if key == "Authorization" {
 					// 处理 Bearer env:XXX 格式
@@ -1507,19 +1523,6 @@ func processOTELHeaders(req *http.Request, targetBase string) {
 					logger.Printf("检测到OTEL端点域名匹配: %s", endpointKey)
 				}
 				break
-			}
-		}
-	}
-
-	// If OTEL endpoint is detected, process OTEL headers
-	if isOTELEndpoint {
-		if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists && otelHeaders != "" {
-			// Set x-byteapm-appkey header with the value from OTEL_EXPORTER_OTLP_HEADERS
-			if req.Header.Get("x-byteapm-appkey") == "" {
-				req.Header.Set("x-byteapm-appkey", otelHeaders)
-				if debugMode {
-					logger.Printf("添加OTEL请求头: x-byteapm-appkey: %s", otelHeaders)
-				}
 			}
 		}
 	}
