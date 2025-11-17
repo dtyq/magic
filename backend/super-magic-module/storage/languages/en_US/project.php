@@ -43,8 +43,26 @@ return [
 
     // Member role descriptions
     'member_role' => [
+        'manage' => 'Manager',
         'owner' => 'Owner',
         'editor' => 'Editor',
         'viewer' => 'Viewer',
     ],
+
+    // Team invitation feature error messages
+    'no_invite_permission' => 'You do not have permission to invite members',
+    'collaboration_disabled' => 'Project collaboration is disabled',
+    'invalid_permission_level' => 'Invalid permission level',
+    'no_manage_permission' => 'You do not have management permission',
+    'cannot_remove_creator' => 'Cannot remove project creator',
+    'last_manager_cannot_be_removed' => 'At least one manager must be retained',
+    'duplicate_member' => 'Member already exists',
+    'member_not_found' => 'Member not found',
+    'invalid_target_type' => 'Invalid target type',
+    'cannot_remove_self' => 'Cannot remove yourself',
+    'members_added' => 'Team members added successfully',
+    'collaboration_enabled' => 'Project collaboration enabled',
+    'collaboration_updated' => 'Project collaboration settings updated',
+    'batch_permission_updated' => 'Batch permission updated successfully',
+    'batch_members_deleted' => 'Batch members deleted successfully',
 ];

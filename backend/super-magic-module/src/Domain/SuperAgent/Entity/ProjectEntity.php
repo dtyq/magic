@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 
 /**
@@ -66,6 +67,11 @@ class ProjectEntity extends AbstractEntity
     protected ProjectStatus $projectStatus = ProjectStatus::ACTIVE;
 
     /**
+     * @var MemberRole 默认加入权限
+     */
+    protected MemberRole $defaultJoinPermission = MemberRole::EDITOR;
+
+    /**
      * @var null|int 当前话题ID
      */
     protected ?int $currentTopicId = null;
@@ -74,6 +80,11 @@ class ProjectEntity extends AbstractEntity
      * @var string 当前话题状态
      */
     protected string $currentTopicStatus = '';
+
+    /**
+     * @var bool 是否启用协作功能
+     */
+    protected bool $isCollaborationEnabled = true;
 
     /**
      * @var string 创建者用户ID
@@ -121,8 +132,10 @@ class ProjectEntity extends AbstractEntity
             'project_status' => $this->projectStatus->value,
             'current_topic_id' => $this->currentTopicId,
             'current_topic_status' => $this->currentTopicStatus,
+            'is_collaboration_enabled' => $this->isCollaborationEnabled,
             'project_mode' => $this->projectMode,
             'source' => $this->source,
+            'default_join_permission' => $this->defaultJoinPermission->value,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,
@@ -407,5 +420,32 @@ class ProjectEntity extends AbstractEntity
     {
         $this->source = $source;
         return $this;
+    }
+
+    /**
+     * 获取协作功能开关状态.
+     */
+    public function getIsCollaborationEnabled(): bool
+    {
+        return $this->isCollaborationEnabled;
+    }
+
+    /**
+     * 设置协作功能开关状态.
+     */
+    public function setIsCollaborationEnabled(bool|int|string $isCollaborationEnabled): self
+    {
+        $this->isCollaborationEnabled = (bool) $isCollaborationEnabled;
+        return $this;
+    }
+
+    public function getDefaultJoinPermission(): MemberRole
+    {
+        return $this->defaultJoinPermission;
+    }
+
+    public function setDefaultJoinPermission(MemberRole $defaultJoinPermission): void
+    {
+        $this->defaultJoinPermission = $defaultJoinPermission;
     }
 }

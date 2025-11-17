@@ -52,4 +52,10 @@ enum ServiceProviderErrorCode: int
 
     #[ErrorMessage('service_provider.invalid_pricing')]
     case InvalidPricing = 44014;
+
+    #[ErrorMessage('service_provider.ai_ability_not_found')]
+    case AI_ABILITY_NOT_FOUND = 44015;
+
+    #[ErrorMessage('service_provider.ai_ability_disabled')]
+    case AI_ABILITY_DISABLED = 44016;
 }

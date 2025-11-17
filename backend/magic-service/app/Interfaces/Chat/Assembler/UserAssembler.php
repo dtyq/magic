@@ -116,7 +116,7 @@ class UserAssembler
             $userDetailAdd = [
                 'country_code' => $account->getCountryCode(),
                 'phone' => $phone,
-                'email' => $account->getEmail(),
+                'email' => empty($account->getEmail()) ? null : $account->getEmail(),
                 'real_name' => $account->getRealName(),
                 'account_type' => $account->getType()->value,
                 'ai_code' => $account->getAiCode(),

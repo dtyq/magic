@@ -19,7 +19,7 @@ use function Hyperf\Config\config;
 
 class BingSearch
 {
-    private const int DEFAULT_SEARCH_ENGINE_TIMEOUT = 5;
+    private const int DEFAULT_SEARCH_ENGINE_TIMEOUT = 30;
 
     private LoggerInterface $logger;
 
@@ -29,10 +29,29 @@ class BingSearch
     }
 
     /**
+     * Execute Bing search with comprehensive parameters.
+     *
+     * @param string $query Search query
+     * @param string $subscriptionKey Bing API subscription key
+     * @param string $mkt Market code (e.g., zh-CN, en-US)
+     * @param int $count Number of results (1-50)
+     * @param int $offset Pagination offset (0-1000)
+     * @param string $safeSearch Safe search level (Strict, Moderate, Off)
+     * @param string $freshness Time filter (Day, Week, Month)
+     * @param string $setLang UI language code
+     * @return array Native Bing API response
      * @throws GuzzleException
      */
-    public function search(string $query, string $subscriptionKey, string $mkt): array
-    {
+    public function search(
+        string $query,
+        string $subscriptionKey,
+        string $mkt,
+        int $count = 20,
+        int $offset = 0,
+        string $safeSearch = '',
+        string $freshness = '',
+        string $setLang = ''
+    ): array {
         /*
          * 使用 bing 搜索并返回上下文。
          */
@@ -44,12 +63,26 @@ class BingSearch
             $endpoint = rtrim($endpoint, '/') . '/search';
         }
 
+        // 构建基础查询参数
         $queryParams = [
             'q' => $query,
             'mkt' => $mkt,
-            'count' => 20,
-            'offset' => 0,
+            'count' => $count,
+            'offset' => $offset,
         ];
+
+        // 添加可选参数
+        if (! empty($safeSearch)) {
+            $queryParams['safeSearch'] = $safeSearch;
+        }
+
+        if (! empty($freshness)) {
+            $queryParams['freshness'] = $freshness;
+        }
+
+        if (! empty($setLang)) {
+            $queryParams['setLang'] = $setLang;
+        }
 
         // 创建 Guzzle 客户端
         $client = new Client([

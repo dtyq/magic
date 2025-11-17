@@ -40,6 +40,8 @@ enum ProviderCode: string
 
     public function getImplementationConfig(ProviderConfigItem $config, string $name = ''): array
     {
+        $config->setUrl($this->getModelUrl($config));
+
         return match ($this) {
             self::MicrosoftAzure => [
                 'api_key' => $config->getApiKey(),
@@ -61,5 +63,15 @@ enum ProviderCode: string
                 ],
             ],
         };
+    }
+
+    public function isOfficial(): bool
+    {
+        return $this === self::Official;
+    }
+
+    private function getModelUrl(ProviderConfigItem $config): string
+    {
+        return $config->getUrl() ?? '';
     }
 }

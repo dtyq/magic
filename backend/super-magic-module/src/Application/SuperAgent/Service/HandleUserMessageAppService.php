@@ -16,9 +16,11 @@ use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
@@ -31,6 +33,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
@@ -67,6 +70,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
+        private readonly ProjectDomainService $projectDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -153,6 +157,9 @@ class HandleUserMessageAppService extends AbstractAppService
             taskEntity: $taskEntity
         );
 
+        // Check if this is the first task for the topic
+        $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()));
+
         // Send message to agent
         return new TaskContext(
             task: $taskEntity,
@@ -164,6 +171,7 @@ class HandleUserMessageAppService extends AbstractAppService
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
             agentMode: $userMessageDTO->getTopicMode(),
+            isFirstTask: $isFirstTask,
         );
     }
 
@@ -185,12 +193,16 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
             $projectId = $topicEntity->getProjectId();
+            $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()));
+
+            // 提前初始化 task_id
+            $taskId = (string) IdGenerator::getSnowId();
 
             // 检查项目是否有权限
-            $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
 
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId());
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId(), $taskId);
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -198,6 +210,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 $taskMode = $topicEntity->getTaskMode();
             }
             $data = [
+                'id' => (int) $taskId,
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -223,7 +236,6 @@ class HandleUserMessageAppService extends AbstractAppService
                 taskEntity: $taskEntity,
                 topicMode: $userMessageDTO->getTopicMode()
             );
-            $taskId = (string) $taskEntity->getId();
 
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
@@ -242,6 +254,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 mcpConfig: [],
                 modelId: $userMessageDTO->getModelId(),
                 messageId: $userMessageDTO->getMessageId(),
+                isFirstTask: $isFirstTask,
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
@@ -258,7 +271,7 @@ class HandleUserMessageAppService extends AbstractAppService
             }
 
             // Create and send message to agent
-            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
+            $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext, $projectEntity);
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
@@ -315,7 +328,7 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language, string $modelId = ''): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language, string $modelId = '', string $taskId = ''): void
     {
         // get the current task run count
         $currentTaskRunCount = $this->pullUserTopicStatus($dataIsolation);
@@ -327,7 +340,7 @@ class HandleUserMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language, $modelId));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $departmentIds, $language, $modelId, $taskId));
         $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
     }
 
@@ -371,10 +384,10 @@ class HandleUserMessageAppService extends AbstractAppService
     /**
      * Initialize agent environment.
      */
-    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
+    private function createAndSendMessageToAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ProjectEntity $projectEntity): string
     {
         // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
         if (empty($taskContext->getSandboxId())) {
             $sandboxId = (string) $taskContext->getTopicId();
@@ -396,7 +409,7 @@ class HandleUserMessageAppService extends AbstractAppService
         );
 
         // Initialize agent
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory);
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectEntity->getUserOrganizationCode());
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());

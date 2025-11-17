@@ -37,7 +37,7 @@ class UserDepartmentDetailDTO extends AbstractDTO
 
     protected string $phone;
 
-    protected string $email;
+    protected ?string $email = null;
 
     protected string $realName;
 
@@ -217,12 +217,12 @@ class UserDepartmentDetailDTO extends AbstractDTO
         return $this;
     }
 
-    public function getEmail(): string
+    public function getEmail(): ?string
     {
         return $this->email;
     }
 
-    public function setEmail(string $email): UserDepartmentDetailDTO
+    public function setEmail(?string $email): UserDepartmentDetailDTO
     {
         $this->email = $email;
         return $this;

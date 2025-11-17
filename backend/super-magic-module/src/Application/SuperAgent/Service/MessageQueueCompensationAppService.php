@@ -187,7 +187,8 @@ class MessageQueueCompensationAppService extends AbstractAppService
             //            }
 
             // 2.2 Topic status OK, get message details (Application layer → Domain layer → Repository layer)
-            $message = $this->messageQueueDomainService->getEarliestMessageByTopic($topicId);
+            // Use current time as filter to get messages that should be executed now
+            $message = $this->messageQueueDomainService->getEarliestMessageByTopic($topicId, date('Y-m-d H:i:s'));
             if (! $message) {
                 $this->logger->debug('No pending messages for topic', ['topic_id' => $topicId]);
                 return 'skipped';

@@ -10,6 +10,7 @@ namespace App\Application\Speech\Service;
 use App\Application\Speech\Assembler\AsrAssembler;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\CoContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -30,7 +31,6 @@ readonly class AsrPresetFileService
     public function __construct(
         private ProjectDomainService $projectDomainService,
         private TaskFileDomainService $taskFileDomainService,
-        private TranslatorInterface $translator,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('AsrPresetFileService');
@@ -179,7 +179,12 @@ readonly class AsrPresetFileService
         string $fullPrefix,
         string $workDir
     ): TaskFileEntity {
-        $fileName = $this->translator->trans('asr.file_names.preset_note') . '.md';
+        // ⚠️ 使用 CoContext 和 di() 获取正确的语言和翻译
+        $language = CoContext::getLanguage();
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale($language);
+
+        $fileName = $translator->trans('asr.file_names.preset_note') . '.md';
         $relativePath = rtrim($displayDir, '/') . '/' . $fileName;
 
         return $this->createPresetFile(
@@ -211,7 +216,12 @@ readonly class AsrPresetFileService
         string $fullPrefix,
         string $workDir
     ): TaskFileEntity {
-        $fileName = $this->translator->trans('asr.file_names.preset_transcript') . '.md';
+        // ⚠️ 使用 CoContext 和 di() 获取正确的语言和翻译
+        $language = CoContext::getLanguage();
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale($language);
+
+        $fileName = $translator->trans('asr.file_names.preset_transcript') . '.md';
         $relativePath = rtrim($hiddenDir, '/') . '/' . $fileName;
 
         return $this->createPresetFile(

@@ -14,6 +14,7 @@ use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -56,6 +57,7 @@ class AgentDomainService
         private readonly FileAppService $fileAppService,
         private readonly MagicUserInfoAppService $userInfoAppService,
         private readonly CloudFileRepositoryInterface $cloudFileRepository,
+        private readonly DynamicConfigManager $dynamicConfigManager,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -169,16 +171,20 @@ class AgentDomainService
         return $result;
     }
 
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): void
+    /**
+     * @param ?string $projectOrganizationCode 项目所属组织编码，10月新增支持跨组织项目协作，所有文件都在项目组织下
+     */
+    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null): void
     {
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'memory_provided' => $memory !== null,
             'memory_length' => $memory ? strlen($memory) : 0,
+            'project_organization_code' => $projectOrganizationCode,
         ]);
 
         // 1. 构建初始化信息
-        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory);
+        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectOrganizationCode);
 
         // 2. 调用初始化接口
         $result = $this->agent->initAgent($taskContext->getSandboxId(), InitAgentRequest::fromArray($config));
@@ -198,6 +204,14 @@ class AgentDomainService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        $taskDynamicConfig = $taskContext->getDynamicConfig();
+
+        // 添加任意注册到 DynamicConfigManager 的动态配置。暂时通过 TaskId 进行区分。
+        $dynamicConfigs = $this->dynamicConfigManager->getByTaskId((string) $taskContext->getTask()->getId());
+        foreach ($dynamicConfigs as $key => $dynamicConfig) {
+            $taskDynamicConfig[$key] = $dynamicConfig;
+        }
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -207,7 +221,7 @@ class AgentDomainService
             'mentions' => $taskContext->getTask()->getMentions(),
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
-            'dynamic_config' => $taskContext->getDynamicConfig(),
+            'dynamic_config' => $taskDynamicConfig,
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -222,7 +236,7 @@ class AgentDomainService
             mentions: $mentionsJsonStruct,
             mcpConfig: $taskContext->getMcpConfig(),
             modelId: $taskContext->getModelId(),
-            dynamicConfig: $taskContext->getDynamicConfig(),
+            dynamicConfig: $taskDynamicConfig,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -715,8 +729,10 @@ class AgentDomainService
 
     /**
      * 构建初始化消息.
+     *
+     * @param ?string $projectOrganizationCode 项目所属组织编码，10月新增支持跨组织项目协作，所有文件都在项目组织下
      */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null): array
+    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null): array
     {
         // 1. 获取上传配置信息
         $storageType = StorageBucketType::SandBox->value;
@@ -726,7 +742,8 @@ class AgentDomainService
         $userAuthorization->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         // Use unified FileAppService to get STS Token
         $projectDir = WorkDirectoryUtil::getRootDir($dataIsolation->getCurrentUserId(), $taskContext->getTask()->getProjectId());
-        $stsConfig = $this->fileAppService->getStsTemporaryCredential($userAuthorization, $storageType, $projectDir, $expires, false);
+
+        $stsConfig = $this->fileAppService->getStsTemporaryCredentialV2($projectOrganizationCode, $storageType, $projectDir, $expires, false);
         // 2. 构建元数据
         $userInfoArray = $this->userInfoAppService->getUserInfo($dataIsolation->getCurrentUserId(), $dataIsolation);
         $userInfo = UserInfoValueObject::fromArray($userInfoArray);
@@ -750,7 +767,7 @@ class AgentDomainService
         );
 
         // chat history
-        $fullPrefix = $this->cloudFileRepository->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $fullPrefix = $this->cloudFileRepository->getFullPrefix($projectOrganizationCode);
         $chatWorkDir = WorkDirectoryUtil::getAgentChatHistoryDir($dataIsolation->getCurrentUserId(), $taskContext->getProjectId());
         $fullChatWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $chatWorkDir);
         $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
@@ -783,6 +800,7 @@ class AgentDomainService
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
             'model_id' => $taskContext->getModelId(),
+            'fetch_history' => ! $taskContext->getIsFirstTask(),
         ];
     }
 

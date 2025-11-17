@@ -72,7 +72,8 @@ class OpenAIProxyApi extends AbstractOpenApi
     {
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
-        $list = $this->llmAppService->models($accessToken, $withInfo);
+        $type = $this->request->input('type', '');
+        $list = $this->llmAppService->models($accessToken, $withInfo, $type);
         return LLMAssembler::createModels($list, $withInfo);
     }
 
@@ -135,6 +136,55 @@ class OpenAIProxyApi extends AbstractOpenApi
             return $response->toArray();
         }
         return null;
+    }
+
+    /**
+     * Bing search proxy - returns native Bing API format.
+     *
+     * GET /v1/search
+     *
+     * Query Parameters:
+     * - query: Search keywords (required)
+     * - count: Number of results (optional, default: 10, max: 50)
+     * - offset: Pagination offset (optional, default: 0, max: 1000)
+     * - mkt: Market code (optional, default: zh-CN)
+     * - set_lang: UI language (optional)
+     * - safe_search: Safe search level (optional, Strict/Moderate/Off)
+     * - freshness: Time filter (optional, Day/Week/Month)
+     *
+     * Headers:
+     * - Authorization: Bearer {access_token}
+     *
+     * @return array Native Bing API response
+     */
+    public function bingSearch(RequestInterface $request): array
+    {
+        // 1. Get query parameters - support both Bing native and underscore naming
+        // Support 'q' (Bing native) or 'query' (our style)
+        $query = (string) ($request->input('q') ?: $request->input('query', ''));
+        $count = (int) $request->input('count', 10);
+        $offset = (int) $request->input('offset', 0);
+        $mkt = (string) $request->input('mkt', 'zh-CN');
+        // Support 'setLang' (Bing native) or 'set_lang' (our style)
+        $setLang = (string) ($request->input('setLang') ?: $request->input('set_lang', ''));
+        // Support 'safeSearch' (Bing native) or 'safe_search' (our style)
+        $safeSearch = (string) ($request->input('safeSearch') ?: $request->input('safe_search', ''));
+        $freshness = (string) $request->input('freshness', '');
+
+        // 2. Get access token
+        $accessToken = $this->getAccessToken();
+
+        // 3. Call LLMAppService
+        return $this->llmAppService->bingSearch(
+            $accessToken,
+            $query,
+            $count,
+            $offset,
+            $mkt,
+            $setLang,
+            $safeSearch,
+            $freshness
+        );
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request): void

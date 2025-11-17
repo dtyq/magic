@@ -440,11 +440,15 @@ readonly class AsrDirectoryService
             ExceptionBuilder::throw(AsrErrorCode::WorkspaceDirectoryEmpty, '', ['projectId' => $projectId]);
         }
 
+        // 获取项目所属组织编码（支持跨组织项目协作）
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+
         return $this->taskFileDomainService->findOrCreateProjectRootDirectory(
             (int) $projectId,
             $workDir,
             $userId,
-            $organizationCode
+            $organizationCode,
+            $projectEntity->getUserOrganizationCode()
         );
     }
 

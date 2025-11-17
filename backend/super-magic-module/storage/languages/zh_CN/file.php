@@ -56,4 +56,5 @@ return [
     'target_file_already_exists' => '目标文件名在此目录中已存在',
     'file_is_being_edited' => '文件当前正在被其他用户编辑，使用 force_replace 强制替换',
     'source_file_key_illegal' => '源文件键非法或不在工作区范围内',
+    'content_field_required' => 'content 字段必填',
 ];

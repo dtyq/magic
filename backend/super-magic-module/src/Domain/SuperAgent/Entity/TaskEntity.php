@@ -96,6 +96,16 @@ class TaskEntity extends AbstractEntity
     protected ?string $conversationId = null;
 
     /**
+     * @var null|string 任务开始时间
+     */
+    protected ?string $startedAt = null;
+
+    /**
+     * @var null|string 任务结束时间
+     */
+    protected ?string $finishedAt = null;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -139,6 +149,8 @@ class TaskEntity extends AbstractEntity
             'task_mode' => $this->taskMode,
             'err_msg' => $this->errMsg,
             'conversation_id' => $this->conversationId,
+            'started_at' => $this->startedAt,
+            'finished_at' => $this->finishedAt,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -172,6 +184,8 @@ class TaskEntity extends AbstractEntity
             'task_mode' => $data['task_mode'] ?? $data['taskMode'] ?? 'chat',
             'err_msg' => $data['err_msg'] ?? $data['errMsg'] ?? null,
             'conversation_id' => $data['conversation_id'] ?? $data['conversationId'] ?? null,
+            'started_at' => $data['started_at'] ?? $data['startedAt'] ?? null,
+            'finished_at' => $data['finished_at'] ?? $data['finishedAt'] ?? null,
             'created_at' => $data['created_at'] ?? $data['createdAt'] ?? null,
             'updated_at' => $data['updated_at'] ?? $data['updatedAt'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? $data['deletedAt'] ?? null,
@@ -413,6 +427,40 @@ class TaskEntity extends AbstractEntity
     public function setErrMsg(?string $errMsg): self
     {
         $this->errMsg = $errMsg;
+        return $this;
+    }
+
+    /**
+     * 获取任务开始时间.
+     */
+    public function getStartedAt(): ?string
+    {
+        return $this->startedAt;
+    }
+
+    /**
+     * 设置任务开始时间.
+     */
+    public function setStartedAt(?string $startedAt): self
+    {
+        $this->startedAt = $startedAt;
+        return $this;
+    }
+
+    /**
+     * 获取任务结束时间.
+     */
+    public function getFinishedAt(): ?string
+    {
+        return $this->finishedAt;
+    }
+
+    /**
+     * 设置任务结束时间.
+     */
+    public function setFinishedAt(?string $finishedAt): self
+    {
+        $this->finishedAt = $finishedAt;
         return $this;
     }
 }

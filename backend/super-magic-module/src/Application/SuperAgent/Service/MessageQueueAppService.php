@@ -11,6 +11,9 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\MessageQueueCreatedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\MessageQueueDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\MessageQueueUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -19,6 +22,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMessageQueueRequestD
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\QueryMessageQueueRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateMessageQueueRequestDTO;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 use function Hyperf\Translation\trans;
@@ -33,6 +37,7 @@ class MessageQueueAppService extends AbstractAppService
     public function __construct(
         private readonly MessageQueueDomainService $messageQueueDomainService,
         private readonly TopicDomainService $topicDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -56,8 +61,8 @@ class MessageQueueAppService extends AbstractAppService
         $projectId = (int) $requestDTO->getProjectId();
         $topicId = (int) $requestDTO->getTopicId();
 
-        // Validate topic status and ownership (only running topics can add messages)
-        $this->topicDomainService->validateTopicForMessageQueue(
+        // Validate topic status and ownership (only running topics can add messages) and get TopicEntity
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
             $dataIsolation,
             $topicId
         );
@@ -78,6 +83,16 @@ class MessageQueueAppService extends AbstractAppService
             $topicId,
             $requestDTO->getMessageContent(),
             $chatMessageType
+        );
+
+        // Dispatch MessageQueueCreatedEvent
+        $this->eventDispatcher->dispatch(
+            new MessageQueueCreatedEvent(
+                $messageEntity,
+                $topicEntity,
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            )
         );
 
         $this->logger->info('Message queue created successfully', [
@@ -131,6 +146,12 @@ class MessageQueueAppService extends AbstractAppService
             );
         }
 
+        // Validate topic and get TopicEntity
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
+            $dataIsolation,
+            $topicId
+        );
+
         // Update message queue
         $messageEntity = $this->messageQueueDomainService->updateMessage(
             $dataIsolation,
@@ -139,6 +160,16 @@ class MessageQueueAppService extends AbstractAppService
             $topicId,
             $requestDTO->getMessageContent(),
             $requestDTO->getMessageType()
+        );
+
+        // Dispatch MessageQueueUpdatedEvent
+        $this->eventDispatcher->dispatch(
+            new MessageQueueUpdatedEvent(
+                $messageEntity,
+                $topicEntity,
+                $userAuthorization->getId(),
+                $userAuthorization->getOrganizationCode()
+            )
         );
 
         $this->logger->info('Message queue updated successfully', [
@@ -185,8 +216,26 @@ class MessageQueueAppService extends AbstractAppService
             );
         }
 
+        // Validate topic and get TopicEntity (before deletion, for event)
+        $topicEntity = $this->topicDomainService->validateTopicForMessageQueue(
+            $dataIsolation,
+            $existingMessage->getTopicId()
+        );
+
         // Delete message queue
         $success = $this->messageQueueDomainService->deleteMessage($dataIsolation, $messageId);
+
+        // Dispatch MessageQueueDeletedEvent after successful deletion
+        if ($success) {
+            $this->eventDispatcher->dispatch(
+                new MessageQueueDeletedEvent(
+                    $existingMessage,
+                    $topicEntity,
+                    $userAuthorization->getId(),
+                    $userAuthorization->getOrganizationCode()
+                )
+            );
+        }
 
         $this->logger->info('Message queue deleted successfully', [
             'message_id' => $messageId,

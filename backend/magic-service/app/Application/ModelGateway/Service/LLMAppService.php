@@ -27,9 +27,11 @@ use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
@@ -47,6 +49,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleV
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
+use App\Infrastructure\ExternalAPI\Search\BingSearch;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
@@ -133,7 +136,7 @@ class LLMAppService extends AbstractLLMAppService
             $modelConfigEntity->setObject($objectType);
 
             // Only set info for non-image models when withInfo is true
-            if ($withInfo && ! $isImageModel) {
+            if ($withInfo) {
                 $modelConfigEntity->setInfo([
                     'attributes' => $odinModel->getAttributes()->toArray(),
                     'options' => $model->getModelOptions()->toArray(),
@@ -276,7 +279,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setUserId($userAuthorization->getId());
         $imageGeneratedEvent->setImageCount(1);
         $imageGeneratedEvent->setCreatedAt(new DateTime());
-        $imageGeneratedEvent->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+        $imageGeneratedEvent->setModel($providerConfigItem->getModelVersion());
+        $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEvent->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEvent->setSourceId($reqDTO->getSourceId());
         $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
@@ -298,6 +302,124 @@ class LLMAppService extends AbstractLLMAppService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig()->toArray());
         return $imageGenerateService->queryTask($taskId);
+    }
+
+    /**
+     * Bing search proxy with access token authentication.
+     *
+     * @param string $accessToken Access token for authentication
+     * @param string $query Search query
+     * @param int $count Number of results (1-50)
+     * @param int $offset Pagination offset (0-1000)
+     * @param string $mkt Market code (e.g., zh-CN, en-US)
+     * @param string $setLang UI language code
+     * @param string $safeSearch Safe search level (Strict, Moderate, Off)
+     * @param string $freshness Time filter (Day, Week, Month)
+     * @return array Native Bing API response
+     */
+    public function bingSearch(
+        string $accessToken,
+        string $query,
+        int $count = 10,
+        int $offset = 0,
+        string $mkt = 'zh-CN',
+        string $setLang = '',
+        string $safeSearch = '',
+        string $freshness = ''
+    ): array {
+        // 1. Validate access token
+        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
+        if (! $accessTokenEntity) {
+            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
+        }
+
+        // 2. Validate search parameters
+        if (empty($query)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Search query is required');
+        }
+
+        if ($count < 1 || $count > 50) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Count must be between 1 and 50');
+        }
+
+        if ($offset < 0 || $offset > 1000) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Offset must be between 0 and 1000');
+        }
+
+        // 3. Create data isolation object (for logging and permission control)
+        $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
+            $accessToken,
+            []
+        );
+
+        // 4. Log search request
+        $this->logger->info('BingSearchRequest', [
+            'access_token_id' => $accessTokenEntity->getId(),
+            'access_token_name' => $accessTokenEntity->getName(),
+            'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+            'query' => $query,
+            'count' => $count,
+            'offset' => $offset,
+            'mkt' => $mkt,
+        ]);
+
+        try {
+            $startTime = microtime(true);
+
+            // 5. Get Bing API key from config
+            $subscriptionKey = config('search.bing.api_key');
+            if (empty($subscriptionKey)) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Bing Search API key is not configured');
+            }
+
+            // 6. Call BingSearch directly for native API response
+            $bingSearch = make(BingSearch::class);
+            $result = $bingSearch->search(
+                $query,
+                $subscriptionKey,
+                $mkt,
+                $count,
+                $offset,
+                $safeSearch,
+                $freshness,
+                $setLang
+            );
+
+            // 7. Calculate response time
+            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+            // 8. Log success
+            $this->logger->info('BingSearchSuccess', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'query' => $query,
+                'result_count' => count($result['webPages']['value'] ?? []),
+                'total_matches' => $result['webPages']['totalEstimatedMatches'] ?? 0,
+                'response_time' => $responseTime,
+            ]);
+
+            // 9. Return native Bing API format
+            return $result;
+        } catch (Throwable $e) {
+            // Log failure
+            $this->logger->error('BingSearchFailed', [
+                'access_token_id' => $accessTokenEntity->getId(),
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'query' => $query,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Bing search failed: ' . $e->getMessage(),
+                throwable: $e
+            );
+        }
     }
 
     public function textGenerateImage(TextGenerateImageDTO $textGenerateImageDTO): array
@@ -351,6 +473,10 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest->setValidityPeriod(1);
 
         $errorMessage = '';
+        // 记录调用时间
+        $callTime = date('Y-m-d H:i:s');
+        $startTime = microtime(true);
+
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig->toArray());
             try {
@@ -363,8 +489,18 @@ class LLMAppService extends AbstractLLMAppService
                     if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
                         $n = 1;
                     }
-                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $textGenerateImageDTO, $n, $serviceProviderConfig->getProviderModelId());
-                    AsyncEventUtil::dispatch($event);
+
+                    // 统一触发事件
+                    $this->dispatchImageGeneratedEvent(
+                        $creator,
+                        $organizationCode,
+                        $textGenerateImageDTO,
+                        $n,
+                        $serviceProviderConfig->getProviderModelId(),
+                        $callTime,
+                        $startTime,
+                        $accessTokenEntity
+                    );
 
                     return $generateImageRaw;
                 }
@@ -415,15 +551,26 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest->setWidth($width);
         $imageGenerateRequest->setHeight($height);
 
+        // 记录调用时间
+        $callTime = date('Y-m-d H:i:s');
+        $startTime = microtime(true);
         foreach ($serviceProviderConfigs as $serviceProviderConfig) {
             $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $serviceProviderConfig->toArray());
             try {
                 $imageGenerateRequest->setModel($serviceProviderConfig->getModelVersion());
                 $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
                 if (! empty($generateImageRaw)) {
-                    $event = $this->buildImageGenerateEntity($creator, $organizationCode, $imageEditDTO, 1, $serviceProviderConfig->getProviderModelId());
-
-                    AsyncEventUtil::dispatch($event);
+                    // 统一触发事件（图生图默认 1 张）
+                    $this->dispatchImageGeneratedEvent(
+                        $creator,
+                        $organizationCode,
+                        $imageEditDTO,
+                        1,
+                        $serviceProviderConfig->getProviderModelId(),
+                        $callTime,
+                        $startTime,
+                        $accessTokenEntity
+                    );
 
                     return $generateImageRaw;
                 }
@@ -521,8 +668,7 @@ class LLMAppService extends AbstractLLMAppService
 
             $this->pointComponent->checkPointsSufficient(
                 $proxyModelRequest,
-                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                $modelGatewayDataIsolation->getCurrentUserId()
+                $modelGatewayDataIsolation
             );
 
             // Try to get high availability model configuration
@@ -594,6 +740,7 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('user_id', $modelGatewayDataIsolation->getCurrentUserId());
             $proxyModelRequest->addBusinessParam('access_token_id', $modelGatewayDataIsolation->getAccessToken()->getId());
             $proxyModelRequest->addBusinessParam('access_token_name', $modelGatewayDataIsolation->getAccessToken()->getName());
+            $proxyModelRequest->addBusinessParam('call_time', date('Y-m-d H:i:s'));
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
@@ -632,7 +779,7 @@ class LLMAppService extends AbstractLLMAppService
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
 
             $message = '';
-            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException) {
+            if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
             $businessParams = $proxyModelRequest->getBusinessParams();
@@ -796,12 +943,21 @@ class LLMAppService extends AbstractLLMAppService
      */
     protected function callImageModel(ModelGatewayDataIsolation $modelGatewayDataIsolation, ImageModel $imageModel, TextGenerateImageDTO $proxyModelRequest): OpenAIFormatResponse
     {
+        // 记录调用时间
+        $callTime = date('Y-m-d H:i:s');
+        $startTime = microtime(true);
+
         $organizationCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
         $creator = $modelGatewayDataIsolation->getCurrentUserId();
 
         $modelVersion = $imageModel->getModelVersion();
 
-        $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+        if ($imageModel->getProviderCode()->isOfficial()) {
+            // 使用官方服务商
+            $imageGenerateType = ImageGenerateModelType::fromModel(ImageGenerateModelType::Official->value, false);
+        } else {
+            $imageGenerateType = ImageGenerateModelType::fromModel($modelVersion, false);
+        }
 
         // 构建图片生成参数
         $imageGenerateParamsVO = new AIImageGenerateParamsVO();
@@ -843,9 +999,17 @@ class LLMAppService extends AbstractLLMAppService
                 $n = 1;
             }
 
-            // 发布事件
-            $event = $this->buildImageGenerateEntity($creator, $organizationCode, $proxyModelRequest, $n, $imageModel->getProviderModelId());
-            AsyncEventUtil::dispatch($event);
+            // 统一触发事件
+            $this->dispatchImageGeneratedEvent(
+                $creator,
+                $organizationCode,
+                $proxyModelRequest,
+                $n,
+                $imageModel->getProviderModelId(),
+                $callTime,
+                $startTime,
+                $modelGatewayDataIsolation->getAccessToken()
+            );
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
             $generateImageOpenAIFormat->setProviderErrorMessage($errorMessage);
@@ -1367,11 +1531,80 @@ class LLMAppService extends AbstractLLMAppService
         return self::CONVERSATION_ENDPOINT_PREFIX . $cacheKey;
     }
 
-    private function buildImageGenerateEntity(string $creator, string $organizationCode, AbstractRequestDTO $requestDTO, int $n, string $providerModelId): ImageGeneratedEvent
+    /**
+     * 统一触发图片生成事件.
+     *
+     * @param string $creator 创建者ID
+     * @param string $organizationCode 组织编码
+     * @param AbstractRequestDTO $requestDTO 请求DTO
+     * @param int $imageCount 图片数量
+     * @param string $providerModelId 服务商模型ID
+     * @param string $callTime 调用时间
+     * @param float $startTime 开始时间（微秒）
+     * @param null|AccessTokenEntity $accessTokenEntity 访问令牌实体
+     */
+    private function dispatchImageGeneratedEvent(
+        string $creator,
+        string $organizationCode,
+        AbstractRequestDTO $requestDTO,
+        int $imageCount,
+        string $providerModelId,
+        string $callTime,
+        float $startTime,
+        ?AccessTokenEntity $accessTokenEntity = null
+    ): void {
+        // 计算响应时间（毫秒）
+        $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+        // 转换 providerModelId 为整数
+        $serviceProviderModelsId = is_numeric($providerModelId) ? (int) $providerModelId : null;
+
+        // 获取价格配置版本ID
+        $priceId = $this->getPriceIdByServiceProviderModelId($serviceProviderModelsId, $organizationCode);
+
+        // 构建并发布事件
+        $event = $this->buildImageGenerateEntity(
+            $creator,
+            $organizationCode,
+            $requestDTO,
+            $imageCount,
+            $providerModelId,
+            $priceId,
+            $callTime,
+            $responseTime,
+            $accessTokenEntity
+        );
+        AsyncEventUtil::dispatch($event);
+    }
+
+    /**
+     * 获取服务商模型的价格配置版本ID.
+     */
+    private function getPriceIdByServiceProviderModelId(?int $serviceProviderModelsId, string $organizationCode): ?int
     {
+        $providerDataIsolation = ProviderDataIsolation::create($organizationCode);
+        $latestConfigVersion = $this->providerModelDomainService->getLatestConfigVersionEntity($providerDataIsolation, $serviceProviderModelsId);
+        return $latestConfigVersion?->getId();
+    }
+
+    private function buildImageGenerateEntity(
+        string $creator,
+        string $organizationCode,
+        AbstractRequestDTO $requestDTO,
+        int $n,
+        string $providerModelId,
+        ?int $priceId = null,
+        ?string $callTime = null,
+        ?int $responseTime = null,
+        ?AccessTokenEntity $accessTokenEntity = null
+    ): ImageGeneratedEvent {
         $imageGeneratedEvent = new ImageGeneratedEvent();
 
         $model = $requestDTO->getModel();
+
+        // 获取 access token 信息
+        $accessTokenId = $accessTokenEntity?->getId();
+        $accessTokenName = $accessTokenEntity?->getName();
 
         $imageGeneratedEvent->setOrganizationCode($organizationCode);
         $imageGeneratedEvent->setUserId($creator);
@@ -1381,7 +1614,16 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setTopicId($requestDTO->getTopicId());
         $imageGeneratedEvent->setTaskId($requestDTO->getTaskId());
         $imageGeneratedEvent->setCreatedAt(new DateTime());
-        if (! empty($requestDTO->getTopicId())) {
+        $imageGeneratedEvent->setProviderModelId($providerModelId);
+        $imageGeneratedEvent->setAccessTokenId($accessTokenId);
+        $imageGeneratedEvent->setAccessTokenName($accessTokenName);
+        $imageGeneratedEvent->setPriceId($priceId);
+        $imageGeneratedEvent->setCallTime($callTime);
+        $imageGeneratedEvent->setResponseTime($responseTime);
+
+        if ($accessTokenEntity && $accessTokenEntity->getType()->isUser()) {
+            $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API_PLATFORM);
+        } elseif (! empty($requestDTO->getTopicId())) {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::SUPER_MAGIC);
         } else {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API);

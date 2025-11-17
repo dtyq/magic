@@ -47,6 +47,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageBuilderDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -95,6 +96,7 @@ class TaskAppService extends AbstractAppService
         LoggerFactory $loggerFactory,
         protected AccessTokenDomainService $accessTokenDomainService,
         protected ApplicationDomainService $applicationDomainService,
+        protected ProjectDomainService $projectDomainService,
     ) {
         $this->messageBuilder = new MessageBuilderDomainService();
         $this->logger = $loggerFactory->get(get_class($this));
@@ -698,9 +700,13 @@ class TaskAppService extends AbstractAppService
     {
         $dataIsolation = $taskContext->getDataIsolation();
         $task = $taskContext->getTask();
+
+        // Get ProjectEntity
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($task->getProjectId());
+
         $uploadCredential = $this->getUploadCredential(
             $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode(),
+            $projectEntity->getUserOrganizationCode(),
             $task->getWorkDir()
         );
 
@@ -1099,12 +1105,12 @@ class TaskAppService extends AbstractAppService
      */
     private function getUploadCredential(string $agentUserId, string $organizationCode, string $workDir): array
     {
-        $userAuthorization = new MagicUserAuthorization();
+        /*$userAuthorization = new MagicUserAuthorization();
         $userAuthorization->setId($agentUserId);
         $userAuthorization->setOrganizationCode($organizationCode);
-        $userAuthorization->setUserType(UserType::Ai);
+        $userAuthorization->setUserType(UserType::Ai);*/
         // sts token 暂时设置 2 天
-        return $this->fileAppService->getStsTemporaryCredential($userAuthorization, 'private', $workDir, 3600 * 2);
+        return $this->fileAppService->getStsTemporaryCredentialV2($organizationCode, 'private', $workDir, 3600 * 2);
     }
 
     /**

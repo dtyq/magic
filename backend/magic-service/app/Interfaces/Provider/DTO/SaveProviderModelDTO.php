@@ -20,6 +20,8 @@ class SaveProviderModelDTO extends AbstractDTO
 
     protected ?string $serviceProviderConfigId;
 
+    protected ?int $sourceModelId;
+
     protected ?string $modelId;
 
     protected ?string $name;
@@ -84,6 +86,20 @@ class SaveProviderModelDTO extends AbstractDTO
             $this->serviceProviderConfigId = null;
         } else {
             $this->serviceProviderConfigId = (string) $serviceProviderConfigId;
+        }
+    }
+
+    public function getSourceModelId(): ?int
+    {
+        return $this->sourceModelId ?? null;
+    }
+
+    public function setSourceModelId(null|int|string $sourceModelId): void
+    {
+        if ($sourceModelId === null) {
+            $this->sourceModelId = null;
+        } else {
+            $this->sourceModelId = (int) $sourceModelId;
         }
     }
 

@@ -241,9 +241,9 @@ class FilesystemProxy extends Filesystem
         $list = [];
         if ($this->isPublicRead && ! empty($this->publicDomain) && empty($downloadNames)) {
             foreach ($paths as $path) {
-                if($this->adapterName === AdapterName::FILE_SERVICE &&  $platform === 'minio') {
+                if ($this->adapterName === AdapterName::FILE_SERVICE && $platform === 'minio') {
                     $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . $path;
-                }else{
+                } else {
                     $uri = $this->publicDomain . '/' . $path;
                 }
                 $list[$path] = new FileLink($path, $uri, $expires);
@@ -515,14 +515,14 @@ class FilesystemProxy extends Filesystem
     private function filterMinioPaths(array $paths): array
     {
         $key = $this->config['key'] ?? '';
-        if($this->adapterName !== AdapterName::FILE_SERVICE || $key !== 'minio') {
+        if ($this->adapterName !== AdapterName::FILE_SERVICE || $key !== 'minio') {
             return $paths;
         }
-        $newPaths =  [];
+        $newPaths = [];
         foreach ($paths as $path) {
-            if(Str::startsWith($path, $key)) {
+            if (Str::startsWith($path, $key)) {
                 $newPaths[] = Str::replaceFirst($key . '/', '', $path);
-            }else{
+            } else {
                 $newPaths[] = $path;
             }
         }

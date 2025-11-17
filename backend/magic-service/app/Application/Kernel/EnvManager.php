@@ -61,12 +61,11 @@ class EnvManager
         $baseDataIsolation->setEnvId($env->getId());
         $baseDataIsolation->getThirdPlatformDataIsolationManager()->init($baseDataIsolation, $env);
 
-        self::initSubscription($baseDataIsolation);
+        self::initSubscription($baseDataIsolation, true);
 
         simple_log('EnvManagerInit', [
             'class' => get_class($baseDataIsolation),
             'env_id' => $baseDataIsolation->getEnvId(),
-            'subscription' => $baseDataIsolation->getSubscriptionManager()->toArray(),
             'third_platform_manager' => $baseDataIsolation->getThirdPlatformDataIsolationManager()->toArray(),
             'third_user_id' => $baseDataIsolation->getThirdPlatformUserId(),
             'third_organization_code' => $baseDataIsolation->getThirdPlatformOrganizationCode(),
@@ -83,8 +82,15 @@ class EnvManager
         return $magicUser?->getMagicId();
     }
 
-    private static function initSubscription(BaseDataIsolation $baseDataIsolation): void
+    private static function initSubscription(BaseDataIsolation $baseDataIsolation, bool $lazy = true): void
     {
+        if ($lazy) {
+            $lazyFun = function () use ($baseDataIsolation) {
+                self::initSubscription($baseDataIsolation, false);
+            };
+            $baseDataIsolation->addLazyFunction('initSubscription', $lazyFun);
+            return;
+        }
         $subscriptionManager = $baseDataIsolation->getSubscriptionManager();
         $providerDataIsolation = ProviderDataIsolation::create($baseDataIsolation->getCurrentOrganizationCode(), $baseDataIsolation->getCurrentUserId(), $baseDataIsolation->getMagicId());
         $providerDataIsolation->setContainOfficialOrganization(true);
@@ -98,5 +104,7 @@ class EnvManager
         $subscription = di(PackageFilterInterface::class)->getCurrentSubscription($baseDataIsolation);
         $modelIdsGroupByType = di(ProviderManager::class)->getModelIdsGroupByType($providerDataIsolation);
         $subscriptionManager->setCurrentSubscription($subscription['id'] ?? '', $subscription['info'] ?? [], $modelIdsGroupByType);
+
+        simple_log('CurrentSubscription', $subscriptionManager->toArray());
     }
 }

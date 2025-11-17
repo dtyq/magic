@@ -37,6 +37,11 @@ interface MessageQueueRepositoryInterface
     public function getPendingMessagesByTopic(int $topicId, string $userId): array;
 
     /**
+     * Get message queue by ID.
+     */
+    public function getById(int $id): ?MessageQueueEntity;
+
+    /**
      * Get message queue by ID for specific user.
      */
     public function getByIdForUser(int $id, string $userId): ?MessageQueueEntity;
@@ -91,9 +96,10 @@ interface MessageQueueRepositoryInterface
      * 获取指定话题的最早待处理消息.
      *
      * @param int $topicId Topic ID
+     * @param null|string $maxExecuteTime Max execute time filter (optional, if null then no time filter applied)
      * @return null|MessageQueueEntity Earliest pending message or null if none found
      */
-    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity;
+    public function getEarliestMessageByTopic(int $topicId, ?string $maxExecuteTime = null): ?MessageQueueEntity;
 
     /**
      * Delay execution time for all pending messages in a topic.

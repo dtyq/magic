@@ -13,10 +13,13 @@ use App\Domain\Contact\Entity\ValueObject\DepartmentOption;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectMembersUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutCancelledEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectShortcutSetEvent;
@@ -24,6 +27,8 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchUpdateMembersRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetCollaborationProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
@@ -54,6 +59,7 @@ class ProjectMemberAppService extends AbstractAppService
         private readonly MagicUserDomainService $magicUserDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly PackageFilterInterface $packageFilterService,
     ) {
     }
 
@@ -68,6 +74,8 @@ class ProjectMemberAppService extends AbstractAppService
         UpdateProjectMembersRequestDTO $requestDTO
     ): void {
         $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 1. DTO转换为Entity
         $projectId = (int) $requestDTO->getProjectId();
@@ -77,14 +85,15 @@ class ProjectMemberAppService extends AbstractAppService
             $entity = new ProjectMemberEntity();
             $entity->setTargetTypeFromString($memberData['target_type']);
             $entity->setTargetId($memberData['target_id']);
-            $entity->setOrganizationCode($userAuthorization->getOrganizationCode());
-            $entity->setInvitedBy($userAuthorization->getId());
+            $entity->setOrganizationCode($organizationCode);
+            $entity->setInvitedBy($currentUserId);
+            $entity->setRole(MemberRole::MANAGE);
 
             $memberEntities[] = $entity;
         }
 
         // 2. 验证并获取可访问的项目
-        $projectEntity = $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        $projectEntity = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 3. 委托给Domain层处理业务逻辑
         $this->projectMemberDomainService->updateProjectMembers(
@@ -112,20 +121,21 @@ class ProjectMemberAppService extends AbstractAppService
     public function getProjectMembers(RequestContext $requestContext, int $projectId): ProjectMembersResponseDTO
     {
         $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
-        // 1. 验证并获取可访问的项目
-        $this->getAccessibleProject($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+        // 1. 验证是否管理者或所有者权限
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
 
         // 2. 获取项目成员列表
-        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, [MemberRole::EDITOR->value, MemberRole::VIEWER->value]);
+        $memberEntities = $this->projectMemberDomainService->getProjectMembers($projectId, MemberRole::getAllRoleValues());
 
         if (empty($memberEntities)) {
             return ProjectMembersResponseDTO::fromEmpty();
         }
 
         // 3. 分组获取用户和部门ID
-        $userIds = [];
-        $departmentIds = [];
+        $userIds = $departmentIds = $targetMapEntities = [];
 
         foreach ($memberEntities as $entity) {
             if ($entity->getTargetType()->isUser()) {
@@ -133,14 +143,20 @@ class ProjectMemberAppService extends AbstractAppService
             } elseif ($entity->getTargetType()->isDepartment()) {
                 $departmentIds[] = $entity->getTargetId();
             }
+            $targetMapEntities[$entity->getTargetId()] = $entity;
         }
 
         // 4. 创建数据隔离对象
         $dataIsolation = $requestContext->getDataIsolation();
 
         // 获取用户所属部门
-        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIds($userIds, $dataIsolation);
-        $userIdMapDepartmentIds = array_column($departmentUsers, 'department_id', 'userId');
+        $departmentUsers = $this->departmentUserDomainService->getDepartmentUsersByUserIdsInMagic($userIds);
+        $userIdMapDepartmentIds = [];
+        foreach ($departmentUsers as $departmentUser) {
+            if (! $departmentUser->isTopLevel()) {
+                $userIdMapDepartmentIds[$departmentUser->getUserId()] = $departmentUser->getDepartmentId();
+            }
+        }
         $allDepartmentIds = array_merge($departmentIds, array_values($userIdMapDepartmentIds));
 
         // 获取部门详情
@@ -149,7 +165,7 @@ class ProjectMemberAppService extends AbstractAppService
         // 5. 获取用户详细信息
         $users = [];
         if (! empty($userIds)) {
-            $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds);
+            $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds);
             $this->updateUserAvatarUrl($dataIsolation, $userEntities);
 
             foreach ($userEntities as $userEntity) {
@@ -169,6 +185,8 @@ class ProjectMemberAppService extends AbstractAppService
                     'avatar_url' => $userEntity->getAvatarUrl() ?? '',
                     'type' => 'User',
                     'path_nodes' => $pathNodes,
+                    'role' => $targetMapEntities[$userEntity->getUserId()]->getRole()->value,
+                    'join_method' => $targetMapEntities[$userEntity->getUserId()]->getJoinMethod()->value,
                 ];
             }
         }
@@ -191,6 +209,8 @@ class ProjectMemberAppService extends AbstractAppService
                     'avatar_url' => '',
                     'type' => 'Department',
                     'path_nodes' => $pathNodes,
+                    'role' => $targetMapEntities[$departmentEntity->getDepartmentId()]->getRole()->value,
+                    'join_method' => $targetMapEntities[$departmentEntity->getDepartmentId()]->getJoinMethod()->value,
                 ];
             }
         }
@@ -210,12 +230,19 @@ class ProjectMemberAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $userId = $dataIsolation->getCurrentUserId();
+        $currentOrganizationCode = $dataIsolation->getCurrentOrganizationCode();
         $type = $requestDTO->getType() ?: 'received';
 
-        // 根据类型获取项目ID列表
+        // 1. 获取用户协作项目中付费的组织编码（非付费套餐不支持项目协作）
+        $collaborationPaidOrganizationCodes = $this->getUserCollaborationPaidOrganizationCodes($requestContext);
+
+        // 2. 将当前组织编码也加入列表（用于过滤）
+        $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$currentOrganizationCode]));
+
+        // 3. 根据类型获取项目ID列表
         $collaborationProjects = match ($type) {
-            'shared' => $this->getSharedProjectIds($userId, $dataIsolation->getCurrentOrganizationCode(), $requestDTO),
-            default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO),
+            'shared' => $this->getSharedProjectIds($userId, $currentOrganizationCode, $requestDTO),
+            default => $this->getReceivedProjectIds($userId, $dataIsolation, $requestDTO, $paidOrganizationCodes),
         };
 
         $projectIds = array_column($collaborationProjects['list'], 'project_id');
@@ -335,7 +362,7 @@ class ProjectMemberAppService extends AbstractAppService
         }
 
         // 3. 批量获取创建者用户详细信息
-        $userEntities = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($creatorUserIds);
 
         // 4. 更新头像URL
         $this->updateUserAvatarUrl($dataIsolation, $userEntities);
@@ -357,6 +384,12 @@ class ProjectMemberAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        // 1. 获取用户协作项目中付费的组织编码（非付费套餐不支持项目协作）
+        $collaborationPaidOrganizationCodes = $this->getUserCollaborationPaidOrganizationCodes($requestContext);
+
+        // 2. 将当前组织编码也加入列表（用于过滤）
+        $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$userAuthorization->getOrganizationCode()]));
+
         // 1. 获取用户参与的项目列表
         $result = $this->projectMemberDomainService->getParticipatedProjectsWithCollaboration(
             $dataIsolation->getCurrentUserId(),
@@ -364,7 +397,8 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getShowCollaboration(),
             $requestDTO->getProjectName(),
             $requestDTO->getPage(),
-            $requestDTO->getPageSize()
+            $requestDTO->getPageSize(),
+            $paidOrganizationCodes
         );
 
         // 2. 提取工作区ID并获取名称
@@ -386,10 +420,167 @@ class ProjectMemberAppService extends AbstractAppService
     }
 
     /**
-     * 获取他人分享给我的项目ID列表.
-     * @param mixed $dataIsolation
+     * 添加项目成员（仅支持组织内部成员）.
      */
-    private function getReceivedProjectIds(string $userId, $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO): array
+    public function createMembers(RequestContext $requestContext, int $projectId, CreateMembersRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 1. 获取项目并验证用户是否为项目管理者或所有者
+        $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
+
+        // 2. 检查项目协作是否开启
+        if (! $project->getIsCollaborationEnabled()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.collaboration_disabled');
+        }
+
+        // 3. 提取请求数据
+        $members = $requestDTO->getMembers();
+
+        // 4. 构建成员实体列表
+        $memberEntities = [];
+
+        // 4.1 批量验证目标用户/部门在当前组织内
+        $this->validateTargetsInOrganization($members, $organizationCode);
+
+        foreach ($members as $memberData) {
+            $memberEntity = new ProjectMemberEntity();
+            $memberEntity->setProjectId($projectId);
+            $memberEntity->setTargetType(MemberType::from($memberData['target_type']));
+            $memberEntity->setTargetId($memberData['target_id']);
+            $memberEntity->setRole(MemberRole::validatePermissionLevel($memberData['role']));
+            $memberEntity->setOrganizationCode($organizationCode);
+            $memberEntity->setInvitedBy($currentUserId);
+            $memberEntity->setStatus(MemberStatus::ACTIVE);
+
+            $memberEntities[] = $memberEntity;
+        }
+
+        // 5. 添加成员
+        $this->projectMemberDomainService->addInternalMembers($memberEntities, $organizationCode);
+
+        // 6. 获取完整的成员信息（复用现有获取成员列表的逻辑）
+        $addedMemberIds = array_map(fn ($entity) => $entity->getTargetId(), $memberEntities);
+
+        return $this->projectMemberDomainService->getMembersByIds($projectId, $addedMemberIds);
+    }
+
+    /**
+     * 批量更新成员权限.
+     */
+    public function updateProjectMemberRoles(RequestContext $requestContext, int $projectId, BatchUpdateMembersRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 1. 验证权限
+        $project = $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
+
+        // 2. 提取请求数据
+        $members = $requestDTO->getMembers();
+
+        // 3. 验证批量操作 - 提取target_id并验证
+        $targetIds = array_column($members, 'target_id');
+
+        // 检查是否尝试修改项目创建者权限（如果创建者是成员）
+        if (in_array($project->getCreatedUid(), $targetIds, true)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.cannot_modify_creator_permission');
+        }
+
+        // 4. 验证目标用户/部门在当前组织内
+        $organizationCode = $requestContext->getUserAuthorization()->getOrganizationCode();
+        $this->validateTargetsInOrganization($members, $organizationCode);
+
+        // 5. 转换数据格式供DomainService使用
+        $permissionUpdates = [];
+        foreach ($members as $member) {
+            $permissionUpdates[] = [
+                'target_type' => $member['target_type'],
+                'target_id' => $member['target_id'],
+                'role' => $member['role'],
+            ];
+        }
+
+        // 6. 执行批量权限更新
+        $this->projectMemberDomainService->batchUpdateRole($projectId, $permissionUpdates);
+
+        return [];
+    }
+
+    /**
+     * 批量删除成员.
+     */
+    public function deleteMembers(RequestContext $requestContext, int $projectId, array $members): void
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $currentUserId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+
+        // 获取项目
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+
+        $targetIds = array_column($members, 'target_id');
+
+        // 检查是否删除自己
+        if (in_array($currentUserId, $targetIds)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        // 不能是否删除创建者
+        if (in_array($project->getUserId(), $targetIds)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        // 1. 验证权限
+        $this->getAccessibleProjectWithManager($projectId, $currentUserId, $organizationCode);
+
+        // 2. 执行批量删除
+        $this->projectMemberDomainService->deleteMembersByIds($projectId, $targetIds);
+    }
+
+    /**
+     * 获取用户协作项目中付费的组织编码.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 付费套餐的组织编码数组
+     */
+    public function getUserCollaborationPaidOrganizationCodes(RequestContext $requestContext): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $userId = $userAuthorization->getId();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        // 1. 获取用户所属的部门ID列表（包含父级部门）
+        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
+
+        // 2. 合并用户ID和部门ID作为协作者目标ID
+        $targetIds = array_merge([$userId], $departmentIds);
+
+        // 3. 通过协作者目标ID获取所有参与协作项目的组织编码（排除OWNER角色）
+        $projectIds = $this->projectMemberDomainService->getProjectIdsByCollaboratorTargets($targetIds);
+
+        $organizationCodes = $this->projectDomainService->getOrganizationCodesByProjectIds($projectIds);
+
+        if (empty($organizationCodes)) {
+            return [];
+        }
+
+        // 4. 通过PackageFilterInterface过滤出付费套餐的组织编码
+        return $this->packageFilterService->filterPaidOrganizations($organizationCodes);
+    }
+
+    /**
+     * 获取他人分享给我的项目ID列表.
+     *
+     * @param string $userId 用户ID
+     * @param DataIsolation $dataIsolation 数据隔离对象
+     * @param GetCollaborationProjectListRequestDTO $requestDTO 请求DTO
+     * @param array $organizationCodes 组织编码列表（用于过滤）
+     */
+    private function getReceivedProjectIds(string $userId, DataIsolation $dataIsolation, GetCollaborationProjectListRequestDTO $requestDTO, array $organizationCodes = []): array
     {
         // 获取用户所在的所有部门（包含父级部门）
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
@@ -398,14 +589,16 @@ class ProjectMemberAppService extends AbstractAppService
             true // 包含父级部门
         );
 
-        // 获取协作项目ID列表及总数
+        // 获取协作项目ID列表及总数（按组织编码过滤）
         return $this->projectMemberDomainService->getProjectIdsByUserAndDepartmentsWithTotal(
             $userId,
             $departmentIds,
             $requestDTO->getName(),
             $requestDTO->getSortField(),
             $requestDTO->getSortDirection(),
-            $requestDTO->getCreatorUserIds()
+            $requestDTO->getCreatorUserIds(),
+            $requestDTO->getJoinMethod(),
+            $organizationCodes
         );
     }
 
@@ -432,11 +625,13 @@ class ProjectMemberAppService extends AbstractAppService
      */
     private function buildCollaborationProjectResponse(DataIsolation $dataIsolation, array $projects, array $collaborationProjects, int $totalCount): array
     {
+        $userId = $dataIsolation->getCurrentUserId();
+
         // 1. 获取创建人信息
         $creatorUserIds = array_unique(array_map(fn ($project) => $project->getUserId(), $projects));
         $creatorInfoMap = [];
         if (! empty($creatorUserIds)) {
-            $creatorUsers = $this->magicUserDomainService->getByUserIds($dataIsolation, $creatorUserIds);
+            $creatorUsers = $this->magicUserDomainService->getUserByIdsWithoutOrganization($creatorUserIds);
             foreach ($creatorUsers as $user) {
                 $creatorInfoMap[$user->getUserId()] = CreatorInfoDTO::fromUserEntity($user);
             }
@@ -444,6 +639,11 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 2. 分别获取协作者信息（拆分接口）
         $projectIdsFromResult = array_map(fn ($project) => $project->getId(), $projects);
+
+        // 2.1 获取用户在这些项目中的最高权限角色
+        $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
+        $targetIds = array_merge([$userId], $departmentIds);
+        $userRolesMap = $this->projectMemberDomainService->getUserHighestRolesInProjects($projectIdsFromResult, $targetIds);
 
         // 2.1 获取项目成员总数
         $memberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIdsFromResult);
@@ -469,7 +669,7 @@ class ProjectMemberAppService extends AbstractAppService
             }
 
             // 获取用户和部门信息
-            $userEntities = ! empty($userIds) ? $this->magicUserDomainService->getByUserIds($dataIsolation, $userIds) : [];
+            $userEntities = ! empty($userIds) ? $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds) : [];
             $departmentEntities = ! empty($departmentIds) ? $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds) : [];
 
             // 直接创建CollaboratorMemberDTO数组
@@ -493,14 +693,15 @@ class ProjectMemberAppService extends AbstractAppService
         $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $projects));
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
-        // 4. 创建协作项目列表响应DTO
+        // 4. 创建协作项目列表响应DTO（包含用户角色）
         $collaborationListResponseDTO = CollaborationProjectListResponseDTO::fromProjectData(
             $projects,
             $collaborationProjects,
             $creatorInfoMap,
             $collaboratorsInfoMap,
             $workspaceNameMap,
-            $totalCount
+            $totalCount,
+            $userRolesMap
         );
 
         return $collaborationListResponseDTO->toArray();
@@ -547,5 +748,48 @@ class ProjectMemberAppService extends AbstractAppService
             'visible' => ! ($departmentInfo->getOption() === DepartmentOption::Hidden),
             'option' => $departmentInfo->getOption(),
         ];
+    }
+
+    /**
+     * 批量验证目标用户/部门在当前组织内.
+     */
+    private function validateTargetsInOrganization(array $members, string $organizationCode): void
+    {
+        // 分组收集用户ID和部门ID
+        $userIds = [];
+        $departmentIds = [];
+
+        foreach ($members as $member) {
+            if (MemberType::fromString($member['target_type'])->isUser()) {
+                $userIds[] = $member['target_id'];
+            } elseif (MemberType::fromString($member['target_type'])->isDepartment()) {
+                $departmentIds[] = $member['target_id'];
+            } else {
+                ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_TYPE);
+            }
+        }
+
+        // 批量验证用户
+        if (! empty($userIds)) {
+            $validUsers = $this->magicUserDomainService->getUserByIdsWithoutOrganization($userIds);
+            $validUserIds = array_map(fn ($user) => $user->getUserId(), $validUsers);
+
+            $invalidUserIds = array_diff($userIds, $validUserIds);
+            if (! empty($invalidUserIds)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.member_not_found');
+            }
+        }
+
+        // 批量验证部门
+        if (! empty($departmentIds)) {
+            $dataIsolation = DataIsolation::create($organizationCode, '');
+            $validDepartments = $this->departmentDomainService->getDepartmentByIds($dataIsolation, $departmentIds);
+            $validDepartmentIds = array_map(fn ($dept) => $dept->getDepartmentId(), $validDepartments);
+
+            $invalidDepartmentIds = array_diff($departmentIds, $validDepartmentIds);
+            if (! empty($invalidDepartmentIds)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::DEPARTMENT_NOT_FOUND, 'project.department_not_found');
+            }
+        }
     }
 }

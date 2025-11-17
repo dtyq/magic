@@ -24,6 +24,7 @@ use App\Domain\ModelGateway\Service\OrganizationConfigDomainService;
 use App\Domain\ModelGateway\Service\UserConfigDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
@@ -52,6 +53,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ImageWatermarkProcessor $imageWatermarkProcessor,
         protected PointComponentInterface $pointComponent,
         protected PackageFilterInterface $packageFilter,
+        protected ProviderModelDomainService $providerModelDomainService,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
@@ -99,6 +101,10 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
 
         // 设置业务参数
         $dataIsolation->setUserName($this->getBusinessParam('user_name', '', $businessParams));
+
+        if ($dataIsolation->getAccessToken()->getType()->isUser()) {
+            $dataIsolation->getSubscriptionManager()->setEnabled(false);
+        }
 
         return $dataIsolation;
     }

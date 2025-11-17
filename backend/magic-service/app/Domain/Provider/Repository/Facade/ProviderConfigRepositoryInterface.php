@@ -64,4 +64,12 @@ interface ProviderConfigRepositoryInterface
      * @return array<int, ProviderConfigEntity> 返回以id为key的配置实体数组
      */
     public function getByIdsWithoutOrganizationFilter(array $ids): array;
+
+    /**
+     * 获取组织下所有启用的服务商配置.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @return array<ProviderConfigEntity> 服务商配置实体数组
+     */
+    public function getAllByOrganization(ProviderDataIsolation $dataIsolation): array;
 }

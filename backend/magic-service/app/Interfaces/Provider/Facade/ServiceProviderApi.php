@@ -212,6 +212,17 @@ class ServiceProviderApi extends AbstractApi
     }
 
     /**
+     * 获取所有可用的LLM服务商列表（包括官方服务商）.
+     */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODEL, MagicResourceEnum::ADMIN_AI_IMAGE], MagicOperationEnum::QUERY)]
+    public function getAllAvailableLlmProviders()
+    {
+        $authenticatable = $this->getAuthorization();
+        // 获取所有LLM类型的服务商（包括Official）
+        return $this->adminProviderAppService->getAllAvailableLlmProviders(Category::LLM, $authenticatable->getOrganizationCode());
+    }
+
+    /**
      * Get super magic display models and Magic provider models visible to current organization.
      * @return SuperMagicModelDTO[]
      */

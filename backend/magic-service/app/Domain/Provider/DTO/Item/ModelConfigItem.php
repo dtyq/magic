@@ -33,6 +33,8 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $billingCurrency = null;
 
+    protected BillingType $billingType = BillingType::Tokens;
+
     protected ?string $inputPricing = null;
 
     protected ?string $outputPricing = null;
@@ -42,6 +44,18 @@ class ModelConfigItem extends AbstractDTO
     protected ?string $cacheHitPricing = null;
 
     protected bool $officialRecommended = false;
+
+    protected ?string $timePricing = null;
+
+    protected ?string $inputCost = null;
+
+    protected ?string $outputCost = null;
+
+    protected ?string $cacheHitCost = null;
+
+    protected ?string $cacheWriteCost = null;
+
+    protected ?string $timeCost = null;
 
     public function getMaxTokens(): ?int
     {
@@ -78,13 +92,7 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportMultiModal(null|bool|int|string $supportMultiModal): void
     {
-        if ($supportMultiModal === null) {
-            $this->supportMultiModal = false;
-        } elseif (is_string($supportMultiModal)) {
-            $this->supportMultiModal = in_array(strtolower($supportMultiModal), ['true', '1', 'yes', 'on']);
-        } else {
-            $this->supportMultiModal = (bool) $supportMultiModal;
-        }
+        $this->supportMultiModal = $this->parseBooleanValue($supportMultiModal);
     }
 
     public function isSupportEmbedding(): bool
@@ -94,13 +102,7 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportEmbedding(null|bool|int|string $supportEmbedding): void
     {
-        if ($supportEmbedding === null) {
-            $this->supportEmbedding = false;
-        } elseif (is_string($supportEmbedding)) {
-            $this->supportEmbedding = in_array(strtolower($supportEmbedding), ['true', '1', 'yes', 'on']);
-        } else {
-            $this->supportEmbedding = (bool) $supportEmbedding;
-        }
+        $this->supportEmbedding = $this->parseBooleanValue($supportEmbedding);
     }
 
     public function isSupportFunction(): bool
@@ -110,13 +112,7 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportFunction(null|bool|int|string $supportFunction): void
     {
-        if ($supportFunction === null) {
-            $this->supportFunction = false;
-        } elseif (is_string($supportFunction)) {
-            $this->supportFunction = in_array(strtolower($supportFunction), ['true', '1', 'yes', 'on']);
-        } else {
-            $this->supportFunction = (bool) $supportFunction;
-        }
+        $this->supportFunction = $this->parseBooleanValue($supportFunction);
     }
 
     public function isSupportDeepThink(): bool
@@ -126,13 +122,7 @@ class ModelConfigItem extends AbstractDTO
 
     public function setSupportDeepThink(null|bool|int|string $supportDeepThink): void
     {
-        if ($supportDeepThink === null) {
-            $this->supportDeepThink = false;
-        } elseif (is_string($supportDeepThink)) {
-            $this->supportDeepThink = in_array(strtolower($supportDeepThink), ['true', '1', 'yes', 'on']);
-        } else {
-            $this->supportDeepThink = (bool) $supportDeepThink;
-        }
+        $this->supportDeepThink = $this->parseBooleanValue($supportDeepThink);
     }
 
     public function isRecommended(): bool
@@ -231,59 +221,97 @@ class ModelConfigItem extends AbstractDTO
 
     public function setInputPricing(null|float|string $inputPricing): void
     {
-        if ($inputPricing === null) {
-            $this->inputPricing = null;
-        } else {
-            $pricing = (float) $inputPricing;
-            if ($pricing < 0) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
-            }
-            $this->inputPricing = (string) $inputPricing;
-        }
+        $this->inputPricing = $this->validateAndSetPricing($inputPricing);
     }
 
     public function setOutputPricing(null|float|string $outputPricing): void
     {
-        if ($outputPricing === null) {
-            $this->outputPricing = null;
-        } else {
-            $pricing = (float) $outputPricing;
-            if ($pricing < 0) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
-            }
-            $this->outputPricing = (string) $outputPricing;
-        }
+        $this->outputPricing = $this->validateAndSetPricing($outputPricing);
     }
 
     public function setCacheWritePricing(null|float|string $cacheWritePricing): void
     {
-        if ($cacheWritePricing === null) {
-            $this->cacheWritePricing = null;
-        } else {
-            $pricing = (float) $cacheWritePricing;
-            if ($pricing < 0) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
-            }
-            $this->cacheWritePricing = (string) $cacheWritePricing;
-        }
+        $this->cacheWritePricing = $this->validateAndSetPricing($cacheWritePricing);
     }
 
     public function setCacheHitPricing(null|float|string $cacheHitPricing): void
     {
-        if ($cacheHitPricing === null) {
-            $this->cacheHitPricing = null;
-        } else {
-            $pricing = (float) $cacheHitPricing;
-            if ($pricing < 0) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
-            }
-            $this->cacheHitPricing = (string) $cacheHitPricing;
-        }
+        $this->cacheHitPricing = $this->validateAndSetPricing($cacheHitPricing);
     }
 
     public function setOfficialRecommended(bool $officialRecommended): void
     {
         $this->officialRecommended = $officialRecommended;
+    }
+
+    public function getBillingType(): BillingType
+    {
+        return $this->billingType;
+    }
+
+    public function setBillingType(BillingType|string $billingType): void
+    {
+        $this->billingType = $billingType instanceof BillingType ? $billingType : BillingType::tryFrom($billingType) ?? BillingType::Tokens;
+    }
+
+    public function getTimePricing(): ?string
+    {
+        return $this->timePricing;
+    }
+
+    public function setTimePricing(?string $timePricing): void
+    {
+        $this->timePricing = $timePricing;
+    }
+
+    public function getInputCost(): ?string
+    {
+        return $this->inputCost;
+    }
+
+    public function setInputCost(null|float|string $inputCost): void
+    {
+        $this->inputCost = $this->validateAndSetPricing($inputCost);
+    }
+
+    public function getOutputCost(): ?string
+    {
+        return $this->outputCost;
+    }
+
+    public function setOutputCost(null|float|string $outputCost): void
+    {
+        $this->outputCost = $this->validateAndSetPricing($outputCost);
+    }
+
+    public function getCacheHitCost(): ?string
+    {
+        return $this->cacheHitCost;
+    }
+
+    public function setCacheHitCost(null|float|string $cacheHitCost): void
+    {
+        $this->cacheHitCost = $this->validateAndSetPricing($cacheHitCost);
+    }
+
+    public function getCacheWriteCost(): ?string
+    {
+        return $this->cacheWriteCost;
+    }
+
+    public function setCacheWriteCost(null|float|string $cacheWriteCost): void
+    {
+        $this->cacheWriteCost = $this->validateAndSetPricing($cacheWriteCost);
+    }
+
+    public function getTimeCost(): ?string
+    {
+        return $this->timeCost;
+    }
+
+    public function setTimeCost(null|float|string $timeCost): void
+    {
+        $this->timeCost = $this->validateAndSetPricing($timeCost);
     }
 
     private function handleCreativityAndTemperatureConflict(): void
@@ -292,5 +320,38 @@ class ModelConfigItem extends AbstractDTO
             // 优先保留 temperature，将 creativity 设为 null
             $this->creativity = null;
         }
+    }
+
+    /**
+     * 解析布尔值（统一处理逻辑）.
+     */
+    private function parseBooleanValue(null|bool|int|string $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        if (is_string($value)) {
+            return in_array(strtolower($value), ['true', '1', 'yes', 'on'], true);
+        }
+
+        return (bool) $value;
+    }
+
+    /**
+     * 验证并设置价格/成本（统一处理逻辑）.
+     */
+    private function validateAndSetPricing(null|float|string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue < 0) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+        }
+
+        return (string) $value;
     }
 }

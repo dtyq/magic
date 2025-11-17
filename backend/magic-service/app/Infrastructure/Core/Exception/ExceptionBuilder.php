@@ -49,7 +49,7 @@ class ExceptionBuilder
      */
     public static function throw(BackedEnum $error, string $message = '', array $replace = [], ?string $locale = null, ?Throwable $throwable = null): void
     {
-        if ($throwable) {
+        if ($throwable && ! $throwable instanceof BusinessException) {
             // 记录原始异常信息
             $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(__CLASS__);
             $logger->error(sprintf(

@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiReq
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\GPT\GPT4oModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Midjourney\MidjourneyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Official\OfficialProxyModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageEditModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineImageGenerateV3Model;
@@ -29,6 +30,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\OfficialProxyRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageEditRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\VolcengineModelRequest;
@@ -55,6 +57,7 @@ class ImageGenerateFactory
     public static function create(ImageGenerateModelType $imageGenerateType, array $serviceProviderConfig): ImageGenerate
     {
         return match ($imageGenerateType) {
+            ImageGenerateModelType::Official => new OfficialProxyModel($serviceProviderConfig),
             ImageGenerateModelType::Midjourney => new MidjourneyModel($serviceProviderConfig),
             ImageGenerateModelType::Volcengine => new VolcengineModel($serviceProviderConfig),
             ImageGenerateModelType::VolcengineImageGenerateV3 => new VolcengineImageGenerateV3Model($serviceProviderConfig),
@@ -74,6 +77,7 @@ class ImageGenerateFactory
     public static function createRequestType(ImageGenerateModelType $imageGenerateType, array $data): ImageGenerateRequest
     {
         return match ($imageGenerateType) {
+            ImageGenerateModelType::Official => self::createOfficialProxyRequest($data),
             ImageGenerateModelType::Volcengine => self::createVolcengineRequest($data),
             ImageGenerateModelType::VolcengineImageGenerateV3 => self::createVolcengineRequest($data),
             ImageGenerateModelType::Midjourney => self::createMidjourneyRequest($data),
@@ -87,6 +91,18 @@ class ImageGenerateFactory
             ImageGenerateModelType::VolcengineArk => self::createVolcengineArkRequest($data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
+    }
+
+    private static function createOfficialProxyRequest(array $data): OfficialProxyRequest
+    {
+        return new OfficialProxyRequest([
+            'prompt' => $data['user_prompt'] ?? '',
+            'model' => $data['model'] ?? '',
+            'n' => $data['generate_num'] ?? 1,
+            'sequential_image_generation' => $data['sequential_image_generation'] ?? 'disabled',
+            'size' => $data['size'] ?? '1024x1024',
+            'images' => $data['reference_images'] ?? [],
+        ]);
     }
 
     private static function createGPT4oRequest(array $data): GPT4oModelRequest

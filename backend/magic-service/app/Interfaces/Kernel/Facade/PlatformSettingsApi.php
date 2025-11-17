@@ -106,15 +106,15 @@ class PlatformSettingsApi
     {
         $logo = [];
         foreach (($settings['logo_urls'] ?? []) as $locale => $url) {
-            $logo[$locale] = ['url' => $url];
+            $logo[$locale] = $url;
         }
-        $favicon = [];
+        $favicon = null;
         if (! empty($settings['favicon_url'] ?? '')) {
-            $favicon = ['url' => (string) $settings['favicon_url']];
+            $favicon = (string) $settings['favicon_url'];
         }
-        $minimalLogo = [];
+        $minimalLogo = null;
         if (! empty($settings['minimal_logo_url'] ?? '')) {
-            $minimalLogo = ['url' => (string) $settings['minimal_logo_url']];
+            $minimalLogo = (string) $settings['minimal_logo_url'];
         }
         $resp = [
             'logo' => $logo,

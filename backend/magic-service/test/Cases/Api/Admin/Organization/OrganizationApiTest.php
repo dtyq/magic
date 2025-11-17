@@ -27,7 +27,6 @@ class OrganizationApiTest extends BaseTest
         ];
 
         $response = $this->get($this->baseUri . '?' . http_build_query($query), [], $headers);
-        var_dump($response);
 
         $this->assertIsArray($response);
         $this->assertArrayHasKey('code', $response);

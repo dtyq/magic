@@ -7,11 +7,18 @@ declare(strict_types=1);
 
 namespace App\Application\Contact\Service;
 
+use App\Application\Contact\DTO\MagicUserOrganizationItemDTO;
+use App\Application\Contact\DTO\MagicUserOrganizationListDTO;
+use App\Application\Contact\Support\OrganizationProductResolver;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
+use App\Domain\OrganizationEnvironment\Service\OrganizationDomainService;
+use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\Di\Annotation\Inject;
+use Throwable;
 
 /**
  * 用户当前组织应用服务
@@ -26,6 +33,15 @@ class MagicUserOrganizationAppService
 
     #[Inject]
     protected MagicOrganizationEnvDomainService $organizationEnvDomainService;
+
+    #[Inject]
+    protected OrganizationDomainService $organizationDomainService;
+
+    #[Inject]
+    protected OrganizationAdminDomainService $organizationAdminDomainService;
+
+    #[Inject]
+    protected OrganizationProductResolver $organizationProductResolver;
 
     /**
      * 获取用户当前组织代码
@@ -62,5 +78,83 @@ class MagicUserOrganizationAppService
 
         $this->userSettingAppService->saveCurrentOrganizationDataByMagicId($magicId, $organizationData);
         return $organizationData;
+    }
+
+    /**
+     * 获取账号下可用组织列表（仅包含启用状态组织）。
+     *
+     * @throws Throwable
+     */
+    public function getOrganizationsByAuthorization(string $authorization): MagicUserOrganizationListDTO
+    {
+        $userDetails = $this->userDomainService->getUsersDetailByAccountFromAuthorization($authorization);
+        if (empty($userDetails)) {
+            return new MagicUserOrganizationListDTO();
+        }
+
+        $organizationUserMap = [];
+        $magicId = null;
+        foreach ($userDetails as $detail) {
+            $organizationCode = $detail->getOrganizationCode();
+            if ($organizationCode === '') {
+                continue;
+            }
+
+            if (! isset($organizationUserMap[$organizationCode])) {
+                $organizationUserMap[$organizationCode] = $detail->getUserId();
+            }
+
+            if ($magicId === null) {
+                $magicId = $detail->getMagicId();
+            }
+        }
+
+        if ($magicId === null || empty($organizationUserMap)) {
+            return new MagicUserOrganizationListDTO();
+        }
+
+        $organizations = $this->organizationDomainService->getByCodes(array_keys($organizationUserMap));
+        if (empty($organizations)) {
+            return new MagicUserOrganizationListDTO();
+        }
+
+        $currentOrganizationData = $this->getCurrentOrganizationCode($magicId) ?? [];
+        $currentOrganizationCode = $currentOrganizationData['magic_organization_code'] ?? null;
+
+        $listDTO = new MagicUserOrganizationListDTO();
+        foreach ($organizations as $organizationCode => $organizationEntity) {
+            if ($organizationEntity === null || ! $organizationEntity->isNormal()) {
+                continue;
+            }
+
+            $userId = $organizationUserMap[$organizationCode] ?? null;
+            if ($userId === null || $userId === '') {
+                continue;
+            }
+
+            $dataIsolation = DataIsolation::create($organizationCode, $userId);
+            $isAdmin = $this->organizationAdminDomainService->isOrganizationAdmin($dataIsolation, $userId);
+            $isCreator = $this->organizationAdminDomainService->isOrganizationCreator($dataIsolation, $userId);
+
+            $subscriptionInfo = $this->organizationProductResolver->resolveSubscriptionInfo($organizationCode, $userId);
+
+            $item = new MagicUserOrganizationItemDTO([
+                'magic_organization_code' => $organizationCode,
+                'name' => $organizationEntity->getName(),
+                'organization_type' => $organizationEntity->getType(),
+                'logo' => $organizationEntity->getLogo(),
+                'seats' => $organizationEntity->getSeats(),
+                'is_current' => $organizationCode === $currentOrganizationCode,
+                'is_admin' => $isAdmin,
+                'is_creator' => $isCreator,
+                'product_name' => $subscriptionInfo['product_name'] ?? null,
+                'plan_type' => $subscriptionInfo['plan_type'] ?? null,
+                'subscription_tier' => $subscriptionInfo['subscription_tier'] ?? null,
+            ]);
+
+            $listDTO->addItem($item);
+        }
+
+        return $listDTO;
     }
 }
