@@ -56,7 +56,7 @@ class BingSearch
          * 使用 bing 搜索并返回上下文。
          */
 
-        $endpoint = trim(config('search.bing.endpoint'));
+        $endpoint = trim(config('search.drivers.bing.endpoint'));
 
         // 确保 endpoint 以 /search 结尾
         if (! str_ends_with($endpoint, '/search')) {

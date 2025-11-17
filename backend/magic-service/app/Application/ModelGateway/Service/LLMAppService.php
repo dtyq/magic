@@ -52,6 +52,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRe
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Search\BingSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\Factory\SearchEngineAdapterFactory;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
@@ -371,7 +372,7 @@ class LLMAppService extends AbstractLLMAppService
             $startTime = microtime(true);
 
             // 5. Get Bing API key from config
-            $subscriptionKey = config('search.bing.api_key');
+            $subscriptionKey = config('search.drivers.bing.api_key');
             if (empty($subscriptionKey)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Bing Search API key is not configured');
             }
@@ -431,7 +432,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param SearchRequestDTO $searchRequestDTO Search request DTO with unified parameters
      * @return array Unified Bing-compatible format response
      */
-    public function unifiedSearch(SearchRequestDTO $searchRequestDTO): array
+    public function unifiedSearch(SearchRequestDTO $searchRequestDTO): SearchResponseDTO
     {
         // 1. Validate access token
         $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken(
@@ -493,13 +494,13 @@ class LLMAppService extends AbstractLLMAppService
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
             // 9. Add metadata to response
-            $unifiedResponse['_metadata'] = [
+            $unifiedResponse->setMetadata([
                 'engine' => $adapter->getEngineName(),
                 'responseTime' => $responseTime,
                 'query' => $searchRequestDTO->getQuery(),
                 'count' => $searchRequestDTO->getCount(),
                 'offset' => $searchRequestDTO->getOffset(),
-            ];
+            ]);
 
             $businessParams = $searchRequestDTO->getBusinessParams();
             $businessParams['response_time'] = $responseTime;
@@ -512,14 +513,15 @@ class LLMAppService extends AbstractLLMAppService
             AsyncEventUtil::dispatch($webSearchUsageEvent);
 
             // 10. Log success
+            $webPages = $unifiedResponse->getWebPages();
             $this->logger->info('UnifiedSearchSuccess', [
                 'access_token_id' => $accessTokenEntity->getId(),
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'engine' => $adapter->getEngineName(),
                 'query' => $searchRequestDTO->getQuery(),
-                'result_count' => count($unifiedResponse['webPages']['value'] ?? []),
-                'total_matches' => $unifiedResponse['webPages']['totalEstimatedMatches'] ?? 0,
+                'result_count' => $webPages ? count($webPages->getValue()) : 0,
+                'total_matches' => $webPages ? $webPages->getTotalEstimatedMatches() : 0,
                 'response_time' => $responseTime,
             ]);
 

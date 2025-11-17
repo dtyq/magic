@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\CloudswaySearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,7 +33,7 @@ class CloudswaySearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
+    ): SearchResponseDTO {
         // Call Cloudsway search
         // Note: CloudswaySearch doesn't use safeSearch parameter
         $rawResponse = $this->cloudswaySearch->search(
@@ -42,8 +45,62 @@ class CloudswaySearchAdapter implements SearchEngineAdapterInterface
             $setLang
         );
 
-        // Convert Cloudsway response to unified Bing-compatible format
+        // Convert Cloudsway response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $cloudswayResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+
+        // Check if Cloudsway already returns Bing-compatible format
+        if (isset($cloudswayResponse['webPages'])) {
+            // Already in Bing format, convert to DTO
+            $webPagesData = $cloudswayResponse['webPages'];
+            $webPages = new WebPagesDTO();
+            $webPages->setTotalEstimatedMatches($webPagesData['totalEstimatedMatches'] ?? 0);
+
+            $items = [];
+            foreach ($webPagesData['value'] ?? [] as $item) {
+                $resultItem = new SearchResultItemDTO();
+                $resultItem->setId($item['id'] ?? '');
+                $resultItem->setName($item['name'] ?? '');
+                $resultItem->setUrl($item['url'] ?? '');
+                $resultItem->setSnippet($item['snippet'] ?? '');
+                $resultItem->setDisplayUrl($item['displayUrl'] ?? '');
+                $resultItem->setDateLastCrawled($item['dateLastCrawled'] ?? '');
+                $items[] = $resultItem;
+            }
+            $webPages->setValue($items);
+            $response->setWebPages($webPages);
+        } else {
+            // Otherwise, convert (adjust based on actual Cloudsway response structure)
+            $results = $cloudswayResponse['results'] ?? $cloudswayResponse['data'] ?? [];
+
+            $webPages = new WebPagesDTO();
+            $webPages->setTotalEstimatedMatches(
+                $cloudswayResponse['totalEstimatedMatches']
+                ?? $cloudswayResponse['total']
+                ?? count($results)
+            );
+
+            $resultItems = [];
+            foreach ($results as $index => $item) {
+                $resultItem = new SearchResultItemDTO();
+                $resultItem->setId($item['id'] ?? (string) $index);
+                $resultItem->setName($item['name'] ?? $item['title'] ?? '');
+                $resultItem->setUrl($item['url'] ?? '');
+                $resultItem->setSnippet($item['snippet'] ?? $item['description'] ?? $item['content'] ?? '');
+                $resultItem->setDisplayUrl($item['displayUrl'] ?? $this->extractDomain($item['url'] ?? ''));
+                $resultItem->setDateLastCrawled($item['dateLastCrawled'] ?? '');
+                $resultItems[] = $resultItem;
+            }
+            $webPages->setValue($resultItems);
+            $response->setWebPages($webPages);
+        }
+
+        $response->setRawResponse($cloudswayResponse);
+        return $response;
     }
 
     public function getEngineName(): string
@@ -53,43 +110,8 @@ class CloudswaySearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.cloudsway.endpoint'))
-            && ! empty($this->config->get('search.cloudsway.access_key'));
-    }
-
-    /**
-     * Convert Cloudsway response to Bing-compatible format.
-     * Assuming Cloudsway returns a structure similar to Bing or needs conversion.
-     */
-    private function convertToUnifiedFormat(array $cloudswayResponse): array
-    {
-        // Check if Cloudsway already returns Bing-compatible format
-        if (isset($cloudswayResponse['webPages'])) {
-            // Already in Bing format
-            return $cloudswayResponse;
-        }
-
-        // Otherwise, convert (adjust based on actual Cloudsway response structure)
-        $results = $cloudswayResponse['results'] ?? $cloudswayResponse['data'] ?? [];
-
-        return [
-            'webPages' => [
-                'totalEstimatedMatches' => $cloudswayResponse['totalEstimatedMatches']
-                    ?? $cloudswayResponse['total']
-                    ?? count($results),
-                'value' => array_map(function ($item, $index) {
-                    return [
-                        'id' => $item['id'] ?? (string) $index,
-                        'name' => $item['name'] ?? $item['title'] ?? '',
-                        'url' => $item['url'] ?? '',
-                        'snippet' => $item['snippet'] ?? $item['description'] ?? $item['content'] ?? '',
-                        'displayUrl' => $item['displayUrl'] ?? $this->extractDomain($item['url'] ?? ''),
-                        'dateLastCrawled' => $item['dateLastCrawled'] ?? '',
-                    ];
-                }, $results, array_keys($results)),
-            ],
-            '_rawResponse' => $cloudswayResponse,
-        ];
+        return ! empty($this->config->get('search.drivers.cloudsway.endpoint'))
+            && ! empty($this->config->get('search.drivers.cloudsway.access_key'));
     }
 
     /**

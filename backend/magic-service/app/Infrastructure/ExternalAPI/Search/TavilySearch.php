@@ -22,7 +22,7 @@ class TavilySearch
     public function __construct(Client $client, ConfigInterface $config)
     {
         $this->client = $client;
-        $apiKey = $config->get('search.tavily.api_key');
+        $apiKey = $config->get('search.drivers.tavily.api_key');
         $this->apiKeys = explode(',', $apiKey);
     }
 

@@ -49,9 +49,9 @@ class CloudswaySearch
         string $setLang = ''
     ): array {
         // 从配置文件读取参数
-        $basePath = config('search.cloudsway.base_path');
-        $endpoint = config('search.cloudsway.endpoint');
-        $accessKey = config('search.cloudsway.access_key');
+        $basePath = config('search.drivers.cloudsway.base_path');
+        $endpoint = config('search.drivers.cloudsway.endpoint');
+        $accessKey = config('search.drivers.cloudsway.access_key');
 
         // 构建完整 URL: https://{BasePath}/search/{Endpoint}/smart
         $url = rtrim($basePath, '/') . '/search/' . trim($endpoint, '/') . '/smart';

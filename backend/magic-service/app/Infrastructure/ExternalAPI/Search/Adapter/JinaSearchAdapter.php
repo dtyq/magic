@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\JinaSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,8 +33,8 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
-        $apiKey = $this->config->get('search.jina.api_key');
+    ): SearchResponseDTO {
+        $apiKey = $this->config->get('search.drivers.jina.api_key');
 
         // Call Jina search with all parameters
         // The service now handles parameter mapping internally
@@ -46,8 +49,33 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
             $setLang
         );
 
-        // Convert Jina response to unified Bing-compatible format
+        // Convert Jina response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $jinaResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+        $response->setRawResponse($jinaResponse);
+
+        $webPages = new WebPagesDTO();
+        $webPages->setTotalEstimatedMatches(count($jinaResponse));
+
+        $resultItems = [];
+        foreach ($jinaResponse as $index => $item) {
+            $resultItem = new SearchResultItemDTO();
+            $resultItem->setId((string) $index);
+            $resultItem->setName($item['title'] ?? '');
+            $resultItem->setUrl($item['url'] ?? '');
+            $resultItem->setSnippet($item['content'] ?? $item['description'] ?? '');
+            $resultItem->setDisplayUrl($this->extractDomain($item['url'] ?? ''));
+            $resultItem->setDateLastCrawled(''); // Jina doesn't provide this
+            $resultItems[] = $resultItem;
+        }
+        $webPages->setValue($resultItems);
+        $response->setWebPages($webPages);
+
+        return $response;
     }
 
     public function getEngineName(): string
@@ -59,29 +87,6 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
     {
         // Jina can work without API key, but better with it
         return true;
-    }
-
-    /**
-     * Convert Jina response to Bing-compatible format.
-     */
-    private function convertToUnifiedFormat(array $jinaResponse): array
-    {
-        return [
-            'webPages' => [
-                'totalEstimatedMatches' => count($jinaResponse),
-                'value' => array_map(function ($item, $index) {
-                    return [
-                        'id' => (string) $index,
-                        'name' => $item['title'] ?? '',
-                        'url' => $item['url'] ?? '',
-                        'snippet' => $item['content'] ?? $item['description'] ?? '',
-                        'displayUrl' => $this->extractDomain($item['url'] ?? ''),
-                        'dateLastCrawled' => '', // Jina doesn't provide this
-                    ];
-                }, $jinaResponse, array_keys($jinaResponse)),
-            ],
-            '_rawResponse' => $jinaResponse,
-        ];
     }
 
     /**

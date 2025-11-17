@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\GoogleSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,9 +33,9 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
-        $apiKey = $this->config->get('search.google.api_key');
-        $cx = $this->config->get('search.google.cx');
+    ): SearchResponseDTO {
+        $apiKey = $this->config->get('search.drivers.google.api_key');
+        $cx = $this->config->get('search.drivers.google.cx');
 
         // Call GoogleSearch with all parameters
         $rawResponse = $this->googleSearch->search(
@@ -47,8 +50,36 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
             $setLang
         );
 
-        // Convert Google response to unified Bing-compatible format
+        // Convert Google response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $googleResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+        $response->setRawResponse($googleResponse);
+
+        $items = $googleResponse['items'] ?? [];
+        $totalResults = (int) ($googleResponse['searchInformation']['totalResults'] ?? 0);
+
+        $webPages = new WebPagesDTO();
+        $webPages->setTotalEstimatedMatches($totalResults);
+
+        $resultItems = [];
+        foreach ($items as $item) {
+            $resultItem = new SearchResultItemDTO();
+            $resultItem->setId($item['cacheId'] ?? uniqid('google_'));
+            $resultItem->setName($item['title'] ?? '');
+            $resultItem->setUrl($item['link'] ?? '');
+            $resultItem->setSnippet($item['snippet'] ?? '');
+            $resultItem->setDisplayUrl($item['displayLink'] ?? '');
+            $resultItem->setDateLastCrawled(''); // Google doesn't provide this
+            $resultItems[] = $resultItem;
+        }
+        $webPages->setValue($resultItems);
+        $response->setWebPages($webPages);
+
+        return $response;
     }
 
     public function getEngineName(): string
@@ -58,33 +89,7 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.google.api_key'))
-            && ! empty($this->config->get('search.google.cx'));
-    }
-
-    /**
-     * Convert Google Custom Search response to Bing-compatible format.
-     */
-    private function convertToUnifiedFormat(array $googleResponse): array
-    {
-        $items = $googleResponse['items'] ?? [];
-        $totalResults = (int) ($googleResponse['searchInformation']['totalResults'] ?? 0);
-
-        return [
-            'webPages' => [
-                'totalEstimatedMatches' => $totalResults,
-                'value' => array_map(function ($item) {
-                    return [
-                        'id' => $item['cacheId'] ?? uniqid('google_'),
-                        'name' => $item['title'] ?? '',
-                        'url' => $item['link'] ?? '',
-                        'snippet' => $item['snippet'] ?? '',
-                        'displayUrl' => $item['displayLink'] ?? '',
-                        'dateLastCrawled' => '', // Google doesn't provide this
-                    ];
-                }, $items),
-            ],
-            '_rawResponse' => $googleResponse,
-        ];
+        return ! empty($this->config->get('search.drivers.google.api_key'))
+            && ! empty($this->config->get('search.drivers.google.cx'));
     }
 }

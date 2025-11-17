@@ -222,7 +222,7 @@ class OpenAIProxyApi extends AbstractOpenApi
         $searchRequestDTO->setIps($this->getClientIps());
 
         // 3. Call LLMAppService with unified search and return array directly
-        return $this->llmAppService->unifiedSearch($searchRequestDTO);
+        return $this->llmAppService->unifiedSearch($searchRequestDTO)->toArray();
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request): void

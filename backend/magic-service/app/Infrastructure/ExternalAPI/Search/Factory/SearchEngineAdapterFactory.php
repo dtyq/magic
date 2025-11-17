@@ -7,13 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Factory;
 
-use App\Infrastructure\ExternalAPI\Search\Adapter\BingSearchAdapter;
-use App\Infrastructure\ExternalAPI\Search\Adapter\CloudswaySearchAdapter;
-use App\Infrastructure\ExternalAPI\Search\Adapter\DuckDuckGoSearchAdapter;
-use App\Infrastructure\ExternalAPI\Search\Adapter\GoogleSearchAdapter;
-use App\Infrastructure\ExternalAPI\Search\Adapter\JinaSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\SearchEngineAdapterInterface;
-use App\Infrastructure\ExternalAPI\Search\Adapter\TavilySearchAdapter;
 use Hyperf\Contract\ConfigInterface;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
@@ -35,7 +29,7 @@ class SearchEngineAdapterFactory
      *
      * @param null|string $engine Engine name (bing|google|tavily|duckduckgo|jina|cloudsway).
      *                            If null, uses default from config.
-     * @throws RuntimeException If engine is not supported
+     * @throws RuntimeException If engine is not supported or class not found
      */
     public function create(?string $engine = null): SearchEngineAdapterInterface
     {
@@ -45,15 +39,26 @@ class SearchEngineAdapterFactory
         // Normalize engine name to lowercase
         $engine = strtolower(trim($engine));
 
-        return match ($engine) {
-            'bing' => $this->container->get(BingSearchAdapter::class),
-            'google' => $this->container->get(GoogleSearchAdapter::class),
-            'tavily' => $this->container->get(TavilySearchAdapter::class),
-            'duckduckgo' => $this->container->get(DuckDuckGoSearchAdapter::class),
-            'jina' => $this->container->get(JinaSearchAdapter::class),
-            'cloudsway' => $this->container->get(CloudswaySearchAdapter::class),
-            default => throw new RuntimeException("Unsupported search engine: {$engine}. Supported engines: bing, google, tavily, duckduckgo, jina, cloudsway"),
-        };
+        // Get driver configuration
+        $driverConfig = $this->config->get("search.drivers.{$engine}");
+
+        if (empty($driverConfig)) {
+            $supportedEngines = implode(', ', $this->getSupportedEngines());
+            throw new RuntimeException("Unsupported search engine: {$engine}. Supported engines: {$supportedEngines}");
+        }
+
+        // Get adapter class name from config
+        $className = $driverConfig['class_name'] ?? null;
+
+        if (empty($className)) {
+            throw new RuntimeException("No class_name configured for search engine: {$engine}");
+        }
+
+        if (! class_exists($className)) {
+            throw new RuntimeException("Adapter class not found: {$className}");
+        }
+
+        return $this->container->get($className);
     }
 
     /**
@@ -63,7 +68,8 @@ class SearchEngineAdapterFactory
      */
     public function getSupportedEngines(): array
     {
-        return ['bing', 'google', 'tavily', 'duckduckgo', 'jina', 'cloudsway'];
+        $drivers = $this->config->get('search.drivers', []);
+        return array_keys($drivers);
     }
 
     /**
@@ -74,3 +80,4 @@ class SearchEngineAdapterFactory
         return in_array(strtolower(trim($engine)), $this->getSupportedEngines(), true);
     }
 }
+

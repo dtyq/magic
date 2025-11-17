@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\BingSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,11 +33,11 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
-        $apiKey = $this->config->get('search.bing.api_key');
+    ): SearchResponseDTO {
+        $apiKey = $this->config->get('search.drivers.bing.api_key');
 
         // Call original BingSearch with all parameters
-        return $this->bingSearch->search(
+        $rawResponse = $this->bingSearch->search(
             $query,
             $apiKey,
             $mkt,
@@ -45,8 +48,36 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
             $setLang
         );
 
-        // Bing already returns the standard format, so return directly
-        // Note: We don't add _rawResponse here to avoid duplication
+        // Bing already returns the standard format, convert to DTO
+        return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $rawResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+
+        // Bing already returns in standard format
+        if (isset($rawResponse['webPages'])) {
+            $webPagesData = $rawResponse['webPages'];
+            $webPages = new WebPagesDTO();
+            $webPages->setTotalEstimatedMatches($webPagesData['totalEstimatedMatches'] ?? 0);
+
+            $items = [];
+            foreach ($webPagesData['value'] ?? [] as $item) {
+                $resultItem = new SearchResultItemDTO();
+                $resultItem->setId($item['id'] ?? '');
+                $resultItem->setName($item['name'] ?? '');
+                $resultItem->setUrl($item['url'] ?? '');
+                $resultItem->setSnippet($item['snippet'] ?? '');
+                $resultItem->setDisplayUrl($item['displayUrl'] ?? '');
+                $resultItem->setDateLastCrawled($item['dateLastCrawled'] ?? '');
+                $items[] = $resultItem;
+            }
+            $webPages->setValue($items);
+            $response->setWebPages($webPages);
+        }
+
+        return $response;
     }
 
     public function getEngineName(): string
@@ -56,6 +87,7 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.bing.api_key'));
+        return ! empty($this->config->get('search.drivers.bing.api_key'));
     }
 }
+

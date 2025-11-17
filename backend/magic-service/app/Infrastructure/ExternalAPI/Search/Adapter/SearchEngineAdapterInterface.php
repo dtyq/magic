@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+
 /**
  * Search engine adapter interface.
  * All search engine adapters must implement this interface to provide unified search functionality.
@@ -14,7 +16,7 @@ namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 interface SearchEngineAdapterInterface
 {
     /**
-     * Execute search with unified parameters and return unified response format (Bing-compatible).
+     * Execute search with unified parameters and return unified response format.
      *
      * @param string $query Search query keywords
      * @param string $mkt Market code (e.g., zh-CN, en-US)
@@ -23,24 +25,7 @@ interface SearchEngineAdapterInterface
      * @param string $safeSearch Safe search level (Strict/Moderate/Off)
      * @param string $freshness Time filter (Day/Week/Month)
      * @param string $setLang UI language code
-     * @return array Unified Bing-compatible format response with structure:
-     *               [
-     *               'webPages' => [
-     *               'totalEstimatedMatches' => int,
-     *               'value' => [
-     *               [
-     *               'id' => string,
-     *               'name' => string,      // title
-     *               'url' => string,
-     *               'snippet' => string,   // description
-     *               'displayUrl' => string (optional),
-     *               'dateLastCrawled' => string (optional),
-     *               ],
-     *               ...
-     *               ]
-     *               ],
-     *               '_rawResponse' => array (optional, for debugging),
-     *               ]
+     * @return SearchResponseDTO Unified search response with webPages data
      */
     public function search(
         string $query,
@@ -50,7 +35,15 @@ interface SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array;
+    ): SearchResponseDTO;
+
+    /**
+     * Convert raw search engine response to unified format.
+     *
+     * @param array $rawResponse Raw response from search engine API
+     * @return SearchResponseDTO Unified search response DTO
+     */
+    public function convertToUnifiedFormat(array $rawResponse): SearchResponseDTO;
 
     /**
      * Get search engine name.
@@ -67,3 +60,4 @@ interface SearchEngineAdapterInterface
      */
     public function isAvailable(): bool;
 }
+

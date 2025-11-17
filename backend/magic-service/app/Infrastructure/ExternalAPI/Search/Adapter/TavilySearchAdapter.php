@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\TavilySearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,17 +33,17 @@ class TavilySearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
+    ): SearchResponseDTO {
         // Tavily does not support offset pagination
         // If offset > 0, return empty results with warning
         if ($offset > 0) {
-            return [
-                'webPages' => [
-                    'totalEstimatedMatches' => 0,
-                    'value' => [],
-                ],
-                '_warning' => 'Tavily search does not support pagination (offset parameter is ignored)',
-            ];
+            $response = new SearchResponseDTO();
+            $response->setWarning('Tavily search does not support pagination (offset parameter is ignored)');
+            $webPages = new WebPagesDTO();
+            $webPages->setTotalEstimatedMatches(0);
+            $webPages->setValue([]);
+            $response->setWebPages($webPages);
+            return $response;
         }
 
         // Tavily uses maxResults parameter for count
@@ -50,8 +53,36 @@ class TavilySearchAdapter implements SearchEngineAdapterInterface
         // Call Tavily search
         $rawResponse = $this->tavilySearch->results($query, $maxResults);
 
-        // Convert Tavily response to unified Bing-compatible format
+        // Convert Tavily response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $tavilyResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+        $response->setRawResponse($tavilyResponse);
+
+        $results = $tavilyResponse['results'] ?? [];
+
+        $webPages = new WebPagesDTO();
+        $webPages->setTotalEstimatedMatches(count($results));
+
+        $resultItems = [];
+        foreach ($results as $index => $item) {
+            $resultItem = new SearchResultItemDTO();
+            $resultItem->setId((string) $index);
+            $resultItem->setName($item['title'] ?? '');
+            $resultItem->setUrl($item['url'] ?? '');
+            $resultItem->setSnippet($item['content'] ?? '');
+            $resultItem->setDisplayUrl($this->extractDomain($item['url'] ?? ''));
+            $resultItem->setDateLastCrawled(''); // Tavily doesn't provide this
+            $resultItem->setScore($item['score'] ?? null); // Tavily-specific relevance score
+            $resultItems[] = $resultItem;
+        }
+        $webPages->setValue($resultItems);
+        $response->setWebPages($webPages);
+
+        return $response;
     }
 
     public function getEngineName(): string
@@ -61,33 +92,7 @@ class TavilySearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.tavily.api_key'));
-    }
-
-    /**
-     * Convert Tavily response to Bing-compatible format.
-     */
-    private function convertToUnifiedFormat(array $tavilyResponse): array
-    {
-        $results = $tavilyResponse['results'] ?? [];
-
-        return [
-            'webPages' => [
-                'totalEstimatedMatches' => count($results),
-                'value' => array_map(function ($item, $index) {
-                    return [
-                        'id' => (string) $index,
-                        'name' => $item['title'] ?? '',
-                        'url' => $item['url'] ?? '',
-                        'snippet' => $item['content'] ?? '',
-                        'displayUrl' => $this->extractDomain($item['url'] ?? ''),
-                        'dateLastCrawled' => '', // Tavily doesn't provide this
-                        'score' => $item['score'] ?? 0, // Tavily-specific relevance score
-                    ];
-                }, $results, array_keys($results)),
-            ],
-            '_rawResponse' => $tavilyResponse,
-        ];
+        return ! empty($this->config->get('search.drivers.tavily.api_key'));
     }
 
     /**

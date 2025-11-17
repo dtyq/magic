@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
 use App\Infrastructure\ExternalAPI\Search\DuckDuckGoSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
+use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
 use Hyperf\Contract\ConfigInterface;
 
 /**
@@ -30,7 +33,7 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = ''
-    ): array {
+    ): SearchResponseDTO {
         // Adapter's job: Map unified parameters to DuckDuckGo-specific format
 
         // Map market code to DuckDuckGo region (e.g., zh-CN -> cn-zh)
@@ -54,8 +57,33 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
             $time     // Pass mapped time
         );
 
-        // Convert DuckDuckGo response to unified Bing-compatible format
+        // Convert DuckDuckGo response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
+    }
+
+    public function convertToUnifiedFormat(array $duckduckgoResponse): SearchResponseDTO
+    {
+        $response = new SearchResponseDTO();
+        $response->setRawResponse($duckduckgoResponse);
+
+        $webPages = new WebPagesDTO();
+        $webPages->setTotalEstimatedMatches(count($duckduckgoResponse));
+
+        $resultItems = [];
+        foreach ($duckduckgoResponse as $index => $item) {
+            $resultItem = new SearchResultItemDTO();
+            $resultItem->setId((string) $index);
+            $resultItem->setName($item['title'] ?? '');
+            $resultItem->setUrl($item['url'] ?? '');
+            $resultItem->setSnippet($item['body'] ?? '');
+            $resultItem->setDisplayUrl($this->extractDomain($item['url'] ?? ''));
+            $resultItem->setDateLastCrawled(''); // DuckDuckGo doesn't provide this
+            $resultItems[] = $resultItem;
+        }
+        $webPages->setValue($resultItems);
+        $response->setWebPages($webPages);
+
+        return $response;
     }
 
     public function getEngineName(): string
@@ -70,29 +98,6 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
     }
 
     /**
-     * Convert DuckDuckGo response to Bing-compatible format.
-     */
-    private function convertToUnifiedFormat(array $duckduckgoResponse): array
-    {
-        return [
-            'webPages' => [
-                'totalEstimatedMatches' => count($duckduckgoResponse),
-                'value' => array_map(function ($item, $index) {
-                    return [
-                        'id' => (string) $index,
-                        'name' => $item['title'] ?? '',
-                        'url' => $item['url'] ?? '',
-                        'snippet' => $item['body'] ?? '',
-                        'displayUrl' => $this->extractDomain($item['url'] ?? ''),
-                        'dateLastCrawled' => '', // DuckDuckGo doesn't provide this
-                    ];
-                }, $duckduckgoResponse, array_keys($duckduckgoResponse)),
-            ],
-            '_rawResponse' => $duckduckgoResponse,
-        ];
-    }
-
-    /**
      * Map market code (mkt) to DuckDuckGo region code.
      *
      * DuckDuckGo uses reversed format: language-COUNTRY → country-language
@@ -101,7 +106,7 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
     private function mapMktToRegion(string $mkt): string
     {
         if (empty($mkt)) {
-            return $this->config->get('search.duckduckgo.region', 'wt-wt'); // worldwide
+            return $this->config->get('search.drivers.duckduckgo.region', 'wt-wt'); // worldwide
         }
 
         // Simple mapping: zh-CN -> cn-zh
