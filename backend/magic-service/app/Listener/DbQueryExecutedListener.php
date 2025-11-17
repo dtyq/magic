@@ -20,12 +20,16 @@ class DbQueryExecutedListener implements ListenerInterface
 {
     private LoggerInterface $logger;
 
-    // 敏感表
+    // Tables excluded from logging
+    private array $excludedTables = [
+        'async_event_records',
+    ];
+
+    // Sensitive tables
     private array $sensitiveTables = [
         'magic_chat_messages',
         'magic_chat_message_versions',
         'magic_flow_memory_histories',
-        'async_event_records',
     ];
 
     public function __construct(ContainerInterface $container)
@@ -47,6 +51,11 @@ class DbQueryExecutedListener implements ListenerInterface
     {
         if ($event instanceof QueryExecuted) {
             $sql = $event->sql;
+
+            // Check if the query involves excluded tables
+            if ($this->isExcludedTable($sql)) {
+                return;
+            }
 
             // 只打印前 1024 个字符
             $sql = substr($sql, 0, 1024);
@@ -181,5 +190,19 @@ class DbQueryExecutedListener implements ListenerInterface
         }
 
         return $sql;
+    }
+
+    /**
+     * Check if the SQL query involves excluded tables.
+     * Tables are wrapped with backticks in SQL, e.g., `table_name`.
+     */
+    private function isExcludedTable(string $sql): bool
+    {
+        if (empty($this->excludedTables)) {
+            return false;
+        }
+
+        // Check for table name wrapped with backticks: `table_name`
+        return array_any($this->excludedTables, fn ($table) => stripos($sql, "`{$table}`") !== false);
     }
 }
