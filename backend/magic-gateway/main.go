@@ -1501,38 +1501,11 @@ func processOTELHeaders(req *http.Request, targetBase string) {
 	// If OTEL endpoint is detected, process OTEL headers
 	if isOTELEndpoint {
 		if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists && otelHeaders != "" {
-			// Check if it contains '=' to determine format
-			if strings.Contains(otelHeaders, "=") {
-				// Parse OTEL headers format: "key1=value1,key2=value2"
-				headers := strings.Split(otelHeaders, ",")
-				for _, header := range headers {
-					header = strings.TrimSpace(header)
-					if header == "" {
-						continue
-					}
-
-					// Split by first '=' to handle values that contain '='
-					parts := strings.SplitN(header, "=", 2)
-					if len(parts) == 2 {
-						key := strings.TrimSpace(parts[0])
-						value := strings.TrimSpace(parts[1])
-
-						// Only add header if it doesn't already exist
-						if req.Header.Get(key) == "" {
-							req.Header.Set(key, value)
-							if debugMode {
-								logger.Printf("添加OTEL请求头: %s: %s", key, value)
-							}
-						}
-					}
-				}
-			} else {
-				// Single value format - use as Authorization Bearer token
-				if req.Header.Get("Authorization") == "" {
-					req.Header.Set("Authorization", "Bearer "+otelHeaders)
-					if debugMode {
-						logger.Printf("添加OTEL Authorization请求头: Bearer %s", otelHeaders)
-					}
+			// Set x-byteapm-appkey header with the value from OTEL_EXPORTER_OTLP_HEADERS
+			if req.Header.Get("x-byteapm-appkey") == "" {
+				req.Header.Set("x-byteapm-appkey", otelHeaders)
+				if debugMode {
+					logger.Printf("添加OTEL请求头: x-byteapm-appkey: %s", otelHeaders)
 				}
 			}
 		}
