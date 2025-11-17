@@ -405,6 +405,7 @@ class StopRunningTaskSubscriber extends ConsumerMessage
     {
         // 由于标准的 getTopicsByConditions 会过滤掉已删除的话题，
         // 我们需要使用 withTrashed() 方法来获取包括已删除的话题
+        /** @phpstan-ignore-next-line - TopicModel uses SoftDeletes trait which provides withTrashed() */
         $query = TopicModel::query()->withTrashed();
 
         // 应用条件过滤

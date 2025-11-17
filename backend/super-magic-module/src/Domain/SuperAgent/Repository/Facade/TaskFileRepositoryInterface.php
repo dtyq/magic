@@ -113,9 +113,12 @@ interface TaskFileRepositoryInterface
     public function updateById(TaskFileEntity $entity): TaskFileEntity;
 
     /**
-     * 删除文件.
+     * Delete file by ID.
+     *
+     * @param int $id File ID
+     * @param bool $forceDelete Whether to force delete (hard delete), default true
      */
-    public function deleteById(int $id): void;
+    public function deleteById(int $id, bool $forceDelete = true): void;
 
     public function deleteByFileKeyAndProjectId(string $fileKey, int $projectId): int;
 

@@ -115,6 +115,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.file_exist')]
     case FILE_EXIST = 51168;
 
+    #[ErrorMessage('file.convert_failed')]
+    case FILE_CONVERT_FAILED = 51169;
+
     #[ErrorMessage('file.file_rename_failed')]
     case FILE_RENAME_FAILED = 51170;
 
@@ -133,8 +136,8 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.illegal_file_key')]
     case FILE_ILLEGAL_KEY = 51175;
 
-    #[ErrorMessage('file.convert_failed')]
-    case FILE_CONVERT_FAILED = 51176;
+    #[ErrorMessage('file.file_copy_failed')]
+    case FILE_COPY_FAILED = 51176;
 
     #[ErrorMessage('file.move_operation_busy')]
     case FILE_OPERATION_BUSY = 51177;

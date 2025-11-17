@@ -360,9 +360,14 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->update($data) > 0;
     }
 
-    public function deleteById(int $id): void
+    public function deleteById(int $id, bool $forceDelete = true): void
     {
-        $this->model::query()->where('file_id', $id)->delete();
+        $query = $this->model::query()->where('file_id', $id);
+        if ($forceDelete) {
+            $query->forceDelete();
+        } else {
+            $query->delete();
+        }
     }
 
     public function deleteByFileKeyAndProjectId(string $fileKey, int $projectId): int
