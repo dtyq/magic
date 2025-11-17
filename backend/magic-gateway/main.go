@@ -894,6 +894,19 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			for _, value := range values {
+				// 特殊处理 Authorization=Bearer%OTEL_EXPORTER_OTLP_HEADERS 格式
+				if strings.Contains(value, "Authorization=Bearer%OTEL_EXPORTER_OTLP_HEADERS") {
+					if otelHeaders, exists := envVars["OTEL_EXPORTER_OTLP_HEADERS"]; exists {
+						// 替换为实际的 OTEL headers 值
+						newValue := strings.Replace(value, "Authorization=Bearer%OTEL_EXPORTER_OTLP_HEADERS", "Bearer "+otelHeaders, -1)
+						proxyHeaders.Add(key, newValue)
+						if debugMode {
+							logger.Printf("替换OTEL请求头格式: %s: Authorization=Bearer%%OTEL_EXPORTER_OTLP_HEADERS => Bearer %s", key, otelHeaders)
+						}
+						continue
+					}
+				}
+
 				// 特殊处理 Authorization 头
 				if key == "Authorization" {
 					// 处理 Bearer env:XXX 格式
