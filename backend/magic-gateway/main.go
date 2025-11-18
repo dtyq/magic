@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -47,6 +48,16 @@ var (
 
 	// 预编译的正则表达式
 	byteAPMAppKeyRegex = regexp.MustCompile(`X-ByteAPM-AppKey=[^\s,;]*`)
+
+	// URL白名单规则
+	allowedTargetRules []*TargetURLRule
+
+	// 特殊API配置：需要在请求体中替换API密钥的服务
+	specialApiKeys map[string]string
+
+	// Security limits
+	maxRequestBodySize  int64 = 10 * 1024 * 1024  // 10MB request body limit
+	maxResponseBodySize int64 = 100 * 1024 * 1024 // 100MB response body limit
 )
 
 // JWTClaims 定义JWT的声明 - 增强版
@@ -105,6 +116,26 @@ func generateNonce() string {
 	return hex.EncodeToString(bytes)
 }
 
+// sanitizeLogString sanitizes user input to prevent log injection attacks
+func sanitizeLogString(s string) string {
+	// Remove newlines and carriage returns to prevent log injection
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	s = strings.ReplaceAll(s, "\r", "\\r")
+	// Limit length to prevent log flooding
+	if len(s) > 200 {
+		s = s[:200] + "...[truncated]"
+	}
+	return s
+}
+
+// maskSensitiveValue masks sensitive values for logging (shows only first and last 4 chars)
+func maskSensitiveValue(s string) string {
+	if len(s) <= 8 {
+		return "***"
+	}
+	return s[:4] + "***" + s[len(s)-4:]
+}
+
 // 检查密钥轮换
 func checkKeyRotation() {
 	if time.Since(lastKeyRotation) > keyRotationInterval {
@@ -145,6 +176,12 @@ func init() {
 		logger.Println("调试模式已启用")
 	}
 
+	// 加载URL白名单
+	loadAllowedTargetURLs()
+
+	// 加载特殊API配置
+	loadSpecialApiKeys()
+
 	logger.Printf("已加载 %d 个环境变量", len(envVars))
 }
 
@@ -155,6 +192,57 @@ func getEnvWithDefault(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// loadSpecialApiKeys 从环境变量加载特殊API配置
+// 这些API需要在请求体中自动替换API密钥
+func loadSpecialApiKeys() {
+	specialApiKeys = make(map[string]string)
+
+	// 从环境变量 MAGIC_GATEWAY_SPECIAL_API_KEYS 读取配置
+	// 格式: BASE_URL_KEY:API_KEY_KEY|BASE_URL_KEY2:API_KEY_KEY2
+	// 例如: TEXT_TO_IMAGE_API_BASE_URL:TEXT_TO_IMAGE_ACCESS_KEY|VOICE_UNDERSTANDING_API_BASE_URL:VOICE_UNDERSTANDING_API_KEY
+	configStr := getEnvWithDefault("MAGIC_GATEWAY_SPECIAL_API_KEYS", "")
+
+	if configStr == "" {
+		// No special API keys configured
+		specialApiKeys = make(map[string]string)
+		logger.Printf("未配置特殊API，如需启用请设置 MAGIC_GATEWAY_SPECIAL_API_KEYS 环境变量")
+		logger.Printf("格式示例: BASE_URL_KEY:API_KEY_KEY|BASE_URL_KEY2:API_KEY_KEY2")
+		return
+	}
+
+	// 解析配置字符串
+	pairs := strings.Split(configStr, "|")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+
+		parts := strings.Split(pair, ":")
+		if len(parts) != 2 {
+			logger.Printf("警告: 特殊API配置格式错误: %s (应为 BASE_URL_KEY:API_KEY_KEY)", pair)
+			continue
+		}
+
+		baseUrlKey := strings.TrimSpace(parts[0])
+		apiKeyKey := strings.TrimSpace(parts[1])
+
+		if baseUrlKey == "" || apiKeyKey == "" {
+			logger.Printf("警告: 特殊API配置为空: %s", pair)
+			continue
+		}
+
+		specialApiKeys[baseUrlKey] = apiKeyKey
+	}
+
+	logger.Printf("已加载特殊API配置: %d 个", len(specialApiKeys))
+	if debugMode {
+		for baseUrl, apiKey := range specialApiKeys {
+			logger.Printf("  - %s => %s", sanitizeLogString(baseUrl), sanitizeLogString(apiKey))
+		}
+	}
 }
 
 // 主函数
@@ -292,11 +380,11 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	logger.Printf("提取的客户端IP: %s", clientIP)
 
-	// 验证 Gateway API Key
+	// 验证 Gateway API Key (使用常量时间比较防止时序攻击)
 	gatewayAPIKey := r.Header.Get("X-Gateway-API-Key")
 	expectedAPIKey := string(jwtSecret) // 直接使用JWT密钥作为期望的API密钥
 
-	if gatewayAPIKey == "" || gatewayAPIKey != expectedAPIKey {
+	if gatewayAPIKey == "" || subtle.ConstantTimeCompare([]byte(gatewayAPIKey), []byte(expectedAPIKey)) != 1 {
 		logger.Printf("API密钥验证失败: 提供的密钥不匹配或为空")
 		http.Error(w, "无效的API密钥", http.StatusUnauthorized)
 		return
@@ -561,17 +649,72 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 	handler(w, r)
 }
 
+// getEnvVarBlacklist returns the blacklist patterns from environment or default
+func getEnvVarBlacklist() []string {
+	blacklistStr := getEnvWithDefault("MAGIC_GATEWAY_ENV_BLACKLIST", "")
+	if blacklistStr == "" {
+		// Default blacklist patterns
+		return []string{
+			"MAGIC_GATEWAY_API_KEY",
+			"JWT_SECRET",
+			"SECRET",
+			"PASSWORD",
+			"PRIVATE_KEY",
+			"CREDENTIAL",
+		}
+	}
+	return strings.Split(blacklistStr, ",")
+}
+
+// getEnvVarWhitelistPrefixes returns the whitelist prefixes from environment
+func getEnvVarWhitelistPrefixes() []string {
+	whitelistStr := getEnvWithDefault("MAGIC_GATEWAY_ENV_WHITELIST_PREFIXES", "")
+	if whitelistStr == "" {
+		logger.Printf("警告: 未配置 MAGIC_GATEWAY_ENV_WHITELIST_PREFIXES，环境变量访问将被限制")
+		return []string{}
+	}
+	prefixes := strings.Split(whitelistStr, ",")
+	// Trim spaces
+	for i, prefix := range prefixes {
+		prefixes[i] = strings.TrimSpace(prefix)
+	}
+	return prefixes
+}
+
+// isEnvVarAllowed checks if an environment variable is allowed to be accessed
+func isEnvVarAllowed(varName string) bool {
+	// Check blacklist first
+	blacklist := getEnvVarBlacklist()
+	varNameUpper := strings.ToUpper(varName)
+	for _, blocked := range blacklist {
+		if strings.Contains(varNameUpper, strings.ToUpper(blocked)) {
+			return false
+		}
+	}
+
+	// Check whitelist prefixes
+	allowedPrefixes := getEnvVarWhitelistPrefixes()
+	if len(allowedPrefixes) == 0 {
+		// No whitelist configured, deny access
+		return false
+	}
+
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(varName, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // 获取可用的环境变量名称
 func getAvailableEnvVarNames() []string {
 	allowedVarNames := []string{}
-	allowedPrefixes := []string{"OPENAI_", "MAGIC_", "DEEPSEEK_", "API_", "PUBLIC_", "OTEL_"}
 
 	for key := range envVars {
-		for _, prefix := range allowedPrefixes {
-			if strings.HasPrefix(key, prefix) {
-				allowedVarNames = append(allowedVarNames, key)
-				break
-			}
+		if isEnvVarAllowed(key) {
+			allowedVarNames = append(allowedVarNames, key)
 		}
 	}
 
@@ -758,7 +901,10 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logger.Printf("最终使用的 magicOrganizationCode: %s", magicOrganizationCode)
 		}
 
-		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s, 任务ID: %s, 主题ID: %s, 聊天主题ID: %s, 语言: %s", userID, magicOrganizationCode, path, magicTaskID, magicTopicID, magicChatTopicID, magicLanguage)
+		logger.Printf("代理请求来自用户: %s, 组织: %s, 路径: %s",
+			sanitizeLogString(userID),
+			sanitizeLogString(magicOrganizationCode),
+			sanitizeLogString(path))
 
 		// 在调试模式下记录完整请求信息
 		if debugMode {
@@ -766,16 +912,24 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logFullRequest(r)
 		}
 
+		// Limit request body size to prevent DoS attacks
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+
 		// 读取请求体
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, "读取请求体失败", http.StatusInternalServerError)
+			if err.Error() == "http: request body too large" {
+				http.Error(w, "请求体过大，最大限制为10MB", http.StatusRequestEntityTooLarge)
+			} else {
+				http.Error(w, "读取请求体失败", http.StatusInternalServerError)
+			}
 			return
 		}
 		r.Body.Close()
 
 		// 确定目标服务URL（先确定目标，再决定是否处理body）
 		targetBase := r.URL.Query().Get("target")
+
 		var targetApiKey string
 		shouldAddApiKey := false
 
@@ -788,11 +942,18 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				remainingPath = pathParts[1]
 			}
 
+			// 验证环境变量名是否允许访问
+			if !isEnvVarAllowed(envVarName) {
+				logger.Printf("拒绝访问未授权的环境变量: %s", sanitizeLogString(envVarName))
+				http.Error(w, "环境变量访问被拒绝", http.StatusForbidden)
+				return
+			}
+
 			// 检查是否是环境变量名
 			if envVarValue, exists := envVars[envVarName]; exists {
 				targetBase = envVarValue
 				path = remainingPath
-				logger.Printf("通过环境变量名称访问: %s => %s", envVarName, targetBase)
+				logger.Printf("通过环境变量名称访问: %s", sanitizeLogString(envVarName))
 
 				// 如果是API_BASE_URL类型的变量，尝试找到对应的API_KEY
 				if strings.HasSuffix(envVarName, "_API_BASE_URL") {
@@ -802,7 +963,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 					if apiKey, exists := envVars[apiKeyVarName]; exists {
 						targetApiKey = apiKey
 						shouldAddApiKey = true
-						logger.Printf("找到对应的API密钥: %s", apiKeyVarName)
+						logger.Printf("找到对应的API密钥: %s", sanitizeLogString(apiKeyVarName))
 					}
 				}
 			}
@@ -859,25 +1020,19 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 4. 尝试从环境变量中获取默认API基础URL
-		if targetBase == "" {
-			targetBase = getEnvWithDefault("DEFAULT_API_URL", "")
-			if targetBase != "" {
-				logger.Printf("使用默认API URL: %s", targetBase)
-			}
-		}
-
-		// 替换URL中的环境变量
+		// 替换URL中的环境变量（必须在验证之前执行）
 		targetBase = replaceEnvVarsInString(targetBase)
 
-		// 检查是否是三个特定API之一，只对这些API进行body替换
-		isSpecialAPI := false
-		specialApiKeys := map[string]string{
-			"TEXT_TO_IMAGE_API_BASE_URL":       "TEXT_TO_IMAGE_ACCESS_KEY",
-			"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
-			"BING_SUBSCRIPTION_ENDPOINT":       "BING_SUBSCRIPTION_KEY",
+		// Validate target URL against whitelist with detailed error
+		if err := validateTargetURL(targetBase); err != nil {
+			logger.Printf("拒绝访问未授权的目标URL: %s, 原因: %v", targetBase, err)
+			http.Error(w, fmt.Sprintf("目标URL验证失败: %v", err), http.StatusForbidden)
+			return
 		}
+		logger.Printf("目标URL验证通过: %s", targetBase)
 
+		// 检查是否是特定API之一，只对这些API进行body替换
+		isSpecialAPI := false
 		for baseUrlKey := range specialApiKeys {
 			if baseUrlValue, exists := envVars[baseUrlKey]; exists {
 				if strings.HasPrefix(targetBase, baseUrlValue) {
@@ -937,7 +1092,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 						if envValue, exists := envVars[envKey]; exists {
 							proxyHeaders.Add(key, "Bearer "+envValue)
 							if debugMode {
-								logger.Printf("替换环境变量引用 (Bearer env:): %s", envKey)
+								logger.Printf("替换环境变量引用 (Bearer env:): %s", sanitizeLogString(envKey))
 							}
 							continue
 						}
@@ -949,7 +1104,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 						if envValue, exists := envVars[tokenValue]; exists {
 							proxyHeaders.Add(key, "Bearer "+envValue)
 							if debugMode {
-								logger.Printf("替换环境变量引用 (直接引用): Bearer %s => Bearer %s", tokenValue, envValue)
+								logger.Printf("替换环境变量引用 (直接引用): Bearer %s", sanitizeLogString(tokenValue))
 							}
 							continue
 						}
@@ -961,7 +1116,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 					// 如果头部值完全等于某个环境变量名，则替换为环境变量的值
 					proxyHeaders.Add(key, envValue)
 					if debugMode {
-						logger.Printf("替换请求头中的环境变量名称: %s: %s => %s", key, value, envValue)
+						logger.Printf("替换请求头中的环境变量名称: %s: %s", sanitizeLogString(key), sanitizeLogString(value))
 					}
 					continue
 				}
@@ -970,7 +1125,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				newValue := replaceEnvVarsInString(value)
 				proxyHeaders.Add(key, newValue)
 				if debugMode && newValue != value {
-					logger.Printf("替换请求头中的环境变量引用: %s: %s => %s", key, value, newValue)
+					logger.Printf("替换请求头中的环境变量引用: %s: %s", sanitizeLogString(key), sanitizeLogString(value))
 				}
 			}
 		}
@@ -1004,7 +1159,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 						queryValues.Set(key, envValue)
 						hasChanges = true
 						if debugMode {
-							logger.Printf("替换URL参数中的环境变量名称: %s=%s => %s=%s", key, value, key, envValue)
+							logger.Printf("替换URL参数中的环境变量名称: %s=%s", sanitizeLogString(key), sanitizeLogString(value))
 						}
 					} else {
 						// 替换参数值中的环境变量引用
@@ -1013,7 +1168,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 							values[i] = newValue
 							hasChanges = true
 							if debugMode {
-								logger.Printf("替换URL参数中的环境变量引用: %s=%s => %s=%s", key, value, key, newValue)
+								logger.Printf("替换URL参数中的环境变量引用: %s=%s", sanitizeLogString(key), sanitizeLogString(value))
 							}
 						}
 					}
@@ -1099,8 +1254,25 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logger.Printf("已添加目标服务API密钥")
 		}
 
-		// 发送请求
-		client := &http.Client{Timeout: 30 * time.Minute}
+		// 发送请求（超时时间：2分钟，防止资源耗尽攻击）
+		// 禁止自动跟随重定向，防止重定向到恶意URL绕过白名单
+		client := &http.Client{
+			Timeout: 2 * time.Minute,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				// 验证重定向目标URL是否在白名单中
+				redirectURL := req.URL.String()
+				if err := validateTargetURL(redirectURL); err != nil {
+					logger.Printf("阻止重定向到未授权URL: %s, 原因: %v", redirectURL, err)
+					return fmt.Errorf("重定向目标URL未在白名单中")
+				}
+				// 限制重定向次数，防止重定向循环
+				if len(via) >= 5 {
+					return fmt.Errorf("重定向次数超过限制")
+				}
+				logger.Printf("允许重定向到: %s", redirectURL)
+				return nil
+			},
+		}
 		resp, err := client.Do(proxyReq)
 		if err != nil {
 			logger.Printf("代理错误: %v", err)
@@ -1175,22 +1347,30 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				logFullResponse(resp, targetURL)
 			}
 
-			// 读取响应体
-			respBody, err := io.ReadAll(resp.Body)
+			// Limit response body size to prevent memory exhaustion
+			limitedReader := io.LimitReader(resp.Body, maxResponseBodySize)
+			respBody, err := io.ReadAll(limitedReader)
 			if err != nil {
 				logger.Printf("读取响应体失败: %v", err)
 				http.Error(w, "读取响应体失败", http.StatusInternalServerError)
 				return
 			}
 
-		// 判断respBody 大小，如果超过100kb 则不打印
-		if len(respBody) > 100*1024 {
-			logger.Printf("响应体大小超过100kb，不打印")
-		} else {
-			logger.Printf("响应体内容: %s", string(respBody))
-		}
+			// Check if response was truncated due to size limit
+			if int64(len(respBody)) >= maxResponseBodySize {
+				logger.Printf("警告: 响应体可能超过100MB限制，已截断")
+			}
 
-				// 转发响应体
+			// 仅在调试模式下记录响应体内容（防止敏感信息泄露）
+			if debugMode {
+				if len(respBody) > 100*1024 {
+					logger.Printf("响应体大小超过100kb，不打印")
+				} else {
+					logger.Printf("响应体内容: %s", string(respBody))
+				}
+			}
+
+			// 转发响应体
 			w.Write(respBody)
 		}
 	})
@@ -1244,7 +1424,9 @@ func replaceEnvVars(data interface{}) interface{} {
 		if strings.HasPrefix(v, "env:") {
 			envKey := strings.TrimPrefix(v, "env:")
 			if value, exists := envVars[envKey]; exists {
-				logger.Printf("环境变量替换: env:%s => %s", envKey, value)
+				if debugMode {
+					logger.Printf("环境变量替换: env:%s => %s", sanitizeLogString(envKey), maskSensitiveValue(value))
+				}
 				return value
 			}
 			return v
@@ -1254,14 +1436,16 @@ func replaceEnvVars(data interface{}) interface{} {
 		if value, exists := envVars[v]; exists {
 			// 检查是否是全匹配的环境变量名称(没有其他内容)
 			// 只有字符串完全等于环境变量名称时才替换，避免误替换
-			logger.Printf("环境变量名称替换: %s => %s", v, value)
+			if debugMode {
+				logger.Printf("环境变量名称替换: %s => %s", sanitizeLogString(v), maskSensitiveValue(value))
+			}
 			return value
 		}
 
 		// 替换其他格式的环境变量引用
 		newValue := replaceEnvVarsInString(v)
-		if newValue != originalValue {
-			logger.Printf("字符串环境变量替换: %s => %s", originalValue, newValue)
+		if newValue != originalValue && debugMode {
+			logger.Printf("字符串环境变量替换: %s => %s", sanitizeLogString(originalValue), maskSensitiveValue(newValue))
 		}
 		return newValue
 
@@ -1399,14 +1583,7 @@ func logFullRequest(r *http.Request) {
 
 // processApiKeyInBody 处理特定API_BASE_URL对应的API密钥在请求体中的替换
 func processApiKeyInBody(data interface{}, targetBase string) interface{} {
-	// 定义需要检查的特定API_BASE_URL和对应的API_KEY
-	specialApiKeys := map[string]string{
-		"TEXT_TO_IMAGE_API_BASE_URL":       "TEXT_TO_IMAGE_ACCESS_KEY",
-		"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
-		"BING_SUBSCRIPTION_ENDPOINT":       "BING_SUBSCRIPTION_KEY",
-	}
-
-	// 检查目标URL是否匹配特定的API_BASE_URL
+	// 检查目标URL是否匹配特定的API_BASE_URL（使用全局配置）
 	var matchedApiKey string
 	for baseUrlKey, apiKeyKey := range specialApiKeys {
 		if baseUrlValue, exists := envVars[baseUrlKey]; exists {
@@ -1457,7 +1634,7 @@ func replaceApiKeyInData(data interface{}, apiKey string) interface{} {
 						strings.Contains(strValue, "$") {
 						result[key] = apiKey
 						if debugMode {
-							logger.Printf("在请求体中替换API密钥: %s => %s", key, apiKey)
+							logger.Printf("在请求体中替换API密钥: %s", sanitizeLogString(key))
 						}
 						continue
 					}
@@ -1481,16 +1658,32 @@ func replaceApiKeyInData(data interface{}, apiKey string) interface{} {
 
 // isApiKeyField 检查字段名是否是API密钥相关的字段
 func isApiKeyField(fieldName string) bool {
-	apiKeyFields := []string{
+	// 基础的通用API密钥字段名
+	baseApiKeyFields := []string{
 		"api_key", "apiKey", "access_key", "accessKey", "key", "token", "authorization",
-		"TEXT_TO_IMAGE_ACCESS_KEY", "VOICE_UNDERSTANDING_API_KEY", "BING_SUBSCRIPTION_KEY",
+	}
+
+	// 从特殊API配置中提取API密钥环境变量名
+	dynamicApiKeyFields := make([]string, 0, len(specialApiKeys))
+	for _, apiKeyEnvName := range specialApiKeys {
+		dynamicApiKeyFields = append(dynamicApiKeyFields, apiKeyEnvName)
 	}
 
 	fieldNameLower := strings.ToLower(fieldName)
-	for _, apiField := range apiKeyFields {
+
+	// 检查基础字段
+	for _, apiField := range baseApiKeyFields {
 		if strings.Contains(fieldNameLower, strings.ToLower(apiField)) {
 			return true
 		}
 	}
+
+	// 检查动态配置的字段
+	for _, apiField := range dynamicApiKeyFields {
+		if strings.Contains(fieldNameLower, strings.ToLower(apiField)) {
+			return true
+		}
+	}
+
 	return false
 }
