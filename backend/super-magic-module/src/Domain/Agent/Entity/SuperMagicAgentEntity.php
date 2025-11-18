@@ -147,6 +147,7 @@ class SuperMagicAgentEntity extends AbstractEntity
         $originalEntity->setPrompt($this->prompt);
         $originalEntity->setType($this->type);
         $originalEntity->setModifier($this->creator);
+        $originalEntity->setIconType($this->iconType);
 
         if (isset($this->enabled)) {
             $originalEntity->setEnabled($this->enabled);
