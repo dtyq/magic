@@ -26,6 +26,7 @@ class SuperMagicAgentSaveFormRequest extends FormRequest
             'name' => 'required|string|max:80',
             'description' => 'nullable|string|max:512',
             'icon' => 'nullable|array',
+            'icon_type' => 'nullable|integer|in:1,2',
 
             // 智能体类型（动态获取枚举值）
             'type' => 'nullable|integer|in:' . SuperMagicAgentType::getValidationRule(),
