@@ -774,29 +774,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		r.Body.Close()
 
-		// 处理JSON请求
-		contentType := r.Header.Get("Content-Type")
-		var jsonData interface{}
-		if strings.Contains(contentType, "application/json") {
-			var data interface{}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				// 记录原始请求体
-				//if originalJSON, err := json.Marshal(data); err == nil {
-				// logger.Printf("原始请求体: %s", string(originalJSON))
-				//}
-
-				// 替换环境变量引用
-				data = replaceEnvVars(data)
-				jsonData = data
-			} else {
-				logger.Printf("解析JSON请求体失败: %v", err)
-			}
-		}
-
-		// 创建新请求体
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-		// 确定目标服务URL
+		// 确定目标服务URL（先确定目标，再决定是否处理body）
 		targetBase := r.URL.Query().Get("target")
 		var targetApiKey string
 		shouldAddApiKey := false
@@ -889,6 +867,46 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// 替换URL中的环境变量
+		targetBase = replaceEnvVarsInString(targetBase)
+
+		// 检查是否是三个特定API之一，只对这些API进行body替换
+		isSpecialAPI := false
+		specialApiKeys := map[string]string{
+			"TEXT_TO_IMAGE_API_BASE_URL":       "TEXT_TO_IMAGE_ACCESS_KEY",
+			"VOICE_UNDERSTANDING_API_BASE_URL": "VOICE_UNDERSTANDING_API_KEY",
+			"BING_SUBSCRIPTION_ENDPOINT":       "BING_SUBSCRIPTION_KEY",
+		}
+
+		for baseUrlKey := range specialApiKeys {
+			if baseUrlValue, exists := envVars[baseUrlKey]; exists {
+				if strings.HasPrefix(targetBase, baseUrlValue) {
+					remainingPart := targetBase[len(baseUrlValue):]
+					if remainingPart == "" || strings.HasPrefix(remainingPart, "/") {
+						isSpecialAPI = true
+						break
+					}
+				}
+			}
+		}
+
+		// 处理JSON请求 - 只对特定API进行替换
+		contentType := r.Header.Get("Content-Type")
+		var jsonData interface{}
+		if isSpecialAPI && strings.Contains(contentType, "application/json") {
+			var data interface{}
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				jsonData = data
+			} else {
+				logger.Printf("解析JSON请求体失败: %v", err)
+			}
+		}
+
+		// 创建新请求体（如果不需要替换，使用原始bodyBytes）
+		if jsonData == nil {
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
 		// 构建请求头，替换环境变量引用
 		proxyHeaders := make(http.Header)
 		for key, values := range r.Header {
@@ -956,9 +974,6 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-
-		// 替换URL中的环境变量
-		targetBase = replaceEnvVarsInString(targetBase)
 
 		// 处理JSON请求体中的特定API密钥替换
 		if jsonData != nil {
