@@ -23,6 +23,11 @@ enum CreationSource: int
     case SCHEDULED_TASK = 2;
 
     /**
+     * Copy created.
+     */
+    case COPY = 3;
+
+    /**
      * Get source name.
      */
     public function getName(): string
@@ -30,6 +35,7 @@ enum CreationSource: int
         return match ($this) {
             self::USER_CREATED => 'User Created',
             self::SCHEDULED_TASK => 'Scheduled Task',
+            self::COPY => 'Copy',
         };
     }
 
@@ -45,6 +51,7 @@ enum CreationSource: int
         return match ($value) {
             1 => self::USER_CREATED,
             2 => self::SCHEDULED_TASK,
+            3 => self::COPY,
             default => self::USER_CREATED, // Default to user created
         };
     }

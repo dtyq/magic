@@ -410,11 +410,12 @@ class TaskDomainService
      * @param int $pageSize Page size
      * @param array $fileType File type filter
      * @param string $storageType Storage type filter
+     * @param null|string $updatedAfter Updated after timestamp filter
      * @return array Attachment list and total
      */
-    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = ''): array
+    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array
     {
-        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType);
+        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType, $updatedAfter);
     }
 
     public function getTaskBySandboxId(string $sandboxId): ?TaskEntity

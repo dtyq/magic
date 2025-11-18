@@ -477,6 +477,19 @@ class WorkDirectoryUtil
     }
 
     /**
+     * Get file-level locker key for file operations.
+     * Uses MD5 hash to ensure consistent key length regardless of file path length.
+     *
+     * @param string $fileKey File key (full path)
+     * @param string $prefix Optional prefix for the lock key (default: 'sandbox_file_notification')
+     * @return string Locker key for the file
+     */
+    public static function getFileLockerKey(string $fileKey, string $prefix = 'sandbox_file_notification'): string
+    {
+        return sprintf('%s:%s', $prefix, md5($fileKey));
+    }
+
+    /**
      * Normalize a file path by resolving . and .. components and removing redundant separators.
      *
      * @param string $path Path to normalize

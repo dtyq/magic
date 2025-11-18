@@ -79,9 +79,7 @@ abstract class AbstractSandboxOS
      */
     protected function isEnabledSandbox(): bool
     {
-        if (! isset($this->enableSandbox)) {
-            $this->enableSandbox = config('super-magic.sandbox.enabled', true);
-        }
+        $this->enableSandbox = config('super-magic.sandbox.enabled', true);
         return $this->enableSandbox;
     }
 

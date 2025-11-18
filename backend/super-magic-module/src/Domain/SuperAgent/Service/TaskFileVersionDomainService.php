@@ -12,6 +12,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileVersionEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
@@ -24,6 +25,7 @@ class TaskFileVersionDomainService
 
     public function __construct(
         protected TaskFileVersionRepositoryInterface $taskFileVersionRepository,
+        protected TaskFileRepositoryInterface $taskFileRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {

@@ -11,13 +11,13 @@ return [
     'target_parent_not_directory' => '目标父级不是目录',
     'cannot_move_to_subdirectory' => '不能将目录移动到其子目录',
     'file_move_failed' => '移动文件失败',
+    'file_copy_failed' => '复制文件失败',
     'file_save_failed' => '保存文件失败',
     'file_create_failed' => '创建文件失败',
     'file_delete_failed' => '删除文件失败',
     'file_rename_failed' => '重命名文件失败',
     'directory_delete_failed' => '删除目录失败',
     'batch_delete_failed' => '批量删除文件失败',
-    'batch_move_failed' => '批量移动文件失败',
     'permission_denied' => '文件权限被拒绝',
     'files_not_found_or_no_permission' => '文件未找到或无访问权限',
     'content_too_large' => '文件内容过大',
@@ -57,4 +57,12 @@ return [
     'file_is_being_edited' => '文件当前正在被其他用户编辑，使用 force_replace 强制替换',
     'source_file_key_illegal' => '源文件键非法或不在工作区范围内',
     'content_field_required' => 'content 字段必填',
+
+    // Cross-project move related
+    'target_parent_not_found' => '目标父目录未找到',
+    'target_parent_not_in_target_project' => '目标父目录不属于目标项目',
+    'cross_organization_copy_failed' => '跨组织复制文件失败',
+    'batch_move_failed' => '批量移动操作失败',
+    'batch_copy_failed' => '批量复制操作失败',
+    'directory_copy_not_supported_yet' => '目录复制功能暂未支持，请使用批量复制',
 ];

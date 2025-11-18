@@ -21,11 +21,13 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\SandboxFileNotificationAppSer
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchCopyFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveFileContentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchSaveProjectFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckBatchOperationStatusRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CopyFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteDirectoryRequestDTO;
@@ -195,9 +197,6 @@ class FileApi extends AbstractApi
         $userAuthorization = $requestContext->getUserAuthorization();
         $batchSaveDTO = BatchSaveFileContentRequestDTO::fromRequest($requestData);
 
-        // 并发执行沙箱保存和OSS保存
-        // $this->fileSaveContentAppService->batchSaveFileContentViaSandbox($batchSaveDTO, $userAuthorization);
-
         return $this->fileProcessAppService->batchSaveFileContent($batchSaveDTO, $userAuthorization);
     }
 
@@ -249,7 +248,14 @@ class FileApi extends AbstractApi
         // Get request data and create DTO
         $requestDTO = MoveFileRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->moveFile($requestContext, (int) $id, (int) $requestDTO->getTargetParentId(), (int) $requestDTO->getPreFileId());
+        return $this->fileManagementAppService->moveFile(
+            $requestContext,
+            (int) $id,
+            (int) $requestDTO->getTargetParentId(),
+            (int) $requestDTO->getPreFileId(),
+            ! empty($requestDTO->getTargetProjectId()) ? (int) $requestDTO->getTargetProjectId() : null,
+            $requestDTO->getKeepBothFileIds()
+        );
     }
 
     public function batchMoveFile(RequestContext $requestContext): array
@@ -261,6 +267,34 @@ class FileApi extends AbstractApi
 
         // Call application service
         return $this->fileManagementAppService->batchMoveFile($requestContext, $requestDTO);
+    }
+
+    public function batchCopyFile(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestDTO = BatchCopyFileRequestDTO::fromRequest($this->request);
+
+        // Call application service
+        return $this->fileManagementAppService->batchCopyFile($requestContext, $requestDTO);
+    }
+
+    public function copyFile(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // Get request data and create DTO
+        $requestDTO = CopyFileRequestDTO::fromRequest($this->request);
+
+        return $this->fileManagementAppService->copyFile(
+            $requestContext,
+            (int) $id,
+            (int) $requestDTO->getTargetParentId(),
+            (int) $requestDTO->getPreFileId(),
+            ! empty($requestDTO->getTargetProjectId()) ? (int) $requestDTO->getTargetProjectId() : null,
+            $requestDTO->getKeepBothFileIds()
+        );
     }
 
     /**

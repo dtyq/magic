@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use App\Infrastructure\Core\AbstractRequestDTO;
 
-class MoveFileRequestDTO extends AbstractRequestDTO
+class CopyFileRequestDTO extends AbstractRequestDTO
 {
     /**
      * The ID of the target parent directory.
@@ -22,7 +22,7 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     public string $preFileId = '-1';
 
     /**
-     * The ID of the target project (optional, for cross-project move).
+     * The ID of the target project (optional, for cross-project copy).
      */
     public string $targetProjectId = '';
 

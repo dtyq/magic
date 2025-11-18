@@ -10,11 +10,11 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 use InvalidArgumentException;
 
 /**
- * File batch move event.
+ * File batch copy event.
  *
- * Used for asynchronous batch file move operations when dealing with multiple files.
+ * Used for asynchronous batch file copy operations when dealing with multiple files.
  */
-class FileBatchMoveEvent
+class FileBatchCopyEvent
 {
     /**
      * Constructor.
@@ -22,7 +22,7 @@ class FileBatchMoveEvent
      * @param string $batchKey Batch operation key for tracking
      * @param string $userId User ID
      * @param string $organizationCode Organization code
-     * @param array $fileIds Array of file IDs to move
+     * @param array $fileIds Array of file IDs to copy
      * @param int $targetProjectId Target project ID
      * @param int $sourceProjectId Source project ID
      * @param null|int $preFileId Previous file ID for positioning (nullable)

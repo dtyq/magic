@@ -16,7 +16,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\ProjectOperatorLogSub
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe\SuperAgentMessageSubscriberV2;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileProcessAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\FileSaveContentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleAgentMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageQueueAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\MessageScheduleAppService;
@@ -33,6 +32,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryI
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectOperationLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileCleanupRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -49,6 +49,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberReposi
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectMemberSettingRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectOperationLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\ProjectRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileCleanupRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskFileVersionRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\TaskMessageRepository;
@@ -115,6 +116,7 @@ class ConfigProvider
             'dependencies' => [
                 // 添加接口到实现类的映射
                 TaskFileRepositoryInterface::class => TaskFileRepository::class,
+                TaskFileCleanupRepositoryInterface::class => TaskFileCleanupRepository::class,
                 TaskFileVersionRepositoryInterface::class => TaskFileVersionRepository::class,
                 TopicRepositoryInterface::class => TopicRepository::class,
                 TaskRepositoryInterface::class => TaskRepository::class,
@@ -140,8 +142,6 @@ class ConfigProvider
                 MessageQueueAppService::class => MessageQueueAppService::class,
                 // 添加MessageScheduleAppService的依赖注入
                 MessageScheduleAppService::class => MessageScheduleAppService::class,
-                // 添加SandboxFileEditAppService的依赖注入
-                FileSaveContentAppService::class => FileSaveContentAppService::class,
                 // 添加分享相关服务
                 ShareableResourceFactory::class => ShareableResourceFactory::class,
                 TopicShareableResource::class => TopicShareableResource::class,

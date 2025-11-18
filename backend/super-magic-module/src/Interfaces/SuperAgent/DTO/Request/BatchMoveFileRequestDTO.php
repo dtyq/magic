@@ -27,9 +27,20 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
     public array $fileIds = [];
 
     /**
-     * The project ID where files belong.
+     * The source project ID where files belong.
      */
     public string $projectId = '';
+
+    /**
+     * The target project ID (optional, for cross-project move).
+     */
+    public string $targetProjectId = '';
+
+    /**
+     * Array of source file IDs that should not overwrite when conflict occurs.
+     * If a file ID is in this list and target path exists, generate a new target filename.
+     */
+    public array $keepBothFileIds = [];
 
     public function getTargetParentId(): string
     {
@@ -51,6 +62,16 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
         return $this->projectId;
     }
 
+    public function getTargetProjectId(): string
+    {
+        return $this->targetProjectId;
+    }
+
+    public function getKeepBothFileIds(): array
+    {
+        return $this->keepBothFileIds;
+    }
+
     /**
      * Get validation rules.
      */
@@ -62,6 +83,9 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
             'file_ids' => 'required|array|min:1',
             'file_ids.*' => 'required|string',
             'project_id' => 'required|string',
+            'target_project_id' => 'nullable|string',
+            'keep_both_file_ids' => 'nullable|array',
+            'keep_both_file_ids.*' => 'string',
         ];
     }
 
@@ -80,6 +104,9 @@ class BatchMoveFileRequestDTO extends AbstractRequestDTO
             'file_ids.*.string' => 'Each file ID must be a string',
             'project_id.required' => 'Project ID is required',
             'project_id.string' => 'Project ID must be a string',
+            'target_project_id.string' => 'Target project ID must be a string',
+            'keep_both_file_ids.array' => 'Keep both file IDs must be an array',
+            'keep_both_file_ids.*.string' => 'Each keep both file ID must be a string',
         ];
     }
 }
