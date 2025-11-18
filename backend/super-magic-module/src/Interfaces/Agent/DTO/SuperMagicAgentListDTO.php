@@ -28,7 +28,7 @@ class SuperMagicAgentListDTO extends AbstractDTO
 
     /**
      * Agent图标.
-     * 格式: {"url": "...", "type": "...", "color": "..."}
+     * 格式: {"url": "...", "type": "...", "color": "..."}.
      */
     public array $icon = [];
 

@@ -289,9 +289,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $entity->setName($modeEntity->getName());
         $entity->setDescription($modeEntity->getPlaceholder());
         $entity->setIcon([
+            'url' => $modeEntity->getIconUrl(),
             'type' => $modeEntity->getIcon(),
             'color' => $modeEntity->getColor(),
         ]);
+        $entity->setIconType($modeEntity->getIconType());
         $entity->setType(SuperMagicAgentType::Built_In);
         $entity->setEnabled(true);
         $entity->setPrompt([]);
