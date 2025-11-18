@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Domain\Provider\Entity;
 
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Domain\Provider\Entity\ValueObject\AiAbilityConfig;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Infrastructure\Core\AbstractEntity;
 
@@ -33,7 +32,7 @@ class AiAbilityEntity extends AbstractEntity
 
     protected Status $status;
 
-    protected AiAbilityConfig $config;
+    protected array $config;
 
     public function getId(): ?int
     {
@@ -171,20 +170,18 @@ class AiAbilityEntity extends AbstractEntity
         }
     }
 
-    public function getConfig(): AiAbilityConfig
+    public function getConfig(): array
     {
         return $this->config;
     }
 
-    public function setConfig(AiAbilityConfig|array|string $config): void
+    public function setConfig(array|string $config): void
     {
-        if ($config instanceof AiAbilityConfig) {
-            $this->config = $config;
-        } elseif (is_string($config)) {
+        if (is_string($config)) {
             $configArray = json_decode($config, true) ?: [];
-            $this->config = new AiAbilityConfig($configArray);
+            $this->config = $configArray;
         } else {
-            $this->config = new AiAbilityConfig($config);
+            $this->config = $config;
         }
     }
 
