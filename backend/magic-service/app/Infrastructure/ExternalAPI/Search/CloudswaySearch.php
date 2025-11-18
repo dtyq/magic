@@ -11,6 +11,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Codec\Json;
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -23,7 +24,7 @@ class CloudswaySearch
 
     private LoggerInterface $logger;
 
-    public function __construct(LoggerFactory $loggerFactory)
+    public function __construct(LoggerFactory $loggerFactory, protected readonly ConfigInterface $config)
     {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -32,6 +33,8 @@ class CloudswaySearch
      * Execute Cloudsway search.
      *
      * @param string $query 搜索查询词
+     * @param string $requestUrl 完整的 endpoint URL (from config)
+     * @param string $apiKey api key for authorization (from config)
      * @param string $mkt Market code (not used by Cloudsway but kept for interface consistency)
      * @param int $count 结果数量 (10/20/30/40/50)
      * @param int $offset 分页偏移量
@@ -42,26 +45,27 @@ class CloudswaySearch
      */
     public function search(
         string $query,
+        string $requestUrl,
+        string $apiKey,
         string $mkt,
         int $count = 20,
         int $offset = 0,
         string $freshness = '',
         string $setLang = ''
     ): array {
-        // 从配置文件读取参数
-        $basePath = config('search.drivers.cloudsway.base_path');
-        $endpoint = config('search.drivers.cloudsway.endpoint');
-        $accessKey = config('search.drivers.cloudsway.access_key');
-
-        // 构建完整 URL: https://{BasePath}/search/{Endpoint}/smart
-        $url = rtrim($basePath, '/') . '/search/' . trim($endpoint, '/') . '/smart';
-
         // 构建查询参数
         $queryParams = [
             'q' => $query,
             'count' => $count,
             'offset' => $offset,
         ];
+
+        if (empty($requestUrl)) {
+            $basePath = $this->config->get('search.cloudsway.base_path');
+            $endpoint = $this->config->get('search.cloudsway.endpoint');
+            // 构建完整 URL: https://{BasePath}/search/{Endpoint}/smart
+            $requestUrl = rtrim($basePath, '/') . '/search/' . trim($endpoint, '/') . '/smart';
+        }
 
         // 添加可选参数
         if (! empty($freshness)) {
@@ -74,7 +78,7 @@ class CloudswaySearch
 
         // 构建请求头
         $headers = [
-            'Authorization' => 'Bearer ' . $accessKey,
+            'Authorization' => 'Bearer ' . $apiKey,
             'Pragma' => 'no-cache',  // 不使用缓存，保证实时性
         ];
 
@@ -86,7 +90,7 @@ class CloudswaySearch
 
         try {
             // 发送 GET 请求
-            $response = $client->request('GET', $url, [
+            $response = $client->request('GET', $requestUrl, [
                 'query' => $queryParams,
             ]);
 
@@ -99,12 +103,12 @@ class CloudswaySearch
                 $reason = $e->getResponse()?->getReasonPhrase();
                 $responseBody = $e->getResponse()?->getBody()->getContents();
                 $this->logger->error(sprintf('Cloudsway Search HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
-                    'url' => $url,
+                    'url' => $requestUrl,
                     'statusCode' => $statusCode,
                 ]);
             } else {
                 $this->logger->error('Cloudsway Search Error: ' . $e->getMessage(), [
-                    'url' => $url,
+                    'url' => $requestUrl,
                     'exception' => get_class($e),
                 ]);
             }

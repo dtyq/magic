@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
-use App\Infrastructure\ExternalAPI\Search\GoogleSearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
+use App\Infrastructure\ExternalAPI\Search\GoogleSearch;
 
 /**
  * Google Custom Search API adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class GoogleSearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly GoogleSearch $googleSearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -34,13 +36,16 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): SearchResponseDTO {
-        $apiKey = $this->config->get('search.drivers.google.api_key');
-        $cx = $this->config->get('search.drivers.google.cx');
+        // Get configuration from provider config
+        $requestUrl = $this->providerConfig['request_url'] ?? '';
+        $apiKey = $this->providerConfig['api_key'] ?? '';
+        $cx = $this->providerConfig['cx'] ?? '';
 
         // Call GoogleSearch with all parameters
         $rawResponse = $this->googleSearch->search(
             $query,
             $apiKey,
+            $requestUrl,
             $cx,
             $mkt,
             $count,
@@ -89,7 +94,8 @@ class GoogleSearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.drivers.google.api_key'))
-            && ! empty($this->config->get('search.drivers.google.cx'));
+        return ! empty($this->providerConfig['request_url'])
+            && ! empty($this->providerConfig['api_key'])
+            && ! empty($this->providerConfig['cx']);
     }
 }

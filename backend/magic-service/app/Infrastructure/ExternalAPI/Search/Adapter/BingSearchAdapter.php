@@ -11,7 +11,6 @@ use App\Infrastructure\ExternalAPI\Search\BingSearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
 
 /**
  * Bing search engine adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class BingSearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly BingSearch $bingSearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -34,7 +36,8 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): SearchResponseDTO {
-        $apiKey = $this->config->get('search.drivers.bing.api_key');
+        $apiKey = $this->providerConfig['api_key'] ?? '';
+        $requestUrl = $this->providerConfig['request_url'] ?? '';
 
         // Call original BingSearch with all parameters
         $rawResponse = $this->bingSearch->search(
@@ -45,7 +48,8 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
             $offset,
             $safeSearch,
             $freshness,
-            $setLang
+            $setLang,
+            $requestUrl
         );
 
         // Bing already returns the standard format, convert to DTO
@@ -87,7 +91,7 @@ class BingSearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.drivers.bing.api_key'));
+        return ! empty($this->providerConfig['request_url'])
+            && ! empty($this->providerConfig['api_key']);
     }
 }
-

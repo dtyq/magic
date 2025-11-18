@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
-use App\Infrastructure\ExternalAPI\Search\TavilySearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
+use App\Infrastructure\ExternalAPI\Search\TavilySearch;
 
 /**
  * Tavily Search API adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class TavilySearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly TavilySearch $tavilySearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -34,24 +36,11 @@ class TavilySearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): SearchResponseDTO {
-        // Tavily does not support offset pagination
-        // If offset > 0, return empty results with warning
-        if ($offset > 0) {
-            $response = new SearchResponseDTO();
-            $response->setWarning('Tavily search does not support pagination (offset parameter is ignored)');
-            $webPages = new WebPagesDTO();
-            $webPages->setTotalEstimatedMatches(0);
-            $webPages->setValue([]);
-            $response->setWebPages($webPages);
-            return $response;
-        }
-
-        // Tavily uses maxResults parameter for count
-        // Cap count at reasonable limit (Tavily supports up to ~10 results typically)
-        $maxResults = min($count, 10);
-
+        $page = $offset + 1; // Tavily uses 1-based page index
+        $requestUrl = $this->providerConfig['request_url'] ?? '';
+        $apiKey = $this->providerConfig['api_key'] ?? '';
         // Call Tavily search
-        $rawResponse = $this->tavilySearch->results($query, $maxResults);
+        $rawResponse = $this->tavilySearch->search($query, page: $page, count: $count, requestUrl: $requestUrl, apiKey: $apiKey);
 
         // Convert Tavily response to unified format
         return $this->convertToUnifiedFormat($rawResponse);
@@ -92,7 +81,8 @@ class TavilySearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.drivers.tavily.api_key'));
+        return ! empty($this->providerConfig['request_url'])
+            && ! empty($this->providerConfig['api_key']);
     }
 
     /**

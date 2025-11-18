@@ -11,7 +11,6 @@ use App\Infrastructure\ExternalAPI\Search\CloudswaySearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
 
 /**
  * Cloudsway Search API adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class CloudswaySearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly CloudswaySearch $cloudswaySearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -34,10 +36,16 @@ class CloudswaySearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): SearchResponseDTO {
+        // Get configuration from provider config
+        $requestUrl = $this->providerConfig['request_url'] ?? '';
+        $apiKey = $this->providerConfig['api_key'] ?? '';
+
         // Call Cloudsway search
         // Note: CloudswaySearch doesn't use safeSearch parameter
         $rawResponse = $this->cloudswaySearch->search(
             $query,
+            $requestUrl,
+            $apiKey,
             $mkt,
             $count,
             $offset,
@@ -110,8 +118,8 @@ class CloudswaySearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        return ! empty($this->config->get('search.drivers.cloudsway.endpoint'))
-            && ! empty($this->config->get('search.drivers.cloudsway.access_key'));
+        return ! empty($this->providerConfig['request_url'])
+            && ! empty($this->providerConfig['api_key']);
     }
 
     /**

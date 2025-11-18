@@ -46,6 +46,7 @@ class GoogleSearch
         string $query,
         string $subscriptionKey,
         string $cx,
+        string $requestUrl = '',
         string $mkt = '',
         int $count = self::REFERENCE_COUNT,
         int $offset = 0,
@@ -65,6 +66,10 @@ class GoogleSearch
         // Add pagination offset
         if ($offset > 0) {
             $params['start'] = $offset + 1; // Google uses 1-based indexing
+        }
+
+        if (empty($requestUrl)) {
+            $requestUrl = self::GOOGLE_SEARCH_ENDPOINT;
         }
 
         // Add market/locale parameters
@@ -106,7 +111,7 @@ class GoogleSearch
                 $options['proxy'] = $proxy;
             }
             $response = $client->get(
-                self::GOOGLE_SEARCH_ENDPOINT,
+                $requestUrl,
                 $options
             );
             if ($response->getStatusCode() !== 200) {

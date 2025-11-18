@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
-use App\Infrastructure\ExternalAPI\Search\DuckDuckGoSearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
+use App\Infrastructure\ExternalAPI\Search\DuckDuckGoSearch;
 
 /**
  * DuckDuckGo search adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly DuckDuckGoSearch $duckDuckGoSearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -106,7 +108,7 @@ class DuckDuckGoSearchAdapter implements SearchEngineAdapterInterface
     private function mapMktToRegion(string $mkt): string
     {
         if (empty($mkt)) {
-            return $this->config->get('search.drivers.duckduckgo.region', 'wt-wt'); // worldwide
+            return $this->providerConfig['region'] ?? 'wt-wt'; // worldwide
         }
 
         // Simple mapping: zh-CN -> cn-zh

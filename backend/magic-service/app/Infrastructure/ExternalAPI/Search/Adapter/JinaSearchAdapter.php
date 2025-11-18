@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Search\Adapter;
 
-use App\Infrastructure\ExternalAPI\Search\JinaSearch;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\SearchResultItemDTO;
 use App\Infrastructure\ExternalAPI\Search\DTO\WebPagesDTO;
-use Hyperf\Contract\ConfigInterface;
+use App\Infrastructure\ExternalAPI\Search\JinaSearch;
 
 /**
  * Jina Search API adapter.
@@ -19,10 +18,13 @@ use Hyperf\Contract\ConfigInterface;
  */
 class JinaSearchAdapter implements SearchEngineAdapterInterface
 {
+    private array $providerConfig;
+
     public function __construct(
         private readonly JinaSearch $jinaSearch,
-        private readonly ConfigInterface $config
+        array $providerConfig = []
     ) {
+        $this->providerConfig = $providerConfig;
     }
 
     public function search(
@@ -34,7 +36,8 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
         string $freshness = '',
         string $setLang = ''
     ): SearchResponseDTO {
-        $apiKey = $this->config->get('search.drivers.jina.api_key');
+        $requestUrl = $this->providerConfig['request_url'] ?? '';
+        $apiKey = $this->providerConfig['api_key'] ?? '';
 
         // Call Jina search with all parameters
         // The service now handles parameter mapping internally
@@ -46,7 +49,8 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
             $offset,
             $safeSearch,
             $freshness,
-            $setLang
+            $setLang,
+            requestUrl: $requestUrl
         );
 
         // Convert Jina response to unified format
@@ -85,8 +89,8 @@ class JinaSearchAdapter implements SearchEngineAdapterInterface
 
     public function isAvailable(): bool
     {
-        // Jina can work without API key, but better with it
-        return true;
+        return ! empty($this->providerConfig['request_url'])
+            && ! empty($this->providerConfig['api_key']);
     }
 
     /**

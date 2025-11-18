@@ -9,7 +9,6 @@ namespace App\Infrastructure\ExternalAPI\Search\Factory;
 
 use App\Infrastructure\ExternalAPI\Search\Adapter\SearchEngineAdapterInterface;
 use Hyperf\Contract\ConfigInterface;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 /**
@@ -20,18 +19,18 @@ class SearchEngineAdapterFactory
 {
     public function __construct(
         private readonly ConfigInterface $config,
-        private readonly ContainerInterface $container
     ) {
     }
 
     /**
      * Create search engine adapter.
      *
-     * @param null|string $engine Engine name (bing|google|tavily|duckduckgo|jina|cloudsway).
+     * @param null|string $engine Engine name (bing|google|tavily|duckduckgo|jina|cloudsway|magic).
      *                            If null, uses default from config.
+     * @param array $providerConfig Configuration array from AI abilities config field
      * @throws RuntimeException If engine is not supported or class not found
      */
-    public function create(?string $engine = null): SearchEngineAdapterInterface
+    public function create(?string $engine = null, array $providerConfig = []): SearchEngineAdapterInterface
     {
         // Use default engine from config if not specified
         $engine = $engine ?? $this->config->get('search.backend', 'bing');
@@ -58,7 +57,7 @@ class SearchEngineAdapterFactory
             throw new RuntimeException("Adapter class not found: {$className}");
         }
 
-        return $this->container->get($className);
+        return make($className, ['providerConfig' => $providerConfig]);
     }
 
     /**
@@ -80,4 +79,3 @@ class SearchEngineAdapterFactory
         return in_array(strtolower(trim($engine)), $this->getSupportedEngines(), true);
     }
 }
-

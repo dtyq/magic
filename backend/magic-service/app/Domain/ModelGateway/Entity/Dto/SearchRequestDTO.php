@@ -20,12 +20,6 @@ class SearchRequestDTO extends AbstractRequestDTO
     private string $query = '';
 
     /**
-     * Search engine name (bing, google, tavily, duckduckgo, jina).
-     * Null means use default from config.
-     */
-    private ?string $engine = null;
-
-    /**
      * Number of results to return (1-50).
      */
     private int $count = 10;
@@ -61,7 +55,6 @@ class SearchRequestDTO extends AbstractRequestDTO
 
         // Support both 'q' and 'query' parameters
         $this->query = (string) ($data['q'] ?? $data['query'] ?? '');
-        $this->engine = ! empty($data['engine']) ? (string) $data['engine'] : null;
         $this->count = (int) ($data['count'] ?? 10);
         $this->offset = (int) ($data['offset'] ?? 0);
         $this->mkt = (string) ($data['mkt'] ?? 'zh-CN');
@@ -79,7 +72,6 @@ class SearchRequestDTO extends AbstractRequestDTO
     {
         $searchRequestDTO = new self();
         $searchRequestDTO->setQuery((string) ($data['q'] ?? $data['query'] ?? ''));
-        $searchRequestDTO->setEngine($data['engine'] ?? null);
         $searchRequestDTO->setCount((int) ($data['count'] ?? 10));
         $searchRequestDTO->setOffset((int) ($data['offset'] ?? 0));
         $searchRequestDTO->setMkt((string) ($data['mkt'] ?? 'zh-CN'));
@@ -102,17 +94,6 @@ class SearchRequestDTO extends AbstractRequestDTO
     public function setQuery(string $query): self
     {
         $this->query = $query;
-        return $this;
-    }
-
-    public function getEngine(): ?string
-    {
-        return $this->engine;
-    }
-
-    public function setEngine(?string $engine): self
-    {
-        $this->engine = $engine;
         return $this;
     }
 

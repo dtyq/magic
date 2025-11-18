@@ -42,7 +42,8 @@ class JinaSearch
         string $safeSearch = '',
         string $freshness = '',
         string $setLang = '',
-        ?string $region = null
+        ?string $region = null,
+        string $requestUrl = ''
     ): array {
         $body = [
             'q' => $query,
@@ -52,6 +53,9 @@ class JinaSearch
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];
+        if (empty($requestUrl)) {
+            $requestUrl = 'https://s.jina.ai/';
+        }
 
         // Use legacy region parameter if provided, otherwise use new unified parameters
         if ($region !== null) {
@@ -67,7 +71,7 @@ class JinaSearch
         }
 
         $client = new Client(['verify' => false]);
-        $response = $client->post('https://s.jina.ai/', [
+        $response = $client->post($requestUrl, [
             'json' => $body,
             'headers' => $header,
         ]);

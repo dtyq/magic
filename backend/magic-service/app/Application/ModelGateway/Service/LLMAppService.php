@@ -28,8 +28,10 @@ use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
+use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -190,8 +192,22 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
 
+        // 只有model_id参数，则获取model_version
+        if (empty($modelVersion) && $modelId) {
+            $providerDataIsolation = new ProviderDataIsolation($authorization->getOrganizationCode(), $authorization->getId(), $authorization->getMagicId());
+            $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($providerDataIsolation, $modelId);
+            if (! $imageModel) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+            }
+            $modelVersion = $imageModel->getModelVersion();
+        }
+
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
+        }
+
+        if (empty($data['reference_images'])) {
+            $data['reference_images'] = [];
         }
 
         if (! is_array($data['reference_images'])) {
@@ -430,7 +446,7 @@ class LLMAppService extends AbstractLLMAppService
      * Unified search proxy - supports multiple search engines with unified response format.
      *
      * @param SearchRequestDTO $searchRequestDTO Search request DTO with unified parameters
-     * @return array Unified Bing-compatible format response
+     * @return SearchResponseDTO Unified Bing-compatible format response
      */
     public function unifiedSearch(SearchRequestDTO $searchRequestDTO): SearchResponseDTO
     {
@@ -451,13 +467,50 @@ class LLMAppService extends AbstractLLMAppService
             []
         );
 
-        // 4. Log search request
+        // 4. Get web_search ability configuration
+        $aiAbilityDomainService = make(AiAbilityDomainService::class);
+        $providerDataIsolation = new ProviderDataIsolation(
+            $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            $modelGatewayDataIsolation->getCurrentUserId(),
+            ''
+        );
+
+        $aiAbilityEntity = $aiAbilityDomainService->getByCode($providerDataIsolation, AiAbilityCode::WebSearch);
+
+        // 5. Check if ability is enabled
+        if (! $aiAbilityEntity->getStatus()) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Web search ability is disabled'
+            );
+        }
+
+        // 6. Find enabled configuration
+        $configs = $aiAbilityEntity->getConfig()['providers'] ?? [];
+        $enabledConfig = null;
+        foreach ($configs as $cfg) {
+            if (($cfg['enable'] ?? false) === true) {
+                $enabledConfig = $cfg;
+                break;
+            }
+        }
+
+        if ($enabledConfig === null) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'No enabled search engine configuration found'
+            );
+        }
+
+        $provider = $enabledConfig['provider'] ?? null;
+
+        // 7. Log search request
         $this->logger->info('UnifiedSearchRequest', [
             'access_token_id' => $accessTokenEntity->getId(),
             'access_token_name' => $accessTokenEntity->getName(),
             'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
             'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-            'engine' => $searchRequestDTO->getEngine() ?? 'default',
+            'provider' => $provider,
             'query' => $searchRequestDTO->getQuery(),
             'count' => $searchRequestDTO->getCount(),
             'offset' => $searchRequestDTO->getOffset(),
@@ -467,11 +520,11 @@ class LLMAppService extends AbstractLLMAppService
         try {
             $startTime = microtime(true);
 
-            // 5. Create adapter via factory
+            // 8. Create adapter using factory
             $factory = make(SearchEngineAdapterFactory::class);
-            $adapter = $factory->create($searchRequestDTO->getEngine());
+            $adapter = $factory->create($provider, $enabledConfig);
 
-            // 6. Check engine availability
+            // 9. Check engine availability
             if (! $adapter->isAvailable()) {
                 ExceptionBuilder::throw(
                     MagicApiErrorCode::MODEL_RESPONSE_FAIL,
@@ -536,7 +589,7 @@ class LLMAppService extends AbstractLLMAppService
                 'access_token_id' => $accessTokenEntity->getId(),
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                'engine' => $searchRequestDTO->getEngine() ?? 'unknown',
+                'provider' => $provider ?? 'unknown',
                 'query' => $searchRequestDTO->getQuery(),
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),

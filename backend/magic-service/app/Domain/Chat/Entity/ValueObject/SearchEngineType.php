@@ -23,4 +23,10 @@ enum SearchEngineType: string
 
     // cloudsway
     case Cloudsway = 'cloudsway';
+
+    // magic
+    case Magic = 'magic';
+
+    // jina
+    case Jina = 'jina';
 }

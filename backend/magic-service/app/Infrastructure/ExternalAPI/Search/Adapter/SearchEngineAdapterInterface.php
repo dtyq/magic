@@ -60,4 +60,3 @@ interface SearchEngineAdapterInterface
      */
     public function isAvailable(): bool;
 }
-
