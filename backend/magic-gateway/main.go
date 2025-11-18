@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -144,18 +145,57 @@ func checkKeyRotation() {
 	}
 }
 
+// loadEnvFile attempts to load .env file from multiple locations
+func loadEnvFile() error {
+	// Try multiple locations for .env file
+	envPaths := []string{
+		".env",                    // Current working directory
+		filepath.Join(".", ".env"), // Explicit current directory
+	}
+
+	// Try to get executable directory and look for .env there
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		envPaths = append(envPaths, filepath.Join(exeDir, ".env"))
+		// Also try parent directory (in case executable is in a subdirectory)
+		envPaths = append(envPaths, filepath.Join(filepath.Dir(exeDir), ".env"))
+	}
+
+	// Try to get current working directory
+	if wd, err := os.Getwd(); err == nil {
+		envPaths = append(envPaths, filepath.Join(wd, ".env"))
+		// Try parent directory
+		envPaths = append(envPaths, filepath.Join(filepath.Dir(wd), ".env"))
+	}
+
+	// Try each path
+	var lastErr error
+	for _, envPath := range envPaths {
+		err := godotenv.Load(envPath)
+		if err == nil {
+			logger.Printf("成功加载.env文件: %s", envPath)
+			return nil
+		}
+		lastErr = err
+	}
+
+	// If all attempts failed, return the last error
+	return lastErr
+}
+
 // 初始化函数
 func init() {
 	// 设置日志
 	logger = log.New(os.Stdout, "[API网关] ", log.LstdFlags)
 	logger.Println("初始化服务...")
 
-	// 加载.env文件
-	err := godotenv.Load()
+	// 加载.env文件（支持多个位置）
+	err := loadEnvFile()
 	if err != nil {
-		if debugMode {
-			logger.Printf("警告: 无法加载.env文件: %v", err)
-		}
+		// Always log the warning, not just in debug mode, so users know .env wasn't loaded
+		logger.Printf("警告: 无法加载.env文件: %v (将仅使用系统环境变量)", err)
+	} else {
+		logger.Println("已成功加载.env文件")
 	}
 
 	// 初始化JWT安全配置
