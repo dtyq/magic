@@ -170,6 +170,7 @@ class HandleUserMessageAppService extends AbstractAppService
             instruction: ChatInstruction::FollowUp,
             agentMode: $userMessageDTO->getTopicMode(),
             isFirstTask: $isFirstTask,
+            extra: $userMessageDTO->getExtra(),
         );
     }
 
@@ -253,6 +254,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 modelId: $userMessageDTO->getModelId(),
                 messageId: $userMessageDTO->getMessageId(),
                 isFirstTask: $isFirstTask,
+                extra: $userMessageDTO->getExtra(),
             );
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(

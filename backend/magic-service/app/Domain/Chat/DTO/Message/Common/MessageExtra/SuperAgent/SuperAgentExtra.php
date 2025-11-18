@@ -48,6 +48,11 @@ class SuperAgentExtra extends AbstractDTO
     protected ?array $dynamicParams;
 
     /**
+     * Whether to enable web search. Default is true for backward compatibility.
+     */
+    protected ?bool $enableWebSearch = null;
+
+    /**
      * 获取 mentions 的 JSON 结构数组.
      */
     public function getMentionsJsonStruct(): ?array
@@ -182,5 +187,15 @@ class SuperAgentExtra extends AbstractDTO
             $this->dynamicParams = [];
         }
         $this->dynamicParams[$key] = $value;
+    }
+
+    public function getEnableWebSearch(): ?bool
+    {
+        return $this->enableWebSearch;
+    }
+
+    public function setEnableWebSearch(?bool $enableWebSearch): void
+    {
+        $this->enableWebSearch = $enableWebSearch;
     }
 }

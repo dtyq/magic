@@ -42,6 +42,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
@@ -225,12 +227,31 @@ class AgentDomainService
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
+        // Get original prompt
+        $prompt = $taskContext->getTask()->getPrompt();
+
+        // Check if web search should be disabled
+        $extra = $taskContext->getExtra();
+        if ($extra !== null && $extra->getEnableWebSearch() === false) {
+            // Get language for translation
+            $language = $taskContext->getDataIsolation()->getLanguage();
+            $constraintText = trans('task.disable_web_search_constraint', [], $language);
+
+            // Prepend constraint text to prompt (temporary modification, not stored)
+            $prompt = $constraintText . "\n\n" . $prompt;
+
+            $this->logger->info('[Sandbox][App] Web search disabled, constraint text prepended to prompt', [
+                'task_id' => $taskContext->getTask()->getId(),
+                'language' => $language,
+            ]);
+        }
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: $taskContext->getMessageId(),
             userId: $dataIsolation->getCurrentUserId(),
             taskId: (string) $taskContext->getTask()->getId(),
-            prompt: $taskContext->getTask()->getPrompt(),
+            prompt: $prompt,
             taskMode: $taskContext->getTask()->getTaskMode(),
             agentMode: $taskContext->getAgentMode(),
             mentions: $mentionsJsonStruct,
