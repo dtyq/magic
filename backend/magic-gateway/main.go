@@ -1000,7 +1000,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			// 验证环境变量名是否允许访问
 			if !isEnvVarAllowed(envVarName) {
 				logger.Printf("拒绝访问未授权的环境变量: %s", sanitizeLogString(envVarName))
-				http.Error(w, "环境变量访问被拒绝", http.StatusForbidden)
+				http.Error(w, "安全策略访问未通过", http.StatusForbidden)
 				return
 			}
 
