@@ -56,9 +56,9 @@ var (
 	// 特殊API配置：需要在请求体中替换API密钥的服务
 	specialApiKeys map[string]string
 
-	// Security limits
-	maxRequestBodySize  int64 = 10 * 1024 * 1024  // 10MB request body limit
-	maxResponseBodySize int64 = 100 * 1024 * 1024 // 100MB response body limit
+	// 安全限制
+	maxRequestBodySize  int64 = 10 * 1024 * 1024  // 10MB 请求体限制
+	maxResponseBodySize int64 = 100 * 1024 * 1024 // 100MB 响应体限制
 )
 
 // JWTClaims 定义JWT的声明 - 增强版
@@ -117,19 +117,19 @@ func generateNonce() string {
 	return hex.EncodeToString(bytes)
 }
 
-// sanitizeLogString sanitizes user input to prevent log injection attacks
+// sanitizeLogString 清理用户输入以防止日志注入攻击
 func sanitizeLogString(s string) string {
-	// Remove newlines and carriage returns to prevent log injection
+	// 移除换行符和回车符以防止日志注入
 	s = strings.ReplaceAll(s, "\n", "\\n")
 	s = strings.ReplaceAll(s, "\r", "\\r")
-	// Limit length to prevent log flooding
+	// 限制长度以防止日志洪水攻击
 	if len(s) > 200 {
 		s = s[:200] + "...[truncated]"
 	}
 	return s
 }
 
-// maskSensitiveValue masks sensitive values for logging (shows only first and last 4 chars)
+// maskSensitiveValue 对敏感值进行掩码处理用于日志记录（仅显示前4个和后4个字符）
 func maskSensitiveValue(s string) string {
 	if len(s) <= 8 {
 		return "***"
@@ -145,30 +145,30 @@ func checkKeyRotation() {
 	}
 }
 
-// loadEnvFile attempts to load .env file from multiple locations
+// loadEnvFile 尝试从多个位置加载 .env 文件
 func loadEnvFile() error {
-	// Try multiple locations for .env file
+	// 尝试多个位置查找 .env 文件
 	envPaths := []string{
-		".env",                    // Current working directory
-		filepath.Join(".", ".env"), // Explicit current directory
+		".env",                    // 当前工作目录
+		filepath.Join(".", ".env"), // 显式当前目录
 	}
 
-	// Try to get executable directory and look for .env there
+	// 尝试获取可执行文件目录并在那里查找 .env
 	if exePath, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exePath)
 		envPaths = append(envPaths, filepath.Join(exeDir, ".env"))
-		// Also try parent directory (in case executable is in a subdirectory)
+		// 也尝试父目录（以防可执行文件在子目录中）
 		envPaths = append(envPaths, filepath.Join(filepath.Dir(exeDir), ".env"))
 	}
 
-	// Try to get current working directory
+	// 尝试获取当前工作目录
 	if wd, err := os.Getwd(); err == nil {
 		envPaths = append(envPaths, filepath.Join(wd, ".env"))
-		// Try parent directory
+		// 尝试父目录
 		envPaths = append(envPaths, filepath.Join(filepath.Dir(wd), ".env"))
 	}
 
-	// Try each path
+	// 尝试每个路径
 	var lastErr error
 	for _, envPath := range envPaths {
 		err := godotenv.Load(envPath)
@@ -179,7 +179,7 @@ func loadEnvFile() error {
 		lastErr = err
 	}
 
-	// If all attempts failed, return the last error
+	// 如果所有尝试都失败，返回最后一个错误
 	return lastErr
 }
 
@@ -192,7 +192,7 @@ func init() {
 	// 加载.env文件（支持多个位置）
 	err := loadEnvFile()
 	if err != nil {
-		// Always log the warning, not just in debug mode, so users know .env wasn't loaded
+		// 始终记录警告，不仅仅在调试模式下，以便用户知道 .env 文件未加载
 		logger.Printf("警告: 无法加载.env文件: %v (将仅使用系统环境变量)", err)
 	} else {
 		logger.Println("已成功加载.env文件")
@@ -245,7 +245,7 @@ func loadSpecialApiKeys() {
 	configStr := getEnvWithDefault("MAGIC_GATEWAY_SPECIAL_API_KEYS", "")
 
 	if configStr == "" {
-		// No special API keys configured
+		// 未配置特殊API密钥
 		specialApiKeys = make(map[string]string)
 		logger.Printf("未配置特殊API，如需启用请设置 MAGIC_GATEWAY_SPECIAL_API_KEYS 环境变量")
 		logger.Printf("格式示例: BASE_URL_KEY:API_KEY_KEY|BASE_URL_KEY2:API_KEY_KEY2")
@@ -689,11 +689,11 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 	handler(w, r)
 }
 
-// getEnvVarBlacklist returns the blacklist patterns from environment or default
+// getEnvVarBlacklist 从环境变量或默认值返回黑名单模式
 func getEnvVarBlacklist() []string {
 	blacklistStr := getEnvWithDefault("MAGIC_GATEWAY_ENV_BLACKLIST", "")
 	if blacklistStr == "" {
-		// Default blacklist patterns
+		// 默认黑名单模式
 		return []string{
 			"MAGIC_GATEWAY_API_KEY",
 			"JWT_SECRET",
@@ -706,7 +706,7 @@ func getEnvVarBlacklist() []string {
 	return strings.Split(blacklistStr, ",")
 }
 
-// getEnvVarWhitelistPrefixes returns the whitelist prefixes from environment
+// getEnvVarWhitelistPrefixes 从环境变量返回白名单前缀
 func getEnvVarWhitelistPrefixes() []string {
 	whitelistStr := getEnvWithDefault("MAGIC_GATEWAY_ENV_WHITELIST_PREFIXES", "")
 	if whitelistStr == "" {
@@ -714,13 +714,13 @@ func getEnvVarWhitelistPrefixes() []string {
 		return []string{}
 	}
 
-	// Remove surrounding quotes if present
+	// 如果存在，移除周围的引号
 	whitelistStr = strings.Trim(whitelistStr, `"'`)
 
 	prefixes := strings.Split(whitelistStr, ",")
 	result := make([]string, 0, len(prefixes))
 
-	// Trim spaces and quotes, filter out empty strings
+	// 去除空格和引号，过滤空字符串
 	for _, prefix := range prefixes {
 		prefix = strings.TrimSpace(prefix)
 		prefix = strings.Trim(prefix, `"'`)
@@ -736,9 +736,9 @@ func getEnvVarWhitelistPrefixes() []string {
 	return result
 }
 
-// isEnvVarAllowed checks if an environment variable is allowed to be accessed
+// isEnvVarAllowed 检查是否允许访问某个环境变量
 func isEnvVarAllowed(varName string) bool {
-	// Check blacklist first
+	// 首先检查黑名单
 	blacklist := getEnvVarBlacklist()
 	varNameUpper := strings.ToUpper(varName)
 	for _, blocked := range blacklist {
@@ -747,10 +747,10 @@ func isEnvVarAllowed(varName string) bool {
 		}
 	}
 
-	// Check whitelist prefixes
+	// 检查白名单前缀
 	allowedPrefixes := getEnvVarWhitelistPrefixes()
 	if len(allowedPrefixes) == 0 {
-		// No whitelist configured, deny access
+		// 未配置白名单，拒绝访问
 		return false
 	}
 
@@ -967,7 +967,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logFullRequest(r)
 		}
 
-		// Limit request body size to prevent DoS attacks
+		// 限制请求体大小以防止DoS攻击
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 
 		// 读取请求体
@@ -1078,7 +1078,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 替换URL中的环境变量（必须在验证之前执行）
 		targetBase = replaceEnvVarsInString(targetBase)
 
-		// Validate target URL against whitelist with detailed error
+		// 根据白名单验证目标URL，提供详细错误信息
 		if err := validateTargetURL(targetBase); err != nil {
 			logger.Printf("拒绝访问未授权的目标URL: %s, 原因: %v", targetBase, err)
 			http.Error(w, fmt.Sprintf("目标URL验证失败: %v", err), http.StatusForbidden)
@@ -1402,7 +1402,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				logFullResponse(resp, targetURL)
 			}
 
-			// Limit response body size to prevent memory exhaustion
+			// 限制响应体大小以防止内存耗尽
 			limitedReader := io.LimitReader(resp.Body, maxResponseBodySize)
 			respBody, err := io.ReadAll(limitedReader)
 			if err != nil {
@@ -1411,7 +1411,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Check if response was truncated due to size limit
+			// 检查响应是否因大小限制而被截断
 			if int64(len(respBody)) >= maxResponseBodySize {
 				logger.Printf("警告: 响应体可能超过100MB限制，已截断")
 			}
