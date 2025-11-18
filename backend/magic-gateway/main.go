@@ -1000,7 +1000,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			// 验证环境变量名是否允许访问
 			if !isEnvVarAllowed(envVarName) {
 				logger.Printf("拒绝访问未授权的环境变量: %s", sanitizeLogString(envVarName))
-				http.Error(w, "安全策略访问未通过", http.StatusForbidden)
+				http.Error(w, "Not Found", http.StatusNotFound)
 				return
 			}
 
@@ -1081,7 +1081,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 		// 根据白名单验证目标URL，提供详细错误信息
 		if err := validateTargetURL(targetBase); err != nil {
 			logger.Printf("拒绝访问未授权的目标URL: %s, 原因: %v", targetBase, err)
-			http.Error(w, fmt.Sprintf("目标URL验证失败: %v", err), http.StatusForbidden)
+			http.Error(w, "Not Found", http.StatusNotFound)
 			return
 		}
 		logger.Printf("目标URL验证通过: %s", targetBase)
