@@ -17,8 +17,8 @@ RUN go mod download
 # 复制源代码
 COPY . .
 
-# 编译
-RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway main.go
+# 编译整个包（包含 main.go, url_validator.go 等所有文件）
+RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway .
 
 # 使用多阶段构建减小镜像大小
 FROM public.ecr.aws/docker/library/alpine:latest
