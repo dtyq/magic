@@ -33,7 +33,7 @@ class UpdateModeRequest extends FormRequest
             'icon_url' => 'nullable|string|max:512',
             'color' => 'nullable|string|max:10|regex:/^#[0-9a-fA-F]{6}$/',
             'description' => 'nullable|string|max:1000',
-            'distribution_type' => 'required|integer|in:1,2',
+            'distribution_type' => 'nullable|integer|in:1,2',
             'restricted_mode_identifiers' => 'nullable|array',
             'restricted_mode_identifiers.*' => 'string|max:50',
         ];
@@ -96,9 +96,9 @@ class UpdateModeRequest extends FormRequest
         return $this->input('description');
     }
 
-    public function getDistributionType(): int
+    public function getDistributionType():? int
     {
-        return (int) $this->input('distribution_type', 1);
+        return $this->input('distribution_type') ? (int)$this->input('distribution_type') : null;
     }
 
     public function getFollowModeId(): ?int
@@ -106,9 +106,9 @@ class UpdateModeRequest extends FormRequest
         return $this->input('follow_mode_id') ? (int) $this->input('follow_mode_id') : null;
     }
 
-    public function getRestrictedModeIdentifiers(): array
+    public function getRestrictedModeIdentifiers():? array
     {
-        return $this->input('restricted_mode_identifiers', []);
+        return $this->input('restricted_mode_identifiers') ? $this->input('restricted_mode_identifiers') : null;
     }
 
     public function getPlaceholderI18n(): array

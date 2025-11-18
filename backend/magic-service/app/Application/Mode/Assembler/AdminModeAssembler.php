@@ -228,9 +228,17 @@ class AdminModeAssembler
             $existingEntity->setColor($request->getColor());
         }
 
-        $existingEntity->setDistributionType($request->getDistributionType());
-        $existingEntity->setFollowModeId($request->getFollowModeId());
-        $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
+        if (! is_null($request->getDistributionType())) {
+            $existingEntity->setDistributionType($request->getDistributionType());
+        }
+
+        if (! is_null($request->getFollowModeId())) {
+            $existingEntity->setFollowModeId($request->getFollowModeId());
+        }
+
+        if (! is_null($request->getRestrictedModeIdentifiers())) {
+            $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
+        }
     }
 
     /**
