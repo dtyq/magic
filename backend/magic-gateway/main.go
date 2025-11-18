@@ -673,12 +673,27 @@ func getEnvVarWhitelistPrefixes() []string {
 		logger.Printf("警告: 未配置 MAGIC_GATEWAY_ENV_WHITELIST_PREFIXES，环境变量访问将被限制")
 		return []string{}
 	}
+
+	// Remove surrounding quotes if present
+	whitelistStr = strings.Trim(whitelistStr, `"'`)
+
 	prefixes := strings.Split(whitelistStr, ",")
-	// Trim spaces
-	for i, prefix := range prefixes {
-		prefixes[i] = strings.TrimSpace(prefix)
+	result := make([]string, 0, len(prefixes))
+
+	// Trim spaces and quotes, filter out empty strings
+	for _, prefix := range prefixes {
+		prefix = strings.TrimSpace(prefix)
+		prefix = strings.Trim(prefix, `"'`)
+		if prefix != "" {
+			result = append(result, prefix)
+		}
 	}
-	return prefixes
+
+	if len(result) == 0 {
+		logger.Printf("警告: MAGIC_GATEWAY_ENV_WHITELIST_PREFIXES 配置为空或无效")
+	}
+
+	return result
 }
 
 // isEnvVarAllowed checks if an environment variable is allowed to be accessed
