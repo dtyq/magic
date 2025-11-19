@@ -96,9 +96,9 @@ class UpdateModeRequest extends FormRequest
         return $this->input('description');
     }
 
-    public function getDistributionType():? int
+    public function getDistributionType(): ?int
     {
-        return $this->input('distribution_type') ? (int)$this->input('distribution_type') : null;
+        return $this->input('distribution_type') ? (int) $this->input('distribution_type') : null;
     }
 
     public function getFollowModeId(): ?int
@@ -106,7 +106,7 @@ class UpdateModeRequest extends FormRequest
         return $this->input('follow_mode_id') ? (int) $this->input('follow_mode_id') : null;
     }
 
-    public function getRestrictedModeIdentifiers():? array
+    public function getRestrictedModeIdentifiers(): ?array
     {
         return $this->input('restricted_mode_identifiers') ? $this->input('restricted_mode_identifiers') : null;
     }
