@@ -67,9 +67,7 @@ class ProjectMetadataDomainService
             $this->updateParentDirectoryMetadata($projectJsFileEntity, $metadataJson);
 
             // 4. Handle special slide type
-            if (($metadata['type'] ?? '') === ProjectFileConstant::METADATA_TYPE_SLIDE) {
-                $this->updateSlideIndexMetadata($projectJsFileEntity, $metadataJson);
-            }
+            $this->updateSlideIndexMetadata($projectJsFileEntity, $metadataJson);
 
             $this->logger->info('Successfully processed project.js metadata', [
                 'file_id' => $projectJsFileEntity->getFileId(),
