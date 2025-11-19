@@ -12,7 +12,7 @@ return [
     'agent_stopped' => 'Task has been terminated',
     'finished_task_action' => 'Output of completed result file',
     'disable_web_search_constraint' => <<<'TEXT'
-【Important Constraint】Please strictly follow the following requirements for this conversation:
+【Important Constraint】For this round of user message, please strictly follow the following requirements:
 
 1. Do not use the web_search tool for internet searches
 
@@ -22,8 +22,10 @@ return [
    - grep_search: Search file content
    - read_files: Read file content
 
-3. If relevant information cannot be found locally, directly inform the user: "No relevant information found in the workspace. Please provide more clues or allow me to search the internet"
+3. If relevant information cannot be found locally, directly inform the user: "No relevant information found in the workspace"
 
 4. Answer questions based on existing files in the workspace and previous conversation content
+
+Important: This constraint only applies to this round of user message. If there is no explicit constraint disabling the web_search tool in the next round of user message, proceed normally and you can directly use the web_search tool for internet searches without additional confirmation.
 TEXT,
 ];
