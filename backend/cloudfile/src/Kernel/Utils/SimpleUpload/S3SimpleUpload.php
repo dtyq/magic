@@ -323,10 +323,38 @@ class S3SimpleUpload extends SimpleUpload
         ];
         $s3Operation = $methodMap[$httpMethod] ?? 'GetObject';
 
-        $command = $client->getCommand($s3Operation, [
+        // Build command parameters
+        $commandParams = [
             'Bucket' => $credential['bucket'],
             'Key' => $objectKey,
-        ]);
+        ];
+
+        // Handle response headers from custom_query (for MinIO/S3 compatibility)
+        // Map response-content-type to ResponseContentType
+        if (isset($options['custom_query']['response-content-type'])) {
+            $commandParams['ResponseContentType'] = $options['custom_query']['response-content-type'];
+        } elseif (isset($options['content_type'])) {
+            // Fallback to content_type option if custom_query is not set
+            $commandParams['ResponseContentType'] = $options['content_type'];
+        }
+
+        // Map response-content-disposition to ResponseContentDisposition
+        if (isset($options['custom_query']['response-content-disposition'])) {
+            $commandParams['ResponseContentDisposition'] = $options['custom_query']['response-content-disposition'];
+        }
+
+        // Handle filename for Content-Disposition if provided
+        if (isset($options['filename']) && ! isset($commandParams['ResponseContentDisposition'])) {
+            $filename = $options['filename'];
+            $disposition = $options['custom_query']['response-content-disposition'] ?? 'attachment';
+            if ($disposition === 'inline') {
+                $commandParams['ResponseContentDisposition'] = 'inline; filename="' . addslashes($filename) . '"';
+            } else {
+                $commandParams['ResponseContentDisposition'] = 'attachment; filename="' . addslashes($filename) . '"';
+            }
+        }
+
+        $command = $client->getCommand($s3Operation, $commandParams);
 
         $expires = $options['expires'] ?? 3600;
         $request = $client->createPresignedRequest($command, "+{$expires} seconds");
