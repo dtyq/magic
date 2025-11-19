@@ -453,11 +453,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Validate search parameters
         $searchRequestDTO->validate();
+        $businessParams = $searchRequestDTO->getBusinessParams();
 
         // Create data isolation object (for logging and permission control)
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
             $searchRequestDTO->getAccessToken(),
-            []
+            $businessParams
         );
 
         // Get web_search ability configuration
@@ -542,8 +543,8 @@ class LLMAppService extends AbstractLLMAppService
                 'offset' => $searchRequestDTO->getOffset(),
             ]);
 
-            $businessParams = $searchRequestDTO->getBusinessParams();
             $businessParams['response_time'] = $responseTime;
+            $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
             $webSearchUsageEvent = new WebSearchUsageEvent(
                 $adapter->getEngineName(),
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
