@@ -26,6 +26,8 @@ interface AccessTokenRepositoryInterface
 
     public function getByAccessToken(LLMDataIsolation $dataIsolation, string $accessToken): ?AccessTokenEntity;
 
+    public function getByEncryptedAccessToken(LLMDataIsolation $dataIsolation, string $encryptedAccessToken): ?AccessTokenEntity;
+
     public function destroy(LLMDataIsolation $dataIsolation, AccessTokenEntity $accessTokenEntity): void;
 
     public function countByTypeAndRelationId(LLMDataIsolation $dataIsolation, AccessTokenType $type, string $relationId): int;
