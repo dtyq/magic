@@ -268,7 +268,7 @@ readonly class AsrSandboxService
         ]);
 
         // 调用沙箱 finish 并轮询等待完成（会通过响应处理器自动创建/更新文件记录）
-        $mergeResult = $this->callSandboxFinishAndWait($taskStatus, $fileTitle, $organizationCode);
+        $mergeResult = $this->callSandboxFinishAndWait($taskStatus, $fileTitle);
 
         $this->logger->info('沙箱返回的文件信息', [
             'task_key' => $taskStatus->taskKey,
@@ -295,13 +295,11 @@ readonly class AsrSandboxService
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $intelligentTitle 智能标题（用于重命名）
-     * @param string $organizationCode 组织编码
      * @return AsrSandboxMergeResultDTO 合并结果
      */
     private function callSandboxFinishAndWait(
         AsrTaskStatusDTO $taskStatus,
         string $intelligentTitle,
-        string $organizationCode
     ): AsrSandboxMergeResultDTO {
         $sandboxId = $taskStatus->sandboxId;
 
@@ -372,7 +370,6 @@ readonly class AsrSandboxService
                 $status,
                 $taskStatus,
                 $sandboxId,
-                $organizationCode,
                 $finishStartTime,
                 $attempt
             );
@@ -423,7 +420,6 @@ readonly class AsrSandboxService
             $status,
             $taskStatus,
             $sandboxId,
-            $organizationCode,
             $finishStartTime,
             $attempt
         );
@@ -452,7 +448,6 @@ readonly class AsrSandboxService
      * @param SandboxAsrStatusEnum $status 状态枚举
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $sandboxId 沙箱ID
-     * @param string $organizationCode 组织编码
      * @param float $finishStartTime 开始时间
      * @param int $attempt 尝试次数
      * @return null|AsrSandboxMergeResultDTO 如果完成则返回结果，否则返回null
@@ -463,7 +458,6 @@ readonly class AsrSandboxService
         SandboxAsrStatusEnum $status,
         AsrTaskStatusDTO $taskStatus,
         string $sandboxId,
-        string $organizationCode,
         float $finishStartTime,
         int $attempt
     ): ?AsrSandboxMergeResultDTO {
@@ -487,7 +481,6 @@ readonly class AsrSandboxService
             $this->responseHandler->handleFinishResponse(
                 $taskStatus,
                 $responseData,
-                $organizationCode
             );
 
             return AsrSandboxMergeResultDTO::fromSandboxResponse([

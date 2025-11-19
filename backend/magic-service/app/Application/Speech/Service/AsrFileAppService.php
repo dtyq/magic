@@ -220,7 +220,7 @@ readonly class AsrFileAppService
 
                 try {
                     // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
-                    $oldDisplayDirectory = $taskStatus->displayDirectory;
+                    //                    $oldDisplayDirectory = $taskStatus->displayDirectory;
                     if (! empty($summaryRequest->generatedTitle)) {
                         $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
                             $taskStatus,
@@ -233,14 +233,14 @@ readonly class AsrFileAppService
                     // 调用沙箱合并音频（沙箱会重命名目录但不会通知文件变动）
                     $this->updateAudioFromSandbox($taskStatus, $organizationCode, $summaryRequest->generatedTitle);
 
-                    // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
-                    if (! empty($summaryRequest->generatedTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
-                        $this->directoryService->renameDisplayDirectory(
-                            $taskStatus,
-                            $oldDisplayDirectory,
-                            $summaryRequest->projectId
-                        );
-                    }
+                    //                    // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
+                    //                    if (! empty($summaryRequest->generatedTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
+                    //                        $this->directoryService->renameDisplayDirectory(
+                    //                            $taskStatus,
+                    //                            $oldDisplayDirectory,
+                    //                            $summaryRequest->projectId
+                    //                        );
+                    //                    }
                 } catch (Throwable $mergeException) {
                     // 回退到已有文件
                     if (! empty($existingWorkspaceFilePath)) {
@@ -438,7 +438,7 @@ readonly class AsrFileAppService
             $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
 
             // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
-            $oldDisplayDirectory = $taskStatus->displayDirectory;
+            //            $oldDisplayDirectory = $taskStatus->displayDirectory;
             if (! empty($fileTitle)) {
                 $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
                     $taskStatus,
@@ -451,14 +451,14 @@ readonly class AsrFileAppService
             // 合并音频（沙箱会重命名目录但不会通知文件变动）
             $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
 
-            // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
-            if (! empty($fileTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
-                $this->directoryService->renameDisplayDirectory(
-                    $taskStatus,
-                    $oldDisplayDirectory,
-                    $taskStatus->projectId
-                );
-            }
+            //            // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
+            //            if (! empty($fileTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
+            //                $this->directoryService->renameDisplayDirectory(
+            //                    $taskStatus,
+            //                    $oldDisplayDirectory,
+            //                    $taskStatus->projectId
+            //                );
+            //            }
 
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
