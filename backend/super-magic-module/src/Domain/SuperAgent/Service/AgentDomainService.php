@@ -228,7 +228,7 @@ class AgentDomainService
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
         // Get original prompt
-        $prompt = $taskContext->getTask()->getPrompt();
+        $userRequest = $taskContext->getTask()->getPrompt();
 
         // Check if web search should be disabled
         $extra = $taskContext->getExtra();
@@ -237,13 +237,16 @@ class AgentDomainService
             $language = $taskContext->getDataIsolation()->getLanguage();
             $constraintText = trans('task.disable_web_search_constraint', [], $language);
 
-            // Prepend constraint text to prompt (temporary modification, not stored)
-            $prompt = $constraintText . "\n\n" . $prompt;
+            // Wrap user request in <user_request> tags and combine with constraint
+            $prompt = $constraintText . "\n\n<user_request>\n" . $userRequest . "\n</user_request>";
 
             $this->logger->info('[Sandbox][App] Web search disabled, constraint text prepended to prompt', [
                 'task_id' => $taskContext->getTask()->getId(),
                 'language' => $language,
             ]);
+        } else {
+            // No constraint, use original prompt as is
+            $prompt = $userRequest;
         }
 
         // 构建参数
