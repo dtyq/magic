@@ -31,6 +31,7 @@ use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
@@ -450,35 +451,23 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function unifiedSearch(SearchRequestDTO $searchRequestDTO): SearchResponseDTO
     {
-        // 1. Validate access token
-        $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken(
-            $searchRequestDTO->getAccessToken()
-        );
-        if (! $accessTokenEntity) {
-            ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
-        }
-
-        // 2. Validate search parameters
+        // Validate search parameters
         $searchRequestDTO->validate();
 
-        // 3. Create data isolation object (for logging and permission control)
+        // Create data isolation object (for logging and permission control)
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
             $searchRequestDTO->getAccessToken(),
             []
         );
 
-        // 4. Get web_search ability configuration
-        $aiAbilityDomainService = make(AiAbilityDomainService::class);
-        $providerDataIsolation = new ProviderDataIsolation(
-            $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-            $modelGatewayDataIsolation->getCurrentUserId(),
-            ''
-        );
+        // Get web_search ability configuration
+        $aiAbilityDomainService = di(AiAbilityDomainService::class);
 
-        $aiAbilityEntity = $aiAbilityDomainService->getByCode($providerDataIsolation, AiAbilityCode::WebSearch);
+        $dataIsolation = ProviderDataIsolation::create()->disabled();
+        $aiAbilityEntity = $aiAbilityDomainService->getByCode($dataIsolation, AiAbilityCode::WebSearch);
 
-        // 5. Check if ability is enabled
-        if (! $aiAbilityEntity->getStatus()) {
+        // Check if ability is enabled
+        if (! $aiAbilityEntity || $aiAbilityEntity->getStatus() !== Status::Enabled) {
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Web search ability is disabled'
@@ -506,8 +495,6 @@ class LLMAppService extends AbstractLLMAppService
 
         // 7. Log search request
         $this->logger->info('UnifiedSearchRequest', [
-            'access_token_id' => $accessTokenEntity->getId(),
-            'access_token_name' => $accessTokenEntity->getName(),
             'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
             'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
             'provider' => $provider,
@@ -532,7 +519,7 @@ class LLMAppService extends AbstractLLMAppService
                 );
             }
 
-            // 7. Execute search with unified parameters - adapter returns unified format
+            // Execute search with unified parameters - adapter returns unified format
             $unifiedResponse = $adapter->search(
                 $searchRequestDTO->getQuery(),
                 $searchRequestDTO->getMkt(),
@@ -543,10 +530,10 @@ class LLMAppService extends AbstractLLMAppService
                 $searchRequestDTO->getSetLang()
             );
 
-            // 8. Calculate response time
+            // Calculate response time
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
-            // 9. Add metadata to response
+            // Add metadata to response
             $unifiedResponse->setMetadata([
                 'engine' => $adapter->getEngineName(),
                 'responseTime' => $responseTime,
@@ -565,10 +552,9 @@ class LLMAppService extends AbstractLLMAppService
             );
             AsyncEventUtil::dispatch($webSearchUsageEvent);
 
-            // 10. Log success
+            // Log success
             $webPages = $unifiedResponse->getWebPages();
             $this->logger->info('UnifiedSearchSuccess', [
-                'access_token_id' => $accessTokenEntity->getId(),
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'engine' => $adapter->getEngineName(),
@@ -578,7 +564,7 @@ class LLMAppService extends AbstractLLMAppService
                 'response_time' => $responseTime,
             ]);
 
-            // 11. Return unified response (Bing-compatible format)
+            // Return unified response (Bing-compatible format)
             return $unifiedResponse;
         } catch (BusinessException $e) {
             // Re-throw business exceptions
@@ -586,7 +572,6 @@ class LLMAppService extends AbstractLLMAppService
         } catch (Throwable $e) {
             // Log failure
             $this->logger->error('UnifiedSearchFailed', [
-                'access_token_id' => $accessTokenEntity->getId(),
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'provider' => $provider ?? 'unknown',
