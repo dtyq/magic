@@ -220,7 +220,7 @@ func validateTargetURL(targetURL string) error {
 			}
 		}
 	}
-
+	logger.Printf("targetURL: %s, allowedTargetRules: %v", targetURL, allowedTargetRules)
 	// 检查白名单规则
 	if len(allowedTargetRules) == 0 {
 		return fmt.Errorf("未配置URL白名单，禁止使用target参数")

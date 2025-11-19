@@ -149,7 +149,7 @@ func checkKeyRotation() {
 func loadEnvFile() error {
 	// 尝试多个位置查找 .env 文件
 	envPaths := []string{
-		".env",                    // 当前工作目录
+		".env",                     // 当前工作目录
 		filepath.Join(".", ".env"), // 显式当前目录
 	}
 
@@ -161,6 +161,7 @@ func loadEnvFile() error {
 		envPaths = append(envPaths, filepath.Join(filepath.Dir(exeDir), ".env"))
 	}
 
+
 	// 尝试获取当前工作目录
 	if wd, err := os.Getwd(); err == nil {
 		envPaths = append(envPaths, filepath.Join(wd, ".env"))
@@ -168,13 +169,43 @@ func loadEnvFile() error {
 		envPaths = append(envPaths, filepath.Join(filepath.Dir(wd), ".env"))
 	}
 
+	// 去重路径（避免重复尝试）
+	uniquePaths := make(map[string]bool)
+	var uniqueEnvPaths []string
+	for _, p := range envPaths {
+		absPath, err := filepath.Abs(p)
+		if err != nil {
+			absPath = p
+		}
+		if !uniquePaths[absPath] {
+			uniquePaths[absPath] = true
+			uniqueEnvPaths = append(uniqueEnvPaths, p)
+		}
+	}
+
 	// 尝试每个路径
 	var lastErr error
-	for _, envPath := range envPaths {
+	for i, envPath := range uniqueEnvPaths {
+		absPath, _ := filepath.Abs(envPath)
+
+		// 检查文件是否存在
+		if _, err := os.Stat(envPath); os.IsNotExist(err) {
+			if debugMode {
+				logger.Printf("尝试位置 %d: %s (不存在)", i+1, absPath)
+			}
+			lastErr = err
+			continue
+		}
+
+		// 尝试加载
 		err := godotenv.Load(envPath)
 		if err == nil {
-			logger.Printf("成功加载.env文件: %s", envPath)
+			logger.Printf("成功加载.env文件: %s", absPath)
 			return nil
+		}
+
+		if debugMode {
+			logger.Printf("尝试位置 %d: %s (加载失败: %v)", i+1, absPath, err)
 		}
 		lastErr = err
 	}
@@ -290,19 +321,20 @@ func main() {
 	// 设置服务端口
 	port := getEnvWithDefault("MAGIC_GATEWAY_PORT", "8000")
 
-	// 初始化GPG签名处理器
+	// 初始化GPG签名处理器（可选功能）
 	signHandler, err := handler.NewSignHandler(logger)
 	if err != nil {
-		logger.Fatalf("Failed to initialize GPG sign handler: %v", err)
+		logger.Printf("Warning: Failed to initialize GPG sign handler: %v", err)
+		logger.Println("GPG signing service will be disabled. To enable it, set a valid AI_DATA_SIGNING_KEY in .env")
+	} else {
+		// 注册签名路由 (需要认证)
+		http.HandleFunc("/api/ai-generated/sign", withAuth(signHandler.Sign))
+		logger.Println("GPG signing service enabled:")
+		logger.Println("  - Unified signing at: /api/ai-generated/sign")
 	}
 
 	// 初始化用户信息处理器
 	userHandler := handler.NewUserHandler(logger)
-
-	// 注册签名路由 (需要认证)
-	http.HandleFunc("/api/ai-generated/sign", withAuth(signHandler.Sign))
-	logger.Println("GPG signing service enabled:")
-	logger.Println("  - Unified signing at: /api/ai-generated/sign")
 
 	// 注册用户信息路由 (需要认证)
 	http.HandleFunc("/api/user/info", withAuth(userHandler.GetUserInfo))
@@ -1085,6 +1117,29 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logger.Printf("目标URL验证通过: %s", targetBase)
+
+		// 检查是否是火山全栈可观测平台的请求
+		if ShouldUseVolcengineAPMHandler(targetBase) {
+			endpoint, appKey, ok := GetVolcengineAPMConfig()
+			if !ok {
+				logger.Printf("警告: 检测到火山可观测平台请求，但未配置VOLCENGINE_APM_APPKEY")
+				// 继续使用普通的HTTP代理
+			} else {
+				logger.Printf("使用火山可观测平台gRPC处理器")
+				handler := NewVolcengineAPMHandler(endpoint, appKey)
+
+				// 构建完整URL用于日志记录
+				targetBase = strings.TrimSuffix(targetBase, "/")
+				path = strings.TrimPrefix(path, "/")
+				fullTargetURL := fmt.Sprintf("%s/%s", targetBase, path)
+
+				if err := handler.HandleVolcengineAPMRequest(w, r, fullTargetURL, bodyBytes); err != nil {
+					logger.Printf("火山可观测平台请求处理失败: %v", err)
+					http.Error(w, fmt.Sprintf("处理请求失败: %v", err), http.StatusBadGateway)
+				}
+				return
+			}
+		}
 
 		// 检查是否是特定API之一，只对这些API进行body替换
 		isSpecialAPI := false
