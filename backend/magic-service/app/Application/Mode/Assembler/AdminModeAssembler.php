@@ -214,13 +214,31 @@ class AdminModeAssembler
             $existingEntity->setIcon($request->getIcon());
         }
 
+        $iconType = $request->input('icon_type');
+        if ($iconType !== null) {
+            $existingEntity->setIconType((int) $iconType);
+        }
+
+        $iconUrl = $request->input('icon_url');
+        if ($iconUrl !== null) {
+            $existingEntity->setIconUrl($iconUrl);
+        }
+
         if ($request->getColor() !== null) {
             $existingEntity->setColor($request->getColor());
         }
 
-        $existingEntity->setDistributionType($request->getDistributionType());
-        $existingEntity->setFollowModeId($request->getFollowModeId());
-        $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
+        if (! is_null($request->getDistributionType())) {
+            $existingEntity->setDistributionType($request->getDistributionType());
+        }
+
+        if (! is_null($request->getFollowModeId())) {
+            $existingEntity->setFollowModeId($request->getFollowModeId());
+        }
+
+        if (! is_null($request->getRestrictedModeIdentifiers())) {
+            $existingEntity->setRestrictedModeIdentifiers($request->getRestrictedModeIdentifiers());
+        }
     }
 
     /**

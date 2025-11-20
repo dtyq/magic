@@ -420,6 +420,14 @@ readonly class AdminProviderAppService
     }
 
     /**
+     * 初始化Magic服务商配置数据.
+     */
+    public function initializeMagicProviderConfigs(): int
+    {
+        return $this->adminProviderDomainService->initializeMagicProviderConfigs();
+    }
+
+    /**
      * @param $providerModelDetailDTOs ProviderModelDetailDTO[]
      */
     private function processModelIcons(array $providerModelDetailDTOs): void

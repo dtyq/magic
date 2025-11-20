@@ -28,8 +28,14 @@ class SuperMagicAgentListDTO extends AbstractDTO
 
     /**
      * Agent图标.
+     * 格式: {"url": "...", "type": "...", "color": "..."}.
      */
     public array $icon = [];
+
+    /**
+     * 图标类型 1:图标 2:图片.
+     */
+    public int $iconType = 1;
 
     /**
      * 智能体类型：1-内置，2-自定义.
@@ -74,6 +80,16 @@ class SuperMagicAgentListDTO extends AbstractDTO
     public function setIcon(?array $icon): void
     {
         $this->icon = $icon ?? [];
+    }
+
+    public function getIconType(): int
+    {
+        return $this->iconType;
+    }
+
+    public function setIconType(?int $iconType): void
+    {
+        $this->iconType = $iconType ?? 1;
     }
 
     public function getType(): int

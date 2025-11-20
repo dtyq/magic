@@ -43,6 +43,10 @@ class SuperMagicAgentFactory
             $entity->setIcon($model->icon);
         }
 
+        if ($model->icon_type !== null) {
+            $entity->setIconType($model->icon_type);
+        }
+
         if ($model->prompt !== null) {
             $entity->setPrompt($model->prompt);
         }

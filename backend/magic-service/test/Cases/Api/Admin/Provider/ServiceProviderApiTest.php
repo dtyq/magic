@@ -265,7 +265,7 @@ class ServiceProviderApiTest extends BaseTest
                 'proxy_url' => 'international_access_point',
                 // 国内接入点
                 //                'proxy_url' => 'domestic_access_points',
-                'api_key' => 'sk-83649403db42583df484142dc9745bab',
+                'api_key' => 'sk-1111',
                 'priority' => 100,
             ],
             'service_provider_id' => '766765755164848128',

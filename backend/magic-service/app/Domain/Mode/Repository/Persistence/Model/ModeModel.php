@@ -17,6 +17,8 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property array $placeholder_i18n
  * @property string $identifier
  * @property string $icon
+ * @property int $icon_type
+ * @property string $icon_url
  * @property string $color
  * @property string $description
  * @property int $is_default
@@ -43,6 +45,8 @@ class ModeModel extends AbstractModel
         'placeholder_i18n',
         'identifier',
         'icon',
+        'icon_type',
+        'icon_url',
         'color',
         'sort',
         'description',
@@ -59,6 +63,7 @@ class ModeModel extends AbstractModel
         'id' => 'integer',
         'name_i18n' => 'array',
         'placeholder_i18n' => 'array',
+        'icon_type' => 'integer',
         'is_default' => 'integer',
         'status' => 'boolean',
         'distribution_type' => 'integer',

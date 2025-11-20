@@ -70,7 +70,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 目前只能查询自己的，全量查询
         $query->setCreatorId($authorization->getId());
         $page->disable();
-        $query->setSelect(['id', 'code', 'name', 'description', 'icon']); // Only select necessary fields for list
+        $query->setSelect(['id', 'code', 'name', 'description', 'icon', 'icon_type']); // Only select necessary fields for list
 
         $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
 
@@ -289,9 +289,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $entity->setName($modeEntity->getName());
         $entity->setDescription($modeEntity->getPlaceholder());
         $entity->setIcon([
+            'url' => $modeEntity->getIconUrl(),
             'type' => $modeEntity->getIcon(),
             'color' => $modeEntity->getColor(),
         ]);
+        $entity->setIconType($modeEntity->getIconType());
         $entity->setType(SuperMagicAgentType::Built_In);
         $entity->setEnabled(true);
         $entity->setPrompt([]);
