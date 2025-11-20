@@ -16,10 +16,12 @@ class InitializationMetadataDTO
     /**
      * 构造函数.
      *
-     * @param bool $skipInitMessages 是否跳过初始化消息，用于 ASR 场景
+     * @param ?bool $skipInitMessages 是否跳过初始化消息，用于 ASR 场景
+     * @param ?string $authorization 授权信息
      */
     public function __construct(
-        private bool $skipInitMessages = false
+        private ?bool $skipInitMessages = null,
+        private ?string $authorization = null
     ) {
     }
 
@@ -34,9 +36,9 @@ class InitializationMetadataDTO
     /**
      * 获取是否跳过初始化消息.
      *
-     * @return bool 是否跳过初始化消息
+     * @return ?bool 是否跳过初始化消息
      */
-    public function getSkipInitMessages(): bool
+    public function getSkipInitMessages(): ?bool
     {
         return $this->skipInitMessages;
     }
@@ -44,13 +46,36 @@ class InitializationMetadataDTO
     /**
      * 设置是否跳过初始化消息.
      *
-     * @param bool $skipInitMessages 是否跳过初始化消息
+     * @param ?bool $skipInitMessages 是否跳过初始化消息
      * @return self 新的实例
      */
-    public function withSkipInitMessages(bool $skipInitMessages): self
+    public function withSkipInitMessages(?bool $skipInitMessages): self
     {
         $clone = clone $this;
         $clone->skipInitMessages = $skipInitMessages;
+        return $clone;
+    }
+
+    /**
+     * 获取授权信息.
+     *
+     * @return ?string 授权信息
+     */
+    public function getAuthorization(): ?string
+    {
+        return $this->authorization;
+    }
+
+    /**
+     * 设置授权信息.
+     *
+     * @param ?string $authorization 授权信息
+     * @return self 新的实例
+     */
+    public function withAuthorization(?string $authorization): self
+    {
+        $clone = clone $this;
+        $clone->authorization = $authorization;
         return $clone;
     }
 }

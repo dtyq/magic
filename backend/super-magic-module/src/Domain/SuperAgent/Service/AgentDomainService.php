@@ -772,7 +772,7 @@ class AgentDomainService
             (string) $taskContext->getTask()->getProjectId(),
             $dataIsolation->getLanguage() ?? '',
             $userInfo,
-            $initMetadata->getSkipInitMessages()
+            $initMetadata->getSkipInitMessages() ?? false
         );
 
         // chat history

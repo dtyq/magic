@@ -64,36 +64,6 @@ readonly class AsrSandboxService
     }
 
     /**
-     * 检查沙箱是否存在且可用.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @param string $userId 用户ID
-     * @param string $organizationCode 组织编码
-     * @return bool 沙箱是否存在且可用
-     */
-    public function isSandboxAvailable(
-        string $sandboxId,
-        string $userId,
-        string $organizationCode
-    ): bool {
-        if (empty($sandboxId)) {
-            return false;
-        }
-
-        try {
-            $this->sandboxGateway->setUserContext($userId, $organizationCode);
-            $this->agentDomainService->getWorkspaceStatus($sandboxId);
-            return true;
-        } catch (Throwable $e) {
-            $this->logger->debug('沙箱不可用', [
-                'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
-    }
-
-    /**
      * 启动录音任务.
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
@@ -513,23 +483,21 @@ readonly class AsrSandboxService
      *
      * @param string $sandboxId 沙箱ID
      * @param string $taskKey 任务Key（用于日志）
-     * @param int $timeoutSeconds 超时时间（秒），默认2分钟
      * @throws BusinessException 当超时时抛出异常
      */
     private function waitForSandboxStartup(
         string $sandboxId,
-        string $taskKey,
-        int $timeoutSeconds = AsrConfig::SANDBOX_STARTUP_TIMEOUT
+        string $taskKey
     ): void {
         $this->logger->info('ASR 录音：等待沙箱启动', [
             'task_key' => $taskKey,
             'sandbox_id' => $sandboxId,
-            'timeout_seconds' => $timeoutSeconds,
+            'timeout_seconds' => AsrConfig::SANDBOX_STARTUP_TIMEOUT,
             'interval_seconds' => AsrConfig::POLLING_INTERVAL,
         ]);
 
         $startTime = time();
-        $endTime = $startTime + $timeoutSeconds;
+        $endTime = $startTime + AsrConfig::SANDBOX_STARTUP_TIMEOUT;
 
         while (time() < $endTime) {
             try {
@@ -565,13 +533,13 @@ readonly class AsrSandboxService
         $this->logger->error('ASR 录音：等待沙箱启动超时', [
             'task_key' => $taskKey,
             'sandbox_id' => $sandboxId,
-            'timeout_seconds' => $timeoutSeconds,
+            'timeout_seconds' => AsrConfig::SANDBOX_STARTUP_TIMEOUT,
         ]);
 
         ExceptionBuilder::throw(
             AsrErrorCode::SandboxTaskCreationFailed,
             '',
-            ['message' => "等待沙箱启动超时（{$timeoutSeconds}秒）"]
+            ['message' => '等待沙箱启动超时（' . AsrConfig::SANDBOX_STARTUP_TIMEOUT . '秒）']
         );
     }
 
@@ -665,7 +633,7 @@ readonly class AsrSandboxService
         ]);
 
         // 等待沙箱启动（能够响应接口）
-        $this->waitForSandboxStartup($actualSandboxId, $taskStatus->taskKey, AsrConfig::SANDBOX_STARTUP_TIMEOUT);
+        $this->waitForSandboxStartup($actualSandboxId, $taskStatus->taskKey);
 
         $taskStatus->sandboxId = $actualSandboxId;
 
