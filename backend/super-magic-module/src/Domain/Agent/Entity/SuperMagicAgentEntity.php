@@ -44,6 +44,11 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected array $icon = [];
 
     /**
+     * 图标类型 1:图标 2:图片.
+     */
+    protected int $iconType = 1;
+
+    /**
      * @var array<SuperMagicAgentTool>
      */
     protected array $tools = [];
@@ -142,6 +147,7 @@ class SuperMagicAgentEntity extends AbstractEntity
         $originalEntity->setPrompt($this->prompt);
         $originalEntity->setType($this->type);
         $originalEntity->setModifier($this->creator);
+        $originalEntity->setIconType($this->iconType);
 
         if (isset($this->enabled)) {
             $originalEntity->setEnabled($this->enabled);
@@ -213,6 +219,16 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setIcon(array $icon): void
     {
         $this->icon = $icon;
+    }
+
+    public function getIconType(): int
+    {
+        return $this->iconType;
+    }
+
+    public function setIconType(int $iconType): void
+    {
+        $this->iconType = $iconType;
     }
 
     public function getTools(): array

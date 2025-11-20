@@ -82,7 +82,7 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig()->toArray();
+        $model->config = $entity->getConfig();
 
         $result = $model->save();
 
@@ -111,7 +111,7 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig()->toArray();
+        $model->config = $entity->getConfig();
 
         return $model->save();
     }

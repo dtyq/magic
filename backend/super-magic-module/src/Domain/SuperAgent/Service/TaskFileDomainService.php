@@ -414,10 +414,8 @@ class TaskFileDomainService
                 return $fileEntity;
             }
 
-            $isCreated = false;
             $currentTime = date('Y-m-d H:i:s');
             if (empty($fileEntity)) {
-                $isCreated = true;
                 $fileEntity = new TaskFileEntity();
                 $fileEntity->setFileId(IdGenerator::getSnowId());
                 $fileEntity->setFileKey($taskFileEntity->getFileKey());
@@ -475,12 +473,7 @@ class TaskFileDomainService
             $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
             $fileEntity->setUpdatedAt($currentTime);
 
-            // $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
-            if ($isCreated) {
-                $newFileEntity = $this->taskFileRepository->insert($fileEntity);
-            } else {
-                $newFileEntity = $this->taskFileRepository->updateById($fileEntity);
-            }
+            $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
             // set meta data file
             // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
             if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
@@ -588,8 +581,7 @@ class TaskFileDomainService
             $taskFileEntity->setUpdatedAt($now);
 
             // Save to database
-            // $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
-            $taskFileEntity = $this->insertOrIgnore($taskFileEntity);
+            $taskFileEntity = $this->insertOrUpdate($taskFileEntity);
 
             Db::commit();
             return $taskFileEntity;
@@ -1593,8 +1585,7 @@ class TaskFileDomainService
         $rootDirEntity->setUpdatedAt($now);
         $rootDirEntity->setDeletedAt(null);
 
-        // $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
-        $rootDirEntity = $this->insertOrIgnore($rootDirEntity);
+        $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
 
         return $rootDirEntity->getFileId();
     }
@@ -2007,7 +1998,7 @@ class TaskFileDomainService
             $this->logger->error(sprintf('createFolderFromFileEntity err, new_file_key:%s', $newFileKey), ['err' => $e->getMessage()]);
         }
 
-        $this->insert($dirEntity);
+        $this->insertOrUpdate($dirEntity);
 
         return $dirEntity;
     }
@@ -2548,8 +2539,7 @@ class TaskFileDomainService
         $dirEntity->setCreatedAt($now);
         $dirEntity->setUpdatedAt($now);
 
-        // $this->insertOrUpdate($dirEntity);
-        $this->insertOrIgnore($dirEntity);
+        $this->insertOrUpdate($dirEntity);
 
         return $dirEntity->getFileId();
     }

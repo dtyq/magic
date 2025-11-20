@@ -24,6 +24,7 @@ class SuperMagicAgentAssembler
         $DTO->setName($superMagicAgentEntity->getName());
         $DTO->setDescription($superMagicAgentEntity->getDescription());
         $DTO->setIcon($superMagicAgentEntity->getIcon());
+        $DTO->setIconType($superMagicAgentEntity->getIconType());
         $DTO->setPrompt($superMagicAgentEntity->getPrompt());
         $DTO->setType($superMagicAgentEntity->getType()->value);
         $DTO->setEnabled($superMagicAgentEntity->isEnabled());
@@ -51,6 +52,7 @@ class SuperMagicAgentAssembler
         $superMagicAgentEntity->setName($superMagicAgentDTO->getName());
         $superMagicAgentEntity->setDescription($superMagicAgentDTO->getDescription());
         $superMagicAgentEntity->setIcon($superMagicAgentDTO->getIcon());
+        $superMagicAgentEntity->setIconType($superMagicAgentDTO->getIconType());
         $superMagicAgentEntity->setPrompt($superMagicAgentDTO->getPrompt());
         $superMagicAgentEntity->setTools($superMagicAgentDTO->getTools());
 
@@ -68,6 +70,7 @@ class SuperMagicAgentAssembler
         $DTO->setName($superMagicAgentEntity->getName());
         $DTO->setDescription($superMagicAgentEntity->getDescription());
         $DTO->setIcon($superMagicAgentEntity->getIcon());
+        $DTO->setIconType($superMagicAgentEntity->getIconType());
         $DTO->setType($superMagicAgentEntity->getType()->value);
 
         return $DTO;
