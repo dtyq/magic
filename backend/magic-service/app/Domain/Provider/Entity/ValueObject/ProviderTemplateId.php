@@ -119,6 +119,7 @@ enum ProviderTemplateId: string
             self::AWSBedrockVlm => ['providerCode' => ProviderCode::AWSBedrock, 'category' => Category::VLM],
             self::GoogleVlm => ['providerCode' => ProviderCode::Google, 'category' => Category::VLM],
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
+            self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
         };
     }
 
