@@ -142,6 +142,7 @@ enum ProviderTemplateId: string
             ProviderCode::AWSBedrock => 'AWS Bedrock',
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
+            ProviderCode::Gemini => 'Google Gemini',
         };
 
         $categoryName = $mapping['category']->label();
