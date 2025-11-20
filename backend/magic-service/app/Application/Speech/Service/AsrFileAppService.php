@@ -16,8 +16,8 @@ use App\Application\Speech\DTO\Response\AsrFileDataDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Domain\Asr\Constants\AsrConfig;
 use App\Domain\Asr\Constants\AsrRedisKeys;
-use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -153,7 +153,7 @@ readonly class AsrFileAppService
     ): void {
         $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $summaryRequest->taskKey);
         $lockOwner = sprintf('%s:%s:%s', $userId, $summaryRequest->taskKey, microtime(true));
-        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
+        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrConfig::SUMMARY_LOCK_TTL);
         if (! $locked) {
             $this->logger->warning('获取总结任务锁失败，跳过本次处理', [
                 'task_key' => $summaryRequest->taskKey,
@@ -232,15 +232,6 @@ readonly class AsrFileAppService
 
                     // 调用沙箱合并音频（沙箱会重命名目录但不会通知文件变动）
                     $this->updateAudioFromSandbox($taskStatus, $organizationCode, $summaryRequest->generatedTitle);
-
-                    //                    // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
-                    //                    if (! empty($summaryRequest->generatedTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
-                    //                        $this->directoryService->renameDisplayDirectory(
-                    //                            $taskStatus,
-                    //                            $oldDisplayDirectory,
-                    //                            $summaryRequest->projectId
-                    //                        );
-                    //                    }
                 } catch (Throwable $mergeException) {
                     // 回退到已有文件
                     if (! empty($existingWorkspaceFilePath)) {
@@ -313,7 +304,7 @@ readonly class AsrFileAppService
     /**
      * 保存任务状态到Redis.
      */
-    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = 3600 * 24 * 7): void
+    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = AsrConfig::TASK_STATUS_TTL): void
     {
         $this->asrTaskDomainService->saveTaskStatus($taskStatus, $ttl);
     }
@@ -398,7 +389,7 @@ readonly class AsrFileAppService
     {
         $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $taskStatus->taskKey);
         $lockOwner = sprintf('%s:%s:%s', $userId, $taskStatus->taskKey, microtime(true));
-        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
+        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrConfig::SUMMARY_LOCK_TTL);
         if (! $locked) {
             $this->logger->warning('获取自动总结锁失败，跳过本次处理', [
                 'task_key' => $taskStatus->taskKey,
@@ -417,11 +408,11 @@ readonly class AsrFileAppService
                 return;
             }
 
-            if ($taskStatus->serverSummaryRetryCount >= AsrTimeouts::SERVER_SUMMARY_MAX_RETRY) {
+            if ($taskStatus->serverSummaryRetryCount >= AsrConfig::SERVER_SUMMARY_MAX_RETRY) {
                 $this->logger->warning('自动总结重试次数达到上限，跳过本次处理', [
                     'task_key' => $taskStatus->taskKey,
                     'retry_count' => $taskStatus->serverSummaryRetryCount,
-                    'max_retry' => AsrTimeouts::SERVER_SUMMARY_MAX_RETRY,
+                    'max_retry' => AsrConfig::SERVER_SUMMARY_MAX_RETRY,
                 ]);
                 return;
             }
@@ -450,15 +441,6 @@ readonly class AsrFileAppService
 
             // 合并音频（沙箱会重命名目录但不会通知文件变动）
             $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
-
-            //            // 沙箱合并成功后，手动更新数据库中的目录记录（沙箱有bug，会重命名目录但没有改数据库记录）
-            //            if (! empty($fileTitle) && $oldDisplayDirectory !== $taskStatus->displayDirectory) {
-            //                $this->directoryService->renameDisplayDirectory(
-            //                    $taskStatus,
-            //                    $oldDisplayDirectory,
-            //                    $taskStatus->projectId
-            //                );
-            //            }
 
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
@@ -847,7 +829,7 @@ readonly class AsrFileAppService
         // 如果需要启动任务
         if ($needStartTask) {
             // 检查重试次数
-            if ($taskStatus->sandboxRetryCount >= 3) {
+            if ($taskStatus->sandboxRetryCount >= AsrConfig::SANDBOX_STARTUP_MAX_RETRY) {
                 ExceptionBuilder::throw(AsrErrorCode::SandboxStartRetryExceeded);
             }
 
