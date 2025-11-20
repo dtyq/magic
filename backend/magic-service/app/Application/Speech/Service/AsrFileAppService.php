@@ -66,7 +66,7 @@ readonly class AsrFileAppService
         private AsrValidationService $validationService,
         private AsrDirectoryService $directoryService,
         private AsrTitleGeneratorService $titleGeneratorService,
-        private AsrSandboxService $sandboxService,
+        private AsrSandboxService $asrSandboxService,
         private AsrPresetFileService $presetFileService,
         private LockerInterface $locker,
         LoggerFactory $loggerFactory
@@ -440,7 +440,7 @@ readonly class AsrFileAppService
             }
 
             // 合并音频（沙箱会重命名目录但不会通知文件变动）
-            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
+            $this->asrSandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
 
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
@@ -617,7 +617,7 @@ readonly class AsrFileAppService
             $fileTitle = $this->translator->trans('asr.file_names.original_recording');
         }
 
-        $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
+        $this->asrSandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
     }
 
     /**
@@ -791,63 +791,20 @@ readonly class AsrFileAppService
      */
     private function handleStartRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
     {
-        // 每次 start 都检查沙箱是否存在，防止沙箱被回收导致音频丢失
-        // 原因：如果暂停超过 20 分钟，沙箱可能被回收，需要重新启动以确保音频实时合并
-
-        $needStartTask = false;
-
-        // 如果任务未创建，需要启动
-        if (! $taskStatus->sandboxTaskCreated) {
-            $needStartTask = true;
-            $this->logger->info('沙箱任务未创建，需要启动', [
+        // 每次 start 都检查沙箱是否存在，防止沙箱被回收导致音频丢失. 原因：如果暂停超过 20 分钟，沙箱可能被回收，需要重新启动以确保音频实时合并
+        try {
+            $this->asrSandboxService->startRecordingTask($taskStatus, $userId, $organizationCode);
+            $taskStatus->sandboxRetryCount = 0; // 成功后重置重试次数
+        } catch (Throwable $e) {
+            // 沙箱启动失败时记录日志但继续处理（沙箱可能临时不可用）
+            ++$taskStatus->sandboxRetryCount;
+            $this->logger->warning('沙箱任务启动失败，将在后续自动重试', [
                 'task_key' => $taskStatus->taskKey,
+                'retry_count' => $taskStatus->sandboxRetryCount,
+                'error' => $e->getMessage(),
             ]);
-        } else {
-            // 任务已创建，检查沙箱是否还存在
-            $isSandboxAvailable = $this->sandboxService->isSandboxAvailable(
-                $taskStatus->sandboxId ?? '',
-                $userId,
-                $organizationCode
-            );
-
-            if ($isSandboxAvailable) {
-                $this->logger->info('沙箱仍然存在，跳过启动', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $taskStatus->sandboxId,
-                ]);
-            } else {
-                // 沙箱不存在或不可用，需要重新启动
-                $needStartTask = true;
-                $taskStatus->sandboxTaskCreated = false; // 重置标志
-                $this->logger->warning('沙箱不存在或不可用，需要重新启动', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $taskStatus->sandboxId,
-                ]);
-            }
         }
-
-        // 如果需要启动任务
-        if ($needStartTask) {
-            // 检查重试次数
-            if ($taskStatus->sandboxRetryCount >= AsrConfig::SANDBOX_STARTUP_MAX_RETRY) {
-                ExceptionBuilder::throw(AsrErrorCode::SandboxStartRetryExceeded);
-            }
-
-            try {
-                $this->sandboxService->startRecordingTask($taskStatus, $userId, $organizationCode);
-                $taskStatus->sandboxRetryCount = 0; // 成功后重置重试次数
-            } catch (Throwable $e) {
-                // 沙箱启动失败时记录日志但继续处理（沙箱可能临时不可用）
-                ++$taskStatus->sandboxRetryCount;
-                $this->logger->warning('沙箱任务启动失败，将在后续自动重试', [
-                    'task_key' => $taskStatus->taskKey,
-                    'retry_count' => $taskStatus->sandboxRetryCount,
-                    'error' => $e->getMessage(),
-                ]);
-                // 不标记为已创建，下次会重试
-            }
-        }
-
+        $taskStatus->sandboxTaskCreated = true; // 重置标志
         // 更新状态并设置心跳（原子操作）
         $taskStatus->recordingStatus = AsrRecordingStatusEnum::START->value;
         $taskStatus->isPaused = false;
@@ -922,7 +879,7 @@ readonly class AsrFileAppService
         // 调用沙箱取消任务（如果沙箱任务已创建）
         if ($taskStatus->sandboxTaskCreated && ! empty($taskStatus->sandboxId)) {
             try {
-                $response = $this->sandboxService->cancelRecordingTask($taskStatus);
+                $response = $this->asrSandboxService->cancelRecordingTask($taskStatus);
                 $this->logger->info('沙箱录音任务已取消', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $taskStatus->sandboxId,

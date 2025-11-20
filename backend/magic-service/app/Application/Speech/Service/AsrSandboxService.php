@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -741,7 +742,9 @@ readonly class AsrSandboxService
 
         // 复用 initializeAgent 方法（会自动构建 message_subscription_config 和 magic_service_host）
         // 传入项目组织编码，用于获取正确的 STS Token
-        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, null, $projectOrganizationCode);
+        // ASR 场景设置 skip_init_messages = true，让沙箱不发送聊天消息过来
+        $initMetadata = (new InitializationMetadataDTO(skipInitMessages: true));
+        $this->agentDomainService->initializeAgent($dataIsolation, $taskContext, null, $projectOrganizationCode, $initMetadata);
 
         $this->logger->info('沙箱初始化消息已发送，等待工作区初始化完成', [
             'task_key' => $taskStatus->taskKey,

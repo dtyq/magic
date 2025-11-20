@@ -99,6 +99,37 @@ readonly class AsrDirectoryService
     }
 
     /**
+     * 创建 .asr_recordings 隐藏目录（录音父目录，用于存放所有录音任务的子目录）.
+     * 目录格式：.asr_recordings.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return AsrRecordingDirectoryDTO 目录DTO
+     */
+    public function createRecordingsDirectory(
+        string $organizationCode,
+        string $projectId,
+        string $userId
+    ): AsrRecordingDirectoryDTO {
+        $relativePath = AsrPaths::getRecordingsDirPath();
+
+        return $this->createDirectoryInternal(
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            userId: $userId,
+            relativePath: $relativePath,
+            directoryType: AsrDirectoryTypeEnum::ASR_RECORDINGS_DIR,
+            isHidden: true,
+            taskKey: null,
+            errorContext: ['project_id' => $projectId],
+            logMessage: '创建 .asr_recordings 目录失败',
+            failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+        );
+    }
+
+    /**
      * 创建显示的录音纪要目录（用于存放流式文本和笔记）.
      * 目录格式：录音纪要_Ymd_His（国际化）.
      *
@@ -181,7 +212,7 @@ readonly class AsrDirectoryService
             return $relativeOldPath;
         }
 
-        $this->logger->info('生成新的显示目录路径', [
+        $this->logger->info('获取新的显示目录路径', [
             'task_key' => $taskStatus->taskKey,
             'old_relative_path' => $relativeOldPath,
             'new_relative_path' => $newRelativePath,
