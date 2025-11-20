@@ -54,6 +54,7 @@ enum ProviderTemplateId: string
     case AWSBedrockVlm = '19';
     case GoogleVlm = '20';
     case VolcengineArkVlm = '21';
+    case Gemini = '22';
 
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
@@ -83,6 +84,7 @@ enum ProviderTemplateId: string
             [ProviderCode::AWSBedrock, Category::VLM] => self::AWSBedrockVlm,
             [ProviderCode::Google, Category::VLM] => self::GoogleVlm,
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
+            [ProviderCode::Gemini, Category::LLM] => self::Gemini,
             default => null,
         };
     }
