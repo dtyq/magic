@@ -214,6 +214,17 @@ class AgentDomainService
             $taskDynamicConfig[$key] = $dynamicConfig;
         }
 
+        // Add image_model configuration if imageModelId exists
+        $extra = $taskContext->getExtra();
+        if ($extra !== null) {
+            $imageModelId = $extra->getImageModelId();
+            if (! empty($imageModelId)) {
+                $taskDynamicConfig['image_model'] = [
+                    'model_id' => $imageModelId,
+                ];
+            }
+        }
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -835,17 +846,6 @@ class AgentDomainService
             $constraints[] = trans('prompt.disable_web_search_constraint', [], $language);
             $this->logger->info('[Sandbox][App] Web search disabled, constraint text will be appended to prompt', [
                 'task_id' => $taskContext->getTask()->getId(),
-                'language' => $language,
-            ]);
-        }
-
-        // Check image model constraint
-        $imageModelId = $extra->getImageModelId();
-        if (! empty($imageModelId)) {
-            $constraints[] = trans('prompt.image_model_constraint', ['model_id' => $imageModelId], $language);
-            $this->logger->info('[Sandbox][App] Image model constraint will be appended to prompt', [
-                'task_id' => $taskContext->getTask()->getId(),
-                'image_model_id' => $imageModelId,
                 'language' => $language,
             ]);
         }
