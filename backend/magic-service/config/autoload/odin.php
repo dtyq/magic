@@ -12,6 +12,26 @@ use Hyperf\Odin\Model\OpenAIModel;
 
 use function Hyperf\Support\env;
 
+// 递归处理配置值中的环境变量
+function processConfigValue(&$value): void
+{
+    if (is_string($value)) {
+        // 字符串类型：解析环境变量
+        $parts = explode('|', $value);
+        if (count($parts) > 1) {
+            $value = env($parts[0], $parts[1]);
+        } else {
+            $value = env($parts[0], $parts[0]);
+        }
+    } elseif (is_array($value)) {
+        // 数组类型：递归处理每个元素，保留数组结构
+        foreach ($value as &$item) {
+            processConfigValue($item);
+        }
+    }
+    // 其他类型（如 int, bool 等）：保留原值，不进行解析
+}
+
 // 处理配置中的环境变量
 function processModelConfig(&$modelItem, string $modelName): void
 {
@@ -30,12 +50,14 @@ function processModelConfig(&$modelItem, string $modelName): void
     // 处理配置值
     if (isset($modelItem['config']) && is_array($modelItem['config'])) {
         foreach ($modelItem['config'] as &$item) {
-            $value = explode('|', $item);
-            if (count($value) > 1) {
-                $item = env($value[0], $value[1]);
-            } else {
-                $item = env($value[0], $value[0]);
-            }
+            processConfigValue($item);
+        }
+    }
+
+    // 处理 API 选项值
+    if (isset($modelItem['api_options']) && is_array($modelItem['api_options'])) {
+        foreach ($modelItem['api_options'] as &$item) {
+            processConfigValue($item);
         }
     }
 
@@ -299,6 +321,8 @@ return [
                 ],
                 // 是否启用字段白名单过滤，默认true（启用过滤）
                 'enable_whitelist' => env('ODIN_LOG_WHITELIST_ENABLED', true),
+                // 最大字符串长度限制，超过此长度的字符串将被替换为 [Long Text]，设置为 0 表示不限制
+                'max_text_length' => env('ODIN_LOG_MAX_TEXT_LENGTH', 0),
             ],
             'network_retry_count' => 1,
         ],
