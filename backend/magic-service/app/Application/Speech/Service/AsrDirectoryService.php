@@ -151,7 +151,7 @@ readonly class AsrDirectoryService
             userId: $userId,
             relativePath: $relativePath,
             directoryType: AsrDirectoryTypeEnum::ASR_DISPLAY_DIR,
-            isHidden: true, // 设置为隐藏，避免ASR操作期间前端显示目录变动导致的错误
+            isHidden: false, // 设置为隐藏，避免ASR操作期间前端显示目录变动导致的错误
             taskKey: null,
             errorContext: ['project_id' => $projectId],
             logMessage: '创建显示录音目录失败',
