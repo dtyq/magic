@@ -60,7 +60,7 @@ class AiAbilityEntity extends AbstractEntity
         } elseif ($code instanceof AiAbilityCode) {
             $this->code = $code;
         } else {
-            $this->code = AiAbilityCode::from($code);
+            $this->code = AiAbilityCode::tryFrom($code) ?? AiAbilityCode::Unknown;
         }
     }
 

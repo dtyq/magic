@@ -15,6 +15,7 @@ use Hyperf\Odin\Model\OpenAIModel;
 
 enum ProviderCode: string
 {
+    case None = 'None';
     case Official = 'Official'; // 官方
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
@@ -27,6 +28,7 @@ enum ProviderCode: string
     case AWSBedrock = 'AWSBedrock';
     case Google = 'Google-Image';
     case VolcengineArk = 'VolcengineArk';
+    case Gemini = 'Gemini';
 
     public function getImplementation(): string
     {
