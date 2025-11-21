@@ -168,6 +168,7 @@ class GoogleGeminiAPI
         $headers = [
             'Content-Type' => 'application/json',
             'x-goog-api-key' => $this->accessToken,
+            'Accept-Encoding' => 'gzip, deflate',
         ];
 
         $client = new Client(['timeout' => self::REQUEST_TIMEOUT]);
@@ -175,6 +176,7 @@ class GoogleGeminiAPI
         $response = $client->post($url, [
             'headers' => $headers,
             'json' => $payload,
+            'decode_content' => true, // Enable automatic decompression
         ]);
 
         $result = Json::decode($response->getBody()->getContents());

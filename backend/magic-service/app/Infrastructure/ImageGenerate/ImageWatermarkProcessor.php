@@ -45,28 +45,122 @@ class ImageWatermarkProcessor
         // 检测原始格式
         $originalFormat = $this->extractBase64Format($base64Image);
 
-        // 解码base64图片
-        $imageData = $this->decodeBase64Image($base64Image);
+        // 使用临时文件流式解码 base64，减少内存占用
+        $tempInputFile = tempnam(sys_get_temp_dir(), 'input_img_');
+        $tempFileHandle = null;
+        $tempFileWithExt = null;
 
-        // 双重检测确保格式准确
-        $detectedFormat = $this->detectImageFormat($imageData);
-        $targetFormat = $originalFormat !== 'jpeg' ? $originalFormat : $detectedFormat;
+        try {
+            // 移除 data URL 前缀（如果存在）
+            $base64Data = $base64Image;
+            if (str_contains($base64Image, ',')) {
+                $base64Data = substr($base64Image, strpos($base64Image, ',') + 1);
+            }
 
-        // 使用统一的水印处理方法
-        if ($imageGenerateRequest->isAddWatermark()) {
-            $imageData = $this->addWaterMarkHandler($imageData, $imageGenerateRequest, $targetFormat);
+            // 流式解码 base64 到临时文件
+            $tempFileHandle = fopen($tempInputFile, 'wb');
+            if ($tempFileHandle === false) {
+                throw new Exception('无法创建临时文件');
+            }
+
+            $chunkSize = 8192; // 8KB 块大小
+            $base64Length = strlen($base64Data);
+
+            for ($i = 0; $i < $base64Length; $i += $chunkSize) {
+                $chunk = substr($base64Data, $i, $chunkSize);
+                $decodedChunk = base64_decode($chunk, true);
+                if ($decodedChunk === false) {
+                    throw new Exception('无效的 base64 数据');
+                }
+                fwrite($tempFileHandle, $decodedChunk);
+            }
+
+            fclose($tempFileHandle);
+            $tempFileHandle = null;
+
+            // 从临时文件读取图片数据（此时内存中只有一份数据）
+            $imageData = file_get_contents($tempInputFile);
+
+            // 双重检测确保格式准确
+            $detectedFormat = $this->detectImageFormat($imageData);
+            $targetFormat = $originalFormat !== 'jpeg' ? $originalFormat : $detectedFormat;
+
+            // 使用统一的水印处理方法
+            if ($imageGenerateRequest->isAddWatermark()) {
+                $imageData = $this->addWaterMarkHandler($imageData, $imageGenerateRequest, $targetFormat);
+            }
+
+            // 立即添加XMP隐式水印
+            $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
+            $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
+                $imageData,
+                $implicitWatermark
+            );
+
+            // 将处理后的数据写入临时文件，避免在内存中保存 base64 字符串
+            $tempOutputFile = tempnam(sys_get_temp_dir(), 'output_img_');
+            file_put_contents($tempOutputFile, $xmpWatermarkedData);
+
+            // 检测输出文件的 MIME 类型
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $tempOutputFile);
+            finfo_close($finfo);
+
+            // 根据 MIME 类型确定文件扩展名
+            $extension = match ($mimeType) {
+                'image/png' => 'png',
+                'image/jpeg' => 'jpg',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                default => 'jpg',
+            };
+
+            // 重命名临时文件以添加正确的扩展名
+            $tempFileWithExt = $tempOutputFile . '.' . $extension;
+            rename($tempOutputFile, $tempFileWithExt);
+
+            // 直接使用临时文件上传，避免重新编码为 base64
+            $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
+            $fileDomainService = di(FileDomainService::class);
+
+            $subDir = 'open';
+
+            // 使用文件路径创建 UploadFile
+            $uploadFile = new UploadFile($tempFileWithExt, $subDir, '');
+
+            $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
+
+            $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
+
+            // 设置对象元数据
+            $validityPeriod = $imageGenerateRequest->getValidityPeriod();
+            $metadataContent = [];
+            if ($validityPeriod !== null) {
+                $metadataContent['validity_period'] = (string) $validityPeriod;
+            }
+            $metadata = ['metadata' => Json::encode($metadataContent)];
+
+            $fileDomainService->setHeadObjectByCredential($organizationCode, $uploadFile->getKey(), $metadata, StorageBucketType::Public);
+
+            return $fileLink->getUrl();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to add watermark to base64 image', [
+                'error' => $e->getMessage(),
+            ]);
+            // 如果处理失败，返回原始 base64 数据
+            return $base64Image;
+        } finally {
+            // 清理临时文件（确保即使出错也清理）
+            if ($tempFileHandle !== null) {
+                fclose($tempFileHandle);
+            }
+            if (isset($tempInputFile) && file_exists($tempInputFile)) {
+                @unlink($tempInputFile);
+            }
+            if (isset($tempFileWithExt) && file_exists($tempFileWithExt)) {
+                @unlink($tempFileWithExt);
+            }
         }
-
-        // 立即添加XMP隐式水印
-        $implicitWatermark = $imageGenerateRequest->getImplicitWatermark();
-        $xmpWatermarkedData = $this->imageEnhancementProcessor->enhanceImageData(
-            $imageData,
-            $implicitWatermark
-        );
-
-        // 重新编码为base64并上传
-        $outputPrefix = $this->generateBase64Prefix($targetFormat);
-        return $this->processBase64Images($outputPrefix . base64_encode($xmpWatermarkedData), $imageGenerateRequest);
     }
 
     /**
@@ -429,17 +523,68 @@ class ImageWatermarkProcessor
     {
         $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
         $fileDomainService = di(FileDomainService::class);
+
+        // 创建临时文件用于流式处理 base64 解码，减少内存占用
+        $tempFile = tempnam(sys_get_temp_dir(), 'gemini_img_');
+        $tempFileHandle = null;
+
         try {
+            // 移除 data URL 前缀（如果存在）
+            $base64Data = $base64Image;
+            if (str_contains($base64Image, ',')) {
+                $base64Data = substr($base64Image, strpos($base64Image, ',') + 1);
+            }
+
+            // 流式解码 base64 到临时文件，分块处理以减少内存占用
+            $tempFileHandle = fopen($tempFile, 'wb');
+            if ($tempFileHandle === false) {
+                throw new Exception('无法创建临时文件');
+            }
+
+            $chunkSize = 8192; // 8KB 块大小
+            $base64Length = strlen($base64Data);
+
+            for ($i = 0; $i < $base64Length; $i += $chunkSize) {
+                $chunk = substr($base64Data, $i, $chunkSize);
+                $decodedChunk = base64_decode($chunk, true);
+                if ($decodedChunk === false) {
+                    throw new Exception('无效的 base64 数据');
+                }
+                fwrite($tempFileHandle, $decodedChunk);
+            }
+
+            fclose($tempFileHandle);
+            $tempFileHandle = null;
+
+            // 检测文件 MIME 类型
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $tempFile);
+            finfo_close($finfo);
+
+            // 根据 MIME 类型确定文件扩展名
+            $extension = match ($mimeType) {
+                'image/png' => 'png',
+                'image/jpeg' => 'jpg',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                default => 'jpg',
+            };
+
+            // 重命名临时文件以添加正确的扩展名
+            $tempFileWithExt = $tempFile . '.' . $extension;
+            rename($tempFile, $tempFileWithExt);
+            $tempFile = $tempFileWithExt;
+
             $subDir = 'open';
 
-            // 直接使用已包含XMP水印的base64数据
-            $uploadFile = new UploadFile($base64Image, $subDir, '');
+            // 使用文件路径而不是 base64 字符串创建 UploadFile，减少内存占用
+            $uploadFile = new UploadFile($tempFile, $subDir, '');
 
             $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
 
             $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
 
-            // 设置对象元数据作为备用方案
+            // 设置对象元数据
             $validityPeriod = $imageGenerateRequest->getValidityPeriod();
             $metadataContent = [];
             if ($validityPeriod !== null) {
@@ -455,9 +600,55 @@ class ImageWatermarkProcessor
                 'error' => $e->getMessage(),
                 'organization_code' => $organizationCode,
             ]);
-            // If upload fails, keep the original base64 data
-            $processedImage = $base64Image;
+            // 如果上传失败，返回原始 base64 数据
+            return $base64Image;
+        } finally {
+            // 清理临时文件
+            if ($tempFileHandle !== null) {
+                fclose($tempFileHandle);
+            }
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
         }
-        return $processedImage;
+    }
+
+    /**
+     * 处理图片文件并上传到云存储.
+     */
+    private function processImageFile(string $imageFilePath, ImageGenerateRequest $imageGenerateRequest): string
+    {
+        $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
+        $fileDomainService = di(FileDomainService::class);
+
+        try {
+            $subDir = 'open';
+
+            // 使用文件路径创建 UploadFile
+            $uploadFile = new UploadFile($imageFilePath, $subDir, '');
+
+            $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
+
+            $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
+
+            // 设置对象元数据
+            $validityPeriod = $imageGenerateRequest->getValidityPeriod();
+            $metadataContent = [];
+            if ($validityPeriod !== null) {
+                $metadataContent['validity_period'] = (string) $validityPeriod;
+            }
+            $metadata = ['metadata' => Json::encode($metadataContent)];
+
+            $fileDomainService->setHeadObjectByCredential($organizationCode, $uploadFile->getKey(), $metadata, StorageBucketType::Public);
+
+            return $fileLink->getUrl();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to process image file', [
+                'error' => $e->getMessage(),
+                'file_path' => $imageFilePath,
+                'organization_code' => $organizationCode,
+            ]);
+            throw $e;
+        }
     }
 }
