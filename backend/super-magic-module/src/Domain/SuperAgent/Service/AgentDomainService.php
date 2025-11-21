@@ -238,7 +238,7 @@ class AgentDomainService
             $constraintText = trans('task.disable_web_search_constraint', [], $language);
 
             // Wrap user request in <user_request> tags and combine with constraint
-            $prompt = $constraintText . "\n\n<user_request>\n" . $userRequest . "\n</user_request>";
+            $prompt = $userRequest . $constraintText;
 
             $this->logger->info('[Sandbox][App] Web search disabled, constraint text prepended to prompt', [
                 'task_id' => $taskContext->getTask()->getId(),
