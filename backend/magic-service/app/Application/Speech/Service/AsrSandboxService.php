@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -730,6 +731,19 @@ readonly class AsrSandboxService
         $this->logger->info('沙箱工作区已初始化完成，文件已同步，可以开始使用', [
             'task_key' => $taskStatus->taskKey,
             'actual_sandbox_id' => $actualSandboxId,
+            'task_id' => $taskEntity->getId(),
+        ]);
+
+        // 更新话题状态为已完成（符合 DDD 分层，通过 Domain Service 操作）
+        $this->topicDomainService->updateTopicStatus(
+            (int) $taskStatus->topicId,
+            $taskEntity->getId(),
+            TaskStatus::FINISHED
+        );
+
+        $this->logger->info('话题状态已更新为 finished', [
+            'task_key' => $taskStatus->taskKey,
+            'topic_id' => $taskStatus->topicId,
             'task_id' => $taskEntity->getId(),
         ]);
     }

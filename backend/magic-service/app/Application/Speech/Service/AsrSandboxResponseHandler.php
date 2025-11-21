@@ -13,6 +13,7 @@ use App\Domain\Asr\Constants\AsrConfig;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Psr\Log\LoggerInterface;
@@ -59,16 +60,15 @@ readonly class AsrSandboxResponseHandler
         }
 
         // 2. 检查并处理目录重命名（沙箱有bug，会重命名目录但是没有通知文件变动，没有改数据库记录）
-        $taskStatus->displayDirectory = $this->getAudioDirectoryPath($audioFile);
+        $taskStatus->displayDirectory = $this->extractDirectoryPath($audioFile);
 
         // 3. 查找音频文件记录
         $this->getAudioFileId($taskStatus, $audioFile);
 
         // 4. 处理笔记文件
         if ($noteFile !== null) {
-            // 更新任务状态
-            $taskStatus->noteFileId = $taskStatus->presetNoteFileId;
-            $taskStatus->noteFileName = $noteFile['filename'] ?? $noteFile['path'] ?? '';
+            // 通过 file_key 查找最新的笔记文件 ID（目录可能被重命名）
+            $this->getNoteFileId($taskStatus, $noteFile);
         } else {
             // 笔记文件为空或不存在，删除预设的笔记文件记录
             $this->handleEmptyNoteFile($taskStatus);
@@ -83,20 +83,20 @@ readonly class AsrSandboxResponseHandler
     }
 
     /**
-     * 从音频文件路径提取目录路径.
+     * 从文件路径提取目录路径.
      *
-     * @param array $audioFile 音频文件信息
+     * @param array $fileInfo 文件信息
      * @return string 目录路径（工作区相对路径）
      */
-    private function getAudioDirectoryPath(array $audioFile): string
+    private function extractDirectoryPath(array $fileInfo): string
     {
-        $audioPath = $audioFile['path'] ?? '';
-        if (empty($audioPath)) {
+        $filePath = $fileInfo['path'] ?? '';
+        if (empty($filePath)) {
             return '';
         }
 
-        // 从音频路径提取实际的目录名
-        return dirname($audioPath);
+        // 从文件路径提取实际的目录名
+        return dirname($filePath);
     }
 
     /**
@@ -111,7 +111,6 @@ readonly class AsrSandboxResponseHandler
         array $audioFile
     ): void {
         $relativePath = $audioFile['path'] ?? '';
-        $fileName = $audioFile['filename'] ?? '';
 
         if (empty($relativePath)) {
             $this->logger->warning('音频文件路径为空，无法查询文件记录', [
@@ -121,116 +120,22 @@ readonly class AsrSandboxResponseHandler
             return;
         }
 
-        // 检查必要的任务状态字段
-        if (empty($taskStatus->projectId) || empty($taskStatus->userId) || empty($taskStatus->organizationCode)) {
-            $this->logger->error('任务状态信息不完整，无法查询文件记录', [
-                'task_key' => $taskStatus->taskKey,
-                'project_id' => $taskStatus->projectId,
-                'user_id' => $taskStatus->userId,
-                'organization_code' => $taskStatus->organizationCode,
-            ]);
-            ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => '任务状态信息不完整']);
-        }
-
         try {
-            // 获取项目信息
-            $projectEntity = $this->projectDomainService->getProject(
-                (int) $taskStatus->projectId,
-                $taskStatus->userId
+            $fileEntity = $this->findFileByPathWithPolling(
+                $taskStatus,
+                $relativePath,
+                '音频文件'
             );
-            $workDir = $projectEntity->getWorkDir();
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode);
 
-            // 构建完整 file_key
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-
-            $this->logger->info('开始轮询查询音频文件记录', [
-                'task_key' => $taskStatus->taskKey,
-                'file_name' => $fileName,
-                'relative_path' => $relativePath,
-                'file_key' => $fileKey,
-                'project_id' => $taskStatus->projectId,
-                'max_wait_seconds' => AsrConfig::FILE_RECORD_QUERY_TIMEOUT,
-            ]);
-
-            // 轮询查询文件记录
-            $timeoutSeconds = AsrConfig::FILE_RECORD_QUERY_TIMEOUT;
-            $pollingInterval = AsrConfig::POLLING_INTERVAL;
-            $startTime = microtime(true);
-            $attempt = 0;
-
-            while (true) {
-                ++$attempt;
-                $elapsedSeconds = (int) (microtime(true) - $startTime);
-
-                // 查询文件记录
-                $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey(
-                    (int) $taskStatus->projectId,
-                    $fileKey
-                );
-
-                if ($existingFile !== null) {
-                    // 找到文件记录，更新任务状态
-                    $taskStatus->audioFileId = (string) $existingFile->getFileId();
-                    $taskStatus->filePath = $relativePath;
-
-                    $this->logger->info('成功找到音频文件记录', [
-                        'task_key' => $taskStatus->taskKey,
-                        'audio_file_id' => $taskStatus->audioFileId,
-                        'file_name' => $existingFile->getFileName(),
-                        'file_path' => $relativePath,
-                        'file_key' => $fileKey,
-                        'attempt' => $attempt,
-                        'elapsed_seconds' => $elapsedSeconds,
-                    ]);
-                    return;
-                }
-
-                // 检查是否超时
-                if ($elapsedSeconds >= $timeoutSeconds) {
-                    break;
-                }
-
-                // 记录轮询进度
-                if ($attempt % AsrConfig::FILE_RECORD_QUERY_LOG_FREQUENCY === 0 || $attempt === 1) {
-                    $remainingSeconds = max(0, $timeoutSeconds - $elapsedSeconds);
-                    $this->logger->info('等待沙箱同步音频文件到数据库', [
-                        'task_key' => $taskStatus->taskKey,
-                        'file_key' => $fileKey,
-                        'attempt' => $attempt,
-                        'elapsed_seconds' => $elapsedSeconds,
-                        'remaining_seconds' => $remainingSeconds,
-                    ]);
-                }
-
-                // 等待下一次轮询
-                sleep($pollingInterval);
+            if ($fileEntity !== null) {
+                $taskStatus->audioFileId = (string) $fileEntity->getFileId();
+                $taskStatus->filePath = $relativePath;
             }
-
-            // 轮询超时，仍未找到文件记录
-            $totalElapsedTime = (int) (microtime(true) - $startTime);
-            $this->logger->warning('轮询超时，未找到音频文件记录', [
-                'task_key' => $taskStatus->taskKey,
-                'file_key' => $fileKey,
-                'relative_path' => $relativePath,
-                'project_id' => $taskStatus->projectId,
-                'total_attempts' => $attempt,
-                'total_elapsed_seconds' => $totalElapsedTime,
-                'timeout_seconds' => $timeoutSeconds,
-            ]);
-
-            // 抛出异常，因为没有找到音频文件记录会导致后续聊天消息发送失败
-            ExceptionBuilder::throw(
-                AsrErrorCode::CreateAudioFileFailed,
-                '',
-                ['error' => sprintf('等待 %d 秒后仍未找到音频文件记录', $timeoutSeconds)]
-            );
         } catch (Throwable $e) {
             $this->logger->error('查询音频文件记录失败', [
                 'task_key' => $taskStatus->taskKey,
                 'relative_path' => $relativePath,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             // 如果是我们自己抛出的异常，直接重新抛出
@@ -240,6 +145,189 @@ readonly class AsrSandboxResponseHandler
 
             ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * 根据响应的笔记文件路径，找到笔记文件 id.
+     * 使用轮询机制等待沙箱同步文件到数据库（最多等待 30 秒）.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param array $noteFile 笔记文件信息
+     */
+    private function getNoteFileId(
+        AsrTaskStatusDTO $taskStatus,
+        array $noteFile
+    ): void {
+        $relativePath = $noteFile['path'] ?? '';
+
+        if (empty($relativePath)) {
+            $this->logger->warning('笔记文件路径为空，清空笔记文件ID', [
+                'task_key' => $taskStatus->taskKey,
+            ]);
+            $taskStatus->noteFileId = null;
+            $taskStatus->noteFileName = null;
+            return;
+        }
+
+        try {
+            $fileEntity = $this->findFileByPathWithPolling(
+                $taskStatus,
+                $relativePath,
+                '笔记文件',
+                false // 笔记文件查询失败不抛异常
+            );
+
+            if ($fileEntity !== null) {
+                $taskStatus->noteFileId = (string) $fileEntity->getFileId();
+                $taskStatus->noteFileName = $noteFile['filename'] ?? $noteFile['path'] ?? '';
+
+                $this->logger->info('成功找到笔记文件记录', [
+                    'task_key' => $taskStatus->taskKey,
+                    'note_file_id' => $taskStatus->noteFileId,
+                    'note_file_name' => $taskStatus->noteFileName,
+                    'old_preset_note_file_id' => $taskStatus->presetNoteFileId,
+                ]);
+            } else {
+                // 没找到就清空，不使用预设ID
+                $this->logger->warning('未找到笔记文件记录', [
+                    'task_key' => $taskStatus->taskKey,
+                    'relative_path' => $relativePath,
+                ]);
+                $taskStatus->noteFileId = null;
+                $taskStatus->noteFileName = null;
+            }
+        } catch (Throwable $e) {
+            // 笔记文件查询失败，清空笔记文件信息
+            $this->logger->warning('查询笔记文件记录失败', [
+                'task_key' => $taskStatus->taskKey,
+                'relative_path' => $relativePath,
+                'error' => $e->getMessage(),
+            ]);
+            $taskStatus->noteFileId = null;
+            $taskStatus->noteFileName = null;
+        }
+    }
+
+    /**
+     * 通过文件路径轮询查询文件记录（通用方法）.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     * @param string $relativePath 文件相对路径
+     * @param string $fileTypeName 文件类型名称（用于日志）
+     * @param bool $throwOnTimeout 超时是否抛出异常
+     * @return null|TaskFileEntity 文件实体，未找到返回null
+     * @throws Throwable
+     */
+    private function findFileByPathWithPolling(
+        AsrTaskStatusDTO $taskStatus,
+        string $relativePath,
+        string $fileTypeName,
+        bool $throwOnTimeout = true
+    ): ?TaskFileEntity {
+        // 检查必要的任务状态字段
+        if (empty($taskStatus->projectId) || empty($taskStatus->userId) || empty($taskStatus->organizationCode)) {
+            $this->logger->error('任务状态信息不完整，无法查询文件记录', [
+                'task_key' => $taskStatus->taskKey,
+                'file_type' => $fileTypeName,
+                'project_id' => $taskStatus->projectId,
+                'user_id' => $taskStatus->userId,
+                'organization_code' => $taskStatus->organizationCode,
+            ]);
+            ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => '任务状态信息不完整']);
+        }
+
+        // 获取项目信息并构建 file_key
+        $projectEntity = $this->projectDomainService->getProject(
+            (int) $taskStatus->projectId,
+            $taskStatus->userId
+        );
+        $workDir = $projectEntity->getWorkDir();
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode);
+        $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+
+        $this->logger->info(sprintf('开始轮询查询%s记录', $fileTypeName), [
+            'task_key' => $taskStatus->taskKey,
+            'file_type' => $fileTypeName,
+            'relative_path' => $relativePath,
+            'file_key' => $fileKey,
+            'project_id' => $taskStatus->projectId,
+            'max_wait_seconds' => AsrConfig::FILE_RECORD_QUERY_TIMEOUT,
+        ]);
+
+        // 轮询查询文件记录
+        $timeoutSeconds = AsrConfig::FILE_RECORD_QUERY_TIMEOUT;
+        $pollingInterval = AsrConfig::POLLING_INTERVAL;
+        $startTime = microtime(true);
+        $attempt = 0;
+
+        while (true) {
+            ++$attempt;
+            $elapsedSeconds = (int) (microtime(true) - $startTime);
+
+            // 查询文件记录
+            $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey(
+                (int) $taskStatus->projectId,
+                $fileKey
+            );
+
+            if ($existingFile !== null) {
+                $this->logger->info(sprintf('成功找到%s记录', $fileTypeName), [
+                    'task_key' => $taskStatus->taskKey,
+                    'file_type' => $fileTypeName,
+                    'file_id' => $existingFile->getFileId(),
+                    'file_name' => $existingFile->getFileName(),
+                    'file_key' => $fileKey,
+                    'attempt' => $attempt,
+                    'elapsed_seconds' => $elapsedSeconds,
+                ]);
+                return $existingFile;
+            }
+
+            // 检查是否超时
+            if ($elapsedSeconds >= $timeoutSeconds) {
+                break;
+            }
+
+            // 记录轮询进度
+            if ($attempt % AsrConfig::FILE_RECORD_QUERY_LOG_FREQUENCY === 0 || $attempt === 1) {
+                $remainingSeconds = max(0, $timeoutSeconds - $elapsedSeconds);
+                $this->logger->info(sprintf('等待沙箱同步%s到数据库', $fileTypeName), [
+                    'task_key' => $taskStatus->taskKey,
+                    'file_type' => $fileTypeName,
+                    'file_key' => $fileKey,
+                    'attempt' => $attempt,
+                    'elapsed_seconds' => $elapsedSeconds,
+                    'remaining_seconds' => $remainingSeconds,
+                ]);
+            }
+
+            // 等待下一次轮询
+            sleep($pollingInterval);
+        }
+
+        // 轮询超时，仍未找到文件记录
+        $totalElapsedTime = (int) (microtime(true) - $startTime);
+        $this->logger->warning(sprintf('轮询超时，未找到%s记录', $fileTypeName), [
+            'task_key' => $taskStatus->taskKey,
+            'file_type' => $fileTypeName,
+            'file_key' => $fileKey,
+            'relative_path' => $relativePath,
+            'project_id' => $taskStatus->projectId,
+            'total_attempts' => $attempt,
+            'total_elapsed_seconds' => $totalElapsedTime,
+            'timeout_seconds' => $timeoutSeconds,
+        ]);
+
+        if ($throwOnTimeout) {
+            // 抛出异常
+            ExceptionBuilder::throw(
+                AsrErrorCode::CreateAudioFileFailed,
+                '',
+                ['error' => sprintf('等待 %d 秒后仍未找到%s记录', $timeoutSeconds, $fileTypeName)]
+            );
+        }
+
+        return null;
     }
 
     /**
