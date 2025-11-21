@@ -154,10 +154,10 @@ class ImageWatermarkProcessor
             if ($tempFileHandle !== null) {
                 fclose($tempFileHandle);
             }
-            if (isset($tempInputFile) && file_exists($tempInputFile)) {
+            if (file_exists($tempInputFile)) {
                 @unlink($tempInputFile);
             }
-            if (isset($tempFileWithExt) && file_exists($tempFileWithExt)) {
+            if ($tempFileWithExt !== null && file_exists($tempFileWithExt)) {
                 @unlink($tempFileWithExt);
             }
         }
@@ -363,24 +363,6 @@ class ImageWatermarkProcessor
             default: // 默认右下角
                 return [max($margin, $width - $textWidth - $margin), $height - $margin - $descender];
         }
-    }
-
-    /**
-     * 解码base64图片数据.
-     */
-    private function decodeBase64Image(string $base64Image): string
-    {
-        // 移除data URL前缀
-        if (str_contains($base64Image, ',')) {
-            $base64Image = substr($base64Image, strpos($base64Image, ',') + 1);
-        }
-
-        $imageData = base64_decode($base64Image);
-        if ($imageData === false) {
-            throw new Exception('无效的base64图片数据');
-        }
-
-        return $imageData;
     }
 
     /**
@@ -610,45 +592,6 @@ class ImageWatermarkProcessor
             if (file_exists($tempFile)) {
                 @unlink($tempFile);
             }
-        }
-    }
-
-    /**
-     * 处理图片文件并上传到云存储.
-     */
-    private function processImageFile(string $imageFilePath, ImageGenerateRequest $imageGenerateRequest): string
-    {
-        $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
-        $fileDomainService = di(FileDomainService::class);
-
-        try {
-            $subDir = 'open';
-
-            // 使用文件路径创建 UploadFile
-            $uploadFile = new UploadFile($imageFilePath, $subDir, '');
-
-            $fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
-
-            $fileLink = $fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
-
-            // 设置对象元数据
-            $validityPeriod = $imageGenerateRequest->getValidityPeriod();
-            $metadataContent = [];
-            if ($validityPeriod !== null) {
-                $metadataContent['validity_period'] = (string) $validityPeriod;
-            }
-            $metadata = ['metadata' => Json::encode($metadataContent)];
-
-            $fileDomainService->setHeadObjectByCredential($organizationCode, $uploadFile->getKey(), $metadata, StorageBucketType::Public);
-
-            return $fileLink->getUrl();
-        } catch (Exception $e) {
-            $this->logger->error('Failed to process image file', [
-                'error' => $e->getMessage(),
-                'file_path' => $imageFilePath,
-                'organization_code' => $organizationCode,
-            ]);
-            throw $e;
         }
     }
 }
