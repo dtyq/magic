@@ -93,9 +93,8 @@ class GoogleGeminiModel extends AbstractImageGenerate
                     $result = $this->requestImageGeneration($imageGenerateRequest);
                     $this->validateGoogleGeminiResponse($result);
 
-                    // 成功：设置图片数据到响应对象（使用引用传递避免复制大数组）
+                    // 成功：设置图片数据到响应对象
                     $this->addImageDataToResponseGemini($response, $result, $imageGenerateRequest);
-                    // 方法内部会处理数据提取和释放，这里不需要额外操作
                 } catch (Exception $e) {
                     // 失败：设置错误信息到响应对象（只设置第一个错误）
                     if (! $response->hasError()) {
@@ -266,10 +265,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
                 CoContext::copy($fromCoroutineId);
                 try {
                     $result = $this->requestImageGeneration($imageGenerateRequest);
-                    // 使用引用传递大数组，避免复制，降低内存占用
                     $imageData = $this->extractImageDataFromResponse($result);
-                    // 提取数据后，显式释放原始数组引用，帮助 GC
-                    unset($result);
 
                     return [
                         'success' => true,
@@ -310,11 +306,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
         return array_values($rawResults);
     }
 
-    /**
-     * 从响应数组中提取图片数据.
-     * 使用引用参数避免复制大数组，降低内存占用.
-     */
-    private function extractImageDataFromResponse(array &$result): string
+    private function extractImageDataFromResponse(array $result): string
     {
         if (! isset($result['candidates']) || ! is_array($result['candidates'])) {
             throw new Exception('响应中缺少candidates字段');
@@ -327,9 +319,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
 
             foreach ($candidate['content']['parts'] as $part) {
                 if (isset($part['inlineData']['data'])) {
-                    $imageData = $part['inlineData']['data'];
-                    // 提取数据后，可以释放原始数组引用（在调用方处理）
-                    return $imageData;
+                    return $part['inlineData']['data'];
                 }
             }
         }
@@ -359,9 +349,8 @@ class GoogleGeminiModel extends AbstractImageGenerate
 
     /**
      * 验证Google Gemini API响应数据格式.
-     * 使用引用参数避免复制大数组，降低内存占用.
      */
-    private function validateGoogleGeminiResponse(array &$result): void
+    private function validateGoogleGeminiResponse(array $result): void
     {
         if (! isset($result['candidates']) || ! is_array($result['candidates'])) {
             throw new Exception('Google Gemini响应数据格式错误：缺少candidates字段');
@@ -386,17 +375,16 @@ class GoogleGeminiModel extends AbstractImageGenerate
 
     /**
      * 将Google Gemini图片数据添加到OpenAI响应对象中（转换为URL格式）.
-     * 使用引用参数避免复制大数组，降低内存占用.
      */
     private function addImageDataToResponseGemini(
         OpenAIFormatResponse $response,
-        array &$geminiResult,
+        array $geminiResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
         // 使用Redis锁确保并发安全
         $lockOwner = $this->lockResponse($response);
         try {
-            // 使用现有方法提取图像数据（使用引用传递避免复制大数组）
+            // 使用现有方法提取图像数据
             $imageBase64 = $this->extractImageDataFromResponse($geminiResult);
 
             $currentData = $response->getData();
@@ -419,7 +407,6 @@ class GoogleGeminiModel extends AbstractImageGenerate
             ];
 
             // 累计usage信息 - 从usageMetadata中提取
-            // 注意：这里仍需要访问 $geminiResult，所以不能提前释放
             if (! empty($geminiResult['usageMetadata']) && is_array($geminiResult['usageMetadata'])) {
                 $usageMetadata = $geminiResult['usageMetadata'];
                 $currentUsage->addGeneratedImages(1);
@@ -430,9 +417,6 @@ class GoogleGeminiModel extends AbstractImageGenerate
                 // 如果没有usage信息，默认增加1张图片
                 $currentUsage->addGeneratedImages(1);
             }
-
-            // 使用完 usageMetadata 后，可以释放大数组引用
-            unset($geminiResult);
 
             // 更新响应对象
             $response->setData($currentData);
