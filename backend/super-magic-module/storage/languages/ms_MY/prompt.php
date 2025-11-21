@@ -8,4 +8,3 @@ return [
     'disable_web_search_constraint' => ' (Cari berdasarkan kandungan ruang kerja, jangan gunakan alat carian internet)',
     'image_model_constraint' => ' (Apabila memanggil alat generate_image, gunakan model :model_id sebagai model pilihan)',
 ];
-
