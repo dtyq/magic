@@ -23,16 +23,16 @@ use Hyperf\Contract\TranslatorInterface;
 
 class ModeAssembler
 {
-    public static function aggregateToDTO(ModeAggregate $aggregate, array $providerModels = [], array $upgradeRequiredModelIds = []): ModeAggregateDTO
+    public static function aggregateToDTO(ModeAggregate $aggregate, array $providerModels = [], array $upgradeRequiredModelIds = [], array $providerImageModels = []): ModeAggregateDTO
     {
         $dto = new ModeAggregateDTO();
         $dto->setMode(self::modeToDTO($aggregate->getMode()));
 
         $groupAggregatesDTOs = [];
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels, $upgradeRequiredModelIds);
-            // 只有当分组下有模型时才添加（前台过滤空分组）
-            if (! empty($groupDTO->getModels())) {
+            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels, $upgradeRequiredModelIds, $providerImageModels);
+            // 只有当分组下有模型或图像模型时才添加（前台过滤空分组）
+            if (! empty($groupDTO->getModels()) || ! empty($groupDTO->getImageModels())) {
                 $groupAggregatesDTOs[] = $groupDTO;
             }
         }
@@ -44,13 +44,15 @@ class ModeAssembler
 
     /**
      * @param array<string, ProviderModelEntity> $providerModels
+     * @param array<string, ProviderModelEntity> $providerImageModels
      */
-    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels, array $upgradeRequiredModelIds = []): ModeGroupAggregateDTO
+    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels, array $upgradeRequiredModelIds = [], array $providerImageModels = []): ModeGroupAggregateDTO
     {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));
         $locale = di(TranslatorInterface::class)->getLocale();
 
+        // 处理 LLM 模型
         $models = [];
         foreach ($groupAggregate->getRelations() as $relation) {
             $modelDTO = new ModeGroupModelDTO($relation->toArray());
@@ -70,7 +72,27 @@ class ModeAssembler
             }
         }
 
+        // 处理 VLM 图像模型
+        $imageModels = [];
+        foreach ($groupAggregate->getRelations() as $relation) {
+            $modelDTO = new ModeGroupModelDTO($relation->toArray());
+
+            $providerModelId = $relation->getModelId();
+            if (isset($providerImageModels[$providerModelId])) {
+                $providerModel = $providerImageModels[$providerModelId];
+                $modelDTO->setModelName($providerModel->getLocalizedName($locale));
+                $modelDTO->setModelIcon($providerModel->getIcon());
+                $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
+                if (in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
+                    $modelDTO->setTags(['VIP']);
+                    $modelDTO->setModelStatus(ModelStatus::Disabled);
+                }
+                $imageModels[] = $modelDTO;
+            }
+        }
+
         $dto->setModels($models);
+        $dto->setImageModels($imageModels);
 
         return $dto;
     }

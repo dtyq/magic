@@ -37,6 +37,8 @@ class SuperAgentExtra extends AbstractDTO
 
     protected ?array $model = null;
 
+    protected ?array $imageModel = null;
+
     /**
      * Queue ID for message processing.
      */
@@ -148,6 +150,27 @@ class SuperAgentExtra extends AbstractDTO
     public function setModel(?array $model): void
     {
         $this->model = $model;
+    }
+
+    public function getImageModel(): ?array
+    {
+        return $this->imageModel;
+    }
+
+    public function getImageModelId(): string
+    {
+        if (empty($this->imageModel)) {
+            return '';
+        }
+        if (is_array($this->imageModel) && isset($this->imageModel['model_id']) && is_string($this->imageModel['model_id'])) {
+            return $this->imageModel['model_id'];
+        }
+        return '';
+    }
+
+    public function setImageModel(?array $imageModel): void
+    {
+        $this->imageModel = $imageModel;
     }
 
     public function getQueueId(): ?string

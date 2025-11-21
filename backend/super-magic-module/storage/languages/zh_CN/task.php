@@ -12,5 +12,4 @@ return [
     'agent_stopped' => '任务已终止',
     'finished_task_action' => '已完成结果文件的输出',
     'access_token_not_found' => '访问令牌未找到',
-    'disable_web_search_constraint' => '（基于工作区的内容进行检索，不使用互联网搜索工具）',
 ];

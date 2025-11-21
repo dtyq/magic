@@ -230,24 +230,9 @@ class AgentDomainService
         // Get original prompt
         $userRequest = $taskContext->getTask()->getPrompt();
 
-        // Check if web search should be disabled
-        $extra = $taskContext->getExtra();
-        if ($extra !== null && $extra->getEnableWebSearch() === false) {
-            // Get language for translation
-            $language = $taskContext->getDataIsolation()->getLanguage();
-            $constraintText = trans('task.disable_web_search_constraint', [], $language);
-
-            // Wrap user request in <user_request> tags and combine with constraint
-            $prompt = $userRequest . $constraintText;
-
-            $this->logger->info('[Sandbox][App] Web search disabled, constraint text prepended to prompt', [
-                'task_id' => $taskContext->getTask()->getId(),
-                'language' => $language,
-            ]);
-        } else {
-            // No constraint, use original prompt as is
-            $prompt = $userRequest;
-        }
+        // Get constraint text if needed
+        $constraintText = $this->getPromptConstraint($taskContext);
+        $prompt = $userRequest . $constraintText;
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
@@ -826,6 +811,46 @@ class AgentDomainService
             'model_id' => $taskContext->getModelId(),
             'fetch_history' => ! $taskContext->getIsFirstTask(),
         ];
+    }
+
+    /**
+     * Get prompt constraint text based on extra configuration.
+     * Returns combined constraint text based on extra settings.
+     *
+     * @param TaskContext $taskContext Task context containing extra and language info
+     * @return string Constraint text or empty string
+     */
+    private function getPromptConstraint(TaskContext $taskContext): string
+    {
+        $extra = $taskContext->getExtra();
+        if ($extra === null) {
+            return '';
+        }
+
+        $language = $taskContext->getDataIsolation()->getLanguage();
+        $constraints = [];
+
+        // Check web search constraint
+        if ($extra->getEnableWebSearch() === false) {
+            $constraints[] = trans('prompt.disable_web_search_constraint', [], $language);
+            $this->logger->info('[Sandbox][App] Web search disabled, constraint text will be appended to prompt', [
+                'task_id' => $taskContext->getTask()->getId(),
+                'language' => $language,
+            ]);
+        }
+
+        // Check image model constraint
+        $imageModelId = $extra->getImageModelId();
+        if (! empty($imageModelId)) {
+            $constraints[] = trans('prompt.image_model_constraint', ['model_id' => $imageModelId], $language);
+            $this->logger->info('[Sandbox][App] Image model constraint will be appended to prompt', [
+                'task_id' => $taskContext->getTask()->getId(),
+                'image_model_id' => $imageModelId,
+                'language' => $language,
+            ]);
+        }
+
+        return empty($constraints) ? '' : implode('', $constraints);
     }
 
     /**

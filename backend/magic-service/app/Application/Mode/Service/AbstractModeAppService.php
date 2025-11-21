@@ -100,6 +100,14 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
                     $iconPaths[] = $modelIcon;
                 }
             }
+
+            // 收集图像模型的icon路径
+            foreach ($groupAggregate->getImageModels() as $imageModel) {
+                $modelIcon = $imageModel->getModelIcon();
+                if (! empty($modelIcon) && ! is_url($modelIcon)) {
+                    $iconPaths[] = $modelIcon;
+                }
+            }
         }
 
         // 如果没有需要处理的icon，直接返回
@@ -126,6 +134,14 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
                 $modelIcon = $model->getModelIcon();
                 if (! empty($modelIcon) && ! is_url($modelIcon) && isset($iconUrls[$modelIcon])) {
                     $model->setModelIcon($iconUrls[$modelIcon]->getUrl());
+                }
+            }
+
+            // 替换图像模型的icon
+            foreach ($groupAggregate->getImageModels() as $imageModel) {
+                $modelIcon = $imageModel->getModelIcon();
+                if (! empty($modelIcon) && ! is_url($modelIcon) && isset($iconUrls[$modelIcon])) {
+                    $imageModel->setModelIcon($iconUrls[$modelIcon]->getUrl());
                 }
             }
         }
