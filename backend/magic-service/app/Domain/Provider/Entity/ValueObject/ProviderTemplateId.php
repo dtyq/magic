@@ -143,6 +143,7 @@ enum ProviderTemplateId: string
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
             ProviderCode::Gemini => 'Google Gemini',
+            default => '未知服务商',
         };
 
         $categoryName = $mapping['category']->label();
