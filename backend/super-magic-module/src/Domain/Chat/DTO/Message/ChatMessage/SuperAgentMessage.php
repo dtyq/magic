@@ -47,6 +47,8 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
 
     protected ?string $correlationId = null; // 🎯 添加 correlation_id 字段
 
+    protected ?array $usage = null; // Usage information (only set when task is finished)
+
     public function __construct(?array $messageStruct = null)
     {
         parent::__construct();
@@ -213,6 +215,17 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
         return $this;
     }
 
+    public function getUsage(): ?array
+    {
+        return $this->usage;
+    }
+
+    public function setUsage(?array $usage): self
+    {
+        $this->usage = $usage;
+        return $this;
+    }
+
     public function toArray(bool $filterNull = false): array
     {
         $data = array_merge(parent::toArray($filterNull), [
@@ -235,6 +248,7 @@ class SuperAgentMessage extends AbstractChatMessageStruct implements TextContent
             'attachments' => $this->attachments,
             'remark' => $this->remark,
             'correlation_id' => $this->correlationId,
+            'usage' => $this->usage,
         ]);
 
         if ($filterNull) {

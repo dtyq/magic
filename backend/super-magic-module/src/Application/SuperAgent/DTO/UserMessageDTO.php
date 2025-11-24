@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\DTO;
 
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 
 /**
@@ -35,6 +36,7 @@ class UserMessageDTO
         private readonly string $messageSeqId = '',
         private readonly string $chatMessageType = '',
         private ?array $dynamicParams = null,
+        private ?SuperAgentExtra $extra = null,
     ) {
     }
 
@@ -156,6 +158,16 @@ class UserMessageDTO
         return $this->dynamicParams[$key] ?? $default;
     }
 
+    public function getExtra(): ?SuperAgentExtra
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?SuperAgentExtra $extra): void
+    {
+        $this->extra = $extra;
+    }
+
     /**
      * Create DTO from array.
      */
@@ -183,6 +195,9 @@ class UserMessageDTO
             messageSeqId: $data['message_seq_id'] ?? $data['messageSeqId'] ?? '',
             chatMessageType: $data['chat_message_type'] ?? $data['chatMessageType'] ?? '',
             dynamicParams: $data['dynamic_params'] ?? $data['dynamicParams'] ?? null,
+            extra: isset($data['extra']) && is_array($data['extra'])
+                ? new SuperAgentExtra($data['extra'])
+                : null,
         );
     }
 
@@ -211,6 +226,7 @@ class UserMessageDTO
             'message_seq_id' => $this->messageSeqId,
             'chat_message_type' => $this->chatMessageType,
             'dynamic_params' => $this->dynamicParams,
+            'extra' => $this->extra?->toArray(),
         ];
     }
 }

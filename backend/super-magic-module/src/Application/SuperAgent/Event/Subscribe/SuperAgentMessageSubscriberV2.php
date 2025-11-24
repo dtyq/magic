@@ -154,6 +154,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 messageSeqId: $messageSeqId,
                 chatMessageType: $chatMessageType,
                 dynamicParams: $dynamicParams,
+                extra: $superAgentExtra,
             );
 
             if ($chatInstructs == ChatInstruction::Interrupted) {

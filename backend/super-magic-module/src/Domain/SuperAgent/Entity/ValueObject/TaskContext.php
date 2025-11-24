@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 
@@ -31,6 +32,7 @@ class TaskContext
      * @param string $workspaceId 工作区ID
      * @param string $messageId 消息ID
      * @param bool $isFirstTask 是否为首次任务
+     * @param null|SuperAgentExtra $extra 扩展参数
      */
     public function __construct(
         private readonly TaskEntity $task,
@@ -48,6 +50,7 @@ class TaskContext
         private string $workspaceId = '',
         private string $messageId = '',
         private bool $isFirstTask = false,
+        private ?SuperAgentExtra $extra = null,
     ) {
     }
 
@@ -197,6 +200,7 @@ class TaskContext
             $this->workspaceId,
             $this->messageId,
             $this->isFirstTask,
+            $this->extra,
         );
     }
 
@@ -303,6 +307,23 @@ class TaskContext
     public function setIsFirstTask(bool $isFirstTask): self
     {
         $this->isFirstTask = $isFirstTask;
+        return $this;
+    }
+
+    /**
+     * 获取扩展参数.
+     */
+    public function getExtra(): ?SuperAgentExtra
+    {
+        return $this->extra;
+    }
+
+    /**
+     * 设置扩展参数.
+     */
+    public function setExtra(?SuperAgentExtra $extra): self
+    {
+        $this->extra = $extra;
         return $this;
     }
 }

@@ -155,6 +155,11 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?string $correlationId = null;
 
+    /**
+     * @var null|array Usage information (only set when task is finished)
+     */
+    protected ?array $usage = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -483,6 +488,17 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getUsage(): ?array
+    {
+        return $this->usage;
+    }
+
+    public function setUsage(?array $usage): self
+    {
+        $this->usage = $usage;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -514,6 +530,7 @@ class TaskMessageEntity extends AbstractEntity
             'im_seq_id' => $this->imSeqId,
             'im_status' => $this->imStatus,
             'correlation_id' => $this->correlationId,
+            'usage' => $this->usage,
         ];
 
         return array_filter($result, function ($value) {

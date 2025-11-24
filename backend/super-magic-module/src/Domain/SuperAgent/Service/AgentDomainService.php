@@ -43,6 +43,8 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * Agent消息应用服务
  * 提供高级Agent通信功能，包括自动初始化和状态管理.
@@ -217,6 +219,17 @@ class AgentDomainService
             $taskDynamicConfig[$key] = $dynamicConfig;
         }
 
+        // Add image_model configuration if imageModelId exists
+        $extra = $taskContext->getExtra();
+        if ($extra !== null) {
+            $imageModelId = $extra->getImageModelId();
+            if (! empty($imageModelId)) {
+                $taskDynamicConfig['image_model'] = [
+                    'model_id' => $imageModelId,
+                ];
+            }
+        }
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -230,12 +243,19 @@ class AgentDomainService
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
+        // Get original prompt
+        $userRequest = $taskContext->getTask()->getPrompt();
+
+        // Get constraint text if needed
+        $constraintText = $this->getPromptConstraint($taskContext);
+        $prompt = $userRequest . $constraintText;
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: $taskContext->getMessageId(),
             userId: $dataIsolation->getCurrentUserId(),
             taskId: (string) $taskContext->getTask()->getId(),
-            prompt: $taskContext->getTask()->getPrompt(),
+            prompt: $prompt,
             taskMode: $taskContext->getTask()->getTaskMode(),
             agentMode: $taskContext->getAgentMode(),
             mentions: $mentionsJsonStruct,
@@ -811,6 +831,35 @@ class AgentDomainService
             'model_id' => $taskContext->getModelId(),
             'fetch_history' => ! $taskContext->getIsFirstTask(),
         ];
+    }
+
+    /**
+     * Get prompt constraint text based on extra configuration.
+     * Returns combined constraint text based on extra settings.
+     *
+     * @param TaskContext $taskContext Task context containing extra and language info
+     * @return string Constraint text or empty string
+     */
+    private function getPromptConstraint(TaskContext $taskContext): string
+    {
+        $extra = $taskContext->getExtra();
+        if ($extra === null) {
+            return '';
+        }
+
+        $language = $taskContext->getDataIsolation()->getLanguage();
+        $constraints = [];
+
+        // Check web search constraint
+        if ($extra->getEnableWebSearch() === false) {
+            $constraints[] = trans('prompt.disable_web_search_constraint', [], $language);
+            $this->logger->info('[Sandbox][App] Web search disabled, constraint text will be appended to prompt', [
+                'task_id' => $taskContext->getTask()->getId(),
+                'language' => $language,
+            ]);
+        }
+
+        return empty($constraints) ? '' : implode('', $constraints);
     }
 
     /**
