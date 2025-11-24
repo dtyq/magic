@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Mock;
 
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
+use App\Domain\Asr\Constants\AsrConfig;
 use App\Domain\Asr\Constants\AsrRedisKeys;
-use App\Domain\Asr\Constants\AsrTimeouts;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -101,7 +101,7 @@ class AsrApi
         // 使用 Redis 计数器模拟轮询进度
         $countKey = sprintf(AsrRedisKeys::MOCK_FINISH_COUNT, $taskKey);
         $count = (int) $this->redis->incr($countKey);
-        $this->redis->expire($countKey, AsrTimeouts::MOCK_POLLING_TTL); // 10分钟过期
+        $this->redis->expire($countKey, AsrConfig::MOCK_POLLING_TTL); // 10分钟过期
 
         // 记录调用日志
         $this->logger->info('[Mock Sandbox ASR] Finish task called (V2)', [

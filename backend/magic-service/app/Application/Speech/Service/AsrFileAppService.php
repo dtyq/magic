@@ -16,8 +16,8 @@ use App\Application\Speech\DTO\Response\AsrFileDataDTO;
 use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Domain\Asr\Constants\AsrConfig;
 use App\Domain\Asr\Constants\AsrRedisKeys;
-use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -66,7 +66,7 @@ readonly class AsrFileAppService
         private AsrValidationService $validationService,
         private AsrDirectoryService $directoryService,
         private AsrTitleGeneratorService $titleGeneratorService,
-        private AsrSandboxService $sandboxService,
+        private AsrSandboxService $asrSandboxService,
         private AsrPresetFileService $presetFileService,
         private LockerInterface $locker,
         LoggerFactory $loggerFactory
@@ -153,7 +153,7 @@ readonly class AsrFileAppService
     ): void {
         $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $summaryRequest->taskKey);
         $lockOwner = sprintf('%s:%s:%s', $userId, $summaryRequest->taskKey, microtime(true));
-        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
+        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrConfig::SUMMARY_LOCK_TTL);
         if (! $locked) {
             $this->logger->warning('获取总结任务锁失败，跳过本次处理', [
                 'task_key' => $summaryRequest->taskKey,
@@ -218,19 +218,19 @@ readonly class AsrFileAppService
 
                 $existingWorkspaceFilePath = $taskStatus->filePath;
 
-                // 重命名显示目录（如果有标题）
-                if (! empty($summaryRequest->generatedTitle)) {
-                    $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
-                        $taskStatus,
-                        $summaryRequest->generatedTitle,
-                        $summaryRequest->projectId,
-                        $this->titleGeneratorService
-                    );
-                    $taskStatus->displayDirectory = $newDisplayDirectory;
-                }
-
                 try {
-                    // 调用沙箱合并音频
+                    // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
+                    //                    $oldDisplayDirectory = $taskStatus->displayDirectory;
+                    if (! empty($summaryRequest->generatedTitle)) {
+                        $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
+                            $taskStatus,
+                            $summaryRequest->generatedTitle,
+                            $this->titleGeneratorService
+                        );
+                        $taskStatus->displayDirectory = $newDisplayDirectory;
+                    }
+
+                    // 调用沙箱合并音频（沙箱会重命名目录但不会通知文件变动）
                     $this->updateAudioFromSandbox($taskStatus, $organizationCode, $summaryRequest->generatedTitle);
                 } catch (Throwable $mergeException) {
                     // 回退到已有文件
@@ -304,7 +304,7 @@ readonly class AsrFileAppService
     /**
      * 保存任务状态到Redis.
      */
-    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = 3600 * 24 * 7): void
+    public function saveTaskStatusToRedis(AsrTaskStatusDTO $taskStatus, int $ttl = AsrConfig::TASK_STATUS_TTL): void
     {
         $this->asrTaskDomainService->saveTaskStatus($taskStatus, $ttl);
     }
@@ -389,7 +389,7 @@ readonly class AsrFileAppService
     {
         $lockName = sprintf(AsrRedisKeys::SUMMARY_LOCK, $taskStatus->taskKey);
         $lockOwner = sprintf('%s:%s:%s', $userId, $taskStatus->taskKey, microtime(true));
-        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrTimeouts::SUMMARY_LOCK_TTL);
+        $locked = $this->locker->spinLock($lockName, $lockOwner, AsrConfig::SUMMARY_LOCK_TTL);
         if (! $locked) {
             $this->logger->warning('获取自动总结锁失败，跳过本次处理', [
                 'task_key' => $taskStatus->taskKey,
@@ -408,11 +408,11 @@ readonly class AsrFileAppService
                 return;
             }
 
-            if ($taskStatus->serverSummaryRetryCount >= AsrTimeouts::SERVER_SUMMARY_MAX_RETRY) {
+            if ($taskStatus->serverSummaryRetryCount >= AsrConfig::SERVER_SUMMARY_MAX_RETRY) {
                 $this->logger->warning('自动总结重试次数达到上限，跳过本次处理', [
                     'task_key' => $taskStatus->taskKey,
                     'retry_count' => $taskStatus->serverSummaryRetryCount,
-                    'max_retry' => AsrTimeouts::SERVER_SUMMARY_MAX_RETRY,
+                    'max_retry' => AsrConfig::SERVER_SUMMARY_MAX_RETRY,
                 ]);
                 return;
             }
@@ -428,19 +428,19 @@ readonly class AsrFileAppService
             // 生成标题
             $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
 
-            // 重命名显示目录
+            // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
+            //            $oldDisplayDirectory = $taskStatus->displayDirectory;
             if (! empty($fileTitle)) {
-                $newDisplayDirectory = $this->directoryService->renameDisplayDirectory(
+                $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
                     $taskStatus,
                     $fileTitle,
-                    $taskStatus->projectId,
                     $this->titleGeneratorService
                 );
                 $taskStatus->displayDirectory = $newDisplayDirectory;
             }
 
-            // 合并音频
-            $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
+            // 合并音频（沙箱会重命名目录但不会通知文件变动）
+            $this->asrSandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
 
             // 发送聊天消息
             $this->sendAutoSummaryChatMessage($taskStatus, $userId, $organizationCode);
@@ -617,7 +617,7 @@ readonly class AsrFileAppService
             $fileTitle = $this->translator->trans('asr.file_names.original_recording');
         }
 
-        $this->sandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
+        $this->asrSandboxService->mergeAudioFiles($taskStatus, $fileTitle, $organizationCode);
     }
 
     /**
@@ -791,63 +791,20 @@ readonly class AsrFileAppService
      */
     private function handleStartRecording(AsrTaskStatusDTO $taskStatus, string $userId, string $organizationCode): bool
     {
-        // 每次 start 都检查沙箱是否存在，防止沙箱被回收导致音频丢失
-        // 原因：如果暂停超过 20 分钟，沙箱可能被回收，需要重新启动以确保音频实时合并
-
-        $needStartTask = false;
-
-        // 如果任务未创建，需要启动
-        if (! $taskStatus->sandboxTaskCreated) {
-            $needStartTask = true;
-            $this->logger->info('沙箱任务未创建，需要启动', [
+        // 每次 start 都检查沙箱是否存在，防止沙箱被回收导致音频丢失. 原因：如果暂停超过 20 分钟，沙箱可能被回收，需要重新启动以确保音频实时合并
+        try {
+            $this->asrSandboxService->startRecordingTask($taskStatus, $userId, $organizationCode);
+            $taskStatus->sandboxRetryCount = 0; // 成功后重置重试次数
+        } catch (Throwable $e) {
+            // 沙箱启动失败时记录日志但继续处理（沙箱可能临时不可用）
+            ++$taskStatus->sandboxRetryCount;
+            $this->logger->warning('沙箱任务启动失败，将在后续自动重试', [
                 'task_key' => $taskStatus->taskKey,
+                'retry_count' => $taskStatus->sandboxRetryCount,
+                'error' => $e->getMessage(),
             ]);
-        } else {
-            // 任务已创建，检查沙箱是否还存在
-            $isSandboxAvailable = $this->sandboxService->isSandboxAvailable(
-                $taskStatus->sandboxId ?? '',
-                $userId,
-                $organizationCode
-            );
-
-            if ($isSandboxAvailable) {
-                $this->logger->info('沙箱仍然存在，跳过启动', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $taskStatus->sandboxId,
-                ]);
-            } else {
-                // 沙箱不存在或不可用，需要重新启动
-                $needStartTask = true;
-                $taskStatus->sandboxTaskCreated = false; // 重置标志
-                $this->logger->warning('沙箱不存在或不可用，需要重新启动', [
-                    'task_key' => $taskStatus->taskKey,
-                    'sandbox_id' => $taskStatus->sandboxId,
-                ]);
-            }
         }
-
-        // 如果需要启动任务
-        if ($needStartTask) {
-            // 检查重试次数
-            if ($taskStatus->sandboxRetryCount >= 3) {
-                ExceptionBuilder::throw(AsrErrorCode::SandboxStartRetryExceeded);
-            }
-
-            try {
-                $this->sandboxService->startRecordingTask($taskStatus, $userId, $organizationCode);
-                $taskStatus->sandboxRetryCount = 0; // 成功后重置重试次数
-            } catch (Throwable $e) {
-                // 沙箱启动失败时记录日志但继续处理（沙箱可能临时不可用）
-                ++$taskStatus->sandboxRetryCount;
-                $this->logger->warning('沙箱任务启动失败，将在后续自动重试', [
-                    'task_key' => $taskStatus->taskKey,
-                    'retry_count' => $taskStatus->sandboxRetryCount,
-                    'error' => $e->getMessage(),
-                ]);
-                // 不标记为已创建，下次会重试
-            }
-        }
-
+        $taskStatus->sandboxTaskCreated = true; // 重置标志
         // 更新状态并设置心跳（原子操作）
         $taskStatus->recordingStatus = AsrRecordingStatusEnum::START->value;
         $taskStatus->isPaused = false;
@@ -922,7 +879,7 @@ readonly class AsrFileAppService
         // 调用沙箱取消任务（如果沙箱任务已创建）
         if ($taskStatus->sandboxTaskCreated && ! empty($taskStatus->sandboxId)) {
             try {
-                $response = $this->sandboxService->cancelRecordingTask($taskStatus);
+                $response = $this->asrSandboxService->cancelRecordingTask($taskStatus);
                 $this->logger->info('沙箱录音任务已取消', [
                     'task_key' => $taskStatus->taskKey,
                     'sandbox_id' => $taskStatus->sandboxId,
@@ -941,32 +898,98 @@ readonly class AsrFileAppService
         $taskStatus->recordingStatus = AsrRecordingStatusEnum::CANCELED->value;
         $this->asrTaskDomainService->saveTaskStatusAndDeleteHeartbeat($taskStatus);
 
-        // 清理预设文件
-        if (! empty($taskStatus->presetTranscriptFileId)) {
-            $this->presetFileService->deleteTranscriptFile($taskStatus->presetTranscriptFileId);
-        }
-        if (! empty($taskStatus->presetNoteFileId)) {
-            $this->presetFileService->deleteTranscriptFile($taskStatus->presetNoteFileId);
+        // 准备 DataIsolation 对象（用于删除目录）
+        $dataIsolation = DataIsolation::simpleMake(
+            $taskStatus->organizationCode,
+            $taskStatus->userId
+        );
+
+        // 获取项目信息（用于获取 workDir）
+        $workDir = '';
+        $projectOrganizationCode = $taskStatus->organizationCode;
+        try {
+            $projectEntity = $this->projectDomainService->getProject((int) $taskStatus->projectId, $taskStatus->userId);
+            $workDir = $projectEntity->getWorkDir();
+            $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        } catch (Throwable $e) {
+            $this->logger->warning('获取项目信息失败', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'error' => $e->getMessage(),
+            ]);
         }
 
-        // 清理正式笔记文件
-        if (! empty($taskStatus->noteFileId)) {
+        // 清理隐藏目录（包含目录下的所有文件，包括预设文件）
+        if (! empty($taskStatus->tempHiddenDirectoryId) && ! empty($taskStatus->tempHiddenDirectory)) {
             try {
-                $this->taskFileDomainService->deleteById((int) $taskStatus->noteFileId);
-                $this->logger->info('删除笔记文件成功', [
-                    'task_key' => $taskStatus->taskKey,
-                    'note_file_id' => $taskStatus->noteFileId,
-                ]);
+                if (! empty($workDir)) {
+                    // 使用 deleteDirectoryFiles 级联删除目录及其所有子文件
+                    $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles(
+                        $dataIsolation,
+                        $workDir,
+                        (int) $taskStatus->projectId,
+                        $this->getFullFileKey($taskStatus->tempHiddenDirectory, $workDir, $projectOrganizationCode),
+                        $projectOrganizationCode
+                    );
+                    $this->logger->info('删除隐藏目录及其子文件成功', [
+                        'task_key' => $taskStatus->taskKey,
+                        'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
+                        'hidden_directory_path' => $taskStatus->tempHiddenDirectory,
+                        'deleted_count' => $deletedCount,
+                    ]);
+                } else {
+                    // 降级：如果获取不到 workDir，只删除目录记录
+                    $this->taskFileDomainService->deleteById((int) $taskStatus->tempHiddenDirectoryId);
+                    $this->logger->warning('无法获取workDir，仅删除隐藏目录记录', [
+                        'task_key' => $taskStatus->taskKey,
+                        'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
+                    ]);
+                }
             } catch (Throwable $e) {
-                $this->logger->warning('删除笔记文件失败', [
+                $this->logger->warning('删除隐藏目录失败', [
                     'task_key' => $taskStatus->taskKey,
-                    'note_file_id' => $taskStatus->noteFileId,
+                    'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
                     'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        // 清理已合并的音频文件
+        // 清理显示目录（包含目录下的所有文件，包括预设文件）
+        if (! empty($taskStatus->displayDirectoryId) && ! empty($taskStatus->displayDirectory)) {
+            try {
+                if (! empty($workDir)) {
+                    // 使用 deleteDirectoryFiles 级联删除目录及其所有子文件
+                    $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles(
+                        $dataIsolation,
+                        $workDir,
+                        (int) $taskStatus->projectId,
+                        $this->getFullFileKey($taskStatus->displayDirectory, $workDir, $projectOrganizationCode),
+                        $projectOrganizationCode
+                    );
+                    $this->logger->info('删除显示目录及其子文件成功', [
+                        'task_key' => $taskStatus->taskKey,
+                        'display_directory_id' => $taskStatus->displayDirectoryId,
+                        'display_directory_path' => $taskStatus->displayDirectory,
+                        'deleted_count' => $deletedCount,
+                    ]);
+                } else {
+                    // 降级：如果获取不到 workDir，只删除目录记录
+                    $this->taskFileDomainService->deleteById((int) $taskStatus->displayDirectoryId);
+                    $this->logger->warning('无法获取workDir，仅删除显示目录记录', [
+                        'task_key' => $taskStatus->taskKey,
+                        'display_directory_id' => $taskStatus->displayDirectoryId,
+                    ]);
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('删除显示目录失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'display_directory_id' => $taskStatus->displayDirectoryId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 清理已合并的音频文件（如果存在且不在上面的目录中）
         if (! empty($taskStatus->audioFileId)) {
             try {
                 $this->taskFileDomainService->deleteById((int) $taskStatus->audioFileId);
@@ -983,37 +1006,14 @@ readonly class AsrFileAppService
             }
         }
 
-        // 清理隐藏目录（包含目录下的所有文件）
-        if (! empty($taskStatus->tempHiddenDirectoryId)) {
+        // 检查项目下是否还有其他文件，如果没有则删除项目
+        if (! empty($taskStatus->projectId)) {
             try {
-                $this->taskFileDomainService->deleteById((int) $taskStatus->tempHiddenDirectoryId);
-                $this->logger->info('删除隐藏目录成功', [
-                    'task_key' => $taskStatus->taskKey,
-                    'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
-                    'hidden_directory_path' => $taskStatus->tempHiddenDirectory,
-                ]);
+                $this->checkAndDeleteProjectIfEmpty($taskStatus);
             } catch (Throwable $e) {
-                $this->logger->warning('删除隐藏目录失败', [
+                $this->logger->warning('检查并删除空项目失败', [
                     'task_key' => $taskStatus->taskKey,
-                    'hidden_directory_id' => $taskStatus->tempHiddenDirectoryId,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        // 清理显示目录（包含目录下的所有文件）
-        if (! empty($taskStatus->displayDirectoryId)) {
-            try {
-                $this->taskFileDomainService->deleteById((int) $taskStatus->displayDirectoryId);
-                $this->logger->info('删除显示目录成功', [
-                    'task_key' => $taskStatus->taskKey,
-                    'display_directory_id' => $taskStatus->displayDirectoryId,
-                    'display_directory_path' => $taskStatus->displayDirectory,
-                ]);
-            } catch (Throwable $e) {
-                $this->logger->warning('删除显示目录失败', [
-                    'task_key' => $taskStatus->taskKey,
-                    'display_directory_id' => $taskStatus->displayDirectoryId,
+                    'project_id' => $taskStatus->projectId,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -1024,6 +1024,57 @@ readonly class AsrFileAppService
         ]);
 
         return true;
+    }
+
+    /**
+     * 检查项目是否为空，如果为空则删除项目.
+     */
+    private function checkAndDeleteProjectIfEmpty(AsrTaskStatusDTO $taskStatus): void
+    {
+        // 获取项目下所有用户文件（不包括隐藏文件）
+        $files = $this->taskFileDomainService->findUserFilesByProjectId($taskStatus->projectId);
+
+        if (empty($files)) {
+            $this->logger->info('项目下没有文件，准备删除项目', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+            ]);
+
+            // 删除项目
+            try {
+                $this->projectDomainService->deleteProject((int) $taskStatus->projectId, $taskStatus->userId);
+                $this->logger->info('删除空项目成功', [
+                    'task_key' => $taskStatus->taskKey,
+                    'project_id' => $taskStatus->projectId,
+                ]);
+            } catch (Throwable $e) {
+                $this->logger->error('删除空项目失败', [
+                    'task_key' => $taskStatus->taskKey,
+                    'project_id' => $taskStatus->projectId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } else {
+            $this->logger->info('项目下还有文件，不删除项目', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'file_count' => count($files),
+            ]);
+        }
+    }
+
+    /**
+     * 构建完整的 file_key.
+     *
+     * @param string $relativePath 相对路径
+     * @param string $workDir 工作目录
+     * @param string $organizationCode 组织编码
+     * @return string 完整的 file_key
+     */
+    private function getFullFileKey(string $relativePath, string $workDir, string $organizationCode): string
+    {
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
+        return AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
     }
 
     /**
