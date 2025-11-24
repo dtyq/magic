@@ -316,10 +316,11 @@ readonly class AsrFileAppService
         string $organizationCode,
         string $projectId,
         string $userId,
-        string $taskKey
+        string $taskKey,
+        ?string $generatedTitle = null
     ): array {
         $hiddenDir = $this->directoryService->createHiddenDirectory($organizationCode, $projectId, $userId, $taskKey);
-        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId);
+        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId, $generatedTitle);
         return [$hiddenDir, $displayDir];
     }
 
@@ -339,14 +340,15 @@ readonly class AsrFileAppService
         string $projectId,
         string $userId,
         string $organizationCode,
-        string $taskKey
+        string $taskKey,
+        ?string $generatedTitle = null
     ): array {
         // 验证话题和项目权限
         $this->validationService->validateTopicOwnership((int) $topicId, $userId);
         $this->validationService->validateProjectAccess($projectId, $userId, $organizationCode);
 
         // 准备录音目录
-        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey);
+        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey, $generatedTitle);
     }
 
     /**

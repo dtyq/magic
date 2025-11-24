@@ -234,13 +234,16 @@ class AsrApi extends AbstractApi
                 ]);
             }
 
-            // 5. 创建或更新任务状态
-            $taskStatus = $this->createOrUpdateTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
+            // 5. 预先生成标题（为了在创建目录时使用）
+            $generatedTitle = null;
+            // 获取当前状态以检查是否已存在标题
+            $currentTaskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
 
-            // 5.1 为文件直传类型生成标题（如果有文件名且还未生成过标题）
-            if ($recordingType === AsrRecordingTypeEnum::FILE_UPLOAD
+            if (
+                $recordingType === AsrRecordingTypeEnum::FILE_UPLOAD
                 && ! empty($fileName)
-                && empty($taskStatus->uploadGeneratedTitle)) {
+                && ($currentTaskStatus->isEmpty() || empty($currentTaskStatus->uploadGeneratedTitle))
+            ) {
                 try {
                     $generatedTitle = $this->titleGeneratorService->generateTitleForFileUpload(
                         $userAuthorization,
@@ -249,7 +252,6 @@ class AsrApi extends AbstractApi
                     );
 
                     if (! empty($generatedTitle)) {
-                        $taskStatus->uploadGeneratedTitle = $generatedTitle;
                         $this->logger->info('文件直传标题生成成功', [
                             'task_key' => $taskKey,
                             'file_name' => $fileName,
@@ -266,16 +268,26 @@ class AsrApi extends AbstractApi
                 }
             }
 
+            // 6. 创建或更新任务状态
+            $taskStatus = $this->createOrUpdateTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode, $generatedTitle);
+
+            // 确保 generatedTitle 被设置到 taskStatus 中
+            if (! empty($generatedTitle) && empty($taskStatus->uploadGeneratedTitle)) {
+                $taskStatus->uploadGeneratedTitle = $generatedTitle;
+            }
+
             // 6. 获取STS Token
             $tokenData = $this->buildStsToken($userAuthorization, $projectId, $userId);
 
             // 7. 创建预设文件（如果还未创建，且录音类型需要预设文件）
-            if (empty($taskStatus->presetNoteFileId)
+            if (
+                empty($taskStatus->presetNoteFileId)
                 && ! empty($taskStatus->displayDirectory)
                 && ! empty($taskStatus->displayDirectoryId)
                 && ! empty($taskStatus->tempHiddenDirectory)
                 && ! empty($taskStatus->tempHiddenDirectoryId)
-                && $recordingType->needsPresetFiles()) {
+                && $recordingType->needsPresetFiles()
+            ) {
                 try {
                     $presetFiles = $this->presetFileService->createPresetFiles(
                         $userId,
@@ -380,15 +392,19 @@ class AsrApi extends AbstractApi
             }
 
             // 状态检查 2：任务已取消，不允许再报告其他状态
-            if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value
-                && $statusEnum !== AsrRecordingStatusEnum::CANCELED) {
+            if (
+                $taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value
+                && $statusEnum !== AsrRecordingStatusEnum::CANCELED
+            ) {
                 ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
             }
 
             // 状态检查 3：录音已停止且已合并，不允许再 start/recording（可能是心跳超时自动停止）
-            if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
+            if (
+                $taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
                 && ! empty($taskStatus->audioFileId)
-                && in_array($statusEnum, [AsrRecordingStatusEnum::START, AsrRecordingStatusEnum::RECORDING], true)) {
+                && in_array($statusEnum, [AsrRecordingStatusEnum::START, AsrRecordingStatusEnum::RECORDING], true)
+            ) {
                 ExceptionBuilder::throw(AsrErrorCode::TaskAutoStoppedByTimeout);
             }
         }
@@ -601,13 +617,14 @@ class AsrApi extends AbstractApi
         string $topicId,
         string $projectId,
         string $userId,
-        string $organizationCode
+        string $organizationCode,
+        ?string $generatedTitle = null
     ): AsrTaskStatusDTO {
         $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
 
         if ($taskStatus->isEmpty()) {
             // 第一次调用：创建新任务状态
-            return $this->createNewTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode);
+            return $this->createNewTaskStatus($taskKey, $topicId, $projectId, $userId, $organizationCode, $generatedTitle);
         }
 
         if ($taskStatus->hasServerSummaryLock()) {
@@ -630,8 +647,10 @@ class AsrApi extends AbstractApi
         }
 
         // 状态检查 3：录音已停止，不允许上传（可能是心跳超时自动停止）
-        if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
-            && ! empty($taskStatus->audioFileId)) {
+        if (
+            $taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
+            && ! empty($taskStatus->audioFileId)
+        ) {
             ExceptionBuilder::throw(AsrErrorCode::TaskAutoStoppedByTimeout);
         }
 
@@ -658,12 +677,14 @@ class AsrApi extends AbstractApi
         string $topicId,
         string $projectId,
         string $userId,
-        string $organizationCode
+        string $organizationCode,
+        ?string $generatedTitle = null
     ): AsrTaskStatusDTO {
         $this->logger->info('第一次调用 getUploadToken，创建新目录', [
             'task_key' => $taskKey,
             'project_id' => $projectId,
             'topic_id' => $topicId,
+            'generated_title' => $generatedTitle,
         ]);
 
         $directories = $this->asrFileAppService->validateTopicAndPrepareDirectories(
@@ -671,7 +692,8 @@ class AsrApi extends AbstractApi
             $projectId,
             $userId,
             $organizationCode,
-            $taskKey
+            $taskKey,
+            $generatedTitle
         );
 
         $hiddenDir = $this->findDirectoryByType($directories, true);
@@ -692,6 +714,7 @@ class AsrApi extends AbstractApi
             'display_directory' => $displayDir?->directoryPath,
             'temp_hidden_directory_id' => $hiddenDir->directoryId,
             'display_directory_id' => $displayDir?->directoryId,
+            'upload_generated_title' => $generatedTitle,
         ]);
     }
 
