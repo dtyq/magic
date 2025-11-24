@@ -47,7 +47,7 @@ class MagicAILocalModel extends AbstractModel
         protected array $config,
         protected ?LoggerInterface $logger = null
     ) {
-        if (! empty($this->config['use_official_access_token']) && $this->config['use_official_access_token']) {
+        if (! empty($this->config['use_official_access_token'])) {
             $this->accessToken = defined('MAGIC_OFFICIAL_ACCESS_TOKEN') ? MAGIC_OFFICIAL_ACCESS_TOKEN : '';
         } else {
             $this->accessToken = defined('MAGIC_ACCESS_TOKEN') ? MAGIC_ACCESS_TOKEN : ($this->config['access_token'] ?? '');
