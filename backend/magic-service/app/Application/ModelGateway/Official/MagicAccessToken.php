@@ -51,6 +51,19 @@ class MagicAccessToken
         $accessToken->prepareForCreation();
         SystemAccessTokenManager::setSystemAccessToken($accessToken);
 
-        define('MAGIC_ACCESS_TOKEN', $accessToken->getAccessToken());
+        // 新增官方组织个人访问令牌常量
+        $userAccessToken = new AccessTokenEntity();
+        $userAccessToken->setId(2);
+        $userAccessToken->setName($application->getCode());
+        $userAccessToken->setType(AccessTokenType::User);
+        $userAccessToken->setRelationId('system');
+        $userAccessToken->setOrganizationCode($llmDataIsolation->getOfficialOrganizationCode());
+        $userAccessToken->setModels(['all']);
+        $userAccessToken->setCreator('system');
+        $userAccessToken->prepareForCreation();
+        SystemAccessTokenManager::setSystemAccessToken($userAccessToken);
+
+        define('MAGIC_ACCESS_TOKEN', $accessToken->getPlaintextAccessToken());
+        define('MAGIC_OFFICIAL_ACCESS_TOKEN', $userAccessToken->getPlaintextAccessToken());
     }
 }
