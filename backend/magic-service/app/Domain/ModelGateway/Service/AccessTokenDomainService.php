@@ -15,6 +15,8 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 
+use function Swow\defer;
+
 class AccessTokenDomainService extends AbstractDomainService
 {
     public function __construct(
@@ -81,8 +83,17 @@ class AccessTokenDomainService extends AbstractDomainService
         if (empty($getAccessToken)) {
             return null;
         }
+        $encryptedAccessToken = hash('sha256', $getAccessToken);
         $dataIsolation = LLMDataIsolation::create();
-        return $this->accessTokenRepository->getByAccessToken($dataIsolation, $getAccessToken);
+        $accessToken = $this->accessTokenRepository->getByEncryptedAccessToken($dataIsolation, $encryptedAccessToken);
+        if (! $accessToken) {
+            return null;
+        }
+        $accessToken->prepareForUsed();
+        defer(function () use ($accessToken): void {
+            $this->accessTokenRepository->save(LLMDataIsolation::create()->disabled(), $accessToken);
+        });
+        return $accessToken;
     }
 
     public function incrementUseAmount(LLMDataIsolation $dataIsolation, AccessTokenEntity $accessTokenEntity, float $amount): void

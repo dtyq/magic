@@ -32,6 +32,8 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $modifier
  * @property Carbon $updated_at
  * @property Carbon $deleted_at
+ * @property null|Carbon $last_used_at
+ * @property string $encrypted_access_token
  */
 class AccessTokenModel extends Model
 {
@@ -41,8 +43,8 @@ class AccessTokenModel extends Model
     protected ?string $table = 'magic_api_access_tokens';
 
     protected array $fillable = [
-        'id', 'type', 'access_token', 'relation_id', 'name', 'description', 'models', 'ip_limit',
-        'expire_time', 'total_amount', 'use_amount', 'rpm', 'enabled',
+        'id', 'type', 'access_token', 'encrypted_access_token', 'relation_id', 'name', 'description', 'models', 'ip_limit',
+        'expire_time', 'total_amount', 'use_amount', 'rpm', 'enabled', 'last_used_at',
         'organization_code', 'creator', 'created_at', 'modifier', 'updated_at', 'deleted_at',
     ];
 
@@ -50,6 +52,7 @@ class AccessTokenModel extends Model
         'id' => 'integer',
         'type' => 'string',
         'access_token' => 'string',
+        'encrypted_access_token' => 'string',
         'relation_id' => 'string',
         'name' => 'string',
         'description' => 'string',
@@ -66,6 +69,7 @@ class AccessTokenModel extends Model
         'modifier' => 'string',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'last_used_at' => 'datetime',
     ];
 
     public function setModelsAttribute(mixed $models): void

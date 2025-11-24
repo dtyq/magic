@@ -20,6 +20,7 @@ class AccessTokenFactory
         $entity->setId($model->id);
         $entity->setType($type);
         $entity->setAccessToken($model->access_token);
+        $entity->setEncryptedAccessToken($model->encrypted_access_token);
         $entity->setRelationId($model->relation_id);
         $entity->setName($model->name);
         $entity->setDescription($model->description);
@@ -35,6 +36,7 @@ class AccessTokenFactory
         $entity->setCreatedAt($model->created_at);
         $entity->setModifier($model->modifier);
         $entity->setUpdatedAt($model->updated_at);
+        $entity->setLastUsedAt($model->last_used_at);
         return $entity;
     }
 }
