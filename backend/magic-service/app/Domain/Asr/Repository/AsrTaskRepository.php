@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace App\Domain\Asr\Repository;
 
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
+use App\Domain\Asr\Constants\AsrConfig;
 use App\Domain\Asr\Constants\AsrRedisKeys;
-use App\Domain\Asr\Constants\AsrTimeouts;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -34,7 +34,7 @@ readonly class AsrTaskRepository
      * @param AsrTaskStatusDTO $taskStatus 任务状态 DTO
      * @param int $ttl 过期时间（秒），默认 7 天
      */
-    public function save(AsrTaskStatusDTO $taskStatus, int $ttl = AsrTimeouts::TASK_STATUS_TTL): void
+    public function save(AsrTaskStatusDTO $taskStatus, int $ttl = AsrConfig::TASK_STATUS_TTL): void
     {
         try {
             $redisKey = $this->generateTaskKey($taskStatus->taskKey, $taskStatus->userId);

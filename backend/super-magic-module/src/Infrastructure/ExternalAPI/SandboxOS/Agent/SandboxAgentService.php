@@ -32,7 +32,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
 {
     public function __construct(
         LoggerFactory $loggerFactory,
-        private SandboxGatewayInterface $gateway
+        private readonly SandboxGatewayInterface $gateway
     ) {
         parent::__construct($loggerFactory);
     }
@@ -202,8 +202,7 @@ class SandboxAgentService extends AbstractSandboxOS implements SandboxAgentInter
             $result = $this->gateway->proxySandboxRequest(
                 $sandboxId,
                 'GET',
-                'api/v1/workspace/status',
-                []
+                'api/v1/workspace/status'
             );
 
             $response = AgentResponse::fromGatewayResult($result);

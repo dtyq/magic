@@ -79,16 +79,26 @@ readonly class AsrTitleGeneratorService
                     return null;
                 }
 
-                // 提取工作区相对路径
-                $workspaceFilePath = $fileEntity->getFileKey();
+                // 获取音频文件名称
+                $audioFileName = $fileEntity->getFileName();
 
-                // 构建提示词
-                $promptContent = $this->buildPromptForFileScenario($workspaceFilePath, $note);
+                // 构建笔记文件名（如果有）
+                $noteFileName = null;
+                if ($note !== null && $note->hasContent()) {
+                    $noteFileName = $note->generateFileName();
+                }
 
-                $title = $this->magicChatMessageAppService->summarizeText(
-                    $userAuthorization,
-                    $promptContent,
+                // 构建用户请求消息（模拟用户聊天消息）
+                $userRequestMessage = $this->buildUserRequestMessage($audioFileName, $noteFileName);
+
+                // 使用 AsrPromptAssembler 构建提示词
+                $customPrompt = AsrPromptAssembler::getTitlePromptForUploadedFile(
+                    $userRequestMessage,
                     $language
+                );
+                $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
+                    $userAuthorization,
+                    $customPrompt
                 );
                 return $this->sanitizeTitle($title);
             }
@@ -201,35 +211,72 @@ readonly class AsrTitleGeneratorService
     }
 
     /**
-     * 为文件场景构建提示词.
+     * 为文件直传场景生成标题（仅根据文件名）.
      *
-     * @param string $workspaceFilePath 工作区文件路径
-     * @param null|NoteDTO $note 笔记内容
-     * @return string 提示词内容
+     * @param MagicUserAuthorization $userAuthorization 用户授权
+     * @param string $fileName 文件名
+     * @param string $taskKey 任务键（用于日志）
+     * @return null|string 生成的标题
      */
-    private function buildPromptForFileScenario(string $workspaceFilePath, ?NoteDTO $note): string
-    {
-        if ($note !== null && $note->hasContent()) {
-            // 有笔记的情况
-            $audioFileDirectory = dirname($workspaceFilePath);
-            $noteFileName = $note->generateFileName();
-            $noteFilePath = ltrim(sprintf('%s/%s', $audioFileDirectory, $noteFileName), './');
+    public function generateTitleForFileUpload(
+        MagicUserAuthorization $userAuthorization,
+        string $fileName,
+        string $taskKey
+    ): ?string {
+        try {
+            $language = $this->translator->getLocale() ?: 'zh_CN';
 
+            // 构建用户请求消息（模拟用户聊天消息）
+            $userRequestMessage = $this->buildUserRequestMessage($fileName, null);
+
+            // 使用 AsrPromptAssembler 构建提示词
+            $customPrompt = AsrPromptAssembler::getTitlePromptForUploadedFile(
+                $userRequestMessage,
+                $language
+            );
+
+            $title = $this->magicChatMessageAppService->summarizeTextWithCustomPrompt(
+                $userAuthorization,
+                $customPrompt
+            );
+
+            return $this->sanitizeTitle($title);
+        } catch (Throwable $e) {
+            $this->logger->warning('为文件直传生成标题失败', [
+                'task_key' => $taskKey,
+                'file_name' => $fileName,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 构建用户请求消息（模拟用户聊天消息，使用国际化文本）.
+     *
+     * @param string $audioFileName 音频文件名称
+     * @param null|string $noteFileName 笔记文件名称（可选）
+     * @return string 格式化后的用户请求
+     */
+    private function buildUserRequestMessage(string $audioFileName, ?string $noteFileName): string
+    {
+        if ($noteFileName !== null) {
+            // 有笔记的情况："请帮我把 @年会方案讨论.webm 录音内容和 @年会笔记.md 的内容转化为一份超级产物"
             return sprintf(
                 '%s@%s%s@%s%s',
                 $this->translator->trans('asr.messages.summary_prefix_with_note'),
-                $workspaceFilePath,
+                $audioFileName,
                 $this->translator->trans('asr.messages.summary_middle_with_note'),
-                $noteFilePath,
+                $noteFileName,
                 $this->translator->trans('asr.messages.summary_suffix_with_note')
             );
         }
 
-        // 只有音频文件的情况
+        // 只有音频文件的情况："请帮我把 @年会方案讨论.webm 录音内容转化为一份超级产物"
         return sprintf(
             '%s@%s%s',
             $this->translator->trans('asr.messages.summary_prefix'),
-            $workspaceFilePath,
+            $audioFileName,
             $this->translator->trans('asr.messages.summary_suffix')
         );
     }

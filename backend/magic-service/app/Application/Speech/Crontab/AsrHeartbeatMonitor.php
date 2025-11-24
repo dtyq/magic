@@ -10,8 +10,8 @@ namespace App\Application\Speech\Crontab;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Service\AsrFileAppService;
+use App\Domain\Asr\Constants\AsrConfig;
 use App\Domain\Asr\Constants\AsrRedisKeys;
-use App\Domain\Asr\Constants\AsrTimeouts;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -30,7 +30,7 @@ use Throwable;
     rule: '* * * * *',                    // 每分钟执行一次
     name: 'AsrHeartbeatMonitor',
     singleton: true,                      // 单例模式防止重复执行
-    mutexExpires: 60,                     // 互斥锁 60 秒后过期
+    mutexExpires: 60,                     // 互斥锁过期时间（秒），对应 AsrConfig::HEARTBEAT_MONITOR_MUTEX_EXPIRES
     onOneServer: true,                    // 仅在一台服务器上执行
     callback: 'execute',
     memo: 'ASR recording heartbeat monitoring task'
@@ -57,7 +57,11 @@ class AsrHeartbeatMonitor
             $this->logger->info('开始执行 ASR 录音心跳监控任务');
 
             // 扫描所有心跳 key（使用 RedisUtil::scanKeys 防止阻塞）
-            $keys = RedisUtil::scanKeys(AsrRedisKeys::HEARTBEAT_SCAN_PATTERN, 200, 2000);
+            $keys = RedisUtil::scanKeys(
+                AsrRedisKeys::HEARTBEAT_SCAN_PATTERN,
+                AsrConfig::REDIS_SCAN_BATCH_SIZE,
+                AsrConfig::REDIS_SCAN_MAX_COUNT
+            );
             $timeoutCount = 0;
 
             foreach ($keys as $key) {
@@ -92,7 +96,7 @@ class AsrHeartbeatMonitor
         // 读取心跳时间戳
         $last = (int) $this->redis->get($key);
         // 超时阈值：90 秒
-        if (($last > 0) && (time() - $last) <= AsrTimeouts::HEARTBEAT_TIMEOUT) {
+        if (($last > 0) && (time() - $last) <= AsrConfig::HEARTBEAT_TIMEOUT) {
             return false;
         }
 
@@ -128,7 +132,11 @@ class AsrHeartbeatMonitor
     private function findAndTriggerTimeoutTask(string $heartbeatKey): void
     {
         // 扫描所有任务
-        $keys = RedisUtil::scanKeys(AsrRedisKeys::TASK_SCAN_PATTERN, 200, 2000);
+        $keys = RedisUtil::scanKeys(
+            AsrRedisKeys::TASK_SCAN_PATTERN,
+            AsrConfig::REDIS_SCAN_BATCH_SIZE,
+            AsrConfig::REDIS_SCAN_MAX_COUNT
+        );
 
         foreach ($keys as $taskKey) {
             try {

@@ -144,4 +144,60 @@ class SandboxApi
             ],
         ];
     }
+
+    /**
+     * 初始化沙箱（简化版，用于 ASR 等无聊天消息场景）
+     * POST /api/v1/sandboxes/{sandboxId}/proxy/v1/messages/chat.
+     *
+     * 请求体示例：
+     * {
+     *   "message_id": "asr_init_sandbox_001_1234567890",
+     *   "type": "init",
+     *   "metadata": {
+     *     "sandbox_id": "sandbox_001",
+     *     "user_id": "user_123",
+     *     "organization_code": "org_001",
+     *     "super_magic_task_id": "",
+     *     "language": "zh_CN"
+     *   }
+     * }
+     */
+    public function initSandbox(RequestInterface $request): array
+    {
+        $sandboxId = $request->route('sandboxId');
+        $messageId = $request->input('message_id', '');
+        $type = $request->input('type', '');
+        $metadata = $request->input('metadata', []);
+
+        $this->logger->info('[Mock Sandbox] Initialize sandbox called', [
+            'sandbox_id' => $sandboxId,
+            'message_id' => $messageId,
+            'type' => $type,
+            'metadata' => $metadata,
+        ]);
+
+        // 验证必传参数
+        if (empty($type) || $type !== 'init') {
+            return [
+                'code' => 4000,
+                'message' => 'Invalid type, must be "init"',
+                'data' => null,
+            ];
+        }
+
+        if (empty($metadata['sandbox_id']) || empty($metadata['user_id']) || empty($metadata['organization_code'])) {
+            return [
+                'code' => 4000,
+                'message' => 'Missing required metadata fields: sandbox_id, user_id, organization_code',
+                'data' => null,
+            ];
+        }
+
+        // 模拟沙箱初始化成功响应
+        return [
+            'code' => 1000,
+            'message' => '工作区初始化成功',
+            'data' => null,
+        ];
+    }
 }

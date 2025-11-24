@@ -19,16 +19,6 @@ RUN mkdir -p /etc/php/conf.d && \
     echo "max_execution_time = 0" > /etc/php/conf.d/max-execution-time.ini
     
 
-
-# 安装系统依赖
-# - git: 版本控制工具
-# - openssh-client: SSH客户端
-# - ffmpeg: 音频/视频处理工具，用于ASR录音文件合并
-RUN apk add --no-cache  git openssh-client ffmpeg && \
-    ffmpeg -version | head -1 && \
-    echo "✅ FFmpeg installed successfully"
-
-
 COPY . /opt/www
 
 WORKDIR /opt/www
