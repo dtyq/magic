@@ -67,6 +67,7 @@ class AsrAssembler
 
         // 构建完整的 file_key
         $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
+        $fileKey = rtrim($fileKey, '/') . '/';
 
         // 确定文件名：隐藏目录使用 basename，显示目录使用完整路径
         $fileName = $isHidden ? basename($relativePath) : $relativePath;

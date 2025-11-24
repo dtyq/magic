@@ -99,6 +99,37 @@ readonly class AsrDirectoryService
     }
 
     /**
+     * 创建 .asr_recordings 隐藏目录（录音父目录，用于存放所有录音任务的子目录）.
+     * 目录格式：.asr_recordings.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @return AsrRecordingDirectoryDTO 目录DTO
+     */
+    public function createRecordingsDirectory(
+        string $organizationCode,
+        string $projectId,
+        string $userId
+    ): AsrRecordingDirectoryDTO {
+        $relativePath = AsrPaths::getRecordingsDirPath();
+
+        return $this->createDirectoryInternal(
+            organizationCode: $organizationCode,
+            projectId: $projectId,
+            userId: $userId,
+            relativePath: $relativePath,
+            directoryType: AsrDirectoryTypeEnum::ASR_RECORDINGS_DIR,
+            isHidden: true,
+            taskKey: null,
+            errorContext: ['project_id' => $projectId],
+            logMessage: '创建 .asr_recordings 目录失败',
+            failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+        );
+    }
+
+    /**
      * 创建显示的录音纪要目录（用于存放流式文本和笔记）.
      * 目录格式：录音纪要_Ymd_His（国际化）.
      *
@@ -120,7 +151,7 @@ readonly class AsrDirectoryService
             userId: $userId,
             relativePath: $relativePath,
             directoryType: AsrDirectoryTypeEnum::ASR_DISPLAY_DIR,
-            isHidden: false,
+            isHidden: false, // 设置为隐藏，避免ASR操作期间前端显示目录变动导致的错误
             taskKey: null,
             errorContext: ['project_id' => $projectId],
             logMessage: '创建显示录音目录失败',
@@ -130,29 +161,25 @@ readonly class AsrDirectoryService
     }
 
     /**
-     * 重命名显示目录（使用智能标题）.
+     * 生成新的显示目录名（基于智能标题）.
+     * 此方法只负责生成新的相对路径，不执行实际的重命名操作。
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $intelligentTitle 智能生成的标题
-     * @param string $projectId 项目ID
      * @param AsrTitleGeneratorService $titleGenerator 标题生成器（用于清洗标题）
-     * @return string 新的相对路径
+     * @return string 新的相对路径（如果无需重命名则返回原路径）
      */
-    public function renameDisplayDirectory(
+    public function getNewDisplayDirectory(
         mixed $taskStatus,
         string $intelligentTitle,
-        string $projectId,
         AsrTitleGeneratorService $titleGenerator
     ): string {
         // 1. 获取原显示目录信息
         $relativeOldPath = $taskStatus->displayDirectory;
-        $oldDirectoryId = $taskStatus->displayDirectoryId;
 
-        if (empty($relativeOldPath) || $oldDirectoryId === null) {
-            $this->logger->warning('显示目录信息不完整，跳过重命名', [
+        if (empty($relativeOldPath)) {
+            $this->logger->warning('显示目录路径为空，跳过生成新路径', [
                 'task_key' => $taskStatus->taskKey,
-                'old_path' => $relativeOldPath,
-                'old_id' => $oldDirectoryId,
             ]);
             return $relativeOldPath;
         }
@@ -164,7 +191,7 @@ readonly class AsrDirectoryService
         // 3. 清洗并构建新目录名
         $safeTitle = $titleGenerator->sanitizeTitle($intelligentTitle);
         if (empty($safeTitle)) {
-            $this->logger->warning('智能标题为空，跳过重命名', [
+            $this->logger->warning('智能标题为空，跳过生成新路径', [
                 'task_key' => $taskStatus->taskKey,
                 'intelligent_title' => $intelligentTitle,
             ]);
@@ -185,66 +212,14 @@ readonly class AsrDirectoryService
             return $relativeOldPath;
         }
 
-        // 4. 构建完整路径并更新数据库
-        try {
-            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $taskStatus->userId);
+        $this->logger->info('获取新的显示目录路径', [
+            'task_key' => $taskStatus->taskKey,
+            'old_relative_path' => $relativeOldPath,
+            'new_relative_path' => $newRelativePath,
+            'intelligent_title' => $intelligentTitle,
+        ]);
 
-            // 项目工作目录 (如: project_123/workspace)
-            $workDir = $projectEntity->getWorkDir();
-
-            // 组织码+APP_ID+bucket_md5前缀 (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/)
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode ?? '');
-
-            // 旧目录的完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/录音总结_20251027_230949)
-            $fullOldPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativeOldPath);
-
-            // 新目录的完整 file_key (如: DT001/open/5f4dcc3b5aa765d61d8327deb882cf99/project_123/workspace/被讨厌的勇气笔记_20251027_230949)
-            $fullNewPath = AsrAssembler::buildFileKey($fullPrefix, $workDir, $newRelativePath);
-
-            $dirEntity = $this->taskFileDomainService->getById($oldDirectoryId);
-            if ($dirEntity === null) {
-                $this->logger->error('目录记录不存在', [
-                    'task_key' => $taskStatus->taskKey,
-                    'directory_id' => $oldDirectoryId,
-                ]);
-                return $relativeOldPath;
-            }
-
-            $dirEntity->setFileName($newDirectoryName);
-            $dirEntity->setFileKey($fullNewPath);
-            $dirEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-            $this->taskFileDomainService->updateById($dirEntity);
-
-            // 更新目录下所有子文件的 file_key 路径
-            $updatedCount = $this->updateChildrenFilePaths(
-                (int) $projectId,
-                $oldDirectoryId,
-                $fullOldPath,
-                $fullNewPath,
-                $taskStatus->taskKey
-            );
-
-            $this->logger->info('显示目录重命名成功', [
-                'task_key' => $taskStatus->taskKey,
-                'old_relative_path' => $relativeOldPath,
-                'new_relative_path' => $newRelativePath,
-                'old_full_path' => $fullOldPath,
-                'new_full_path' => $fullNewPath,
-                'intelligent_title' => $intelligentTitle,
-                'directory_id' => $oldDirectoryId,
-                'children_updated' => $updatedCount,
-            ]);
-
-            return $newRelativePath;
-        } catch (Throwable $e) {
-            $this->logger->error('重命名显示目录失败', [
-                'task_key' => $taskStatus->taskKey,
-                'old_path' => $relativeOldPath,
-                'new_path' => $newRelativePath,
-                'error' => $e->getMessage(),
-            ]);
-            return $relativeOldPath;
-        }
+        return $newRelativePath;
     }
 
     /**
@@ -258,45 +233,6 @@ readonly class AsrDirectoryService
     {
         $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
         return rtrim($projectEntity->getWorkDir(), '/') . '/';
-    }
-
-    /**
-     * 批量更新文件的 file_key（从旧目录路径替换为新目录路径）.
-     *
-     * @param array $fileEntities 文件实体列表
-     * @param string $oldDirPath 旧目录完整路径
-     * @param string $newDirPath 新目录完整路径
-     * @return array ['updateBatch' => array, 'now' => string] 返回批量更新数据和时间戳
-     */
-    public function buildFileKeyUpdateBatch(
-        array $fileEntities,
-        string $oldDirPath,
-        string $newDirPath
-    ): array {
-        $updateBatch = [];
-        $now = date('Y-m-d H:i:s');
-
-        foreach ($fileEntities as $fileEntity) {
-            $oldFileKey = $fileEntity->getFileKey();
-
-            // 计算新的 file_key（替换目录路径部分）
-            $newFileKey = str_replace($oldDirPath, $newDirPath, $oldFileKey);
-
-            if ($newFileKey === $oldFileKey) {
-                continue; // 路径未改变，跳过
-            }
-
-            $updateBatch[] = [
-                'file_id' => $fileEntity->getFileId(),
-                'file_key' => $newFileKey,
-                'updated_at' => $now,
-            ];
-        }
-
-        return [
-            'updateBatch' => $updateBatch,
-            'now' => $now,
-        ];
     }
 
     /**
@@ -371,6 +307,7 @@ readonly class AsrDirectoryService
 
             // 3. 检查目录是否已存在
             $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
+            $fileKey = rtrim($fileKey, '/') . '/';
             $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
@@ -440,9 +377,6 @@ readonly class AsrDirectoryService
             ExceptionBuilder::throw(AsrErrorCode::WorkspaceDirectoryEmpty, '', ['projectId' => $projectId]);
         }
 
-        // 获取项目所属组织编码（支持跨组织项目协作）
-        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
-
         return $this->taskFileDomainService->findOrCreateProjectRootDirectory(
             (int) $projectId,
             $workDir,
@@ -450,79 +384,5 @@ readonly class AsrDirectoryService
             $organizationCode,
             $projectEntity->getUserOrganizationCode()
         );
-    }
-
-    /**
-     * 更新目录下所有子文件和子目录的 file_key 路径（包括嵌套子目录）.
-     * 使用 parent_id 递归查询，利用 idx_project_parent_sort 索引，性能更优.
-     *
-     * @param int $projectId 项目ID
-     * @param int $oldDirectoryId 旧目录ID（用于递归查询）
-     * @param string $oldDirPath 旧目录完整路径（末尾带 /）
-     * @param string $newDirPath 新目录完整路径（末尾带 /）
-     * @param string $taskKey 任务键（用于日志）
-     * @return int 更新的文件数量
-     */
-    private function updateChildrenFilePaths(
-        int $projectId,
-        int $oldDirectoryId,
-        string $oldDirPath,
-        string $newDirPath,
-        string $taskKey
-    ): int {
-        // 确保目录路径以 / 结尾
-        $oldDirPath = rtrim($oldDirPath, '/') . '/';
-        $newDirPath = rtrim($newDirPath, '/') . '/';
-
-        try {
-            // 1. 使用 parent_id 递归查询所有嵌套的子文件和子目录
-            // 利用 idx_project_parent_sort 索引，性能优于 LIKE 查询
-            $fileEntities = $this->taskFileDomainService->findFilesRecursivelyByParentId(
-                $projectId,
-                $oldDirectoryId
-            );
-
-            if (empty($fileEntities)) {
-                $this->logger->info('目录下无子文件，无需更新路径', [
-                    'task_key' => $taskKey,
-                    'old_dir_path' => $oldDirPath,
-                ]);
-                return 0;
-            }
-
-            // 2. 准备批量更新数据
-            $result = $this->buildFileKeyUpdateBatch($fileEntities, $oldDirPath, $newDirPath);
-            $updateBatch = $result['updateBatch'];
-
-            if (empty($updateBatch)) {
-                $this->logger->info('无需更新任何文件路径', [
-                    'task_key' => $taskKey,
-                ]);
-                return 0;
-            }
-
-            // 3. 批量更新
-            $updatedCount = $this->taskFileDomainService->batchUpdateFileKeys($updateBatch);
-
-            $this->logger->info('批量更新子文件路径完成（包括嵌套目录，使用索引优化）', [
-                'task_key' => $taskKey,
-                'old_dir_path' => $oldDirPath,
-                'new_dir_path' => $newDirPath,
-                'total_files' => count($fileEntities),
-                'updated_count' => $updatedCount,
-                'query_method' => 'recursive_parent_id', // 标记查询方法
-            ]);
-
-            return $updatedCount;
-        } catch (Throwable $e) {
-            $this->logger->error('更新子文件路径失败', [
-                'task_key' => $taskKey,
-                'old_dir_path' => $oldDirPath,
-                'new_dir_path' => $newDirPath,
-                'error' => $e->getMessage(),
-            ]);
-            // 不抛出异常，避免影响主流程
-            return 0;
-        }
     }
 }

@@ -200,13 +200,21 @@ class MagicChatHttpApi extends AbstractApi
      */
     public function intelligenceGetTopicName(string $conversationId, string $topicId): array
     {
-        $authorization = $this->getAuthorization();
-        $topicName = $this->magicChatMessageAppService->intelligenceRenameTopicName($authorization, $topicId, $conversationId);
-        return [
-            'conversation_id' => $conversationId,
-            'id' => $topicId,
-            'name' => $topicName,
-        ];
+        try {
+            $authorization = $this->getAuthorization();
+            $topicName = $this->magicChatMessageAppService->intelligenceRenameTopicName($authorization, $topicId, $conversationId);
+            return [
+                'conversation_id' => $conversationId,
+                'id' => $topicId,
+                'name' => $topicName,
+            ];
+        } catch (Throwable $e) {
+            return [
+                'conversation_id' => $conversationId,
+                'id' => $topicId,
+                'name' => '',
+            ];
+        }
     }
 
     /**

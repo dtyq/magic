@@ -22,5 +22,8 @@ Router::addRoute(
     }
 );
 
+// 加载 Mock 路由（用于测试）
+require BASE_PATH . '/config/routes-mock.php';
+
 // 加载 v1 路由
 RouteLoader::loadDir(BASE_PATH . '/config/routes-v1');

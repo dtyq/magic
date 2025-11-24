@@ -48,4 +48,14 @@ class AsrPaths
     {
         return self::STATES_DIR;
     }
+
+    /**
+     * 获取录音目录相对路径（父目录）.
+     *
+     * @return string 格式：.asr_recordings
+     */
+    public static function getRecordingsDirPath(): string
+    {
+        return self::HIDDEN_DIR_PREFIX;
+    }
 }
