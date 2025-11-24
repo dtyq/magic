@@ -180,7 +180,7 @@ class Dag implements Runner
         // Main execution loop
         while (! $queue->isEmpty() || $running > 0) {
             if ($queue->isEmpty()) {
-                usleep(1); // Wait for running jobs to add to the queue
+                usleep(1000); // Wait for running jobs to add to the queue
                 continue;
             }
 
