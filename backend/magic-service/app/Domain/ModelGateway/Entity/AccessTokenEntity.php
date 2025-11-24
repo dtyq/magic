@@ -57,6 +57,8 @@ class AccessTokenEntity extends AbstractEntity
 
     protected ?DateTime $lastUsedAt = null;
 
+    private string $plaintextAccessToken = '';
+
     public function shouldCreate(): bool
     {
         return empty($this->id);
@@ -87,9 +89,12 @@ class AccessTokenEntity extends AbstractEntity
         }
         // Only generate access token if not already set
         if (empty($this->accessToken)) {
-            $this->accessToken = IdGenerator::getUniqueId32();
-            $this->encryptedAccessToken = hash('sha256', $this->accessToken);
+            $this->plaintextAccessToken = IdGenerator::getUniqueId32();
+        } else {
+            $this->plaintextAccessToken = $this->accessToken;
         }
+        $this->encryptedAccessToken = hash('sha256', $this->plaintextAccessToken);
+        $this->accessToken = $this->createAccessToken($this->plaintextAccessToken);
 
         $this->modifier = $this->creator;
         $this->updatedAt = $this->createdAt;
@@ -370,5 +375,17 @@ class AccessTokenEntity extends AbstractEntity
     public function setLastUsedAt(?DateTime $lastUsedAt): void
     {
         $this->lastUsedAt = $lastUsedAt;
+    }
+
+    public function getPlaintextAccessToken(): string
+    {
+        return $this->plaintextAccessToken;
+    }
+
+    private function createAccessToken($accessToken): string
+    {
+        return substr($accessToken, 0, 7)
+            . str_repeat('*', max(0, strlen($accessToken) - 11))
+            . substr($accessToken, -4);
     }
 }
