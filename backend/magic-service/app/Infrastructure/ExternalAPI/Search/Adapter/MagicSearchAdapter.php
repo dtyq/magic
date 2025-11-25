@@ -109,7 +109,7 @@ class MagicSearchAdapter implements SearchEngineAdapterInterface
     public function isAvailable(): bool
     {
         // Check if base_url and api_key are configured
-        return ! empty($this->providerConfig['base_url'])
+        return ! empty($this->providerConfig['request_url'])
             && ! empty($this->providerConfig['api_key']);
     }
 }
