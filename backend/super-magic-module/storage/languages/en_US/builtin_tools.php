@@ -12,7 +12,7 @@ return [
         'write_file' => 'Write File',
         'edit_file' => 'Edit File',
         'multi_edit_file' => 'Multi Edit File',
-        'delete_file' => 'Delete File',
+        'delete_files' => 'Delete Files',
         'file_search' => 'File Search',
         'grep_search' => 'Content Search',
 
@@ -56,7 +56,7 @@ return [
         'write_file' => 'File writing tool, writes content to local file system, supports creating new files or overwriting existing files, note single content length limit, large files are recommended to be written in steps',
         'edit_file' => 'File precise editing tool, performs string replacement operations on existing files, supports strict matching validation and replacement count control, ensures editing operation accuracy',
         'multi_edit_file' => 'Multiple file editing tool, performs multiple find-replace operations in a single file, all edits are applied in order, either all succeed or all fail, ensuring operation atomicity',
-        'delete_file' => 'File deletion tool, used to delete specified files or directories, can only delete files in the working directory, please confirm the file path is correct before operation',
+        'delete_files' => 'Delete multiple files tool, used to batch delete specified files or directories. Please confirm all file paths are correct before deletion, if any file does not exist an error will be returned, can only delete files in the working directory, supports deleting multiple files simultaneously, improving operation efficiency',
         'file_search' => 'File path search tool, fast search based on fuzzy matching of file paths, suitable for scenarios where part of the file path is known but the specific location is uncertain, returns up to 10 results',
         'grep_search' => 'File content search tool, uses regular expressions to search for specific patterns in file content, supports file type filtering, displays matching lines and context, returns up to 20 related files',
 

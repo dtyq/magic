@@ -12,7 +12,7 @@ return [
         'write_file' => 'Ghi tệp',
         'edit_file' => 'Chỉnh sửa tệp',
         'multi_edit_file' => 'Chỉnh sửa nhiều tệp',
-        'delete_file' => 'Xóa tệp',
+        'delete_files' => 'Xóa tệp',
         'file_search' => 'Tìm kiếm tệp',
         'grep_search' => 'Tìm kiếm nội dung',
 
@@ -56,7 +56,7 @@ return [
         'write_file' => 'Công cụ ghi tệp, ghi nội dung vào hệ thống tệp cục bộ, hỗ trợ tạo tệp mới hoặc ghi đè tệp hiện có, lưu ý giới hạn độ dài nội dung một lần, tệp lớn nên ghi theo từng bước',
         'edit_file' => 'Công cụ chỉnh sửa tệp chính xác, thực hiện thao tác thay thế chuỗi trên tệp hiện có, hỗ trợ xác thực khớp nghiêm ngặt và kiểm soát số lần thay thế, đảm bảo độ chính xác của thao tác chỉnh sửa',
         'multi_edit_file' => 'Công cụ chỉnh sửa tệp nhiều lần, thực hiện nhiều thao tác tìm-thay trong một tệp, tất cả chỉnh sửa được áp dụng theo thứ tự, hoặc tất cả thành công hoặc tất cả thất bại, đảm bảo tính nguyên tử của thao tác',
-        'delete_file' => 'Công cụ xóa tệp, dùng để xóa tệp hoặc thư mục được chỉ định, chỉ có thể xóa tệp trong thư mục làm việc, vui lòng xác nhận đường dẫn tệp đúng trước khi thao tác',
+        'delete_files' => 'Công cụ xóa nhiều tệp, dùng để xóa hàng loạt tệp hoặc thư mục được chỉ định. Vui lòng xác nhận tất cả đường dẫn tệp đúng trước khi xóa, nếu bất kỳ tệp nào không tồn tại sẽ trả về lỗi, chỉ có thể xóa tệp trong thư mục làm việc, hỗ trợ xóa nhiều tệp đồng thời, nâng cao hiệu quả thao tác',
         'file_search' => 'Công cụ tìm kiếm đường dẫn tệp, tìm kiếm nhanh dựa trên khớp mờ đường dẫn tệp, phù hợp cho các tình huống biết một phần đường dẫn tệp nhưng không chắc chắn vị trí cụ thể, trả về tối đa 10 kết quả',
         'grep_search' => 'Công cụ tìm kiếm nội dung tệp, sử dụng biểu thức chính quy để tìm kiếm các mẫu cụ thể trong nội dung tệp, hỗ trợ lọc loại tệp, hiển thị dòng khớp và ngữ cảnh, trả về tối đa 20 tệp liên quan',
 
