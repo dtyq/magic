@@ -80,6 +80,7 @@ class SyncModelsToOfficialListener implements ListenerInterface
 
         $syncService->syncModelsFromExternalApi(
             $event->providerConfigEntity,
+            $event->language,
             $event->organizationCode
         );
     }

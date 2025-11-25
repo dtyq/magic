@@ -208,7 +208,8 @@ class ModelGatewayMapper extends ModelMapper
                 createdAt: $model->getCreatedAt() ?? new DateTime(),
                 owner: 'MagicAI',
                 providerAlias: '',
-                providerModelId: (string) $model->getId()
+                providerModelId: (string) $model->getId(),
+                description: $model->getLocalizedDescription($dataIsolation->getLanguage()) ?? '',
             );
 
             // Create OdinModel
@@ -236,6 +237,7 @@ class ModelGatewayMapper extends ModelMapper
                 tags: [['type' => 1, 'value' => 'MagicAI']],
                 createdAt: new DateTime(),
                 owner: 'MagicOdin',
+                description: '',
             );
             $this->logger->info('EnvModelRegister', [
                 'key' => $name,
@@ -253,6 +255,7 @@ class ModelGatewayMapper extends ModelMapper
                 tags: [['type' => 1, 'value' => 'MagicAI']],
                 createdAt: new DateTime(),
                 owner: 'MagicOdin',
+                description: '',
             );
             $this->logger->info('EnvModelRegister', [
                 'key' => $name,
@@ -455,6 +458,7 @@ class ModelGatewayMapper extends ModelMapper
                 providerModelId: (string) $providerModelEntity->getId(),
                 providerId: (string) $providerConfigEntity->getId(),
                 modelType: $providerModelEntity->getModelType()->value,
+                description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
             )
         );
     }
