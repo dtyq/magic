@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-use App\Infrastructure\Util\Middleware\RequestApiKeyMiddleware;
+use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\SandboxTokenAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
@@ -89,5 +89,5 @@ Router::addGroup(
             Router::get('/{id}', [OpenProjectApi::class, 'show']);
         });
     },
-    ['middleware' => [RequestApiKeyMiddleware::class]]
+    ['middleware' => [RequestContextMiddleware::class]]
 );
