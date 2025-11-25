@@ -58,7 +58,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         $this->logger = $this->loggerFactory->get(static::class);
     }
 
-    protected function createModelGatewayDataIsolationByAccessToken(string $accessToken, array $businessParams = []): ModelGatewayDataIsolation
+    public function createModelGatewayDataIsolationByAccessToken(string $accessToken, array $businessParams = []): ModelGatewayDataIsolation
     {
         if (empty($accessToken)) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
