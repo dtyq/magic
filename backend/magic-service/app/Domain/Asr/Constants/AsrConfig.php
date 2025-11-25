@@ -43,7 +43,7 @@ class AsrConfig
     /**
      * 音频文件记录查询超时（秒）.
      */
-    public const int FILE_RECORD_QUERY_TIMEOUT = 30;
+    public const int FILE_RECORD_QUERY_TIMEOUT = 120;
 
     /**
      * 沙箱启动超时（秒）.
