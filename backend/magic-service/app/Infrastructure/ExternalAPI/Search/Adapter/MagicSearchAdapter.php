@@ -37,7 +37,7 @@ class MagicSearchAdapter implements SearchEngineAdapterInterface
         string $setLang = ''
     ): SearchResponseDTO {
         // Get configuration from provider config
-        $baseUrl = $this->providerConfig['base_url'] ?? '';
+        $baseUrl = $this->providerConfig['request_url'] ?? '';
         $apiKey = $this->providerConfig['api_key'] ?? '';
 
         // Call Magic search API
