@@ -39,7 +39,7 @@ return [
 
         // Pelaksanaan Sistem
         'shell_exec' => 'Laksana Arahan',
-        'python_execute' => 'Laksana Python',
+        'run_python_snippet' => 'Laksana Python',
 
         // Bantuan AI
         'create_memory' => 'Cipta Memori',
@@ -83,7 +83,7 @@ return [
 
         // Pelaksanaan Sistem
         'shell_exec' => 'Alat pelaksanaan arahan Shell, melaksanakan arahan dan skrip sistem, menyokong tetapan tamat masa dan spesifikasi direktori kerja, sesuai untuk operasi fail, pengurusan proses dan senario pentadbiran sistem lain',
-        'python_execute' => 'Alat pelaksanaan kod Python, menjalankan fail skrip Python, menyokong pemindahan argumen baris arahan, kawalan tamat masa dan tetapan direktori kerja, memerlukan menulis kod ke fail dahulu',
+        'run_python_snippet' => 'Alat pelaksanaan coretan kod Python, sesuai untuk analisis data, pemprosesan, penukaran, pengiraan pantas, pengesahan dan operasi fail. Sesuai untuk coretan kod Python kecil hingga sederhana (<=200 baris), skrip kompleks harus disimpan ke fail dan kemudian dilaksanakan menggunakan alat shell_exec',
 
         // Bantuan AI
         'create_memory' => 'Alat penciptaan memori jangka panjang, menyimpan keutamaan pengguna, maklumat projek dan memori penting lain, menyokong jenis memori pengguna dan projek, boleh menetapkan sama ada pengesahan pengguna diperlukan',

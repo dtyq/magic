@@ -39,7 +39,7 @@ return [
 
         // 系统执行
         'shell_exec' => '执行命令',
-        'python_execute' => '执行Python',
+        'run_python_snippet' => '执行Python',
 
         // AI协作
         'create_memory' => '创建记忆',
@@ -83,7 +83,7 @@ return [
 
         // 系统执行
         'shell_exec' => 'Shell命令执行工具，执行系统命令和脚本，支持超时设置和工作目录指定，适用于文件操作、进程管理等系统管理场景',
-        'python_execute' => 'Python代码执行工具，运行Python脚本文件，支持命令行参数传递、超时控制和工作目录设置，需要先将代码写入文件',
+        'run_python_snippet' => 'Python代码片段执行工具，适用于数据分析、处理、转换、快速计算、验证及文件操作和处理等场景。适用于中小型Python代码片段（<=200行），复杂脚本应持久化到文件后再使用shell_exec工具执行',
 
         // AI协作
         'create_memory' => '长期记忆创建工具，存储用户偏好、项目信息等重要记忆，支持用户和项目两种记忆类型，可设置是否需要用户确认',

@@ -39,7 +39,7 @@ return [
 
         // System Execution
         'shell_exec' => 'Execute Command',
-        'python_execute' => 'Execute Python',
+        'run_python_snippet' => 'Run Python Snippet',
 
         // AI Assistance
         'create_memory' => 'Create Memory',
@@ -83,7 +83,7 @@ return [
 
         // System Execution
         'shell_exec' => 'Shell command execution tool, executes system commands and scripts, supports timeout settings and working directory specification, suitable for file operations, process management and other system administration scenarios',
-        'python_execute' => 'Python code execution tool, runs Python script files, supports command line argument passing, timeout control and working directory settings, requires writing code to file first',
+        'run_python_snippet' => 'Python code snippet execution tool, suitable for data analysis, processing, conversion, quick calculations, validation and file operations. Suitable for small to medium Python code snippets (<=200 lines), complex scripts should be persisted to files and then executed using shell_exec tool',
 
         // AI Assistance
         'create_memory' => 'Long-term memory creation tool, stores user preferences, project information and other important memories, supports user and project memory types, can set whether user confirmation is required',

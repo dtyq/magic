@@ -17,12 +17,13 @@ enum BuiltinTool: string
     case WriteFile = 'write_file';
     case EditFile = 'edit_file';
     case MultiEditFile = 'multi_edit_file';
-    case DeleteFile = 'delete_file';
+    case DeleteFile = 'delete_files';
     case FileSearch = 'file_search';
     case GrepSearch = 'grep_search';
 
     // 搜索提取 (SearchExtraction)
     case WebSearch = 'web_search';
+    case ImageSearch = 'image_search';
     case ReadWebpagesAsMarkdown = 'read_webpages_as_markdown';
     case DownloadFromUrls = 'download_from_urls';
     case DownloadFromMarkdown = 'download_from_markdown';
@@ -34,7 +35,7 @@ enum BuiltinTool: string
 
     // 系统执行 (SystemExecution)
     case ShellExec = 'shell_exec';
-    case PythonExecute = 'python_execute';
+    case RunPythonSnippet = 'run_python_snippet';
 
     /**
      * 获取工具的用户友好名称.
@@ -72,14 +73,14 @@ enum BuiltinTool: string
             self::DeleteFile, self::FileSearch, self::GrepSearch => BuiltinToolCategory::FileOperations,
 
             // 搜索提取
-            self::WebSearch, self::ReadWebpagesAsMarkdown,
+            self::WebSearch, self::ImageSearch, self::ReadWebpagesAsMarkdown,
             self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
             self::VisualUnderstanding, self::GenerateImage, self::ConvertToMarkdown => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
-            self::ShellExec, self::PythonExecute => BuiltinToolCategory::SystemExecution,
+            self::ShellExec, self::RunPythonSnippet => BuiltinToolCategory::SystemExecution,
         };
     }
 
@@ -109,6 +110,7 @@ enum BuiltinTool: string
             self::GrepSearch,
             // 互联网搜索和阅读
             self::WebSearch,
+            self::ImageSearch,
             self::ReadWebpagesAsMarkdown,
             // 视觉理解
             self::VisualUnderstanding,

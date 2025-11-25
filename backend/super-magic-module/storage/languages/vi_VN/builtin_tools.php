@@ -39,7 +39,7 @@ return [
 
         // Thực thi hệ thống
         'shell_exec' => 'Thực thi lệnh',
-        'python_execute' => 'Thực thi Python',
+        'run_python_snippet' => 'Thực thi Python',
 
         // Hỗ trợ AI
         'create_memory' => 'Tạo bộ nhớ',
@@ -83,7 +83,7 @@ return [
 
         // Thực thi hệ thống
         'shell_exec' => 'Công cụ thực thi lệnh Shell, thực thi lệnh và script hệ thống, hỗ trợ cài đặt thời gian chờ và chỉ định thư mục làm việc, phù hợp cho thao tác tệp, quản lý tiến trình và các tình huống quản trị hệ thống khác',
-        'python_execute' => 'Công cụ thực thi mã Python, chạy tệp script Python, hỗ trợ truyền tham số dòng lệnh, kiểm soát thời gian chờ và cài đặt thư mục làm việc, cần ghi mã vào tệp trước',
+        'run_python_snippet' => 'Công cụ thực thi đoạn mã Python, phù hợp cho phân tích dữ liệu, xử lý, chuyển đổi, tính toán nhanh, xác thực và thao tác tệp. Phù hợp cho các đoạn mã Python nhỏ đến trung bình (<=200 dòng), các script phức tạp nên được lưu vào tệp và sau đó thực thi bằng công cụ shell_exec',
 
         // Hỗ trợ AI
         'create_memory' => 'Công cụ tạo bộ nhớ dài hạn, lưu trữ sở thích người dùng, thông tin dự án và các bộ nhớ quan trọng khác, hỗ trợ loại bộ nhớ người dùng và dự án, có thể thiết lập xem có cần xác nhận người dùng hay không',
