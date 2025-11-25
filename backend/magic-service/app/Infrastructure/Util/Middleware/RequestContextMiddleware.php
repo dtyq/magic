@@ -56,14 +56,9 @@ class RequestContextMiddleware implements MiddlewareInterface
             throw $exception;
         } catch (Throwable $exception) {
             ExceptionBuilder::throw(UserErrorCode::ACCOUNT_ERROR, throwable: $exception);
-            // This line will never be reached as ExceptionBuilder::throw() throws an exception
-            throw $exception;
         }
     }
 
-    /**
-     * @param mixed $request
-     */
     protected function getOpenPlatformAuthorization(ServerRequestInterface $request, string $accessToken): MagicUserAuthorization
     {
         try {
@@ -92,8 +87,6 @@ class RequestContextMiddleware implements MiddlewareInterface
             throw $exception;
         } catch (Throwable $exception) {
             ExceptionBuilder::throw(UserErrorCode::ACCOUNT_ERROR, throwable: $exception);
-            // This line will never be reached as ExceptionBuilder::throw() throws an exception
-            throw $exception;
         }
     }
 }
