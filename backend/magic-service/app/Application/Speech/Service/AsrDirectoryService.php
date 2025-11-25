@@ -138,12 +138,23 @@ readonly class AsrDirectoryService
      * @param string $userId 用户ID
      * @return AsrRecordingDirectoryDTO 目录DTO
      */
+    /**
+     * 创建显示的录音纪要目录（用于存放流式文本和笔记）.
+     * 目录格式：录音纪要_Ymd_His（国际化）.
+     *
+     * @param string $organizationCode 组织编码
+     * @param string $projectId 项目ID
+     * @param string $userId 用户ID
+     * @param null|string $generatedTitle 预设标题
+     * @return AsrRecordingDirectoryDTO 目录DTO
+     */
     public function createDisplayDirectory(
         string $organizationCode,
         string $projectId,
-        string $userId
+        string $userId,
+        ?string $generatedTitle = null
     ): AsrRecordingDirectoryDTO {
-        $relativePath = $this->generateDirectoryName();
+        $relativePath = $this->generateDirectoryName($generatedTitle);
 
         return $this->createDirectoryInternal(
             organizationCode: $organizationCode,
@@ -238,11 +249,12 @@ readonly class AsrDirectoryService
     /**
      * 生成 ASR 目录名.
      *
+     * @param null|string $generatedTitle 预设标题
      * @return string 目录名
      */
-    private function generateDirectoryName(): string
+    private function generateDirectoryName(?string $generatedTitle = null): string
     {
-        $base = $this->translator->trans('asr.directory.recordings_summary_folder');
+        $base = $generatedTitle ?: $this->translator->trans('asr.directory.recordings_summary_folder');
         return sprintf('%s_%s', $base, date('Ymd_His'));
     }
 
