@@ -98,7 +98,13 @@ class AiAbilityAppService extends AbstractKernelAppService
             $updateData['status'] = $request->getStatus();
         }
         if ($request->hasConfig()) {
-            $updateData['config'] = $request->getConfig();
+            // 获取当前数据库中的配置
+            $entity = $this->aiAbilityDomainService->getByCode($dataIsolation, $code);
+            $dbConfig = $entity->getConfig();
+
+            // 智能合并配置（保留被脱敏的api_key）
+            $mergedConfig = $this->mergeConfigPreservingApiKeys($dbConfig, $request->getConfig());
+            $updateData['config'] = $mergedConfig;
         }
 
         // 如果没有要更新的数据，直接返回成功
@@ -121,5 +127,46 @@ class AiAbilityAppService extends AbstractKernelAppService
         $dataIsolation = $this->createProviderDataIsolation($authorization);
 
         return $this->aiAbilityDomainService->initializeAbilities($dataIsolation);
+    }
+
+    /**
+     * 智能合并配置（保留被脱敏的api_key原始值）.
+     *
+     * @param array $dbConfig 数据库原始配置
+     * @param array $frontendConfig 前端传来的配置（可能包含脱敏的api_key）
+     * @return array 合并后的配置
+     */
+    private function mergeConfigPreservingApiKeys(array $dbConfig, array $frontendConfig): array
+    {
+        $result = [];
+
+        // 遍历前端配置的所有字段
+        foreach ($frontendConfig as $key => $value) {
+            // 如果是 api_key 字段且包含脱敏标记 ***
+            if ($key === 'api_key' && is_string($value) && str_contains($value, '*')) {
+                // 使用数据库中的原始值
+                $result[$key] = $dbConfig[$key] ?? $value;
+            }
+            // 如果是数组，递归处理
+            elseif (is_array($value)) {
+                $dbValue = $dbConfig[$key] ?? [];
+                $result[$key] = is_array($dbValue)
+                    ? $this->mergeConfigPreservingApiKeys($dbValue, $value)
+                    : $value;
+            }
+            // 其他情况直接使用前端的值
+            else {
+                $result[$key] = $value;
+            }
+        }
+
+        // 前端未传的字段, 则数据库中字段为默认值 ''
+        foreach ($dbConfig as $key => $value) {
+            if (! array_key_exists($key, $result)) {
+                $result[$key] = '';
+            }
+        }
+
+        return $result;
     }
 }

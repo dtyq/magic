@@ -728,7 +728,7 @@ class MagicLLMDomainService
     public function searchWithBing(string $query, ?string $language = null): array
     {
         $start = microtime(true);
-        $subscriptionKey = config('search.bing.api_key');
+        $subscriptionKey = config('search.drivers.bing.api_key');
         $mkt = BingSearchMarketCode::fromLanguage($language);
         $referenceCount = 30;
         $data = make(BingSearch::class)->search($query, $subscriptionKey, $mkt, 20, 0);
@@ -782,7 +782,7 @@ class MagicLLMDomainService
      */
     public function searchWithDuckDuckGo(string $query): array
     {
-        $region = config('search.duckduckgo.region');
+        $region = config('search.drivers.duckduckgo.region');
         $data = make(DuckDuckGoSearch::class)->search($query, $region);
         $clearSearch = [];
         foreach ($data as $key => $context) {
@@ -816,8 +816,8 @@ class MagicLLMDomainService
      */
     public function searchWithJina(string $query): array
     {
-        $region = config('search.jina.region');
-        $apiKey = config('search.jina.api_key');
+        $region = config('search.drivers.jina.region');
+        $apiKey = config('search.drivers.jina.api_key');
         $data = make(JinaSearch::class)->search($query, $apiKey, $region);
         $clearSearch = [];
         foreach ($data as $key => $context) {
@@ -849,8 +849,8 @@ class MagicLLMDomainService
     public function searchWithGoogle(string $query): array
     {
         // 以后可以从用户配置中读取这些值
-        $subscriptionKey = config('search.google.api_key');
-        $cx = config('search.google.cx');
+        $subscriptionKey = config('search.drivers.google.api_key');
+        $cx = config('search.drivers.google.cx');
         $data = make(GoogleSearch::class)->search($query, $subscriptionKey, $cx);
         $clearSearch = [];
         foreach ($data as $context) {

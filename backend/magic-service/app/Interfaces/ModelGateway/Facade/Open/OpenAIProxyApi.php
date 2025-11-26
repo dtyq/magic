@@ -12,6 +12,7 @@ use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
+use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
@@ -141,6 +142,8 @@ class OpenAIProxyApi extends AbstractOpenApi
     /**
      * Bing search proxy - returns native Bing API format.
      *
+     * @deprecated Use unifiedSearch() instead (/v2/search). This endpoint will be removed in a future version.
+     *
      * GET /v1/search
      *
      * Query Parameters:
@@ -185,6 +188,41 @@ class OpenAIProxyApi extends AbstractOpenApi
             $safeSearch,
             $freshness
         );
+    }
+
+    /**
+     * Unified search proxy - supports multiple search engines, returns Bing-compatible format.
+     *
+     * GET /v2/search
+     *
+     * Query Parameters:
+     * - query or q: Search keywords (required)
+     * - engine: Search engine (optional, bing|google|tavily|duckduckgo|jina, default: from config)
+     * - count: Number of results (optional, default: 10, max: 50)
+     * - offset: Pagination offset (optional, default: 0, max: 1000)
+     * - mkt: Market code (optional, default: zh-CN)
+     * - set_lang or setLang: UI language (optional)
+     * - safe_search or safeSearch: Safe search level (optional, Strict/Moderate/Off)
+     * - freshness: Time filter (optional, Day/Week/Month)
+     *
+     * Headers:
+     * - Authorization: Bearer {access_token}
+     *
+     * @return array native API response
+     */
+    public function unifiedSearch(RequestInterface $request): array
+    {
+        // 1. Get request data
+        $requestData = $request->all();
+
+        // 2. Create SearchRequestDTO
+        $searchRequestDTO = SearchRequestDTO::createDTO($requestData);
+        $this->setHeaderConfigs($searchRequestDTO, $request);
+        $searchRequestDTO->setAccessToken($this->getAccessToken());
+        $searchRequestDTO->setIps($this->getClientIps());
+
+        // 3. Call LLMAppService with unified search and return array directly
+        return $this->llmAppService->unifiedSearch($searchRequestDTO)->toArray();
     }
 
     private function setHeaderConfigs(AbstractRequestDTO $abstractRequestDTO, RequestInterface $request): void
