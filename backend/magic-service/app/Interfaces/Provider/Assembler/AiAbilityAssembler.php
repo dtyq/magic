@@ -42,13 +42,6 @@ class AiAbilityAssembler
         // 获取原始配置
         $config = $entity->getConfig();
 
-        // 转换为数组（如果是值对象）
-        if (is_object($config) && method_exists($config, 'toArray')) {
-            $config = $config->toArray();
-        } elseif (! is_array($config)) {
-            $config = [];
-        }
-
         // 递归脱敏所有 api_key 字段（支持任意嵌套结构）
         $maskedConfig = self::maskConfigRecursively($config);
 
