@@ -84,6 +84,8 @@ class AsrTaskStatusDTO
 
     public ?string $language = null; // 语种（zh_CN、en_US等），用于生成标题时使用
 
+    public ?string $uploadGeneratedTitle = null; // upload-tokens 生成的标题（用于 summary 复用）
+
     public function __construct(array $data = [])
     {
         $this->taskKey = self::getStringValue($data, ['task_key', 'taskKey'], '');
@@ -131,6 +133,7 @@ class AsrTaskStatusDTO
         $this->noteContent = self::getStringValue($data, ['note_content', 'noteContent']);
         $this->noteFileType = self::getStringValue($data, ['note_file_type', 'noteFileType']);
         $this->language = $data['language'] ?? null;
+        $this->uploadGeneratedTitle = self::getStringValue($data, ['upload_generated_title', 'uploadGeneratedTitle']);
     }
 
     /**
@@ -179,6 +182,7 @@ class AsrTaskStatusDTO
             'note_content' => $this->noteContent,
             'note_file_type' => $this->noteFileType,
             'language' => $this->language,
+            'upload_generated_title' => $this->uploadGeneratedTitle,
         ];
     }
 

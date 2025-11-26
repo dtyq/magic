@@ -29,7 +29,8 @@ class InitAgentRequest
         private string $chatHistoryDir = '',
         private string $workDir = '',
         private ?string $memory = null,
-        private ?string $modelId = null
+        private ?string $modelId = null,
+        private bool $fetchHistory = true
     ) {
     }
 
@@ -52,7 +53,8 @@ class InitAgentRequest
             $data['chat_history_dir'] ?? '',
             $data['work_dir'] ?? '',
             $data['memory'] ?? null,
-            $data['model_id'] ?? null
+            $data['model_id'] ?? null,
+            $data['fetch_history'] ?? true
         );
     }
 
@@ -81,7 +83,8 @@ class InitAgentRequest
         string $chatHistoryDir = '',
         string $workDir = '',
         ?string $memory = null,
-        ?string $modelId = null
+        ?string $modelId = null,
+        bool $fetchHistory = true
     ): self {
         return new self(
             $messageId,
@@ -97,7 +100,8 @@ class InitAgentRequest
             $chatHistoryDir,
             $workDir,
             $memory,
-            $modelId
+            $modelId,
+            $fetchHistory
         );
     }
 
@@ -316,6 +320,23 @@ class InitAgentRequest
     }
 
     /**
+     * Get fetch history flag.
+     */
+    public function getFetchHistory(): bool
+    {
+        return $this->fetchHistory;
+    }
+
+    /**
+     * Set fetch history flag.
+     */
+    public function setFetchHistory(bool $fetchHistory): self
+    {
+        $this->fetchHistory = $fetchHistory;
+        return $this;
+    }
+
+    /**
      * 转换为API请求数组
      * 根据沙箱通信文档的初始化请求格式.
      */
@@ -337,6 +358,7 @@ class InitAgentRequest
             'work_dir' => $this->workDir,
             'memory' => $this->memory,
             'model_id' => $this->modelId,
+            'fetch_history' => $this->fetchHistory,
         ];
     }
 }

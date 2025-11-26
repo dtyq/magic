@@ -25,6 +25,8 @@ class AccessTokenEntity extends AbstractEntity
 
     protected string $accessToken;
 
+    protected string $encryptedAccessToken;
+
     protected string $relationId;
 
     protected string $name;
@@ -52,6 +54,10 @@ class AccessTokenEntity extends AbstractEntity
     protected DateTime $createdAt;
 
     protected DateTime $updatedAt;
+
+    protected ?DateTime $lastUsedAt = null;
+
+    private string $plaintextAccessToken = '';
 
     public function shouldCreate(): bool
     {
@@ -83,8 +89,12 @@ class AccessTokenEntity extends AbstractEntity
         }
         // Only generate access token if not already set
         if (empty($this->accessToken)) {
-            $this->accessToken = IdGenerator::getUniqueId32();
+            $this->plaintextAccessToken = IdGenerator::getUniqueId32();
+        } else {
+            $this->plaintextAccessToken = $this->accessToken;
         }
+        $this->encryptedAccessToken = hash('sha256', $this->plaintextAccessToken);
+        $this->accessToken = $this->createAccessToken($this->plaintextAccessToken);
 
         $this->modifier = $this->creator;
         $this->updatedAt = $this->createdAt;
@@ -110,6 +120,11 @@ class AccessTokenEntity extends AbstractEntity
 
         $accessTokenEntity->setModifier($this->creator);
         $accessTokenEntity->setUpdatedAt($this->createdAt);
+    }
+
+    public function prepareForUsed(): void
+    {
+        $this->lastUsedAt = new DateTime();
     }
 
     public function checkModel(string $model): void
@@ -340,5 +355,37 @@ class AccessTokenEntity extends AbstractEntity
     public function setEnabled(bool|int $enabled): void
     {
         $this->enabled = (bool) $enabled;
+    }
+
+    public function getEncryptedAccessToken(): string
+    {
+        return $this->encryptedAccessToken;
+    }
+
+    public function setEncryptedAccessToken(string $encryptedAccessToken): void
+    {
+        $this->encryptedAccessToken = $encryptedAccessToken;
+    }
+
+    public function getLastUsedAt(): ?DateTime
+    {
+        return $this->lastUsedAt;
+    }
+
+    public function setLastUsedAt(?DateTime $lastUsedAt): void
+    {
+        $this->lastUsedAt = $lastUsedAt;
+    }
+
+    public function getPlaintextAccessToken(): string
+    {
+        return $this->plaintextAccessToken;
+    }
+
+    private function createAccessToken($accessToken): string
+    {
+        return substr($accessToken, 0, 7)
+            . str_repeat('*', max(0, strlen($accessToken) - 11))
+            . substr($accessToken, -4);
     }
 }

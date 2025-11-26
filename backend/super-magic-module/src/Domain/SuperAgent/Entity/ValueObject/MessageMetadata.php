@@ -30,6 +30,7 @@ class MessageMetadata
      * @param string $projectId 项目ID
      * @param string $language 用户语言
      * @param null|UserInfoValueObject $userInfo 用户信息对象
+     * @param bool $skipInitMessages 是否跳过初始化消息
      */
     public function __construct(
         private string $agentUserId = '',
@@ -44,7 +45,8 @@ class MessageMetadata
         private string $workspaceId = '',
         private string $projectId = '',
         private string $language = '',
-        ?UserInfoValueObject $userInfo = null
+        ?UserInfoValueObject $userInfo = null,
+        private bool $skipInitMessages = false
     ) {
         $this->userInfo = $userInfo;
     }
@@ -74,7 +76,8 @@ class MessageMetadata
             $data['workspace_id'] ?? '',
             $data['project_id'] ?? '',
             $data['language'] ?? '',
-            $userInfo
+            $userInfo,
+            $data['skip_init_messages'] ?? false
         );
     }
 
@@ -98,6 +101,7 @@ class MessageMetadata
             'workspace_id' => $this->workspaceId,
             'project_id' => $this->projectId,
             'language' => $this->language,
+            'skip_init_messages' => $this->skipInitMessages,
         ];
 
         // 添加用户信息（如果存在）
@@ -291,5 +295,28 @@ class MessageMetadata
     public function hasUserInfo(): bool
     {
         return $this->userInfo !== null;
+    }
+
+    /**
+     * 获取是否跳过初始化消息.
+     *
+     * @return bool 是否跳过初始化消息
+     */
+    public function getSkipInitMessages(): bool
+    {
+        return $this->skipInitMessages;
+    }
+
+    /**
+     * 设置是否跳过初始化消息.
+     *
+     * @param bool $skipInitMessages 是否跳过初始化消息
+     * @return self 新的实例
+     */
+    public function withSkipInitMessages(bool $skipInitMessages): self
+    {
+        $clone = clone $this;
+        $clone->skipInitMessages = $skipInitMessages;
+        return $clone;
     }
 }

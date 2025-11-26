@@ -199,9 +199,10 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * @param int $pageSize 每页数量
      * @param array $fileType 文件类型过滤
      * @param string $storageType 存储类型过滤
+     * @param null|string $updatedAfter 更新时间过滤（查询此时间之后更新的文件）
      * @return array{list: TaskFileEntity[], total: int} 文件列表和总数
      */
-    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = ''): array
+    public function getByProjectId(int $projectId, int $page, int $pageSize = 200, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array
     {
         $offset = ($page - 1) * $pageSize;
 
@@ -216,6 +217,11 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         // 如果指定了存储类型，添加存储类型过滤条件
         if (! empty($storageType)) {
             $query->where('storage_type', $storageType);
+        }
+
+        // 如果指定了更新时间过滤，添加时间过滤条件（数据库级别过滤）
+        if ($updatedAfter !== null) {
+            $query->where('updated_at', '>', $updatedAfter);
         }
 
         // 过滤已经被删除的， deleted_at 不为空
@@ -341,6 +347,62 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return $entity;
     }
 
+    /**
+     * 插入或更新文件.
+     * 使用 INSERT ... ON DUPLICATE KEY UPDATE 语法
+     * 当 file_key 唯一索引冲突时更新现有记录，否则插入新记录.
+     *
+     * 主要用于解决高并发场景下的唯一键冲突问题：
+     * - 业务层先查询不存在
+     * - 但在插入前，其他线程已经插入了相同的 file_key
+     * - 此时使用 upsert 避免唯一键冲突报错
+     */
+    public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity
+    {
+        $date = date('Y-m-d H:i:s');
+
+        // 准备插入数据
+        if (empty($entity->getFileId())) {
+            $entity->setFileId(IdGenerator::getSnowId());
+        }
+        if (empty($entity->getCreatedAt())) {
+            $entity->setCreatedAt($date);
+        }
+        $entity->setUpdatedAt($date);
+
+        $entityArray = $entity->toArray();
+
+        // 使用 Hyperf 的 upsert 方法
+        // 第三个参数明确排除 file_id 和 created_at，确保它们不会被更新
+        $affectedRows = $this->model::query()->upsert(
+            [$entityArray],                    // 数据
+            ['file_key'],                      // 基于 file_key 唯一索引判断冲突
+            array_values(array_diff(           // 明确指定要更新的字段
+                array_keys($entityArray),
+                ['file_id', 'file_key', 'created_at']  // 排除主键、唯一键、创建时间
+            ))
+        );
+
+        // 处理并发冲突情况
+        // MySQL upsert 的 affected rows：
+        //   1 = 插入了新记录（正常情况）
+        //   2 = 更新了已存在记录（并发冲突）
+        //   0 = 所有字段值相同，未实际更新（极少见）
+        if ($affectedRows !== 1) {
+            // 发生了并发冲突，需要获取数据库中真实的 file_id 和 created_at
+            $record = $this->model::query()
+                ->where('file_key', $entity->getFileKey())
+                ->first();
+
+            if ($record) {
+                $entity->setFileId($record->file_id);
+                $entity->setCreatedAt($record->created_at);
+            }
+        }
+
+        return $entity;
+    }
+
     public function updateById(TaskFileEntity $entity): TaskFileEntity
     {
         $entity->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -360,14 +422,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->update($data) > 0;
     }
 
-    public function deleteById(int $id): void
+    public function deleteById(int $id, bool $forceDelete = true): void
     {
-        $this->model::query()->where('file_id', $id)->delete();
+        $query = $this->model::query()->where('file_id', $id);
+        if ($forceDelete) {
+            $query->forceDelete();
+        } else {
+            $query->delete();
+        }
     }
 
+    /**
+     * 根据 file_key 和 project_id 删除文件（物理删除）.
+     */
     public function deleteByFileKeyAndProjectId(string $fileKey, int $projectId): int
     {
-        $result = $this->model::query()->where('file_key', $fileKey)->where('project_id', $projectId)->delete();
+        $result = $this->model::query()->where('file_key', $fileKey)->where('project_id', $projectId)->forceDelete();
         return $result ?? 0;
     }
 
@@ -684,7 +754,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
-     * 批量删除文件.
+     * 批量删除文件（物理删除）.
      */
     public function deleteByIds(array $fileIds): void
     {
@@ -694,11 +764,11 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $this->model::query()
             ->whereIn('file_id', $fileIds)
-            ->delete();
+            ->forceDelete();
     }
 
     /**
-     * 根据文件Keys批量删除文件.
+     * 根据文件Keys批量删除文件（物理删除）.
      */
     public function deleteByFileKeys(array $fileKeys): void
     {
@@ -708,7 +778,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         $this->model::query()
             ->whereIn('file_key', $fileKeys)
-            ->delete();
+            ->forceDelete();
     }
 
     /**

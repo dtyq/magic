@@ -115,6 +115,9 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.file_exist')]
     case FILE_EXIST = 51168;
 
+    #[ErrorMessage('file.convert_failed')]
+    case FILE_CONVERT_FAILED = 51169;
+
     #[ErrorMessage('file.file_rename_failed')]
     case FILE_RENAME_FAILED = 51170;
 
@@ -133,8 +136,8 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('file.illegal_file_key')]
     case FILE_ILLEGAL_KEY = 51175;
 
-    #[ErrorMessage('file.convert_failed')]
-    case FILE_CONVERT_FAILED = 51176;
+    #[ErrorMessage('file.file_copy_failed')]
+    case FILE_COPY_FAILED = 51176;
 
     #[ErrorMessage('file.move_operation_busy')]
     case FILE_OPERATION_BUSY = 51177;
@@ -156,6 +159,9 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('file.source_file_key_illegal')]
     case SOURCE_FILE_KEY_ILLEGAL = 51183;
+
+    #[ErrorMessage('file.content_field_required')]
+    case CONTENT_FIELD_REQUIRED = 51184;
 
     // Project related error codes (51200-51249)
     #[ErrorMessage('project.project_not_found')]

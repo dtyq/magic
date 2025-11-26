@@ -39,7 +39,7 @@ class AiAbilityAssembler
      */
     public static function entityToDetailDTO(AiAbilityEntity $entity, string $locale = 'zh_CN'): AiAbilityDetailDTO
     {
-        $config = $entity->getConfig()->toArray();
+        $config = $entity->getConfig();
 
         // 脱敏 api_key：只显示前4位和后4位
         if (isset($config['api_key']) && ! empty($config['api_key'])) {

@@ -46,6 +46,8 @@ class TaskModel extends AbstractModel
         'work_dir',
         'task_mode',
         'err_msg',
+        'started_at',
+        'finished_at',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -55,6 +57,8 @@ class TaskModel extends AbstractModel
      * 日期字段.
      */
     protected array $dates = [
+        'started_at',
+        'finished_at',
         'created_at',
         'updated_at',
         'deleted_at',

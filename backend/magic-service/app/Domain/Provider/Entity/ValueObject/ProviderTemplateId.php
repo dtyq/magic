@@ -54,6 +54,7 @@ enum ProviderTemplateId: string
     case AWSBedrockVlm = '19';
     case GoogleVlm = '20';
     case VolcengineArkVlm = '21';
+    case Gemini = '22';
 
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
@@ -83,6 +84,7 @@ enum ProviderTemplateId: string
             [ProviderCode::AWSBedrock, Category::VLM] => self::AWSBedrockVlm,
             [ProviderCode::Google, Category::VLM] => self::GoogleVlm,
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
+            [ProviderCode::Gemini, Category::LLM] => self::Gemini,
             default => null,
         };
     }
@@ -117,6 +119,7 @@ enum ProviderTemplateId: string
             self::AWSBedrockVlm => ['providerCode' => ProviderCode::AWSBedrock, 'category' => Category::VLM],
             self::GoogleVlm => ['providerCode' => ProviderCode::Google, 'category' => Category::VLM],
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
+            self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
         };
     }
 
@@ -139,6 +142,8 @@ enum ProviderTemplateId: string
             ProviderCode::AWSBedrock => 'AWS Bedrock',
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
+            ProviderCode::Gemini => 'Google Gemini',
+            default => '未知服务商',
         };
 
         $categoryName = $mapping['category']->label();

@@ -119,7 +119,7 @@ enum ImageGenerateModelType: string
 
     public static function getGoogleGeminiModes(): array
     {
-        return ['gemini-2.5-flash-image-preview', 'GoogleGemini'];
+        return ['gemini-2.5-flash-image-preview', 'GoogleGemini', 'gemini-3-pro-image-preview'];
     }
 
     public static function getVolcengineArkModes(): array

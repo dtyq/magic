@@ -17,7 +17,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Amqp\Annotation\Consumer;
 use Hyperf\Amqp\Message\ConsumerMessage;
@@ -192,8 +191,15 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         }
     }
 
-    public function moveFile(DataIsolation $dataIsolation, array $node, string $prefix, string $parentDir, ProjectEntity $projectEntity, TaskFileEntity $targetParentEntity)
-    {
+    public function moveFile(
+        DataIsolation $dataIsolation,
+        array $node,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        string $parentDir,
+        TaskFileEntity $targetParentEntity,
+        array $keepBothFileIds = []
+    ) {
         try {
             // Extract file information from node
             $fileId = (int) ($node['file_id'] ?? 0);
@@ -212,34 +218,72 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             $targetEntity = $this->taskFileDomainService->getByFileKey($newFileKey);
 
             if ($isDirectory) {
-                $newTargetEntity = $this->handlerDirectory($projectEntity->getUserOrganizationCode(), $node, $targetParentEntity->getFileId(), $newFileKey, $projectEntity->getWorkDir(), $targetEntity);
+                $newTargetEntity = $this->handleDirectory(
+                    $node,
+                    $sourceProject,
+                    $targetProject,
+                    $targetParentEntity->getFileId(),
+                    $newFileKey,
+                    $targetEntity
+                );
                 if (! empty($children)) {
                     // For children, the parent directory should be the new location of this file/directory
                     $newParentDir = $newFileKey;
                     foreach ($children as $child) {
-                        $this->moveFile($dataIsolation, $child, $prefix, $newParentDir, $projectEntity, $newTargetEntity);
+                        $this->moveFile($dataIsolation, $child, $sourceProject, $targetProject, $newParentDir, $newTargetEntity, $keepBothFileIds);
                     }
                 }
             } else {
-                // 先执行复制操作
-                // 如果目标文件已经存在，则把以前的文件进行删除，保留目标的文件id
+                // Check if current file ID is in keep_both_file_ids
                 $fileEntity = $this->getFileEntityForCache($fileId);
-                $this->taskFileDomainService->moveFile($projectEntity->getUserOrganizationCode(), $fileEntity, $projectEntity->getWorkDir(), $newFileKey, $targetParentEntity->getFileId());
-                if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
-                    // 覆盖的逻辑
-                    $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+                $sourceFileIdStr = (string) $fileId;
+
+                if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
+                    // Use moveProjectFile method which supports conflict resolution
+                    $this->taskFileDomainService->moveProjectFile(
+                        $dataIsolation,
+                        $fileEntity,
+                        $sourceProject,
+                        $targetProject,
+                        $targetParentEntity->getFileId(),
+                        $keepBothFileIds
+                    );
+                } else {
+                    // Original overwrite logic: delete target file BEFORE moving source file
+                    if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
+                        // Overwrite logic: delete target file first to avoid unique key conflict
+                        $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+
+                        $this->logger->info('Deleted existing target file before move in batch operation', [
+                            'deleted_file_id' => $targetEntity->getFileId(),
+                            'deleted_file_key' => $targetEntity->getFileKey(),
+                            'source_file_id' => $fileEntity->getFileId(),
+                        ]);
+                    }
+
+                    $this->taskFileDomainService->moveFile(
+                        $fileEntity,
+                        $sourceProject,
+                        $targetProject,
+                        $newFileKey,
+                        $targetParentEntity->getFileId()
+                    );
                 }
             }
 
-            $this->logger->info('Moving file', [
+            $this->logger->info('Moving file in batch operation', [
                 'file_id' => $fileId,
                 'old_file_key' => $oldFileKey,
                 'new_file_key' => $newFileKey,
                 'parent_dir' => $parentDir,
+                'source_project' => $sourceProject->getId(),
+                'target_project' => $targetProject->getId(),
             ]);
         } catch (Throwable $e) {
-            $this->logger->error('Failed to move file', [
+            $this->logger->error('Failed to move file in batch operation', [
                 'node' => $node,
+                'source_project' => $sourceProject->getId(),
+                'target_project' => $targetProject->getId(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -330,9 +374,11 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         $userId = $event->getUserId();
         $organizationCode = $event->getOrganizationCode();
         $fileIds = $event->getFileIds();
-        $projectId = $event->getProjectId();
+        $sourceProjectId = $event->getSourceProjectId();
+        $targetProjectId = $event->getTargetProjectId();
         $preFileId = $event->getPreFileId();
         $targetParentId = $event->getTargetParentId();
+        $keepBothFileIds = $event->getKeepBothFileIds();
 
         // Initialize progress tracking
         $this->currentBatchKey = $batchKey;
@@ -342,9 +388,11 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             'user_id' => $userId,
             'organization_code' => $organizationCode,
             'file_ids' => $fileIds,
-            'project_id' => $projectId,
+            'source_project_id' => $sourceProjectId,
+            'target_project_id' => $targetProjectId,
             'pre_file_id' => $preFileId,
             'target_parent_id' => $targetParentId,
+            'keep_both_file_ids' => $keepBothFileIds,
             'file_count' => count($fileIds),
         ]);
 
@@ -357,11 +405,24 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         // Preparation phase (5%)
         $this->updateProgress(5, 'Loading and preparing file entities');
 
+        // Get source and target projects
+        $sourceProject = $this->projectDomainService->getProjectNotUserId($sourceProjectId);
+        $targetProject = $this->projectDomainService->getProjectNotUserId($targetProjectId);
+
+        $this->logger->info('Batch move project context', [
+            'source_project_id' => $sourceProjectId,
+            'target_project_id' => $targetProjectId,
+            'source_org' => $sourceProject->getUserOrganizationCode(),
+            'target_org' => $targetProject->getUserOrganizationCode(),
+            'is_cross_project' => $sourceProjectId !== $targetProjectId,
+            'is_cross_organization' => $sourceProject->getUserOrganizationCode() !== $targetProject->getUserOrganizationCode(),
+        ]);
+
         // 通过 file_id 的数组，查出所有 file_entity 实体
-        $fileEntities = $this->taskFileDomainService->getProjectFilesByIds($projectId, $fileIds);
+        $fileEntities = $this->taskFileDomainService->getProjectFilesByIds($sourceProjectId, $fileIds);
 
         // 通过 file_entity 的 parent_id 构建层级的结构
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        $projectEntity = $sourceProject;
         $files = [];
         $fileDebugArr = [];
         foreach ($fileEntities as $fileEntity) {
@@ -379,7 +440,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
 
         // File moving phase (10% - 90%)
         $this->updateProgress(10, 'Starting file move operations');
-        $this->moveFileByTree($dataIsolation, $fileTree, $projectEntity, $targetParentId);
+        $this->moveFileByTree($dataIsolation, $fileTree, $sourceProject, $targetProject, $targetParentId, $keepBothFileIds);
 
         // Rebalancing phase (90% - 95%)
         $this->updateProgress(90, 'Rebalancing directory sort order');
@@ -408,9 +469,14 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         ]);
     }
 
-    private function moveFileByTree(DataIsolation $dataIsolation, array $fileTree, ProjectEntity $projectEntity, int $targetParentId)
-    {
-        $prefix = WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir());
+    private function moveFileByTree(
+        DataIsolation $dataIsolation,
+        array $fileTree,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        int $targetParentId,
+        array $keepBothFileIds = []
+    ) {
         $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
 
         // For top-level files in the tree, the parent directory should be the target location
@@ -426,7 +492,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             }
 
             // For top-level nodes, use target parent directory
-            $this->moveFile($dataIsolation, $node, $prefix, $targetParentDir, $projectEntity, $targetParentEntity);
+            $this->moveFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentDir, $targetParentEntity, $keepBothFileIds);
 
             // Update progress after each file move
             ++$this->processedTopLevelFiles;
@@ -434,23 +500,47 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         }
     }
 
-    private function handlerDirectory(string $projectOrganizationCode, array $file, int $parentId, string $newFileKey, string $workDir, ?TaskFileEntity $targetFileEntity): TaskFileEntity
-    {
+    private function handleDirectory(
+        array $file,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        int $parentId,
+        string $newFileKey,
+        ?TaskFileEntity $targetFileEntity
+    ): TaskFileEntity {
         $oldFileEntity = $this->getFileEntityForCache((int) $file['file_id']);
-        $actualChildrenCount = $this->taskFileDomainService->getSiblingCountByParentId((int) $file['file_id'], $oldFileEntity->getProjectId());
+        $actualChildrenCount = $this->taskFileDomainService->getSiblingCountByParentId((int) $file['file_id'], $sourceProject->getId());
 
         // 如果目标文件夹存在，并且源文件夹的子文件已经没有文件了，那么就删除源文件夹, 且不能等于相同的文件
         if (! empty($targetFileEntity) && ($file['file_key'] !== $newFileKey) && ($actualChildrenCount === 0 || count($file['children']) === $actualChildrenCount)) {
-            $this->taskFileDomainService->deleteProjectFiles($projectOrganizationCode, $oldFileEntity, $workDir);
+            $this->taskFileDomainService->deleteProjectFiles(
+                $sourceProject->getUserOrganizationCode(),
+                $oldFileEntity,
+                $sourceProject->getWorkDir()
+            );
             return $targetFileEntity;
         }
         // 如果不存在，分为两种情况
         // 第一种是历史文件夹 存在文件的时候，这种需要创建新的文件夹
-        if ($actualChildrenCount > $file['children']) {
-            return $this->taskFileDomainService->createFolderFromFileEntity($oldFileEntity, $parentId, $newFileKey, $workDir);
+        if ($actualChildrenCount > count($file['children'])) {
+            return $this->taskFileDomainService->createFolderFromFileEntity(
+                $oldFileEntity,
+                $parentId,
+                $newFileKey,
+                $targetProject->getWorkDir(),
+                $targetProject->getId(),
+                $targetProject->getUserOrganizationCode()
+            );
         }
         // 否则使用原先的记录，更换路径
-        return $this->taskFileDomainService->renameFolderFromFileEntity($oldFileEntity, $parentId, $newFileKey, $workDir);
+        return $this->taskFileDomainService->renameFolderFromFileEntity(
+            $oldFileEntity,
+            $parentId,
+            $newFileKey,
+            $targetProject->getWorkDir(),
+            $targetProject->getId(),
+            $targetProject->getUserOrganizationCode()
+        );
     }
 
     private function getFileEntityForCache(int $fileId): ?TaskFileEntity

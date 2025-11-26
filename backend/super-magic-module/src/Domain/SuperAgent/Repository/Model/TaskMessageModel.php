@@ -54,6 +54,7 @@ class TaskMessageModel extends AbstractModel
         'processed_at',
         'im_seq_id',
         'correlation_id',
+        'usage',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -76,5 +77,6 @@ class TaskMessageModel extends AbstractModel
         'processed_at' => 'datetime',
         'im_seq_id' => 'integer',
         'correlation_id' => 'string',
+        'usage' => 'json',
     ];
 }

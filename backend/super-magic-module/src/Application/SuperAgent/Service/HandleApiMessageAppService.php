@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
@@ -118,6 +119,11 @@ class HandleApiMessageAppService extends AbstractAppService
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
 
+            // Check if this is the first task for the topic
+            // If topic source is COPY, it's not the first task
+            $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
+                && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
+
             // Send message to agent
             $taskContext = new TaskContext(
                 task: $taskEntity,
@@ -129,6 +135,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $userMessageDTO->getTopicMode(),
+                isFirstTask: $isFirstTask,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
@@ -225,6 +232,11 @@ class HandleApiMessageAppService extends AbstractAppService
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
 
+            // Check if this is the first task for the topic
+            // If topic source is COPY, it's not the first task
+            $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
+                && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
+
             // Send message to agent
             $taskContext = new TaskContext(
                 task: $taskEntity,
@@ -236,6 +248,7 @@ class HandleApiMessageAppService extends AbstractAppService
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
                 agentMode: $userMessageDTO->getTopicMode(),
+                isFirstTask: $isFirstTask,
             );
             $sandboxID = $this->createAndSendMessageToAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);

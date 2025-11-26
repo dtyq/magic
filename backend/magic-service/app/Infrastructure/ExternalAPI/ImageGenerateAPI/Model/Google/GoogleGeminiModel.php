@@ -34,7 +34,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
             throw new Exception('Google Gemini API URL 配置缺失');
         }
 
-        $this->api = new GoogleGeminiAPI($serviceProviderConfig['api_key'], $apiUrl);
+        $this->api = new GoogleGeminiAPI($serviceProviderConfig['api_key'], $apiUrl, $serviceProviderConfig['model_version']);
     }
 
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array

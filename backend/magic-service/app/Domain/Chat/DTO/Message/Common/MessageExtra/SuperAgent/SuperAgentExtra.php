@@ -37,6 +37,8 @@ class SuperAgentExtra extends AbstractDTO
 
     protected ?array $model = null;
 
+    protected ?array $imageModel = null;
+
     /**
      * Queue ID for message processing.
      */
@@ -46,6 +48,11 @@ class SuperAgentExtra extends AbstractDTO
      * 动态参数（用于向沙箱传递额外参数，如 task_key 等）.
      */
     protected ?array $dynamicParams;
+
+    /**
+     * Whether to enable web search. Default is true for backward compatibility.
+     */
+    protected ?bool $enableWebSearch = null;
 
     /**
      * 获取 mentions 的 JSON 结构数组.
@@ -145,6 +152,27 @@ class SuperAgentExtra extends AbstractDTO
         $this->model = $model;
     }
 
+    public function getImageModel(): ?array
+    {
+        return $this->imageModel;
+    }
+
+    public function getImageModelId(): string
+    {
+        if (empty($this->imageModel)) {
+            return '';
+        }
+        if (is_array($this->imageModel) && isset($this->imageModel['model_id']) && is_string($this->imageModel['model_id'])) {
+            return $this->imageModel['model_id'];
+        }
+        return '';
+    }
+
+    public function setImageModel(?array $imageModel): void
+    {
+        $this->imageModel = $imageModel;
+    }
+
     public function getQueueId(): ?string
     {
         return $this->queueId ?? null;
@@ -182,5 +210,15 @@ class SuperAgentExtra extends AbstractDTO
             $this->dynamicParams = [];
         }
         $this->dynamicParams[$key] = $value;
+    }
+
+    public function getEnableWebSearch(): ?bool
+    {
+        return $this->enableWebSearch;
+    }
+
+    public function setEnableWebSearch(?bool $enableWebSearch): void
+    {
+        $this->enableWebSearch = $enableWebSearch;
     }
 }

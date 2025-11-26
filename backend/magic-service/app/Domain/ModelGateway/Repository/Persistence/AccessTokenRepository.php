@@ -11,6 +11,7 @@ use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\Query\AccessTokenQuery;
+use App\Domain\ModelGateway\Entity\ValueObject\SystemAccessTokenManager;
 use App\Domain\ModelGateway\Factory\AccessTokenFactory;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Persistence\Model\AccessTokenModel;
@@ -22,6 +23,9 @@ class AccessTokenRepository extends AbstractRepository implements AccessTokenRep
 
     public function save(LLMDataIsolation $dataIsolation, AccessTokenEntity $accessTokenEntity): AccessTokenEntity
     {
+        if (SystemAccessTokenManager::getByEncryptedAccessToken($accessTokenEntity->getEncryptedAccessToken())) {
+            return $accessTokenEntity;
+        }
         if ($accessTokenEntity->getId()) {
             $builder = $this->createBuilder($dataIsolation, AccessTokenModel::query());
             /** @var AccessTokenModel $model */
@@ -84,6 +88,18 @@ class AccessTokenRepository extends AbstractRepository implements AccessTokenRep
         $builder = $this->createBuilder($dataIsolation, AccessTokenModel::query());
         /** @var null|AccessTokenModel $model */
         $model = $builder->where('access_token', $accessToken)->first();
+        return $model ? AccessTokenFactory::modelToEntity($model) : null;
+    }
+
+    public function getByEncryptedAccessToken(LLMDataIsolation $dataIsolation, string $encryptedAccessToken): ?AccessTokenEntity
+    {
+        $systemAccessToken = SystemAccessTokenManager::getByEncryptedAccessToken($encryptedAccessToken);
+        if ($systemAccessToken) {
+            return $systemAccessToken;
+        }
+        $builder = $this->createBuilder($dataIsolation, AccessTokenModel::query());
+        /** @var null|AccessTokenModel $model */
+        $model = $builder->where('encrypted_access_token', $encryptedAccessToken)->first();
         return $model ? AccessTokenFactory::modelToEntity($model) : null;
     }
 

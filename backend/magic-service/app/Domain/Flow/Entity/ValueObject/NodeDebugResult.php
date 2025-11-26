@@ -108,8 +108,17 @@ class NodeDebugResult extends AbstractValueObject
             $this->loopDebugResults = [];
         }
 
-        $debugResult = clone $nodeDebugResult;
-        $debugResult->setLoopDebugResults(null);
+        $debugResult = new NodeDebugResult($nodeDebugResult->getNodeVersion());
+        $debugResult->setSuccess($nodeDebugResult->isSuccess());
+        $debugResult->setStartTime($nodeDebugResult->getStartTime());
+        $debugResult->setEndTime($nodeDebugResult->getEndTime());
+        $debugResult->setErrorCode($nodeDebugResult->getErrorCode());
+        $debugResult->setErrorMessage($nodeDebugResult->getErrorMessage());
+        $debugResult->setParams($nodeDebugResult->getParams());
+        $debugResult->setInput($nodeDebugResult->getInput());
+        $debugResult->setOutput($nodeDebugResult->getOutput());
+        $debugResult->setChildrenIds($nodeDebugResult->getChildrenIds());
+        $debugResult->setDebugLog($nodeDebugResult->getDebugLog());
 
         ++$this->totalLoopCount;
         $currentCount = count($this->loopDebugResults);

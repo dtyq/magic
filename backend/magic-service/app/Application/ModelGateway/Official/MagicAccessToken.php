@@ -12,21 +12,19 @@ use App\Domain\ModelGateway\Entity\ApplicationEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayOfficialApp;
-use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SystemAccessTokenManager;
 use App\Domain\ModelGateway\Service\ApplicationDomainService;
 
 class MagicAccessToken
 {
-    private const string ORG_CODE = 'DT001';
-
     public static function init(): void
     {
         if (defined('MAGIC_ACCESS_TOKEN')) {
             return;
         }
 
-        // todo 因为后续使用的时候，组织错误是没关系，所以暂定使用 DT001 来代表官方应用
-        $llmDataIsolation = new LLMDataIsolation(self::ORG_CODE, 'system');
+        $llmDataIsolation = new LLMDataIsolation('', 'system');
+        $llmDataIsolation->setCurrentOrganizationCode($llmDataIsolation->getOfficialOrganizationCode());
 
         // 检查应用是否已经创建
         $applicationDomainService = di(ApplicationDomainService::class);
@@ -36,25 +34,36 @@ class MagicAccessToken
             $application->setCode(ModelGatewayOfficialApp::APP_CODE);
             $application->setName('灯塔引擎');
             $application->setDescription('灯塔引擎官方应用');
-            $application->setOrganizationCode(self::ORG_CODE);
+            $application->setOrganizationCode($llmDataIsolation->getCurrentOrganizationCode());
             $application->setCreator('system');
             $application = $applicationDomainService->save($llmDataIsolation, $application);
         }
 
-        // 检查 access_token 是否创建
-        $accessTokenDomainService = di(AccessTokenDomainService::class);
-        $accessToken = $accessTokenDomainService->getByName($llmDataIsolation, $application->getCode());
-        if (! $accessToken) {
-            $accessToken = new AccessTokenEntity();
-            $accessToken->setName($application->getCode());
-            $accessToken->setType(AccessTokenType::Application);
-            $accessToken->setRelationId((string) $application->getId());
-            $accessToken->setOrganizationCode(self::ORG_CODE);
-            $accessToken->setModels(['all']);
-            $accessToken->setCreator('system');
-            $accessToken = $accessTokenDomainService->save($llmDataIsolation, $accessToken);
-        }
+        // 这里的常量 AccessToken 不落库，仅存在于内存中，保证内部调用时使用一致
+        $accessToken = new AccessTokenEntity();
+        $accessToken->setId(1);
+        $accessToken->setName($application->getCode());
+        $accessToken->setType(AccessTokenType::Application);
+        $accessToken->setRelationId((string) $application->getId());
+        $accessToken->setOrganizationCode($llmDataIsolation->getCurrentOrganizationCode());
+        $accessToken->setModels(['all']);
+        $accessToken->setCreator('system');
+        $accessToken->prepareForCreation();
+        SystemAccessTokenManager::setSystemAccessToken($accessToken);
 
-        define('MAGIC_ACCESS_TOKEN', $accessToken->getAccessToken());
+        // 新增官方组织个人访问令牌常量
+        $userAccessToken = new AccessTokenEntity();
+        $userAccessToken->setId(2);
+        $userAccessToken->setName($application->getCode());
+        $userAccessToken->setType(AccessTokenType::User);
+        $userAccessToken->setRelationId('system');
+        $userAccessToken->setOrganizationCode($llmDataIsolation->getOfficialOrganizationCode());
+        $userAccessToken->setModels(['all']);
+        $userAccessToken->setCreator('system');
+        $userAccessToken->prepareForCreation();
+        SystemAccessTokenManager::setSystemAccessToken($userAccessToken);
+
+        define('MAGIC_ACCESS_TOKEN', $accessToken->getPlaintextAccessToken());
+        define('MAGIC_OFFICIAL_ACCESS_TOKEN', $userAccessToken->getPlaintextAccessToken());
     }
 }

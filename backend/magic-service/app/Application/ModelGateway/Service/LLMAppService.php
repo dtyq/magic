@@ -1153,7 +1153,11 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateRequest->setValidityPeriod(1);
 
-        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModel->getConfig());
+        $imageModelConfig = $imageModel->getConfig();
+        if (empty($imageModelConfig['model_version'])) {
+            $imageModelConfig['model_version'] = $imageModel->getModelVersion();
+        }
+        $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModelConfig);
         $generateImageOpenAIFormat = $imageGenerateService->generateImageOpenAIFormat($imageGenerateRequest);
 
         try {

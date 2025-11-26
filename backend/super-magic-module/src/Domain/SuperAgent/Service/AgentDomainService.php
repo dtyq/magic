@@ -15,6 +15,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
@@ -41,6 +42,8 @@ use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+
+use function Hyperf\Translation\trans;
 
 /**
  * Agent消息应用服务
@@ -173,18 +176,22 @@ class AgentDomainService
 
     /**
      * @param ?string $projectOrganizationCode 项目所属组织编码，10月新增支持跨组织项目协作，所有文件都在项目组织下
+     * @param ?InitializationMetadataDTO $initMetadata 初始化元数据 DTO，用于配置初始化行为
      */
-    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null): void
+    public function initializeAgent(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null, ?InitializationMetadataDTO $initMetadata = null): void
     {
+        $initMetadata = $initMetadata ?? InitializationMetadataDTO::createDefault();
+
         $this->logger->info('[Sandbox][App] Initializing agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'memory_provided' => $memory !== null,
             'memory_length' => $memory ? strlen($memory) : 0,
             'project_organization_code' => $projectOrganizationCode,
+            'skip_init_messages' => $initMetadata->getSkipInitMessages(),
         ]);
 
         // 1. 构建初始化信息
-        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectOrganizationCode);
+        $config = $this->generateInitializationInfo($dataIsolation, $taskContext, $memory, projectOrganizationCode: $projectOrganizationCode, initMetadata: $initMetadata);
 
         // 2. 调用初始化接口
         $result = $this->agent->initAgent($taskContext->getSandboxId(), InitAgentRequest::fromArray($config));
@@ -212,6 +219,17 @@ class AgentDomainService
             $taskDynamicConfig[$key] = $dynamicConfig;
         }
 
+        // Add image_model configuration if imageModelId exists
+        $extra = $taskContext->getExtra();
+        if ($extra !== null) {
+            $imageModelId = $extra->getImageModelId();
+            if (! empty($imageModelId)) {
+                $taskDynamicConfig['image_model'] = [
+                    'model_id' => $imageModelId,
+                ];
+            }
+        }
+
         $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -225,12 +243,19 @@ class AgentDomainService
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
+        // Get original prompt
+        $userRequest = $taskContext->getTask()->getPrompt();
+
+        // Get constraint text if needed
+        $constraintText = $this->getPromptConstraint($taskContext);
+        $prompt = $userRequest . $constraintText;
+
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
             messageId: $taskContext->getMessageId(),
             userId: $dataIsolation->getCurrentUserId(),
             taskId: (string) $taskContext->getTask()->getId(),
-            prompt: $taskContext->getTask()->getPrompt(),
+            prompt: $prompt,
             taskMode: $taskContext->getTask()->getTaskMode(),
             agentMode: $taskContext->getAgentMode(),
             mentions: $mentionsJsonStruct,
@@ -731,9 +756,12 @@ class AgentDomainService
      * 构建初始化消息.
      *
      * @param ?string $projectOrganizationCode 项目所属组织编码，10月新增支持跨组织项目协作，所有文件都在项目组织下
+     * @param InitializationMetadataDTO $initMetadata 初始化元数据 DTO
      */
-    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null): array
+    private function generateInitializationInfo(DataIsolation $dataIsolation, TaskContext $taskContext, ?string $memory = null, ?string $projectOrganizationCode = null, ?InitializationMetadataDTO $initMetadata = null): array
     {
+        $initMetadata = $initMetadata ?? InitializationMetadataDTO::createDefault();
+
         // 1. 获取上传配置信息
         $storageType = StorageBucketType::SandBox->value;
         $expires = 3600; // Credential valid for 1 hour
@@ -764,6 +792,7 @@ class AgentDomainService
             (string) $taskContext->getTask()->getProjectId(),
             $dataIsolation->getLanguage() ?? '',
             $userInfo,
+            $initMetadata->getSkipInitMessages() ?? false
         );
 
         // chat history
@@ -800,7 +829,37 @@ class AgentDomainService
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
             'model_id' => $taskContext->getModelId(),
+            'fetch_history' => ! $taskContext->getIsFirstTask(),
         ];
+    }
+
+    /**
+     * Get prompt constraint text based on extra configuration.
+     * Returns combined constraint text based on extra settings.
+     *
+     * @param TaskContext $taskContext Task context containing extra and language info
+     * @return string Constraint text or empty string
+     */
+    private function getPromptConstraint(TaskContext $taskContext): string
+    {
+        $extra = $taskContext->getExtra();
+        if ($extra === null) {
+            return '';
+        }
+
+        $language = $taskContext->getDataIsolation()->getLanguage();
+        $constraints = [];
+
+        // Check web search constraint
+        if ($extra->getEnableWebSearch() === false) {
+            $constraints[] = trans('prompt.disable_web_search_constraint', [], $language);
+            $this->logger->info('[Sandbox][App] Web search disabled, constraint text will be appended to prompt', [
+                'task_id' => $taskContext->getTask()->getId(),
+                'language' => $language,
+            ]);
+        }
+
+        return empty($constraints) ? '' : implode('', $constraints);
     }
 
     /**

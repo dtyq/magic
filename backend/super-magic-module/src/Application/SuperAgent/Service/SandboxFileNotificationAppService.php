@@ -75,9 +75,9 @@ class SandboxFileNotificationAppService extends AbstractAppService
 
         // 6. Setup spin lock for file_key to prevent concurrent processing
         $this->logger->info(sprintf('processAllAttachments: project_id: %d', $projectEntity->getId()));
-        $lockKey = WorkDirectoryUtil::getLockerKey($projectEntity->getId());
+        $lockKey = WorkDirectoryUtil::getFileLockerKey($fileKey);
         $lockOwner = $dataIsolation->getCurrentUserId();
-        $lockExpireSeconds = 30;
+        $lockExpireSeconds = 2;
         $lockAcquired = false;
 
         try {

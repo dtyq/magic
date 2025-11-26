@@ -12,6 +12,7 @@ namespace App\Domain\Provider\Entity\ValueObject;
  */
 enum AiAbilityCode: string
 {
+    case Unknown = 'unknown';                          // 未知能力
     case Ocr = 'ocr';                                      // OCR 识别
     case WebSearch = 'web_search';                         // 互联网搜索
     case RealtimeSpeechRecognition = 'realtime_speech_recognition';  // 实时语音识别
@@ -37,6 +38,7 @@ enum AiAbilityCode: string
             self::VisualUnderstanding => '视觉理解',
             self::SmartRename => '智能重命名',
             self::AiOptimization => 'AI 优化',
+            default => 'Unknown',
         };
     }
 
@@ -55,6 +57,7 @@ enum AiAbilityCode: string
             self::VisualUnderstanding => '本能力覆盖平台所有需要让大模型进行视觉理解的应用场景，精准理解各种图像中的内容以及复杂关系。',
             self::SmartRename => '本能力覆盖平台所有支持 AI 重命名的应用场景，根据理解上下文为用户自动进行内容标题的命名。',
             self::AiOptimization => '本能力覆盖平台所有支持 AI 优化内容的应用场景，根据理解上下文为用户自动对内容进行优化。',
+            default => 'Unknown',
         };
     }
 }

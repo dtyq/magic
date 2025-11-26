@@ -49,7 +49,14 @@ class SaveFileContentRequestDTO implements JsonSerializable
     public static function fromRequest(array $requestData): self
     {
         $fileId = (string) ($requestData['file_id'] ?? '');
-        $content = (string) ($requestData['content'] ?? '');
+
+        // Check if content field exists in request (required field)
+        if (! array_key_exists('content', $requestData)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'content_field_required');
+        }
+
+        // Allow empty string value
+        $content = (string) $requestData['content'];
         $enableShadow = (bool) ($requestData['enable_shadow'] ?? false);
 
         $dto = new self($fileId, $content, $enableShadow);
@@ -67,10 +74,10 @@ class SaveFileContentRequestDTO implements JsonSerializable
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_id_required');
         }
 
-        if (empty($this->content)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'content_required');
-        }
+        // Remove empty content check - allow empty string value
+        // Content field existence is already checked in fromRequest()
 
+        // Validate content size limit
         $contentSize = strlen($this->content);
         if ($contentSize > self::MAX_CONTENT_SIZE) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'content_too_large');

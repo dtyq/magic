@@ -72,11 +72,18 @@ class ModelGatewayMapper extends ModelMapper
         return (bool) $this->getByAdmin($dataIsolation, $model);
     }
 
+    public function getOfficialChatModelProxy(string $model): MagicAILocalModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::create('', '');
+        $dataIsolation->setCurrentOrganizationCode($dataIsolation->getOfficialOrganizationCode());
+        return $this->getChatModelProxy($dataIsolation, $model, true);
+    }
+
     /**
      * 内部使用 chat 时，一定是使用该方法.
      * 会自动替代为本地代理模型.
      */
-    public function getChatModelProxy(BaseDataIsolation $dataIsolation, string $model): MagicAILocalModel
+    public function getChatModelProxy(BaseDataIsolation $dataIsolation, string $model, bool $useOfficialAccessToken = false): MagicAILocalModel
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         $odinModel = $this->getOrganizationChatModel($dataIsolation, $model);
@@ -86,7 +93,7 @@ class ModelGatewayMapper extends ModelMapper
         if (! $odinModel instanceof AbstractModel) {
             throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
         }
-        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions());
+        return $this->createProxy($dataIsolation, $model, $odinModel->getModelOptions(), $odinModel->getApiRequestOptions(), $useOfficialAccessToken);
     }
 
     /**
@@ -503,13 +510,14 @@ class ModelGatewayMapper extends ModelMapper
         return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
     }
 
-    private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions): MagicAILocalModel
+    private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions, bool $useOfficialAccessToken = false): MagicAILocalModel
     {
         // 使用ModelFactory创建模型实例
         $odinModel = ModelFactory::create(
             MagicAILocalModel::class,
             $model,
             [
+                'use_official_access_token' => $useOfficialAccessToken,
                 'vector_size' => $modelOptions->getVectorSize(),
                 'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $dataIsolation->getCurrentUserId(),

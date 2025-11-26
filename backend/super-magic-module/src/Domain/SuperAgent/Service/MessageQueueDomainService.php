@@ -256,6 +256,15 @@ class MessageQueueDomainService
     }
 
     /**
+     * Get message by ID without user permission check.
+     * Used for internal processing where permission is already validated.
+     */
+    public function getMessageById(int $messageId): ?MessageQueueEntity
+    {
+        return $this->messageQueueRepository->getById($messageId);
+    }
+
+    /**
      * Get message for specific user with permission check.
      */
     public function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
@@ -312,10 +321,13 @@ class MessageQueueDomainService
     /**
      * Get earliest pending message for specific topic.
      * 获取指定话题的最早待处理消息.
+     *
+     * @param int $topicId Topic ID
+     * @param null|string $maxExecuteTime Max execute time filter (optional, if null then no time filter applied)
      */
-    public function getEarliestMessageByTopic(int $topicId): ?MessageQueueEntity
+    public function getEarliestMessageByTopic(int $topicId, ?string $maxExecuteTime = null): ?MessageQueueEntity
     {
-        return $this->messageQueueRepository->getEarliestMessageByTopic($topicId);
+        return $this->messageQueueRepository->getEarliestMessageByTopic($topicId, $maxExecuteTime);
     }
 
     /**

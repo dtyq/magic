@@ -109,7 +109,7 @@ class OfficialAccessTokenInitializer
                 'message' => $isNewToken
                     ? 'Successfully created official application and access token.'
                     : 'Official application and access token already exist.',
-                'access_token' => $accessToken->getAccessToken(),
+                'access_token' => $accessToken->getPlaintextAccessToken(),
                 'application_code' => $application->getCode(),
                 'is_new' => $isNewToken,
             ];

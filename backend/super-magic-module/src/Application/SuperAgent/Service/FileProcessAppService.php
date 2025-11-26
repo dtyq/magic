@@ -30,6 +30,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -1005,7 +1006,7 @@ class FileProcessAppService extends AbstractAppService
         );
 
         // 4. Update file metadata
-        $this->updateFileMetadata($taskFileEntity, $result);
+        $this->updateFileMetadata($taskFileEntity, $result, $authorization);
 
         // 5. 创建文件版本
         $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
@@ -1144,8 +1145,9 @@ class FileProcessAppService extends AbstractAppService
      *
      * @param TaskFileEntity $taskFileEntity Task file entity
      * @param array $result Upload result
+     * @param MagicUserAuthorization $authorization User authorization
      */
-    private function updateFileMetadata(TaskFileEntity $taskFileEntity, array $result): void
+    private function updateFileMetadata(TaskFileEntity $taskFileEntity, array $result, MagicUserAuthorization $authorization): void
     {
         // Update file size and modification time
         $taskFileEntity->setFileSize($result['size']);
@@ -1153,6 +1155,20 @@ class FileProcessAppService extends AbstractAppService
 
         // Save updated entity
         $this->taskDomainService->updateTaskFile($taskFileEntity);
+
+        // Dispatch file content saved event for WebSocket notification
+        $event = new FileContentSavedEvent(
+            $taskFileEntity,
+            $authorization->getId(),
+            $authorization->getOrganizationCode()
+        );
+        AsyncEventUtil::dispatch($event);
+        $this->logger->info(sprintf(
+            'Dispatched FileContentSavedEvent for file content saved, fileId: %d, userId: %s, organization: %s',
+            $taskFileEntity->getFileId(),
+            $authorization->getId(),
+            $authorization->getOrganizationCode()
+        ));
 
         if (ProjectFileConstant::isSetMetadataFile($taskFileEntity->getFileName())) {
             AsyncEventUtil::dispatch(new AttachmentsProcessedEvent($taskFileEntity->getParentId(), $taskFileEntity->getProjectId(), $taskFileEntity->getTaskId()));

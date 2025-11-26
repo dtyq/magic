@@ -81,6 +81,7 @@ class ClientMessageAppService extends AbstractAppService
         ?array $tool = null,
         ?array $attachments = null,
         ?string $correlationId = null,
+        ?array $usage = null,
     ): string {
         try {
             $message = $this->createSuperAgentMessage(
@@ -94,7 +95,8 @@ class ClientMessageAppService extends AbstractAppService
                 $steps,
                 $tool,
                 $attachments,
-                $correlationId
+                $correlationId,
+                $usage
             );
 
             $seqId = $this->doSendMessage($message, $chatTopicId, $chatConversationId);
@@ -302,6 +304,7 @@ class ClientMessageAppService extends AbstractAppService
         ?array $tool = null,
         ?array $attachments = null,
         ?string $correlationId = null,
+        ?array $usage = null,
     ): SuperAgentMessage {
         $message = new SuperAgentMessage();
         $message->setMessageId((string) $messageId);
@@ -337,6 +340,10 @@ class ClientMessageAppService extends AbstractAppService
 
         if ($correlationId !== null) {
             $message->setCorrelationId($correlationId);
+        }
+
+        if ($usage !== null) {
+            $message->setUsage($usage);
         }
 
         return $message;

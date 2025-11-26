@@ -80,4 +80,61 @@ PROMPT;
 
         return str_replace(['{textContent}', '{language}'], [$textContent, $language], $template);
     }
+
+    /**
+     * 生成文件上传场景的录音标题提示词（强调文件名的重要性）.
+     *
+     * @param string $userRequestMessage 用户在聊天框发送的请求消息
+     * @param string $language 输出语言（如：zh_CN, en_US）
+     * @return string 完整的提示词
+     */
+    public static function getTitlePromptForUploadedFile(
+        string $userRequestMessage,
+        string $language
+    ): string {
+        $template = <<<'PROMPT'
+你是一个专业的录音内容标题生成助手。
+
+## 背景说明
+用户上传了一个音频文件到系统中，并在聊天框中发送了总结请求。现在需要你根据用户的请求消息（其中包含文件名），为这次录音总结生成一个简洁准确的标题。
+
+## 用户在聊天框的请求
+用户发送的原始消息如下：
+```
+{userRequestMessage}
+```
+
+## 标题生成要求
+
+### 优先级原则（非常重要）
+1. **文件名优先**：文件名通常是用户精心命名的，包含了最核心的主题信息，请重点参考用户消息中 @ 后面的文件名
+2. **智能判断**：
+   - 如果文件名语义清晰（如"2024年Q4产品规划会议.mp3"、"客户需求讨论.wav"），优先基于文件名生成标题
+   - 如果文件名是日期时间戳（如"20241112_143025.mp3"）或无意义字符（如"录音001.mp3"），则使用通用描述
+3. **提取关键词**：从文件名中提取最核心的关键词和主题
+
+### 格式要求
+1. **长度限制**：不超过 20 个字符（汉字按 1 个字符计算）
+2. **语言风格**：使用陈述性语句，避免疑问句
+3. **简洁明确**：直接概括核心主题，不要添加修饰词
+4. **纯文本输出**：只输出标题内容，不要添加任何标点符号、引号或其他修饰
+
+### 禁止行为
+- 不要保留文件扩展名（.mp3、.wav、.webm 等）
+- 不要输出标题以外的任何内容
+- 不要添加引号、书名号等标点符号
+
+## 输出语言
+请使用 {language} 语言输出标题。
+
+## 输出
+请直接输出标题：
+PROMPT;
+
+        return str_replace(
+            ['{userRequestMessage}', '{language}'],
+            [$userRequestMessage, $language],
+            $template
+        );
+    }
 }

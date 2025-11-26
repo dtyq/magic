@@ -83,16 +83,14 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
+        $model->config = $entity->getConfig();
 
-        // 保存获取ID
-        $model->config = $entity->getConfig()->toArray();
         $result = $model->save();
 
         if ($result) {
             $entity->setId($model->id);
             // 使用ID加密config并更新
-            $configArray = $entity->getConfig()->toArray();
-            $encryptedConfig = AiAbilityAssembler::encodeConfig($configArray, (string) $model->id);
+            $encryptedConfig = AiAbilityAssembler::encodeConfig($model->config, (string) $model->id);
             $model->config = $encryptedConfig;
             $model->save();
         }
@@ -120,8 +118,7 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->status = $entity->getStatus()->value;
 
         // 加密config后再保存
-        $configArray = $entity->getConfig()->toArray();
-        $model->config = AiAbilityAssembler::encodeConfig($configArray, (string) $model->id);
+        $model->config = AiAbilityAssembler::encodeConfig($entity->getConfig(), (string) $model->id);
 
         return $model->save();
     }

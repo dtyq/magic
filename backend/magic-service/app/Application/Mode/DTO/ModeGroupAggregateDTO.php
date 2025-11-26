@@ -18,6 +18,11 @@ class ModeGroupAggregateDTO extends AbstractDTO
      */
     protected array $models = [];
 
+    /**
+     * @var ModeGroupModelDTO[] 该分组对应的图像模型详细信息数组（VLM）
+     */
+    protected array $imageModels = [];
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -131,5 +136,23 @@ class ModeGroupAggregateDTO extends AbstractDTO
             $model->setModelId($modelId);
             $this->models[] = $model;
         }
+    }
+
+    /**
+     * @return ModeGroupModelDTO[]
+     */
+    public function getImageModels(): array
+    {
+        return $this->imageModels;
+    }
+
+    public function setImageModels(array $imageModels): void
+    {
+        $modelData = [];
+        foreach ($imageModels as $model) {
+            $modelData[] = $model instanceof ModeGroupModelDTO ? $model : new ModeGroupModelDTO($model);
+        }
+
+        $this->imageModels = $modelData;
     }
 }

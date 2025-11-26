@@ -21,6 +21,10 @@ class CreateModeRequest extends FormRequest
 
     protected ?string $icon = null;
 
+    protected ?int $iconType = 1;
+
+    protected ?string $iconUrl = '';
+
     protected ?string $color = null;
 
     protected ?string $description = '';
@@ -41,6 +45,8 @@ class CreateModeRequest extends FormRequest
             'placeholder_i18n.en_US' => 'nullable|string|max:500',
             'identifier' => 'required|string|max:50',
             'icon' => 'nullable|string|max:255',
+            'icon_type' => 'nullable|integer|in:1,2',
+            'icon_url' => 'nullable|string|max:512',
             'color' => 'nullable|string|max:10|regex:/^#[0-9a-fA-F]{6}$/',
             'description' => 'nullable|string|max:1000',
         ];

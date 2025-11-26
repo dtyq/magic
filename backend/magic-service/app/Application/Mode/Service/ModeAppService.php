@@ -12,6 +12,7 @@ use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -62,17 +63,24 @@ class ModeAppService extends AbstractModeAppService
 
         // 步骤3：组织模型过滤
 
-        // 首先收集所有需要过滤的模型
+        // 首先收集所有需要过滤的模型（LLM）
         $allAggregateModels = [];
         foreach ($modeAggregates as $aggregate) {
             $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
             $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
         }
 
+        // 收集所有需要过滤的图像模型（VLM）
+        $allAggregateImageModels = [];
+        foreach ($modeAggregates as $aggregate) {
+            $aggregateImageModels = $this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus);
+            $allAggregateImageModels = array_merge($allAggregateImageModels, $aggregateImageModels);
+        }
+
         // 需要升级套餐
         $upgradeRequiredModelIds = [];
 
-        // 使用组织过滤器进行过滤
+        // 使用组织过滤器进行过滤（LLM）
         if ($this->organizationModelFilter) {
             $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
                 $authorization->getOrganizationCode(),
@@ -84,10 +92,21 @@ class ModeAppService extends AbstractModeAppService
             $providerModels = $allAggregateModels;
         }
 
+        // 使用组织过滤器进行过滤（VLM）
+        if ($this->organizationModelFilter) {
+            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateImageModels
+            );
+        } else {
+            // 如果没有组织过滤器，返回所有模型（开源版本行为）
+            $providerImageModels = $allAggregateImageModels;
+        }
+
         // 转换为DTO数组
         $modeAggregateDTOs = [];
         foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds);
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds, $providerImageModels);
         }
 
         // 处理图标URL转换
@@ -116,6 +135,8 @@ class ModeAppService extends AbstractModeAppService
                     'name' => $agent->getName(),
                     'placeholder' => $agent->getDescription(),
                     'identifier' => $agent->getCode(),
+                    'icon_type' => $agent->getIconType(),
+                    'icon_url' => $agent->getIcon()['url'] ?? '',
                     'icon' => $agent->getIcon()['type'] ?? '',
                     'color' => $agent->getIcon()['color'] ?? '',
                     'sort' => 0,
@@ -228,7 +249,7 @@ class ModeAppService extends AbstractModeAppService
     }
 
     /**
-     * 从批量查询结果中提取特定聚合根的模型.
+     * 从批量查询结果中提取特定聚合根的模型（LLM）.
      * @param ModeAggregate $aggregate 模式聚合根
      * @param array<string, ProviderModelEntity> $allProviderModels 批量查询的所有模型结果
      * @return array<string, ProviderModelEntity> 该聚合根相关的模型
@@ -252,5 +273,33 @@ class ModeAppService extends AbstractModeAppService
         }
 
         return $aggregateModels;
+    }
+
+    /**
+     * 从批量查询结果中提取特定聚合根的图像模型（VLM）.
+     * @param ModeAggregate $aggregate 模式聚合根
+     * @param array<string, ProviderModelEntity> $allProviderModels 批量查询的所有模型结果
+     * @return array<string, ProviderModelEntity> 该聚合根相关的图像模型
+     */
+    private function getImageModelsForAggregate(ModeAggregate $aggregate, array $allProviderModels): array
+    {
+        $aggregateImageModels = [];
+
+        foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
+            foreach ($groupAggregate->getRelations() as $relation) {
+                $modelId = $relation->getModelId();
+
+                if (! $providerModel = $allProviderModels[$modelId] ?? null) {
+                    continue;
+                }
+                // 只返回 VLM 类型的模型
+                if ($providerModel->getCategory() !== Category::VLM) {
+                    continue;
+                }
+                $aggregateImageModels[$modelId] = $providerModel;
+            }
+        }
+
+        return $aggregateImageModels;
     }
 }

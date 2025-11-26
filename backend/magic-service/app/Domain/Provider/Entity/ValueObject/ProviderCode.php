@@ -11,10 +11,12 @@ use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Model\AzureOpenAIModel;
 use Hyperf\Odin\Model\DoubaoModel;
+use Hyperf\Odin\Model\GeminiModel;
 use Hyperf\Odin\Model\OpenAIModel;
 
 enum ProviderCode: string
 {
+    case None = 'None';
     case Official = 'Official'; // 官方
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
@@ -27,6 +29,7 @@ enum ProviderCode: string
     case AWSBedrock = 'AWSBedrock';
     case Google = 'Google-Image';
     case VolcengineArk = 'VolcengineArk';
+    case Gemini = 'Gemini';
 
     public function getImplementation(): string
     {
@@ -34,6 +37,7 @@ enum ProviderCode: string
             self::MicrosoftAzure => AzureOpenAIModel::class,
             self::Volcengine => DoubaoModel::class,
             self::AWSBedrock => AwsBedrockModel::class,
+            self::Gemini => GeminiModel::class,
             default => OpenAIModel::class,
         };
     }
@@ -54,6 +58,13 @@ enum ProviderCode: string
                 'secret_key' => $config->getSk(),
                 'region' => $config->getRegion(),
                 'auto_cache' => config('llm.aws_bedrock_auto_cache', true),
+            ],
+            self::Gemini => [
+                'api_key' => $config->getApiKey(),
+                'base_url' => $config->getUrl(),
+                'auto_cache_config' => [
+                    'enable_cache' => config('llm.gemini_auto_cache', true),
+                ],
             ],
             default => [
                 'api_key' => $config->getApiKey(),

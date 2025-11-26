@@ -11,13 +11,13 @@ return [
     'target_parent_not_directory' => 'Target parent is not a directory',
     'cannot_move_to_subdirectory' => 'Cannot move directory to its subdirectory',
     'file_move_failed' => 'Failed to move file',
+    'file_copy_failed' => 'Failed to copy file',
     'file_save_failed' => 'Failed to save file',
     'file_create_failed' => 'Failed to create file',
     'file_delete_failed' => 'Failed to delete file',
     'file_rename_failed' => 'Failed to rename file',
     'directory_delete_failed' => 'Failed to delete directory',
     'batch_delete_failed' => 'Failed to batch delete files',
-    'batch_move_failed' => 'Failed to batch move files',
     'permission_denied' => 'File permission denied',
     'files_not_found_or_no_permission' => 'Files not found or no permission to access',
     'content_too_large' => 'File content too large',
@@ -56,4 +56,13 @@ return [
     'target_file_already_exists' => 'Target file name already exists in this directory',
     'file_is_being_edited' => 'File is currently being edited by other users, use force_replace to override',
     'source_file_key_illegal' => 'Source file key is illegal or outside of workspace',
+    'content_field_required' => 'Content field is required',
+
+    // Cross-project move related
+    'target_parent_not_found' => 'Target parent directory not found',
+    'target_parent_not_in_target_project' => 'Target parent directory does not belong to the target project',
+    'cross_organization_copy_failed' => 'Failed to copy file across organizations',
+    'batch_move_failed' => 'Batch move operation failed',
+    'batch_copy_failed' => 'Batch copy operation failed',
+    'directory_copy_not_supported_yet' => 'Directory copy is not supported yet, please use batch copy instead',
 ];

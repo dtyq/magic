@@ -19,12 +19,18 @@ class AdminModeGroupAggregateDTO extends AbstractDTO
      */
     protected array $models = [];
 
-    public function __construct(null|AdminModeGroupDTO|array $group = null, array $models = [])
+    /**
+     * @var ModeGroupModelDTO[] 该分组对应的图像模型详细信息数组（VLM）
+     */
+    protected array $imageModels = [];
+
+    public function __construct(null|AdminModeGroupDTO|array $group = null, array $models = [], array $imageModels = [])
     {
         if (! is_null($group)) {
             $this->group = $group instanceof AdminModeGroupDTO ? $group : new AdminModeGroupDTO($group);
         }
         $this->models = $models;
+        $this->imageModels = $imageModels;
     }
 
     public function getGroup(): ?AdminModeGroupDTO
@@ -53,5 +59,23 @@ class AdminModeGroupAggregateDTO extends AbstractDTO
         }
 
         $this->models = $modelData;
+    }
+
+    /**
+     * @return array[]|ModeGroupModelDTO[]
+     */
+    public function getImageModels(): array
+    {
+        return $this->imageModels;
+    }
+
+    public function setImageModels(array $imageModels): void
+    {
+        $modelData = [];
+        foreach ($imageModels as $model) {
+            $modelData[] = $model instanceof ModeGroupModelDTO ? $model : new ModeGroupModelDTO($model);
+        }
+
+        $this->imageModels = $modelData;
     }
 }

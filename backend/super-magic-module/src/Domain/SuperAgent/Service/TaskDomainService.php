@@ -74,6 +74,9 @@ class TaskDomainService
             $this->projectRepository->updateProjectByCondition(['id' => $projectEntity->getId()], ['project_mode' => $topicMode, 'updated_at' => date('Y-m-d H:i:s')]);
         }
 
+        // Set task start time
+        $taskEntity->setStartedAt(date('Y-m-d H:i:s'));
+
         // Create task
         $taskEntity = $this->taskRepository->createTask($taskEntity);
         // Update topic's current task ID and status
@@ -141,6 +144,11 @@ class TaskDomainService
                 $errMsg = mb_substr($errMsg, 0, 497, 'UTF-8') . '...';
             }
             $taskEntity->setErrMsg($errMsg);
+        }
+
+        // Set task finish time when task is finished or error
+        if (($status === TaskStatus::FINISHED || $status === TaskStatus::ERROR) && $taskEntity->getFinishedAt() === null) {
+            $taskEntity->setFinishedAt(date('Y-m-d H:i:s'));
         }
 
         $this->taskRepository->updateTask($taskEntity);
@@ -402,11 +410,12 @@ class TaskDomainService
      * @param int $pageSize Page size
      * @param array $fileType File type filter
      * @param string $storageType Storage type filter
+     * @param null|string $updatedAfter Updated after timestamp filter
      * @return array Attachment list and total
      */
-    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = ''): array
+    public function getTaskAttachmentsByProjectId(int $projectId, DataIsolation $dataIsolation, int $page = 1, int $pageSize = 20, array $fileType = [], string $storageType = '', ?string $updatedAfter = null): array
     {
-        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType);
+        return $this->taskFileRepository->getByProjectId($projectId, $page, $pageSize, $fileType, $storageType, $updatedAfter);
     }
 
     public function getTaskBySandboxId(string $sandboxId): ?TaskEntity
@@ -544,6 +553,18 @@ class TaskDomainService
      */
     public function updateTaskStatusByTaskId(int $id, TaskStatus $status, ?string $errMsg = null): bool
     {
+        // Get task entity to check if finished_at needs to be set
+        $taskEntity = $this->taskRepository->getTaskById($id);
+        if ($taskEntity && ($status === TaskStatus::FINISHED || $status === TaskStatus::ERROR) && $taskEntity->getFinishedAt() === null) {
+            $taskEntity->setTaskStatus($status->value);
+            $taskEntity->setFinishedAt(date('Y-m-d H:i:s'));
+            if ($status === TaskStatus::ERROR && $errMsg !== null) {
+                $taskEntity->setErrMsg($errMsg);
+            }
+            $this->taskRepository->updateTask($taskEntity);
+            return true;
+        }
+
         if ($status === TaskStatus::ERROR && $errMsg !== null) {
             return $this->taskRepository->updateTaskStatusAndErrMsgByTaskId($id, $status, $errMsg);
         }

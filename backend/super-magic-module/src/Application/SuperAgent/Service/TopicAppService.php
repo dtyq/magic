@@ -804,4 +804,9 @@ class TopicAppService extends AbstractAppService
             throw $e;
         }
     }
+
+    public function downloadChatHistory(RequestContext $requestContext, int $id): array
+    {
+        return [];
+    }
 }

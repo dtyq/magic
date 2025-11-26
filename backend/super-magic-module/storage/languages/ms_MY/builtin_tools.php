@@ -12,7 +12,7 @@ return [
         'write_file' => 'Tulis Fail',
         'edit_file' => 'Edit Fail',
         'multi_edit_file' => 'Edit Berbilang Fail',
-        'delete_file' => 'Padam Fail',
+        'delete_files' => 'Padam Fail',
         'file_search' => 'Cari Fail',
         'grep_search' => 'Cari Kandungan',
 
@@ -39,7 +39,7 @@ return [
 
         // Pelaksanaan Sistem
         'shell_exec' => 'Laksana Arahan',
-        'python_execute' => 'Laksana Python',
+        'run_python_snippet' => 'Laksana Python',
 
         // Bantuan AI
         'create_memory' => 'Cipta Memori',
@@ -56,7 +56,7 @@ return [
         'write_file' => 'Alat menulis fail, menulis kandungan ke sistem fail tempatan, menyokong mencipta fail baharu atau mengganti fail sedia ada, perhatikan had panjang kandungan sekali, fail besar disyorkan ditulis secara berperingkat',
         'edit_file' => 'Alat penyuntingan fail tepat, melakukan operasi penggantian rentetan pada fail sedia ada, menyokong pengesahan pemadanan ketat dan kawalan kiraan penggantian, memastikan ketepatan operasi penyuntingan',
         'multi_edit_file' => 'Alat penyuntingan fail berbilang, melakukan berbilang operasi cari-ganti dalam satu fail, semua suntingan digunakan mengikut urutan, sama ada semua berjaya atau semua gagal, memastikan atomisiti operasi',
-        'delete_file' => 'Alat pemadaman fail, digunakan untuk memadam fail atau direktori yang ditentukan, hanya boleh memadam fail dalam direktori kerja, sila sahkan laluan fail adalah betul sebelum operasi',
+        'delete_files' => 'Alat pemadaman berbilang fail, digunakan untuk memadam fail atau direktori yang ditentukan secara berkelompok. Sila sahkan semua laluan fail adalah betul sebelum pemadaman, jika mana-mana fail tidak wujud akan mengembalikan ralat, hanya boleh memadam fail dalam direktori kerja, menyokong memadam berbilang fail serentak, meningkatkan kecekapan operasi',
         'file_search' => 'Alat carian laluan fail, carian pantas berdasarkan pemadanan kabur laluan fail, sesuai untuk senario di mana sebahagian laluan fail diketahui tetapi lokasi khusus tidak pasti, mengembalikan sehingga 10 hasil',
         'grep_search' => 'Alat carian kandungan fail, menggunakan ungkapan biasa untuk mencari corak khusus dalam kandungan fail, menyokong penapisan jenis fail, memaparkan baris padanan dan konteks, mengembalikan sehingga 20 fail berkaitan',
 
@@ -83,7 +83,7 @@ return [
 
         // Pelaksanaan Sistem
         'shell_exec' => 'Alat pelaksanaan arahan Shell, melaksanakan arahan dan skrip sistem, menyokong tetapan tamat masa dan spesifikasi direktori kerja, sesuai untuk operasi fail, pengurusan proses dan senario pentadbiran sistem lain',
-        'python_execute' => 'Alat pelaksanaan kod Python, menjalankan fail skrip Python, menyokong pemindahan argumen baris arahan, kawalan tamat masa dan tetapan direktori kerja, memerlukan menulis kod ke fail dahulu',
+        'run_python_snippet' => 'Alat pelaksanaan coretan kod Python, sesuai untuk analisis data, pemprosesan, penukaran, pengiraan pantas, pengesahan dan operasi fail. Sesuai untuk coretan kod Python kecil hingga sederhana (<=200 baris), skrip kompleks harus disimpan ke fail dan kemudian dilaksanakan menggunakan alat shell_exec',
 
         // Bantuan AI
         'create_memory' => 'Alat penciptaan memori jangka panjang, menyimpan keutamaan pengguna, maklumat projek dan memori penting lain, menyokong jenis memori pengguna dan projek, boleh menetapkan sama ada pengesahan pengguna diperlukan',

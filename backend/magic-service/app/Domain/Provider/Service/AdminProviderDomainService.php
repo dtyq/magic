@@ -13,6 +13,7 @@ use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
@@ -448,6 +449,64 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         }
 
         return $providerModelEntities;
+    }
+
+    /**
+     * 初始化Magic服务商配置数据.
+     */
+    public function initializeMagicProviderConfigs(): int
+    {
+        $count = 0;
+        $categories = [Category::LLM, Category::VLM];
+        $officialOrganization = OfficialOrganizationUtil::getOfficialOrganizationCode();
+
+        foreach ($categories as $category) {
+            // 查找provider_code=Official的服务商
+            $provider = $this->serviceProviderRepository->getByCodeAndCategory(
+                ProviderCode::Official,
+                $category
+            );
+
+            if ($provider === null) {
+                $this->logger->warning('未找到Official服务商', ['category' => $category->value]);
+                continue;
+            }
+
+            // 创建数据隔离对象
+            $dataIsolation = ProviderDataIsolation::create($officialOrganization);
+
+            // 判断该服务商是否已有配置
+            $existingConfig = $this->providerConfigRepository->findFirstByServiceProviderId(
+                $dataIsolation,
+                $provider->getId()
+            );
+
+            if ($existingConfig !== null) {
+                $this->logger->info('服务商配置已存在，跳过', [
+                    'category' => $category->value,
+                    'provider_id' => $provider->getId(),
+                ]);
+                continue;
+            }
+
+            // 创建配置实体
+            $configEntity = new ProviderConfigEntity();
+            $configEntity->setServiceProviderId($provider->getId());
+            $configEntity->setOrganizationCode($officialOrganization);
+            $configEntity->setStatus(Status::Disabled);
+            $configEntity->setConfig(null);
+
+            // 保存配置
+            $this->providerConfigRepository->save($dataIsolation, $configEntity);
+            ++$count;
+
+            $this->logger->info('创建服务商配置成功', [
+                'category' => $category->value,
+                'provider_id' => $provider->getId(),
+            ]);
+        }
+
+        return $count;
     }
 
     /**

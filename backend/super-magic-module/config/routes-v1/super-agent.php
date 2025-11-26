@@ -8,6 +8,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\Middleware\RequestContextMiddlewareV2;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AccountApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileEditingApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\FileKeyCleanupApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\MessageApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\ProjectInvitationLinkApi;
@@ -219,6 +220,8 @@ Router::addGroup(
             Router::post('/{id}/rename', [FileApi::class, 'renameFile']);
             // 移动文件
             Router::post('/{id}/move', [FileApi::class, 'moveFile']);
+            // 复制文件
+            Router::post('/{id}/copy', [FileApi::class, 'copyFile']);
             // 获取文件版本列表
             Router::get('/{id}/versions', [FileApi::class, 'getFileVersions']);
             // 文件回滚到指定版本
@@ -227,6 +230,8 @@ Router::addGroup(
             Router::post('/{id}/replace', [FileApi::class, 'replaceFile']);
             // 批量移动文件
             Router::post('/batch-move', [FileApi::class, 'batchMoveFile']);
+            // 批量复制文件
+            Router::post('/batch-copy', [FileApi::class, 'batchCopyFile']);
             // 批量删除文件
             Router::post('/batch-delete', [FileApi::class, 'batchDeleteFiles']);
 
@@ -260,6 +265,16 @@ Router::addGroup(
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
             // 升级沙箱镜像
             Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
+        });
+
+        // 文件键清理管理
+        Router::addGroup('/file-keys/cleanup', static function () {
+            // 获取清理统计信息
+            Router::get('/statistics', [FileKeyCleanupApi::class, 'getStatistics']);
+            // 执行清理
+            Router::post('', [FileKeyCleanupApi::class, 'cleanup']);
+            // 预览清理（dry-run模式）
+            Router::post('/preview', [FileKeyCleanupApi::class, 'preview']);
         });
 
         // 邀请链接访问（需要认证，面向外部用户）
@@ -324,3 +339,15 @@ Router::addGroup('/api/v1/super-agent', static function () {
         // Router::post('/batch-urls', [FileApi::class, 'getFileUrls']);
     });
 });
+
+// V2 API Routes
+Router::addGroup(
+    '/api/v2/super-agent',
+    static function () {
+        // 获取项目的附件列表 V2 (不返回树状结构)
+        Router::addGroup('/projects', static function () {
+            Router::post('/{id}/attachments', [ProjectApi::class, 'getProjectAttachmentsV2']);
+        });
+    },
+    ['middleware' => [RequestContextMiddlewareV2::class]]
+);
