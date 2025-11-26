@@ -545,6 +545,8 @@ class LLMAppService extends AbstractLLMAppService
 
             $businessParams['response_time'] = $responseTime;
             $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
+            $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
+            $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
             $webSearchUsageEvent = new WebSearchUsageEvent(
                 $adapter->getEngineName(),
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
