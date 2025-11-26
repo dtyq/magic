@@ -15,7 +15,6 @@ use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\AiAbilityModel;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
-use Hyperf\Codec\Json;
 
 /**
  * AI 能力仓储实现.

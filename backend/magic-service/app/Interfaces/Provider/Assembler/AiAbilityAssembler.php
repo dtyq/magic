@@ -39,12 +39,18 @@ class AiAbilityAssembler
      */
     public static function entityToDetailDTO(AiAbilityEntity $entity, string $locale = 'zh_CN'): AiAbilityDetailDTO
     {
+        // 获取原始配置
         $config = $entity->getConfig();
 
-        // 脱敏 api_key：只显示前4位和后4位
-        if (isset($config['api_key']) && ! empty($config['api_key'])) {
-            $config['api_key'] = self::maskApiKey($config['api_key']);
+        // 转换为数组（如果是值对象）
+        if (is_object($config) && method_exists($config, 'toArray')) {
+            $config = $config->toArray();
+        } elseif (! is_array($config)) {
+            $config = [];
         }
+
+        // 递归脱敏所有 api_key 字段（支持任意嵌套结构）
+        $maskedConfig = self::maskConfigRecursively($config);
 
         return new AiAbilityDetailDTO(
             id: $entity->getId() ?? 0,
@@ -54,7 +60,7 @@ class AiAbilityAssembler
             icon: $entity->getIcon(),
             sortOrder: $entity->getSortOrder(),
             status: $entity->getStatus()->value,
-            config: $config,
+            config: $maskedConfig,
         );
     }
 
@@ -88,27 +94,6 @@ class AiAbilityAssembler
     }
 
     /**
-     * 脱敏 API Key.
-     * 只显示前4位和后4位，中间用 * 代替
-     */
-    private static function maskApiKey(string $apiKey): string
-    {
-        $length = mb_strlen($apiKey);
-
-        // 如果 key 太短，全部脱敏
-        if ($length <= 8) {
-            return str_repeat('*', $length);
-        }
-
-        // 显示前4位和后4位
-        $prefix = mb_substr($apiKey, 0, 4);
-        $suffix = mb_substr($apiKey, -4);
-        $maskLength = $length - 8;
-
-        return $prefix . str_repeat('*', $maskLength) . $suffix;
-    }
-
-    /**
      * 对配置数据进行解密.
      *
      * @param string $config 加密的配置字符串
@@ -135,6 +120,60 @@ class AiAbilityAssembler
     {
         $jsonEncoded = Json::encode($config);
         return AesUtil::encode(self::_getAesKey($salt), $jsonEncoded);
+    }
+
+    /**
+     * 递归脱敏配置中的所有 api_key 字段.
+     *
+     * @param array $config 配置数组
+     * @return array 脱敏后的配置数组
+     */
+    private static function maskConfigRecursively(array $config): array
+    {
+        $result = [];
+
+        foreach ($config as $key => $value) {
+            // 如果是 api_key 字段，进行脱敏（前4后4）
+            if ($key === 'api_key' && is_string($value) && ! empty($value)) {
+                $result[$key] = self::maskApiKey($value);
+            }
+            // 如果是数组，递归处理
+            elseif (is_array($value)) {
+                $result[$key] = self::maskConfigRecursively($value);
+            }
+            // 其他值直接赋值
+            else {
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * 脱敏 API Key.
+     *
+     * @param string $apiKey 原始 API Key
+     * @param int $prefixLength 保留前几位（默认3）
+     * @param int $suffixLength 保留后几位（默认3）
+     * @return string 脱敏后的 API Key
+     */
+    private static function maskApiKey(string $apiKey, int $prefixLength = 4, int $suffixLength = 4): string
+    {
+        $length = mb_strlen($apiKey);
+        $minLength = $prefixLength + $suffixLength;
+
+        // 如果 key 太短，全部脱敏
+        if ($length <= $minLength) {
+            return str_repeat('*', $length);
+        }
+
+        // 显示前N位和后N位
+        $prefix = mb_substr($apiKey, 0, $prefixLength);
+        $suffix = mb_substr($apiKey, -$suffixLength);
+        $maskLength = $length - $minLength;
+
+        return $prefix . str_repeat('*', $maskLength) . $suffix;
     }
 
     /**
