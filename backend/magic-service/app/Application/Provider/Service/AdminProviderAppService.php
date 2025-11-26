@@ -95,7 +95,8 @@ readonly class AdminProviderAppService
         // 触发服务商配置更新事件
         $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
             $providerConfigEntity,
-            $authorization->getOrganizationCode()
+            $authorization->getOrganizationCode(),
+            $dataIsolation->getLanguage()
         ));
 
         return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
@@ -116,7 +117,8 @@ readonly class AdminProviderAppService
         // 触发服务商配置创建事件
         $this->eventDispatcher->dispatch(new ProviderConfigCreatedEvent(
             $providerConfigEntity,
-            $authorization->getOrganizationCode()
+            $authorization->getOrganizationCode(),
+            $dataIsolation->getLanguage()
         ));
 
         $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());

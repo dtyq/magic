@@ -51,6 +51,7 @@ class ProviderModelSyncAppService
      */
     public function syncModelsFromExternalApi(
         ProviderConfigEntity $providerConfigEntity,
+        string $language,
         string $organizationCode
     ): void {
         // 1. 检查是否为Official服务商
@@ -96,7 +97,7 @@ class ProviderModelSyncAppService
             $types = $this->getModelTypesByCategory($provider->getCategory());
 
             // 5. 从外部API拉取模型
-            $models = $this->fetchModelsFromApi($url, $apiKey, $types);
+            $models = $this->fetchModelsFromApi($url, $apiKey, $types, $language);
 
             if (empty($models)) {
                 $this->logger->warning('未从外部API获取到模型', [
@@ -107,7 +108,7 @@ class ProviderModelSyncAppService
             }
 
             // 6. 同步模型到数据库
-            $this->syncModelsToDatabase($dataIsolation, $providerConfigEntity, $models);
+            $this->syncModelsToDatabase($dataIsolation, $providerConfigEntity, $models, $language);
 
             $this->logger->info('从外部API同步模型完成', [
                 'config_id' => $providerConfigEntity->getId(),
@@ -139,7 +140,7 @@ class ProviderModelSyncAppService
     /**
      * 从外部API拉取模型.
      */
-    private function fetchModelsFromApi(string $url, string $apiKey, array $types): array
+    private function fetchModelsFromApi(string $url, string $apiKey, array $types, string $language): array
     {
         // 获取API地址
         $apiUrl = $this->buildModelsApiUrl($url);
@@ -149,8 +150,8 @@ class ProviderModelSyncAppService
         // 为每个type调用API
         foreach ($types as $type) {
             try {
-                $models = retry(3, function () use ($apiUrl, $apiKey, $type) {
-                    return $this->callModelsApi($apiUrl, $apiKey, $type);
+                $models = retry(3, function () use ($apiUrl, $apiKey, $type, $language) {
+                    return $this->callModelsApi($apiUrl, $apiKey, $type, $language);
                 }, 500);
                 $allModels = array_merge($allModels, $models);
             } catch (Throwable $e) {
@@ -168,7 +169,7 @@ class ProviderModelSyncAppService
     /**
      * 调用外部API获取模型列表.
      */
-    private function callModelsApi(string $apiUrl, string $apiKey, string $type): array
+    private function callModelsApi(string $apiUrl, string $apiKey, string $type, string $language): array
     {
         $client = $this->clientFactory->create([
             'timeout' => 30,
@@ -179,6 +180,7 @@ class ProviderModelSyncAppService
             'headers' => [
                 'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type' => 'application/json',
+                'language' => $language ?: 'zh_CN',
             ],
             'query' => [
                 'with_info' => 1,
@@ -213,7 +215,8 @@ class ProviderModelSyncAppService
     private function syncModelsToDatabase(
         ProviderDataIsolation $dataIsolation,
         ProviderConfigEntity $providerConfigEntity,
-        array $models
+        array $models,
+        string $language
     ): void {
         $configId = $providerConfigEntity->getId();
 
@@ -239,10 +242,10 @@ class ProviderModelSyncAppService
             try {
                 if (isset($existingModelMap[$modelId])) {
                     // 更新现有模型
-                    $this->updateModel($dataIsolation, $existingModelMap[$modelId], $modelData, $providerConfigEntity);
+                    $this->updateModel($dataIsolation, $existingModelMap[$modelId], $modelData, $providerConfigEntity, $language);
                 } else {
                     // 创建新模型
-                    $this->createModel($dataIsolation, $modelData, $providerConfigEntity);
+                    $this->createModel($dataIsolation, $modelData, $providerConfigEntity, $language);
                 }
             } catch (Throwable $e) {
                 $this->logger->error('同步模型失败', [
@@ -278,9 +281,10 @@ class ProviderModelSyncAppService
     private function createModel(
         ProviderDataIsolation $dataIsolation,
         array $modelData,
-        ProviderConfigEntity $providerConfigEntity
+        ProviderConfigEntity $providerConfigEntity,
+        string $language
     ): void {
-        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity);
+        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity, $language);
 
         // 保存模型
         $this->providerModelDomainService->saveModel($dataIsolation, $saveDTO);
@@ -298,9 +302,10 @@ class ProviderModelSyncAppService
         ProviderDataIsolation $dataIsolation,
         ProviderModelEntity $existingModel,
         array $modelData,
-        ProviderConfigEntity $providerConfigEntity
+        ProviderConfigEntity $providerConfigEntity,
+        string $language
     ): void {
-        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity);
+        $saveDTO = $this->modelToReqDTO($dataIsolation, $modelData, $providerConfigEntity, $language);
 
         $saveDTO->setId($existingModel->getId());
         $saveDTO->setStatus($existingModel->getStatus()); // 保持原有状态
@@ -318,6 +323,7 @@ class ProviderModelSyncAppService
         ProviderDataIsolation $dataIsolation,
         array $modelData,
         ProviderConfigEntity $providerConfigEntity,
+        string $language
     ): SaveProviderModelDTO {
         // 如果是一个链接，那么需要对 url 进行限制
         $iconUrl = $modelData['info']['attributes']['icon'] ?? '';
@@ -338,10 +344,18 @@ class ProviderModelSyncAppService
         $saveDTO->setServiceProviderConfigId($providerConfigEntity->getId());
         $saveDTO->setModelId($modelData['id']);
         $saveDTO->setModelVersion($modelData['id']);
-        $saveDTO->setName($modelData['id']);
+        $saveDTO->setName($modelData['info']['attributes']['label'] ?? $modelData['id']);
         $saveDTO->setDescription($modelData['info']['attributes']['description'] ?? '');
         $saveDTO->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $saveDTO->setModelType($modelData['info']['attributes']['model_type']);
+        $saveDTO->setTranslate([
+            'description' => [
+                $language => $saveDTO->getDescription(),
+            ],
+            'name' => [
+                $language => $saveDTO->getName(),
+            ],
+        ]);
         $saveDTO->setConfig([
             'creativity' => $modelData['info']['options']['default_temperature'] ?? 0.5,
             'support_function' => $modelData['info']['options']['function_call'] ?? false,

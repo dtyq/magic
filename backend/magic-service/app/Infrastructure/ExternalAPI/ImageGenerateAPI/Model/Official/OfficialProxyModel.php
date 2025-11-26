@@ -34,7 +34,7 @@ class OfficialProxyModel extends AbstractImageGenerate
 
     public function __construct(array $config)
     {
-        $this->url = $config['url'] ?? '';
+        $this->url = rtrim($config['url'] ?? '', '/');
         $this->apiKey = $config['api_key'] ?? '';
 
         $this->httpClient = new Client([
@@ -45,6 +45,7 @@ class OfficialProxyModel extends AbstractImageGenerate
     public function generateImageOpenAIFormat(ImageGenerateRequest $imageGenerateRequest): OpenAIFormatResponse
     {
         $uri = MagicUriTool::getImagesGenerationsUri();
+
         $fullUrl = $this->url . $uri;
         try {
             /** @var OfficialProxyRequest $imageGenerateRequest */

@@ -16,7 +16,8 @@ class ProviderConfigCreatedEvent
 {
     public function __construct(
         public readonly ProviderConfigEntity $providerConfigEntity,
-        public readonly string $organizationCode
+        public readonly string $organizationCode,
+        public readonly string $language,
     ) {
     }
 }
