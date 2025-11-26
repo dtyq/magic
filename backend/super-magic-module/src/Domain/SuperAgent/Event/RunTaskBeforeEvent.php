@@ -19,6 +19,8 @@ class RunTaskBeforeEvent extends AbstractEvent
         private string $language,
         private string $modelId = '',
         private string $taskId = '',
+        private string $prompt = '',
+        private string $mentions = '',
     ) {
         // Call parent constructor to generate snowflake ID
         parent::__construct();
@@ -74,6 +76,16 @@ class RunTaskBeforeEvent extends AbstractEvent
         return $this->taskId;
     }
 
+    public function getPrompt(): string
+    {
+        return $this->prompt;
+    }
+
+    public function getMentions(): string
+    {
+        return $this->mentions;
+    }
+
     /**
      * Convert the event object to array format.
      */
@@ -89,6 +101,8 @@ class RunTaskBeforeEvent extends AbstractEvent
             'language' => $this->language,
             'modelId' => $this->modelId,
             'taskId' => $this->taskId,
+            'prompt' => $this->prompt,
+            'mentions' => $this->mentions,
         ];
     }
 }
