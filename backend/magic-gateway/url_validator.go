@@ -128,8 +128,134 @@ func loadAllowedTargetURLs() {
 	}
 }
 
+// loadAllowedPrivateIPs 从环境变量加载并解析允许的内网IP列表
+// 支持多节点部署场景，支持多种分隔符和格式
+func loadAllowedPrivateIPs() {
+	// 首先尝试从envVars获取（用于测试），然后从系统环境变量获取
+	allowedIPsEnv := ""
+	if val, exists := envVars["MAGIC_GATEWAY_ALLOWED_TARGET_IP"]; exists {
+		allowedIPsEnv = val
+	} else {
+		allowedIPsEnv = getEnvWithDefault("MAGIC_GATEWAY_ALLOWED_TARGET_IP", "")
+	}
+
+	if allowedIPsEnv == "" {
+		allowedPrivateIPs = []*net.IPNet{}
+		if debugMode {
+			logger.Println("未设置 MAGIC_GATEWAY_ALLOWED_TARGET_IP 环境变量，所有内网IP将被禁止")
+		}
+		return
+	}
+
+	// 支持多种分隔符：逗号、分号、换行符、空格
+	// 格式: IP1,IP2/CIDR,IP3;IP4 IP5\nIP6
+	// 示例: 192.168.1.1,10.0.0.0/8,172.16.0.0/12;192.168.2.0/24
+	// 多节点部署示例: 10.0.1.0/24,10.0.2.0/24,10.0.3.0/24
+	allowedPrivateIPs = make([]*net.IPNet, 0)
+	ipSet := make(map[string]bool) // 用于去重
+	successCount := 0
+	failCount := 0
+
+	// 替换所有分隔符为逗号，然后统一处理
+	normalized := strings.ReplaceAll(allowedIPsEnv, ";", ",")
+	normalized = strings.ReplaceAll(normalized, "\n", ",")
+	normalized = strings.ReplaceAll(normalized, "\r", ",")
+	normalized = strings.ReplaceAll(normalized, " ", ",")
+
+	ipStrings := strings.Split(normalized, ",")
+
+	for i, ipStr := range ipStrings {
+		ipStr = strings.TrimSpace(ipStr)
+		if ipStr == "" {
+			continue
+		}
+
+		// 尝试解析为CIDR格式
+		var ipnet *net.IPNet
+		var err error
+		var cidrStr string
+
+		// 如果包含斜杠，尝试解析为CIDR
+		if strings.Contains(ipStr, "/") {
+			_, ipnet, err = net.ParseCIDR(ipStr)
+			if err != nil {
+				logger.Printf("警告: 允许的内网IP格式错误 (规则 %d): %s, 错误: %v", i+1, ipStr, err)
+				failCount++
+				continue
+			}
+			cidrStr = ipnet.String()
+		} else {
+			// 单个IP地址，转换为/32 (IPv4) 或 /128 (IPv6)
+			ip := net.ParseIP(ipStr)
+			if ip == nil {
+				logger.Printf("警告: 允许的内网IP格式错误 (规则 %d): %s (无效的IP地址)", i+1, ipStr)
+				failCount++
+				continue
+			}
+			// 创建单个IP的CIDR
+			if ip.To4() != nil {
+				// IPv4: /32
+				_, ipnet, err = net.ParseCIDR(ipStr + "/32")
+			} else {
+				// IPv6: /128
+				_, ipnet, err = net.ParseCIDR(ipStr + "/128")
+			}
+			if err != nil {
+				logger.Printf("警告: 允许的内网IP解析失败 (规则 %d): %s, 错误: %v", i+1, ipStr, err)
+				failCount++
+				continue
+			}
+			cidrStr = ipnet.String()
+		}
+
+		// 去重：如果已经存在相同的CIDR，跳过
+		if ipSet[cidrStr] {
+			if debugMode {
+				logger.Printf("跳过重复的允许内网IP规则: %s", cidrStr)
+			}
+			continue
+		}
+
+		ipSet[cidrStr] = true
+		allowedPrivateIPs = append(allowedPrivateIPs, ipnet)
+		successCount++
+	}
+
+	// 统计IPv4和IPv6数量
+	ipv4Count := 0
+	ipv6Count := 0
+	for _, ipnet := range allowedPrivateIPs {
+		if ipnet.IP.To4() != nil {
+			ipv4Count++
+		} else {
+			ipv6Count++
+		}
+	}
+
+	logger.Printf("已加载 %d 个允许的内网IP规则 (成功: %d, 失败: %d, IPv4: %d, IPv6: %d)",
+		len(allowedPrivateIPs), successCount, failCount, ipv4Count, ipv6Count)
+
+	if debugMode {
+		for i, ipnet := range allowedPrivateIPs {
+			ipType := "IPv4"
+			if ipnet.IP.To4() == nil {
+				ipType = "IPv6"
+			}
+			logger.Printf("  允许的内网IP %d [%s]: %s", i+1, ipType, ipnet.String())
+		}
+	}
+}
+
 // isPrivateIP 检查IP地址是否为私有/内网地址
 func isPrivateIP(ip net.IP) bool {
+	// 首先检查是否在允许的内网IP列表中
+	// 如果在允许列表中，则返回false（允许通过）
+	for _, allowedIPNet := range allowedPrivateIPs {
+		if allowedIPNet != nil && allowedIPNet.Contains(ip) {
+			return false
+		}
+	}
+
 	// 检查是否为环回地址
 	if ip.IsLoopback() {
 		return true

@@ -114,6 +114,76 @@ chmod +x deploy.sh
 
 在 `.env` 文件中配置以下环境变量：
 
+#### 目标URL白名单配置
+
+`MAGIC_GATEWAY_ALLOWED_TARGET_URLS` 用于配置允许访问的目标URL白名单规则。
+
+**格式说明：**
+- 使用 `|` 分隔多个规则
+- 每个规则格式：`type:pattern@description`（`@description` 为可选）
+- 规则类型：
+  - `exact`: 精确URL匹配
+  - `domain`: 域名及所有子域名
+  - `prefix`: URL前缀匹配
+  - `regex`: 正则表达式匹配
+
+**示例：**
+```bash
+# 允许特定域名
+MAGIC_GATEWAY_ALLOWED_TARGET_URLS=domain:example.com@示例服务|domain:openai.com@OpenAI API
+
+# 混合规则
+MAGIC_GATEWAY_ALLOWED_TARGET_URLS=domain:xxxx.cn@内部服务|prefix:https://api.github.com/@GitHub API
+```
+
+**安全特性：**
+- 自动阻止内网IP（127.x, 10.x, 192.168.x等）
+- 仅允许 http/https 协议
+- 阻止常见的管理端口（22, 23, 25, 3306等）
+
+#### 允许的内网IP配置
+
+`MAGIC_GATEWAY_ALLOWED_TARGET_IP` 用于在多节点部署场景下，允许部分内网IP通过验证。
+
+**格式说明：**
+- 支持多种分隔符：逗号（`,`）、分号（`;`）、换行符（`\n`）、空格（` `）
+- 支持单个IP地址和CIDR格式
+- 支持IPv4和IPv6
+
+**使用场景：**
+- 单节点部署：允许特定内网服务
+- 多节点部署：允许集群内各节点的IP段
+
+**示例：**
+
+```bash
+# 单节点部署 - 允许特定IP和网段
+MAGIC_GATEWAY_ALLOWED_TARGET_IP=192.168.1.1,10.0.0.0/8
+
+# 多节点部署 - 逗号分隔（推荐）
+MAGIC_GATEWAY_ALLOWED_TARGET_IP=10.0.1.0/24,10.0.2.0/24,10.0.3.0/24,192.168.1.0/24
+
+# 多节点部署 - 换行符分隔（适合配置文件）
+MAGIC_GATEWAY_ALLOWED_TARGET_IP="10.0.1.0/24
+10.0.2.0/24
+10.0.3.0/24
+192.168.1.0/24"
+
+# 混合格式
+MAGIC_GATEWAY_ALLOWED_TARGET_IP=192.168.1.1,10.0.0.0/8;172.16.0.0/12 192.168.2.0/24
+
+# 支持IPv6
+MAGIC_GATEWAY_ALLOWED_TARGET_IP=10.0.0.0/8,2001:db8::/32,::1
+```
+
+**注意事项：**
+- 如果不配置此变量，所有内网IP将被禁止访问
+- 配置的IP会在私有IP检查之前进行白名单验证
+- 系统会自动去重，避免重复的IP/CIDR规则
+- 在调试模式下会显示详细的加载日志和统计信息
+
+### 其他环境变量
+
 ```
 # 通用配置
 JWT_SECRET=your-secret-key-change-me
@@ -496,4 +566,3 @@ API网关提供了强大的环境变量替换功能，可以在不同位置替�
 3. **URL路径替换** - 使用环境变量作为URL路径前缀：`/OPENAI_API_BASE_URL/v1/chat/completions`
 
 这使得容器可以安全地使用环境变量，而无需知道实际值。API网关会自动检测和替换请求中的环境变量引用，所有替换都在代理端完成，确保敏感信息不会暴露给容器。
-

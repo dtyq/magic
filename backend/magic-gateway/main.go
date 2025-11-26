@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,6 +53,9 @@ var (
 
 	// URL白名单规则
 	allowedTargetRules []*TargetURLRule
+
+	// 允许的内网IP列表（CIDR格式或单个IP）
+	allowedPrivateIPs []*net.IPNet
 
 	// 特殊API配置：需要在请求体中替换API密钥的服务
 	specialApiKeys map[string]string
@@ -218,6 +222,9 @@ func init() {
 
 	// 加载URL白名单
 	loadAllowedTargetURLs()
+
+	// 加载允许的内网IP列表
+	loadAllowedPrivateIPs()
 
 	// 加载特殊API配置
 	loadSpecialApiKeys()
