@@ -20,4 +20,13 @@ enum SearchEngineType: string
 
     // duckduckgo
     case DuckDuckGo = 'duckduckgo';
+
+    // cloudsway
+    case Cloudsway = 'cloudsway';
+
+    // magic
+    case Magic = 'magic';
+
+    // jina
+    case Jina = 'jina';
 }

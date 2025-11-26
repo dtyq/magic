@@ -15,9 +15,10 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
-use function Hyperf\Config\config;
-
-class BingSearch
+/**
+ * Magic search engine - calls internal /v2/search API.
+ */
+class MagicSearch
 {
     private const int DEFAULT_SEARCH_ENGINE_TIMEOUT = 30;
 
@@ -29,52 +30,45 @@ class BingSearch
     }
 
     /**
-     * Execute Bing search with comprehensive parameters.
+     * Execute Magic search by calling internal unified search API.
      *
      * @param string $query Search query
-     * @param string $subscriptionKey Bing API subscription key
+     * @param string $baseUrl Magic service base URL (from config)
+     * @param string $apiKey API key for authorization (from config)
      * @param string $mkt Market code (e.g., zh-CN, en-US)
      * @param int $count Number of results (1-50)
      * @param int $offset Pagination offset (0-1000)
      * @param string $safeSearch Safe search level (Strict, Moderate, Off)
      * @param string $freshness Time filter (Day, Week, Month)
      * @param string $setLang UI language code
-     * @return array Native Bing API response
+     * @return array Unified search response
      * @throws GuzzleException
      */
     public function search(
         string $query,
-        string $subscriptionKey,
+        string $baseUrl,
+        string $apiKey,
         string $mkt,
         int $count = 20,
         int $offset = 0,
         string $safeSearch = '',
         string $freshness = '',
-        string $setLang = '',
-        string $requestUrl = ''
+        string $setLang = ''
     ): array {
-        /*
-         * 使用 bing 搜索并返回上下文。
-         */
-        if (empty($requestUrl)) {
-            $requestUrl = trim(config('search.drivers.bing.endpoint'));
-        }
-        // 确保 endpoint 以 /search 结尾
-        if (! str_ends_with($requestUrl, '/search')) {
-            $requestUrl = rtrim($requestUrl, '/') . '/search';
-        }
+        // Remove trailing slash from base URL
+        $baseUrl = rtrim($baseUrl, '/');
 
-        // 构建基础查询参数
+        // Build query parameters
         $queryParams = [
-            'q' => $query,
+            'query' => $query,
             'mkt' => $mkt,
             'count' => $count,
             'offset' => $offset,
         ];
 
-        // 添加可选参数
+        // Add optional parameters
         if (! empty($safeSearch)) {
-            $queryParams['safeSearch'] = $safeSearch;
+            $queryParams['safe_search'] = $safeSearch;
         }
 
         if (! empty($freshness)) {
@@ -82,49 +76,49 @@ class BingSearch
         }
 
         if (! empty($setLang)) {
-            $queryParams['setLang'] = $setLang;
+            $queryParams['set_lang'] = $setLang;
         }
 
-        // 创建 Guzzle 客户端
+        // Create Guzzle client
         $client = new Client([
-            'base_uri' => $requestUrl,
+            'base_uri' => $baseUrl,
             'timeout' => self::DEFAULT_SEARCH_ENGINE_TIMEOUT,
             'headers' => [
-                'Ocp-Apim-Subscription-Key' => $subscriptionKey,
-                'Accept-Language' => $mkt,
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Accept' => 'application/json',
             ],
         ]);
 
         try {
-            // 发送 GET 请求
-            $response = $client->request('GET', '', [
+            // Call internal /v2/search endpoint
+            $response = $client->request('GET', '/v2/search', [
                 'query' => $queryParams,
             ]);
 
-            // 获取响应体内容
+            // Get response body
             $body = $response->getBody()->getContents();
 
-            // 如果需要将 JSON 转换为数组或对象，可以使用 json_decode
+            // Decode JSON response
             $data = Json::decode($body);
         } catch (RequestException $e) {
-            // 如果有响应，可以获取响应状态码和内容
+            // Handle HTTP errors
             if ($e->hasResponse()) {
                 $statusCode = $e->getResponse()?->getStatusCode();
                 $reason = $e->getResponse()?->getReasonPhrase();
                 $responseBody = $e->getResponse()?->getBody()->getContents();
-                $this->logger->error(sprintf('HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
-                    'endpoint' => $requestUrl,
-                    'statusCode' => $statusCode,
+                $this->logger->error(sprintf('Magic Search HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
+                    'base_url' => $baseUrl,
+                    'status_code' => $statusCode,
                 ]);
             } else {
-                // 如果没有响应，如网络错误
+                // Network error
                 $this->logger->error($e->getMessage(), [
-                    'endpoint' => $requestUrl,
+                    'base_url' => $baseUrl,
                     'exception' => get_class($e),
                 ]);
             }
 
-            throw new RuntimeException('Search engine error.');
+            throw new RuntimeException('Magic search engine error: ' . $e->getMessage());
         }
 
         return $data;

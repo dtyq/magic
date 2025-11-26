@@ -14,7 +14,7 @@ use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\AiAbilityModel;
 use App\Infrastructure\Core\ValueObject\Page;
-use Hyperf\Codec\Json;
+use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 
 /**
  * AI 能力仓储实现.
@@ -82,12 +82,16 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig();
+        $model->config = '';
 
         $result = $model->save();
 
         if ($result) {
             $entity->setId($model->id);
+            // 使用ID加密config并更新
+            $encryptedConfig = AiAbilityAssembler::encodeConfig($entity->getConfig(), (string) $model->id);
+            $model->config = $encryptedConfig;
+            $model->save();
         }
 
         return $result;
@@ -111,7 +115,9 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig();
+
+        // 加密config后再保存
+        $model->config = AiAbilityAssembler::encodeConfig($entity->getConfig(), (string) $model->id);
 
         return $model->save();
     }
@@ -125,8 +131,17 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
             return false;
         }
 
+        // 如果需要更新config，先获取记录ID进行加密
         if (! empty($data['config'])) {
-            $data['config'] = Json::encode($data['config']);
+            $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+            $model = $builder->where('code', $code->value)->first();
+
+            if ($model === null) {
+                return false;
+            }
+
+            // 加密config
+            $data['config'] = AiAbilityAssembler::encodeConfig($data['config'], (string) $model->id);
         }
 
         $data['updated_at'] = date('Y-m-d H:i:s');
@@ -171,7 +186,25 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $entity->setIcon($model->icon);
         $entity->setSortOrder($model->sort_order);
         $entity->setStatus($model->status);
-        $entity->setConfig($model->config ?? []);
+
+        // 解析config（兼容旧的JSON格式和新的加密格式）
+        $config = $model->config ?? '';
+        if (empty($config)) {
+            $config = [];
+        } elseif (is_string($config)) {
+            // 尝试作为JSON解析
+            $jsonDecoded = json_decode($config, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($jsonDecoded)) {
+                // JSON解析成功，说明是旧数据（未加密）
+                $config = $jsonDecoded;
+            } else {
+                // JSON解析失败，说明是加密数据，进行解密
+                $config = AiAbilityAssembler::decodeConfig($config, (string) $model->id);
+            }
+        } else {
+            $config = [];
+        }
+        $entity->setConfig($config);
 
         return $entity;
     }

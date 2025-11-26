@@ -20,7 +20,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $icon
  * @property int $sort_order
  * @property int $status
- * @property array $config
+ * @property string $config
  * @property DateTime $created_at
  * @property DateTime $updated_at
  */
@@ -53,7 +53,7 @@ class AiAbilityModel extends AbstractModel
         'icon' => 'string',
         'sort_order' => 'integer',
         'status' => 'integer',
-        'config' => 'json',
+        'config' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

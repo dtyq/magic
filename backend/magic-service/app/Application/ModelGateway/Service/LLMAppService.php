@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Event\ModelUsageEvent;
+use App\Application\ModelGateway\Event\WebSearchUsageEvent;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
@@ -20,14 +21,18 @@ use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
+use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
+use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -50,6 +55,8 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRe
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Search\BingSearch;
+use App\Infrastructure\ExternalAPI\Search\DTO\SearchResponseDTO;
+use App\Infrastructure\ExternalAPI\Search\Factory\SearchEngineAdapterFactory;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
@@ -186,8 +193,22 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
         }
 
+        // 只有model_id参数，则获取model_version
+        if (empty($modelVersion) && $modelId) {
+            $providerDataIsolation = new ProviderDataIsolation($authorization->getOrganizationCode(), $authorization->getId(), $authorization->getMagicId());
+            $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($providerDataIsolation, $modelId);
+            if (! $imageModel) {
+                ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+            }
+            $modelVersion = $imageModel->getModelVersion();
+        }
+
         if (! isset($data['model'])) {
             $data['model'] = $modelVersion;
+        }
+
+        if (empty($data['reference_images'])) {
+            $data['reference_images'] = [];
         }
 
         if (! is_array($data['reference_images'])) {
@@ -368,7 +389,7 @@ class LLMAppService extends AbstractLLMAppService
             $startTime = microtime(true);
 
             // 5. Get Bing API key from config
-            $subscriptionKey = config('search.bing.api_key');
+            $subscriptionKey = config('search.drivers.bing.api_key');
             if (empty($subscriptionKey)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Bing Search API key is not configured');
             }
@@ -417,6 +438,153 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Bing search failed: ' . $e->getMessage(),
+                throwable: $e
+            );
+        }
+    }
+
+    /**
+     * Unified search proxy - supports multiple search engines with unified response format.
+     *
+     * @param SearchRequestDTO $searchRequestDTO Search request DTO with unified parameters
+     * @return SearchResponseDTO Unified Bing-compatible format response
+     */
+    public function unifiedSearch(SearchRequestDTO $searchRequestDTO): SearchResponseDTO
+    {
+        // Validate search parameters
+        $searchRequestDTO->validate();
+        $businessParams = $searchRequestDTO->getBusinessParams();
+
+        // Create data isolation object (for logging and permission control)
+        $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
+            $searchRequestDTO->getAccessToken(),
+            $businessParams
+        );
+
+        // Get web_search ability configuration
+        $aiAbilityDomainService = di(AiAbilityDomainService::class);
+
+        $dataIsolation = ProviderDataIsolation::create()->disabled();
+        $aiAbilityEntity = $aiAbilityDomainService->getByCode($dataIsolation, AiAbilityCode::WebSearch);
+
+        // Check if ability is enabled
+        if (! $aiAbilityEntity || $aiAbilityEntity->getStatus() !== Status::Enabled) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Web search ability is disabled'
+            );
+        }
+
+        // 6. Find enabled configuration
+        $configs = $aiAbilityEntity->getConfig()['providers'] ?? [];
+        $enabledConfig = null;
+        foreach ($configs as $cfg) {
+            if (($cfg['enable'] ?? false) === true) {
+                $enabledConfig = $cfg;
+                break;
+            }
+        }
+
+        if ($enabledConfig === null) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'No enabled search engine configuration found'
+            );
+        }
+
+        $provider = $enabledConfig['provider'] ?? null;
+
+        // 7. Log search request
+        $this->logger->info('UnifiedSearchRequest', [
+            'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+            'provider' => $provider,
+            'query' => $searchRequestDTO->getQuery(),
+            'count' => $searchRequestDTO->getCount(),
+            'offset' => $searchRequestDTO->getOffset(),
+            'mkt' => $searchRequestDTO->getMkt(),
+        ]);
+
+        try {
+            $startTime = microtime(true);
+
+            // 8. Create adapter using factory
+            $factory = make(SearchEngineAdapterFactory::class);
+            $adapter = $factory->create($provider, $enabledConfig);
+
+            // 9. Check engine availability
+            if (! $adapter->isAvailable()) {
+                ExceptionBuilder::throw(
+                    MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                    "Search engine '{$adapter->getEngineName()}' is not available (API key not configured or service unavailable)"
+                );
+            }
+
+            // Execute search with unified parameters - adapter returns unified format
+            $unifiedResponse = $adapter->search(
+                $searchRequestDTO->getQuery(),
+                $searchRequestDTO->getMkt(),
+                $searchRequestDTO->getCount(),
+                $searchRequestDTO->getOffset(),
+                $searchRequestDTO->getSafeSearch(),
+                $searchRequestDTO->getFreshness(),
+                $searchRequestDTO->getSetLang()
+            );
+
+            // Calculate response time
+            $responseTime = (int) ((microtime(true) - $startTime) * 1000);
+
+            // Add metadata to response
+            $unifiedResponse->setMetadata([
+                'engine' => $adapter->getEngineName(),
+                'responseTime' => $responseTime,
+                'query' => $searchRequestDTO->getQuery(),
+                'count' => $searchRequestDTO->getCount(),
+                'offset' => $searchRequestDTO->getOffset(),
+            ]);
+
+            $businessParams['response_time'] = $responseTime;
+            $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
+            $webSearchUsageEvent = new WebSearchUsageEvent(
+                $adapter->getEngineName(),
+                $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                $modelGatewayDataIsolation->getCurrentUserId(),
+                $businessParams
+            );
+            AsyncEventUtil::dispatch($webSearchUsageEvent);
+
+            // Log success
+            $webPages = $unifiedResponse->getWebPages();
+            $this->logger->info('UnifiedSearchSuccess', [
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'engine' => $adapter->getEngineName(),
+                'query' => $searchRequestDTO->getQuery(),
+                'result_count' => $webPages ? count($webPages->getValue()) : 0,
+                'total_matches' => $webPages ? $webPages->getTotalEstimatedMatches() : 0,
+                'response_time' => $responseTime,
+            ]);
+
+            // Return unified response (Bing-compatible format)
+            return $unifiedResponse;
+        } catch (BusinessException $e) {
+            // Re-throw business exceptions
+            throw $e;
+        } catch (Throwable $e) {
+            // Log failure
+            $this->logger->error('UnifiedSearchFailed', [
+                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'provider' => $provider ?? 'unknown',
+                'query' => $searchRequestDTO->getQuery(),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                'Unified search failed: ' . $e->getMessage(),
                 throwable: $e
             );
         }
