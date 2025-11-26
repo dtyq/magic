@@ -53,7 +53,7 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
 
         return $response->withStatus($statusCode)
             ->withHeader('Content-Type', 'application/json')
-            ->withBody(new SwooleStream(json_encode($errorResponse)));
+            ->withBody(new SwooleStream(json_encode($errorResponse, JSON_UNESCAPED_UNICODE)));
     }
 
     public function isValid(Throwable $throwable): bool
