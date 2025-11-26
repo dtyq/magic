@@ -187,11 +187,20 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $entity->setSortOrder($model->sort_order);
         $entity->setStatus($model->status);
 
-        // 解密config
+        // 解析config（兼容旧的JSON格式和新的加密格式）
         $config = $model->config ?? '';
-        if (is_string($config) && ! empty($config)) {
-            // 如果config是加密的字符串，进行解密
-            $config = AiAbilityAssembler::decodeConfig($config, (string) $model->id);
+        if (empty($config)) {
+            $config = [];
+        } elseif (is_string($config)) {
+            // 尝试作为JSON解析
+            $jsonDecoded = json_decode($config, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($jsonDecoded)) {
+                // JSON解析成功，说明是旧数据（未加密）
+                $config = $jsonDecoded;
+            } else {
+                // JSON解析失败，说明是加密数据，进行解密
+                $config = AiAbilityAssembler::decodeConfig($config, (string) $model->id);
+            }
         } else {
             $config = [];
         }
