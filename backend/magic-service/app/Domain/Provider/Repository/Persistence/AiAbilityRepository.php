@@ -14,6 +14,7 @@ use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Repository\Facade\AiAbilityRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\AiAbilityModel;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 use Hyperf\Codec\Json;
 
 /**
@@ -82,12 +83,18 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig()->toArray();
 
+        // 保存获取ID
+        $model->config = $entity->getConfig()->toArray();
         $result = $model->save();
 
         if ($result) {
             $entity->setId($model->id);
+            // 使用ID加密config并更新
+            $configArray = $entity->getConfig()->toArray();
+            $encryptedConfig = AiAbilityAssembler::encodeConfig($configArray, (string) $model->id);
+            $model->config = $encryptedConfig;
+            $model->save();
         }
 
         return $result;
@@ -111,7 +118,10 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $model->icon = $entity->getIcon();
         $model->sort_order = $entity->getSortOrder();
         $model->status = $entity->getStatus()->value;
-        $model->config = $entity->getConfig()->toArray();
+
+        // 加密config后再保存
+        $configArray = $entity->getConfig()->toArray();
+        $model->config = AiAbilityAssembler::encodeConfig($configArray, (string) $model->id);
 
         return $model->save();
     }
@@ -125,8 +135,17 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
             return false;
         }
 
+        // 如果需要更新config，先获取记录ID进行加密
         if (! empty($data['config'])) {
-            $data['config'] = Json::encode($data['config']);
+            $builder = $this->createBuilder($dataIsolation, AiAbilityModel::query());
+            $model = $builder->where('code', $code->value)->first();
+
+            if ($model === null) {
+                return false;
+            }
+
+            // 加密config
+            $data['config'] = AiAbilityAssembler::encodeConfig($data['config'], (string) $model->id);
         }
 
         $data['updated_at'] = date('Y-m-d H:i:s');
@@ -171,7 +190,14 @@ class AiAbilityRepository extends AbstractModelRepository implements AiAbilityRe
         $entity->setIcon($model->icon);
         $entity->setSortOrder($model->sort_order);
         $entity->setStatus($model->status);
-        $entity->setConfig($model->config ?? []);
+
+        // 解密config
+        $config = $model->config ?? [];
+        if (is_string($config) && ! empty($config)) {
+            // 如果config是加密的字符串，进行解密
+            $config = AiAbilityAssembler::decodeConfig($config, (string) $model->id);
+        }
+        $entity->setConfig($config);
 
         return $entity;
     }

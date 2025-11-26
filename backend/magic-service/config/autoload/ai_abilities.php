@@ -9,6 +9,7 @@ use function Hyperf\Support\env;
 return [
     // AI 能力列表配置
     'abilities' => [
+        'ai_ability_aes_key' => env('AI_ABILITY_CONFIG_AES_KEY', ''),
         // OCR 识别
         'ocr' => [
             'code' => 'ocr',
