@@ -242,6 +242,12 @@ class FileConverterAppService extends AbstractAppService
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
             $this->sandboxGateway->setUserContext($userId, $userAuthorization->getOrganizationCode());
             $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId, $fullWorkdir);
+
+            // 从第一个文件中获取 topic_id
+            $topicId = ! empty($validFiles) && $validFiles[0]->getTopicId() > 0
+                ? (string) $validFiles[0]->getTopicId()
+                : '';
+
             // Create file conversion request
             $fileRequest = new FileConverterRequest(
                 $actualSandboxId,
@@ -251,7 +257,8 @@ class FileConverterAppService extends AbstractAppService
                 $requestDTO->options,
                 $taskKey,
                 $userId,
-                $userAuthorization->getOrganizationCode()
+                $userAuthorization->getOrganizationCode(),
+                $topicId
             );
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();

@@ -35,7 +35,9 @@ class FileConverterRequest implements RequestInterface
 
     private string $organizationCode = '';
 
-    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '', string $userId = '', string $organizationCode = '')
+    private string $topicId = '';
+
+    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '', string $userId = '', string $organizationCode = '', string $topicId = '')
     {
         $this->sandboxId = $sandboxId;
         $this->convertType = $convertType;
@@ -44,6 +46,7 @@ class FileConverterRequest implements RequestInterface
         $this->taskKey = $taskKey;
         $this->userId = $userId;
         $this->organizationCode = $organizationCode;
+        $this->topicId = $topicId;
 
         if (isset($options['is_debug'])) {
             $this->isDebug = (bool) $options['is_debug'];
@@ -105,6 +108,11 @@ class FileConverterRequest implements RequestInterface
         return $this->organizationCode;
     }
 
+    public function getTopicId(): string
+    {
+        return $this->topicId;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -122,6 +130,10 @@ class FileConverterRequest implements RequestInterface
 
         if (! empty($this->organizationCode)) {
             $result['organization_code'] = $this->organizationCode;
+        }
+
+        if (! empty($this->topicId)) {
+            $result['topic_id'] = $this->topicId;
         }
 
         // 只有当 options 不为空时才包含该字段
