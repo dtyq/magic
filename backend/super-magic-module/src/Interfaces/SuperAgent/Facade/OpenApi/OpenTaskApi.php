@@ -73,13 +73,14 @@ class OpenTaskApi extends AbstractApi
         }
 
         // 检查用户是否有权限更新任务状态
-        if ($taskEntity->getUserId() !== $userEntity->getUserId()) {
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if ($taskEntity->getUserId() !== $userAuthorization->getId()) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_authorized');
         }
 
         $dataIsolation = new DataIsolation();
         // 设置用户授权信息
-        $dataIsolation->setCurrentUserId((string) $taskEntity->getUserId());
+        $dataIsolation->setCurrentUserId((string) $userAuthorization->getId());
         $status = TaskStatus::from($status);
 
         $this->topicTaskAppService->updateTaskStatus($dataIsolation, $taskEntity, $status);
@@ -242,6 +243,11 @@ class OpenTaskApi extends AbstractApi
         $task = $this->taskAppService->getTaskById((int) $taskId);
         if (empty($task)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_not_found');
+        }
+
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if ($task->getUserId() !== $userAuthorization->getId()) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_authorized');
         }
 
         return $task->toArray();
