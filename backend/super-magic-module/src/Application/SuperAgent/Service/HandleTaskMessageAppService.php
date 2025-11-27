@@ -75,6 +75,17 @@ class HandleTaskMessageAppService extends AbstractAppService
         $topicId = 0;
         $taskId = '';
         try {
+            // Log UserMessageDTO values to track empty prompt
+            $this->logger->info('[InitSandbox] UserMessageDTO values', [
+                'topic_id' => $userMessageDTO->getTopicId(),
+                'prompt' => $userMessageDTO->getPrompt(),
+                'prompt_length' => strlen($userMessageDTO->getPrompt() ?? ''),
+                'prompt_empty' => empty($userMessageDTO->getPrompt()),
+                'instruction' => $userMessageDTO->getInstruction()?->value ?? 'null',
+                'attachments' => $userMessageDTO->getAttachments(),
+                'mentions' => $userMessageDTO->getMentions(),
+            ]);
+
             // Get topic information
             $topicEntity = $this->topicDomainService->getTopicById($userMessageDTO->getTopicId());
             if (is_null($topicEntity)) {
@@ -111,6 +122,15 @@ class HandleTaskMessageAppService extends AbstractAppService
             ];
 
             $taskEntity = TaskEntity::fromArray($data);
+
+            // Log TaskEntity prompt after creation
+            $this->logger->info('[InitSandbox] TaskEntity prompt after fromArray', [
+                'task_id' => $taskEntity->getId(),
+                'prompt' => $taskEntity->getPrompt(),
+                'prompt_length' => strlen($taskEntity->getPrompt() ?? ''),
+                'prompt_empty' => empty($taskEntity->getPrompt()),
+            ]);
+
             // Initialize task
             $taskEntity = $this->taskDomainService->initTopicTask(
                 dataIsolation: $dataIsolation,
@@ -119,6 +139,14 @@ class HandleTaskMessageAppService extends AbstractAppService
             );
 
             $taskId = (string) $taskEntity->getId();
+
+            // Log TaskEntity prompt after initTopicTask
+            $this->logger->info('[InitSandbox] TaskEntity prompt after initTopicTask', [
+                'task_id' => $taskId,
+                'prompt' => $taskEntity->getPrompt(),
+                'prompt_length' => strlen($taskEntity->getPrompt() ?? ''),
+                'prompt_empty' => empty($taskEntity->getPrompt()),
+            ]);
 
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
@@ -142,6 +170,15 @@ class HandleTaskMessageAppService extends AbstractAppService
                 modelId: $userMessageDTO->getModelId(),
                 isFirstTask: $isFirstTask,
             );
+
+            // Log TaskContext task prompt
+            $this->logger->info('[InitSandbox] TaskContext task prompt', [
+                'task_id' => $taskContext->getTaskId(),
+                'prompt' => $taskContext->getTask()->getPrompt(),
+                'prompt_length' => strlen($taskContext->getTask()->getPrompt() ?? ''),
+                'prompt_empty' => empty($taskContext->getTask()->getPrompt()),
+            ]);
+
             $sandboxID = $this->createAgent($dataIsolation, $taskContext);
             $taskEntity->setSandboxId($sandboxID);
 
@@ -369,6 +406,15 @@ class HandleTaskMessageAppService extends AbstractAppService
 
         // Wait for workspace to be ready
         $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
+
+        // Log prompt before sending chat message
+        $this->logger->info('[CreateAgent] Prompt before sendChatMessage', [
+            'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTaskId(),
+            'prompt' => $taskContext->getTask()->getPrompt(),
+            'prompt_length' => strlen($taskContext->getTask()->getPrompt() ?? ''),
+            'prompt_empty' => empty($taskContext->getTask()->getPrompt()),
+        ]);
 
         // Send message to agent
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);

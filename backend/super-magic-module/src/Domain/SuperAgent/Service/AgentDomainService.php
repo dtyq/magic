@@ -246,9 +246,29 @@ class AgentDomainService
         // Get original prompt
         $userRequest = $taskContext->getTask()->getPrompt();
 
+        // Log userRequest before building final prompt
+        $this->logger->info('[SendChatMessage] Prompt values before building final prompt', [
+            'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'user_request' => $userRequest,
+            'user_request_length' => strlen($userRequest ?? ''),
+            'user_request_empty' => empty($userRequest),
+        ]);
+
         // Get constraint text if needed
         $constraintText = $this->getPromptConstraint($taskContext);
         $prompt = $userRequest . $constraintText;
+
+        // Log final prompt before sending
+        $this->logger->info('[SendChatMessage] Final prompt before sending', [
+            'sandbox_id' => $taskContext->getSandboxId(),
+            'task_id' => $taskContext->getTask()->getId(),
+            'prompt' => $prompt,
+            'prompt_length' => strlen($prompt ?? ''),
+            'prompt_empty' => empty($prompt),
+            'constraint_text' => $constraintText,
+            'constraint_text_length' => strlen($constraintText ?? ''),
+        ]);
 
         // 构建参数
         $chatMessage = ChatMessageRequest::create(
