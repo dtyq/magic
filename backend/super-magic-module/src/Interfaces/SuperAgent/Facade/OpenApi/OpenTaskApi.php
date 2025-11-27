@@ -80,6 +80,11 @@ class OpenTaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'task_not_found');
         }
 
+        // 检查用户是否有权限更新任务状态
+        if ($taskEntity->getUserId() !== $userEntity->getUserId()) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_authorized');
+        }
+
         $dataIsolation = new DataIsolation();
         // 设置用户授权信息
         $dataIsolation->setCurrentUserId((string) $taskEntity->getUserId());
