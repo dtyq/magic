@@ -85,48 +85,78 @@ class BingSearch
             $queryParams['setLang'] = $setLang;
         }
 
-        // 创建 Guzzle 客户端
-        $client = new Client([
+        // 创建 Guzzle 客户端配置
+        $clientConfig = [
             'base_uri' => $requestUrl,
             'timeout' => self::DEFAULT_SEARCH_ENGINE_TIMEOUT,
             'headers' => [
                 'Ocp-Apim-Subscription-Key' => $subscriptionKey,
                 'Accept-Language' => $mkt,
             ],
-        ]);
+        ];
 
-        try {
-            // 发送 GET 请求
-            $response = $client->request('GET', '', [
-                'query' => $queryParams,
-            ]);
+        $attempt = 0;
+        $maxAttempts = 2; // 原始请求 + 1次重试
 
-            // 获取响应体内容
-            $body = $response->getBody()->getContents();
+        while ($attempt < $maxAttempts) {
+            try {
+                // 如果是重试(第二次尝试)，禁用SSL验证
+                if ($attempt === 1) {
+                    $clientConfig['verify'] = false;
+                    $this->logger->warning('Retrying request with SSL verification disabled', [
+                        'endpoint' => $requestUrl,
+                        'attempt' => $attempt + 1,
+                    ]);
+                }
 
-            // 如果需要将 JSON 转换为数组或对象，可以使用 json_decode
-            $data = Json::decode($body);
-        } catch (RequestException $e) {
-            // 如果有响应，可以获取响应状态码和内容
-            if ($e->hasResponse()) {
-                $statusCode = $e->getResponse()?->getStatusCode();
-                $reason = $e->getResponse()?->getReasonPhrase();
-                $responseBody = $e->getResponse()?->getBody()->getContents();
-                $this->logger->error(sprintf('HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
-                    'endpoint' => $requestUrl,
-                    'statusCode' => $statusCode,
+                $client = new Client($clientConfig);
+
+                // 发送 GET 请求
+                $response = $client->request('GET', '', [
+                    'query' => $queryParams,
                 ]);
-            } else {
-                // 如果没有响应，如网络错误
-                $this->logger->error($e->getMessage(), [
+
+                // 获取响应体内容
+                $body = $response->getBody()->getContents();
+
+                // 如果需要将 JSON 转换为数组或对象，可以使用 json_decode
+                // 请求成功，返回数据
+                return Json::decode($body);
+            } catch (RequestException $e) {
+                // 如果有响应，说明是HTTP错误(4xx, 5xx等)，不重试
+                if ($e->hasResponse()) {
+                    $statusCode = $e->getResponse()?->getStatusCode();
+                    $reason = $e->getResponse()?->getReasonPhrase();
+                    $responseBody = $e->getResponse()?->getBody()->getContents();
+                    $this->logger->error(sprintf('Bing search error HTTP %d %s: %s', $statusCode, $reason, $responseBody), [
+                        'endpoint' => $requestUrl,
+                        'statusCode' => $statusCode,
+                    ]);
+                    break; // HTTP错误不重试，直接跳出循环
+                }
+
+                // 如果没有响应，说明是网络错误(SSL/TLS错误、连接超时等)
+                // 且是首次尝试，则进行重试
+                if ($attempt === 0) {
+                    $this->logger->warning('Network error occurred, will retry once', [
+                        'endpoint' => $requestUrl,
+                        'error' => $e->getMessage(),
+                        'exception' => get_class($e),
+                    ]);
+                    $attempt++;
+                    continue;
+                }
+
+                // 重试后仍然失败，记录错误并跳出循环
+                $this->logger->error('Network error after retry: ' . $e->getMessage(), [
                     'endpoint' => $requestUrl,
                     'exception' => get_class($e),
                 ]);
+                break;
             }
-
-            throw new RuntimeException('Search engine error.');
         }
 
-        return $data;
+        // 如果走到这里，说明所有尝试都失败了
+        throw new RuntimeException('Search engine error.');
     }
 }
