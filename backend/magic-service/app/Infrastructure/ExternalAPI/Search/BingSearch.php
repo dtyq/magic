@@ -101,7 +101,7 @@ class BingSearch
         while ($attempt < $maxAttempts) {
             try {
                 // 如果是重试(第二次尝试)，禁用SSL验证
-                if ($attempt === 1) {
+                if ($attempt !== 0) {
                     $clientConfig['verify'] = false;
                     $this->logger->warning('Retrying request with SSL verification disabled', [
                         'endpoint' => $requestUrl,
@@ -134,25 +134,13 @@ class BingSearch
                     ]);
                     break; // HTTP错误不重试，直接跳出循环
                 }
-
-                // 如果没有响应，说明是网络错误(SSL/TLS错误、连接超时等)
-                // 且是首次尝试，则进行重试
-                if ($attempt === 0) {
-                    $this->logger->warning('Network error occurred, will retry once', [
-                        'endpoint' => $requestUrl,
-                        'error' => $e->getMessage(),
-                        'exception' => get_class($e),
-                    ]);
-                    $attempt++;
-                    continue;
-                }
-
-                // 重试后仍然失败，记录错误并跳出循环
-                $this->logger->error('Network error after retry: ' . $e->getMessage(), [
+                $this->logger->warning('Network error occurred', [
                     'endpoint' => $requestUrl,
+                    'error' => $e->getMessage(),
                     'exception' => get_class($e),
                 ]);
-                break;
+
+                ++$attempt;
             }
         }
 
