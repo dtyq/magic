@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi;
 
-use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\Context\RequestCoContext;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -59,13 +58,6 @@ class OpenTaskApi extends AbstractApi
         $taskId = $this->request->input('task_id', '');
         $status = $this->request->input('status', '');
         $id = $this->request->input('id', '');
-        /**
-         * @var null|MagicUserEntity
-         */
-        $userEntity = null;
-
-        $this->handApiKey($requestContext, $userEntity);
-
         // 如果task_id为空，则使用id
         if (empty($taskId)) {
             $taskId = $id;
@@ -122,21 +114,7 @@ class OpenTaskApi extends AbstractApi
         // 从请求中创建DTO并验证参数
         $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
 
-        /**
-         * @var null|MagicUserEntity
-         */
-        $userEntity = null;
-
-        $this->handApiKey($requestContext, $userEntity);
-
-        // $magicUserId = $this->request->header('magic-user-id', '');
-
-        if (empty($userEntity)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_not_found');
-        }
-        $magicUserAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
-
-        // $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
+        $magicUserAuthorization = RequestCoContext::getUserAuthorization();
 
         // 判断话题是否存在，不存在则初始化话题
         $topicId = $requestDTO->getTopicId();
@@ -146,11 +124,10 @@ class OpenTaskApi extends AbstractApi
         $requestDTO->setConversationId((string) $topicId);
 
         $dataIsolation = new DataIsolation();
-        $dataIsolation->setCurrentUserId((string) $userEntity->getUserId());
-        $dataIsolation->setThirdPartyOrganizationCode($userEntity->getOrganizationCode());
-        $dataIsolation->setCurrentOrganizationCode($userEntity->getOrganizationCode());
-        $dataIsolation->setUserType(UserType::Human);
-        //  $dataIsolation = new DataIsolation($userEntity->getId(), $userEntity->getOrganizationCode(), $userEntity->getWorkDir());
+        $dataIsolation->setCurrentUserId((string) $magicUserAuthorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($magicUserAuthorization->getThirdPlatformOrganizationCode());
+        $dataIsolation->setCurrentOrganizationCode($magicUserAuthorization->getOrganizationCode());
+        $dataIsolation->setUserType($magicUserAuthorization->getUserType());
         $sandboxId = $topicDTO->getSandboxId();
         try {
             // 检查容器是否正常
@@ -187,7 +164,7 @@ class OpenTaskApi extends AbstractApi
                 'prompt' => $requestDTO->getPrompt(),
                 'attachments' => null,
                 'mentions' => null,
-                'agent_user_id' => (string) $userEntity->getId(),
+                'agent_user_id' => (string) $magicUserAuthorization->getId(),
                 'agent_mode' => '',
                 'task_mode' => $taskEntity->getTaskMode(),
             ];
@@ -210,13 +187,6 @@ class OpenTaskApi extends AbstractApi
     {
         // 从请求中创建DTO并验证参数
         $requestDTO = CreateScriptTaskRequestDTO::fromRequest($this->request);
-
-        /**
-         * @var null|MagicUserEntity
-         */
-        $userEntity = null;
-
-        $this->handApiKey($requestContext, $userEntity);
 
         $taskEntity = $this->handleTaskAppService->getTask((int) $requestDTO->getTaskId());
 
@@ -254,16 +224,10 @@ class OpenTaskApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'id is required');
         }
 
-        // 从请求中创建DTO
-        $apiKey = $this->getApiKey();
-        if (empty($apiKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'The api key of header is required');
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if (empty($userAuthorization)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_authorization_not_found');
         }
-
-        $userEntity = $this->handleTaskMessageAppService->getUserAuthorization($apiKey, '');
-
-        $userAuthorization = MagicUserAuthorization::fromUserEntity($userEntity);
-
         return $this->workspaceAppService->getTaskAttachments($userAuthorization, (int) $id, 1, 100);
     }
 
