@@ -544,7 +544,7 @@ class LLMAppService extends AbstractLLMAppService
                 'offset' => $searchRequestDTO->getOffset(),
             ]);
 
-            $businessParams['response_time'] = $responseTime;
+            $businessParams['response_duration'] = $responseTime;
             $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
             $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
             $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
