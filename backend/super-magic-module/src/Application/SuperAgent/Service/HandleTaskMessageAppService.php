@@ -76,12 +76,14 @@ class HandleTaskMessageAppService extends AbstractAppService
         $taskId = '';
         try {
             // Log UserMessageDTO values to track empty prompt
+            $instruction = $userMessageDTO->getInstruction();
+            $instructionValue = $instruction !== null ? $instruction->value : 'null';
             $this->logger->info('[InitSandbox] UserMessageDTO values', [
                 'topic_id' => $userMessageDTO->getTopicId(),
                 'prompt' => $userMessageDTO->getPrompt(),
                 'prompt_length' => strlen($userMessageDTO->getPrompt() ?? ''),
                 'prompt_empty' => empty($userMessageDTO->getPrompt()),
-                'instruction' => $userMessageDTO->getInstruction()?->value ?? 'null',
+                'instruction' => $instructionValue,
                 'attachments' => $userMessageDTO->getAttachments(),
                 'mentions' => $userMessageDTO->getMentions(),
             ]);

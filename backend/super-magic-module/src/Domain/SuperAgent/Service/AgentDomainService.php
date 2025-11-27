@@ -251,7 +251,7 @@ class AgentDomainService
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
             'user_request' => $userRequest,
-            'user_request_length' => strlen($userRequest ?? ''),
+            'user_request_length' => strlen($userRequest),
             'user_request_empty' => empty($userRequest),
         ]);
 
@@ -264,10 +264,10 @@ class AgentDomainService
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
             'prompt' => $prompt,
-            'prompt_length' => strlen($prompt ?? ''),
+            'prompt_length' => strlen($prompt),
             'prompt_empty' => empty($prompt),
             'constraint_text' => $constraintText,
-            'constraint_text_length' => strlen($constraintText ?? ''),
+            'constraint_text_length' => strlen($constraintText),
         ]);
 
         // 构建参数
