@@ -88,12 +88,6 @@ Router::addGroup(
             // 获取任务下的附件列表
             Router::get('/attachments', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
         });
-
-        // 项目相关 - 公开接口
-        Router::addGroup('/projects', static function () {
-            // 获取项目基本信息（项目名称等）- 无需登录
-            Router::get('/{id}', [OpenProjectApi::class, 'show']);
-        });
     },
     ['middleware' => [RequestContextMiddleware::class]]
 );
