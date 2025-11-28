@@ -33,7 +33,8 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
         $statusCode = 500;
         $errorCode = 500;
         $errorMessage = 'Service temporarily unavailable. Please try again later or contact us';
-        $supportUrl = config('app_host', 'https://www.letsmagic.ai');
+        $appHost = config('app_host', '');
+        $supportUrl = str_contains($appHost, '.cn') ? 'https://www.letsmagic.cn' : 'https://www.letsmagic.ai';
 
         $previous = $throwable->getPrevious();
         if ($previous instanceof OdinException) {
