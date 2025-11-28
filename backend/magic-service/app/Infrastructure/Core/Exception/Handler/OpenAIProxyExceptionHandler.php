@@ -12,9 +12,17 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hyperf\Odin\Exception\InvalidArgumentException;
+use Hyperf\Odin\Exception\LLMException\Api\LLMInvalidRequestException;
+use Hyperf\Odin\Exception\LLMException\LLMConfigurationException;
+use Hyperf\Odin\Exception\LLMException\LLMModelException;
+use Hyperf\Odin\Exception\LLMException\LLMNetworkException;
 use Hyperf\Odin\Exception\OdinException;
+use Hyperf\Odin\Exception\ToolParameterValidationException;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
+
+use function Hyperf\Config\config;
 
 class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
 {
@@ -24,13 +32,25 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
 
         $statusCode = 500;
         $errorCode = 500;
-        $errorMessage = 'Internal Server Error';
+        $errorMessage = 'Service temporarily unavailable. Please try again later or contact us';
+        $supportUrl = config('app_host', 'https://www.letsmagic.ai');
 
         $previous = $throwable->getPrevious();
         if ($previous instanceof OdinException) {
-            $statusCode = $previous->getStatusCode();
-            $errorCode = $previous->getErrorCode();
-            $errorMessage = $previous->getMessage();
+            if ($previous instanceof LLMNetworkException) {
+                // Network errors: service busy, suggest retry
+                $statusCode = 503;
+                $errorCode = $previous->getErrorCode();
+                $errorMessage = 'Service is busy, please try again later or contact us';
+            } elseif ($previous instanceof LLMConfigurationException) {
+                $errorMessage = 'Service error, please contact us';
+            } elseif ($this->isAllowedOdinException($previous)) {
+                // Allowed exceptions: expose original error message
+                $statusCode = $previous->getStatusCode();
+                $errorCode = $previous->getErrorCode();
+                $errorMessage = $previous->getMessage();
+            }
+        // Other OdinException will use default error message (already set above)
         } elseif ($previous instanceof BusinessException || $previous instanceof EventException) {
             $statusCode = 400;
             $errorCode = $previous->getCode();
@@ -48,6 +68,7 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
                 'message' => $errorMessage,
                 'code' => $errorCode,
                 'request_id' => CoContext::getRequestId(),
+                'support_url' => $supportUrl,
             ],
         ];
 
@@ -68,5 +89,17 @@ class OpenAIProxyExceptionHandler extends AbstractExceptionHandler
         }
 
         return true;
+    }
+
+    private function isAllowedOdinException(OdinException $exception): bool
+    {
+        $allowedExceptions = [
+            LLMModelException::class,
+            InvalidArgumentException::class,
+            ToolParameterValidationException::class,
+            LLMInvalidRequestException::class,
+        ];
+
+        return array_any($allowedExceptions, fn ($allowedException) => $exception instanceof $allowedException);
     }
 }
