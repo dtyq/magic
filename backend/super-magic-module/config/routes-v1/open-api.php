@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Hyperf\HttpServer\Router\Router;
+use phpseclib3\Crypt\RC2;
 
 // 沙箱开放接口 命名不规范，需要废弃
 Router::addGroup('/api/v1/sandbox-openapi', static function () {
@@ -56,6 +57,13 @@ Router::addGroup('/api/v1/open-api/sandbox', static function () {
         Router::get('/{code}', [SuperMagicAgentSandboxApi::class, 'show']);
         Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
     });
+});
+
+
+// 项目相关 - 公开接口
+Router::addGroup('/api/v1/open-api/super-magic/projects', static function () {
+    // 获取项目基本信息（项目名称等）- 无需登录
+    Router::get('/{id}', [OpenProjectApi::class, 'show']);
 });
 
 // super-magic 开放api , 注意，后续的开放api均使用super-magic 不使用super-agent
