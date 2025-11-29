@@ -135,6 +135,8 @@ https://gist.github.com/user-attachments/assets/7327f331-be7d-4aeb-8e19-0949adde
 
 #### 使用 Docker 启动系统
 
+##### Linux/macOS 用户
+
 ```bash
 # 克隆仓库
 git clone https://github.com/dtyq/magic.git
@@ -144,8 +146,20 @@ cd magic
 ./bin/magic.sh start
 ```
 
+##### Windows 用户
+
+```powershell
+# 克隆仓库
+git clone https://github.com/dtyq/magic.git
+cd magic
+
+# 前台启动服务
+.\bin\magic.ps1 start
+```
+
 ##### 其他命令
 
+**Linux/macOS:**
 ```bash
 # 后台启动服务
 ./bin/magic.sh daemon
@@ -155,6 +169,18 @@ cd magic
 
 # 查看日志
 ./bin/magic.sh logs
+```
+
+**Windows:**
+```powershell
+# 后台启动服务
+.\bin\magic.ps1 daemon
+
+# 查看服务状态
+.\bin\magic.ps1 status
+
+# 查看日志
+.\bin\magic.ps1 logs
 ```
 
 ##### 配置环境变量
@@ -169,8 +195,6 @@ cp .env.example .env
 cp config/.env_super_magic.example .env_super_magic
 
 ```
-
-
 
 ##### 访问服务
 - API 服务: http://localhost:9501
