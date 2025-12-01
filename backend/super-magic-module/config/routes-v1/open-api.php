@@ -58,6 +58,12 @@ Router::addGroup('/api/v1/open-api/sandbox', static function () {
     });
 });
 
+// 项目相关 - 公开接口
+Router::addGroup('/api/v1/open-api/super-magic/projects', static function () {
+    // 获取项目基本信息（项目名称等）- 无需登录
+    Router::get('/{id}', [OpenProjectApi::class, 'show']);
+});
+
 // super-magic 开放api , 注意，后续的开放api均使用super-magic 不使用super-agent
 Router::addGroup(
     '/api/v1/open-api/super-magic',
@@ -81,12 +87,6 @@ Router::addGroup(
         Router::addGroup('/task', static function () {
             // 获取任务下的附件列表
             Router::get('/attachments', [OpenTaskApi::class, 'getOpenApiTaskAttachments']);
-        });
-
-        // 项目相关 - 公开接口
-        Router::addGroup('/projects', static function () {
-            // 获取项目基本信息（项目名称等）- 无需登录
-            Router::get('/{id}', [OpenProjectApi::class, 'show']);
         });
     },
     ['middleware' => [RequestContextMiddleware::class]]
