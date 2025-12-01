@@ -101,10 +101,14 @@ class SSRFDefense
             return;
         }
 
-        // 验证ip是否是公网ip
-        $ip = filter_var($this->ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-        if ($ip === false) {
-            throw new SSRFException("{$label} is not a public ip");
+        // Check if public IP validation is required
+        $requirePublicIp = (bool) config('ssrf.require_public_ip', true);
+        if ($requirePublicIp) {
+            // Validate if the IP is a public IP
+            $ip = filter_var($this->ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+            if ($ip === false) {
+                throw new SSRFException("{$label} is not a public ip");
+            }
         }
 
         if (! $allowRedirect) {

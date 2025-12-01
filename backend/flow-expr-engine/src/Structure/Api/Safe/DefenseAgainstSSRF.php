@@ -101,10 +101,16 @@ class DefenseAgainstSSRF
             return;
         }
 
-        // 验证ip是否是公网ip
-        $ip = filter_var($this->ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-        if ($ip === false) {
-            throw new FlowExprEngineException("{$label} is not a public ip");
+        $requirePublicIp = true;
+        if (function_exists('config')) {
+            $requirePublicIp = (bool) config('ssrf.disable_ssrf_protection', false);
+        }
+        if ($requirePublicIp) {
+            // 验证ip是否是公网ip
+            $ip = filter_var($this->ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+            if ($ip === false) {
+                throw new FlowExprEngineException("{$label} is not a public ip");
+            }
         }
 
         if (! $allowRedirect) {
