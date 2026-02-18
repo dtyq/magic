@@ -199,15 +199,17 @@ class AgentDispatcher(Base):
                 logger.info("使用默认语言: zh_CN")
 
         # 设置 Agent Profile（如果提供）
-        if init_message.agent:
+        if init_message.agent and init_message.agent.get("name", "").strip():
             from app.core.entity.agent_profile import AgentProfile
 
             agent_profile = AgentProfile(
-                name=init_message.agent.get('name', ''),
-                description=init_message.agent.get('description', '')
+                name=init_message.agent["name"].strip(),
+                description=init_message.agent.get("description", "").strip(),
             )
             self.agent_context.set_agent_profile(agent_profile)
             logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
+        elif init_message.agent:
+            logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
 
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
@@ -275,25 +277,11 @@ class AgentDispatcher(Base):
             # 2. 自定义 Agent ID（含 sma- 前缀），从 API 获取配置
             elif agent_mode.strip() and "sma-" in agent_mode.lower():
                 logger.info(f"识别为自定义 Agent ID，准备从 API 获取配置")
-                agent_file_path, agent_details = await self.config_converter.convert_api_to_agent_file(agent_mode)
+                await self.config_converter.convert_api_to_agent_file(agent_mode)
                 agent_type = agent_mode
                 if agent_type in self.agents:
                     logger.info(f"清理已缓存的 Agent: {agent_type}")
                     del self.agents[agent_type]
-
-                # 设置专属 agent_profile（name 为空时保持默认 profile，避免角色段为空）
-                from app.core.entity.agent_profile import AgentProfile
-                lang = i18n.get_language()
-                name = agent_details.get_localized_name(lang)
-                if name:
-                    role = agent_details.get_localized_role(lang)
-                    description = agent_details.get_localized_description(lang)
-                    profile = AgentProfile(name=name, role=role, description=description)
-                    self.agent_context.set_agent_profile(profile)
-                    logger.info(f"设置自定义 Agent profile: name={name}, role={role}, lang={lang}")
-                else:
-                    logger.info("API 未返回 agent name，保持默认 AgentProfile")
-
             # 3. 字符串为空，回退到默认模式
             elif not agent_mode.strip():
                 logger.info(f"Agent ID 为空，回退到默认模式: {AgentMode.GENERAL}")
