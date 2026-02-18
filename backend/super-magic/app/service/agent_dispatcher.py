@@ -277,11 +277,25 @@ class AgentDispatcher(Base):
             # 2. 自定义 Agent ID（含 sma- 前缀），从 API 获取配置
             elif agent_mode.strip() and "sma-" in agent_mode.lower():
                 logger.info(f"识别为自定义 Agent ID，准备从 API 获取配置")
-                await self.config_converter.convert_api_to_agent_file(agent_mode)
+                agent_file_path, agent_details = await self.config_converter.convert_api_to_agent_file(agent_mode)
                 agent_type = agent_mode
                 if agent_type in self.agents:
                     logger.info(f"清理已缓存的 Agent: {agent_type}")
                     del self.agents[agent_type]
+
+                # 设置专属 agent_profile（name 为空时保持默认 profile，避免角色段为空）
+                from app.core.entity.agent_profile import AgentProfile
+                lang = i18n.get_language()
+                name = agent_details.get_localized_name(lang)
+                if name:
+                    role = agent_details.get_localized_role(lang)
+                    description = agent_details.get_localized_description(lang)
+                    profile = AgentProfile(name=name, role=role, description=description)
+                    self.agent_context.set_agent_profile(profile)
+                    logger.info(f"设置自定义 Agent profile: name={name}, role={role}, lang={lang}")
+                else:
+                    logger.info("API 未返回 agent name，保持默认 AgentProfile")
+
             # 3. 字符串为空，回退到默认模式
             elif not agent_mode.strip():
                 logger.info(f"Agent ID 为空，回退到默认模式: {AgentMode.GENERAL}")
