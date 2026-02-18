@@ -834,3 +834,101 @@ input[type="file"] {
     font-size: 12px;
     margin-left: 0;
 }
+
+/* 高级模式开关栏 */
+.advanced-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--wechat-border);
+}
+
+.toggle-switch-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* iOS 风格 toggle 开关 */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 22px;
+}
+
+.toggle-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider {
+    background-color: var(--wechat-green);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider:before {
+    transform: translateX(18px);
+}
+
+.advanced-mode-hint {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+}
+
+/* 高级模式 JSON 输入框 */
+.raw-json-textarea {
+    width: 100%;
+    height: 160px;
+    padding: 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: var(--wechat-text-dark);
+    line-height: 1.5;
+}
+
+.raw-json-textarea:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+.advanced-mode-tip {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}

@@ -32,6 +32,7 @@ from app.tools.list_dir import ListDir
 from app.tools.purify import Purify
 from app.tools.markitdown_plugins import excel_plugin, docx_plugin
 
+# 导出工具类
 from app.tools.read_file import ReadFile
 from app.tools.read_files import ReadFiles
 from app.tools.read_webpages_as_markdown import ReadWebpagesAsMarkdown
@@ -104,6 +105,18 @@ from app.tools.design.tools import (
 from app.tools.skills_read import SkillsRead
 from app.tools.skill_read_references import SkillReadReferences
 from app.tools.run_skills_snippet import RunSkillsSnippet
+
+# Agent 管理工具
+from app.tools.agent_manager.get_agent_info import GetAgentInfo
+from app.tools.agent_manager.update_agent import UpdateAgent
+from app.tools.agent_manager.create_skill import CreateSkill
+from app.tools.agent_manager.edit_skill import EditSkill
+from app.tools.agent_manager.upload_skill import UploadSkill
+
+# Import design package modules to ensure they are available in encrypted environment
+import app.tools.design.manager
+import app.tools.design.utils
+import app.tools.design
 
 __all__ = [
     "DummyTool",
@@ -193,6 +206,13 @@ __all__ = [
     "DeleteDashboardCards",
     "QueryDashboardCards",
 
+    # Agent 管理工具
+    "GetAgentInfo",
+    "UpdateAgent",
+    "CreateSkill",
+    "EditSkill",
+    "UploadSkill",
+
     # 设计模式工具
     "CreateDesignProject",
     "CreateCanvasElement",
@@ -206,3 +226,4 @@ __all__ = [
     "GenerateImagesToCanvas",
     "SearchImagesToCanvas",
 ]
+

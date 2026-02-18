@@ -54,26 +54,52 @@
 
             <!-- 消息输入区域 -->
             <div class="message-input-panel">
-                <textarea id="messageInput" placeholder="请输入消息..."></textarea>
-
-                <!-- Agent模式选择 -->
-                <div class="mode-switch">
-                    <label>Agent模式:</label>
-                    <select id="agentModeSelect" class="agent-mode-select">
-                        <option value="magic">Magic模式 (默认)</option>
-                        <option value="general">General模式 (通用)</option>
-                        <option value="ppt">PPT模式 (制作演示文稿)</option>
-                        <option value="data_analysis">数据分析模式</option>
-                        <option value="summary">总结模式</option>
-                    </select>
+                <!-- 高级模式开关 -->
+                <div class="advanced-mode-toggle">
+                    <label class="toggle-switch-label">高级模式</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="advancedModeToggle">
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <span class="advanced-mode-hint">开启后可直接粘贴完整 JSON 消息体</span>
                 </div>
 
-                <!-- Model ID 配置 -->
-                <div class="model-config">
-                    <label for="modelIdInput">Model ID:</label>
-                    <input type="text" id="modelIdInput" class="model-id-input"
-                        placeholder="例如: gpt-4, claude-3-sonnet 等">
-                    <small>指定使用的AI模型，留空则使用默认模型</small>
+                <!-- 普通模式字段 -->
+                <div id="normalModeFields">
+                    <textarea id="messageInput" placeholder="请输入消息..."></textarea>
+
+                    <!-- Agent模式选择 -->
+                    <div class="mode-switch">
+                        <label>Agent模式:</label>
+                        <select id="agentModeSelect" class="agent-mode-select">
+                            <option value="magic">Magic模式 (默认)</option>
+                            <option value="general">General模式 (通用)</option>
+                            <option value="ppt">PPT模式 (制作演示文稿)</option>
+                            <option value="data_analysis">数据分析模式</option>
+                            <option value="summary">音频纪要模式</option>
+                            <option value="summary-chat">音频纪要聊天模式</option>
+                            <option value="summary-video">视频分析模式</option>
+                            <option value="design">画布设计模式</option>
+                            <option value="test">工具测试模式</option>
+                            <option value="skill">Skill模式</option>
+                            <option value="agent-master">Agent管理模式</option>
+                        </select>
+                    </div>
+
+                    <!-- Model ID 配置 -->
+                    <div class="model-config">
+                        <label for="modelIdInput">Model ID:</label>
+                        <input type="text" id="modelIdInput" class="model-id-input"
+                            placeholder="例如: gpt-4, claude-3-sonnet 等">
+                        <small>指定使用的AI模型，留空则使用默认模型</small>
+                    </div>
+                </div>
+
+                <!-- 高级模式字段（默认隐藏） -->
+                <div id="advancedModeFields" style="display:none">
+                    <textarea id="rawJsonInput" class="raw-json-textarea"
+                        placeholder='粘贴完整消息 JSON，例如：{"prompt": "...", "agent_mode": "magic", "dynamic_config": {...}, ...}'></textarea>
+                    <p class="advanced-mode-tip">发送消息时将自动刷新 message_id；继续、发送追问、中断任务仍使用原有逻辑</p>
                 </div>
 
                 <div class="button-group">

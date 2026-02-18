@@ -303,6 +303,17 @@ class MessageProcessor:
             # 检查并发送延迟的 init 事件（沙箱预启动场景）
             await self._dispatch_delayed_init_event_if_needed(agent_context)
 
+            # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
+            try:
+                agent_code_val = None
+                if message.dynamic_config:
+                    agent_code_val = message.dynamic_config.get("agent_code")
+                if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
+                    agent_context.set_agent_code(agent_code_val.strip())
+                    logger.info(f"已注入 agent_code: {agent_code_val.strip()}")
+            except Exception as e:
+                logger.warning(f"注入 agent_code 失败: {e}")
+
             # 🔥 ASR 录音纪要聊天模式路由：检测 asr_task_key 并切换 agent
             try:
                 if message.dynamic_config and message.dynamic_config.get("asr_task_key"):

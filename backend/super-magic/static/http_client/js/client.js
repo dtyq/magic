@@ -3,6 +3,7 @@ let messageHistory = []; // 存储用户发送过的消息历史
 let currentTaskMode = "plan"; // 当前任务模式，默认为 plan（保留兼容性）
 let currentAgentMode = "magic"; // 当前Agent模式，默认为 magic
 let currentFileName = ""; // 存储当前上传的文件名
+let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
 
 // WebSocket相关变量
 let websocket = null;
@@ -26,6 +27,8 @@ const currentFileNameDisplay = document.getElementById('currentFileName');
 const modeToggle = document.getElementById('modeToggle');
 const agentModeSelect = document.getElementById('agentModeSelect');
 const modelIdInput = document.getElementById('modelIdInput');
+const advancedModeToggle = document.getElementById('advancedModeToggle');
+const rawJsonInput = document.getElementById('rawJsonInput');
 
 // 消息类型枚举
 const MessageType = {
@@ -49,14 +52,16 @@ const TaskMode = {
 // Agent模式枚举
 const AgentMode = {
     GENERAL: "general",
+    MAGIC: "magic",
     PPT: "ppt",
     DATA_ANALYSIS: "data_analysis",
-    MAGIC: "magic",
-    MEETING: "meeting",
     SUMMARY: "summary",
     SUMMARY_CHAT: "summary-chat",
     SUMMARY_VIDEO: "summary-video",
-    SUPER_MAGIC: "super-magic"
+    DESIGN: "design",
+    TEST: "test",
+    SKILL: "skill",
+    AGENT_MASTER: "agent-master"
 };
 
 // 初始化事件监听
@@ -89,6 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Agent模式切换事件
     if (agentModeSelect) {
         agentModeSelect.addEventListener('change', changeAgentMode);
+    }
+
+    // 高级模式切换事件
+    if (advancedModeToggle) {
+        advancedModeToggle.addEventListener('change', toggleAdvancedMode);
     }
 
     // 保留任务模式切换事件（兼容性）
@@ -192,15 +202,41 @@ async function sendHttpMessage(messageData) {
 
 // 发送消息
 async function sendMessage(contextType = ContextType.NORMAL) {
-    const message = messageInput.value.trim();
-    if (!message) {
-        showSystemMessage("请输入消息内容");
-        return;
-    }
-
     const serverUrl = serverUrlInput.value.trim();
     if (!serverUrl) {
         showSystemMessage("请输入服务器地址");
+        return;
+    }
+
+    // 高级模式：直接发送原始 JSON
+    if (isAdvancedMode) {
+        const rawJson = rawJsonInput.value.trim();
+        if (!rawJson) {
+            showSystemMessage("请输入消息 JSON");
+            return;
+        }
+
+        let messageData;
+        try {
+            messageData = JSON.parse(rawJson);
+        } catch (e) {
+            showSystemMessage(`JSON 格式错误: ${e.message}`);
+            return;
+        }
+
+        // 自动刷新 message_id，避免触发后端去重
+        messageData.message_id = generateTimestampId();
+
+        showClientMessage(messageData);
+        await sendHttpMessage(messageData);
+        scrollToBottom();
+        return;
+    }
+
+    // 普通模式：从各字段组装消息
+    const message = messageInput.value.trim();
+    if (!message) {
+        showSystemMessage("请输入消息内容");
         return;
     }
 
@@ -330,7 +366,7 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         context_type: contextType,
         task_mode: currentTaskMode, // 保留兼容性
         agent_mode: currentAgentMode, // 新的 agent 模式
-        attachment: [],
+        attachments: [],
         metadata: {}
     };
 
@@ -429,6 +465,23 @@ function scrollToBottom() {
 function loadExampleText() {
     messageInput.value = EXAMPLE_TEXT;
     showSystemMessage("已加载示例文本");
+}
+
+// 切换高级模式
+function toggleAdvancedMode() {
+    isAdvancedMode = advancedModeToggle.checked;
+    const normalFields = document.getElementById('normalModeFields');
+    const advancedFields = document.getElementById('advancedModeFields');
+
+    if (isAdvancedMode) {
+        normalFields.style.display = 'none';
+        advancedFields.style.display = 'block';
+        showSystemMessage("已切换到高级模式：粘贴完整 JSON 后点击「发送消息」");
+    } else {
+        normalFields.style.display = 'block';
+        advancedFields.style.display = 'none';
+        showSystemMessage("已切换到普通模式");
+    }
 }
 
 // 切换Agent模式

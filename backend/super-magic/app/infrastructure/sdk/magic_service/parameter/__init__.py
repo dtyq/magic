@@ -5,6 +5,7 @@ Parameter classes for Magic Service API requests.
 """
 
 from .get_agent_details_parameter import GetAgentDetailsParameter
+from .message_schedule_parameter import MessageScheduleParameter, TimeConfig
 from .get_agent_openapi_parameter import GetAgentOpenApiParameter
 from .update_agent_parameter import UpdateAgentParameter
 from .get_skill_file_urls_parameter import GetSkillFileUrlsParameter
@@ -18,6 +19,8 @@ from .cancel_share_parameter import CancelShareParameter
 
 __all__ = [
     'GetAgentDetailsParameter',
+    'MessageScheduleParameter',
+    'TimeConfig',
     'GetAgentOpenApiParameter',
     'UpdateAgentParameter',
     'GetSkillFileUrlsParameter',

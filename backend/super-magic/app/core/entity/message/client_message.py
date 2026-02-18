@@ -102,6 +102,7 @@ class AgentMode(str, Enum):
     DESIGN = "design"         # 画布设计模式，使用design.agent
     TEST = "test"  # 工具模式，使用tool.agent
     SKILL = "skill"  # Skill模式，使用skill.agent
+    AGENT_MANAGER = "agent-manager"  # Agent管理模式，使用agent-manager.agent；需配合 dynamic_config.agent_code 指定被管理的 Agent
     def get_agent_type(self) -> str:
         """获取对应的 agent_type"""
         agent_type_mapping = {
@@ -115,6 +116,7 @@ class AgentMode(str, Enum):
             AgentMode.DESIGN: "design",  # 画布设计模式
             AgentMode.TEST: "test",
             AgentMode.SKILL: "skill",
+            AgentMode.AGENT_MANAGER: "agent-manager",
         }
         return agent_type_mapping.get(self, "magic")
 
@@ -229,7 +231,6 @@ class InitClientMessage(ClientMessage):
     metadata: Optional[Metadata] = None  # 元数据信息，使用强类型
     upload_config: Optional[Dict[str, Any]] = None  # 上传配置，可包含平台类型和临时凭证
     magic_service_host: Optional[str] = None  # Magic Service主机地址，可选字段
-    magic_service_ws_host: Optional[str] = None  # Magic Service WebSocket主机地址，可选字段
     chat_history_dir: Optional[str] = None  # 聊天历史目录，可选字段
     work_dir: Optional[str] = None  # 工作目录，可选字段
     fetch_history: bool = Field(
