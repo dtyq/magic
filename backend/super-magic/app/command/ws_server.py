@@ -42,7 +42,6 @@ logger = get_logger(__name__)
 ws_server = None
 _app = None  # 存储FastAPI应用实例的内部变量
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """服务生命周期管理"""
@@ -76,7 +75,6 @@ async def lifespan(app: FastAPI):
     # 关闭时
     logger.info("服务正在关闭...")
     shutdown_telemetry()
-
 
 def create_app() -> FastAPI:
     """创建并配置FastAPI应用实例"""
@@ -125,7 +123,6 @@ def create_app() -> FastAPI:
 
     return app
 
-
 def create_workspace_static_server() -> FastAPI:
     """
     创建专门用于服务.workspace目录的静态文件服务器
@@ -160,7 +157,6 @@ def create_workspace_static_server() -> FastAPI:
 
     return static_app
 
-
 async def start_workspace_static_server(port: int = 8003):
     """
     启动.workspace静态文件服务器
@@ -189,7 +185,6 @@ async def start_workspace_static_server(port: int = 8003):
     except Exception as e:
         logger.error(f"❌ 启动.workspace静态文件服务器失败: {e}")
 
-
 def get_app() -> FastAPI:
     """获取FastAPI应用实例，避免循环导入
 
@@ -200,7 +195,6 @@ def get_app() -> FastAPI:
     if _app is None:
         _app = create_app()
     return _app
-
 
 class CustomServer(uvicorn.Server):
     """自定义 uvicorn Server 类，用于正确处理信号"""
@@ -213,7 +207,6 @@ class CustomServer(uvicorn.Server):
         """尝试优雅地关闭服务器"""
         logger.info("正在关闭 uvicorn 服务器...")
         await super().shutdown(sockets=sockets)
-
 
 def start_ws_server():
     """启动WebSocket服务器"""

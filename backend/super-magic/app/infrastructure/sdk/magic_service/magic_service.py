@@ -10,8 +10,7 @@ from urllib.parse import urlparse
 
 from app.infrastructure.sdk.base import SdkBase, SdkContext
 from .api.agent_api import AgentApi
-from .api.message_schedule_api import MessageScheduleApi
-from .api.skill_api import SkillApi
+from .api.share_api import ShareApi
 
 class MagicService:
     """Magic Service - Main router for all Magic Service operations"""
@@ -38,8 +37,7 @@ class MagicService:
         # Initialize API routes
         self._routes = {
             'agent': AgentApi,
-            'message_schedule': MessageScheduleApi,
-            'skill': SkillApi,
+            'share': ShareApi,
         }
 
         # Initialize fetched API instances
@@ -70,14 +68,9 @@ class MagicService:
         return self._fetched_definitions['agent']
 
     @property
-    def message_schedule(self) -> 'MessageScheduleApi':
-        """Get message schedule API instance"""
-        return self._fetched_definitions['message_schedule']
-
-    @property
-    def skill(self) -> 'SkillApi':
-        """Get skill API instance"""
-        return self._fetched_definitions['skill']
+    def share(self) -> 'ShareApi':
+        """Get share API instance"""
+        return self._fetched_definitions['share']
 
     def get_host(self) -> str:
         """
