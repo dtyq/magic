@@ -162,7 +162,7 @@ class AgentLoader:
 
         # 当配置了 skills 时，自动注入 skill 相关工具，无需在 tools 中显式声明
         if skills_list:
-            skill_tools = ["skills_read", "skill_read_references", "run_skills_snippet"]
+            skill_tools = ["skills_read", "skill_read_references", "run_skills_snippet", "skill_list"]
             injected = []
             for skill_tool in skill_tools:
                 if skill_tool not in tools_config:
