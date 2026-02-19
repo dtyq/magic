@@ -14,6 +14,7 @@ from app.api.routes.file_convert import router as file_convert_router
 from app.api.routes.checkpoint import router as checkpoint_router
 from app.api.routes.asr import router as asr_router
 from app.api.routes.skills import router as skills_router
+from app.api.routes.workspace_export import router as workspace_export_router
 
 
 # 创建主路由器，设置统一前缀
@@ -42,6 +43,9 @@ api_router.include_router(asr_router, tags=["语音识别"])
 
 # 注册Skill工具调用路由
 api_router.include_router(skills_router, tags=["Skill工具调用"])
+
+# 注册工作区导出路由
+api_router.include_router(workspace_export_router, tags=["工作区导出"])
 
 @api_router.get("/health", tags=["系统"])
 async def health_check():
