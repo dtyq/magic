@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 class AppendToFileParams(BaseToolParams):
     file_path: str = Field(
         ...,
-        description="""<!--zh: 要追加内容的文件路径，相对于工作目录或绝对路径，不要包含工作目录，比如希望追加内容到 .workspace/todo.md 文件，只需要传入 todo.md 即可-->
+        description="""<!--zh: 要追加内容的文件路径：相对路径解析到 .workspace（如传入 todo.md 即追加到 .workspace/todo.md）；.workspace 外的文件使用绝对路径-->
 File path to append content to, relative to workspace or absolute, exclude workspace path. E.g., to append to .workspace/todo.md, just pass todo.md"""
     )
     content: str = Field(

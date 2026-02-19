@@ -57,10 +57,14 @@ Viewing Directories:
 
 <!--zh
 路径使用：
-- 默认工作区为 {{ @variable("workspace_dir") }}，文件操作优先使用相对路径，路径以工作区为基准
+- .workspace 内的文件：使用相对路径（如 `report.md`、`data/file.csv`）
+- .workspace 外的文件（项目其他路径或 VM 任意位置）：使用绝对路径
+- 向用户展示路径时，.workspace 内优先用相对路径，仅在必要时展示绝对路径
 -->
 Path Usage:
-- Default workspace is {{ @variable("workspace_dir") }}. Prefer relative paths for file operations, with paths relative to the workspace.
+- Files inside .workspace (current PWD): use relative paths (e.g., `report.md`, `data/file.csv`)
+- Files outside .workspace (other project paths or anywhere on VM): use absolute paths
+- When showing paths to users, prefer relative paths for .workspace files; show absolute only when necessary
 
 <!--zh
 【重要】中英文标点符号严格区分：

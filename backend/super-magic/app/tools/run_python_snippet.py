@@ -147,17 +147,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceGuardT
 
             # 第二步：使用 ProcessExecutor 执行Python脚本
             command = f"python {params.script_path}"
-
-            # 处理工作目录：如果指定了cwd，使用它，否则使用work_dir
             exec_cwd = work_dir
-            if params.cwd:
-                cwd_path, error = self.get_safe_path(params.cwd)
-                if error:
-                    return TerminalToolResult(
-                        error=error,
-                        command=command
-                    )
-                exec_cwd = cwd_path
 
             logger.debug(f"执行Python脚本: {command}")
             result = await ProcessExecutor.execute_command(

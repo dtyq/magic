@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 class WriteFileParams(BaseToolParams):
     file_path: str = Field(
         ...,
-        description="""<!--zh: 要写入的文件路径，相对于工作目录或绝对路径，不要包含工作目录-->
-File path to write, relative to workspace or absolute, do not include workspace path"""
+        description="""<!--zh: 要写入的文件路径：相对路径解析到 .workspace（如 `report.md`）；.workspace 外的文件使用绝对路径-->
+File path to write: relative paths resolve to .workspace (e.g., `report.md`); use absolute paths for files outside .workspace"""
     )
     content: str = Field(
         ...,

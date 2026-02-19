@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, TypeVar, Tuple
+from typing import Optional, TypeVar
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
@@ -17,9 +17,9 @@ T = TypeVar('T', bound=BaseToolParams)
 
 class WorkspaceGuardTool(BaseTool[T]):
     """
-    文件操作工具基类，提供工作目录限制和相关安全功能
+    文件操作工具基类，提供路径解析和模糊匹配功能
 
-    所有需要访问文件系统的工具都应继承此类，以便统一处理工作目录限制
+    所有需要访问文件系统的工具都应继承此类，以统一处理路径解析
     """
 
     # 默认使用workspace目录作为基础目录
@@ -36,40 +36,24 @@ class WorkspaceGuardTool(BaseTool[T]):
         if 'base_dir' in data:
             self.base_dir = Path(data['base_dir'])
 
-    def get_safe_path(self, filepath: str) -> tuple[Path, Optional[str]]:
+    def get_safe_path(self, filepath: str) -> tuple[Path, str]:
         """
-        获取安全的文件路径，确保其在工作目录内
-
-        Args:
-            filepath: 文件路径字符串
-
-        Returns:
-            tuple: (安全的文件路径对象, 错误信息)
-                如果路径安全，错误信息为空字符串
-                如果路径不安全，返回None和对应的错误信息
+        路径解析：相对路径解析到 workspace，绝对路径直接放行访问全 VM。
         """
-        # 处理文件路径
         file_path = Path(filepath)
 
-        # 如果是相对路径，则相对于base_dir
         if not file_path.is_absolute():
+            # 相对路径始终锚定到 workspace
             file_path = self.base_dir / file_path
 
-        # 检查文件是否在base_dir内
-        try:
-            file_path.relative_to(self.base_dir)
-            return file_path, ""
-        except ValueError:
-            error_msg = f"安全限制：不允许访问工作目录({self.base_dir})外的文件: {file_path}"
-            logger.warning(error_msg)
-            return None, error_msg
+        return file_path, ""
 
-    def get_safe_path_with_fuzzy_match(self, file_path_str: str) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
+    def get_safe_path_with_fuzzy_match(self, file_path_str: str) -> tuple[Optional[Path], Optional[str], Optional[str]]:
         """
-        获取安全路径，并在必要时进行模糊匹配
+        获取解析后的路径，并在必要时进行模糊匹配
 
         逻辑：
-        1. 调用 get_safe_path 进行安全检查（工作区限制等）
+        1. 调用 get_safe_path 解析路径（相对→workspace，绝对→直接使用）
         2. 如果文件不存在，尝试通过模糊匹配查找（处理中英文标点符号差异）
         3. 返回文件路径、错误信息和警告信息
 
@@ -77,12 +61,12 @@ class WorkspaceGuardTool(BaseTool[T]):
             file_path_str: 文件路径字符串
 
         Returns:
-            Tuple[Optional[Path], Optional[str], Optional[str]]:
+            tuple[Optional[Path], Optional[str], Optional[str]]:
             (文件路径, 错误信息, 警告信息)
             - 错误信息不为空时，文件路径为 None，不应继续处理
             - 警告信息不为空时，表示使用了模糊匹配，应告知 AI
         """
-        # 1. 先进行安全检查
+        # 1. 解析路径（相对→workspace，绝对→直接使用）
         file_path, error = self.get_safe_path(file_path_str)
         if error:
             return None, error, None

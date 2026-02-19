@@ -76,7 +76,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
     - Jupyter笔记本（.ipynb）
 
     注意：
-    - 禁止读取工作目录外的文件
+    - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
     - 无法读取支持的文件类型以外的文件，尤其是二进制文件
     - 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
     - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
@@ -94,7 +94,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
     - Jupyter notebooks (.ipynb)
 
     Notes:
-    - Cannot read files outside workspace
+    - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
     - Cannot read files other than supported types, especially binary files
     - For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
     - Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed

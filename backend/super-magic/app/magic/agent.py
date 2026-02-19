@@ -280,7 +280,7 @@ The following <dynamic_context> block contains system-provided context informati
             # 同步到 agent_context
             self.agent_context.set_loaded_skills(skills_list)
             from app.core.skill_manager import generate_skills_prompt
-            skills_prompt_content = generate_skills_prompt(skills_list, agent_name=self.agent_name)
+            skills_prompt_content = generate_skills_prompt(skills_list)
             if skills_prompt_content:
                 logger.info(f"为 agent {self.agent_name} 生成了 skills prompt，包含 {len(skills_list)} 个 skills")
             else:
@@ -379,10 +379,7 @@ The following <dynamic_context> block contains system-provided context informati
         # 获取 Agent Profile
         agent_profile = self.agent_context.get_agent_profile()
         agent_name = agent_profile.name
-        agent_profile_text = agent_profile.get_profile_desc()
-
-        # Get managed agent code (used by agent-manager, empty for other agents)
-        managed_agent_code = self.agent_context.get_agent_code() or ""
+        agent_profile_text = agent_profile.description
 
         # 构建静态变量字典
         variables = {
@@ -391,16 +388,12 @@ The following <dynamic_context> block contains system-provided context informati
             "dynamic_model_id": dynamic_model_id,
             "user_preferred_language": user_preferred_language,
             "workspace_dir": self.agent_context._workspace_dir,
-            # 此处直接使用 _workspace_dir 而非 os.getcwd()：
-            # os.chdir(workspace_dir) 在 run() 中执行，晚于当前 _initialize_agent 阶段，
-            # 若用 os.getcwd() 会拿到进程启动时的目录（项目根），而非工作区目录
-            "cwd": self.agent_context._workspace_dir,
+            "project_root": str(PathManager.get_project_root()),
             "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
             "nodejs_version": subprocess.check_output(["node", "--version"]).decode("utf-8").strip(),
             "typescript_version": subprocess.check_output(["tsc", "--version"]).decode("utf-8").strip(),
             "slide_template_html": slide_template_html,
-            "managed_agent_code": managed_agent_code,
         }
 
         return variables
