@@ -107,8 +107,16 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceGuardTool[ShellExecP
                 enable_python_rewrite=enable_python_rewrite
             )
 
+            # 保留命令原始成功状态，用于 after-events 触发判断
+            command_ok = result.ok
+
+            # 命令实际执行完成（exit_code >= 0），即使返回非零退出码也视为工具调用成功
+            # 仅超时（exit_code = -1）和异常（exit_code = -2）才视为工具调用失败
+            if result.exit_code >= 0:
+                result.ok = True
+
             # Dispatch after-execution events if command succeeded
-            if result.ok:
+            if command_ok:
                 for file_path, event_type in after_events:
                     try:
                         await self._dispatch_file_event(tool_context, file_path, event_type)
