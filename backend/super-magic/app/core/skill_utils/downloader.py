@@ -138,7 +138,7 @@ async def _try_install_from_dynamic_config(skill_name: str) -> Optional[SkillMet
         SkillMetadata or None
     """
     # manager 必须懒加载：manager 顶层导入了 downloader，若 downloader 顶层再导入 manager 则循环
-    from app.core.skill_utils.manager import _find_skill_case_insensitive
+    from app.core.skill_utils.manager import find_skill as _find_skill_case_insensitive
 
     dynamic_skills = await load_dynamic_config_skills()
     if not dynamic_skills:

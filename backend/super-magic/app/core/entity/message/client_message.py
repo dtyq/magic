@@ -103,6 +103,7 @@ class AgentMode(str, Enum):
     TEST = "test"  # 工具模式，使用tool.agent
     SKILL = "skill"  # Skill模式，使用skill.agent
     AGENT_MANAGER = "agent-manager"  # Agent管理模式，使用agent-manager.agent；需配合 dynamic_config.agent_code 指定被管理的 Agent
+    SKILL_CREATOR = "skill-creator"  # Skill 创作模式，使用skill-creator.agent
     def get_agent_type(self) -> str:
         """获取对应的 agent_type"""
         agent_type_mapping = {
@@ -117,6 +118,7 @@ class AgentMode(str, Enum):
             AgentMode.TEST: "test",
             AgentMode.SKILL: "skill",
             AgentMode.AGENT_MANAGER: "agent-manager",
+            AgentMode.SKILL_CREATOR: "skill-creator",
         }
         return agent_type_mapping.get(self, "magic")
 

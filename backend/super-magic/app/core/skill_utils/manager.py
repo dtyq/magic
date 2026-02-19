@@ -5,8 +5,6 @@ from typing import Optional, List
 from agentlang.skills import SkillManager
 from agentlang.skills.models import SkillMetadata
 from agentlang.logger import get_logger
-from app.core.skill_utils.installed import _try_reinstall_skill
-from app.core.skill_utils.downloader import _try_install_from_dynamic_config
 
 logger = get_logger(__name__)
 
@@ -41,10 +39,12 @@ class GlobalSkillManager:
     def get_skills_dirs(cls) -> List[Path]:
         """获取 skills 目录列表"""
         if cls._skills_dirs is None:
+            from app.paths import PathManager
             project_root = cls.get_project_root()
+            workspace_dir = PathManager.get_workspace_dir()
             cls._skills_dirs = [
-                project_root / "agents" / "skills",  # 项目内置 skills
-                project_root / "skills",              # skillhub 安装的 skills
+                project_root / "agents" / "skills",  # 项目内置 skills（优先级最高，不可被覆盖）
+                workspace_dir / "skills",             # workspace skills（skillhub 安装 + 用户创建，持久化）
             ]
             logger.info(f"初始化 skills 目录: {[str(d) for d in cls._skills_dirs]}")
         return cls._skills_dirs
@@ -98,34 +98,10 @@ def get_skills_dirs() -> List[Path]:
     return GlobalSkillManager.get_skills_dirs()
 
 
-async def _find_skill_case_insensitive(skill_name: str) -> Optional[SkillMetadata]:
+async def find_skill(skill_name: str) -> Optional[SkillMetadata]:
     """大小写不敏感地查找 skill
 
     直接委托给 SkillManager.get_skill，后者已内置大小写不敏感匹配和按需单文件加载。
     """
     skill_manager = get_global_skill_manager()
     return await skill_manager.get_skill(skill_name)
-
-
-async def get_skill_with_reinstall(skill_name: str) -> Optional[SkillMetadata]:
-    """获取 skill，若未找到则静默从元数据重装后重试
-
-    查找顺序：
-    1. 实时扫描磁盘查找
-    2. 未找到 → 从 installed_skills.json 静默重装后再次查找（容器重启场景）
-    3. 最后尝试从 dynamic_config skills 下载安装
-    """
-    skill = await _find_skill_case_insensitive(skill_name)
-    if skill:
-        return skill
-
-    logger.info(f"Skill 未找到，尝试从元数据静默重装: {skill_name}")
-    reinstalled = await _try_reinstall_skill(skill_name)
-    if reinstalled:
-        skill = await _find_skill_case_insensitive(skill_name)
-        if skill:
-            return skill
-
-    logger.info(f"Skill 未找到，尝试从 dynamic_config 下载安装: {skill_name}")
-    skill = await _try_install_from_dynamic_config(skill_name)
-    return skill

@@ -8,7 +8,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
-from app.core.skill_manager import get_global_skill_manager, get_skill_with_reinstall
+from app.core.skill_manager import get_global_skill_manager, find_skill
 from agentlang.skills.exceptions import SkillNotFoundError, SkillResourceError
 
 logger = get_logger(__name__)
@@ -61,7 +61,7 @@ class SkillReadReferences(BaseTool[SkillReadReferencesParams]):
             )
 
         try:
-            skill = await get_skill_with_reinstall(params.skill_name)
+            skill = await find_skill(params.skill_name)
 
             if not skill:
                 error_msg = f"未找到名为 '{params.skill_name}' 的 skill。\n\n可用的 skills 请查看 system prompt 中的 <available_skills> 列表。"

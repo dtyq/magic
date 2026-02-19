@@ -12,7 +12,7 @@ from app.core.entity.tool.tool_result import TerminalToolResult
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.shell_command_parser import ShellCommandParser
-from app.tools.shell_exec_utils.skillhub import handle_skillhub, refresh_meta
+from app.tools.shell_exec_utils.skillhub import handle_skillhub
 from app.tools.workspace_guard_tool import WorkspaceGuardTool
 from app.utils.process_executor import ProcessExecutor
 
@@ -68,10 +68,11 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceGuardTool[ShellExecP
             if not params.cwd and params.command.strip().startswith('python bin/super-magic.py'):
                 project_root = self.base_dir.parent
                 work_dir = project_root
-            # 特殊处理：skillhub 命令始终在项目根目录执行，确保 ./skills 路径一致
-            # 无论是否传入 cwd，都强制使用项目根目录，防止 skill 被安装到错误位置
+            # 特殊处理：skillhub 命令始终在 workspace/skills/ 目录执行
+            # 无论是否传入 cwd，都强制使用该目录，确保 skill 安装到持久化的 workspace 目录
             elif params.command.strip().startswith('skillhub'):
-                work_dir = self.base_dir.parent
+                from app.core.skill_utils.constants import get_workspace_skills_dir
+                work_dir = await get_workspace_skills_dir()
                 # 自定义命令拦截：CLI 本身不支持的子命令由 skillhub 模块内部处理
                 intercepted = await handle_skillhub(params.command.strip())
                 if intercepted is not None:
@@ -113,13 +114,6 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceGuardTool[ShellExecP
                         await self._dispatch_file_event(tool_context, file_path, event_type)
                     except Exception as e:
                         logger.warning(f"Failed to dispatch after-execution event: {e}")
-
-                # skillhub 命令成功后刷新 installed_skills.json
-                if params.command.strip().startswith('skillhub'):
-                    try:
-                        await refresh_meta()
-                    except Exception as e:
-                        logger.warning(f"刷新 installed_skills.json 失败: {e}")
 
             return result
 

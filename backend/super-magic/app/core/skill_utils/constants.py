@@ -5,19 +5,26 @@ from pathlib import Path
 
 # skillhub lock 文件名
 SKILLHUB_LOCK_FILE = ".skills_store_lock.json"
-# 已安装 skills 元数据文件（存放在 workspace/.magic/skills/ 目录中，自动持久化）
-INSTALLED_SKILLS_META_FILE = ".magic/skills/installed_skills.json"
-# 重装操作并发锁，防止多个工具并发触发重装
-reinstall_lock = asyncio.Lock()
 # 动态 skill 下载安装并发锁，防止同一 skill 并发重复下载
 dynamic_skill_install_lock = asyncio.Lock()
 
 
 def get_skillhub_install_dir() -> Path:
-    """获取 skillhub 安装目录（project_root/skills/）
+    """获取 skillhub 安装目录（workspace/skills/）
 
-    skillhub 命令在 shell_exec 中强制以 project_root 为 CWD 执行，
-    因此默认安装路径为 project_root/skills/。
+    统一使用 workspace/skills/ 作为安装目录，该目录持久化且对用户可见。
+    skillhub CLI 命令在 shell_exec 中以此目录为 CWD 执行。
     """
     from app.paths import PathManager
-    return PathManager.get_project_root() / "skills"
+    return PathManager.get_workspace_dir() / "skills"
+
+
+async def get_workspace_skills_dir() -> Path:
+    """获取 workspace/skills/ 目录路径，并确保目录存在
+
+    在需要写入或以该目录为 CWD 执行命令前调用，避免各处重复拼接路径和创建目录。
+    """
+    from app.utils.async_file_utils import async_mkdir
+    skills_dir = get_skillhub_install_dir()
+    await async_mkdir(skills_dir, parents=True, exist_ok=True)
+    return skills_dir

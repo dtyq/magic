@@ -8,7 +8,7 @@ from agentlang.logger import get_logger
 from agentlang.agent.syntax import SyntaxProcessor
 from app.utils.async_file_utils import async_exists, async_read_text
 from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager
-from app.core.skill_utils.installed import load_installed_skills_from_meta
+from app.core.skill_utils.skillhub import scan_workspace_skills
 from app.core.skill_utils.dynamic_config import load_dynamic_config_skills
 from app.core.skill_utils.registry import load_skill_registry
 
@@ -66,11 +66,12 @@ async def _do_generate(skills_list: List[str], agent_name: str) -> Optional[str]
         else:
             logger.warning(f"Skill 不存在: {skill_name}")
 
-    for installed_skill in await load_installed_skills_from_meta():
-        if installed_skill.name not in loaded_names:
-            skills_metadata.append(installed_skill)
-            loaded_names.add(installed_skill.name)
-            logger.info(f"从 installed_skills.json 追加 skill: {installed_skill.name}")
+    # 直接扫描 workspace/skills/ 目录发现用户创建和 skillhub 安装的 skill
+    for workspace_skill in await scan_workspace_skills():
+        if workspace_skill.name not in loaded_names:
+            skills_metadata.append(workspace_skill)
+            loaded_names.add(workspace_skill.name)
+            logger.info(f"扫描发现并追加 workspace skill: {workspace_skill.name}")
 
     dynamic_skills = await load_dynamic_config_skills()
     registry = await load_skill_registry()

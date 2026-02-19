@@ -11,12 +11,6 @@ from app.core.entity.tool.tool_result import TerminalToolResult
 logger = get_logger(__name__)
 
 
-async def refresh_meta() -> None:
-    """skillhub 命令执行成功后刷新 installed_skills.json"""
-    from app.core.skill_manager import refresh_installed_skills_meta
-    await refresh_installed_skills_meta()
-
-
 async def handle_skillhub(command: str) -> Optional[TerminalToolResult]:
     """拦截 skillhub 虚拟命令，内部按子命令分发处理
 
