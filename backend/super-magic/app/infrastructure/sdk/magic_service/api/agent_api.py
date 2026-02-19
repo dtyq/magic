@@ -107,6 +107,23 @@ class AgentApi(MagicServiceAbstractApi):
 
     # ==================== Open API Methods ====================
 
+    def get_agent_by_code(
+        self,
+        parameter: GetAgentOpenApiParameter
+    ) -> AgentOpenApiResult:
+        """
+        Get agent details by code via open-api (sync)
+
+        Args:
+            parameter: GetAgentOpenApiParameter instance
+
+        Returns:
+            AgentOpenApiResult containing agent details
+        """
+        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}"
+        data = self.request_by_parameter(parameter, 'GET', endpoint_path)
+        return AgentOpenApiResult(data)
+
     async def get_agent_by_code_async(
         self,
         parameter: GetAgentOpenApiParameter
