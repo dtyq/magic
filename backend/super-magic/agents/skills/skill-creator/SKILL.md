@@ -229,18 +229,20 @@ Plan document contents:
 
 用户确认规划后，**先做冲突检查**，再创建 skill 目录和 SKILL.md。
 
-**冲突检查：**
+**冲突检查**：直接调用 `skill_list` 工具（无需 Python 封装，也不要用 shell 命令），检查返回列表中是否已有同名 skill：
 -->
 ### Phase 4: Check Conflicts and Write Files
 
 After user confirms the plan, **check for name conflicts first**, then create files.
 
-**Conflict check:**
+**Conflict check** — call the `skill_list` tool directly (it is always available, no Python wrapper needed):
 
 ```
-skill_list: { source: all }
-# Check if a skill with the same name already exists
+tool: skill_list
+params: { "source": "all" }
 ```
+
+Check the returned list for a skill with the same name. Do not run any shell command for this step.
 
 <!--zh
 **冲突处理规则：**
