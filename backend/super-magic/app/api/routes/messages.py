@@ -314,6 +314,15 @@ class MessageProcessor:
             except Exception as e:
                 logger.warning(f"注入 agent_code 失败: {e}")
 
+            # Crew agent: download + compile when agent_mode == "custom_agent"
+            try:
+                if str(message.agent_mode) == "custom_agent" and agent_code_val:
+                    agent_code = agent_code_val.strip()
+                    await self._prepare_crew_agent(agent_code, agent_context)
+            except Exception as e:
+                logger.error(f"Crew agent preparation failed: {e}")
+                logger.info("Crew agent preparation failed, falling back to default agent")
+
             # 🔥 ASR 录音纪要聊天模式路由：检测 asr_task_key 并切换 agent
             try:
                 if message.dynamic_config and message.dynamic_config.get("asr_task_key"):
@@ -471,6 +480,59 @@ class MessageProcessor:
             except Exception as notify_error:
                 logger.error(f"发送错误通知失败: {notify_error}")
                 logger.error(traceback.format_exc())
+
+    async def _prepare_crew_agent(self, agent_code: str, agent_context: 'AgentContext') -> None:
+        """Download crew files (if needed) and compile them into a .agent file.
+
+        Also sets the AgentProfile on agent_context based on IDENTITY.md metadata.
+        """
+        from pathlib import Path
+        from app.paths import PathManager
+        from app.service.crew_downloader import CrewDownloader
+        from app.service.crew_agent_compiler import CrewAgentCompiler
+        from app.core.entity.agent_profile import AgentProfile
+
+        agents_dir = Path(PathManager.get_project_root()) / "agents"
+        crew_dir = agents_dir / "crew"
+
+        # Download if IDENTITY.md does not exist locally
+        identity_file = crew_dir / "IDENTITY.md"
+        if not identity_file.exists():
+            logger.info(f"Crew files not found locally, downloading: {agent_code}")
+            downloader = CrewDownloader()
+            await downloader.download_and_extract(agent_code, crew_dir)
+
+        # Compile crew files into .agent
+        compiler = CrewAgentCompiler()
+        identity_meta = await compiler.compile(agent_code, crew_dir)
+
+        # Set AgentProfile from IDENTITY.md metadata
+        from app.i18n import i18n
+        lang = i18n.get_language()
+
+        name = identity_meta.get("name", "")
+        name_cn = identity_meta.get("name_cn", "")
+        role = identity_meta.get("role", "")
+        role_cn = identity_meta.get("role_cn", "")
+        description = identity_meta.get("description", "")
+        description_cn = identity_meta.get("description_cn", "")
+
+        if lang == "zh" or lang.startswith("zh"):
+            profile = AgentProfile(
+                name=name_cn or name,
+                role=role_cn or role,
+                description=description_cn or description,
+            )
+        else:
+            profile = AgentProfile(
+                name=name or name_cn,
+                role=role or role_cn,
+                description=description or description_cn,
+            )
+
+        if profile.name:
+            agent_context.set_agent_profile(profile)
+            logger.info(f"Set crew agent profile: name={profile.name}, role={profile.role}")
 
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串

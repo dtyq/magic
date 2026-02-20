@@ -199,17 +199,15 @@ class AgentDispatcher(Base):
                 logger.info("使用默认语言: zh_CN")
 
         # 设置 Agent Profile（如果提供）
-        if init_message.agent and init_message.agent.get("name", "").strip():
+        if init_message.agent:
             from app.core.entity.agent_profile import AgentProfile
 
             agent_profile = AgentProfile(
-                name=init_message.agent["name"].strip(),
-                description=init_message.agent.get("description", "").strip(),
+                name=init_message.agent.get('name', ''),
+                description=init_message.agent.get('description', '')
             )
             self.agent_context.set_agent_profile(agent_profile)
             logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
-        elif init_message.agent:
-            logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
 
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
@@ -257,20 +255,29 @@ class AgentDispatcher(Base):
             else:
                 logger.info("工作区初始化完成")
 
-    async def switch_agent(self, agent_mode: Union[AgentMode, str]):
+    async def switch_agent(self, agent_mode: Union[AgentMode, str], agent_code: str = None):
         """
         根据agent_mode切换到相应的agent
 
         Args:
             agent_mode: Agent模式，可以是AgentMode枚举或者自定义Agent的字符串ID
+            agent_code: (optional) crew agent code, used when agent_mode == "custom_agent"
 
         Returns:
             Agent: 选择的Agent实例
         """
         # 如果是字符串，需要判断是内置AgentMode还是自定义Agent ID
         if isinstance(agent_mode, str):
+            # 0. custom_agent + agent_code => compiled crew agent
+            if agent_mode == "custom_agent" and agent_code:
+                agent_type = agent_code
+                if agent_type in self.agents:
+                    logger.info(f"清理已缓存的 crew Agent: {agent_type}")
+                    del self.agents[agent_type]
+                logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
+
             # 1. 优先检查是否为内置 AgentMode 值
-            if agent_mode in {mode.value for mode in AgentMode}:
+            elif agent_mode in {mode.value for mode in AgentMode}:
                 agent_mode = AgentMode(agent_mode)
                 logger.info(f"识别为内置 AgentMode: {agent_mode}")
                 agent_type = agent_mode.get_agent_type()
@@ -433,8 +440,15 @@ class AgentDispatcher(Base):
 
         self.agent_context.set_chat_client_message(message)
 
+        # Extract agent_code for crew agent dispatching
+        agent_code = None
+        if message.dynamic_config:
+            agent_code_val = message.dynamic_config.get("agent_code")
+            if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
+                agent_code = agent_code_val.strip()
+
         # 使用 agent_mode 进行 agent 选择
-        agent = await self.switch_agent(message.agent_mode)
+        agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
 
         # 初始化 MCP 配置
         logger.info("正在初始化 MCP 配置...")
