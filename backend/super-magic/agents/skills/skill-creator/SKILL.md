@@ -263,19 +263,38 @@ Check the returned list for a skill with the same name. Do not run any shell com
 **Writing SKILL.md:**
 
 <!--zh
-SKILL.md 组成部分：
-- **name**: skill 标识符（即目录名）
-- **description**: 触发时机和功能描述（英文，语义触发依赖此字段）。描述要稍微"主动"一些，让 AI 知道什么时候必须使用
-- **description-cn**: 中文描述（可选）
-- **正文**: 技能执行的具体指引
-
-目录结构：
+SKILL.md **必须**以 YAML frontmatter 开头，否则打包验证会失败。格式模板：
 -->
-SKILL.md components:
-- **name**: Skill identifier (same as directory name)
-- **description**: When to trigger, what it does (English). Make it slightly "assertive" so AI knows when it must use the skill.
-- **description-cn**: Chinese description (optional)
-- **body**: Specific instructions for skill execution
+SKILL.md **must** start with YAML frontmatter — the packaging validator rejects files without it.
+
+```markdown
+---
+name: skill-name
+description: "English description: when to trigger and what it does. Be slightly assertive."
+description-cn: "中文描述（可选）"
+---
+
+# Skill Name
+
+...body content...
+```
+
+<!--zh
+frontmatter 字段说明：
+- **name**（必填）: kebab-case，只含小写字母、数字、连字符，最多 64 字符，必须与目录名一致
+- **description**（必填）: 英文，语义触发依赖此字段，描述要稍微"主动"一些，最多 1024 字符，不含 `<` `>`
+- **description-cn**（可选）: 中文描述
+- 其他可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`
+
+**注意**：frontmatter 之外不要放额外字段，否则验证失败。
+-->
+Frontmatter fields:
+- **name** (required): kebab-case, lowercase letters/digits/hyphens only, max 64 chars, must match directory name
+- **description** (required): English, max 1024 chars, no angle brackets `<` `>`
+- **description-cn** (optional): Chinese description
+- Other optional: `license`, `allowed-tools`, `metadata`, `compatibility`
+
+Do not add fields outside this allowed set — the validator will reject them.
 
 Directory structure (paths relative to `.workspace/` — use these paths directly with file tools):
 
@@ -364,9 +383,13 @@ Results directory: `skills/<skill-name>/evals/iteration-N/` (relative to `.works
 <!--zh **评分和汇总：** -->
 **Grading and aggregation:**
 
-```
-shell_exec:
-  command: python -m scripts.aggregate_benchmark skills/<skill-name>/evals/iteration-N --skill-name <skill-name>
+```python
+# <workspace-eval-path>: 工作区该轮评测目录的绝对路径
+#   例如 /app/.workspace/skills/<skill-name>/evals/iteration-N
+shell_exec(
+    command='python scripts/aggregate_benchmark.py <workspace-eval-path> --skill-name <skill-name>',
+    cwd="agents/skills/skill-creator"
+)
 ```
 
 <!--zh
@@ -376,14 +399,12 @@ shell_exec:
 **Generating eval report (no browser — output static HTML):**
 This environment has no browser. Use `--static` mode to output a standalone HTML file.
 
-```
-shell_exec:
-  command: >
-    python agents/skills/skill-creator/eval-viewer/generate_review.py
-    skills/<skill-name>/evals/iteration-N
-    --skill-name <skill-name>
-    --benchmark skills/<skill-name>/evals/iteration-N/benchmark.json
-    --static skills/reports/<skill-name>-eval-iteration-N.html
+```python
+# 路径均为工作区绝对路径
+shell_exec(
+    command='python eval-viewer/generate_review.py <workspace-eval-path> --skill-name <skill-name> --benchmark <workspace-eval-path>/benchmark.json --static <workspace-reports-path>/<skill-name>-eval-iteration-N.html',
+    cwd="agents/skills/skill-creator"
+)
 ```
 
 <!--zh
@@ -450,32 +471,58 @@ See `references/super-magic-tools.md` for the detailed procedure.
 ---
 
 <!--zh
-### 阶段八：询问是否打包
+### 阶段八：询问是否打包并上传
 
 在 skill 创建完成并通过用户确认后，必须询问：
 
-> "是否需要将这个 skill 打包成 `.skill` 文件，方便分享或在其他项目中安装？"
+> "是否需要将这个 skill 打包并上传到「我的技能库」？也可以只打包，不上传。"
 
-如果是：
+根据用户的回答选择命令：
 -->
-### Phase 8: Ask About Packaging
+### Phase 8: Ask About Packaging and Upload
 
 After the skill is done and user-confirmed, always ask:
 
-> "Would you like to package this skill into a `.skill` file for sharing or installing in other projects?"
+> "Would you like to package this skill and upload it to your skill library? Or just package without uploading?"
 
-If yes:
+<!--zh
+**打包并上传（默认）：**
 
-```
-shell_exec:
-  command: python -m scripts.package_skill skills/<skill-name>
-# Packaged file: skills/<skill-name>/<skill-name>.skill  (relative to .workspace/)
+`cwd` 固定为 `agents/skills/skill-creator`；`<workspace-skill-path>` 填写 skill 在工作区的绝对路径（即 `static_context` 中 Workspace 字段所指的目录下的 `skills/<skill-name>`）。
+-->
+**Package and upload (default):**
+
+```python
+# <workspace-skill-path>: 工作区 skills 目录下该 skill 的绝对路径
+#   例如 /app/.workspace/skills/<skill-name>
+# 第二个参数为输出目录，显式传入 skill 目录本身，打包产物存于工作区内
+# 可选参数: --name-zh "中文名称" --name-en "English Name"
+shell_exec(
+    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --version 1.0.0',
+    cwd="agents/skills/skill-creator"
+)
 ```
 
 <!--zh
-不要默认打包，也不要跳过这个询问。
+**只打包，不上传：**
 -->
-Do not package by default. Do not skip this step.
+**Package only, skip upload:**
+
+```python
+shell_exec(
+    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --no-upload',
+    cwd="agents/skills/skill-creator"
+)
+```
+
+<!--zh
+- `--version` 不是必填项，但建议在首次发布时指定
+- `--name-zh` / `--name-en` 为可选多语言名称覆盖，不传则使用 SKILL.md frontmatter 中的 name 字段
+- 不要默认打包，也不要跳过这个询问
+-->
+- `--version` is optional but recommended for first release
+- `--name-zh` / `--name-en` are optional i18n name overrides; if omitted the name from SKILL.md frontmatter is used
+- Do not package by default. Do not skip this step.
 
 ---
 
@@ -487,7 +534,7 @@ Do not package by default. Do not skip this step.
 - `shell_exec` 的**默认工作目录是 `.workspace/`**，命令内部同样**不要带 `.workspace/` 前缀**，直接写 `skills/<skill-name>/...` 即可
 - `cwd` 参数本身是相对**项目根目录**解析的，所以 `cwd` 写 `.workspace/skills/<skill-name>` 才是正确的
 - workspace skill 的 scripts 执行时，`cwd` 应为 `.workspace/skills/<skill-name>`
-- skill-creator 自身的脚本（如 `aggregate_benchmark.py`）执行时，`cwd` 是 `agents/skills/skill-creator`
+- skill-creator 自身的脚本执行时，`cwd` 为 `agents/skills/skill-creator`，使用 `python scripts/<script>.py`；skill 路径传绝对路径
 
 ### 内置 skill 不可覆盖
 - `agents/skills/` 下的 skill 优先级最高，`skill_list` 返回的 `can_override: false`
@@ -504,7 +551,7 @@ Do not package by default. Do not skip this step.
 - `shell_exec` **default working directory is `.workspace/`**. Same rule: inside commands use `skills/<skill-name>/...` without `.workspace/` prefix.
 - The `cwd` parameter is resolved relative to the **project root**, so `cwd=".workspace/skills/<skill-name>"` is correct.
 - When running scripts for a workspace skill, `cwd` = `.workspace/skills/<skill-name>`
-- When running skill-creator's own scripts (e.g., `aggregate_benchmark.py`), `cwd` = `agents/skills/skill-creator`
+- When running skill-creator's own scripts (e.g., `package_skill.py`, `aggregate_benchmark.py`), use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py`; pass skill paths as absolute paths (from workspace context)
 
 **Built-in skills cannot be overridden:**
 - Skills in `agents/skills/` have highest priority; `skill_list` returns `can_override: false`
