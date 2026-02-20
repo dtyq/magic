@@ -11,7 +11,11 @@ ENV TZ=${TZ} \
  TIKTOKEN_CACHE_DIR=/app/tiktoken_cache \
  AUTO_REGENERATE_TOOL_DEFINITIONS=false \
  UNZIP="-O UTF-8" \
- ZIPINFO="-O UTF-8"
+ ZIPINFO="-O UTF-8" \
+ XDG_CACHE_HOME=/app/.cache \
+ XDG_CONFIG_HOME=/app/.config \
+ MPLCONFIGDIR=/app/.config/matplotlib \
+ npm_config_cache=/app/.cache/npm
 
 SHELL ["/bin/bash", "-c"]
 
@@ -45,6 +49,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
  binutils \
  zip \
  unzip \
+ xz-utils \
  make \
  ffmpeg \
  tini \
@@ -69,23 +74,22 @@ ARG NODEJS_MIRROR=https://mirrors.aliyun.com/nodejs-release/
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm,target=/root/.npm \
  --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-compile-cache,target=/tmp/node-compile-cache \
- --mount=type=cache,id=debian-${DEBIAN_VERSION}-nvm-cache,target=/root/.nvm/.cache \
- # install nvm for use to choose node version
- curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && \
- . ~/.bashrc && \
- export NVM_NODEJS_ORG_MIRROR="${NODEJS_MIRROR}" && \
- export NPM_CONFIG_REGISTRY="${NPM_REGISTRY}" && \
- nvm install ${NODE_VERSION} && \
- nvm use ${NODE_VERSION} && \
+ # 根据系统架构选择对应的 Node.js 二进制包
+ ARCH=$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/') && \
+ NODE_FULL_VERSION=$(curl -fsSL "${NODEJS_MIRROR}index.json" | \
+ python3 -c "import json,sys; v=[d['version'] for d in json.load(sys.stdin) if int(d['version'][1:].split('.')[0])==${NODE_VERSION}][0]; print(v)") && \
+ NODE_FILE="node-${NODE_FULL_VERSION}-linux-${ARCH}.tar.xz" && \
+ curl -fsSL "${NODEJS_MIRROR}${NODE_FULL_VERSION}/${NODE_FILE}" -o "${NODE_FILE}" && \
+ tar -xJf "${NODE_FILE}" -C /usr/local --strip-components=1 --no-same-owner && \
+ rm "${NODE_FILE}" && \
  # install pnpm
- curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash - && \
- . ~/.bashrc && \
+ curl -fsSL https://get.pnpm.io/install.sh | PNPM_HOME="/opt/pnpm" ENV="$HOME/.bashrc" SHELL="$(which bash)" bash - && \
+ export PNPM_HOME="/opt/pnpm" && \
+ export PATH="${PNPM_HOME}:${PATH}" && \
  # install typescript
  pnpm --registry="${NPM_REGISTRY}" \
  --cache=/root/.npm \
  install -g typescript@5 && \
- echo "========== nvm 版本信息 ==========" && \
- nvm -v && \
  echo "========== Node.js 版本信息 ==========" && \
  node -v && \
  echo "========== npm 版本信息 ==========" && \
@@ -97,8 +101,8 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm,target=/root/.npm \
  echo "========== npx 版本信息 ==========" && \
  npx -v
 
-ENV NVM_DIR=/root/.nvm
-ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PNPM_HOME=/opt/pnpm
+ENV PATH="/opt/pnpm:$PATH"
 
 # 杂项配置
 COPY deploy/ /app/deploy/
@@ -112,7 +116,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
  # 用bash做默认shell 不要用坑爹dash
  ln -sf /usr/bin/bash /bin/sh && \
  # 让entrypoint执行bashrc
- echo -e "#!/usr/bin/bash\n. ~/.bashrc\nexec tini -- \"\$@\"" > /entrypoint.sh && \
+ echo -e "#!/usr/bin/bash\n[ -f ~/.bashrc ] && . ~/.bashrc\nexec tini -- \"\$@\"" > /entrypoint.sh && \
  chmod +x /entrypoint.sh
 
 # 设置工作目录
@@ -151,7 +155,7 @@ RUN mkdir -p /app/tiktoken_cache && \
 RUN \
  # restore mirrors
  mv /etc/apt/sources.list.d/debian.sources.bak /etc/apt/sources.list.d/debian.sources && \
- rm ~/.config/pip/pip.conf
+ rm "${XDG_CONFIG_HOME}/pip/pip.conf"
 
 # 获取Git commit ID并保存到环境变量
 ARG CI_COMMIT_SHA="未知"

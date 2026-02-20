@@ -292,8 +292,12 @@ font.serif: Noto Serif CJK SC, Noto Serif CJK TC, Noto Serif CJK HK, Noto Serif 
 font.monospace: Noto Sans Mono CJK SC, Source Code Pro, Inconsolata, Liberation Mono, DejaVu Sans Mono, Bitstream Vera Sans Mono, monospace
 """
 
-    os.makedirs(os.path.expanduser("~/.config/matplotlib"), exist_ok=True)
-    with open(os.path.expanduser("~/.config/matplotlib/matplotlibrc"), "w") as f:
+    mpl_config_dir = os.environ.get(
+        "MPLCONFIGDIR",
+        os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "matplotlib"),
+    )
+    os.makedirs(mpl_config_dir, exist_ok=True)
+    with open(os.path.join(mpl_config_dir, "matplotlibrc"), "w") as f:
         f.write(config)
 
 
