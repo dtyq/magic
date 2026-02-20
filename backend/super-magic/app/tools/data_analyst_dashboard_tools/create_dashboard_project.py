@@ -16,7 +16,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.utils.file import safe_delete, is_text_file, format_file_size
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType, TerminalContent
 from app.utils.async_file_utils import async_copy2
@@ -74,7 +74,7 @@ Original data source config list, auto-written to magic.project.js sources array
 
 
 @tool()
-class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], WorkspaceGuardTool[CreateDashboardProjectParams]):
+class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], WorkspaceTool[CreateDashboardProjectParams]):
     """<!--zh
     创建数据分析看板项目工具
 
@@ -115,10 +115,7 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
                 return ToolResult(error=error_msg)
 
             # 获取安全的目标路径
-            target_path, error = self.get_safe_path(params.name)
-            if error:
-                return ToolResult(error=error)
-
+            target_path = self.resolve_path(params.name)
             logger.info(f"目标路径: {target_path}")
 
             # 检查目标目录是否已存在

@@ -17,7 +17,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,7 @@ class ConvertVideoToAudioParams(BaseToolParams):
 
 
 @tool()
-class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], WorkspaceGuardTool[ConvertVideoToAudioParams]):
+class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], WorkspaceTool[ConvertVideoToAudioParams]):
     """
     将视频文件转换为音频文件
 
@@ -101,10 +101,7 @@ class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], Workspace
                 return ToolResult(error=f"不支持的音频格式 '{params.output_format}'。支持的格式：{', '.join(AUDIO_FORMATS.keys())}")
 
             # 2. 检查视频文件是否存在
-            video_path, error = self.get_safe_path(params.video_path)
-            if error:
-                return ToolResult(error=error)
-
+            video_path = self.resolve_path(params.video_path)
             if not await asyncio.to_thread(video_path.exists):
                 return ToolResult(error=f"视频文件不存在：{params.video_path}")
 

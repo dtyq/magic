@@ -18,7 +18,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string, truncate_text_by_token
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from magic_use.magic_browser import MagicBrowser, MagicBrowserConfig
 from app.tools.use_browser_operations.content import ContentOperations, VisualQueryParams
 
@@ -47,7 +47,7 @@ Question or analysis requirements about webpage content, e.g., 'Describe the lay
 
 
 @tool()
-class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpageParams]):
+class VisualUnderstandingWebpage(WorkspaceTool[VisualUnderstandingWebpageParams]):
     """<!--zh
     网页视觉理解工具
 

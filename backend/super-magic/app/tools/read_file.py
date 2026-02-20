@@ -23,7 +23,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.markitdown_plugins.csv_plugin import CSVConverter
 from app.tools.markitdown_plugins.docx_plugin import DocxConverter
 from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
 from app.utils.file_utils import is_binary_file
@@ -260,7 +260,7 @@ Number of lines or pages to read, default 200 lines, set to -1 to read entire fi
 
 
 @tool()
-class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceGuardTool[ReadFileParams]):
+class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     """<!--zh
     读取文件内容工具
 
@@ -767,10 +767,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
         """
         try:
             # 使用父类方法获取安全的文件路径（包含模糊匹配）
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult.error(error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             # 检查文件是否存在
             if not await aiofiles.os.path.exists(file_path):
                 if tool_context:

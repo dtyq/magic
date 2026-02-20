@@ -12,7 +12,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, TerminalContent
 from app.utils.async_file_utils import async_copy2
@@ -47,7 +47,7 @@ Whether to update index.html main page file"""
 
 
 @tool()
-class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], WorkspaceGuardTool[UpdateDashboardTemplateParams]):
+class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], WorkspaceTool[UpdateDashboardTemplateParams]):
     """<!--zh
     更新数据分析看板模板文件工具
 
@@ -83,10 +83,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
                 return ToolResult(error=error_msg)
 
             # 获取安全的目标路径
-            target_path, error = self.get_safe_path(params.target_project)
-            if error:
-                return ToolResult(error=error)
-
+            target_path = self.resolve_path(params.target_project)
             logger.info(f"目标项目路径: {target_path}")
 
             # 检查目标项目是否存在

@@ -137,7 +137,7 @@ class BaseTool(Generic[T], ABC):
                     # 检查是否为BaseTool[ParamType]形式
                     continue  # Generic基类不提取
 
-                # 检查是否为像WorkspaceGuardTool[ParamType]这样的特定泛型工具
+                # 检查是否为像WorkspaceTool[ParamType]这样的特定泛型工具
                 if hasattr(base, '__origin__') and hasattr(base, '__args__') and len(base.__args__) > 0:
                     origin = get_origin(base)
                     if origin is not None and issubclass(origin, BaseTool):

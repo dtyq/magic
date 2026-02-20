@@ -13,7 +13,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 
 logger = get_logger(__name__)
@@ -64,7 +64,7 @@ class AppendResult(NamedTuple):
 
 
 @tool()
-class AppendToFile(AbstractFileTool[AppendToFileParams], WorkspaceGuardTool[AppendToFileParams]):
+class AppendToFile(AbstractFileTool[AppendToFileParams], WorkspaceTool[AppendToFileParams]):
     """<!--zh
     追加文件工具，可以将内容追加到指定路径的文件中，如果文件不存在会创建文件。
 
@@ -92,10 +92,7 @@ class AppendToFile(AbstractFileTool[AppendToFileParams], WorkspaceGuardTool[Appe
         """
         try:
             # 使用父类方法获取安全的文件路径
-            file_path, error = self.get_safe_path(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path = self.resolve_path(params.file_path)
             # 保存原始文件内容（用于统计）
             file_exists = file_path.exists()
             original_content = ""

@@ -25,7 +25,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
@@ -57,7 +57,7 @@ class EditFileParams(BaseToolParams):
 
 
 @tool()
-class EditFile(AbstractFileTool[EditFileParams], WorkspaceGuardTool[EditFileParams]):
+class EditFile(AbstractFileTool[EditFileParams], WorkspaceTool[EditFileParams]):
     """<!--zh
     在文件中执行精确的字符串替换，严格验证替换次数。
 
@@ -126,10 +126,7 @@ When editing the same file multiple times:
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             # Check and strip line numbers from old_string
             old_string_cleaned, had_line_numbers, line_warning = LineNumberHandler.detect_and_strip(params.old_string)
             if had_line_numbers:

@@ -19,7 +19,7 @@ from agentlang.utils.syntax_checker import SyntaxChecker
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
@@ -59,7 +59,7 @@ class MultiEditFileParams(BaseToolParams):
 
 
 @tool()
-class MultiEditFile(AbstractFileTool[MultiEditFileParams], WorkspaceGuardTool[MultiEditFileParams]):
+class MultiEditFile(AbstractFileTool[MultiEditFileParams], WorkspaceTool[MultiEditFileParams]):
     """
     This is a tool for making multiple edits to a single file in one operation. It is built
     on top of the edit_file tool and allows you to perform multiple find-and-replace operations
@@ -116,10 +116,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             # Check if file exists
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")

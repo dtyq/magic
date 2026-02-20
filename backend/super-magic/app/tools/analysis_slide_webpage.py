@@ -18,7 +18,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.llms.factory import LLMFactory
 from agentlang.utils.token_estimator import truncate_text_by_token
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from magic_use.magic_browser import MagicBrowser, MagicBrowserConfig
 
 logger = get_logger(__name__)
@@ -76,7 +76,7 @@ Canvas max height, used to detect if elements exceed boundaries"""
 
 
 @tool()
-class AnalysisSlideWebpage(WorkspaceGuardTool[AnalysisSlideWebpageParams]):
+class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
     """<!--zh
     幻灯片网页分析工具
 

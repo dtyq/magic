@@ -19,7 +19,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
 from magic_use.magic_browser import MagicBrowser
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.webview_utils import (
     WebviewContentParams, process_webview_content, goto_external_website_with_referer
 )
@@ -150,7 +150,7 @@ class WebpageReadingResult(BaseModel):
 
 
 @tool()
-class ReadWebpagesAsMarkdown(WorkspaceGuardTool[ReadWebpagesAsMarkdownParams]):
+class ReadWebpagesAsMarkdown(WorkspaceTool[ReadWebpagesAsMarkdownParams]):
     """<!--zh: 批量网页读取工具，将多个网页内容聚合为单个markdown文档。-->
 Batch webpage reading tool that aggregates multiple webpage contents into single markdown document.
     """

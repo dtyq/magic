@@ -19,7 +19,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -47,7 +47,7 @@ class SplitAudioParams(BaseToolParams):
 
 
 @tool()
-class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAudioParams]):
+class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceTool[SplitAudioParams]):
     """<!--zh: 将大音频文件拆分成多个小文件。当音频文件时长超过指定阈值或文件大小超过指定阈值时，自动拆分成多个片段，确保每个拆分后的音频不超过指定的大小或时长。支持的音频格式：MP3, WAV, M4A, AAC, OGG, FLAC 等。-->
     Split large audio files into multiple smaller files. When audio file duration exceeds specified threshold or file size exceeds specified threshold, automatically split into multiple segments, ensuring each split audio does not exceed specified size or duration. Supported audio formats: MP3, WAV, M4A, AAC, OGG, FLAC, etc."""
 
@@ -67,10 +67,7 @@ class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAud
 
         try:
             # 1. 检查音频文件是否存在
-            audio_path, error = self.get_safe_path(params.audio_path)
-            if error:
-                return ToolResult(error=error)
-
+            audio_path = self.resolve_path(params.audio_path)
             if not await asyncio.to_thread(audio_path.exists):
                 return ToolResult(error=f"音频文件不存在：{params.audio_path}")
 

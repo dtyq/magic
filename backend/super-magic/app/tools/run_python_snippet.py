@@ -10,7 +10,7 @@ from agentlang.logger import get_logger
 from app.core.entity.tool.tool_result import TerminalToolResult
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.process_executor import ProcessExecutor
 from app.utils.terminal_tool_detail_generator import TerminalToolDetailGenerator
 
@@ -48,7 +48,7 @@ Script execution working directory, defaults to workspace root"""
 
 
 @tool()
-class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceGuardTool[RunPythonSnippetParams]):
+class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceTool[RunPythonSnippetParams]):
     """<!--zh
     Python代码片段执行工具，适用于数据分析、处理、转换、快速计算、验证及文件操作和处理等场景
 
@@ -113,12 +113,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceGuardT
             work_dir = self.base_dir
             if params.cwd:
                 # 使用父类方法获取安全的工作目录路径
-                cwd_path, error = self.get_safe_path(params.cwd)
-                if error:
-                    return TerminalToolResult(
-                        error=error,
-                        command=f"python {params.script_path}"
-                    )
+                cwd_path = self.resolve_path(params.cwd)
                 work_dir = cwd_path
 
             # 构建完整的脚本文件路径

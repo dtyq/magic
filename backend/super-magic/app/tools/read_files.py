@@ -15,7 +15,7 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -63,7 +63,7 @@ class FileReadingResult(BaseModel):
 
 
 @tool()
-class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesParams]):
+class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams]):
     """<!--zh
     批量读取文件内容工具
 

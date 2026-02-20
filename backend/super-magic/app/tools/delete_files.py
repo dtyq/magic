@@ -13,7 +13,7 @@ from agentlang.utils.file import safe_delete
 from app.core.entity.message.server_message import ToolDetail
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ List of file paths to delete""",
 
 
 @tool()
-class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceGuardTool[DeleteFilesParams]):
+class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFilesParams]):
     """<!--zh
     删除多个文件工具，用于批量删除指定的文件或目录。
 
@@ -73,11 +73,7 @@ class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceGuardTool[Delete
 
                 try:
                     # 使用基类方法获取安全文件路径
-                    file_path, error = self.get_safe_path(file_path_str)
-                    if error:
-                        errors.append(f"{file_path_str}: {error}")
-                        continue
-
+                    file_path = self.resolve_path(file_path_str)
                     # 计算相对于workspace的路径用于显示
                     try:
                         relative_path = file_path.relative_to(self.base_dir)

@@ -15,7 +15,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.file import safe_delete
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.download_from_markdown import DownloadFromMarkdown, DownloadFromMarkdownParams
 from app.utils.async_file_utils import async_copy2
 
@@ -71,7 +71,7 @@ Content will be used to create slide-todo.md file for recording slide content pl
 
 
 @tool()
-class CreateSlideProject(AbstractFileTool[CreateSlideProjectParams], WorkspaceGuardTool[CreateSlideProjectParams]):
+class CreateSlideProject(AbstractFileTool[CreateSlideProjectParams], WorkspaceTool[CreateSlideProjectParams]):
     """<!--zh
     创建幻灯片项目工具
 
@@ -423,10 +423,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
 
         try:
             # 使用父类方法获取安全的项目路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-
+            project_path = self.resolve_path(params.project_path)
             # 检查项目文件夹是否已存在
             folder_already_exists = await asyncio.to_thread(project_path.exists)
 

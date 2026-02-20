@@ -11,7 +11,7 @@ from app.core.entity.tool.tool_result import TerminalToolResult
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.shell_command_parser import ShellCommandParser
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
@@ -36,7 +36,7 @@ Working directory for command execution, defaults to workspace root"""
 
 
 @tool()
-class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceGuardTool[ShellExecParams]):
+class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams]):
     """<!--zh
     Shell命令执行工具
     常适用于文件(夹)移动、删除、进程管理、执行Python脚本等场景
@@ -66,9 +66,7 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceGuardTool[ShellExecP
             if not params.cwd and params.command.strip().startswith('python bin/super-magic.py'):
                 work_dir = self.base_dir.parent
             elif params.cwd:
-                cwd_path, error = self.get_safe_path(params.cwd)
-                if error:
-                    return TerminalToolResult(error=error, command=params.command)
+                cwd_path = self.resolve_path(params.cwd)
                 work_dir = cwd_path
 
             logger.debug(f"Executing command: {params.command}, working directory: {work_dir}")

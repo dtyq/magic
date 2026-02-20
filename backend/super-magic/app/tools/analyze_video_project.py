@@ -10,7 +10,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 
 # Import audio project analysis tool for reuse
@@ -212,7 +212,7 @@ Usage scenarios:
 
 
 @tool()
-class AnalyzeVideoProject(AbstractFileTool[AnalyzeVideoProjectParams], WorkspaceGuardTool[AnalyzeVideoProjectParams]):
+class AnalyzeVideoProject(AbstractFileTool[AnalyzeVideoProjectParams], WorkspaceTool[AnalyzeVideoProjectParams]):
     """<!--zh
     执行视频分析，并行调用多个AI智能体执行生成章节分析、内容总结及可选分析（权力动态、意图、量化数据、思维导图、洞察、金句）文件。
     最后生成 index.html 完成 Magic Project 构建。
@@ -258,10 +258,7 @@ class AnalyzeVideoProject(AbstractFileTool[AnalyzeVideoProjectParams], Workspace
 
             # If analysis succeeded, replace visualization template with video-specific one
             if result.ok:
-                project_path, error = self.get_safe_path(params.project_path)
-                if error:
-                    return ToolResult(error=error)
-
+                project_path = self.resolve_path(params.project_path)
                 try:
                     # Generate video-specific visualization template
                     await self._copy_visualization_template(tool_context, project_path)

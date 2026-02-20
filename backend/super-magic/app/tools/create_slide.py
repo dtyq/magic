@@ -21,7 +21,7 @@ from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.write_file import WriteFile, WriteFileParams
 from magic_use.magic_browser import MagicBrowser
 
@@ -119,7 +119,7 @@ This parameter auto-updates slides array in magic.project.js to ensure slide is 
 
 
 @tool()
-class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceGuardTool[CreateSlideParams]):
+class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlideParams]):
     """<!--zh
     创建幻灯片工具
 

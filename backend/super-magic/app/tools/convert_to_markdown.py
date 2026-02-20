@@ -13,7 +13,7 @@ from app.core.entity.message.server_message import DisplayType, FileContent, Too
 from agentlang.tools.tool_result import ToolResult
 from agentlang.event.event import EventType
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
 from app.paths import PathManager
@@ -87,7 +87,7 @@ def _build_ai_content(source_name: str, saved_file_path: str,
 
 
 @tool()
-class ConvertToMarkdown(AbstractFileTool[ConvertToMarkdownParams], WorkspaceGuardTool[ConvertToMarkdownParams]):
+class ConvertToMarkdown(AbstractFileTool[ConvertToMarkdownParams], WorkspaceTool[ConvertToMarkdownParams]):
     """<!--zh
     文档格式转换工具，将文档转换为Markdown格式并保存到指定位置。
 
@@ -208,10 +208,7 @@ class ConvertToMarkdown(AbstractFileTool[ConvertToMarkdownParams], WorkspaceGuar
 
         try:
             # 1. 验证输入文件
-            safe_input_path, error = self.get_safe_path(input_path)
-            if error:
-                return ToolResult.error(f"输入路径无效 '{input_path}': {error}")
-
+            safe_input_path = self.resolve_path(input_path)
             if not await aiofiles.os.path.exists(safe_input_path):
                 return ToolResult.error(f"输入文件不存在: '{input_path}'")
 
@@ -232,10 +229,7 @@ class ConvertToMarkdown(AbstractFileTool[ConvertToMarkdownParams], WorkspaceGuar
 
             # 3. 确定临时输出路径用于解析
             # 首先验证和准备最终输出路径
-            safe_output_path, error = self.get_safe_path(target_output_path_str)
-            if error:
-                return ToolResult.error(f"输出路径无效 '{target_output_path_str}': {error}")
-
+            safe_output_path = self.resolve_path(target_output_path_str)
             # 确保父目录存在
             await asyncio.to_thread(safe_output_path.parent.mkdir, parents=True, exist_ok=True)
 

@@ -18,7 +18,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.diff_generator import DiffGenerator
@@ -47,7 +47,7 @@ class EditFileRangeParams(BaseToolParams):
 
 
 @tool()
-class EditFileRange(AbstractFileTool[EditFileRangeParams], WorkspaceGuardTool[EditFileRangeParams]):
+class EditFileRange(AbstractFileTool[EditFileRangeParams], WorkspaceTool[EditFileRangeParams]):
     """<!--zh
     基于替换边界编辑文件，替换从 replace_start 到 replace_end 的整个区间（包含边界）。
     优先用 edit_file；old_string 过长时才用本工具。创建新文件用 write_file。
@@ -116,10 +116,7 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             ToolResult: Operation result with diff
         """
         try:
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             ai_warnings = []
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)

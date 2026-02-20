@@ -19,7 +19,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.diff_generator import DiffGenerator
@@ -66,7 +66,7 @@ class ResolvedChunk:
 
 
 @tool()
-class MultiEditFileRange(AbstractFileTool[MultiEditFileRangeParams], WorkspaceGuardTool[MultiEditFileRangeParams]):
+class MultiEditFileRange(AbstractFileTool[MultiEditFileRangeParams], WorkspaceTool[MultiEditFileRangeParams]):
     """<!--zh
     基于替换边界的批量编辑工具，一次调用完成同一文件多个片段替换。
     适合多处长片段编辑，避免多轮编辑时定位漂移。
@@ -147,10 +147,7 @@ Key constraints:
             ToolResult: Operation result
         """
         try:
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
                 return ToolResult(

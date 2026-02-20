@@ -16,7 +16,7 @@ from agentlang.utils.retry import retry_with_exponential_backoff
 from agentlang.utils.tool_param_utils import parse_multiline_kv
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, TerminalContent, ToolDetail
 from app.utils.async_file_utils import async_copy2, async_exists, async_write_text, async_read_text, async_try_read_text
@@ -472,7 +472,7 @@ Usage scenarios:
 
 
 @tool()
-class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], WorkspaceGuardTool[AnalyzeAudioProjectParams]):
+class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], WorkspaceTool[AnalyzeAudioProjectParams]):
     """<!--zh
     执行音频分析，并行调用多个AI智能体执行生成章节分析、内容总结及可选分析（权力动态、意图、量化数据、思维导图、洞察、金句）文件。
     最后生成 index.html 完成 Magic Project 构建。
@@ -499,10 +499,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
             logger.info(f"使用模型进行音频分析: {model_id}")
 
             # 2. 获取安全路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-
+            project_path = self.resolve_path(params.project_path)
             # 3. 读取项目配置
             config = await self._load_project_config(project_path)
             if not config:
@@ -976,12 +973,8 @@ if (typeof window.magicProjectConfigure === 'function') {{
             if not relative_path or not relative_path.strip():
                 continue
 
-            # 使用 get_safe_path 获取相对于工作空间的安全路径
-            file_path, error = self.get_safe_path(relative_path)
-            if error:
-                logger.warning(f"上下文文件路径不安全，已跳过: {relative_path}")
-                continue
-
+            # 使用 resolve_path 解析路径（相对→workspace，绝对→直接使用）
+            file_path = self.resolve_path(relative_path)
             content = await async_try_read_text(file_path)
             if content:
                 context_contents[relative_path] = content

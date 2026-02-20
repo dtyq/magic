@@ -71,7 +71,7 @@ from app.tools.core import BaseToolParams, tool
 from magic_use.magic_browser import MagicBrowser, MagicBrowserConfig, PageStateSuccess, ScreenshotSuccess, MagicBrowserError
 from app.tools.use_browser_operations.operations_registry import operations_registry
 from app.tools.visual_understanding import VisualUnderstanding, VisualUnderstandingParams
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.file import generate_safe_filename_with_timestamp
 from app.core.entity.event.event_context import EventContext
 
@@ -192,7 +192,7 @@ class UseBrowserParams(BaseToolParams):
 
 
 @tool()
-class UseBrowser(WorkspaceGuardTool[UseBrowserParams], AbstractFileTool):
+class UseBrowser(WorkspaceTool[UseBrowserParams], AbstractFileTool):
     """<!--zh
     浏览器使用工具
 

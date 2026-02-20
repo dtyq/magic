@@ -14,7 +14,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
 from agentlang.utils.token_estimator import num_tokens_from_string
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.utils.file_utils import is_binary_file
@@ -77,7 +77,7 @@ class GrepSearchParams(BaseToolParams):
 
 
 @tool()
-class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
+class GrepSearch(WorkspaceTool[GrepSearchParams]):
     """<!--zh
     - 快速内容搜索工具，适用于任何大小的代码库
     - 使用完整正则语法搜索文件内容（如 "log.*Error", "function\\s+\\w+"）

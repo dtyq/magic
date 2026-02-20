@@ -16,7 +16,7 @@ from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from agentlang.tools.tool_result import ToolResult
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.pdf_converter_utils import convert_pdf_locally
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
 from agentlang.logger import get_logger
@@ -69,7 +69,7 @@ Whether to override when output file already exists. Only effective when `output
     )
 
 @tool()
-class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertPdfParams]):
+class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceTool[ConvertPdfParams]):
     """<!--zh
     PDF 转换工具，将指定的 PDF 文件（本地路径或 URL）转换为 Markdown 格式。
 
@@ -173,9 +173,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                 logger.info(f"输入 '{input_location}' 被识别为本地路径，强制使用 'normal' 模式。")
                 effective_mode = "normal"
                 # 验证本地路径安全
-                safe_path, error = self.get_safe_path(input_location)
-                if error:
-                    return ToolResult(error=error)
+                safe_path = self.resolve_path(input_location)
                 if not await aiofiles.os.path.exists(safe_path) or await aiofiles.os.path.isdir(safe_path):
                     return ToolResult(error=f"本地文件不存在或不是文件：'{input_location}'")
                 pdf_source_path = safe_path
@@ -320,11 +318,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
             try:
                 if target_output_path_str:
                     # 用户指定了路径
-                    safe_output_path, error = self.get_safe_path(target_output_path_str)
-                    if error:
-                         logger.error(f"指定的输出路径不安全或在工作空间之外: {target_output_path_str}")
-                         return ToolResult(error=f"指定的输出路径 '{target_output_path_str}' 不安全或无效: {error}")
-
+                    safe_output_path = self.resolve_path(target_output_path_str)
                     # 检查文件是否存在以及是否允许覆盖
                     if await aiofiles.os.path.exists(safe_output_path) and not override_output:
                          logger.warning(f"输出文件已存在且不允许覆盖: {safe_output_path}")
