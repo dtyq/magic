@@ -105,6 +105,7 @@ from app.tools.design.tools import (
 from app.tools.skills_read import SkillsRead
 from app.tools.skill_read_references import SkillReadReferences
 from app.tools.run_skills_snippet import RunSkillsSnippet
+from app.tools.skill_list import SkillList
 
 # Agent 管理工具
 from app.tools.agent_manager.get_agent_info import GetAgentInfo
@@ -164,6 +165,7 @@ __all__ = [
     "SkillsRead",
     "SkillReadReferences",
     "RunSkillsSnippet",
+    "SkillList",
     "ReadFile",
     "ReadFiles",
     "ReadWebpagesAsMarkdown",
