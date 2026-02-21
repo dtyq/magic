@@ -73,24 +73,19 @@ Workflow (see skill-creator for full details):
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
-{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
 
+<base_instructions>
+{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
+</base_instructions>
+
 <user_first_law>
 {{ @include(path="./prompts/user_first_law.prompt") }}
 </user_first_law>
-
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
-<base_instructions>
-{{ @include(path="./prompts/magic_base_instructions_for_skills.prompt") }}
-</base_instructions>
 
 <mention_mechanism>
 {{ @include(path="./prompts/mention_mechanism.prompt") }}
@@ -104,8 +99,4 @@ Workflow (see skill-creator for full details):
 {{ @include(path="./prompts/before_you_create_file.prompt") }}
 </before_you_create_file>
 
-<after_working_for_a_while>
-{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
-</after_working_for_a_while>
-
-{{ @include(path="./prompts/magic_common_workflows_for_skills.prompt") }}
+{{ @include(path="./prompts/common_workflows.prompt") }}
