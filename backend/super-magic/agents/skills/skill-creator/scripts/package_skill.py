@@ -105,8 +105,8 @@ async def package_skill(
         output_path = Path(output_dir).resolve()
         await asyncio.to_thread(output_path.mkdir, parents=True, exist_ok=True)
     else:
-        # 默认输出到 skill 自身目录（工作区内），避免输出到脚本的 cwd
-        output_path = skill_path
+        # 默认输出到 skill 目录的父目录，与 skill 文件夹同层
+        output_path = skill_path.parent
 
     # 带版本号时文件名加 -v<version> 后缀
     filename_stem = f"{skill_name}-v{version}" if version else skill_name
