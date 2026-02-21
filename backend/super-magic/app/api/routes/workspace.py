@@ -1,13 +1,22 @@
 from fastapi import APIRouter
 import traceback
-from typing import Dict, Any
 
 from app.api.http_dto.response import (
     BaseResponse,
     create_success_response,
     create_error_response
 )
+from app.api.http_dto.workspace import (
+    WorkspaceExportRequest,
+    WorkspaceStatusData,
+    WorkspaceStatusesData,
+    WorkspaceExportData,
+    WorkspaceImportRequest,
+    WorkspaceImportData,
+)
 from app.service.agent_dispatcher import AgentDispatcher
+from app.service.workspace_export_service import export_workspace
+from app.service.workspace_import_service import import_workspace_from_url
 from app.core.entity.workspace_status import WorkspaceStatus
 from agentlang.logger import get_logger
 
@@ -56,16 +65,16 @@ async def get_workspace_status() -> BaseResponse:
             logger.info(f"AgentDispatcher存在，初始化状态: {is_initialized}, 状态码: {status}")
 
         # 构造响应数据
-        status_data = {
-            "status": status,
-            "description": WorkspaceStatus.get_description(status)
-        }
+        status_data = WorkspaceStatusData(
+            status=status,
+            description=WorkspaceStatus.get_description(status),
+        )
 
-        logger.info(f"工作区状态查询成功: {status_data}")
+        logger.info(f"工作区状态查询成功: {status_data.model_dump()}")
 
         return create_success_response(
             message="获取工作区状态成功",
-            data=status_data
+            data=status_data.model_dump()
         )
 
     except Exception as e:
@@ -73,14 +82,14 @@ async def get_workspace_status() -> BaseResponse:
         logger.error(traceback.format_exc())
 
         # 构造错误状态数据
-        error_data = {
-            "status": WorkspaceStatus.ERROR,
-            "description": WorkspaceStatus.get_description(WorkspaceStatus.ERROR)
-        }
+        error_data = WorkspaceStatusData(
+            status=WorkspaceStatus.ERROR,
+            description=WorkspaceStatus.get_description(WorkspaceStatus.ERROR),
+        )
 
         return create_error_response(
             message="获取工作区状态失败",
-            data=error_data
+            data=error_data.model_dump()
         )
 
 
@@ -119,16 +128,15 @@ async def get_all_workspace_statuses() -> BaseResponse:
     try:
         all_statuses = WorkspaceStatus.get_all_statuses()
 
-        # 将int键转换为字符串，符合JSON标准
-        statuses_data = {
-            "statuses": {str(k): v for k, v in all_statuses.items()}
-        }
+        statuses_data = WorkspaceStatusesData(
+            statuses={str(k): v for k, v in all_statuses.items()}
+        )
 
         logger.info("成功获取所有工作区状态码")
 
         return create_success_response(
             message="获取状态码列表成功",
-            data=statuses_data
+            data=statuses_data.model_dump()
         )
 
     except Exception as e:
@@ -137,4 +145,63 @@ async def get_all_workspace_statuses() -> BaseResponse:
 
         return create_error_response(
             message="获取状态码列表失败"
+        )
+
+
+@router.post("/export", response_model=BaseResponse)
+async def export_workspace_endpoint(request: WorkspaceExportRequest) -> BaseResponse:
+    """Package and upload current workspace, returning file key and metadata."""
+    try:
+        upload_config_dict = request.upload_config.model_dump()
+
+        result = await export_workspace(
+            export_type=request.type,
+            code=request.code,
+            upload_config=upload_config_dict,
+        )
+        response_data = WorkspaceExportData.model_validate(result)
+
+        return create_success_response(
+            message="Workspace exported successfully",
+            data=response_data.model_dump(),
+        )
+
+    except ValueError as exc:
+        logger.error(f"Invalid export request: {exc}")
+        return create_error_response(
+            message=str(exc),
+            data=None,
+        )
+    except Exception as exc:
+        logger.error(f"Workspace export failed: {exc}")
+        logger.error(traceback.format_exc())
+        return create_error_response(
+            message=f"Workspace export failed: {exc}",
+            data=None,
+        )
+
+
+@router.post("/import", response_model=BaseResponse)
+async def import_workspace_endpoint(request: WorkspaceImportRequest) -> BaseResponse:
+    """Download a ZIP archive and extract it into current workspace."""
+    try:
+        result = await import_workspace_from_url(request.url, request.target_dir)
+        response_data = WorkspaceImportData.model_validate(result)
+
+        return create_success_response(
+            message="Workspace imported successfully",
+            data=response_data.model_dump(),
+        )
+    except ValueError as exc:
+        logger.error(f"Invalid import request: {exc}")
+        return create_error_response(
+            message=str(exc),
+            data=None,
+        )
+    except Exception as exc:
+        logger.error(f"Workspace import failed: {exc}")
+        logger.error(traceback.format_exc())
+        return create_error_response(
+            message=f"Workspace import failed: {exc}",
+            data=None,
         )
