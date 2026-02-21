@@ -284,17 +284,17 @@ frontmatter 字段说明：
 - **name**（必填）: kebab-case，只含小写字母、数字、连字符，最多 64 字符，必须与目录名一致
 - **description**（必填）: 英文，语义触发依赖此字段，描述要稍微"主动"一些，最多 1024 字符，不含 `<` `>`
 - **description-cn**（可选）: 中文描述
-- 其他可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`
+- 其他常见可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`；亦可按需增加任意 YAML 键（如 `description-cn`）
 
-**注意**：frontmatter 之外不要放额外字段，否则验证失败。
+**注意**：打包验证**仅要求** frontmatter 中必须包含 `name` 与 `description`，不对键名做白名单限制。
 -->
 Frontmatter fields:
 - **name** (required): kebab-case, lowercase letters/digits/hyphens only, max 64 chars, must match directory name
 - **description** (required): English, max 1024 chars, no angle brackets `<` `>`
 - **description-cn** (optional): Chinese description
-- Other optional: `license`, `allowed-tools`, `metadata`, `compatibility`
+- Other common optional keys: `license`, `allowed-tools`, `metadata`, `compatibility`; you may add any extra YAML keys as needed (e.g. `description-cn`)
 
-Do not add fields outside this allowed set — the validator will reject them.
+**Note:** Packaging validation only requires `name` and `description` in frontmatter; there is no fixed whitelist of keys.
 
 Directory structure (paths relative to `.workspace/` — use these paths directly with file tools):
 
