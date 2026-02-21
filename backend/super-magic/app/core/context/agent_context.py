@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
+from agentlang.context.shared_context import create_agent_shared_context
 from app.core.config.communication_config import STSTokenRefreshConfig
 from app.core.entity.agent_profile import AgentProfile, DEFAULT_AGENT_PROFILE
 from app.core.entity.attachment import Attachment
@@ -87,17 +88,26 @@ class AgentContext(BaseAgentContext):
     实现 AgentContextInterface 接口，提供用户和代理相关信息
     """
 
-    def __init__(self):
+    def __init__(self, isolated: bool = False):
         """
-        初始化代理上下文
-        """
-        super().__init__()
+        初始化代理上下文。
 
-        # 初始化字段并注册到 shared_context
+        Args:
+            isolated: 若为 True，使用独立的 AgentSharedContext 实例而非全局单例。
+                      子 Agent 并行运行时必须设为 True，避免 current_llm_request_id、
+                      cancel_blocker_count 等字段被并发写入冲突。
+                      主 Agent 始终使用默认值 False（全局单例）。
+        """
+        shared_context = create_agent_shared_context() if isolated else None
+        super().__init__(shared_context=shared_context)
+
+        # 普通路径与隔离路径都走同一初始化逻辑；共享实例由 is_initialized 保护避免重复注册。
         self._init_shared_fields()
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
+        self._subagent_depth = 0
+        self._subagent_parent_agent_name: Optional[str] = None
 
         # 设置工作空间目录
         try:
@@ -121,6 +131,22 @@ class AgentContext(BaseAgentContext):
 
         # Agent Profile 配置
         self._agent_profile: AgentProfile = DEFAULT_AGENT_PROFILE
+
+    def set_subagent_depth(self, depth: int) -> None:
+        """设置子 Agent 深度。"""
+        self._subagent_depth = max(depth, 0)
+
+    def get_subagent_depth(self) -> int:
+        """获取当前子 Agent 深度。主 Agent 固定为 0。"""
+        return self._subagent_depth
+
+    def set_subagent_parent_agent_name(self, agent_name: Optional[str]) -> None:
+        """记录调用当前子 Agent 的父 Agent 名称。"""
+        self._subagent_parent_agent_name = agent_name
+
+    def get_subagent_parent_agent_name(self) -> Optional[str]:
+        """获取父 Agent 名称；主 Agent 返回 None。"""
+        return self._subagent_parent_agent_name
 
     def _init_shared_fields(self):
         """初始化共享字段并注册到 shared_context"""
@@ -166,8 +192,6 @@ class AgentContext(BaseAgentContext):
             "loaded_skills": ([], List[str]),  # 已加载的 skills 列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
-            # Agent Master 管理
-            "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
         })
 
         # 标记初始化完成
@@ -208,23 +232,6 @@ class AgentContext(BaseAgentContext):
             Optional[asyncio.Queue]: 中断队列
         """
         return self.shared_context.get_field("interrupt_queue")
-
-    def set_agent_code(self, agent_code: str) -> None:
-        """设置当前自定义 Agent 的 agent_code
-
-        Args:
-            agent_code: Agent 编码（如 sma-xxxxx）
-        """
-        self.shared_context.update_field("agent_code", agent_code)
-        logger.debug(f"已更新 agent_code: {agent_code}")
-
-    def get_agent_code(self) -> Optional[str]:
-        """获取当前自定义 Agent 的 agent_code
-
-        Returns:
-            Optional[str]: agent_code
-        """
-        return self.shared_context.get_field("agent_code")
 
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID

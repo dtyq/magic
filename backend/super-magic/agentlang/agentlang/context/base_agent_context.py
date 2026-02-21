@@ -13,7 +13,7 @@ from agentlang.event.interface import EventDispatcherInterface
 from agentlang.interface.context import AgentContextInterface
 from agentlang.event.dispatcher import EventDispatcher
 from agentlang.logger import get_logger
-from agentlang.context.shared_context import AgentSharedContext
+from agentlang.context.shared_context import AgentSharedContext, GLOBAL_AGENT_SHARED_CONTEXT
 
 logger = get_logger(__name__)
 
@@ -27,11 +27,11 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
     _resources: Dict[str, Any]
     _user_id: Optional[str]
 
-    def __init__(self):
+    def __init__(self, shared_context: Optional[AgentSharedContext] = None):
         """初始化基础代理上下文"""
         super().__init__()
-        # 使用已存在的单例实例而非尝试创建新实例
-        self.shared_context = AgentSharedContext
+        # 主 Agent 默认共享全局实例；子 Agent 可显式传入独立实例。
+        self.shared_context = shared_context or GLOBAL_AGENT_SHARED_CONTEXT
 
         self._workspace_dir = ""
         self._resources: Dict[str, Any] = {}

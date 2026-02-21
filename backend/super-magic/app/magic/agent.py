@@ -210,11 +210,11 @@ class Agent(BaseAgent):
 
         # agent id 处理
         if self.has_attribute("main"):
-            if agent_id and agent_id != "main":
-                logger.warning("禁止对主 Agent 使用 agent_id 参数")
-                raise ValueError("禁止对主 Agent 使用 agent_id 参数")
-            agent_id = "main"
-            logger.info(f"使用默认 Agent ID: {agent_id}")
+            if agent_id:
+                logger.info(f"主 Agent 使用提供的 Agent ID: {agent_id}")
+            else:
+                agent_id = "main"
+                logger.info(f"使用默认 Agent ID: {agent_id}")
 
         if agent_id:
             # 不校验，大模型容易出错
@@ -674,6 +674,16 @@ The following <dynamic_context> block contains system-provided context informati
             if self.dynamic_context_prompt:
                 logger.info("添加 Dynamic Context System Prompt 作为第二条 user message")
                 await self.chat_history.append_user_message(self.dynamic_context_prompt)
+
+            if self.agent_context.get_subagent_depth() > 0:
+                parent_agent_name = self.agent_context.get_subagent_parent_agent_name() or "the parent agent"
+                subagent_context_message = (
+                    "Sub-agent execution context:\n"
+                    f"- You are running as a sub-agent invoked by {parent_agent_name}.\n"
+                    "- The next visible user message is the delegated task from the parent agent, not a direct end-user chat.\n"
+                    "- Focus on completing the delegated task for the parent agent."
+                )
+                await self.chat_history.append_user_message(subagent_context_message, show_in_ui=False)
         else:
             # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
             # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
@@ -966,66 +976,13 @@ The following <dynamic_context> block contains system-provided context informati
         return None
 
     async def _handle_continue_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:
-        """
-        处理用户请求继续的情况
-
-        Args:
-            second_last_message: 倒数第二条消息（带工具调用的助手消息）
-
-        Returns:
-            SessionRestoreContext: 会话恢复上下文
-        """
-        logger.info("检测到用户请求继续，尝试恢复上一次工具调用")
-
-        # 检查是否有不可恢复的工具调用
-        has_unrecoverable_tool_call = False
-        has_tool_call_parse_error = False
-
-        for tc in second_last_message.tool_calls:
-            if tc.function.name == "call_agent":
-                try:
-                    # 解析参数和检查是否为stateful
-                    tc_args = json.loads(tc.function.arguments)
-                    agent_name_to_call = tc_args.get("agent_name")
-                    if agent_name_to_call:
-                        agent_to_check = Agent(agent_name_to_call, self.agent_context)
-                        if agent_to_check.has_attribute("stateful"):
-                            has_unrecoverable_tool_call = True
-                            logger.warning(f"检测到不可恢复的 call_agent 调用 (agent: {agent_name_to_call})")
-                            break
-                except Exception as e:
-                    logger.warning(f"检查 call_agent 是否可恢复时出错: {e!s}")
-                    logger.warning(f"错误调用栈: {traceback.format_exc()}")
-                    has_unrecoverable_tool_call = True
-                    has_tool_call_parse_error = True
-                    break
-
-        # 处理可恢复的情况
-        if not has_unrecoverable_tool_call:
-            logger.info("未检测到不可恢复的工具调用，准备恢复会话")
-            # 移除用户的"继续"消息
-            self.chat_history.remove_last_message()
-            # 准备跳过LLM，直接执行工具调用
-            return SessionRestoreContext(
-                action=SessionRestoreAction.SKIP_LLM,
-                assistant_message=second_last_message
-            )
-        else:
-            # 处理不可恢复的情况
-            logger.warning("检测到不可恢复的工具调用，将放弃恢复，并继续执行 LLM 调用")
-            # 添加中断提示
-            if not has_tool_call_parse_error:
-                message_content = "当前工具调用被用户打断且不可恢复，请重新调用工具。"
-            else:
-                message_content = "当前工具调用存在解析错误，请对工具参数格式进行检查，确保是语法正确的 JSON 对象，并重新调用工具。"
-
-            # 为所有工具调用添加中断消息
-            await self._add_interruption_messages(second_last_message.tool_calls, message_content)
-
-            # 移除用户的"继续"消息
-            self.chat_history.remove_last_message()
-            logger.info("继续执行 LLM 调用")
-            return SessionRestoreContext(action=SessionRestoreAction.CALL_LLM)
+        """处理用户请求继续：直接跳过 LLM，恢复上次工具调用。"""
+        logger.info("检测到用户请求继续，恢复上一次工具调用")
+        self.chat_history.remove_last_message()
+        return SessionRestoreContext(
+            action=SessionRestoreAction.SKIP_LLM,
+            assistant_message=second_last_message
+        )
 
     async def _handle_new_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:
         """
@@ -1092,13 +1049,6 @@ The following <dynamic_context> block contains system-provided context informati
                 for i, tc in enumerate(tool_calls_to_execute):
                     function_name = tc.function.name
                     function_arguments = tc.function.arguments
-                    # 如果工具调用是 call_agent，则设置继续执行标志
-                    if function_name == "call_agent":
-                        function_arguments = json.loads(function_arguments)
-                        function_arguments["continue_to_execute"] = True
-                        function_arguments = json.dumps(function_arguments, ensure_ascii=False)
-                        # 直接修改列表中的对象
-                        tool_calls_to_execute[i].function.arguments = function_arguments
                     openai_tool_call = ChatCompletionMessageToolCall(
                         id=tc.id,
                         type=tc.type,
@@ -1944,6 +1894,10 @@ The following <dynamic_context> block contains system-provided context informati
         # 1. 添加 .agent 文件中定义的基础工具
         if self.tools:
             for tool_name in self.tools.keys():
+                # 子 Agent 到达深度上限后，不再向 LLM 暴露 call_subagent，
+                # 避免模型看到一个注定会因深度限制失败的工具。
+                if tool_name == "call_subagent" and self.agent_context.get_subagent_depth() >= 1:
+                    continue
                 # 只通过预构建定义获取工具参数
                 tool_param = tool_factory.get_tool_param_from_definition(tool_name)
 
@@ -1975,13 +1929,17 @@ The following <dynamic_context> block contains system-provided context informati
         # logger.debug(f"发送给 LLM 的 messages: {messages}")
 
         # 创建流式调用配置，传入消息构建器和driver配置
-        message_builder = LLMStreamingMessageBuilder()
-        socketio_driver_config = StreamingConfigGenerator.create_for_agent()
-        processor_config = ProcessorConfig.create_with_socketio_push(
-            message_builder=message_builder,
-            socketio_driver_config=socketio_driver_config
-        )
-        # processor_config=None
+        # 子 Agent (is_main_agent=False) 静默运行，不向前端推送 LLM token 流。
+        # 多个子 Agent 并行时共享同一 SocketIO topic_id，推流会导致前端收到交织输出。
+        if self.agent_context.is_main_agent:
+            message_builder = LLMStreamingMessageBuilder()
+            socketio_driver_config = StreamingConfigGenerator.create_for_agent()
+            processor_config = ProcessorConfig.create_with_socketio_push(
+                message_builder=message_builder,
+                socketio_driver_config=socketio_driver_config
+            )
+        else:
+            processor_config = None
 
         try:
             # 使用 LLMFactory.call_with_tool_support 方法统一处理工具调用

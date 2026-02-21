@@ -60,10 +60,6 @@ class PathManager(BasePathManager):
     _magic_dir: ClassVar[Optional[Path]] = None
     _magic_config_dir: ClassVar[Optional[Path]] = None
 
-    # Agent Studio 工作目录
-    _agent_studio_dir_name: ClassVar[str] = ".agent_studio"
-    _agent_studio_dir: ClassVar[Optional[Path]] = None
-
     @classmethod
     def _ensure_app_initialization(cls) -> None:
         """确保应用层PathManager已初始化"""
@@ -98,8 +94,6 @@ class PathManager(BasePathManager):
         cls._asr_states_dir = cls.get_workspace_dir() / cls._asr_states_dir_name
         cls._magic_dir = cls.get_workspace_dir() / cls._magic_dir_name
         cls._magic_config_dir = cls._magic_dir / cls._magic_config_dir_name
-        cls._agent_studio_dir = cls.get_workspace_dir() / cls._agent_studio_dir_name
-
         # 确保应用层特有的目录存在
         cls._ensure_app_directories_exist()
 
@@ -264,6 +258,24 @@ class PathManager(BasePathManager):
         return cls.get_chat_history_dir() / "todos.json"
 
     @classmethod
+    def get_chat_session_file(cls, agent_name: str, agent_id: str) -> Path:
+        """获取指定 Agent 会话的 .session.json 文件路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.session.json"
+
+    @classmethod
+    def get_subagents_chat_history_dir(cls) -> Path:
+        """获取子 Agent 聊天记录目录路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_chat_history_dir() / "subagents"
+
+    @classmethod
+    def get_subagent_chat_session_file(cls, agent_name: str, agent_id: str) -> Path:
+        """获取指定子 Agent 会话的 .session.json 文件路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_subagents_chat_history_dir() / f"{agent_name}<{agent_id}>.session.json"
+
+    @classmethod
     def get_task_message_file(cls, task_id: str) -> Path:
         """
         获取指定任务的消息文件路径
@@ -329,23 +341,3 @@ class PathManager(BasePathManager):
         """获取 .magic/config/ 目录，存放 Magic 全局配置文件"""
         cls._ensure_app_initialization()
         return cls._magic_config_dir
-
-    @classmethod
-    def get_agent_studio_dir(cls, agent_code: Optional[str] = None) -> Path:
-        """
-        获取 Agent Studio 工作目录
-
-        Args:
-            agent_code: Agent 编码，若指定则返回该 Agent 的子目录
-
-        Returns:
-            Path: Agent Studio 目录路径
-        """
-        cls._ensure_app_initialization()
-        base_dir = cls._agent_studio_dir
-        if agent_code:
-            agent_dir = base_dir / agent_code
-            agent_dir.mkdir(parents=True, exist_ok=True)
-            return agent_dir
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir
