@@ -192,6 +192,8 @@ class AgentContext(BaseAgentContext):
             "loaded_skills": ([], List[str]),  # 已加载的 skills 列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
+            # Agent Master 管理
+            "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
         })
 
         # 标记初始化完成
@@ -232,6 +234,23 @@ class AgentContext(BaseAgentContext):
             Optional[asyncio.Queue]: 中断队列
         """
         return self.shared_context.get_field("interrupt_queue")
+
+    def set_agent_code(self, agent_code: str) -> None:
+        """设置当前自定义 Agent 的 agent_code
+
+        Args:
+            agent_code: Agent 编码（如 sma-xxxxx）
+        """
+        self.shared_context.update_field("agent_code", agent_code)
+        logger.debug(f"已更新 agent_code: {agent_code}")
+
+    def get_agent_code(self) -> Optional[str]:
+        """获取当前自定义 Agent 的 agent_code
+
+        Returns:
+            Optional[str]: agent_code
+        """
+        return self.shared_context.get_field("agent_code")
 
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID

@@ -1046,5 +1046,223 @@
     "video.project_path_not_directory": {
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
+    },
+
+    "agent_manager.agent_code_not_found": {
+        "zh_CN": "未找到 agent_code，请提供 agent_code 参数。",
+        "en_US": "agent_code not found. Please provide the agent_code parameter."
+    },
+    "agent_manager.get_info_success": {
+        "zh_CN": "已获取员工信息",
+        "en_US": "Employee info retrieved"
+    },
+    "agent_manager.get_info_error": {
+        "zh_CN": "获取员工信息失败: {{error}}",
+        "en_US": "Failed to get employee info: {{error}}"
+    },
+    "agent_manager.update_success": {
+        "zh_CN": "已更新员工{{fields}}",
+        "en_US": "Updated employee {{fields}}"
+    },
+    "agent_manager.update_default": {
+        "zh_CN": "员工已更新",
+        "en_US": "Employee updated"
+    },
+    "agent_manager.update_error": {
+        "zh_CN": "更新员工失败: {{error}}",
+        "en_US": "Failed to update employee: {{error}}"
+    },
+    "agent_manager.update_no_fields": {
+        "zh_CN": "请至少提供一个要更新的字段（name_zh/name_en/description_zh/description_en/prompt）。",
+        "en_US": "Please provide at least one field to update (name_zh/name_en/description_zh/description_en/prompt)."
+    },
+    "agent_manager.field_name": {
+        "zh_CN": "名称",
+        "en_US": "name"
+    },
+    "agent_manager.field_description": {
+        "zh_CN": "描述",
+        "en_US": "description"
+    },
+    "agent_manager.field_prompt": {
+        "zh_CN": "提示词",
+        "en_US": "prompt"
+    },
+    "agent_manager.create_skill_success": {
+        "zh_CN": "已为员工创建技能 {{skill_name}}",
+        "en_US": "Created skill {{skill_name}} for employee"
+    },
+    "agent_manager.create_skill_default": {
+        "zh_CN": "已为员工创建技能",
+        "en_US": "Created skill for employee"
+    },
+    "agent_manager.skill_name_invalid": {
+        "zh_CN": "skill_name 必须使用 kebab-case 格式（如 my-awesome-skill），仅包含小写字母、数字和连字符。",
+        "en_US": "skill_name must be in kebab-case format (e.g., my-awesome-skill), containing only lowercase letters, numbers, and hyphens."
+    },
+    "agent_manager.skill_already_exists": {
+        "zh_CN": "技能 {{skill_name}} 已存在。如需修改请使用 edit_skill 工具。",
+        "en_US": "Skill {{skill_name}} already exists. Use edit_skill to modify."
+    },
+    "agent_manager.edit_skill_success": {
+        "zh_CN": "已更新员工技能 {{skill_name}}",
+        "en_US": "Updated employee skill {{skill_name}}"
+    },
+    "agent_manager.edit_skill_default": {
+        "zh_CN": "已更新员工技能",
+        "en_US": "Updated employee skill"
+    },
+    "agent_manager.skill_not_found": {
+        "zh_CN": "技能 {{skill_name}} 不存在。请先使用 create_skill 创建。",
+        "en_US": "Skill {{skill_name}} not found. Please use create_skill first."
+    },
+    "agent_manager.skill_not_found_check": {
+        "zh_CN": "技能 {{skill_name}} 不存在。请先使用 create_skill 创建，或检查技能名称是否正确。",
+        "en_US": "Skill {{skill_name}} not found. Please use create_skill first, or check the skill name."
+    },
+    "agent_manager.frontmatter_required": {
+        "zh_CN": "新内容必须以 YAML frontmatter (---) 开头。请确保包含标准的 name、description、name-cn、description-cn 字段。",
+        "en_US": "Content must start with YAML frontmatter (---). Ensure it contains name, description, name-cn, description-cn fields."
+    },
+    "agent_manager.upload_skill_success": {
+        "zh_CN": "已为员工添加技能 {{skill_name}}",
+        "en_US": "Added skill {{skill_name}} for employee"
+    },
+    "agent_manager.upload_skill_default": {
+        "zh_CN": "已为员工添加技能",
+        "en_US": "Added skill for employee"
+    },
+    "agent_manager.upload_error": {
+        "zh_CN": "上传技能失败: {{error}}",
+        "en_US": "Failed to upload skill: {{error}}"
+    },
+    "agent_manager.action_create": {
+        "zh_CN": "创建",
+        "en_US": "Create"
+    },
+    "agent_manager.action_update": {
+        "zh_CN": "更新",
+        "en_US": "Update"
+    },
+
+    "agent_manager.label_code": {
+        "zh_CN": "编码",
+        "en_US": "Code"
+    },
+    "agent_manager.label_name": {
+        "zh_CN": "名称",
+        "en_US": "Name"
+    },
+    "agent_manager.label_desc": {
+        "zh_CN": "描述",
+        "en_US": "Description"
+    },
+    "agent_manager.label_status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "agent_manager.label_enabled": {
+        "zh_CN": "启用",
+        "en_US": "Enabled"
+    },
+    "agent_manager.label_disabled": {
+        "zh_CN": "禁用",
+        "en_US": "Disabled"
+    },
+    "agent_manager.label_prompt": {
+        "zh_CN": "提示词（明文）",
+        "en_US": "Prompt (plaintext)"
+    },
+    "agent_manager.label_skills": {
+        "zh_CN": "已掌握技能",
+        "en_US": "Skills"
+    },
+    "agent_manager.no_skills": {
+        "zh_CN": "（暂无技能）",
+        "en_US": "(No skills)"
+    },
+    "agent_manager.no_desc": {
+        "zh_CN": "（无描述）",
+        "en_US": "(No description)"
+    },
+    "agent_manager.no_prompt": {
+        "zh_CN": "（无提示词）",
+        "en_US": "(No prompt)"
+    },
+    "agent_manager.summary_employee_detail": {
+        "zh_CN": "员工详情",
+        "en_US": "Employee Details"
+    },
+    "agent_manager.cache_note": {
+        "zh_CN": "员工信息已缓存到 .agent_studio/{{agent_code}}/agent.json",
+        "en_US": "Employee info cached to .agent_studio/{{agent_code}}/agent.json"
+    },
+    "agent_manager.skills_downloaded": {
+        "zh_CN": "已下载技能: {{skills}}",
+        "en_US": "Downloaded skills: {{skills}}"
+    },
+    "agent_manager.skills_cached": {
+        "zh_CN": "技能已缓存（跳过下载）: {{skills}}",
+        "en_US": "Skills cached (skipped download): {{skills}}"
+    },
+    "agent_manager.summary_update_success": {
+        "zh_CN": "员工更新成功",
+        "en_US": "Employee Updated Successfully"
+    },
+    "agent_manager.label_updated_fields": {
+        "zh_CN": "更新字段",
+        "en_US": "Updated fields"
+    },
+    "agent_manager.summary_skill_created": {
+        "zh_CN": "技能创建成功",
+        "en_US": "Skill Created Successfully"
+    },
+    "agent_manager.label_skill_name": {
+        "zh_CN": "技能名称",
+        "en_US": "Skill name"
+    },
+    "agent_manager.label_cn_name": {
+        "zh_CN": "中文名称",
+        "en_US": "Chinese name"
+    },
+    "agent_manager.label_file_path": {
+        "zh_CN": "文件路径",
+        "en_US": "File path"
+    },
+    "agent_manager.next_step_upload": {
+        "zh_CN": "下一步：使用 `upload_skill` 工具将技能上传并添加到员工。",
+        "en_US": "Next step: use `upload_skill` tool to upload and add the skill to the employee."
+    },
+    "agent_manager.summary_skill_edited": {
+        "zh_CN": "技能编辑成功",
+        "en_US": "Skill Edited Successfully"
+    },
+    "agent_manager.label_change": {
+        "zh_CN": "变更",
+        "en_US": "Change"
+    },
+    "agent_manager.change_lines": {
+        "zh_CN": "{{old}} 行 → {{new}} 行",
+        "en_US": "{{old}} lines → {{new}} lines"
+    },
+    "agent_manager.next_step_reupload": {
+        "zh_CN": "下一步：使用 `upload_skill` 工具将修改后的技能重新上传。",
+        "en_US": "Next step: use `upload_skill` tool to re-upload the modified skill."
+    },
+    "agent_manager.summary_skill_uploaded": {
+        "zh_CN": "技能上传成功",
+        "en_US": "Skill Uploaded Successfully"
+    },
+    "agent_manager.label_action": {
+        "zh_CN": "操作",
+        "en_US": "Action"
+    },
+    "agent_manager.label_skill_code": {
+        "zh_CN": "技能编码",
+        "en_US": "Skill code"
+    },
+    "agent_manager.label_added_to_employee": {
+        "zh_CN": "已添加到员工",
+        "en_US": "Added to employee"
     }
 }

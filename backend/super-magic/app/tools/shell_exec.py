@@ -12,6 +12,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.shell_command_parser import ShellCommandParser
 from app.tools.workspace_tool import WorkspaceTool
+from app.tools.shell_exec_utils.skillhub import handle_skillhub
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
@@ -65,6 +66,13 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
             # 特殊处理：如果命令是 python bin/super-magic.py，且没有指定 cwd，则使用项目根目录
             if not params.cwd and params.command.strip().startswith('python bin/super-magic.py'):
                 work_dir = self.base_dir.parent
+            elif params.command.strip().startswith('skillhub'):
+                from app.core.skill_utils.constants import get_workspace_skills_dir
+                work_dir = await get_workspace_skills_dir()
+                # 自定义命令拦截：CLI 本身不支持的子命令由 skillhub 模块内部处理
+                intercepted = await handle_skillhub(params.command.strip())
+                if intercepted is not None:
+                    return intercepted
             elif params.cwd:
                 cwd_path = self.resolve_path(params.cwd)
                 work_dir = cwd_path
@@ -91,8 +99,16 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
                 enable_python_rewrite=enable_python_rewrite
             )
 
+            # 保留命令原始成功状态，用于 after-events 触发判断
+            command_ok = result.ok
+
+            # 命令实际执行完成（exit_code >= 0），即使返回非零退出码也视为工具调用成功
+            # 仅超时（exit_code = -1）和异常（exit_code = -2）才视为工具调用失败
+            if result.exit_code >= 0:
+                result.ok = True
+
             # Dispatch after-execution events if command succeeded
-            if result.ok:
+            if command_ok:
                 for file_path, event_type in after_events:
                     try:
                         await self._dispatch_file_event(tool_context, file_path, event_type)

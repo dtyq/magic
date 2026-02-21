@@ -264,6 +264,24 @@ class PathManager(BasePathManager):
         return cls.get_chat_history_dir() / "todos.json"
 
     @classmethod
+    def get_chat_session_file(cls, agent_name: str, agent_id: str) -> Path:
+        """获取指定 Agent 会话的 .session.json 文件路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.session.json"
+
+    @classmethod
+    def get_subagents_chat_history_dir(cls) -> Path:
+        """获取子 Agent 聊天记录目录路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_chat_history_dir() / "subagents"
+
+    @classmethod
+    def get_subagent_chat_session_file(cls, agent_name: str, agent_id: str) -> Path:
+        """获取指定子 Agent 会话的 .session.json 文件路径。"""
+        cls._ensure_app_initialization()
+        return cls.get_subagents_chat_history_dir() / f"{agent_name}<{agent_id}>.session.json"
+
+    @classmethod
     def get_task_message_file(cls, task_id: str) -> Path:
         """
         获取指定任务的消息文件路径

@@ -306,5 +306,25 @@
     "delete_memory": {
         "zh_CN": "删除记忆",
         "en_US": "Delete memory"
+    },
+    "get_agent_info": {
+        "zh_CN": "获取员工信息",
+        "en_US": "Get employee info"
+    },
+    "update_agent": {
+        "zh_CN": "更新员工",
+        "en_US": "Update employee"
+    },
+    "create_skill": {
+        "zh_CN": "创建技能",
+        "en_US": "Create skill"
+    },
+    "edit_skill": {
+        "zh_CN": "编辑技能",
+        "en_US": "Edit skill"
+    },
+    "upload_skill": {
+        "zh_CN": "上传技能",
+        "en_US": "Upload skill"
     }
 }

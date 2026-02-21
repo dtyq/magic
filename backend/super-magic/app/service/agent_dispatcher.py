@@ -196,15 +196,17 @@ class AgentDispatcher(Base):
                 logger.info("使用默认语言: zh_CN")
 
         # 设置 Agent Profile（如果提供）
-        if init_message.agent:
+        if init_message.agent and init_message.agent.get("name", "").strip():
             from app.core.entity.agent_profile import AgentProfile
 
             agent_profile = AgentProfile(
-                name=init_message.agent.get('name', ''),
-                description=init_message.agent.get('description', '')
+                name=init_message.agent["name"].strip(),
+                description=init_message.agent.get("description", "").strip(),
             )
             self.agent_context.set_agent_profile(agent_profile)
             logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
+        elif init_message.agent:
+            logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
 
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
