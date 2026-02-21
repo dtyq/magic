@@ -107,13 +107,6 @@ from app.tools.skill_read_references import SkillReadReferences
 from app.tools.run_skills_snippet import RunSkillsSnippet
 from app.tools.skill_list import SkillList
 
-# Agent 管理工具
-from app.tools.agent_manager.get_agent_info import GetAgentInfo
-from app.tools.agent_manager.update_agent import UpdateAgent
-from app.tools.agent_manager.create_skill import CreateSkill
-from app.tools.agent_manager.edit_skill import EditSkill
-from app.tools.agent_manager.upload_skill import UploadSkill
-
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
 import app.tools.design.utils
