@@ -10,17 +10,17 @@ dynamic_skill_install_lock = asyncio.Lock()
 
 
 def get_skillhub_install_dir() -> Path:
-    """获取 skillhub 安装目录（workspace/skills/）
+    """获取 skillhub 安装目录（.workspace/.magic/skills/）
 
-    统一使用 workspace/skills/ 作为安装目录，该目录持久化且对用户可见。
+    统一使用 .workspace/.magic/skills/ 作为安装目录，该目录持久化且对用户可见。
     skillhub CLI 命令在 shell_exec 中以此目录为 CWD 执行。
     """
     from app.paths import PathManager
-    return PathManager.get_workspace_dir() / "skills"
+    return PathManager.get_magic_dir() / "skills"
 
 
 async def get_workspace_skills_dir() -> Path:
-    """获取 workspace/skills/ 目录路径，并确保目录存在
+    """获取 .workspace/.magic/skills/ 目录路径，并确保目录存在
 
     在需要写入或以该目录为 CWD 执行命令前调用，避免各处重复拼接路径和创建目录。
     """

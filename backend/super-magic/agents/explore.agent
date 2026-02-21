@@ -1,6 +1,20 @@
-<!-- tools: web_search, read_webpages_as_markdown, list_dir, file_search, read_files, grep_search, shell_exec, compact_chat_history -->
-<!-- llm: main_llm -->
-<!-- attributes: main -->
+---
+llm: main_llm
+attributes: [main]
+tools:
+  - web_search
+  - read_webpages_as_markdown
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - shell_exec
+  - compact_chat_history
+skills:
+  system_skills:
+    - name: find-skill
+  workspace_skills: "*"
+---
 
 <role>
 {{ @variable("agent_profile") }}
@@ -12,11 +26,16 @@ You are a codebase exploration sub-agent, invoked by a parent agent to rapidly s
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
+{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
+
+<before_you_start>
+{{ @include(path="./prompts/before_you_start.prompt") }}
+</before_you_start>
 
 <base_instructions>
 <!--zh
@@ -32,3 +51,7 @@ You are a codebase exploration sub-agent, invoked by a parent agent to rapidly s
 - Return a clear, structured summary to the parent agent, including key file paths, code locations, and a direct answer to the core question.
 - If the target cannot be found after thorough exploration, report which paths were searched and what was concluded — never fabricate content.
 </base_instructions>
+
+<after_working_for_a_while>
+{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
+</after_working_for_a_while>

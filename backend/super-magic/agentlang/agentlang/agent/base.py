@@ -344,21 +344,21 @@ class BaseAgent(ABC):
         variables = self._prepare_prompt_variables()
 
         # 加载 agent 配置，传递变量
-        model_id, tools_definition, attributes_definition, prompt = self._agent_loader.load_agent(agent_name, variables)
-        self.system_prompt = prompt
+        agent_define = self._agent_loader.load_agent(agent_name, variables)
+        self.system_prompt = agent_define.prompt
 
         # 如果存在工具验证器，则过滤无效工具，否则使用所有工具
         if self._tool_validator is not None:
-            self.tools = self._tool_validator.filter_valid_tools(tools_definition)
+            self.tools = self._tool_validator.filter_valid_tools(agent_define.tools_config)
         else:
-            self.tools = tools_definition
+            self.tools = agent_define.tools_config
 
-        self.attributes = attributes_definition
+        self.attributes = agent_define.attributes_config
 
         # 保持 llm_id 始终是 Agent 文件中定义的原始模型ID
         # 动态模型选择完全由每次对话时的 _resolve_effective_model_info() 处理
-        self.llm_id = model_id
-        logger.info(f"加载完成: 原始模型={model_id}, 工具数量={len(self.tools)}")
+        self.llm_id = agent_define.model_id
+        logger.info(f"加载完成: 原始模型={agent_define.model_id}, 工具数量={len(self.tools)}")
 
         # 记录动态模型配置情况（仅用于日志）
         if self.agent_context and self.agent_context.has_dynamic_model_id():

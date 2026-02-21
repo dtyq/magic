@@ -60,6 +60,7 @@ from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
 from app.utils.file_utils import convert_file_tree_to_string
 from agentlang.environment import Environment
+from app.core.skill_manager import generate_skills_prompt
 
 logger = get_logger(__name__)
 
@@ -273,18 +274,19 @@ The following <dynamic_context> block contains system-provided context informati
 
         # 生成 skills prompt（如果有 skills 配置）
         skills_prompt_content = None
-        skills_list = self._agent_loader.get_skills_list(self.agent_name)
-        if skills_list:
-            # 保存加载的 skills 列表到实例属性
-            self.loaded_skills = skills_list
-            # 同步到 agent_context
-            self.agent_context.set_loaded_skills(skills_list)
-            from app.core.skill_manager import generate_skills_prompt
-            skills_prompt_content = generate_skills_prompt(skills_list, agent_name=self.agent_name)
+        skills_config = self._agent_loader.get_skills_config(self.agent_name)
+        if skills_config and not skills_config.is_empty():
+            system_skill_names = skills_config.get_system_skill_names()
+            self.loaded_skills = system_skill_names
+            self.agent_context.set_loaded_skills(system_skill_names)
+            skills_prompt_content = generate_skills_prompt(
+                skills_config,
+                agent_name=self.agent_name,
+            )
             if skills_prompt_content:
-                logger.info(f"为 agent {self.agent_name} 生成了 skills prompt，包含 {len(skills_list)} 个 skills")
+                logger.info(f"为 agent {self.agent_name} 生成了 skills prompt，包含 {len(system_skill_names)} 个 system skills")
             else:
-                logger.warning(f"尝试生成 skills prompt 失败，skills_list: {skills_list}")
+                logger.warning(f"尝试生成 skills prompt 失败，skills_config: {skills_config}")
 
         # 收集工具提示
         # 使用轻量级方法，避免在初始化时加载所有工具类
@@ -2104,13 +2106,10 @@ The following <dynamic_context> block contains system-provided context informati
 
         return query
 
-    def get_skills_list(self) -> List[str]:
-        """获取当前 agent 配置的 skills 列表
-
-        Returns:
-            List[str]: skills 名称列表，如果没有配置则返回空列表
-        """
-        return self._agent_loader.get_skills_list(self.agent_name)
+    def get_system_skills_list(self) -> List[str]:
+        """获取当前 agent 配置的系统 skills 名称列表（对应 YAML frontmatter system_skills）"""
+        cfg = self._agent_loader.get_skills_config(self.agent_name)
+        return cfg.get_system_skill_names() if cfg else []
 
     def get_loaded_skills(self) -> List[str]:
         """

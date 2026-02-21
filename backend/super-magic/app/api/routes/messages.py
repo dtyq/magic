@@ -586,16 +586,6 @@ class MessageProcessor:
             logger.error(f"错误详情: {traceback.format_exc()}")
             logger.info("🔄 动态配置注入失败，将使用全局配置继续聊天流程")
 
-        # 保存 dynamic_config.skill 列表到 workspace，按 agent_type 隔离（容错）
-        try:
-            skill_list = dynamic_config_data.get("skill") or dynamic_config_data.get("skills")
-            if isinstance(skill_list, list) and skill_list:
-                from app.core.skill_manager import save_dynamic_config_skills
-                await save_dynamic_config_skills(skill_list, agent_type)
-                logger.info(f"✅ 已保存 dynamic_config skills: {len(skill_list)} 个 (agent_type={agent_type or 'default'})")
-        except Exception as e:
-            logger.error(f"❌ 保存 dynamic_config skills 失败: {e}")
-
     async def _handle_dynamic_model_selection(self, model_id: Optional[str], agent_context):
         """处理动态模型选择（容错模式：失败不影响聊天流程）"""
         if not model_id or not model_id.strip():

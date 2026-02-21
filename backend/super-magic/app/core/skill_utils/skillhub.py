@@ -1,66 +1,15 @@
-"""Skillhub CLI 操作：install-github、remove 及 workspace skill 扫描"""
-import asyncio
-import json
-from pathlib import Path
-from typing import List
+"""Skillhub：从互联网检索并安装 skill 到 workspace（install-github、remove 等）。
 
-from agentlang.skills.models import SkillMetadata
+本地目录遍历与元数据发现见 skill_directory_scan 模块。
+"""
+import asyncio
+from pathlib import Path
+
 from agentlang.logger import get_logger
-from app.utils.async_file_utils import async_read_text, async_exists, async_rmtree
+from app.utils.async_file_utils import async_exists, async_rmtree
 from app.core.skill_utils.constants import get_skillhub_install_dir, get_workspace_skills_dir
 
 logger = get_logger(__name__)
-
-
-async def scan_skills_dir(skills_dir: Path) -> List[SkillMetadata]:
-    """扫描指定目录，返回所有包含 SKILL.md 的 skill 列表
-
-    每次调用均实时扫描磁盘，无缓存，无锁文件依赖。
-    可用于内置 skills 目录和 workspace skills 目录。
-    """
-    import os
-
-    if not await async_exists(skills_dir):
-        return []
-
-    results: List[SkillMetadata] = []
-
-    try:
-        entries = await asyncio.to_thread(lambda: list(os.scandir(skills_dir)))
-        for entry in entries:
-            if not entry.is_dir() or entry.name.startswith('.'):
-                continue
-            skill_file = Path(entry.path) / "SKILL.md"
-            if not await async_exists(skill_file):
-                continue
-
-            name = entry.name
-            description = ""
-            try:
-                content = await async_read_text(skill_file)
-                if content.startswith("---"):
-                    end_idx = content.find("\n---", 3)
-                    if end_idx > 0:
-                        for line in content[3:end_idx].splitlines():
-                            if line.startswith("name:"):
-                                name = line.split(":", 1)[1].strip().strip("\"'")
-                            elif line.startswith("description:"):
-                                description = line.split(":", 1)[1].strip().strip("\"'")
-            except Exception:
-                pass
-
-            results.append(SkillMetadata(name=name, description=description, skill_dir=Path(entry.path)))
-            logger.info(f"扫描发现 skill: {name} (from {skills_dir})")
-
-    except Exception as e:
-        logger.warning(f"扫描 skills 目录失败 ({skills_dir}): {e}")
-
-    return results
-
-
-async def scan_workspace_skills() -> List[SkillMetadata]:
-    """直接扫描 workspace/skills/ 目录，返回所有包含 SKILL.md 的 skill 列表"""
-    return await scan_skills_dir(get_skillhub_install_dir())
 
 
 async def register_custom_skill(name: str, description: str) -> tuple[bool, str]:

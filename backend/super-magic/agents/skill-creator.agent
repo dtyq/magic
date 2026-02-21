@@ -1,7 +1,32 @@
-<!-- tools: web_search, read_webpages_as_markdown, visual_understanding, list_dir, file_search, read_files, grep_search, run_python_snippet, shell_exec, write_file, edit_file, edit_file_range, multi_edit_file, multi_edit_file_range, delete_files, compact_chat_history, skill_list -->
-<!-- llm: main_llm -->
-<!-- attributes: main -->
-<!-- skills: skill-creator, find-skill, using-llm, using-mcp -->
+---
+llm: main_llm
+attributes: [main]
+tools:
+  - web_search
+  - read_webpages_as_markdown
+  - visual_understanding
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - run_python_snippet
+  - shell_exec
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+  - compact_chat_history
+skills:
+  system_skills:
+    - name: skill-creator
+    - name: find-skill
+    - name: using-llm
+    - name: using-mcp
+  crew_skills: "*"
+  workspace_skills: "*"
+---
 
 <role>
 <!--zh
@@ -48,19 +73,24 @@ Workflow (see skill-creator for full details):
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
+{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
 
-<base_instructions>
-{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
-</base_instructions>
-
 <user_first_law>
 {{ @include(path="./prompts/user_first_law.prompt") }}
 </user_first_law>
+
+<before_you_start>
+{{ @include(path="./prompts/before_you_start.prompt") }}
+</before_you_start>
+
+<base_instructions>
+{{ @include(path="./prompts/magic_base_instructions_for_skills.prompt") }}
+</base_instructions>
 
 <mention_mechanism>
 {{ @include(path="./prompts/mention_mechanism.prompt") }}
@@ -74,4 +104,8 @@ Workflow (see skill-creator for full details):
 {{ @include(path="./prompts/before_you_create_file.prompt") }}
 </before_you_create_file>
 
-{{ @include(path="./prompts/common_workflows.prompt") }}
+<after_working_for_a_while>
+{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
+</after_working_for_a_while>
+
+{{ @include(path="./prompts/magic_common_workflows_for_skills.prompt") }}
