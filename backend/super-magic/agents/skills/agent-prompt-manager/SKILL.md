@@ -107,7 +107,7 @@ tools:
 ```
 
 **编辑要点**：
-- 工具只能从项目可用工具列表中选取，通过 `skill_read_references` 加载 `available-tools` 查看完整列表
+- 工具只能从项目可用工具列表中选取，使用 `scripts/tools.py` 脚本动态查询
 - 根据员工职能推荐合适的工具组合
 - 如有特殊的工具使用偏好，写入正文部分
 
@@ -115,7 +115,7 @@ tools:
 
 当用户要添加或移除工具时：
 
-1. 加载 `references/available-tools.md` 了解可用工具及分类
+1. **查询可用工具**：使用脚本动态扫描（见下方"工具查询脚本"章节）
 2. 读取当前 TOOLS.md 的已配置工具列表
 3. 根据员工职能评估工具需求：
    - 需要联网搜索？→ 加 `web_search`, `read_webpages_as_markdown`
@@ -125,6 +125,37 @@ tools:
    - 需要图片生成？→ 加 `generate_image`
 4. 向用户展示工具变更对比
 5. 用户确认后写入 TOOLS.md
+
+## 工具查询脚本
+
+使用 `scripts/tools.py` 动态扫描项目中所有已注册的工具（数据来源：`config/tool_definitions.json`）。
+
+### 列出所有可用工具
+
+```python
+shell_exec(
+    command="python scripts/tools.py list",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
+
+### 查看某个工具的详细信息（参数、描述）
+
+```python
+shell_exec(
+    command="python scripts/tools.py detail web_search",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
+
+### 按关键词搜索工具
+
+```python
+shell_exec(
+    command="python scripts/tools.py search image",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
 
 ## 双语规范
 
@@ -149,7 +180,7 @@ Can be multiple lines
 
 - **crew-file-format** — 各定义文件的完整格式规范和示例
 - **prompt-engineering-guide** — 提示词工程最佳实践（结构模板、质量检查清单、反模式检测）
-- **available-tools** — 项目可用工具的完整列表和分类
+- **available-tools** — 按职能分类的工具组合推荐（备用参考，优先使用 `scripts/tools.py` 动态查询）
 -->
 # Agent Prompt Manager
 
@@ -223,7 +254,7 @@ Pure Markdown, no YAML header. Defines the employee's personality and behavior g
 Contains YAML header (tool whitelist) and optional body (tool usage preferences).
 
 **Key points**:
-- Tools can only be selected from the project's available tool list — load `available-tools` reference to see the full list
+- Tools can only be selected from the project's available tool list — use `scripts/tools.py` to query dynamically
 - Recommend tool combinations based on employee function
 - Special tool usage preferences go in the body section
 
@@ -231,11 +262,42 @@ Contains YAML header (tool whitelist) and optional body (tool usage preferences)
 
 When users want to add or remove tools:
 
-1. Load `references/available-tools.md` for available tools and categories
+1. **Query available tools**: Use the script to dynamically scan (see "Tool Query Script" section)
 2. Read current TOOLS.md tool list
 3. Evaluate tool needs based on employee function
 4. Present tool change comparison to user
 5. Write to TOOLS.md after user confirmation
+
+## Tool Query Script
+
+Use `scripts/tools.py` to dynamically scan all registered tools in the project (data source: `config/tool_definitions.json`).
+
+### List all available tools
+
+```python
+shell_exec(
+    command="python scripts/tools.py list",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
+
+### View details of a specific tool (parameters, description)
+
+```python
+shell_exec(
+    command="python scripts/tools.py detail web_search",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
+
+### Search tools by keyword
+
+```python
+shell_exec(
+    command="python scripts/tools.py search image",
+    cwd="agents/skills/agent-prompt-manager"
+)
+```
 
 ## Bilingual Standard
 
@@ -256,4 +318,4 @@ Use `skill_read_references` to load detailed guides:
 
 - **crew-file-format** — Complete format specs and examples for each definition file
 - **prompt-engineering-guide** — Prompt engineering best practices (structure templates, quality checklists, anti-pattern detection)
-- **available-tools** — Full list and categorization of available project tools
+- **available-tools** — Tool combination recommendations by function (fallback reference; prefer `scripts/tools.py` for dynamic queries)

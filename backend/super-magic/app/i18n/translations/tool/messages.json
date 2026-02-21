@@ -1046,6 +1046,5 @@
     "video.project_path_not_directory": {
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
-    },
-
+    }
 }
