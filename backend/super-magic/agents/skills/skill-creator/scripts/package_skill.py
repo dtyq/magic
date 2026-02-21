@@ -1,109 +1,31 @@
 #!/usr/bin/env python3
 """
-将 skill 目录打包为 .skill 文件，并可选地上传到「我的技能库」。
+将 skill 目录打包为 .skill 文件；可选在打包结束后调用 upload_skill.py 上传。
 
-接口文档
---------
-上传端点：POST /api/v1/open-api/sandbox/skills/import-from-agent
-鉴权方式：SandboxUserAuthMiddleware（SDK 自动注入）
+只打包（默认）：
+    python scripts/package_skill.py <skill-dir> [output-dir] [--version 1.0.0]
 
-multipart/form-data 字段：
-  file          : .skill 文件（zip 格式）；上传时 SDK 内部自动创建临时 .zip 副本
-  source        : 字符串枚举，固定为 "AGENT_CREATED"
-  name_i18n     : （可选）JSON 字符串，如 '{"zh_CN":"旅行规划","en_US":"Travel Planner"}'
-  description_i18n: （可选）JSON 字符串，同上
+打包并上传（内部会再执行一次 upload_skill.py）：
+    python scripts/package_skill.py <skill-dir> [output-dir] --version 1.0.0 --upload
 
-返回字段（JSON）：
-  id        : 技能 ID
-  code      : 技能 Code
-  name      : 多语言名称（dict）
-  is_create : true=新建，false=更新
+稍后单独上传已生成的 .skill：
+    python scripts/upload_skill.py <path-to.skill>
 
-用法
-----
-python -m scripts.package_skill <skill-dir> [output-dir]
-    [--version 1.0.0]
-    [--no-upload]
-    [--name-zh 中文名称]
-    [--name-en English Name]
-
-示例
-----
-# 打包并上传（默认行为）
-python -m scripts.package_skill skills/travel-planner --version 1.0.0
-
-# 只打包，不上传
-python -m scripts.package_skill skills/travel-planner --no-upload
-
-# 打包、上传并指定多语言名称
-python -m scripts.package_skill skills/travel-planner \\
-    --version 1.0.0 \\
-    --name-zh "旅行规划助手" \\
-    --name-en "Travel Planner"
+上传接口说明见 upload_skill.py 文档字符串。
 """
+
+from __future__ import annotations
 
 import argparse
 import asyncio
 import fnmatch
-import json
-import shutil
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
 from typing import Optional
 
-# ---------------------------------------------------------------------------
-# 项目根目录探测（参照 using-cron/_context.py）
-# 必须在 import app.* 之前执行
-# ---------------------------------------------------------------------------
+import _skill_scripts_bootstrap  # noqa: F401
 
-def _setup_project_root() -> Path:
-    """
-    向上查找项目根目录，加入 sys.path 并返回根目录路径。
-    支持标志文件：setup.py（本地开发）或 script_runner（PyInstaller 生产环境）。
-    """
-    current = Path(__file__).resolve().parent
-    markers = {"setup.py", "script_runner"}
-    for _ in range(10):
-        if any((current / marker).exists() for marker in markers):
-            root = str(current)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            return current
-        current = current.parent
-    raise RuntimeError("无法定位项目根目录（未找到 setup.py 或 script_runner）")
-
-
-_PROJECT_ROOT = _setup_project_root()
-
-# 确保 PathManager 以正确的根目录初始化（PyInstaller 生产环境下 cwd 可能不是项目根）
-try:
-    from app.paths import PathManager as _PathManager
-    if not _PathManager._initialized:
-        _PathManager.set_project_root(_PROJECT_ROOT)
-except Exception:
-    pass
-
-# 屏蔽 agentlang 初始化时产生的冗余日志
-try:
-    import io as _io
-    _old_stderr = sys.stderr
-    sys.stderr = _io.StringIO()
-    try:
-        import agentlang.config.config  # noqa: F401
-        import agentlang.logger          # noqa: F401
-    finally:
-        sys.stderr = _old_stderr
-    from loguru import logger as _loguru_logger
-    _loguru_logger.remove()
-    _loguru_logger.add(sys.stderr, level="WARNING")
-except Exception:
-    pass
-
-# ---------------------------------------------------------------------------
-# 导入 SDK（项目根已在 sys.path 中）
-# ---------------------------------------------------------------------------
 from quick_validate import validate_skill  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -211,70 +133,27 @@ async def package_skill(
 
 
 # ---------------------------------------------------------------------------
-# 上传
+# 调用独立上传脚本（打包并上传时分步执行）
 # ---------------------------------------------------------------------------
 
-async def upload_skill(
+async def _run_upload_script(
     skill_file: Path,
-    name_i18n: Optional[dict] = None,
-    description_i18n: Optional[dict] = None,
-) -> bool:
-    """
-    将 .skill 文件上传到「我的技能库」。
-
-    API 要求上传文件后缀为 .zip；.skill 本身即 zip 格式，
-    此函数在系统临时目录创建一个 .zip 副本后上传，完成后自动删除。
-
-    Args:
-        skill_file:       待上传的 .skill 文件路径
-        name_i18n:        多语言名称，如 {"zh_CN": "旅行规划", "en_US": "Travel Planner"}
-        description_i18n: 多语言描述（可选）
-
-    Returns:
-        上传成功返回 True，否则返回 False
-    """
-    try:
-        from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
-        from app.infrastructure.sdk.magic_service.parameter.import_skill_from_agent_parameter import (
-            ImportSkillFromAgentParameter,
-        )
-    except ImportError as e:
-        print(f"Error: 无法导入 SDK，请确认在项目环境中运行：{e}")
-        return False
-
-    tmp_zip: Optional[Path] = None
-    try:
-        # 创建临时 .zip 副本（API 校验文件后缀为 .zip）
-        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
-            tmp_zip = Path(f.name)
-        await asyncio.to_thread(shutil.copy2, skill_file, tmp_zip)
-
-        sdk = create_magic_service_sdk_with_defaults()
-        parameter = ImportSkillFromAgentParameter(
-            file_path=str(tmp_zip),
-            source="AGENT_CREATED",
-            name_i18n=name_i18n,
-            description_i18n=description_i18n,
-        )
-
-        result = await asyncio.to_thread(sdk.skill.import_skill_from_agent, parameter)
-
-        action = "created" if result.is_newly_created() else "updated"
-        print(json.dumps({
-            "status": "ok",
-            "action": action,
-            "id": result.get_id(),
-            "code": result.get_code(),
-            "name": result.get_name(),
-        }, ensure_ascii=False))
-        return True
-
-    except Exception as e:
-        print(json.dumps({"status": "error", "error": str(e)}, ensure_ascii=False))
-        return False
-    finally:
-        if tmp_zip and await asyncio.to_thread(tmp_zip.exists):
-            await asyncio.to_thread(tmp_zip.unlink)
+    name_zh: Optional[str],
+    name_en: Optional[str],
+) -> int:
+    """异步子进程执行 scripts/upload_skill.py，返回进程退出码。"""
+    upload_script = Path(__file__).resolve().parent / "upload_skill.py"
+    cmd = [sys.executable, str(upload_script), str(skill_file)]
+    if name_zh:
+        cmd.extend(["--name-zh", name_zh])
+    if name_en:
+        cmd.extend(["--name-en", name_en])
+    skill_creator_root = Path(__file__).resolve().parent.parent
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=str(skill_creator_root),
+    )
+    return await proc.wait()
 
 
 # ---------------------------------------------------------------------------
@@ -283,20 +162,21 @@ async def upload_skill(
 
 async def _main():
     parser = argparse.ArgumentParser(
-        description="将 skill 目录打包为 .skill 文件，并可选地上传到「我的技能库」",
+        description="将 skill 目录打包为 .skill 文件；加 --upload 时再调用 upload_skill.py 上传",
     )
     parser.add_argument("skill_path", help="skill 目录路径")
     parser.add_argument("output_dir", nargs="?", default=None, help="输出目录（默认为当前工作目录）")
     parser.add_argument("--version", default=None, metavar="VERSION",
                         help="版本号，如 1.0.0；文件名将变为 <name>-v<version>.skill")
-    parser.add_argument("--upload", dest="upload", action="store_true", default=True,
-                        help="打包后上传到「我的技能库」（默认启用）")
+    parser.add_argument("--upload", dest="upload", action="store_true",
+                        help="打包成功后调用 upload_skill.py 上传到「我的技能库」（默认不调用）")
     parser.add_argument("--no-upload", dest="upload", action="store_false",
-                        help="只打包，不上传")
+                        help="只打包，不上传（默认行为）")
+    parser.set_defaults(upload=False)
     parser.add_argument("--name-zh", default=None, metavar="NAME",
-                        help="上传时覆盖技能中文名称（可选）")
+                        help="随 --upload 传给 upload_skill.py，覆盖技能中文名称（可选）")
     parser.add_argument("--name-en", default=None, metavar="NAME",
-                        help="上传时覆盖技能英文名称（可选）")
+                        help="随 --upload 传给 upload_skill.py，覆盖技能英文名称（可选）")
     args = parser.parse_args()
 
     print(f"Packaging skill: {args.skill_path}")
@@ -313,18 +193,9 @@ async def _main():
     if not args.upload:
         sys.exit(0)
 
-    # 构建可选的多语言名称
-    name_i18n: Optional[dict] = None
-    if args.name_zh or args.name_en:
-        name_i18n = {}
-        if args.name_zh:
-            name_i18n["zh_CN"] = args.name_zh
-        if args.name_en:
-            name_i18n["en_US"] = args.name_en
-
-    print("\nUploading to skill library...")
-    success = await upload_skill(skill_file, name_i18n=name_i18n)
-    sys.exit(0 if success else 1)
+    print("\nInvoking upload_skill.py ...")
+    code = await _run_upload_script(skill_file, args.name_zh, args.name_en)
+    sys.exit(0 if code == 0 else 1)
 
 
 if __name__ == "__main__":

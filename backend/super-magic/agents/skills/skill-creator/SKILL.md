@@ -477,7 +477,7 @@ See `references/super-magic-tools.md` for the detailed procedure.
 
 > "是否需要将这个 skill 打包并上传到「我的技能库」？也可以只打包，不上传。"
 
-根据用户的回答选择命令：
+根据用户的回答选择命令。**重要**：用户只说「打包」「只打包」「生成 .skill」而未明确表示要上传到技能库时，**只能**使用「只打包」命令（不要加 `--upload`）。仅当用户明确同意上传、或同时使用「打包并上传」「上传到技能库」等表述时，才使用带 `--upload` 的命令。
 -->
 ### Phase 8: Ask About Packaging and Upload
 
@@ -485,18 +485,20 @@ After the skill is done and user-confirmed, always ask:
 
 > "Would you like to package this skill and upload it to your skill library? Or just package without uploading?"
 
+**Important:** If the user only asks to "package", "pack only", or "build the .skill file" without clearly requesting upload to the skill library, you **must** use the package-only command (do **not** pass `--upload`). Only use `--upload` when the user explicitly agrees to upload or uses phrasing like "package and upload" / "upload to my skill library".
+
 <!--zh
-**打包并上传（默认）：**
+**只打包，不上传（默认 CLI 行为；用户仅说「打包」时用此命令）：**
 
 `cwd` 固定为 `agents/skills/skill-creator`；`<workspace-skill-path>` 填写 skill 在工作区的绝对路径（即 `static_context` 中 Workspace 字段所指的目录下的 `skills/<skill-name>`）。
 -->
-**Package and upload (default):**
+**Package only (default CLI; use when user asks only to package):**
 
 ```python
 # <workspace-skill-path>: 工作区 skills 目录下该 skill 的绝对路径
 #   例如 /app/.workspace/skills/<skill-name>
 # 第二个参数为输出目录，显式传入 skill 目录本身，打包产物存于工作区内
-# 可选参数: --name-zh "中文名称" --name-en "English Name"
+# 可省略 --no-upload（与默认等价）
 shell_exec(
     command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --version 1.0.0',
     cwd="agents/skills/skill-creator"
@@ -504,24 +506,42 @@ shell_exec(
 ```
 
 <!--zh
-**只打包，不上传：**
+**打包并上传到「我的技能库」（仅当用户明确要上传时使用；需加 `--upload`）：**
 -->
-**Package only, skip upload:**
+**Package and upload to skill library (only when user explicitly wants upload; requires `--upload`; this runs `package_skill.py` then `upload_skill.py` in sequence):**
 
 ```python
+# 可选参数: --name-zh "中文名称" --name-en "English Name"（传给 upload_skill.py）
 shell_exec(
-    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --no-upload',
+    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --version 1.0.0 --upload',
     cwd="agents/skills/skill-creator"
 )
 ```
 
 <!--zh
+**先打包、稍后再上传（两步独立执行）：** 第一步只跑打包；需要上传时再对生成的 `.skill` 文件执行 `upload_skill.py`。
+-->
+**Package first, upload later (two separate steps):** Run packaging only first; when the user wants to upload, call `upload_skill.py` with the path to the generated `.skill` file.
+
+```python
+shell_exec(
+    command='python scripts/upload_skill.py <absolute-path-to-.skill-file>',
+    cwd="agents/skills/skill-creator"
+)
+```
+
+<!--zh
+可选：`python scripts/upload_skill.py <path> --name-zh "中文名称" --name-en "English Name"`
+-->
+Optional: `python scripts/upload_skill.py <path> --name-zh "..." --name-en "..."`
+
+<!--zh
 - `--version` 不是必填项，但建议在首次发布时指定
-- `--name-zh` / `--name-en` 为可选多语言名称覆盖，不传则使用 SKILL.md frontmatter 中的 name 字段
+- `--name-zh` / `--name-en` 为可选多语言名称覆盖，仅在上传（`--upload` 或单独运行 `upload_skill.py`）时生效；不传则使用 SKILL.md frontmatter 中的 name 字段
 - 不要默认打包，也不要跳过这个询问
 -->
 - `--version` is optional but recommended for first release
-- `--name-zh` / `--name-en` are optional i18n name overrides; if omitted the name from SKILL.md frontmatter is used
+- `--name-zh` / `--name-en` are optional i18n name overrides when uploading (`--upload` or standalone `upload_skill.py`); if omitted the name from SKILL.md frontmatter is used
 - Do not package by default. Do not skip this step.
 
 ---
@@ -551,7 +571,7 @@ shell_exec(
 - `shell_exec` **default working directory is `.workspace/`**. Same rule: inside commands use `skills/<skill-name>/...` without `.workspace/` prefix.
 - The `cwd` parameter is resolved relative to the **project root**, so `cwd=".workspace/skills/<skill-name>"` is correct.
 - When running scripts for a workspace skill, `cwd` = `.workspace/skills/<skill-name>`
-- When running skill-creator's own scripts (e.g., `package_skill.py`, `aggregate_benchmark.py`), use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py`; pass skill paths as absolute paths (from workspace context)
+- When running skill-creator's own scripts (e.g., `package_skill.py`, `upload_skill.py`, `aggregate_benchmark.py`), use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py`; pass skill paths as absolute paths (from workspace context)
 
 **Built-in skills cannot be overridden:**
 - Skills in `agents/skills/` have highest priority; `skill_list` returns `can_override: false`
