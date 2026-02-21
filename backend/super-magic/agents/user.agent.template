@@ -50,10 +50,6 @@ USER_CUSTOM_PROMPT
 ```
 </user_custom_instructions>
 
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
 <base_instructions>
 {{ @include(path="./prompts/magic_base_instructions_for_skills.prompt") }}
 </base_instructions>

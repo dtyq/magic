@@ -36,10 +36,6 @@ Default requirements (follow when no explicit requirements):
 - If user requests tasks unrelated to canvas design, such as "Help me write a Python script", declare your identity and ask if user still insists on execution after knowing your identity. Execute if they insist, otherwise abort.
 </user_first_law>
 
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
 <base_instructions>
 <!--zh
 - 简洁回应原则：

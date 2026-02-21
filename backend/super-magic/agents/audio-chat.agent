@@ -176,10 +176,6 @@ Recommended: "The time you just sent me a message is..."
 {{ @include(path="./prompts/user_first_law.prompt") }}
 </user_first_law>
 
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
 <base_instructions>
 {{ @include(path="./prompts/magic_base_instructions.prompt") }}
 </base_instructions>

@@ -62,10 +62,6 @@ Audio tool failure handling principles (only for audio_understanding, setup_audi
 {{ @include(path="./prompts/user_first_law.prompt") }}
 </user_first_law>
 
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
 <before_you_create_file>
 {{ @include(path="./prompts/before_you_create_file.prompt") }}
 </before_you_create_file>

@@ -33,10 +33,6 @@ CREW_ROLE
 CREW_PERSONALITY
 CREW_INSTRUCTIONS
 
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
 <base_instructions>
 {{ @include(path="./prompts/magic_base_instructions_for_skills.prompt") }}
 </base_instructions>
