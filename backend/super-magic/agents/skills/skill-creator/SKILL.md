@@ -477,7 +477,7 @@ See `references/super-magic-tools.md` for the detailed procedure.
 
 > "是否需要将这个 skill 打包并上传到「我的技能库」？也可以只打包，不上传。"
 
-根据用户的回答选择命令。**重要**：用户只说「打包」「只打包」「生成 .skill」而未明确表示要上传到技能库时，**只能**使用「只打包」命令（不要加 `--upload`）。仅当用户明确同意上传、或同时使用「打包并上传」「上传到技能库」等表述时，才使用带 `--upload` 的命令。
+根据用户的回答选择命令。**重要**：用户只说「打包」「只打包」「生成 .zip」而未明确表示要上传到技能库时，**只能**使用「只打包」命令（不要加 `--upload`）。仅当用户明确同意上传、或同时使用「打包并上传」「上传到技能库」等表述时，才使用带 `--upload` 的命令。
 -->
 ### Phase 8: Ask About Packaging and Upload
 
@@ -485,7 +485,7 @@ After the skill is done and user-confirmed, always ask:
 
 > "Would you like to package this skill and upload it to your skill library? Or just package without uploading?"
 
-**Important:** If the user only asks to "package", "pack only", or "build the .skill file" without clearly requesting upload to the skill library, you **must** use the package-only command (do **not** pass `--upload`). Only use `--upload` when the user explicitly agrees to upload or uses phrasing like "package and upload" / "upload to my skill library".
+**Important:** If the user only asks to "package", "pack only", or "build the .zip file" without clearly requesting upload to the skill library, you **must** use the package-only command (do **not** pass `--upload`). Only use `--upload` when the user explicitly agrees to upload or uses phrasing like "package and upload" / "upload to my skill library".
 
 <!--zh
 **只打包，不上传（默认 CLI 行为；用户仅说「打包」时用此命令）：**
@@ -519,13 +519,13 @@ shell_exec(
 ```
 
 <!--zh
-**先打包、稍后再上传（两步独立执行）：** 第一步只跑打包；需要上传时再对生成的 `.skill` 文件执行 `upload_skill.py`。
+**先打包、稍后再上传（两步独立执行）：** 第一步只跑打包；需要上传时再对生成的 `.zip` 文件执行 `upload_skill.py`。
 -->
-**Package first, upload later (two separate steps):** Run packaging only first; when the user wants to upload, call `upload_skill.py` with the path to the generated `.skill` file.
+**Package first, upload later (two separate steps):** Run packaging only first; when the user wants to upload, call `upload_skill.py` with the path to the generated `.zip` file.
 
 ```python
 shell_exec(
-    command='python scripts/upload_skill.py <absolute-path-to-.skill-file>',
+    command='python scripts/upload_skill.py <absolute-path-to-.zip-file>',
     cwd="agents/skills/skill-creator"
 )
 ```

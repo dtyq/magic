@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-将 skill 目录打包为 .skill 文件；可选在打包结束后调用 upload_skill.py 上传。
+将 skill 目录打包为 .zip 文件；可选在打包结束后调用 upload_skill.py 上传。
 
 只打包（默认）：
     python scripts/package_skill.py <skill-dir> [output-dir] [--version 1.0.0]
@@ -8,8 +8,8 @@
 打包并上传（内部会再执行一次 upload_skill.py）：
     python scripts/package_skill.py <skill-dir> [output-dir] --version 1.0.0 --upload
 
-稍后单独上传已生成的 .skill：
-    python scripts/upload_skill.py <path-to.skill>
+稍后单独上传已生成的 .zip：
+    python scripts/upload_skill.py <path-to.zip>
 
 上传接口说明见 upload_skill.py 文档字符串。
 """
@@ -39,6 +39,9 @@ EXCLUDE_FILES = {".DS_Store"}
 # 仅在 skill 根目录第一层排除的目录
 ROOT_EXCLUDE_DIRS = {"evals"}
 
+# 打包产物文件名后缀（zip 格式，与后端 import 接受的扩展名一致）
+PACKAGE_FILE_SUFFIX = ".zip"
+
 
 def should_exclude(rel_path: Path) -> bool:
     """判断路径是否应在打包时排除。"""
@@ -64,15 +67,15 @@ async def package_skill(
     version: Optional[str] = None,
 ) -> Optional[Path]:
     """
-    将 skill 目录打包为 .skill 文件。
+    将 skill 目录打包为 .zip 文件。
 
     Args:
         skill_path: skill 目录路径
         output_dir: 输出目录（默认为当前工作目录）
-        version:    版本号字符串，如 "1.0.0"；若提供则文件名为 <name>-v<version>.skill
+        version:    版本号字符串，如 "1.0.0"；若提供则文件名为 <name>-v<version>.zip
 
     Returns:
-        打包成功返回 .skill 文件路径，否则返回 None
+        打包成功返回 .zip 文件路径，否则返回 None
     """
     skill_path = Path(skill_path).resolve()
 
@@ -107,7 +110,7 @@ async def package_skill(
 
     # 带版本号时文件名加 -v<version> 后缀
     filename_stem = f"{skill_name}-v{version}" if version else skill_name
-    skill_filename = output_path / f"{filename_stem}.skill"
+    skill_filename = output_path / f"{filename_stem}{PACKAGE_FILE_SUFFIX}"
 
     all_files = await asyncio.to_thread(lambda: list(skill_path.rglob('*')))
 
@@ -128,7 +131,7 @@ async def package_skill(
         print(f"\nSuccessfully packaged skill to: {skill_filename}")
         return skill_filename
     except Exception as e:
-        print(f"Error creating .skill file: {e}")
+        print(f"Error creating package file: {e}")
         return None
 
 
@@ -162,12 +165,12 @@ async def _run_upload_script(
 
 async def _main():
     parser = argparse.ArgumentParser(
-        description="将 skill 目录打包为 .skill 文件；加 --upload 时再调用 upload_skill.py 上传",
+        description="将 skill 目录打包为 .zip 文件；加 --upload 时再调用 upload_skill.py 上传",
     )
     parser.add_argument("skill_path", help="skill 目录路径")
     parser.add_argument("output_dir", nargs="?", default=None, help="输出目录（默认为当前工作目录）")
     parser.add_argument("--version", default=None, metavar="VERSION",
-                        help="版本号，如 1.0.0；文件名将变为 <name>-v<version>.skill")
+                        help="版本号，如 1.0.0；文件名将变为 <name>-v<version>.zip")
     parser.add_argument("--upload", dest="upload", action="store_true",
                         help="打包成功后调用 upload_skill.py 上传到「我的技能库」（默认不调用）")
     parser.add_argument("--no-upload", dest="upload", action="store_false",
