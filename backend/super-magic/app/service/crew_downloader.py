@@ -2,7 +2,7 @@
 Crew Agent file downloader.
 
 Downloads crew agent definition files from remote API and extracts them
-to the local agents/crew/ directory.
+to the local agents/crew/{agent_code}/ directory.
 """
 
 import io
@@ -27,7 +27,7 @@ class CrewDownloader:
 
         Args:
             agent_code: The agent code identifier.
-            target_dir: Target directory to extract files into (e.g. agents/crew/).
+            target_dir: Target directory to extract files into (e.g. agents/crew/{agent_code}/).
 
         Raises:
             ValueError: If the API does not return a file_url.

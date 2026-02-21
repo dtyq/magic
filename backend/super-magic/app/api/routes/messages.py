@@ -493,18 +493,25 @@ class MessageProcessor:
         from app.core.entity.agent_profile import AgentProfile
 
         agents_dir = Path(PathManager.get_project_root()) / "agents"
-        crew_dir = agents_dir / "crew"
+        crew_dir = agents_dir / "crew" / agent_code
+        output_agent_file = agents_dir / f"{agent_code}.agent"
 
-        # Download if IDENTITY.md does not exist locally
         identity_file = crew_dir / "IDENTITY.md"
-        if not identity_file.exists():
-            logger.info(f"Crew files not found locally, downloading: {agent_code}")
-            downloader = CrewDownloader()
-            await downloader.download_and_extract(agent_code, crew_dir)
-
-        # Compile crew files into .agent
         compiler = CrewAgentCompiler()
-        identity_meta = await compiler.compile(agent_code, crew_dir)
+        if output_agent_file.exists():
+            logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")
+            if not identity_file.exists():
+                logger.warning(
+                    f"IDENTITY.md not found for existing crew agent, skip profile setup: {identity_file}"
+                )
+                return
+            _, identity_meta = await compiler._read_with_yaml(identity_file)
+        else:
+            if not identity_file.exists():
+                logger.info(f"Crew files not found locally, downloading: {agent_code}")
+                downloader = CrewDownloader()
+                await downloader.download_and_extract(agent_code, crew_dir)
+            identity_meta = await compiler.compile(agent_code, crew_dir)
 
         # Set AgentProfile from IDENTITY.md metadata
         from app.i18n import i18n

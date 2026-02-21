@@ -2,7 +2,6 @@ from app.i18n import i18n
 import asyncio
 import os
 import json
-from pathlib import Path
 from typing import Dict, Optional, Union
 import importlib
 import importlib.metadata
@@ -16,7 +15,6 @@ from app.core.stream.stdout_stream import StdoutStream
 from agentlang.config.config import config
 from app.magic.agent import Agent
 from app.service.agent_service import AgentService
-from app.service.agent_config_converter import AgentConfigConverter
 from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
 
 from app.service.agent_event.rag_listener_service import RagListenerService
@@ -66,7 +64,6 @@ class AgentDispatcher(Base):
         self.http_stream: Optional[HTTPSubscriptionStream] = None
         self.is_workspace_initialized: bool = False  # 工作区初始化状态标志
         self.agent_service = AgentService()  # 创建AgentService实例
-        self.config_converter = AgentConfigConverter()  # 创建自定义Agent配置转换器
         self.agents: Dict[str, Agent] = {}  # 用于存储不同类型的agent
 
         # 标记 init 事件是否已经发送过（用于沙箱预启动场景的延迟发送）
@@ -266,59 +263,29 @@ class AgentDispatcher(Base):
         Returns:
             Agent: 选择的Agent实例
         """
-        # 如果是字符串，需要判断是内置AgentMode还是自定义Agent ID
+        # 如果是字符串，仅支持 custom_agent + agent_code 或内置 AgentMode
         if isinstance(agent_mode, str):
+            normalized_mode = agent_mode.strip()
+
             # 0. custom_agent + agent_code => compiled crew agent
-            if agent_mode == "custom_agent" and agent_code:
-                agent_type = agent_code
-                if agent_type in self.agents:
-                    logger.info(f"清理已缓存的 crew Agent: {agent_type}")
-                    del self.agents[agent_type]
-                logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
-
-            # 1. 优先检查是否为内置 AgentMode 值
-            elif agent_mode in {mode.value for mode in AgentMode}:
-                agent_mode = AgentMode(agent_mode)
-                logger.info(f"识别为内置 AgentMode: {agent_mode}")
-                agent_type = agent_mode.get_agent_type()
-            # 2. 自定义 Agent ID（含 sma- 前缀），从 API 获取配置
-            elif agent_mode.strip() and "sma-" in agent_mode.lower():
-                logger.info(f"识别为自定义 Agent ID，准备从 API 获取配置")
-                agent_file_path, agent_details = await self.config_converter.convert_api_to_agent_file(agent_mode)
-                agent_type = agent_mode
-                if agent_type in self.agents:
-                    logger.info(f"清理已缓存的 Agent: {agent_type}")
-                    del self.agents[agent_type]
-
-                # 设置专属 agent_profile（name 为空时保持默认 profile，避免角色段为空）
-                from app.core.entity.agent_profile import AgentProfile
-                lang = i18n.get_language()
-                name = agent_details.get_localized_name(lang)
-                if name:
-                    role = agent_details.get_localized_role(lang)
-                    description = agent_details.get_localized_description(lang)
-                    profile = AgentProfile(name=name, role=role, description=description)
-                    self.agent_context.set_agent_profile(profile)
-                    logger.info(f"设置自定义 Agent profile: name={name}, role={role}, lang={lang}")
+            if normalized_mode == "custom_agent":
+                if agent_code and agent_code.strip():
+                    agent_type = agent_code.strip()
+                    if agent_type in self.agents:
+                        logger.info(f"清理已缓存的 crew Agent: {agent_type}")
+                        del self.agents[agent_type]
+                    logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
                 else:
-                    logger.info("API 未返回 agent name，保持默认 AgentProfile")
-
-            # 3. 字符串为空，回退到默认模式
-            elif not agent_mode.strip():
-                logger.info(f"Agent ID 为空，回退到默认模式: {AgentMode.GENERAL}")
-                agent_mode = AgentMode.GENERAL
-                agent_type = agent_mode.get_agent_type()
+                    logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
+                    agent_type = AgentMode.GENERAL.get_agent_type()
             else:
-                custom_agent_mode = agent_mode.strip()
-
-                # 4. 优先检查本地 agents 目录（支持递归扫描）
-                local_agent_type = await self._resolve_local_agent_type(custom_agent_mode)
-                if local_agent_type != AgentMode.GENERAL.get_agent_type():
-                    agent_type = local_agent_type
-                else:
-                    agent_mode = AgentMode.GENERAL
-                    agent_type = agent_mode.get_agent_type()
-                    logger.warning('未找到任何 Agent，回退到默认模式: {AgentMode.GENERAL}')
+                try:
+                    resolved_mode = AgentMode(normalized_mode)
+                    logger.info(f"识别为内置 AgentMode: {resolved_mode}")
+                    agent_type = resolved_mode.get_agent_type()
+                except ValueError:
+                    logger.warning(f"未识别的 agent_mode='{normalized_mode}'，回退到默认模式")
+                    agent_type = AgentMode.GENERAL.get_agent_type()
         else:
             # 使用 AgentMode 的 get_agent_type 方法
             agent_type = agent_mode.get_agent_type()
@@ -330,78 +297,6 @@ class AgentDispatcher(Base):
         selected_agent = self.agents[agent_type]
 
         return selected_agent
-
-    async def _resolve_local_agent_type(self, agent_mode: str) -> str:
-        """
-        解析本地 agent 类型：递归扫描 agents 目录（最大3层），若存在对应的 .agent 文件则使用，否则回退到通用模式
-
-        Args:
-            agent_mode: 用户传入的 agent 标识（如 movie）
-
-        Returns:
-            str: agent_type，用于加载 agents/{agent_type}.agent（可能包含子目录路径，如 custom/movie）
-        """
-        from app.utils.async_file_utils import async_exists, async_scandir
-
-        agents_dir = PathManager.get_project_root() / "agents"
-        if not await async_exists(agents_dir):
-            logger.warning("agents 目录不存在，回退到通用模式")
-            return AgentMode.GENERAL.get_agent_type()
-
-        # 递归扫描，最多3层，找到第一个匹配的就返回
-        found_path = await self._scan_agent_recursive(agents_dir, agent_mode, max_depth=3)
-        if found_path:
-            # 返回相对于 agents_dir 的路径（不含 .agent 扩展名）
-            relative_path = found_path.relative_to(agents_dir).with_suffix('')
-            agent_type = str(relative_path).replace(os.sep, '/')  # 统一使用 / 分隔符
-            logger.info(f"在 agents 目录找到本地 Agent 文件: {agent_type}.agent")
-            return agent_type
-
-        logger.info(f"agents 目录未找到 {agent_mode}.agent（递归3层），回退到通用模式")
-        return AgentMode.GENERAL.get_agent_type()
-
-    async def _scan_agent_recursive(self, directory: Path, target_name: str, max_depth: int, current_depth: int = 1) -> Optional[Path]:
-        """
-        递归扫描目录查找指定名称的 .agent 文件
-
-        Args:
-            directory: 当前扫描的目录
-            target_name: 目标文件名（不含 .agent 扩展名）
-            max_depth: 最大扫描深度
-            current_depth: 当前深度（从1开始）
-
-        Returns:
-            Optional[Path]: 找到的文件路径，未找到返回 None
-        """
-        from app.utils.async_file_utils import async_scandir
-
-        try:
-            entries = await async_scandir(directory)
-
-            # 先检查当前层的文件
-            for entry in entries:
-                if entry.is_file() and entry.name.endswith(".agent"):
-                    if Path(entry.name).stem == target_name:
-                        return Path(entry.path)
-
-            # 如果未达到最大深度，递归扫描子目录
-            if current_depth < max_depth:
-                for entry in entries:
-                    if entry.is_dir():
-                        found = await self._scan_agent_recursive(
-                            Path(entry.path),
-                            target_name,
-                            max_depth,
-                            current_depth + 1
-                        )
-                        if found:
-                            return found
-
-            return None
-
-        except Exception as e:
-            logger.warning(f"扫描目录 {directory} 时出错: {e}")
-            return None
 
     async def run_agent(self, agent: Agent):
         """

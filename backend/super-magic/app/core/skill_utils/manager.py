@@ -42,10 +42,19 @@ class GlobalSkillManager:
             from app.paths import PathManager
             project_root = cls.get_project_root()
             workspace_dir = PathManager.get_workspace_dir()
-            cls._skills_dirs = [
+            skills_dirs = [
                 project_root / "agents" / "skills",  # 项目内置 skills（优先级最高，不可被覆盖）
-                workspace_dir / "skills",             # workspace skills（skillhub 安装 + 用户创建，持久化）
             ]
+            # 对 custom_agent，支持加载 agents/crew/{agent_code}/skills 下的私有 skills
+            current_agent_type = (cls._current_agent_type or "").strip()
+            if current_agent_type:
+                crew_skills_dir = project_root / "agents" / "crew" / current_agent_type / "skills"
+                if crew_skills_dir.exists():
+                    skills_dirs.append(crew_skills_dir)
+            skills_dirs.append(
+                workspace_dir / "skills"  # workspace skills（skillhub 安装 + 用户创建，持久化）
+            )
+            cls._skills_dirs = skills_dirs
             logger.info(f"初始化 skills 目录: {[str(d) for d in cls._skills_dirs]}")
         return cls._skills_dirs
 
@@ -65,8 +74,14 @@ class GlobalSkillManager:
         Args:
             agent_type: agent 类型名称，如 "skill"、"magic"、"slider" 等
         """
-        cls._current_agent_type = agent_type
-        logger.debug(f"当前 agent 类型已设置为: {agent_type}")
+        normalized_agent_type = (agent_type or "").strip()
+        if cls._current_agent_type == normalized_agent_type:
+            return
+        cls._current_agent_type = normalized_agent_type
+        # 当前 agent 变化后，刷新目录与 manager，避免继续使用旧 crew skills 路径
+        cls._skills_dirs = None
+        cls._skill_manager = None
+        logger.debug(f"当前 agent 类型已设置为: {normalized_agent_type}")
 
     @classmethod
     def get_current_agent_type(cls) -> str:
