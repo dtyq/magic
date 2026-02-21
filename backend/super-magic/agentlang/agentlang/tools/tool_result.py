@@ -19,7 +19,7 @@ class ToolResult(BaseModel):
 
     2. 带结构化数据的结果:
        ```python
-       # 返回结构化数据（可被 AI 读取）
+       # 返回结构化数据（会传给前端，可供前端或调用方使用）
        return ToolResult(
            content="查询到元素信息",
            data={
@@ -43,14 +43,14 @@ class ToolResult(BaseModel):
     - 不能同时设置 error 和 content 参数
     - error 参数会被自动转换为 content 内容，并将 ok 设为 False
     - 在异常处理中，推荐使用 error 参数来标记错误
-    - data 字段用于返回结构化数据，AI 可以直接读取和使用（适用于 skills）
-    - extra_info 字段不会传给 AI，仅用于内部系统使用
+    - data 字段会传给前端，适合放前端或调用方可能需要的结构化数据
+    - extra_info 字段仅用于 Python 项目内部，不会展示给用户，也不会传给 AI 大模型
     """
 
     content: str = Field(description="工具执行的结果内容，将作为输出返回给 AI 大模型")
     ok: bool = Field(default=True, description="工具执行是否成功")
-    data: Optional[Dict[str, Any]] = Field(default=None, description="结构化数据（字典），适用于 skills 中需要程序化处理的数据")
-    extra_info: Dict[str, Any] = Field(default_factory=dict, description="工具执行的额外信息，不会展示给用户，也不会传给 AI 大模型")
+    data: Dict[str, Any] = Field(default_factory=dict, description="结构化数据，会传给前端，适合存放前端或调用方可能需要使用的数据")
+    extra_info: Dict[str, Any] = Field(default_factory=dict, description="工具执行的额外信息，仅用于 Python 项目内部，不会展示给用户，也不会传给 AI 大模型")
     system: Optional[str] = Field(default=None)
     tool_call_id: Optional[str] = Field(default=None)
     name: Optional[str] = Field(default=None)
