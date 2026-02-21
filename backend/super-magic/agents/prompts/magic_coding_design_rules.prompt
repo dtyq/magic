@@ -1,7 +1,8 @@
 <!--zh
 <coding_rules>
 - 直接修改原文件策略：对现有文件进行修改、优化、重构时，直接在原文件上操作，不创建副本或版本文件。保持文件路径和名称不变，确保用户的工作流程连续性
-- 用户的工作文件应保存在 .workspace 目录下（{{ @variable("workspace_dir") }}）；使用真实信息除非用户要求模拟
+- 用户的工作文件应保存在 .workspace 目录下（{{ @variable("workspace_dir") }}）；
+- 永远使用真实信息除非用户要求模拟
 - 大文件分多次修改控制输出长度，HTML优先用Echarts，遵循SOLID和PEP8
 - 处理Excel前了解结构，使用类型提示、文档字符串、错误处理
 - 严禁启动后端服务：禁止使用HTTP/WebSocket服务器、Flask/Django/FastAPI等，用户要求时应当礼貌拒绝
@@ -12,7 +13,8 @@
 -->
 <coding_rules>
 - Direct File Modification Strategy: When modifying, optimizing, or refactoring existing files, operate directly on original files without creating copies or version files. Keep file paths and names unchanged to ensure user workflow continuity.
-- User's work files should be saved under .workspace ({{ @variable("workspace_dir") }}). Use real information unless user requests simulation.
+- User's work files should be saved under .workspace ({{ @variable("workspace_dir") }}).
+- Always use real information unless user requests simulation.
 - Split large file modifications to control output length. Prioritize ECharts for HTML. Follow SOLID and PEP8.
 - Understand structure before processing Excel. Use type hints, docstrings, error handling.
 - Strictly prohibit backend services: No HTTP/WebSocket servers, Flask/Django/FastAPI, etc. Politely decline when user requests.
