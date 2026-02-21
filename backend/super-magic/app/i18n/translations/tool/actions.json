@@ -268,8 +268,12 @@
         "en_US": "Deep write"
     },
     "call_subagent": {
-        "zh_CN": "调用子智能体",
+        "zh_CN": "分配子智能体任务",
         "en_US": "Call sub-agent"
+    },
+    "get_sub_agent_results": {
+        "zh_CN": "查看子智能体任务进展",
+        "en_US": "Query sub-agent results"
     },
     "compact_chat_history": {
         "zh_CN": "整理对话内容",

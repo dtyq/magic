@@ -796,16 +796,40 @@
         "en_US": "Deep writing question: {{question}}"
     },
     "call_subagent.start": {
-        "zh_CN": "调用子智能体: {{agent_name}}",
+        "zh_CN": "{{agent_name}} 已接收任务",
         "en_US": "Calling sub-agent: {{agent_name}}"
     },
     "call_subagent.error": {
-        "zh_CN": "子智能体调用失败: {{error}}",
+        "zh_CN": "分配子智能体任务失败: {{error}}",
         "en_US": "Sub-agent call failed: {{error}}"
+    },
+    "call_subagent.assign": {
+        "zh_CN": "分配给 {{agent_name}} 子智能体",
+        "en_US": "Assign to sub-agent {{agent_name}}"
+    },
+    "call_subagent.running": {
+        "zh_CN": "{{agent_name}} 正在执行任务",
+        "en_US": "{{agent_name}} is working on the task"
+    },
+    "call_subagent.done": {
+        "zh_CN": "{{agent_name}} 已完成任务",
+        "en_US": "{{agent_name}} completed the task"
+    },
+    "call_subagent.failed": {
+        "zh_CN": "{{agent_name}} 执行失败：{{error}}",
+        "en_US": "{{agent_name}} failed to complete the task: {{error}}"
+    },
+    "call_subagent.interrupted": {
+        "zh_CN": "{{agent_name}} 的任务已中断",
+        "en_US": "{{agent_name}} was interrupted"
     },
     "call_subagent.unknown_agent": {
         "zh_CN": "未知子智能体",
         "en_US": "Unknown sub-agent"
+    },
+    "get_sub_agent_results.error": {
+        "zh_CN": "获取子智能体任务进展失败: {{error}}",
+        "en_US": "Failed to query sub-agent results: {{error}}"
     },
     "compact_chat_history.remark": {
         "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
