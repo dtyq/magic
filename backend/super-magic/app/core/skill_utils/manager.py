@@ -40,17 +40,19 @@ class GlobalSkillManager:
         """获取 skills 目录列表"""
         if cls._skills_dirs is None:
             from app.paths import PathManager
-            project_root = cls.get_project_root()
             workspace_dir = PathManager.get_workspace_dir()
             skills_dirs = [
-                project_root / "agents" / "skills",  # 项目内置 skills（优先级最高，不可被覆盖）
+                PathManager.get_agents_dir() / "skills",  # 项目内置 skills（优先级最高，不可被覆盖）
             ]
             # 对 custom_agent，支持加载 agents/crew/{agent_code}/skills 下的私有 skills
             current_agent_type = (cls._current_agent_type or "").strip()
             if current_agent_type:
-                crew_skills_dir = project_root / "agents" / "crew" / current_agent_type / "skills"
-                if crew_skills_dir.exists():
-                    skills_dirs.append(crew_skills_dir)
+                try:
+                    crew_skills_dir = PathManager.get_crew_skills_dir(current_agent_type)
+                    if crew_skills_dir.exists():
+                        skills_dirs.append(crew_skills_dir)
+                except ValueError as e:
+                    logger.warning(f"当前 agent 标识非法，跳过 crew skills 目录: {e}")
             skills_dirs.append(
                 workspace_dir / "skills"  # workspace skills（skillhub 安装 + 用户创建，持久化）
             )

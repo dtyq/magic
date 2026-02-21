@@ -81,10 +81,10 @@ class SkillList(BaseTool[SkillListParams]):
 
     async def _list_builtin_skills(self) -> List[Dict[str, Any]]:
         """列出 agents/skills/ 目录下的内置 skill"""
-        from app.core.skill_utils.manager import GlobalSkillManager
         from app.core.skill_utils.skillhub import scan_skills_dir
+        from app.paths import PathManager
 
-        builtin_dir = GlobalSkillManager.get_project_root() / "agents" / "skills"
+        builtin_dir = PathManager.get_agents_dir() / "skills"
         metas = await scan_skills_dir(builtin_dir)
         results = [
             {
@@ -104,18 +104,17 @@ class SkillList(BaseTool[SkillListParams]):
         """列出当前 crew agent 私有 skills（agents/crew/{agent_code}/skills）"""
         from app.core.skill_utils.manager import GlobalSkillManager
         from app.core.skill_utils.skillhub import scan_skills_dir
+        from app.paths import PathManager
 
         current_agent_type = (GlobalSkillManager.get_current_agent_type() or "").strip()
         if not current_agent_type:
             return []
 
-        crew_dir = (
-            GlobalSkillManager.get_project_root()
-            / "agents"
-            / "crew"
-            / current_agent_type
-            / "skills"
-        )
+        try:
+            crew_dir = PathManager.get_crew_skills_dir(current_agent_type)
+        except ValueError as e:
+            logger.warning(f"当前 agent 标识非法，跳过 crew skills 列表: {e}")
+            return []
         metas = await scan_skills_dir(crew_dir)
         results = [
             {

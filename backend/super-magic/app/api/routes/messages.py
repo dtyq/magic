@@ -486,17 +486,14 @@ class MessageProcessor:
 
         Also sets the AgentProfile on agent_context based on IDENTITY.md metadata.
         """
-        from pathlib import Path
         from app.paths import PathManager
         from app.service.crew_downloader import CrewDownloader
         from app.service.crew_agent_compiler import CrewAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
 
-        agents_dir = Path(PathManager.get_project_root()) / "agents"
-        crew_dir = agents_dir / "crew" / agent_code
-        output_agent_file = agents_dir / f"{agent_code}.agent"
-
-        identity_file = crew_dir / "IDENTITY.md"
+        crew_dir = PathManager.get_crew_agent_dir(agent_code)
+        output_agent_file = PathManager.get_compiled_agent_file(agent_code)
+        identity_file = PathManager.get_crew_identity_file(agent_code)
         compiler = CrewAgentCompiler()
         if output_agent_file.exists():
             logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")

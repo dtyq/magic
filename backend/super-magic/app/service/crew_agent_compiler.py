@@ -34,9 +34,6 @@ DEFAULT_SKILLS = "find-skill, using-mcp, using-llm, env-manager"
 class CrewAgentCompiler:
     """Compiles crew definition files into a .agent file."""
 
-    def __init__(self):
-        self._agents_dir = Path(PathManager.get_project_root()) / "agents"
-
     async def compile(self, agent_code: str, crew_dir: Path) -> Dict[str, Any]:
         """Compile crew directory files into a .agent file.
 
@@ -65,7 +62,7 @@ class CrewAgentCompiler:
         skills_raw = await self._read_optional(crew_dir / "SKILLS.md")
         _, skills_meta = self._split_yaml_and_content(skills_raw)
 
-        template_path = self._agents_dir / "crew.agent.template"
+        template_path = PathManager.get_crew_template_file()
         if not await async_exists(template_path):
             raise FileNotFoundError(f"Template not found: {template_path}")
         template = await async_read_text(template_path)
@@ -81,7 +78,7 @@ class CrewAgentCompiler:
         result = result.replace("CREW_INSTRUCTIONS", self._wrap_instructions(agents_content))
         result = result.replace("CREW_TOOL_PREFERENCES", self._wrap_section("tool_preferences", tools_content))
 
-        output_path = self._agents_dir / f"{agent_code}.agent"
+        output_path = PathManager.get_compiled_agent_file(agent_code)
         await async_write_text(output_path, result)
         logger.info(f"Compiled crew agent: {output_path}")
 
