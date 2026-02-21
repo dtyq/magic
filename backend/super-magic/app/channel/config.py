@@ -1,4 +1,4 @@
-"""IM 渠道凭证持久化（存储于 .workspace/.magic/config/im-channels.json）。"""
+"""IM 渠道凭证持久化（存储于 .workspace/.magiclaw/config/im-channels.json）。"""
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
@@ -13,7 +13,7 @@ _CONFIG_FILENAME = "im-channels.json"
 
 
 def _config_path() -> Path:
-    return PathManager.get_magic_config_dir() / _CONFIG_FILENAME
+    return PathManager.get_magiclaw_config_dir() / _CONFIG_FILENAME
 
 
 @dataclass

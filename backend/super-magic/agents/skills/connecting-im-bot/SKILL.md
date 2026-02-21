@@ -25,6 +25,6 @@ description: 配置和连接 IM 渠道机器人（企业微信、钉钉、飞书
 
 ## 注意事项
 
-- 连接建立后持续后台运行，凭证自动保存到 `.magic/config/im-channels.json`，并绑定当前 sandbox；同一 sandbox 进程重启后会自动重连，无需再次配置
-- 如需禁用某个渠道的自动重连，可手动编辑 `.magic/config/im-channels.json`，将对应渠道的 `enabled` 改为 `false`
+- 连接建立后持续后台运行，凭证自动保存到 `.magiclaw/config/im-channels.json`，并绑定当前 sandbox；同一 sandbox 进程重启后会自动重连，无需再次配置
+- 如需禁用某个渠道的自动重连，可手动编辑 `.magiclaw/config/im-channels.json`，将对应渠道的 `enabled` 改为 `false`
 - 各渠道消息均与 Web 端共用同一个 Agent，对话历史互通

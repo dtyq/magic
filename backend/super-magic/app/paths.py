@@ -54,11 +54,11 @@ class PathManager(BasePathManager):
     _asr_states_dir_name: ClassVar[str] = ".asr_states"
     _asr_states_dir: ClassVar[Optional[Path]] = None
 
-    # Magic 全局配置目录（workspace 内，未来考虑迁移到 ~/.magic/）
-    _magic_dir_name: ClassVar[str] = ".magic"
-    _magic_config_dir_name: ClassVar[str] = "config"
-    _magic_dir: ClassVar[Optional[Path]] = None
-    _magic_config_dir: ClassVar[Optional[Path]] = None
+    # MagicLaw 持久化配置目录（MagiClaw / 龙虾模式专用，位于 workspace 内）
+    _magiclaw_dir_name: ClassVar[str] = ".magiclaw"
+    _magiclaw_config_dir_name: ClassVar[str] = "config"
+    _magiclaw_dir: ClassVar[Optional[Path]] = None
+    _magiclaw_config_dir: ClassVar[Optional[Path]] = None
 
     # Agent Studio 工作目录
     _agent_studio_dir_name: ClassVar[str] = ".agent_studio"
@@ -96,8 +96,8 @@ class PathManager(BasePathManager):
         cls._client_message_dir = cls._project_root / cls._client_message_dir_name
         cls._task_metadata_file = cls._client_message_dir / "task_metadata.json"
         cls._asr_states_dir = cls.get_workspace_dir() / cls._asr_states_dir_name
-        cls._magic_dir = cls.get_workspace_dir() / cls._magic_dir_name
-        cls._magic_config_dir = cls._magic_dir / cls._magic_config_dir_name
+        cls._magiclaw_dir = cls.get_workspace_dir() / cls._magiclaw_dir_name
+        cls._magiclaw_config_dir = cls._magiclaw_dir / cls._magiclaw_config_dir_name
         cls._agent_studio_dir = cls.get_workspace_dir() / cls._agent_studio_dir_name
 
         # 确保应用层特有的目录存在
@@ -385,16 +385,16 @@ class PathManager(BasePathManager):
         return cls._asr_states_dir
 
     @classmethod
-    def get_magic_dir(cls) -> Path:
-        """获取 workspace 内的 .magic 目录（未来考虑迁移到 ~/.magic/）"""
+    def get_magiclaw_dir(cls) -> Path:
+        """获取 workspace 内的 .magiclaw 目录（MagiClaw / 龙虾模式持久化配置）"""
         cls._ensure_app_initialization()
-        return cls._magic_dir
+        return cls._magiclaw_dir
 
     @classmethod
-    def get_magic_config_dir(cls) -> Path:
-        """获取 .magic/config/ 目录，存放 Magic 全局配置文件"""
+    def get_magiclaw_config_dir(cls) -> Path:
+        """获取 .magiclaw/config/ 目录，存放 MagiClaw / 龙虾模式持久化配置"""
         cls._ensure_app_initialization()
-        return cls._magic_config_dir
+        return cls._magiclaw_config_dir
 
     @classmethod
     def get_agent_studio_dir(cls, agent_code: Optional[str] = None) -> Path:
