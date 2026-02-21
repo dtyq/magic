@@ -140,7 +140,7 @@ class ListDir(WorkspaceTool[ListDirParams]):
         # 路径验证
         target_path = self.resolve_path(relative_workspace_path)
 
-        if error or not target_path.exists() or not target_path.is_dir():
+        if not target_path.exists() or not target_path.is_dir():
             logger.warning(f"Path invalid or does not exist: {relative_workspace_path}")
             # 返回空的FileTreeContent
             return FileTreeContent(

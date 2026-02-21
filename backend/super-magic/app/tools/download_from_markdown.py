@@ -499,9 +499,6 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
                 # Absolute path or workspace-relative path
                 safe_path = self.resolve_path(local_path)
 
-            if error:
-                return None, f"路径安全检查失败: {error}"
-
             if not safe_path.exists():
                 return None, f"本地文件不存在: {local_path}"
 
