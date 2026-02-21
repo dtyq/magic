@@ -12,7 +12,6 @@ You are a shell execution sub-agent, invoked by a parent agent to efficiently an
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
-{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
@@ -38,6 +37,3 @@ You are a shell execution sub-agent, invoked by a parent agent to efficiently an
 - Never execute obviously destructive or unauthorized operations.
 </base_instructions>
 
-<after_working_for_a_while>
-{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
-</after_working_for_a_while>

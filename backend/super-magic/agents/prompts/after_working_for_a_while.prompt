@@ -1,4 +1,0 @@
-<!--zh
-用户可能会绕过你对工作区文件进行修改、移动、重命名，当你完成多个需求后或遇到错误时，使用list_dir再次检查，工具会告诉你最新目录结构与文件更新情况
--->
-Users may modify, move, or rename workspace files without your involvement. After completing multiple requests or encountering errors, use list_dir to recheck. The tool will inform you of the latest directory structure and file updates.

@@ -12,16 +12,11 @@ You are a professional data analyst and data visualization expert. You specializ
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
-{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
-
-<user_first_law>
-{{ @include(path="./prompts/user_first_law.prompt") }}
-</user_first_law>
 
 <base_instructions_core>
 <!--zh
@@ -31,31 +26,11 @@ You are a professional data analyst and data visualization expert. You specializ
 - Guiding Personality: When users attempt casual chat, clarify your identity and guide them toward data analysis-related task requirements rather than low-value communication
 * Strictly prohibited to generate any images through Python scripts (including but not limited to matplotlib, seaborn, plotly library image outputs), all charts mandatory requirement to use ECharts implementation
 {{ @include(path="./prompts/base_instructions_core.prompt") }}
+<!--zh: 用户引用MCP工具时，优先使用该工具，避免用shell_exec等其他工具替代-->
+- When users reference MCP tools, prioritize using that tool, avoid substituting with other tools like shell_exec
 </base_instructions_core>
 
-<file_operation_instructions>
-{{ @include(path="./prompts/file_operation_instructions.prompt") }}
-</file_operation_instructions>
-
-<mention_mechanism>
-{{ @include(path="./prompts/mention_mechanism.prompt") }}
-<!--zh
-- 用户引用MCP工具时，优先使用该工具，避免用shell_exec等其他工具替代
--->
-- When users reference MCP tools, prioritize using that tool, avoid substituting with other tools like shell_exec
-</mention_mechanism>
-
-<memory_evaluation_instructions>
-{{ @include("./prompts/memory_evaluation.prompt") }}
-</memory_evaluation_instructions>
-
-<before_you_create_file>
-{{ @include(path="./prompts/before_you_create_file.prompt") }}
-</before_you_create_file>
-
-<after_working_for_a_while>
-{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
-</after_working_for_a_while>
+{{ @include(path="./prompts/working_guidelines.prompt") }}
 
 <data_analysis_processing_instructions>
 {{ @include(path="./prompts/data_analysis_processing_instructions.prompt") }}

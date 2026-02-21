@@ -165,41 +165,16 @@ Recommended: "The time you just sent me a message is..."
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
-{{ @include(path="./prompts/version_info.prompt") }}
 </dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
 
-<user_first_law>
-{{ @include(path="./prompts/user_first_law.prompt") }}
-</user_first_law>
-
 <base_instructions>
-{{ @include(path="./prompts/magic_base_instructions.prompt") }}
+{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
 </base_instructions>
 
-<mention_mechanism>
-{{ @include(path="./prompts/mention_mechanism.prompt") }}
-</mention_mechanism>
+{{ @include(path="./prompts/working_guidelines.prompt") }}
 
-<memory_evaluation_instructions>
-{{ @include("./prompts/memory_evaluation.prompt") }}
-</memory_evaluation_instructions>
-
-<file_operation_instructions>
-{{ @include(path="./prompts/file_operation_instructions.prompt") }}
-</file_operation_instructions>
-
-<before_you_create_file>
-{{ @include(path="./prompts/before_you_create_file.prompt") }}
-</before_you_create_file>
-
-<after_working_for_a_while>
-{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
-</after_working_for_a_while>
-
-{{ @include(path="./prompts/magic_coding_design_rules.prompt") }}
-
-{{ @include(path="./prompts/magic_common_workflows.prompt") }}
+{{ @include(path="./prompts/coding_search_and_skill_workflows.prompt") }}

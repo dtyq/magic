@@ -39,7 +39,6 @@ You have expert-level knowledge of prompt engineering and skill authoring, alway
 
 <dynamic_context>
 {{ @include(path="./prompts/dynamic_context_base.prompt") }}
-{{ @include(path="./prompts/version_info.prompt") }}
 {{ @include(path="./prompts/agent_manager_init_context.prompt") }}
 </dynamic_context>
 
@@ -50,6 +49,14 @@ You have expert-level knowledge of prompt engineering and skill authoring, alway
 <user_first_law>
 {{ @include(path="./prompts/user_first_law.prompt") }}
 </user_first_law>
+
+<file_operation_instructions>
+{{ @include(path="./prompts/file_operation_instructions.prompt") }}
+</file_operation_instructions>
+
+<memory_evaluation_instructions>
+{{ @include(path="./prompts/memory_evaluation.prompt") }}
+</memory_evaluation_instructions>
 
 <instructions>
 <!--zh
@@ -186,10 +193,3 @@ Choose operations based on user needs:
 - When writing prompts for users, recommend including security constraints
 </instructions>
 
-<file_operation_instructions>
-{{ @include(path="./prompts/file_operation_instructions.prompt") }}
-</file_operation_instructions>
-
-<memory_evaluation_instructions>
-{{ @include("./prompts/memory_evaluation.prompt") }}
-</memory_evaluation_instructions>
