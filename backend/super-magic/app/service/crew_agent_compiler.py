@@ -7,7 +7,7 @@ and compiles them into a .agent file using crew.agent.template.
 
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -17,18 +17,18 @@ from app.utils.async_file_utils import async_exists, async_read_text, async_writ
 
 logger = get_logger(__name__)
 
-# Default tools list (same as user.agent.template)
-DEFAULT_TOOLS = (
-    "web_search, read_webpages_as_markdown, visual_understanding, convert_to_markdown, "
-    "image_search, download_from_urls, download_from_markdown, generate_image, "
-    "list_dir, file_search, read_files, grep_search, run_python_snippet, shell_exec, "
-    "write_file, edit_file, edit_file_range, multi_edit_file, multi_edit_file_range, "
-    "delete_files, visual_understanding, create_memory, update_memory, delete_memory, "
-    "compact_chat_history"
-)
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n?", re.DOTALL)
 
-# Default skills list (same as user.agent.template)
-DEFAULT_SKILLS = "find-skill, using-mcp, using-llm, env-manager"
+DEFAULT_TOOLS: List[str] = [
+    "web_search", "read_webpages_as_markdown", "visual_understanding", "convert_to_markdown",
+    "image_search", "download_from_urls", "download_from_markdown", "generate_image",
+    "list_dir", "file_search", "read_files", "grep_search", "run_python_snippet", "shell_exec",
+    "write_file", "edit_file", "edit_file_range", "multi_edit_file", "multi_edit_file_range",
+    "delete_files", "create_memory", "update_memory", "delete_memory",
+    "compact_chat_history",
+]
+
+DEFAULT_SKILLS: List[str] = ["find-skill", "using-mcp", "using-llm", "env-manager"]
 
 
 class CrewAgentCompiler:
@@ -67,16 +67,29 @@ class CrewAgentCompiler:
             raise FileNotFoundError(f"Template not found: {template_path}")
         template = await async_read_text(template_path)
 
-        tools_str = self._build_list_string(tools_meta, "tools", DEFAULT_TOOLS)
-        skills_str = self._build_list_string(skills_meta, "skills", DEFAULT_SKILLS)
+        tools_list = self._build_item_list(tools_meta, "tools", DEFAULT_TOOLS)
+        skills_list = self._build_item_list(skills_meta, "skills", DEFAULT_SKILLS)
 
-        result = template
-        result = result.replace("CREW_TOOLS", tools_str)
-        result = result.replace("CREW_SKILLS", skills_str)
-        result = result.replace("CREW_ROLE", identity_content or "")
-        result = result.replace("CREW_PERSONALITY", self._wrap_section("personality", soul_content))
-        result = result.replace("CREW_INSTRUCTIONS", self._wrap_instructions(agents_content))
-        result = result.replace("CREW_TOOL_PREFERENCES", self._wrap_section("tool_preferences", tools_content))
+        header = {
+            "llm": "main_llm",
+            "attributes": ["main"],
+            "tools": tools_list,
+            "skills": {
+                "system_skills": [{"name": s} for s in skills_list],
+                "crew_skills": "*",
+            },
+        }
+
+        template_body = self._extract_template_body(template)
+
+        body = template_body
+        body = body.replace("CREW_ROLE", identity_content or "")
+        body = body.replace("CREW_PERSONALITY", self._wrap_section("personality", soul_content))
+        body = body.replace("CREW_INSTRUCTIONS", self._wrap_instructions(agents_content))
+        body = body.replace("CREW_TOOL_PREFERENCES", self._wrap_section("tool_preferences", tools_content))
+
+        yaml_str = yaml.dump(header, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        result = f"---\n{yaml_str}---\n{body}"
 
         output_path = PathManager.get_compiled_agent_file(agent_code)
         await async_write_text(output_path, result)
@@ -120,14 +133,21 @@ class CrewAgentCompiler:
 
         return content, meta
 
-    def _build_list_string(
-        self, meta: Dict[str, Any], key: str, default: str
-    ) -> str:
-        """Build a comma-separated string from YAML list, with fallback to default."""
+    def _extract_template_body(self, template: str) -> str:
+        """Remove YAML frontmatter from template and return the body portion."""
+        match = _FRONTMATTER_RE.match(template)
+        if match:
+            return template[match.end():]
+        return template
+
+    def _build_item_list(
+        self, meta: Dict[str, Any], key: str, default: List[str]
+    ) -> List[str]:
+        """Build a list of item names from YAML metadata, with fallback to default."""
         items = meta.get(key)
         if not items or not isinstance(items, list):
-            return default
-        return ", ".join(str(item).strip() for item in items if str(item).strip())
+            return list(default)
+        return [str(item).strip() for item in items if str(item).strip()]
 
     def _wrap_section(self, tag: str, content: Optional[str]) -> str:
         """Wrap content in an XML-style tag, or return empty string if no content."""

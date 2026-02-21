@@ -1,5 +1,5 @@
 ---
-name: agent-prompt-manager
+name: crew-creator
 description: |
   Manage and optimize custom agent definition files (IDENTITY.md, AGENTS.md, SOUL.md, TOOLS.md).
   Use when users want to edit agent identity, modify workflow instructions, adjust personality,
@@ -135,7 +135,7 @@ tools:
 ```python
 shell_exec(
     command="python scripts/tools.py list",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -144,7 +144,7 @@ shell_exec(
 ```python
 shell_exec(
     command="python scripts/tools.py detail web_search",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -153,7 +153,7 @@ shell_exec(
 ```python
 shell_exec(
     command="python scripts/tools.py search image",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -277,7 +277,7 @@ Use `scripts/tools.py` to dynamically scan all registered tools in the project (
 ```python
 shell_exec(
     command="python scripts/tools.py list",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -286,7 +286,7 @@ shell_exec(
 ```python
 shell_exec(
     command="python scripts/tools.py detail web_search",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -295,7 +295,7 @@ shell_exec(
 ```python
 shell_exec(
     command="python scripts/tools.py search image",
-    cwd="agents/skills/agent-prompt-manager"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
