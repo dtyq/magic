@@ -106,7 +106,29 @@
 - 优先让"必然有值"的字段非 nullable。
 - 阶段性字段可以 nullable，但要用最小必要校验约束合法组合。
 
-## 10. 每次改动前自检
+## 10. 文件操作必须使用异步工具
+
+Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_utils.py`，不要直接用 `open()`、`os`、`shutil` 的同步接口。
+
+可用函数：
+
+| 操作 | 函数 |
+|------|------|
+| 读文本 | `async_read_text` / `async_try_read_text`（不抛异常版） |
+| 写文本 | `async_write_text` |
+| 读二进制 | `async_read_bytes` |
+| 写二进制 | `async_write_bytes` |
+| 读/写 JSON | `async_read_json` / `async_write_json` |
+| 复制文件 | `async_copy2` |
+| 复制目录 | `async_copytree` |
+| 删除文件 | `async_unlink` |
+| 删除目录 | `async_rmtree` / `async_rmdir` |
+| 创建目录 | `async_mkdir` |
+| 检查存在 | `async_exists` |
+| 获取 stat | `async_stat` |
+| 遍历目录 | `async_scandir`（返回 DirEntry，判断类型无需额外 stat）/ `async_iterdir`（返回 Path） |
+
+## 11. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
