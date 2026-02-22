@@ -107,40 +107,38 @@ shell_exec(command="rm -rf /tmp/skillhub-preview/")
 ```
 
 <!--zh
-**平台技能市场 / 我的技能库来源**（不支持 `--dir`，先装到 workspace 再审查）：
+**平台技能市场 / 我的技能库来源**（同样支持 `--dir` 安装到临时目录）：
 -->
-**Platform market / my skill library source** (no `--dir` support; install to workspace first, then review):
+**Platform market / my skill library source** (also supports `--dir` for temp directory):
 
-```
-shell_exec(command="skillhub install-platform-me <code>")
+```bash
+shell_exec(command="skillhub install-platform-me <code> --dir /tmp/skillhub-preview/")
 # or
-shell_exec(command="skillhub install-platform-market <code>")
+shell_exec(command="skillhub install-platform-market <code> --dir /tmp/skillhub-preview/")
 ```
 
 <!--zh
-安装后立即用 `shell_exec` 读取技能目录下所有文件：
+安装后用 `shell_exec` 列出并逐一读取所有文件内容：
 -->
-After install, immediately use `shell_exec` to read all files in the skill directory:
+After install, use `shell_exec` to list and read all files:
 
 ```bash
 # 列出所有文件
-shell_exec(command="find <workspace-skills-dir>/<skill-name> -type f | sort")
+shell_exec(command="find /tmp/skillhub-preview/<skill-name> -type f | sort")
 
 # 逐一读取
-shell_exec(command="cat <workspace-skills-dir>/<skill-name>/SKILL.md")
-shell_exec(command="cat <workspace-skills-dir>/<skill-name>/scripts/<file>.py")
+shell_exec(command="cat /tmp/skillhub-preview/<skill-name>/SKILL.md")
+shell_exec(command="cat /tmp/skillhub-preview/<skill-name>/scripts/<file>.py")
 # ... 依次读取所有文件
 ```
 
 <!--zh
-**注意**：此时技能已在磁盘上，但尚未通过 `skills_read` 加载，不会影响当前上下文。
-审查不通过时，立即执行删除，不要加载：
+审查通过后，执行不带 `--dir` 的正式安装命令；无论结果如何，清理临时目录：
 -->
-**Note**: The skill is on disk but not yet loaded via `skills_read`, so it has no effect on the current context.
-If the review fails, remove it immediately before calling `skills_read`:
+If approved, run the normal install without `--dir`. Either way, clean up the temp dir:
 
-```
-shell_exec(command="skillhub remove <skill-name>")
+```bash
+shell_exec(command="rm -rf /tmp/skillhub-preview/")
 ```
 
 <!--zh

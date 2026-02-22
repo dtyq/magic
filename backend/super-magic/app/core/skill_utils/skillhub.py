@@ -4,6 +4,7 @@
 """
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 from agentlang.logger import get_logger
 from app.utils.async_file_utils import async_exists, async_rmtree
@@ -135,10 +136,13 @@ def _workspace_skill_folder_name(package_name: str, display_name: str, code: str
     return c
 
 
-async def _install_from_url(download_url: str, install_name: str, tag: str, subdir: str = "") -> tuple[bool, str]:
-    """下载 zip 并安装到 workspace skills 目录"""
-    skills_dir = await get_workspace_skills_dir()
-    install_dir = skills_dir / install_name
+async def _install_from_url(download_url: str, install_name: str, tag: str, subdir: str = "", target_dir: Optional[Path] = None) -> tuple[bool, str]:
+    """下载 zip 并安装到指定目录（target_dir）或默认 workspace skills 目录"""
+    if target_dir is not None:
+        install_dir = target_dir / install_name
+    else:
+        skills_dir = await get_workspace_skills_dir()
+        install_dir = skills_dir / install_name
 
     if await async_exists(install_dir):
         await async_rmtree(install_dir)
@@ -155,7 +159,7 @@ async def _install_from_url(download_url: str, install_name: str, tag: str, subd
     return True, f"Installed: {install_name} -> {install_dir}"
 
 
-async def skillhub_install_github(url: str) -> tuple[bool, str]:
+async def skillhub_install_github(url: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
     """从 GitHub 下载并安装 skill
 
     通过 GitHub archive API 下载 zip 包，无需 git 命令。
@@ -170,10 +174,10 @@ async def skillhub_install_github(url: str) -> tuple[bool, str]:
     ref = f"refs/heads/{branch}" if branch else "HEAD"
     download_url = f"https://github.com/{owner}/{repo}/archive/{ref}.zip"
 
-    return await _install_from_url(download_url, install_name, "install-github", subdir)
+    return await _install_from_url(download_url, install_name, "install-github", subdir, target_dir)
 
 
-async def skillhub_install_platform_me(skill_code: str) -> tuple[bool, str]:
+async def skillhub_install_platform_me(skill_code: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
     """从「我的技能库」下载并安装 skill
 
     通过 SDK 查询最新已发布版本获取签名下载链接，下载 zip 包后安装到 workspace。
@@ -200,10 +204,10 @@ async def skillhub_install_platform_me(skill_code: str) -> tuple[bool, str]:
         return False, f"技能 '{skill_code}' 暂无可用下载链接"
 
     install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
-    return await _install_from_url(item.file_url, install_name, "install-platform-me")
+    return await _install_from_url(item.file_url, install_name, "install-platform-me", target_dir=target_dir)
 
 
-async def skillhub_install_platform_market(skill_code: str) -> tuple[bool, str]:
+async def skillhub_install_platform_market(skill_code: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
     """从「平台技能市场」下载并安装 skill
 
     通过 SDK 搜索市场技能获取签名下载链接，下载 zip 包后安装到 workspace。
@@ -229,4 +233,4 @@ async def skillhub_install_platform_market(skill_code: str) -> tuple[bool, str]:
         return False, f"技能 '{skill_code}' 暂无可用下载链接"
 
     install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
-    return await _install_from_url(item.file_url, install_name, "install-platform-market")
+    return await _install_from_url(item.file_url, install_name, "install-platform-market", target_dir=target_dir)
