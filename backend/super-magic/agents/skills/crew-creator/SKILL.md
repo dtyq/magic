@@ -134,8 +134,7 @@ tools:
 
 ```python
 shell_exec(
-    command="python scripts/tools.py list",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py list"
 )
 ```
 
@@ -143,8 +142,7 @@ shell_exec(
 
 ```python
 shell_exec(
-    command="python scripts/tools.py detail web_search",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py detail web_search"
 )
 ```
 
@@ -152,8 +150,7 @@ shell_exec(
 
 ```python
 shell_exec(
-    command="python scripts/tools.py search image",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py search image"
 )
 ```
 
@@ -276,8 +273,7 @@ Use `scripts/tools.py` to dynamically scan all registered tools in the project (
 
 ```python
 shell_exec(
-    command="python scripts/tools.py list",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py list"
 )
 ```
 
@@ -285,8 +281,7 @@ shell_exec(
 
 ```python
 shell_exec(
-    command="python scripts/tools.py detail web_search",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py detail web_search"
 )
 ```
 
@@ -294,8 +289,7 @@ shell_exec(
 
 ```python
 shell_exec(
-    command="python scripts/tools.py search image",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/tools.py search image"
 )
 ```
 

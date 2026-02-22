@@ -61,6 +61,7 @@ from app.infrastructure.magic_service.config import MagicServiceConfigLoader
 from app.utils.file_utils import convert_file_tree_to_string
 from agentlang.environment import Environment
 from app.core.skill_manager import generate_skills_prompt
+from app.core.skill_utils.skill_sources import get_workspace_skills_dir
 
 logger = get_logger(__name__)
 
@@ -393,6 +394,7 @@ The following <dynamic_context> block contains system-provided context informati
             "dynamic_model_id": dynamic_model_id,
             "user_preferred_language": user_preferred_language,
             "workspace_dir": self.agent_context._workspace_dir,
+            "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
             # 此处直接使用 _workspace_dir 而非 os.getcwd()：
             # os.chdir(workspace_dir) 在 run() 中执行，晚于当前 _initialize_agent 阶段，

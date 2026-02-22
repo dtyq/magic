@@ -39,13 +39,19 @@ Result object fields: `content` (result content), `ok` (success status), `data` 
 **Important**: Check `result.ok` before use, only use `result.data` when succeeded
 
 <!--zh
+## Workspace Skills 目录
+用户创建的 workspace skill 存储在工作目录下的 `{{ @variable("workspace_skills_dir") }}` 目录中。
+
 ## 执行 skill 脚本
-SKILL.md 中的 bash 命令通过 shell_exec 执行，工作目录设为 skill 目录：
-`shell_exec(cwd='agents/skills/skill-name', command='python scripts/example_script.py')`
+SKILL.md 中的 bash 命令通过 shell_exec 执行，工作目录设为 skill 目录的绝对路径（从 skill 的 <location> 中取父目录）：
+`shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 -->
+## Workspace Skills Directory
+User-created workspace skills are stored in `{{ @variable("workspace_skills_dir") }}` (relative to workspace).
+
 ## Execute skill scripts
-Execute bash commands from SKILL.md via shell_exec with cwd set to skill directory:
-`shell_exec(cwd='agents/skills/skill-name', command='python scripts/example_script.py')`
+Execute bash commands from SKILL.md via shell_exec with cwd set to the skill directory using its **absolute path** (derive from the skill's `<location>` tag, take the parent directory):
+`shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 </skills_instructions>
 
 <available_skills>

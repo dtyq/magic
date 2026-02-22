@@ -209,17 +209,8 @@ result = tool.call('visual_understanding_webpage', {
 
 <!--zh
 执行 shell 命令。常见用途：运行 Python 脚本、文件操作、执行评测聚合脚本。
-
-workspace skill 的 scripts 执行时，cwd 设为 `.workspace/skills/<skill-name>`。
-skill-creator 自身脚本执行时，cwd 设为 `agents/skills/skill-creator`。
 -->
 Execute shell commands. Common uses: run Python scripts, file operations, eval scripts.
-
-**Path rules:**
-- Default working directory is `.workspace/`. Inside commands, paths are relative to `.workspace/` — do NOT include `.workspace/` prefix, or you get `.workspace/.workspace/...`.
-- The `cwd` parameter is relative to the project root, so it SHOULD include `.workspace/` (e.g., `cwd=".workspace/skills/my-skill"`).
-- For workspace skill scripts, set `cwd` to `.workspace/skills/<skill-name>`.
-- For skill-creator's own scripts, set `cwd` to `agents/skills/skill-creator`.
 
 **Schema:**
 
@@ -234,17 +225,19 @@ Execute shell commands. Common uses: run Python scripts, file operations, eval s
 ```python
 from sdk.tool import tool
 
-# 执行评测聚合 / Run eval aggregation
+# 执行 skill-creator 自身脚本（cwd 用 skill 目录绝对路径）
+# Run skill-creator's own scripts (cwd uses the skill directory's absolute path)
 result = tool.call('shell_exec', {
-    "command": "python -m scripts.aggregate_benchmark .workspace/skills/my-skill/evals/iteration-1 --skill-name my-skill",
-    "cwd": "agents/skills/skill-creator",
+    "command": "python scripts/aggregate_benchmark.py <workspace-skills-dir>/my-skill/evals/iteration-1 --skill-name my-skill",
+    "cwd": "<skill-creator-absolute-path>",
     "timeout": 120
 })
 
-# 执行 workspace skill 自身的脚本 / Run workspace skill's own script
+# 执行 workspace skill 自身的脚本（cwd 用相对路径）
+# Run workspace skill's own script (cwd uses relative path)
 result = tool.call('shell_exec', {
     "command": "python scripts/process.py",
-    "cwd": ".workspace/skills/my-skill"
+    "cwd": "<workspace-skills-dir>/my-skill"
 })
 ```
 

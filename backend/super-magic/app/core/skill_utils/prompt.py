@@ -11,7 +11,7 @@ from agentlang.agent.syntax import SyntaxProcessor
 from app.utils.async_file_utils import async_exists, async_read_text
 from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager
 from app.core.skill_utils.skill_directory_scan import discover_skills_in_workspace
-from app.core.skill_utils.skill_sources import get_agents_dir, get_system_skills_dir, get_skills_instructions_prompt_file
+from app.core.skill_utils.skill_sources import get_agents_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir
 logger = get_logger(__name__)
 
 MAX_SKILLS = 150
@@ -135,9 +135,12 @@ async def _do_generate(
 
         template_content = await async_read_text(prompt_file)
         syntax_processor = SyntaxProcessor(agents_dir=agents_dir)
+        from app.paths import PathManager
+        workspace_skills_dir = str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir()))
         syntax_processor.set_variables({
             "mcp_notice": mcp_notice,
             "skills_content": skills_content,
+            "workspace_skills_dir": workspace_skills_dir,
         })
 
         skills_prompt = syntax_processor.process_dynamic_syntax(template_content)

@@ -404,31 +404,26 @@ In Agent environment, use `shell_exec` tool to execute scripts:
 ```python
 # 创建任务
 shell_exec(
-    command='python scripts/create.py --task-name "每日早报" --message-content "请生成今日早报" --type daily_repeat --time "9:00"',
-    cwd="agents/skills/using-cron"
+    command='python scripts/create.py --task-name "每日早报" --message-content "请生成今日早报" --type daily_repeat --time "9:00"'
 )
 
 # 查询任务列表
 shell_exec(
-    command="python scripts/list.py",
-    cwd="agents/skills/using-cron"
+    command="python scripts/list.py"
 )
 
 # 获取任务详情
 shell_exec(
-    command='python scripts/get.py --id "<schedule_id>"',
-    cwd="agents/skills/using-cron"
+    command='python scripts/get.py --id "<schedule_id>"'
 )
 
 # 更新任务
 shell_exec(
-    command='python scripts/update.py --id "<schedule_id>" --enabled 0',
-    cwd="agents/skills/using-cron"
+    command='python scripts/update.py --id "<schedule_id>" --enabled 0'
 )
 
 # 删除任务
 shell_exec(
-    command='python scripts/delete.py --id "<schedule_id>"',
-    cwd="agents/skills/using-cron"
+    command='python scripts/delete.py --id "<schedule_id>"'
 )
 ```

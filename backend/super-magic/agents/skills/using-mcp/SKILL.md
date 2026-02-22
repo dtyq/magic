@@ -131,25 +131,22 @@ Scripts use standard command-line arguments, for example:
 <!--zh
 在 Agent 环境中，使用 `shell_exec` 工具执行脚本：
 -->
-In Agent environment, use `shell_exec` tool to execute scripts:
+In Agent environment, use `shell_exec` tool to execute scripts. Note: `shell_exec` defaults to the workspace root as the working directory.
 
 ```python
 # 获取服务器列表
 shell_exec(
-    command="python scripts/get_servers.py",
-    cwd="agents/skills/using-mcp"
+    command="python scripts/get_servers.py"
 )
 
 # 获取指定服务器的工具列表
 shell_exec(
-    command="python scripts/get_tools.py --server-name <服务器名称>",
-    cwd="agents/skills/using-mcp"
+    command="python scripts/get_tools.py --server-name <服务器名称>"
 )
 
 # 获取工具 Schema
 shell_exec(
-    command="python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>",
-    cwd="agents/skills/using-mcp"
+    command="python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>"
 )
 ```
 
@@ -642,21 +639,18 @@ else:
 # 如果不确定有哪些服务器，可执行:
 shell_exec(
     command="python scripts/get_servers.py",
-    cwd="agents/skills/using-mcp"
 )
 # 从输出中选择一个状态为 success 的服务器
 
 # Step 1: [必须] 获取工具列表（通过 shell_exec）
 shell_exec(
     command="python scripts/get_tools.py --server-name <服务器名称>",
-    cwd="agents/skills/using-mcp"
 )
 # 从输出中选择要使用的工具
 
 # Step 2: [必须] 获取工具 Schema（通过 shell_exec）
 shell_exec(
     command="python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>",
-    cwd="agents/skills/using-mcp"
 )
 # 查看必填参数和参数类型
 
