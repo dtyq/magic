@@ -42,6 +42,7 @@ class SkillItem:
     can_override: bool
     description: str = ""
     path: str = ""
+    code: Optional[str] = None       # 仅 my_library 设置：平台 skill code，用于 skillhub install-platform-me <code>
     installed: Optional[bool] = None  # 仅 my_library 设置：True 已安装到 workspace，False 未安装；其他来源均为本地已安装，不设此字段
     note: Optional[str] = None
 
@@ -63,12 +64,14 @@ class SkillList(BaseTool[SkillListParams]):
     同名解析优先级：system > crew > workspace；my_library 项需安装到 workspace 后方可使用，已安装项会标注。
     低优先级来源上的同名项会标注 shadow（与 SkillManager 加载顺序一致）。
     每个 skill 标注来源和是否可被覆盖（system 不可覆盖；crew / workspace / my_library 可被更高优先级同名项覆盖）。
+    my_library 中未安装（installed=False）的 skill 可通过 shell_exec 执行 skillhub install-platform-me <code> 安装到 workspace，code 字段即为所需参数。
     在创建新 skill 前，建议先调用此工具检查是否存在同名 skill。
     -->
     Lists all available skills: system (agents/skills), crew private, workspace (skillhub-installed and custom), and platform my_library (including uninstalled skills).
     Same-name resolution priority: system > crew > workspace; my_library skills must be installed to workspace before use; already-installed ones are labeled.
     Lower-priority duplicates are labeled as shadowed (matches SkillManager search order).
     Each entry shows source and can_override (system: false; crew/workspace/my_library: true unless shadowed).
+    To install an uninstalled my_library skill (installed=False), run: shell_exec(command="skillhub install-platform-me <code>") where code is the skill's code field.
     Before creating a new skill, it is recommended to call this tool first to check for name conflicts.
     """
 
@@ -128,6 +131,8 @@ class SkillList(BaseTool[SkillListParams]):
         ]
         for s in skills:
             line = f"[{s.source}] {s.name}  can_override={s.can_override}"
+            if s.code is not None:
+                line += f"  code={s.code}"
             if s.installed is not None:
                 line += f"  installed={s.installed}"
             if s.description:
@@ -223,6 +228,7 @@ class SkillList(BaseTool[SkillListParams]):
                     can_override=True,
                     description=item.description,
                     path="",
+                    code=item.code,
                 )
                 for item in result.get_items()
             ]
