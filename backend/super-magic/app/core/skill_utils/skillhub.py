@@ -113,6 +113,7 @@ def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str 
 
     with tempfile.TemporaryDirectory() as tmp:
         zip_path = Path(tmp) / "skill.zip"
+        logger.info(f"下载 skill zip: {download_url}")
         urllib.request.urlretrieve(download_url, zip_path)
 
         with zipfile.ZipFile(zip_path, "r") as zf:
