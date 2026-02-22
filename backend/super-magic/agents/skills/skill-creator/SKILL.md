@@ -551,17 +551,17 @@ Optional: `python scripts/upload_skill.py <path> --name-zh "..." --name-en "..."
 当用户要**改员工已绑定的、来源为内置**的 skill 时：
 
 1. **禁止**用文件工具或 `shell_exec` 直接修改 `agents/skills/<name>/`（仓库内置树）。
-2. **先把内置目录复制到员工工作区**：使用 `skill-creator` 提供的脚本（推荐），将 `agents/skills/<name>/` 复制到 `.workspace/skills/<dest>/`。文件工具里对应的路径是 `skills/<dest>/`（相对 `.workspace/`，**不要**加 `.workspace/` 前缀）。
+2. **先把内置目录复制到员工工作区**：使用 `crew-creator` 提供的脚本（推荐），将 `agents/skills/<name>/` 复制到 `.workspace/skills/<dest>/`。文件工具里对应的路径是 `skills/<dest>/`（相对 `.workspace/`，**不要**加 `.workspace/` 前缀）。
 3. 复制完成后，**只**编辑 `skills/<dest>/` 下的 `SKILL.md` 及子目录。
 4. 若 `--dest-name` 与内置名不同，需在员工的 `SKILLS.md` 里把列表项改为新名称，并征得用户确认。
 5. 用 `list_dir` / `read_files` 确认 `skills/<dest>/SKILL.md` 已存在后再继续后续流程（评测、打包等）。
 
-**复制命令（与 `package_skill.py` 相同调用方式，`cwd` 固定为 `agents/skills/skill-creator`）：**
+**复制命令（`cwd` 固定为 `agents/skills/crew-creator`）：**
 
 ```python
 shell_exec(
     command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/skill-creator"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -579,17 +579,17 @@ shell_exec(
 When the user wants to **customize a built-in skill** already bound to an employee:
 
 1. **Do not** edit `agents/skills/<name>/` in place (repo tree).
-2. **Copy the built-in tree into the employee workspace** using the script below (recommended): from `agents/skills/<name>/` to `.workspace/skills/<dest>/`. With file tools, that is `skills/<dest>/` relative to `.workspace/` — **never** prefix paths with `.workspace/`.
+2. **Copy the built-in tree into the employee workspace** using the `crew-creator` script (recommended): from `agents/skills/<name>/` to `.workspace/skills/<dest>/`. With file tools, that is `skills/<dest>/` relative to `.workspace/` — **never** prefix paths with `.workspace/`.
 3. After copying, edit **only** `skills/<dest>/` (SKILL.md and subdirs).
 4. If `--dest-name` differs from the built-in folder name, update the employee's `SKILLS.md` list accordingly and get user confirmation.
 5. Verify with `list_dir` / `read_files` that `skills/<dest>/SKILL.md` exists before evals/packaging.
 
-**Copy command** (same invocation style as `package_skill.py`; `cwd` must be `agents/skills/skill-creator`):
+**Copy command** (`cwd` must be `agents/skills/crew-creator`):
 
 ```python
 shell_exec(
     command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/skill-creator"
+    cwd="agents/skills/crew-creator"
 )
 ```
 
@@ -612,7 +612,8 @@ shell_exec(
 - `shell_exec` 的**默认工作目录是 `.workspace/`**，命令内部同样**不要带 `.workspace/` 前缀**，直接写 `skills/<skill-name>/...` 即可
 - `cwd` 参数本身是相对**项目根目录**解析的，所以 `cwd` 写 `.workspace/skills/<skill-name>` 才是正确的
 - workspace skill 的 scripts 执行时，`cwd` 应为 `.workspace/skills/<skill-name>`
-- skill-creator 自身的脚本执行时，`cwd` 为 `agents/skills/skill-creator`，使用 `python scripts/<script>.py`（含 `copy_skill_to_workspace.py`、`package_skill.py`、`upload_skill.py`、`aggregate_benchmark.py` 等）；skill 目录参数传绝对路径（来自 static_context 中的 Workspace）
+- skill-creator 自身的脚本执行时，`cwd` 为 `agents/skills/skill-creator`，使用 `python scripts/<script>.py`（如 `package_skill.py`、`upload_skill.py`、`aggregate_benchmark.py`）；skill 目录参数传绝对路径（来自 static_context 中的 Workspace）
+- 复制内置 skill 到工作区使用 **crew-creator** 的脚本：`cwd` 为 `agents/skills/crew-creator`，`python scripts/copy_skill_to_workspace.py`
 
 ### 内置 skill 不可覆盖
 - `agents/skills/` 下的 skill 优先级最高，`skill_list` 返回的 `can_override: false`
@@ -629,7 +630,8 @@ shell_exec(
 - `shell_exec` **default working directory is `.workspace/`**. Same rule: inside commands use `skills/<skill-name>/...` without `.workspace/` prefix.
 - The `cwd` parameter is resolved relative to the **project root**, so `cwd=".workspace/skills/<skill-name>"` is correct.
 - When running scripts for a workspace skill, `cwd` = `.workspace/skills/<skill-name>`
-- When running skill-creator's own scripts, use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py` (including `copy_skill_to_workspace.py`, `package_skill.py`, `upload_skill.py`, `aggregate_benchmark.py`, etc.); pass skill directory arguments as absolute paths from workspace context when required
+- When running skill-creator's own scripts, use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py` (e.g. `package_skill.py`, `upload_skill.py`, `aggregate_benchmark.py`); pass skill directory arguments as absolute paths from workspace context when required
+- For copying built-in skills into the workspace, use the **crew-creator** script: `cwd: agents/skills/crew-creator`, `python scripts/copy_skill_to_workspace.py`
 
 **Built-in skills cannot be overridden in the repo:**
 - Skills in `agents/skills/` have highest priority; `skill_list` returns `can_override: false` for them
