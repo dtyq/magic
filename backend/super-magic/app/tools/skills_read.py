@@ -145,7 +145,9 @@ class SkillsRead(BaseTool[SkillsReadParams]):
 
             # 如果全部失败，返回错误
             if success_count == 0:
-                return ToolResult(ok=False, content=content)
+                result = ToolResult(ok=False, content=content)
+                result.use_custom_remark = True
+                return result
 
             return ToolResult(ok=True, content=content)
 
@@ -156,7 +158,9 @@ class SkillsRead(BaseTool[SkillsReadParams]):
             logger.error(traceback.format_exc())
 
             error_msg = f"批量读取 skills 失败: {str(e)}"
-            return ToolResult(ok=False, content=error_msg)
+            result = ToolResult(ok=False, content=error_msg)
+            result.use_custom_remark = True
+            return result
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
