@@ -16,6 +16,7 @@ from .share_resource_id_parameter import ShareResourceIdParameter
 from .create_share_parameter import CreateShareParameter, TargetId
 from .find_similar_share_parameter import FindSimilarShareParameter
 from .cancel_share_parameter import CancelShareParameter
+from .get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
 
 __all__ = [
     'GetAgentDetailsParameter',
@@ -32,4 +33,5 @@ __all__ = [
     'TargetId',
     'FindSimilarShareParameter',
     'CancelShareParameter',
+    'GetLatestPublishedSkillVersionsParameter',
 ]

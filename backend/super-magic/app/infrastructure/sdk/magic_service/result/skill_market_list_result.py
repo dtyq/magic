@@ -13,8 +13,10 @@ class SkillMarketListItem:
 
     def __init__(self, data: Dict[str, Any]):
         self.id: str = data.get('id', '')
+        # 规范主键，新逻辑应使用此字段
+        self.code: str = data.get('code', '')
+        # 以下两个字段已废弃，仅为向后兼容保留，值与 code 相同
         self.skill_code: str = data.get('skill_code', '')
-        # skill code in the current user's own skill library (empty if not added)
         self.user_skill_code: str = data.get('user_skill_code', '')
         self.name: str = data.get('name', '')
         self.description: str = data.get('description', '')
@@ -27,12 +29,17 @@ class SkillMarketListItem:
         self.publish_status: str = data.get('publish_status', '')
         self.is_added: bool = data.get('is_added', False)
         self.need_upgrade: bool = data.get('need_upgrade', False)
+        # 当前用户是否是该技能的创建者
+        self.is_creator: bool = data.get('is_creator', False)
+        self.file_key: str = data.get('file_key', '')
+        self.file_url: Optional[str] = data.get('file_url')
         self.created_at: str = data.get('created_at', '')
         self.updated_at: str = data.get('updated_at', '')
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
+            'code': self.code,
             'skill_code': self.skill_code,
             'user_skill_code': self.user_skill_code,
             'name': self.name,
@@ -45,6 +52,9 @@ class SkillMarketListItem:
             'publish_status': self.publish_status,
             'is_added': self.is_added,
             'need_upgrade': self.need_upgrade,
+            'is_creator': self.is_creator,
+            'file_key': self.file_key,
+            'file_url': self.file_url,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
         }

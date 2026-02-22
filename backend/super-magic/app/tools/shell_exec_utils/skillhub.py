@@ -34,6 +34,12 @@ async def handle_skillhub(command: str) -> Optional[TerminalToolResult]:
     if subcommand == "install-github":
         return await _handle_install_github(command, parts)
 
+    if subcommand == "install-platform-me":
+        return await _handle_install_platform_me(command, parts)
+
+    if subcommand == "install-platform-market":
+        return await _handle_install_platform_market(command, parts)
+
     return None
 
 
@@ -54,4 +60,24 @@ async def _handle_install_github(command: str, parts: list) -> TerminalToolResul
         return TerminalToolResult(content="usage: skillhub install-github <github-url>", command=command, exit_code=1)
 
     success, message = await skillhub_install_github(parts[2])
+    return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)
+
+
+async def _handle_install_platform_me(command: str, parts: list) -> TerminalToolResult:
+    from app.core.skill_manager import skillhub_install_platform_me
+
+    if len(parts) < 3:
+        return TerminalToolResult(content="usage: skillhub install-platform-me <skill-code>", command=command, exit_code=1)
+
+    success, message = await skillhub_install_platform_me(parts[2])
+    return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)
+
+
+async def _handle_install_platform_market(command: str, parts: list) -> TerminalToolResult:
+    from app.core.skill_manager import skillhub_install_platform_market
+
+    if len(parts) < 3:
+        return TerminalToolResult(content="usage: skillhub install-platform-market <skill-code>", command=command, exit_code=1)
+
+    success, message = await skillhub_install_platform_market(parts[2])
     return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)

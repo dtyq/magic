@@ -12,6 +12,7 @@ class SkillListItem:
     """Single skill item in the user skill list"""
 
     def __init__(self, data: Dict[str, Any]):
+        # 注意：后端 id 字段实际填的是 code 值，并非数据库自增 id
         self.id: str = data.get('id', '')
         self.code: str = data.get('code', '')
         self.name: str = data.get('name', '')
@@ -22,7 +23,11 @@ class SkillListItem:
         self.source_type: str = data.get('source_type', '')
         self.is_enabled: int = data.get('is_enabled', 0)
         self.pinned_at: Optional[str] = data.get('pinned_at')
-        self.need_upgrade: bool = data.get('need_upgrade', False)
+        self.latest_published_at: Optional[str] = data.get('latest_published_at')
+        # sandbox 路由未传 versionMap，该字段目前始终为空字符串
+        self.latest_version: str = data.get('latest_version', '')
+        # sandbox 路由未传 creatorMap，该字段目前始终为 None
+        self.creator_info: Optional[Dict[str, Any]] = data.get('creator_info')
         self.updated_at: str = data.get('updated_at', '')
         self.created_at: str = data.get('created_at', '')
 
@@ -38,7 +43,9 @@ class SkillListItem:
             'source_type': self.source_type,
             'is_enabled': self.is_enabled,
             'pinned_at': self.pinned_at,
-            'need_upgrade': self.need_upgrade,
+            'latest_published_at': self.latest_published_at,
+            'latest_version': self.latest_version,
+            'creator_info': self.creator_info,
             'updated_at': self.updated_at,
             'created_at': self.created_at,
         }

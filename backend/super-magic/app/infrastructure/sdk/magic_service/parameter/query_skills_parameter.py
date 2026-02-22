@@ -5,7 +5,7 @@ Parameter class for querying user skill list and skill market list.
 Both /skills/queries and /skill-market/queries share the same query fields.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from ..kernel.magic_service_parameter import MagicServiceAbstractParameter
 
 
@@ -19,6 +19,7 @@ class QuerySkillsParameter(MagicServiceAbstractParameter):
         keyword: Optional[str] = None,
         source_type: Optional[str] = None,
         publisher_type: Optional[str] = None,
+        codes: Optional[List[str]] = None,
     ):
         """
         Initialize query skills parameter
@@ -29,6 +30,7 @@ class QuerySkillsParameter(MagicServiceAbstractParameter):
             keyword: Search keyword, max 255 characters
             source_type: Skill source type filter
             publisher_type: Publisher type filter, one of: USER, OFFICIAL, VERIFIED_CREATOR, PARTNER
+            codes: Filter by exact skill codes (pending backend support)
         """
         super().__init__()
         self.page = page
@@ -36,6 +38,7 @@ class QuerySkillsParameter(MagicServiceAbstractParameter):
         self.keyword = keyword
         self.source_type = source_type
         self.publisher_type = publisher_type
+        self.codes = codes
 
     def to_body(self) -> Dict[str, Any]:
         """
@@ -55,6 +58,8 @@ class QuerySkillsParameter(MagicServiceAbstractParameter):
             body['source_type'] = self.source_type
         if self.publisher_type is not None:
             body['publisher_type'] = self.publisher_type
+        if self.codes is not None:
+            body['codes'] = self.codes
         return body
 
     def to_query_params(self) -> Dict[str, Any]:
