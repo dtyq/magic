@@ -64,8 +64,133 @@ const AgentMode = {
     AGENT_MASTER: "agent-master"
 };
 
+// 根据操作系统显示快捷键提示
+function initSendHint() {
+    const hint = document.getElementById('sendHint');
+    if (!hint) return;
+    hint.innerHTML = 'Enter 发送<br>Shift+Enter 换行';
+}
+
+// 拖拽调整大小功能
+function initResizers() {
+    // 侧边栏拖拽
+    const sidebar = document.querySelector('.sidebar');
+    const sidebarResizer = document.getElementById('sidebarResizer');
+    
+    let isResizingSidebar = false;
+    let startX;
+    let startWidth;
+
+    // 从 localStorage 恢复侧边栏宽度
+    const savedSidebarWidth = localStorage.getItem('sidebarWidth');
+    if (savedSidebarWidth) {
+        sidebar.style.width = savedSidebarWidth + 'px';
+    }
+
+    sidebarResizer.addEventListener('mousedown', function(e) {
+        isResizingSidebar = true;
+        startX = e.clientX;
+        startWidth = parseInt(document.defaultView.getComputedStyle(sidebar).width, 10);
+        
+        sidebarResizer.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        // 防止拖拽时选中文本
+        e.preventDefault();
+    });
+
+    // 输入框拖拽
+    const inputPanel = document.getElementById('messageInputPanel');
+    const inputResizer = document.getElementById('inputResizer');
+    const messagesContainer = document.getElementById('messagesContainer');
+    
+    let isResizingInput = false;
+    let startY;
+    let startHeight;
+
+    // 从 localStorage 恢复输入框高度
+    const savedInputHeight = localStorage.getItem('inputHeight');
+    if (savedInputHeight) {
+        inputPanel.style.height = savedInputHeight + 'px';
+    }
+
+    inputResizer.addEventListener('mousedown', function(e) {
+        isResizingInput = true;
+        startY = e.clientY;
+        startHeight = parseInt(document.defaultView.getComputedStyle(inputPanel).height, 10);
+        
+        inputResizer.classList.add('resizing');
+        document.body.style.cursor = 'row-resize';
+        e.preventDefault();
+    });
+
+    // 全局鼠标移动和松开事件
+    document.addEventListener('mousemove', function(e) {
+        if (isResizingSidebar) {
+            const newWidth = startWidth + (e.clientX - startX);
+            // 限制最小和最大宽度
+            if (newWidth > 200 && newWidth < 800) {
+                sidebar.style.width = newWidth + 'px';
+            }
+        }
+        
+        if (isResizingInput) {
+            // 向上拖拽是增加高度，所以是减去差值
+            const newHeight = startHeight - (e.clientY - startY);
+            // 限制最小和最大高度
+            if (newHeight > 180 && newHeight < window.innerHeight * 0.8) {
+                inputPanel.style.height = newHeight + 'px';
+            }
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isResizingSidebar) {
+            isResizingSidebar = false;
+            sidebarResizer.classList.remove('resizing');
+            document.body.style.cursor = '';
+            // 保存到 localStorage
+            localStorage.setItem('sidebarWidth', sidebar.style.width.replace('px', ''));
+        }
+
+        if (isResizingInput) {
+            isResizingInput = false;
+            inputResizer.classList.remove('resizing');
+            document.body.style.cursor = '';
+            // 保存到 localStorage
+            localStorage.setItem('inputHeight', inputPanel.style.height.replace('px', ''));
+        }
+    });
+}
+
 // 初始化事件监听
 document.addEventListener('DOMContentLoaded', () => {
+    // 初始化拖拽功能
+    initResizers();
+
+    // 初始化快捷键提示
+    initSendHint();
+
+    // Enter 发送，Shift+Enter 换行
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(ContextType.NORMAL);
+            }
+        });
+    }
+
+    const rawJsonInput = document.getElementById('rawJsonInput');
+    if (rawJsonInput) {
+        rawJsonInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(ContextType.NORMAL);
+            }
+        });
+    }
+
     // 先加载历史记录
     loadMessageHistory();
     console.log("DOM加载完成，已加载历史记录，数量:", messageHistory.length);
@@ -150,10 +275,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 设置默认配置
 function setupDefaultConfigs() {
-    // 不再提供默认配置，只显示提示信息
-    uploadConfigContent.value = "请上传配置文件";
-    // 禁用文本区域编辑，强制通过文件上传
-    uploadConfigContent.readOnly = true;
+    // 尝试从 localStorage 加载保存的配置
+    const savedConfig = localStorage.getItem('savedConfigContent');
+    const savedFileName = localStorage.getItem('savedConfigFileName');
+
+    if (savedConfig) {
+        uploadConfigContent.value = savedConfig;
+        if (savedFileName) {
+            currentFileName = savedFileName;
+            updateFileNameDisplay();
+        }
+    } else {
+        uploadConfigContent.value = "请上传配置文件";
+    }
+
+    // 允许编辑，方便用户微调配置
+    uploadConfigContent.readOnly = false;
+
+    // 监听内容变化并保存
+    uploadConfigContent.addEventListener('input', function() {
+        if (this.value && this.value !== "请上传配置文件") {
+            try {
+                // 尝试解析验证 JSON
+                JSON.parse(this.value);
+                localStorage.setItem('savedConfigContent', this.value);
+            } catch (e) {
+                // 如果格式不对，不保存，但也不报错，允许用户继续编辑
+            }
+        }
+    });
 }
 
 // 发送HTTP请求到消息端点
@@ -338,10 +488,15 @@ function handleConfigFileUpload(event) {
             JSON.parse(content); // 验证是否为有效JSON
 
             uploadConfigContent.value = content;
-            showSystemMessage(`配置文件 "${file.name}" 上传成功`);
+            
+            // 保存到 localStorage
+            localStorage.setItem('savedConfigContent', content);
+            localStorage.setItem('savedConfigFileName', currentFileName);
+            
+            showSystemMessage(`配置文件 "${file.name}" 上传成功并已保存`);
         } catch (error) {
             showSystemMessage(`文件格式错误: ${error.message}`);
-            uploadConfigContent.value = "请上传配置文件";
+            // 如果解析失败，不覆盖原有内容
         }
     };
     reader.readAsText(file);

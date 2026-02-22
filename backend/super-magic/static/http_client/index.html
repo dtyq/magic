@@ -9,111 +9,123 @@
 </head>
 
 <body>
-    <div class="container">
-        <h1>HTTP API 客户端</h1>
+    <div class="app-container">
+        <!-- 左侧侧边栏：配置区域 -->
+        <div class="sidebar">
+            <h1>HTTP API 客户端</h1>
 
-        <!-- 连接配置 -->
-        <div class="connection-panel">
-            <div class="form-group">
-                <label for="serverUrl">服务器地址:</label>
-                <input type="text" id="serverUrl" value="http://127.0.0.1:8002">
+            <!-- 连接配置 -->
+            <div class="connection-panel">
+                <div class="form-group">
+                    <label for="serverUrl">服务器地址:</label>
+                    <input type="text" id="serverUrl" value="http://127.0.0.1:8002">
+                </div>
+                <div class="usage-hint">
+                    <small>输入服务器地址后，直接上传配置文件并发送初始化消息即可开始使用</small>
+                </div>
+                <div class="connection-buttons">
+                    <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
+                    <button id="sendInitBtn" class="btn secondary">发送初始化消息</button>
+                </div>
             </div>
-            <div class="usage-hint">
-                <small>输入服务器地址后，直接上传配置文件并发送初始化消息即可开始使用</small>
-            </div>
-            <div class="connection-buttons">
-                <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
-                <button id="sendInitBtn" class="btn secondary">发送初始化消息</button>
-            </div>
-        </div>
 
-        <!-- 配置内容输入区域 -->
-        <div class="config-panel">
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="uploadConfig">初始化配置</button>
-            </div>
-            <div class="tab-content">
-                <div id="uploadConfig" class="tab-pane active">
-                    <div id="currentFileName" class="file-name-display"></div>
-                    <textarea id="uploadConfigContent" class="config-textarea" readonly
-                        placeholder="请上传配置文件，不提供默认配置。"></textarea>
-                    <div class="form-group file-upload-group">
-                        <label for="configFile">上传配置文件:</label>
-                        <input type="file" id="configFile" accept=".json">
+            <!-- 配置内容输入区域 -->
+            <div class="config-panel">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="uploadConfig">初始化配置</button>
+                </div>
+                <div class="tab-content">
+                    <div id="uploadConfig" class="tab-pane active">
+                        <div id="currentFileName" class="file-name-display"></div>
+                        <textarea id="uploadConfigContent" class="config-textarea" readonly
+                            placeholder="请上传配置文件，不提供默认配置。"></textarea>
+                        <div class="form-group file-upload-group">
+                            <label for="configFile">上传配置文件:</label>
+                            <input type="file" id="configFile" accept=".json">
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 消息交互区域 -->
-        <div class="chat-container">
-            <!-- 消息显示区域 -->
-            <div id="messagesContainer" class="messages-container">
-                <div class="message-list" id="messageList"></div>
-            </div>
-
-            <!-- 消息输入区域 -->
-            <div class="message-input-panel">
-                <!-- 高级模式开关 -->
-                <div class="advanced-mode-toggle">
-                    <label class="toggle-switch-label">高级模式</label>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="advancedModeToggle">
-                        <span class="toggle-switch-slider"></span>
-                    </label>
-                    <span class="advanced-mode-hint">开启后可直接粘贴完整 JSON 消息体</span>
+        <!-- 右侧主区域：消息交互区域 -->
+        <div class="resizer" id="sidebarResizer"></div>
+        <div class="main-content">
+            <div class="chat-container">
+                <!-- 消息显示区域 -->
+                <div id="messagesContainer" class="messages-container">
+                    <div class="message-list" id="messageList"></div>
                 </div>
 
-                <!-- 普通模式字段 -->
-                <div id="normalModeFields">
-                    <textarea id="messageInput" placeholder="请输入消息..."></textarea>
+                <div class="resizer-horizontal" id="inputResizer"></div>
 
-                    <!-- Agent模式选择 -->
-                    <div class="mode-switch">
-                        <label>Agent模式:</label>
-                        <select id="agentModeSelect" class="agent-mode-select">
-                            <option value="magic">Magic模式 (默认)</option>
-                            <option value="general">General模式 (通用)</option>
-                            <option value="ppt">PPT模式 (制作演示文稿)</option>
-                            <option value="data_analysis">数据分析模式</option>
-                            <option value="summary">音频纪要模式</option>
-                            <option value="summary-chat">音频纪要聊天模式</option>
-                            <option value="summary-video">视频分析模式</option>
-                            <option value="design">画布设计模式</option>
-                            <option value="test">工具测试模式</option>
-                            <option value="skill">Skill模式</option>
-                            <option value="agent-master">Agent管理模式</option>
-                        </select>
+                <!-- 消息输入区域 -->
+                <div class="message-input-panel" id="messageInputPanel">
+                    <div class="input-controls-row">
+                        <!-- 高级模式开关 -->
+                        <div class="advanced-mode-toggle">
+                            <label class="toggle-switch-label">高级模式</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="advancedModeToggle">
+                                <span class="toggle-switch-slider"></span>
+                            </label>
+                        </div>
+                        
+                        <!-- Agent模式选择 -->
+                        <div class="mode-switch">
+                            <select id="agentModeSelect" class="agent-mode-select">
+                                <option value="magic">Magic模式 (默认)</option>
+                                <option value="general">General模式 (通用)</option>
+                                <option value="ppt">PPT模式 (制作演示文稿)</option>
+                                <option value="data_analysis">数据分析模式</option>
+                                <option value="summary">音频纪要模式</option>
+                                <option value="summary-chat">音频纪要聊天模式</option>
+                                <option value="summary-video">视频分析模式</option>
+                                <option value="design">画布设计模式</option>
+                                <option value="test">工具测试模式</option>
+                                <option value="skill">Skill模式</option>
+                                <option value="agent-master">Agent管理模式</option>
+                            </select>
+                        </div>
+
+                        <!-- Model ID 配置 -->
+                        <div class="model-config">
+                            <input type="text" id="modelIdInput" class="model-id-input"
+                                placeholder="Model ID (留空默认)">
+                        </div>
                     </div>
 
-                    <!-- Model ID 配置 -->
-                    <div class="model-config">
-                        <label for="modelIdInput">Model ID:</label>
-                        <input type="text" id="modelIdInput" class="model-id-input"
-                            placeholder="例如: gpt-4, claude-3-sonnet 等">
-                        <small>指定使用的AI模型，留空则使用默认模型</small>
+                    <div class="input-and-actions">
+                        <!-- 普通模式字段 -->
+                        <div id="normalModeFields" class="input-area-wrapper">
+                            <textarea id="messageInput" placeholder="请输入消息..."></textarea>
+                        </div>
+
+                        <!-- 高级模式字段（默认隐藏） -->
+                        <div id="advancedModeFields" class="input-area-wrapper" style="display:none">
+                            <textarea id="rawJsonInput" class="raw-json-textarea"
+                                placeholder='粘贴完整消息 JSON，例如：{"prompt": "...", "agent_mode": "magic", "dynamic_config": {...}, ...}'></textarea>
+                            <p class="advanced-mode-tip">发送消息时将自动刷新 message_id</p>
+                        </div>
+
+                        <div class="primary-actions">
+                            <button id="sendBtn" class="btn primary send-btn">发送</button>
+                            <span class="send-hint" id="sendHint"></span>
+                        </div>
                     </div>
-                </div>
 
-                <!-- 高级模式字段（默认隐藏） -->
-                <div id="advancedModeFields" style="display:none">
-                    <textarea id="rawJsonInput" class="raw-json-textarea"
-                        placeholder='粘贴完整消息 JSON，例如：{"prompt": "...", "agent_mode": "magic", "dynamic_config": {...}, ...}'></textarea>
-                    <p class="advanced-mode-tip">发送消息时将自动刷新 message_id；继续、发送追问、中断任务仍使用原有逻辑</p>
-                </div>
+                    <div class="secondary-actions">
+                        <button id="historyBtn" class="btn secondary small">历史消息</button>
+                        <button id="loadExampleBtn" class="btn secondary small">加载示例</button>
+                        <button id="continueBtn" class="btn secondary small">继续</button>
+                        <button id="followUpBtn" class="btn secondary small">发送追问</button>
+                        <button id="interruptBtn" class="btn danger small">中断任务</button>
+                    </div>
 
-                <div class="button-group">
-                    <button id="historyBtn" class="btn secondary">历史消息</button>
-                    <button id="loadExampleBtn" class="btn secondary">加载示例文本</button>
-                    <button id="sendBtn" class="btn primary">发送消息</button>
-                    <button id="continueBtn" class="btn secondary">继续</button>
-                    <button id="followUpBtn" class="btn secondary">发送追问</button>
-                    <button id="interruptBtn" class="btn danger">中断任务</button>
-                </div>
-
-                <!-- 历史消息下拉框 -->
-                <div id="messageHistoryDropdown" class="history-dropdown">
-                    <!-- 历史消息项将通过JavaScript动态生成 -->
+                    <!-- 历史消息下拉框 -->
+                    <div id="messageHistoryDropdown" class="history-dropdown">
+                        <!-- 历史消息项将通过JavaScript动态生成 -->
+                    </div>
                 </div>
             </div>
         </div>
