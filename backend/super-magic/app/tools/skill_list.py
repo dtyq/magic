@@ -53,16 +53,17 @@ Source filter. Options: all (default), system (agents/skills project built-in), 
 @tool()
 class SkillList(BaseTool[SkillListParams]):
     """<!--zh
-    列出当前所有可用 skill 的工具，包含 system（agents/skills）、crew 私有 skill 和 workspace skill（skillhub 安装 + 用户创建）。
+    列出已安装到系统中的 skill，包含 system（agents/skills）、crew 私有 skill 和 workspace skill（skillhub 安装 + 用户创建）。
+    仅涵盖本地已安装的 skill；若需搜索「我的技能库」或「平台技能市场」，请使用 find-skill 技能。
     同名解析优先级：system > crew > workspace；低优先级来源上的同名项会标注 shadow（与 SkillManager 加载顺序一致）。
     每个 skill 标注来源和是否可被覆盖（system 不可覆盖；crew / workspace 可被更高优先级同名项覆盖）。
     在创建新 skill 前，建议先调用此工具检查是否存在同名 skill。
     -->
-    Tool that lists all available skills: system (agents/skills), crew private, and workspace (skillhub-installed and custom).
+    Lists skills installed in the system: system (agents/skills), crew private, and workspace (skillhub-installed and custom).
+    Only covers locally installed skills. To search your skill library or the platform skill marketplace, use the find-skill skill instead.
     Same-name resolution priority: system > crew > workspace; lower-priority duplicates are labeled as shadowed (matches SkillManager search order).
     Each entry shows source and can_override (system: false; crew/workspace: true unless shadowed).
-
-    列出结果不受 .agent 中 `skills:` / `skills_dir` 限制；二者仅影响系统提示中展示的 skill 集合。
+    Before creating a new skill, it is recommended to call this tool first to check for name conflicts.
     """
 
     async def execute(self, tool_context: ToolContext, params: SkillListParams) -> ToolResult:
