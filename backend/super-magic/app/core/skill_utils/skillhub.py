@@ -86,12 +86,25 @@ def _parse_github_url(url: str) -> tuple[str, str, str, str, str]:
     return owner, repo, branch, subdir, install_name
 
 
+def _find_skill_root(base: Path) -> Path | None:
+    """在 base 下递归查找包含 SKILL.md 的目录，返回该目录，找不到返回 None"""
+    if (base / "SKILL.md").exists():
+        return base
+    for child in sorted(base.iterdir()):
+        if child.is_dir() and child.name != "__MACOSX":
+            found = _find_skill_root(child)
+            if found is not None:
+                return found
+    return None
+
+
 def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str = "") -> None:
     """下载 zip 并将指定目录（或顶层目录）复制到 install_dir（同步，供 asyncio.to_thread 调用）
 
-    兼容两种 zip 结构：
+    兼容三种 zip 结构：
     - 平铺结构：顶层直接是 SKILL.md 等文件，无外层目录
     - 标准结构：顶层有单一目录（如 GitHub archive），skill 文件在其内部（可含 subdir）
+    - 深层嵌套：SKILL.md 在任意层级的子目录中，递归查找定位
     """
     import shutil
     import tempfile
@@ -114,14 +127,25 @@ def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str 
 
         # 标准结构：取顶层单一目录，再按 subdir 定位
         extracted = [p for p in tmp_path.iterdir() if p.is_dir() and p.name != "__MACOSX"]
-        if not extracted:
-            raise FileNotFoundError("zip 解压后未找到目录，且顶层不存在 SKILL.md")
+        if extracted:
+            src = extracted[0] / subdir if subdir else extracted[0]
+            if src.exists():
+                shutil.copytree(src, install_dir)
+                return
 
-        src = extracted[0] / subdir if subdir else extracted[0]
-        if not src.exists():
-            raise FileNotFoundError(f"子目录 '{subdir}' 在 zip 中不存在")
+        # 兜底：递归查找 SKILL.md，找到后以其所在目录为 skill 根
+        skill_root = _find_skill_root(tmp_path)
+        if skill_root is not None:
+            logger.warning(
+                f"zip 结构非标准，通过递归查找定位到 skill 根目录: {skill_root.relative_to(tmp_path)}"
+            )
+            shutil.copytree(skill_root, install_dir)
+            return
 
-        shutil.copytree(src, install_dir)
+        # 记录实际内容辅助排查
+        actual_contents = [str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.name != "skill.zip"]
+        logger.error(f"zip 解压内容: {actual_contents[:30]}")
+        raise FileNotFoundError("zip 解压后未找到包含 SKILL.md 的目录")
 
 
 def _workspace_skill_folder_name(package_name: str, display_name: str, code: str) -> str:

@@ -27,9 +27,9 @@ class SkillHandler(BaseMentionHandler):
 
     # mention_source 各值对应的中文标签
     _SOURCE_LABELS = {
-        "system": "系统技能",
-        "agent": "员工技能",
-        "mine": "我的技能",
+        "system": "系统",
+        "agent": "员工",
+        "mine": "我的",
     }
 
     def get_type(self) -> str:
@@ -56,15 +56,12 @@ class SkillHandler(BaseMentionHandler):
         description = mention.get("description", "")
         raw_source = mention.get("mention_source", "")
         source_key = _parse_mention_source(raw_source)
-        source_label = self._SOURCE_LABELS.get(source_key, source_key) if source_key else ""
 
         logger.info(f"用户 prompt 添加技能引用: {name} ({code}), 来源: {source_key}")
 
         lines = [f"{index}. [@skill:{name}]"]
         if code:
-            lines.append(f"   - 技能编码: {code}")
-        if source_label:
-            lines.append(f"   - 来源: {source_label}")
+            lines.append(f"   - code: {code}")
         if description:
             lines.append(f"   - 描述: {description}")
 
