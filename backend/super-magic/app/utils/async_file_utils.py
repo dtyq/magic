@@ -321,6 +321,48 @@ async def async_write_text(file_path: Union[str, Path], content: str, encoding: 
         raise
 
 
+async def async_write_bytes(
+    file_path: Union[str, Path],
+    content: bytes | bytearray | memoryview,
+) -> None:
+    """
+    异步写入二进制文件
+
+    Args:
+        file_path: 文件路径
+        content: 二进制内容
+
+    Raises:
+        PermissionError: 权限不足
+        IOError: IO操作失败
+        TypeError: 内容不是 bytes / bytearray / memoryview
+    """
+    path_obj = Path(file_path)
+
+    try:
+        logger.debug(f"开始异步写入二进制文件: {path_obj}")
+
+        if isinstance(content, bytes):
+            normalized_content = content
+        elif isinstance(content, (bytearray, memoryview)):
+            normalized_content = bytes(content)
+        else:
+            raise TypeError("二进制内容必须是 bytes、bytearray 或 memoryview 类型")
+
+        # 确保目录存在
+        await async_mkdir(path_obj.parent, parents=True, exist_ok=True)
+
+        # 异步写入文件
+        async with aiofiles.open(path_obj, 'wb') as f:
+            await f.write(normalized_content)
+
+        logger.debug(f"异步写入二进制文件完成: {path_obj}, 写入了 {len(normalized_content)} 字节")
+
+    except Exception as e:
+        logger.error(f"异步写入二进制文件失败 {path_obj}: {e}")
+        raise
+
+
 async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') -> str:
     """
     异步读取文本文件
