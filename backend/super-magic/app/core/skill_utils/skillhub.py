@@ -86,7 +86,12 @@ def _parse_github_url(url: str) -> tuple[str, str, str, str, str]:
 
 
 def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str = "") -> None:
-    """下载 zip 并将指定目录（或顶层目录）复制到 install_dir（同步，供 asyncio.to_thread 调用）"""
+    """下载 zip 并将指定目录（或顶层目录）复制到 install_dir（同步，供 asyncio.to_thread 调用）
+
+    兼容两种 zip 结构：
+    - 平铺结构：顶层直接是 SKILL.md 等文件，无外层目录
+    - 标准结构：顶层有单一目录（如 GitHub archive），skill 文件在其内部（可含 subdir）
+    """
     import shutil
     import tempfile
     import urllib.request
@@ -99,9 +104,17 @@ def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str 
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(tmp)
 
-        extracted = [p for p in Path(tmp).iterdir() if p.is_dir() and p.name != "__MACOSX"]
+        tmp_path = Path(tmp)
+
+        # 平铺结构：顶层直接存在 SKILL.md，无外层目录包裹
+        if (tmp_path / "SKILL.md").exists():
+            shutil.copytree(tmp_path, install_dir, ignore=shutil.ignore_patterns("*.zip"))
+            return
+
+        # 标准结构：取顶层单一目录，再按 subdir 定位
+        extracted = [p for p in tmp_path.iterdir() if p.is_dir() and p.name != "__MACOSX"]
         if not extracted:
-            raise FileNotFoundError("zip 解压后未找到目录")
+            raise FileNotFoundError("zip 解压后未找到目录，且顶层不存在 SKILL.md")
 
         src = extracted[0] / subdir if subdir else extracted[0]
         if not src.exists():
