@@ -15,6 +15,7 @@ from app.utils.async_file_utils import (
     async_unlink,
     async_rmdir,
     async_scandir,
+    async_stat,
 )
 from .models import CopiedFileInfo
 
@@ -105,7 +106,6 @@ async def copy_file_to_visual_dir(file_path: str, original_source: Optional[str]
         relative_path = f".visual/{unique_filename}"
 
         # 获取源文件大小
-        from app.utils.async_file_utils import async_stat
         src_stat = await async_stat(file_path)
         src_size = src_stat.st_size
 
@@ -247,3 +247,60 @@ async def cleanup_temp_directory(temp_dir: Path):
         logger.debug(f"临时图片目录已清理: {temp_dir}")
     except Exception as e:
         logger.warning(f"清理临时图片目录失败: {e}")
+
+
+async def cleanup_stale_visual_files(max_age_seconds: int = 3600):
+    """启动时清理 .visual 目录中的残留文件
+
+    扫描 workspace/.visual 目录，删除修改时间超过指定时长的文件，
+    若目录最终为空则一并删除目录。
+
+    Args:
+        max_age_seconds: 文件最大存活时间（秒），默认 3600 秒（1 小时）
+    """
+    import time
+
+    workspace_path = get_workspace_path()
+    visual_dir = workspace_path / ".visual"
+
+    if not await async_exists(visual_dir):
+        logger.debug(f".visual 目录不存在，跳过清理: {visual_dir}")
+        return
+
+    try:
+        entries = await async_scandir(visual_dir)
+    except Exception as e:
+        logger.warning(f"扫描 .visual 目录失败，跳过清理: {e}")
+        return
+
+    now = time.time()
+    deleted_count = 0
+    failed_count = 0
+
+    for entry in entries:
+        if not entry.is_file():
+            continue
+
+        try:
+            stat = await async_stat(entry.path)
+            file_age = now - stat.st_mtime
+
+            if file_age > max_age_seconds:
+                await async_unlink(entry.path)
+                logger.info(f"已删除 .visual 目录中的残留文件 (存活 {file_age:.0f}s): {entry.name}")
+                deleted_count += 1
+        except Exception as e:
+            logger.warning(f"处理 .visual 目录文件失败: {entry.path}, 错误: {e}")
+            failed_count += 1
+
+    if deleted_count > 0 or failed_count > 0:
+        logger.info(f".visual 目录清理完成: 删除 {deleted_count} 个文件, 失败 {failed_count} 个")
+
+    # 若目录为空则删除目录本身
+    try:
+        remaining = await async_scandir(visual_dir)
+        if not remaining:
+            await async_rmdir(visual_dir)
+            logger.info(f".visual 目录已清空并删除: {visual_dir}")
+    except Exception as e:
+        logger.warning(f"检查或删除空 .visual 目录失败: {e}")

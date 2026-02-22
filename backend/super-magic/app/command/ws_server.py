@@ -42,6 +42,16 @@ logger = get_logger(__name__)
 ws_server = None
 _app = None  # 存储FastAPI应用实例的内部变量
 
+async def cleanup_stale_files_on_startup():
+    """启动时残留文件清理检查，用于清理上次运行遗留的临时文件"""
+    # 清理 .visual 目录中超过 1 小时的残留文件
+    try:
+        from app.tools.visual_understanding_utils.file_operations_utils import cleanup_stale_visual_files
+        await cleanup_stale_visual_files()
+        logger.info(".visual 目录残留文件检查完成")
+    except Exception as e:
+        logger.error(f".visual 目录残留文件清理失败: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """服务生命周期管理"""
@@ -69,6 +79,9 @@ async def lifespan(app: FastAPI):
         logger.info("启动时迁移任务已启动")
     except Exception as e:
         logger.error(f"启动时迁移任务失败: {e}")
+
+    # 执行启动时残留文件清理检查
+    await cleanup_stale_files_on_startup()
 
     logger.info("HTTP API服务将监听端口：8002")
     yield
@@ -237,6 +250,8 @@ def start_ws_server():
             process_entry_points = list(importlib.metadata.entry_points(group='command.ws_server.process'))
 
             logger.info(f"找到 {len(process_entry_points)} 个 ws_server 进程 entry_points")
+
+            # 检查是否启用 filebase watcher
 
             # 加载所有找到的entry_points
             for entry_point in process_entry_points:
