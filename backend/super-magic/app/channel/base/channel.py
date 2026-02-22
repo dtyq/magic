@@ -32,3 +32,19 @@ class BaseChannel(ABC):
     @abstractmethod
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         """按配置触发连接；有可用配置且已提交连接动作时返回 True。"""
+
+    def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
+        """返回面向状态面板的展示文案。"""
+        credential = getattr(config, self.key, None)
+        lines = [self.key]
+
+        if credential is None:
+            lines.append("  Status: not configured")
+            return lines
+
+        lines.append(f"  Status: {'connected' if self.is_connected else 'disconnected'}")
+        summary = self.summarize_config(config)
+        if summary:
+            lines.append(f"  {summary}")
+        lines.append(f"  Auto-connect: {'enabled' if credential.enabled else 'disabled'}")
+        return lines

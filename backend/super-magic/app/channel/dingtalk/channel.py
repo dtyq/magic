@@ -48,7 +48,7 @@ class DingTalkChannel(BaseChannel):
         if credential is None:
             return None
 
-        return f"Client ID：{credential.client_id}"
+        return f"Client ID: {credential.client_id}"
 
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         credential = config.dingtalk

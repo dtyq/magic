@@ -55,7 +55,7 @@ from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
-from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, GetIMChannelStatus
+from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
 # 数据分析看板工具
 from app.tools.data_analyst_dashboard_tools import (
@@ -130,6 +130,8 @@ __all__ = [
     "ConnectDingTalkBot",
     "ConnectLarkBot",
     "ConnectWecomBot",
+    "ConnectWechatBot",
+    "WaitWechatLogin",
     "CompactChatHistory",
     "ConvertPdf",
     "ConvertToMarkdown",

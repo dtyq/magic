@@ -85,7 +85,7 @@ class LarkChannel(BaseChannel):
         if credential is None:
             return None
 
-        return f"App ID：{credential.app_id}"
+        return f"App ID: {credential.app_id}"
 
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         credential = config.lark

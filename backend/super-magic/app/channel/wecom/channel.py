@@ -47,7 +47,7 @@ class WeComChannel(BaseChannel):
         if credential is None:
             return None
 
-        return f"Bot ID：{credential.bot_id}"
+        return f"Bot ID: {credential.bot_id}"
 
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         credential = config.wecom
