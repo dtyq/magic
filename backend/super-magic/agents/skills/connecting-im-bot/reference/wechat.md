@@ -18,25 +18,7 @@
 Reply with exactly this `html` fenced code block, except for replacing `{{QRCODE_JS_STRING_LITERAL}}`:
 
 ```html
-<div style="width:100%;max-width:340px;margin:0 auto;padding:16px 12px;box-sizing:border-box;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="font-size:15px;font-weight:600;color:#111;">连接 MagiClaw 到微信</div>
-  <div style="font-size:28px;line-height:1;margin:10px 0 12px;">🦞</div>
-  <div style="font-size:12px;line-height:1.5;color:#666;margin-bottom:12px;">请使用微信扫一扫连接 MagiClaw</div>
-  <div style="display:inline-block;padding:12px;border-radius:18px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.06);">
-    <div style="width:220px;height:220px;margin:0 auto;"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script>
-      new QRCode(document.currentScript.previousElementSibling,{
-        text: {{QRCODE_JS_STRING_LITERAL}},
-        width: 220,
-        height: 220,
-        colorDark: "#111111",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    </script>
-  </div>
-</div>
+<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif"><div style="font-size:14px;color:#666">请使用微信扫一扫</div><div style="font-size:20px;font-weight:600;margin:8px 0 24px">将 🦞 MagiClaw 连接到微信</div><div style="width:80%;max-width:320px;aspect-ratio:1;padding:16px;background:#fff;border-radius:16px;box-shadow:0 0 0 1px #0001,0 16px 32px #0001"><div id="q" style="width:100%;height:100%"></div></div></div><style>body{margin:0}#q img,#q canvas{width:100%!important;height:100%!important}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>new QRCode(q,{text:{{QRCODE_JS_STRING_LITERAL}},width:512,height:512,colorDark:"#111",colorLight:"#fff"})</script>
 ```
 
 ## Start Login
