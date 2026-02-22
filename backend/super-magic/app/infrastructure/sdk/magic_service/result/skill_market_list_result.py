@@ -18,6 +18,7 @@ class SkillMarketListItem:
         # 以下两个字段已废弃，仅为向后兼容保留，值与 code 相同
         self.skill_code: str = data.get('skill_code', '')
         self.user_skill_code: str = data.get('user_skill_code', '')
+        self.package_name: str = data.get('package_name', '')
         self.name: str = data.get('name', '')
         self.description: str = data.get('description', '')
         self.name_i18n: Dict[str, str] = data.get('name_i18n', {})
@@ -42,6 +43,7 @@ class SkillMarketListItem:
             'code': self.code,
             'skill_code': self.skill_code,
             'user_skill_code': self.user_skill_code,
+            'package_name': self.package_name,
             'name': self.name,
             'description': self.description,
             'name_i18n': self.name_i18n,

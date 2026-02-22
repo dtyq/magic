@@ -15,23 +15,15 @@
     {
       "code": "xxx",
       "name": "xxx",
-      "description": "xxx",
-      "source_type": "xxx",
-      "is_enabled": 1,
-      "need_upgrade": false
+      "description": "xxx"
     },
     ...
   ],
   "market": [
     {
-      "skill_code": "xxx",
+      "code": "xxx",
       "name": "xxx",
-      "description": "xxx",
-      "publisher_type": "xxx",
-      "publisher": {"name": "xxx", "avatar": "xxx"},
-      "is_added": false,
-      "need_upgrade": false,
-      "is_creator": false
+      "description": "xxx"
     },
     ...
   ],
@@ -66,7 +58,7 @@ try:
     )
     my_skills_result = sdk.skill.query_latest_published_versions(my_skills_parameter)
     my_skills = [
-        {"code": item.code, "name": item.name, "description": item.description}
+        {"code": item.code, "name": item.package_name or item.name, "description": item.description}
         for item in my_skills_result.get_items()
     ]
 
@@ -78,7 +70,7 @@ try:
     )
     market_result = sdk.skill.query_skill_market(market_parameter)
     market = [
-        {"code": item.code, "name": item.name, "description": item.description}
+        {"code": item.code, "name": item.package_name or item.name, "description": item.description}
         for item in market_result.get_items()
     ]
 

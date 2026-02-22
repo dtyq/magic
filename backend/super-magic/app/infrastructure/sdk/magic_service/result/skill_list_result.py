@@ -15,6 +15,7 @@ class SkillListItem:
         # 注意：后端 id 字段实际填的是 code 值，并非数据库自增 id
         self.id: str = data.get('id', '')
         self.code: str = data.get('code', '')
+        self.package_name: str = data.get('package_name', '')
         self.name: str = data.get('name', '')
         self.description: str = data.get('description', '')
         self.name_i18n: Dict[str, str] = data.get('name_i18n', {})
@@ -35,6 +36,7 @@ class SkillListItem:
         return {
             'id': self.id,
             'code': self.code,
+            'package_name': self.package_name,
             'name': self.name,
             'description': self.description,
             'name_i18n': self.name_i18n,

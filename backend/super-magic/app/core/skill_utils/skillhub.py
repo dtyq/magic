@@ -123,6 +123,18 @@ def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str 
         shutil.copytree(src, install_dir)
 
 
+def _workspace_skill_folder_name(package_name: str, display_name: str, code: str) -> str:
+    """本地 skills 目录名：与 SKILL.md / skill_list 中的 skill 标识一致，优先包名（package_name），其次展示名，最后才用平台 code。"""
+    pn = (package_name or "").strip()
+    dn = (display_name or "").strip()
+    c = (code or "").strip()
+    if pn:
+        return pn
+    if dn:
+        return dn
+    return c
+
+
 async def _install_from_url(download_url: str, install_name: str, tag: str, subdir: str = "") -> tuple[bool, str]:
     """下载 zip 并安装到 workspace skills 目录"""
     skills_dir = await get_workspace_skills_dir()
@@ -187,7 +199,8 @@ async def skillhub_install_platform_me(skill_code: str) -> tuple[bool, str]:
     if not item.file_url:
         return False, f"技能 '{skill_code}' 暂无可用下载链接"
 
-    return await _install_from_url(item.file_url, item.code, "install-platform-me")
+    install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
+    return await _install_from_url(item.file_url, install_name, "install-platform-me")
 
 
 async def skillhub_install_platform_market(skill_code: str) -> tuple[bool, str]:
@@ -201,7 +214,7 @@ async def skillhub_install_platform_market(skill_code: str) -> tuple[bool, str]:
 
         sdk = create_magic_service_sdk_with_defaults()
         result = sdk.skill.query_skill_market(
-            QuerySkillsParameter(page=1, page_size=50, keyword=skill_code, codes=[skill_code])
+            QuerySkillsParameter(page=1, page_size=50, codes=[skill_code])
         )
         items = result.get_items()
     except Exception as e:
@@ -215,4 +228,5 @@ async def skillhub_install_platform_market(skill_code: str) -> tuple[bool, str]:
     if not item.file_url:
         return False, f"技能 '{skill_code}' 暂无可用下载链接"
 
-    return await _install_from_url(item.file_url, item.code, "install-platform-market")
+    install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
+    return await _install_from_url(item.file_url, install_name, "install-platform-market")

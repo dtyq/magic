@@ -15,6 +15,7 @@ class LatestPublishedSkillVersionItem:
     def __init__(self, data: Dict[str, Any]):
         self.id: str = data.get('id', '')
         self.code: str = data.get('code', '')
+        self.package_name: str = data.get('package_name', '')
         self.version: str = data.get('version', '')
         self.name: str = data.get('name', '')
         self.description: str = data.get('description', '')
@@ -36,6 +37,7 @@ class LatestPublishedSkillVersionItem:
         return {
             'id': self.id,
             'code': self.code,
+            'package_name': self.package_name,
             'version': self.version,
             'name': self.name,
             'description': self.description,
