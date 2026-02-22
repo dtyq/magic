@@ -68,7 +68,9 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
                 work_dir = self.base_dir.parent
             elif params.command.strip().startswith('skillhub'):
                 from app.core.skill_utils.constants import get_workspace_skills_dir
-                work_dir = await get_workspace_skills_dir()
+                # skillhub CLI 默认安装目录是 ./skills（相对于 CWD），
+                # 因此 CWD 必须是 skills 目录的父级（.magic/），
+                work_dir = (await get_workspace_skills_dir()).parent
                 # 自定义命令拦截：CLI 本身不支持的子命令由 skillhub 模块内部处理
                 intercepted = await handle_skillhub(params.command.strip())
                 if intercepted is not None:
