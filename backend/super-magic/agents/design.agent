@@ -1,6 +1,5 @@
 ---
 llm: coder_llm
-attributes: [main]
 tools:
   - create_design_project
   - create_canvas_element

@@ -40,8 +40,6 @@ class BaseAgent(ABC):
     agent_name = None
     agent_context = None
     stream_mode = False
-    attributes = {}
-
     tools = []
     llm_client = None
     system_prompt = None
@@ -98,18 +96,6 @@ class BaseAgent(ABC):
         self.stream_mode = stream_mode
         if self.agent_context:
             self.agent_context.set_stream_mode(stream_mode)
-
-    def has_attribute(self, attribute_name: str) -> bool:
-        """
-        检查是否存在某个属性。
-
-        Args:
-            attribute_name: 属性名称
-
-        Returns:
-            bool: 是否存在该属性
-        """
-        return attribute_name in self.attributes
 
     @abstractmethod
     def _initialize_agent(self) -> None:
@@ -336,7 +322,7 @@ class BaseAgent(ABC):
         """
         从 .agent 文件加载 agent 配置并设置相关属性
 
-        从.agent文件中加载模型定义、工具定义、属性定义和提示词，并设置到实例属性中
+        从 .agent 文件中加载模型定义、工具定义和提示词，并设置到实例属性中
         """
         logger.info(f"加载 agent 配置: {agent_name}")
 
@@ -353,12 +339,10 @@ class BaseAgent(ABC):
         else:
             self.tools = agent_define.tools_config
 
-        self.attributes = agent_define.attributes_config
-
         # 保持 llm_id 始终是 Agent 文件中定义的原始模型ID
         # 动态模型选择完全由每次对话时的 _resolve_effective_model_info() 处理
         self.llm_id = agent_define.model_id
-        logger.info(f"加载完成: 原始模型={agent_define.model_id}, 工具数量={len(self.tools)}")
+        logger.info(f"加载完成: model_id={agent_define.model_id}, 工具数量={len(self.tools)}")
 
         # 记录动态模型配置情况（仅用于日志）
         if self.agent_context and self.agent_context.has_dynamic_model_id():

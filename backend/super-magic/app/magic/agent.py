@@ -211,12 +211,12 @@ class Agent(BaseAgent):
         self.agent_context.llm = self.llm_name
 
         # agent id 处理
-        if self.has_attribute("main"):
+        if self.agent_context.is_main_agent:
             if agent_id:
                 logger.info(f"主 Agent 使用提供的 Agent ID: {agent_id}")
             else:
                 agent_id = "main"
-                logger.info(f"使用默认 Agent ID: {agent_id}")
+                logger.info(f"主 Agent 使用默认 Agent ID: {agent_id}")
 
         if agent_id:
             # 不校验，大模型容易出错

@@ -728,7 +728,6 @@ class AgentService(Base):
         self,
         stream_mode: bool,
         streams: Optional[List[Stream]] = [],
-        agent_type: Optional[str] = None,
         llm: Optional[str] = None,
         task_id: Optional[str] = "",
         is_main_agent: bool = False,
@@ -741,7 +740,6 @@ class AgentService(Base):
         Args:
             stream_mode: 是否启用流式输出
             streams: 可选的通信流实例
-            agent_type: 代理类型，用于从 agent 文件中提取模型名称
             llm: 大语言模型名称
             task_id: 任务ID，若为None则自动生成
             is_main_agent: 标记当前agent是否是主agent，默认为False
@@ -762,26 +760,6 @@ class AgentService(Base):
 
         for stream in streams:
             agent_context.add_stream(stream)
-
-        # 如果提供了 agent_type，从文件中提取 llm
-        if agent_type:
-            # 读取 agent 文件内容
-            agent_file = self.get_agent_file(agent_type)
-            if os.path.exists(agent_file):
-                try:
-                    with open(agent_file, "r", encoding="utf-8") as f:
-                        content = f.read()
-
-                    # 使用正则表达式直接从内容中提取模型名称
-                    model_pattern = r"<!--\s*llm:\s*([a-zA-Z0-9-_.]+)\s*-->"
-                    match = re.search(model_pattern, content, re.IGNORECASE)
-
-                    if match:
-                        model_name = match.group(1).strip()
-                        agent_context.llm = model_name
-                        logger.info(f"从 {agent_type}.agent 文件提取模型名称并设置为: {model_name}")
-                except Exception as e:
-                    logger.error(f"从 agent 文件提取 llm 时出错: {e}")
 
         return agent_context
 

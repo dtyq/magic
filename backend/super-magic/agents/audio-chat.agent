@@ -1,6 +1,5 @@
 ---
 llm: main_llm
-attributes: [main]
 tools:
   - web_search
   - image_search

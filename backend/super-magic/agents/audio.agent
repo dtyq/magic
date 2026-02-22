@@ -1,6 +1,5 @@
 ---
 llm: writer_llm
-attributes: [main]
 tools:
   - list_dir
   - read_files

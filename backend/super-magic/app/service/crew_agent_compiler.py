@@ -72,7 +72,6 @@ class CrewAgentCompiler:
 
         header = {
             "llm": "main_llm",
-            "attributes": ["main"],
             "tools": tools_list,
             "skills": {
                 "system_skills": [{"name": s} for s in skills_list],

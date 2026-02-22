@@ -47,7 +47,6 @@ class AgentDefine:
 
     model_id: str
     tools_config: Dict[str, Any]
-    attributes_config: Dict[str, Any]
     skills_config: Optional[SkillsConfig]
     # 经语法处理器处理后的系统提示正文；由 AgentLoader.load_agent 填入
     prompt: str = ""

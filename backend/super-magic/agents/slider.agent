@@ -1,6 +1,5 @@
 ---
 llm: coder_llm
-attributes: [main]
 tools:
   - web_search
   - read_webpages_as_markdown

@@ -1,6 +1,5 @@
 ---
 llm: coder_llm
-attributes: [main]
 tools:
   - shell_exec
   - list_dir

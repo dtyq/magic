@@ -6,7 +6,6 @@
 文件格式：
     ---
     llm: main_llm
-    attributes: [main]
     tools:
       - tool_a
       - tool_b
@@ -60,7 +59,6 @@ def parse_agent_file(content: str) -> Tuple[AgentDefine, str]:
     agent_define = AgentDefine(
         model_id=_parse_llm(data),
         tools_config=_parse_tools(data),
-        attributes_config=_parse_attributes(data),
         skills_config=_parse_skills(data),
     )
 
@@ -100,22 +98,6 @@ def _parse_tools(data: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.debug(f"解析 tools: {list(tools.keys())}")
     return tools
-
-
-def _parse_attributes(data: Dict[str, Any]) -> Dict[str, bool]:
-    raw = data.get("attributes")
-    if raw is None:
-        return {}
-
-    if isinstance(raw, list):
-        attrs = {str(item).strip(): True for item in raw if item}
-    elif isinstance(raw, str):
-        attrs = {raw.strip(): True}
-    else:
-        raise ValueError(f"attributes 字段格式不合法: {type(raw)}")
-
-    logger.debug(f"解析 attributes: {list(attrs.keys())}")
-    return attrs
 
 
 def _parse_skills(data: Dict[str, Any]) -> Optional[SkillsConfig]:
