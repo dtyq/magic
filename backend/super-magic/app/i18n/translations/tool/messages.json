@@ -1046,5 +1046,13 @@
     "video.project_path_not_directory": {
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
+    },
+    "skill_list.success": {
+        "zh_CN": "已列出可用技能",
+        "en_US": "Skills listed"
+    },
+    "skill_list.error": {
+        "zh_CN": "列出技能失败",
+        "en_US": "Failed to list skills"
     }
 }

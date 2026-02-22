@@ -2,7 +2,7 @@
 
 from app.i18n import i18n
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
@@ -160,6 +160,31 @@ class SkillList(BaseTool[SkillListParams]):
         results.sort(key=lambda x: x.name)
         logger.info(f"crew skills({current_agent_type}): {len(results)} 个")
         return results
+
+    def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
+        """获取备注内容"""
+        source = (arguments or {}).get("source", "all")
+        return i18n.translate("skill_list.success", category="tool.messages", source=source)
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        """获取工具调用后的友好动作和备注"""
+        if not result.ok:
+            return {
+                "action": i18n.translate(tool_name, category="tool.actions"),
+                "remark": i18n.translate("skill_list.error", category="tool.messages"),
+            }
+
+        return {
+            "action": i18n.translate(tool_name, category="tool.actions"),
+            "remark": self._get_remark_content(result, arguments),
+        }
 
     async def _list_workspace_skills(self) -> List[SkillItem]:
         """列出 workspace 持久化 skills 目录下的 skill（含用户创建与 skillhub 安装产物）"""
