@@ -142,6 +142,8 @@ skills:
 
 加载并遵循 `skill-creator` 处理创建与修改时，还必须遵守以下**员工工作区**规则（与 skill-creator 文档一致）：
 
+> **⚠️ 强制前置步骤**：在编辑任何 skill 之前，**必须先**调用 `skill_list`（`source: "all"`）确认该 skill 的来源（system / crew / workspace），然后根据来源决定是否需要 fork。**不得跳过此步骤。**
+
 1. **所有对员工技能的持久化修改**必须落在 **`skills/<skill-name>/`**（文件工具路径相对 `.workspace/`，对应磁盘 `.workspace/skills/<skill-name>/`）。**禁止**直接修改 `agents/skills/` 下的内置目录。
 2. 若用户要改的是 **`skill_list` 中来源为 system（内置）** 的 skill：在编辑前**先**将内置目录复制到员工工作区。优先使用 `skill-creator` 自带脚本（与打包脚本相同调用方式）：
 
@@ -214,6 +216,8 @@ skills:
 ## Custom skills on disk (`skills/`) and forking built-in skills
 
 When you load and follow `skill-creator` for create/edit, also enforce these **employee workspace** rules (aligned with the skill-creator doc):
+
+> **⚠️ Mandatory pre-step**: Before editing ANY skill, you **must first** call `skill_list` (`source: "all"`) to determine the skill's source (system / crew / workspace), then decide whether a fork is needed. **Do not skip this step.**
 
 1. **All persistent edits to the employee's skills** must live under **`skills/<skill-name>/`** (file-tool paths are relative to `.workspace/`, i.e. `.workspace/skills/<skill-name>/` on disk). **Do not** edit trees under `agents/skills/` directly.
 2. If the user wants to change a **system (built-in) skill** from `skill_list`: **copy** it into the employee workspace **before** editing. Prefer the skill-creator script (same invocation pattern as packaging):

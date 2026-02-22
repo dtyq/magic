@@ -10,8 +10,8 @@ from agentlang.logger import get_logger
 from agentlang.agent.syntax import SyntaxProcessor
 from app.utils.async_file_utils import async_exists, async_read_text
 from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager
-from app.core.skill_utils.skill_directory_scan import discover_skills_in_workspace
-from app.core.skill_utils.skill_sources import get_agents_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir
+from app.core.skill_utils.skill_directory_scan import discover_skills_in_directory, discover_skills_in_workspace
+from app.core.skill_utils.skill_sources import get_agents_dir, get_crew_skills_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir
 logger = get_logger(__name__)
 
 MAX_SKILLS = 150
@@ -76,7 +76,21 @@ async def _do_generate(
         else:
             logger.warning(f"System skill 不存在: {entry.name}")
 
-    # ── 2. workspace_skills：整目录扫描 ─────────────────────────────────
+    # ── 2. crew_skills：扫描 crew 私有 skills 目录，同名覆盖 system ────
+    if skills_config.crew_skills == "*" and agent_name:
+        try:
+            crew_skills_dir = get_crew_skills_dir(agent_name)
+            for crew_skill in await discover_skills_in_directory(crew_skills_dir):
+                if crew_skill.name in loaded_names:
+                    skills_metadata = [s for s in skills_metadata if s.name != crew_skill.name]
+                    logger.info(f"Crew skill 覆盖同名 system skill: {crew_skill.name}")
+                skills_metadata.append(crew_skill)
+                loaded_names.add(crew_skill.name)
+                logger.info(f"加载 crew skill: {crew_skill.name}")
+        except ValueError as e:
+            logger.warning(f"当前 agent 标识非法，跳过 crew skills 扫描: {e}")
+
+    # ── 3. workspace_skills：整目录扫描 ─────────────────────────────────
     if skills_config.workspace_skills == "*":
         for ws_skill in await discover_skills_in_workspace():
             if ws_skill.name not in loaded_names:
