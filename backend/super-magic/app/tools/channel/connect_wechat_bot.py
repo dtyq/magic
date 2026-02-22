@@ -31,41 +31,34 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWechatBotParams) -> ToolResult:
-        # 已有活跃会话且不强制刷新时，直接返回当前二维码链接
         existing = wechat_login.get_active_session()
         if existing and existing.is_active() and not params.force_refresh:
-            qr_path = existing.qr_relative_path()
             status_text = (
                 "waiting for scan"
                 if existing.status == wechat_login.LoginStatus.WAITING
                 else "scanned, waiting for confirmation in WeChat"
             )
-            return ToolResult(
-                content=(
-                    "You must do two things now:\n"
-                    "1. Relay the Markdown link below to the user verbatim without changing the path.\n"
-                    "2. Immediately call `wait_wechat_login` and wait for the QR result.\n\n"
-                    f"Current status: {status_text}\n\n"
-                    "Relay this line verbatim:\n"
-                    f"[Open WeChat QR Page]({qr_path})"
-                )
-            )
+            return ToolResult(content=_build_qr_render_message(existing.qrcode_js_string_literal(), status_text))
 
         try:
-            session, _on_confirmed = await wechat_login.start_login_session(
+            session = await wechat_login.start_login_session(
                 force_refresh=params.force_refresh
             )
-            qr_path = session.qr_relative_path()
-
-            return ToolResult(
-                content=(
-                    "You must do two things now:\n"
-                    "1. Relay the Markdown link below to the user verbatim without changing the path.\n"
-                    "2. Immediately call `wait_wechat_login` and wait for the QR result.\n\n"
-                    "Relay this line verbatim:\n"
-                    f"[Open WeChat QR Page]({qr_path})"
-                )
-            )
+            return ToolResult(content=_build_qr_render_message(session.qrcode_js_string_literal()))
         except Exception as e:
             logger.error(f"[ConnectWechatBot] 发起登录失败: {e}")
             return ToolResult.error(f"Failed to start the WeChat login flow: {e}")
+
+
+def _build_qr_render_message(qrcode_js_string_literal: str, status_text: str | None = None) -> str:
+    lines = [
+        "You must do two things now:",
+        "1. Use the WeChat QR HTML template from the current skill and replace "
+        "`{{QRCODE_JS_STRING_LITERAL}}` with the exact literal below.",
+        "2. Reply to the user with raw HTML only, without Markdown code fences or extra prose, and "
+        "then immediately call `wait_wechat_login`.",
+    ]
+    if status_text:
+        lines.extend(("", f"Current status: {status_text}"))
+    lines.extend(("", "Exact JavaScript string literal:", qrcode_js_string_literal))
+    return "\n".join(lines)

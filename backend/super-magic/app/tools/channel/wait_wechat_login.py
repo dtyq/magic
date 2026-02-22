@@ -35,6 +35,8 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
     async def execute(self, tool_context: ToolContext, params: WaitWechatLoginParams) -> ToolResult:
         try:
             outcome = await wechat_login.wait_for_login(params.timeout_seconds)
+            if outcome.requires_qr_render:
+                return ToolResult(content=_build_qr_refresh_message(outcome.qrcode_js_string_literal()))
             if outcome.success:
                 await self._activate_channel(outcome, tool_context.sandbox_id)
             return ToolResult(content=outcome.message)
@@ -45,7 +47,7 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
     async def _activate_channel(self, outcome: wechat_login.WechatLoginOutcome, sandbox_id: str) -> None:
         """扫码成功后保存凭据并启动 WechatChannel。"""
         if outcome.result is None:
-            raise RuntimeError("微信登录已成功，但缺少结果数据。")
+            raise RuntimeError("The WeChat login succeeded, but the result payload is missing.")
 
         result = outcome.result
         config = await load_config()
@@ -61,3 +63,19 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
 
         channel = WechatChannel.get_instance()
         await channel.connect(config.wechat)
+
+
+def _build_qr_refresh_message(qrcode_js_string_literal: str) -> str:
+    return "\n".join(
+        [
+            "The previous WeChat QR code expired and a fresh one is ready.",
+            "You must do two things now:",
+            "1. Use the WeChat QR HTML template from the current skill again and replace "
+            "`{{QRCODE_JS_STRING_LITERAL}}` with the exact literal below.",
+            "2. Reply to the user with raw HTML only, without Markdown code fences or extra prose, and "
+            "then immediately call `wait_wechat_login` again.",
+            "",
+            "Exact JavaScript string literal:",
+            qrcode_js_string_literal,
+        ]
+    )

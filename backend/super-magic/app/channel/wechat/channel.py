@@ -96,7 +96,7 @@ class WechatChannel(BaseChannel):
                 LoginStatus.SCANNED: "scanned, waiting for confirmation",
             }
             lines.append(f"  Status: {status_map.get(active_session.status, 'login in progress')}")
-            lines.append(f"  QR page: [open]({active_session.qr_relative_path()})")
+            lines.append("  QR delivery: active in the current chat")
             return lines
 
         if credential is not None:
