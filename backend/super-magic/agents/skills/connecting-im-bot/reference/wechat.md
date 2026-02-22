@@ -10,12 +10,12 @@
 1. Call the start tool to create the QR login session.
 2. Use the mobile-width HTML template below.
 3. Replace `{{QRCODE_JS_STRING_LITERAL}}` with the exact JavaScript string literal returned by the tool.
-4. Reply to the user with the rendered raw HTML only. Do not use Markdown code fences and do not add extra prose.
+4. Reply to the user with exactly one `html` fenced code block and do not add extra prose before or after it.
 5. Immediately call the wait tool and keep following its instructions until it returns success, timeout, or failure.
 
 ## Mobile HTML Template
 
-Reply with this raw HTML exactly, except for replacing `{{QRCODE_JS_STRING_LITERAL}}`:
+Reply with exactly this `html` fenced code block, except for replacing `{{QRCODE_JS_STRING_LITERAL}}`:
 
 ```html
 <div style="width:100%;max-width:340px;margin:0 auto;padding:16px 12px;box-sizing:border-box;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
@@ -54,7 +54,7 @@ After the tool returns:
 
 1. Read the exact `{{QRCODE_JS_STRING_LITERAL}}` value from the tool output.
 2. Substitute it into the HTML template.
-3. Send the rendered raw HTML to the user.
+3. Send the rendered `html` fenced code block to the user.
 
 ## Wait For Result
 
@@ -71,7 +71,7 @@ print(result.content)
 
 Interpret the wait tool result like this:
 
-- If it returns a fresh `{{QRCODE_JS_STRING_LITERAL}}`, render the same HTML template again with the new value, send the raw HTML again, and immediately call `wait_wechat_login` again.
+- If it returns a fresh `{{QRCODE_JS_STRING_LITERAL}}`, render the same HTML template again with the new value, send the `html` fenced code block again, and immediately call `wait_wechat_login` again.
 - If it returns a success message, tell the user to send `hi` in the WeChat ClawBot chat.
 - If it returns a timeout or failure message, relay it and stop.
 

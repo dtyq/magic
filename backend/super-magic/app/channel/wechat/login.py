@@ -325,8 +325,3 @@ async def wait_for_login(timeout_seconds: int = 60) -> WechatLoginOutcome:
         return outcome
     except asyncio.CancelledError:
         raise
-    except Exception:
-        last_outcome = get_last_login_outcome()
-        if last_outcome is not None:
-            return last_outcome
-        raise

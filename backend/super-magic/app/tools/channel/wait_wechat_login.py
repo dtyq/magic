@@ -72,7 +72,7 @@ def _build_qr_refresh_message(qrcode_js_string_literal: str) -> str:
             "You must do two things now:",
             "1. Use the WeChat QR HTML template from the current skill again and replace "
             "`{{QRCODE_JS_STRING_LITERAL}}` with the exact literal below.",
-            "2. Reply to the user with raw HTML only, without Markdown code fences or extra prose, and "
+            "2. Reply to the user with exactly one ```html fenced code block and no prose outside the block, "
             "then immediately call `wait_wechat_login` again.",
             "",
             "Exact JavaScript string literal:",
