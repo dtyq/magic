@@ -499,10 +499,10 @@ After the skill is done and user-confirmed, always ask:
 ```python
 # <workspace-skill-path>: 工作区 skills 目录下该 skill 的绝对路径
 #   例如 /app/.workspace/<workspace-skills-dir>/<skill-name>
-# 第二个参数为输出目录，显式传入 skill 目录本身，打包产物存于工作区内
+# 不传 output_dir，默认输出到 skill 目录的父目录，即 <workspace-skills-dir>/<skill-name>-v1.0.0.zip
 # 可省略 --no-upload（与默认等价）
 shell_exec(
-    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --version 1.0.0'
+    command='python scripts/package_skill.py <workspace-skill-path> --version 1.0.0'
 )
 ```
 
@@ -514,7 +514,7 @@ shell_exec(
 ```python
 # 可选参数: --name-zh "中文名称" --name-en "English Name"（传给 upload_skill.py）
 shell_exec(
-    command='python scripts/package_skill.py <workspace-skill-path> <workspace-skill-path> --version 1.0.0 --upload'
+    command='python scripts/package_skill.py <workspace-skill-path> --version 1.0.0 --upload'
 )
 ```
 
