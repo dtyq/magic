@@ -10,6 +10,21 @@
 **Read references**: `skill_read_references(skill_name="skill-name", references=["doc1.md"])`
 After reading, if another skill is also needed, call `skills_read` again for that skill.
 
+<!--zh
+## 安装外部 skill 前建议先执行安全审查
+
+来自平台市场、skillhub、clawhub、GitHub 或其他外部来源的 skill，安装前建议先加载 `skill-vetter` 进行安全审查。
+若用户明确表示已确认、无需审查，可直接安装，无需坚持。
+-->
+## Security Review Recommended Before Installing Any External Skill
+
+For skills from the platform market, skillhub, GitHub, or any other external source, it is recommended to load `skill-vetter` and complete a security review before installing.
+If the user explicitly confirms they want to proceed without review, skip the vetting step and install directly.
+
+```
+skills_read(skill_names=["skill-vetter"])
+```
+
 {{ @variable("mcp_notice") }}
 
 <!--zh

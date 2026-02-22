@@ -471,6 +471,21 @@ See `references/super-magic-tools.md` for the detailed procedure.
 ---
 
 <!--zh
+### 可选：安全审查
+
+如果用户希望对创建好的 skill 进行安全检查（例如在打包上传前确认没有危险模式），可以加载 `skill-vetter` 执行审查：
+-->
+### Optional: Security Review
+
+If the user wants to verify the security of the newly created skill before packaging or sharing — for example, to confirm it contains no dangerous patterns — load `skill-vetter` to run a review:
+
+```
+skills_read(skill_names=["skill-vetter"])
+```
+
+---
+
+<!--zh
 ### 阶段八：询问是否打包并上传
 
 在 skill 创建完成并通过用户确认后，必须询问：

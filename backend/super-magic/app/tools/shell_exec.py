@@ -67,14 +67,16 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
             if not params.cwd and params.command.strip().startswith('python bin/super-magic.py'):
                 work_dir = self.base_dir.parent
             elif params.command.strip().startswith('skillhub'):
-                from app.core.skill_utils.constants import get_workspace_skills_dir
-                # skillhub CLI 默认安装目录是 ./skills（相对于 CWD），
-                # 因此 CWD 必须是 skills 目录的父级（.magic/），
-                work_dir = (await get_workspace_skills_dir()).parent
                 # 自定义命令拦截：CLI 本身不支持的子命令由 skillhub 模块内部处理
                 intercepted = await handle_skillhub(params.command.strip())
                 if intercepted is not None:
                     return intercepted
+                # skillhub CLI 默认安装目录是 ./skills（相对于 CWD），
+                # 因此 CWD 必须是 skills 目录的父级（.magic/）。
+                # 但若命令已通过 --dir 显式指定安装目录，则无需覆盖 work_dir。
+                if '--dir' not in params.command:
+                    from app.core.skill_utils.constants import get_workspace_skills_dir
+                    work_dir = (await get_workspace_skills_dir()).parent
             elif params.cwd:
                 cwd_path = self.resolve_path(params.cwd)
                 work_dir = cwd_path

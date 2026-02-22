@@ -59,11 +59,96 @@ Questions to answer:
 - Are there reviews from other agents?
 
 <!--zh
-### 第二步：代码审查（必须执行）
+### 第二步：预览安装到临时目录，读取所有文件
+
+**不要先正式安装，先安装到临时目录进行审查。**
+
+根据来源选择对应的预览方式：
+
+**skillhub 来源**（支持 `--dir` 指定临时目录）：
+-->
+### Step 2: Preview Install to Temp Dir, Then Read All Files
+
+**Do not install to the real skills directory yet. Install to a temp directory first for inspection.**
+
+Choose the preview method based on the source:
+
+<!--zh
+**skillhub 来源**（支持 `--dir` 指定临时目录）：
+-->
+**skillhub source** (supports `--dir` for temp directory):
+
+```bash
+skillhub install <slug> --dir /tmp/skillhub-preview/
+```
+
+<!--zh
+安装完成后，用 `shell_exec` 列出并逐一读取所有文件内容：
+-->
+After install, use `shell_exec` to list and read all files:
+
+```bash
+# 列出所有文件
+shell_exec(command="find /tmp/skillhub-preview/<skill-name> -type f | sort")
+
+# 逐一读取（对每个文件执行）
+shell_exec(command="cat /tmp/skillhub-preview/<skill-name>/SKILL.md")
+shell_exec(command="cat /tmp/skillhub-preview/<skill-name>/scripts/<file>.py")
+# ... 依次读取所有脚本、配置、引用文件
+```
+
+<!--zh
+审查通过后，执行不带 `--dir` 的正式安装命令；无论结果如何，清理临时目录：
+-->
+If approved, run the normal install without `--dir`. Either way, clean up the temp dir:
+
+```bash
+shell_exec(command="rm -rf /tmp/skillhub-preview/")
+```
+
+<!--zh
+**平台技能市场 / 我的技能库来源**（不支持 `--dir`，先装到 workspace 再审查）：
+-->
+**Platform market / my skill library source** (no `--dir` support; install to workspace first, then review):
+
+```
+shell_exec(command="skillhub install-platform-me <code>")
+# or
+shell_exec(command="skillhub install-platform-market <code>")
+```
+
+<!--zh
+安装后立即用 `shell_exec` 读取技能目录下所有文件：
+-->
+After install, immediately use `shell_exec` to read all files in the skill directory:
+
+```bash
+# 列出所有文件
+shell_exec(command="find <workspace-skills-dir>/<skill-name> -type f | sort")
+
+# 逐一读取
+shell_exec(command="cat <workspace-skills-dir>/<skill-name>/SKILL.md")
+shell_exec(command="cat <workspace-skills-dir>/<skill-name>/scripts/<file>.py")
+# ... 依次读取所有文件
+```
+
+<!--zh
+**注意**：此时技能已在磁盘上，但尚未通过 `skills_read` 加载，不会影响当前上下文。
+审查不通过时，立即执行删除，不要加载：
+-->
+**Note**: The skill is on disk but not yet loaded via `skills_read`, so it has no effect on the current context.
+If the review fails, remove it immediately before calling `skills_read`:
+
+```
+shell_exec(command="skillhub remove <skill-name>")
+```
+
+<!--zh
+### 第三步：代码审查（必须执行）
 
 阅读技能目录下的**所有文件**。遇到以下任何情况，立即拒绝安装：
 -->
-### Step 2: Code Review (MANDATORY)
+### Step 3: Code Review (MANDATORY)
 
 Read ALL files in the skill. Reject immediately if any of the following are present:
 
@@ -88,9 +173,9 @@ REJECT IMMEDIATELY IF YOU SEE:
 ```
 
 <!--zh
-### 第三步：权限范围评估
+### 第四步：权限范围评估
 -->
-### Step 3: Permission Scope
+### Step 4: Permission Scope
 
 <!--zh
 评估以下维度：
@@ -108,9 +193,9 @@ Evaluate:
 - Is the scope minimal for its stated purpose?
 
 <!--zh
-### 第四步：风险分级
+### 第五步：风险分级
 -->
-### Step 4: Risk Classification
+### Step 5: Risk Classification
 
 <!--zh
 | 风险级别 | 示例 | 处置方式 |
@@ -165,28 +250,6 @@ VERDICT: [SAFE TO INSTALL / INSTALL WITH CAUTION / DO NOT INSTALL]
 
 NOTES: [Any observations]
 =======================================
-```
-
----
-
-<!--zh
-## 快捷审查命令
-
-对于托管在 GitHub 的技能：
--->
-## Quick Vet Commands
-
-For GitHub-hosted skills:
-
-```bash
-# Check repo stats
-curl -s "https://api.github.com/repos/OWNER/REPO" | jq '{stars: .stargazers_count, forks: .forks_count, updated: .updated_at}'
-
-# List skill files
-curl -s "https://api.github.com/repos/OWNER/REPO/contents/skills/SKILL_NAME" | jq '.[].name'
-
-# Fetch and review SKILL.md
-curl -s "https://raw.githubusercontent.com/OWNER/REPO/main/skills/SKILL_NAME/SKILL.md"
 ```
 
 ---
