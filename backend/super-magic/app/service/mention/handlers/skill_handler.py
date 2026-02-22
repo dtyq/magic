@@ -67,8 +67,8 @@ class SkillHandler(BaseMentionHandler):
 
         if source_key == _SOURCE_MINE and code:
             lines.append(
-                f"   - 使用指南: 使用 skills_read(skill_names=[\"{name}\"]) 加载"
-                f"若技能未安装，执行 `skillhub install-platform-me {code}` 安装后再加载使用"
+                f"   - 使用指南: 若技能未安装，先执行 `skillhub install-platform-me {code}` 安装；"
+                f"安装后使用 skills_read(skill_names=[\"{name}\"]) 加载使用"
             )
         else:
             lines.append(f"   - 使用指南: 先用 skills_read(skill_names=[\"{name}\"]) 加载后使用")
