@@ -11,9 +11,9 @@ class AgentProfile(BaseModel):
     Used to customize Agent's name and description, which will replace
     corresponding text in prompts and system messages.
     """
-    name: str = "超级麦吉"
-    role: str = ""
-    description: str = "英文名 SuperMagic，由广东灯塔引擎科技有限公司创造。"
+    name: str = "超级麦吉 (Super Magic)"
+    role: str = "General Agent"
+    description: str = "The enterprise edition of Claw Bot — giving every company the execution power of 100 people at the cost of one. Fully open-source at github.com/dtyq/magic."
 
     def get_profile_desc(self) -> str:
         """生成完整的身份描述文本，语言跟随当前 i18n 上下文"""
