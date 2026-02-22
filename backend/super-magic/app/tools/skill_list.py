@@ -16,27 +16,33 @@ from app.core.skill_utils.skill_directory_scan import (
     discover_skills_in_workspace,
 )
 from app.paths import PathManager
+from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+from app.infrastructure.sdk.magic_service.parameter.get_latest_published_skill_versions_parameter import (
+    GetLatestPublishedSkillVersionsParameter,
+)
 
 logger = get_logger(__name__)
 
 # source 过滤参数合法值（与 skill_sources 中 system_skills 对应）
-_VALID_SOURCES = {"all", "system", "crew", "workspace"}
+_VALID_SOURCES = {"all", "system", "crew", "workspace", "my_library"}
 
 # 同名 skill 解析优先级（与 GlobalSkillManager.get_skills_dirs 目录顺序一致）
-# system（agents/skills）> crew > workspace
+# system（agents/skills）> crew > workspace；my_library 项需安装到 workspace 后才可使用
 _SHADOW_SAME_NAME_NOTE = (
     "shadowed by higher-priority source (same name); priority: system > crew > workspace"
 )
+_MY_LIBRARY_INSTALLED_NOTE = "already installed in workspace"
 
 
 @dataclass
 class SkillItem:
     """单个 skill 的列表条目"""
     name: str
-    source: str          # "system" | "crew" | "workspace"
+    source: str          # "system" | "crew" | "workspace" | "my_library"
     can_override: bool
     description: str = ""
     path: str = ""
+    installed: Optional[bool] = None  # 仅 my_library 设置：True 已安装到 workspace，False 未安装；其他来源均为本地已安装，不设此字段
     note: Optional[str] = None
 
 
@@ -45,24 +51,24 @@ class SkillListParams(BaseToolParams):
 
     source: str = Field(
         "all",
-        description="""<!--zh: 来源过滤，可选值：all（全部）、system（agents/skills 项目内置）、crew（当前 crew agent 私有）、workspace（用户安装和创建）。同名时优先级：system > crew > workspace。-->
-Source filter. Options: all (default), system (agents/skills project built-in), crew (current crew-agent private), workspace (user-installed and custom). Same-name priority: system > crew > workspace.""",
+        description="""<!--zh: 来源过滤，可选值：all（全部）、system（agents/skills 项目内置）、crew（当前 crew agent 私有）、workspace（用户安装和创建）、my_library（平台「我的技能库」，含未安装项）。同名时优先级：system > crew > workspace；my_library 项需安装到 workspace 后方可使用。-->
+Source filter. Options: all (default), system (agents/skills project built-in), crew (current crew-agent private), workspace (user-installed and custom), my_library (platform skill library, including uninstalled skills). Same-name priority: system > crew > workspace; my_library skills must be installed to workspace before use.""",
     )
 
 
 @tool()
 class SkillList(BaseTool[SkillListParams]):
     """<!--zh
-    列出已安装到系统中的 skill，包含 system（agents/skills）、crew 私有 skill 和 workspace skill（skillhub 安装 + 用户创建）。
-    仅涵盖本地已安装的 skill；若需搜索「我的技能库」或「平台技能市场」，请使用 find-skill 技能。
-    同名解析优先级：system > crew > workspace；低优先级来源上的同名项会标注 shadow（与 SkillManager 加载顺序一致）。
-    每个 skill 标注来源和是否可被覆盖（system 不可覆盖；crew / workspace 可被更高优先级同名项覆盖）。
+    列出所有可用 skill，包含：system（agents/skills）、crew 私有 skill、workspace skill（skillhub 安装 + 用户创建）以及平台「我的技能库」（含未安装项）。
+    同名解析优先级：system > crew > workspace；my_library 项需安装到 workspace 后方可使用，已安装项会标注。
+    低优先级来源上的同名项会标注 shadow（与 SkillManager 加载顺序一致）。
+    每个 skill 标注来源和是否可被覆盖（system 不可覆盖；crew / workspace / my_library 可被更高优先级同名项覆盖）。
     在创建新 skill 前，建议先调用此工具检查是否存在同名 skill。
     -->
-    Lists skills installed in the system: system (agents/skills), crew private, and workspace (skillhub-installed and custom).
-    Only covers locally installed skills. To search your skill library or the platform skill marketplace, use the find-skill skill instead.
-    Same-name resolution priority: system > crew > workspace; lower-priority duplicates are labeled as shadowed (matches SkillManager search order).
-    Each entry shows source and can_override (system: false; crew/workspace: true unless shadowed).
+    Lists all available skills: system (agents/skills), crew private, workspace (skillhub-installed and custom), and platform my_library (including uninstalled skills).
+    Same-name resolution priority: system > crew > workspace; my_library skills must be installed to workspace before use; already-installed ones are labeled.
+    Lower-priority duplicates are labeled as shadowed (matches SkillManager search order).
+    Each entry shows source and can_override (system: false; crew/workspace/my_library: true unless shadowed).
     Before creating a new skill, it is recommended to call this tool first to check for name conflicts.
     """
 
@@ -74,6 +80,7 @@ class SkillList(BaseTool[SkillListParams]):
         skills: List[SkillItem] = []
         system_skills: List[SkillItem] = []
         crew_skills: List[SkillItem] = []
+        workspace_skills: List[SkillItem] = []
 
         if source_filter in ("all", "system"):
             system_skills = await self._list_system_skills()
@@ -89,27 +96,40 @@ class SkillList(BaseTool[SkillListParams]):
             skills.extend(crew_skills)
 
         if source_filter in ("all", "workspace"):
-            workspace = await self._list_workspace_skills()
+            workspace_skills = await self._list_workspace_skills()
             if source_filter == "all":
                 higher_priority_names = {s.name for s in system_skills} | {s.name for s in crew_skills}
             else:
                 system_skills = await self._list_system_skills()
                 crew_skills = await self._list_crew_skills()
                 higher_priority_names = {s.name for s in system_skills} | {s.name for s in crew_skills}
-            for ws in workspace:
+            for ws in workspace_skills:
                 if ws.name in higher_priority_names:
                     ws.note = _SHADOW_SAME_NAME_NOTE
                 skills.append(ws)
+
+        if source_filter in ("all", "my_library"):
+            if not workspace_skills:
+                workspace_skills = await self._list_workspace_skills()
+            workspace_names = {s.name for s in workspace_skills}
+            my_library = await self._list_my_library_skills()
+            for item in my_library:
+                item.installed = item.name in workspace_names
+                if item.installed:
+                    item.note = _MY_LIBRARY_INSTALLED_NOTE
+                skills.append(item)
 
         if not skills:
             return ToolResult(content="No skills found.")
 
         lines = [
-            "Priority: system > crew > workspace (same name resolves to the highest source).\n",
+            "Priority: system > crew > workspace (same name resolves to the highest source). my_library skills must be installed to workspace before use.\n",
             f"Total: {len(skills)} skill(s)\n",
         ]
         for s in skills:
             line = f"[{s.source}] {s.name}  can_override={s.can_override}"
+            if s.installed is not None:
+                line += f"  installed={s.installed}"
             if s.description:
                 line += f"\n  {s.description}"
             if s.note:
@@ -186,6 +206,32 @@ class SkillList(BaseTool[SkillListParams]):
             "action": i18n.translate(tool_name, category="tool.actions"),
             "remark": self._get_remark_content(result, arguments),
         }
+
+    async def _list_my_library_skills(self) -> List[SkillItem]:
+        """从平台「我的技能库」获取最多 200 个技能，失败时降级为空列表"""
+        try:
+            sdk = get_magic_service_sdk()
+            parameter = GetLatestPublishedSkillVersionsParameter(
+                page=1,
+                page_size=100,
+            )
+            result = await sdk.skill.query_latest_published_versions_async(parameter)
+            results = [
+                SkillItem(
+                    name=item.package_name or item.name,
+                    source="my_library",
+                    can_override=True,
+                    description=item.description,
+                    path="",
+                )
+                for item in result.get_items()
+            ]
+            results.sort(key=lambda x: x.name)
+            logger.info(f"my_library skills: {len(results)} 个")
+            return results
+        except Exception as e:
+            logger.warning(f"获取我的技能库失败，跳过: {e}")
+            return []
 
     async def _list_workspace_skills(self) -> List[SkillItem]:
         """列出 workspace 持久化 skills 目录下的 skill（含用户创建与 skillhub 安装产物）"""
