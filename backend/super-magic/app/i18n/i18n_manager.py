@@ -41,14 +41,14 @@ class I18nManager:
         if not language:
             return cls._DEFAULT_LANGUAGE
         normalized = language.replace("-", "_")
-        # 仅处理有变体的语言，其余直接透传
+        # Case-insensitive lookup: match regardless of how the client capitalizes the code.
         aliases = {
             "zh": "zh_CN",
-            "zh_CN": "zh_CN",
+            "zh_cn": "zh_CN",
             "en": "en_US",
-            "en_US": "en_US",
+            "en_us": "en_US",
         }
-        return aliases.get(normalized, normalized)
+        return aliases.get(normalized.lower(), normalized)
 
     @classmethod
     def set_language(cls, language: str) -> None:
