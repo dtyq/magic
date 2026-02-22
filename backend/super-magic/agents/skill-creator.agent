@@ -20,6 +20,7 @@ tools:
 skills:
   system_skills:
     - name: skill-creator
+    - name: skill-vetter
     - name: find-skill
     - name: using-llm
     - name: using-mcp

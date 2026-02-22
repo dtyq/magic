@@ -23,6 +23,7 @@ tools:
   - compact_chat_history
 skills:
   system_skills:
+    - name: skill-vetter
     - name: find-skill
   workspace_skills: "*"
 ---

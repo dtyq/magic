@@ -21,6 +21,7 @@ skills:
   system_skills:
     - name: crew-creator
     - name: skill-creator
+    - name: skill-vetter
     - name: find-skill
     - name: using-llm
     - name: using-mcp

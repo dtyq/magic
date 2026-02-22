@@ -29,6 +29,7 @@ tools:
   - compact_chat_history
 skills:
   system_skills:
+    - name: skill-vetter
     - name: find-skill
     - name: using-mcp
     - name: env-manager
