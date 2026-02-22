@@ -55,14 +55,16 @@ async def validate_skill(skill_path):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
     if name:
-        # Check naming convention (kebab-case: lowercase with hyphens)
-        if not re.match(r'^[a-z0-9-]+$', name):
-            return False, f"Name '{name}' should be kebab-case (lowercase letters, digits, and hyphens only)"
-        if name.startswith('-') or name.endswith('-') or '--' in name:
-            return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
+        # 只允许英文字母、数字、下划线（snake_case），不允许连字符、中文、空格等
+        if not re.match(r'^[a-zA-Z0-9_]+$', name):
+            return False, f"Name '{name}' must contain only English letters, digits, and underscores (no hyphens, Chinese characters, spaces, or other special characters)"
         # Check name length (max 64 characters per spec)
         if len(name) > 64:
             return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
+        # name 必须与目录名一致
+        dir_name = skill_path.name
+        if name != dir_name:
+            return False, f"Name '{name}' in frontmatter does not match directory name '{dir_name}'"
 
     # Extract and validate description
     description = frontmatter.get('description', '')

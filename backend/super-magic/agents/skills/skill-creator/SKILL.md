@@ -271,7 +271,7 @@ SKILL.md **must** start with YAML frontmatter — the packaging validator reject
 
 ```markdown
 ---
-name: skill-name
+name: skill_name
 description: "English description: when to trigger and what it does. Be slightly assertive."
 description-cn: "中文描述（可选）"
 ---
@@ -283,7 +283,7 @@ description-cn: "中文描述（可选）"
 
 <!--zh
 frontmatter 字段说明：
-- **name**（必填）: kebab-case，只含小写字母、数字、连字符，最多 64 字符，必须与目录名一致
+- **name**（必填）: snake_case，只含英文字母、数字、下划线（不允许连字符、中文、空格或其他字符），最多 64 字符，必须与目录名完全一致
 - **description**（必填）: 英文，语义触发依赖此字段，描述要稍微"主动"一些，最多 1024 字符，不含 `<` `>`
 - **description-cn**（可选）: 中文描述
 - 其他常见可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`；亦可按需增加任意 YAML 键（如 `description-cn`）
@@ -291,7 +291,7 @@ frontmatter 字段说明：
 **注意**：打包验证**仅要求** frontmatter 中必须包含 `name` 与 `description`，不对键名做白名单限制。
 -->
 Frontmatter fields:
-- **name** (required): kebab-case, lowercase letters/digits/hyphens only, max 64 chars, must match directory name
+- **name** (required): snake_case, English letters/digits/underscores only — no hyphens, Chinese characters, spaces, or other special characters; max 64 chars; must exactly match the directory name
 - **description** (required): English, max 1024 chars, no angle brackets `<` `>`
 - **description-cn** (optional): Chinese description
 - Other common optional keys: `license`, `allowed-tools`, `metadata`, `compatibility`; you may add any extra YAML keys as needed (e.g. `description-cn`)
@@ -501,6 +501,19 @@ After the skill is done and user-confirmed, always ask:
 > "Would you like to package this skill and upload it to your skill library? Or just package without uploading?"
 
 **Important:** If the user only asks to "package", "pack only", or "build the .zip file" without clearly requesting upload to the skill library, you **must** use the package-only command (do **not** pass `--upload`). Only use `--upload` when the user explicitly agrees to upload or uses phrasing like "package and upload" / "upload to my skill library".
+
+<!--zh
+`package_skill.py` 在打包前会自动调用 `quick_validate.py` 做验证，包括：
+1. 目录名和 `name` 字段只允许英文字母、数字、下划线，不允许连字符、中文、空格等
+2. `name` 字段必须与目录名完全一致
+
+验证不通过会直接报错并终止打包，修正后重试即可，无需手动执行额外命令。
+-->
+`package_skill.py` automatically runs `quick_validate.py` before packaging. Checks include:
+1. Directory name and `name` field must contain only English letters, digits, and underscores — no hyphens, Chinese characters, spaces, or other special characters
+2. `name` field must exactly match the directory name
+
+If validation fails, fix the issues and retry.
 
 <!--zh
 **只打包，不上传（默认 CLI 行为；用户仅说「打包」时用此命令）：**
