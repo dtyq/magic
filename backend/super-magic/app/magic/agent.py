@@ -1951,7 +1951,12 @@ The following <dynamic_context> block contains system-provided context informati
                 socketio_driver_config=socketio_driver_config
             )
         else:
-            processor_config = None
+            processor_config = ProcessorConfig.create_default()
+
+        # 将实际生效的模型信息写入 processor_config，确保流式/非流式事件中
+        # model_name 为配置目标模型名（如 kimi-k2.5），而非内部配置键（如 claude-3.7-cache）
+        processor_config.model_id = effective_model_id
+        processor_config.model_name = effective_model_name
 
         try:
             # 使用 LLMFactory.call_with_tool_support 方法统一处理工具调用
