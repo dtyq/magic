@@ -66,12 +66,8 @@ Manage scheduled message tasks through scripts, supporting create, list, get, up
 
 <!--zh
 ## 可用脚本
-
-所有脚本位于 `agents/skills/using-cron` 目录下。
 -->
 ## Available Scripts
-
-All scripts are located in the `agents/skills/using-cron` directory.
 
 ---
 

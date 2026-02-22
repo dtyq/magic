@@ -246,10 +246,9 @@ Check the returned list for a skill with the same name. Do not run any shell com
 
 <!--zh
 **冲突处理规则：**
-- 如果同名 skill 在 `agents/skills/`（内置）：**不可在仓库路径上覆盖**。
-  - **从零新建**另一条线：必须让用户换一个**新**名称，重新确认后再写 `skills/<new-name>/`。
-  - **员工工作区定制内置 skill**（Crew）：见下文「员工工作区：fork 内置 skill」— 先把内置目录**复制**到 `skills/<name>/`，只编辑工作区副本，不要直接改 `agents/skills/`。
-- 如果同名 skill 已在员工工作区的 `skills/<name>/`（路径相对 `.workspace/`，即磁盘上的 `.workspace/skills/<name>/`）：询问用户是否覆盖
+- 如果同名 skill 是内置 skill（system 级别，`can_override: false`）：**不可覆盖**。
+  - 必须让用户换一个**新**名称，重新确认后再写 `skills/<new-name>/`。
+- 如果同名 skill 已在 `<workspace-skills-dir>/<name>/`：询问用户是否覆盖
   - 用户确认后：先完整删除原目录，再重新创建（不走编辑逻辑）
   - 这样确保新 skill 是干净的初始状态
 - 无冲突：直接继续写文件
@@ -257,10 +256,9 @@ Check the returned list for a skill with the same name. Do not run any shell com
 **编写 SKILL.md：**
 -->
 **Conflict rules:**
-- Same name in `agents/skills/` (built-in): **Cannot overwrite the repo copy**.
-  - **Brand-new skill path:** Ask the user to pick a **new** name, re-confirm, then write to `skills/<new-name>/`.
-  - **Crew / employee customization of a built-in skill:** See "Crew employee workspace: fork built-in skills" below — copy the built-in tree into `skills/<name>/` first and edit only that workspace copy; never edit `agents/skills/` in place.
-- Same name already under employee workspace `skills/<name>/` (relative to `.workspace/`, i.e. `.workspace/skills/<name>/` on disk): Ask user for confirmation.
+- Same name is a built-in skill (system level, `can_override: false`): **Cannot overwrite**.
+  - Ask the user to pick a **new** name, re-confirm, then write to `skills/<new-name>/`.
+- Same name already exists at `<workspace-skills-dir>/<name>/`: Ask user for confirmation.
   - If confirmed: delete the entire directory first, then recreate from scratch (do not edit in place).
 - No conflict: proceed to write files directly.
 
@@ -545,101 +543,7 @@ Optional: `python scripts/upload_skill.py <path> --name-zh "..." --name-en "..."
 
 ---
 
-<!--zh
-## 员工工作区：fork 内置 skill（Crew / Magicrew）
-
-当用户要**改员工已绑定的、来源为内置**的 skill 时：
-
-1. **禁止**用文件工具或 `shell_exec` 直接修改 `agents/skills/<name>/`（仓库内置树）。
-2. **先把内置目录复制到员工工作区**：使用 `crew-creator` 提供的脚本（推荐），将 `agents/skills/<name>/` 复制到 `.workspace/skills/<dest>/`。文件工具里对应的路径是 `skills/<dest>/`（相对 `.workspace/`，**不要**加 `.workspace/` 前缀）。
-3. 复制完成后，**只**编辑 `skills/<dest>/` 下的 `SKILL.md` 及子目录。
-4. 若 `--dest-name` 与内置名不同，需在员工的 `SKILLS.md` 里把列表项改为新名称，并征得用户确认。
-5. 用 `list_dir` / `read_files` 确认 `skills/<dest>/SKILL.md` 已存在后再继续后续流程（评测、打包等）。
-
-**复制命令（`cwd` 固定为 `agents/skills/crew-creator`）：**
-
-```python
-shell_exec(
-    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/crew-creator"
-)
-```
-
-- 目标目录已存在且需整目录替换时加 `--overwrite`。
-- 内置名与 `agents/skills/` 下文件夹名一致（kebab-case）。
-
-### `skill_list` 中的 workspace 与员工 `skills/` 目录
-
-- `skill_list` 里标记为 **workspace** 的条目，扫描的是 **`.workspace/.magic/skills/`**（skillhub 安装与用户部分产物），与员工定义并列的 **`.workspace/skills/`** 不是同一路径。
-- **员工侧持久化、与 `SKILLS.md` 配套的自定义 skill 副本**：以本 skill 文档中的 **`skills/<name>/`（相对 `.workspace/`）** 为准。
-- 若将来需要让某 skill 同时出现在 `.magic/skills` 的扫描结果中，再单独评估同步策略（高级场景，默认不必）。
--->
-## Crew employee workspace: fork built-in skills
-
-When the user wants to **customize a built-in skill** already bound to an employee:
-
-1. **Do not** edit `agents/skills/<name>/` in place (repo tree).
-2. **Copy the built-in tree into the employee workspace** using the `crew-creator` script (recommended): from `agents/skills/<name>/` to `.workspace/skills/<dest>/`. With file tools, that is `skills/<dest>/` relative to `.workspace/` — **never** prefix paths with `.workspace/`.
-3. After copying, edit **only** `skills/<dest>/` (SKILL.md and subdirs).
-4. If `--dest-name` differs from the built-in folder name, update the employee's `SKILLS.md` list accordingly and get user confirmation.
-5. Verify with `list_dir` / `read_files` that `skills/<dest>/SKILL.md` exists before evals/packaging.
-
-**Copy command** (`cwd` must be `agents/skills/crew-creator`):
-
-```python
-shell_exec(
-    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/crew-creator"
-)
-```
-
-- Add `--overwrite` to replace an existing destination tree.
-- `<builtin-skill-name>` matches the folder name under `agents/skills/` (kebab-case).
-
-### `skill_list` "workspace" vs employee `skills/`
-
-- **`skill_list` workspace entries** are discovered under **`.workspace/.magic/skills/`** (skillhub installs and related artifacts). That is **not** the same path as the employee-facing **`.workspace/skills/`** tree.
-- **Employee-persisted custom skill copies** tied to `SKILLS.md` use **`skills/<name>/` relative to `.workspace/`** as defined in this skill doc.
-- Syncing into `.magic/skills` for other tooling is a separate, advanced step — usually unnecessary.
-
 ---
-
-<!--zh
-## 注意事项
-
-### 执行路径
-- **文件工具**（`write_file`、`read_file` 等）的路径相对于 `.workspace/`，直接写 `skills/<skill-name>/...`，**不要带 `.workspace/` 前缀**，否则会写到 `.workspace/.workspace/skills/...`（多嵌套一层）
-- `shell_exec` 的**默认工作目录是 `.workspace/`**，命令内部同样**不要带 `.workspace/` 前缀**，直接写 `skills/<skill-name>/...` 即可
-- `cwd` 参数本身是相对**项目根目录**解析的，所以 `cwd` 写 `.workspace/skills/<skill-name>` 才是正确的
-- workspace skill 的 scripts 执行时，`cwd` 应为 `.workspace/skills/<skill-name>`
-- skill-creator 自身的脚本执行时，`cwd` 为 `agents/skills/skill-creator`，使用 `python scripts/<script>.py`（如 `package_skill.py`、`upload_skill.py`、`aggregate_benchmark.py`）；skill 目录参数传绝对路径（来自 static_context 中的 Workspace）
-- 复制内置 skill 到工作区使用 **crew-creator** 的脚本：`cwd` 为 `agents/skills/crew-creator`，`python scripts/copy_skill_to_workspace.py`
-
-### 内置 skill 不可覆盖
-- `agents/skills/` 下的 skill 优先级最高，`skill_list` 返回的 `can_override: false`
-- **不得**在仓库路径上覆盖内置目录；新建用新名，**员工定制**用「fork 到 `skills/`」流程（见上文「员工工作区」）
-
-### workspace skill 的覆盖逻辑
-- `can_override: true` 的 skill，覆盖时：先用 `delete_files` 删除整个目录，再重建
-- 不走"编辑"逻辑，确保新 skill 是干净的初始状态
--->
-## Important Notes
-
-**Execution paths:**
-- **File tools** (`write_file`, `read_file`, etc.) resolve paths relative to `.workspace/`. Use `skills/<skill-name>/...` directly — **never prefix with `.workspace/`**, or files land in `.workspace/.workspace/skills/...` (double-nested).
-- `shell_exec` **default working directory is `.workspace/`**. Same rule: inside commands use `skills/<skill-name>/...` without `.workspace/` prefix.
-- The `cwd` parameter is resolved relative to the **project root**, so `cwd=".workspace/skills/<skill-name>"` is correct.
-- When running scripts for a workspace skill, `cwd` = `.workspace/skills/<skill-name>`
-- When running skill-creator's own scripts, use `cwd: agents/skills/skill-creator` and `python scripts/<script>.py` (e.g. `package_skill.py`, `upload_skill.py`, `aggregate_benchmark.py`); pass skill directory arguments as absolute paths from workspace context when required
-- For copying built-in skills into the workspace, use the **crew-creator** script: `cwd: agents/skills/crew-creator`, `python scripts/copy_skill_to_workspace.py`
-
-**Built-in skills cannot be overridden in the repo:**
-- Skills in `agents/skills/` have highest priority; `skill_list` returns `can_override: false` for them
-- **Never** overwrite the repo tree; for net-new skills pick a new name; for **employee customization**, use the fork-into-`skills/` workflow ("Crew employee workspace" above)
-
-**Workspace skill override logic:**
-- For `can_override: true` skills: delete the entire directory with `delete_files` first, then recreate
-- Do not edit in place — start clean
 
 ---
 

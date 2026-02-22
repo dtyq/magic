@@ -40,15 +40,21 @@ Result object fields: `content` (result content), `ok` (success status), `data` 
 **Important**: Check `result.ok` before use, only use `result.data` when succeeded
 
 <!--zh
-## Workspace Skills 目录
-用户创建的 workspace skill 存储在工作目录下的 `{{ @variable("workspace_skills_dir") }}` 目录中。
+## Skill 目录
+各来源 skill 的存储位置（与 skill_list 工具的 source 字段对应）：
+- **system**（内置）：`{{ @variable("system_skills_dir") }}`（相对于项目根目录）
+- **workspace**（用户创建/安装）：`{{ @variable("workspace_skills_dir") }}`（相对于工作目录）；skill-creator 创建的新 skill 也写入此目录
+- **crew**（当前 crew agent 私有）：`{{ @variable("crew_skills_dir") }}`（相对于项目根目录；未绑定 crew agent 时为空）
 
 ## 执行 skill 脚本
 执行任何 skill 脚本时，**必须**将 cwd 设置为该 skill 目录的绝对路径（从 skill 的 `<location>` 标签取父目录），禁止省略 cwd 或使用相对路径：
 `shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 -->
-## Workspace Skills Directory
-User-created workspace skills are stored in `{{ @variable("workspace_skills_dir") }}` (relative to workspace).
+## Skill Directories
+Storage locations for each skill source (matches the `source` field in `skill_list`):
+- **system** (built-in): `{{ @variable("system_skills_dir") }}` (relative to project root)
+- **workspace** (user-created/installed): `{{ @variable("workspace_skills_dir") }}` (relative to workspace); skill-creator also writes new skills here
+- **crew** (current crew agent private): `{{ @variable("crew_skills_dir") }}` (relative to project root; empty if no crew agent is bound)
 
 ## Execute skill scripts
 When executing any skill script, you **MUST** set cwd to the skill directory's **absolute path** (derive from the skill's `<location>` tag, take the parent directory). Never omit cwd or use a relative path:

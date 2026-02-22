@@ -46,7 +46,8 @@ Result fields:
 
 ```
 shell_exec(
-    command="python agents/skills/find-skill/scripts/search.py --keyword \"<keyword>\""
+    cwd='<find-skill-absolute-path>',
+    command="python scripts/search.py --keyword \"<keyword>\""
 )
 ```
 

@@ -297,12 +297,8 @@ else:
 
 <!--zh
 ## 可用脚本
-
-所有脚本位于 `agents/skills/using-mcp` 目录下。
 -->
 ## Available Scripts
-
-All scripts are located in the `agents/skills/using-mcp` directory.
 
 <!--zh
 ### get_servers.py - 获取 MCP 服务器列表

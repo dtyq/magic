@@ -11,7 +11,7 @@ from agentlang.agent.syntax import SyntaxProcessor
 from app.utils.async_file_utils import async_exists, async_read_text
 from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager
 from app.core.skill_utils.skill_directory_scan import discover_skills_in_directory, discover_skills_in_workspace
-from app.core.skill_utils.skill_sources import get_agents_dir, get_crew_skills_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir
+from app.core.skill_utils.skill_sources import get_agents_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir, get_crew_skills_dir
 logger = get_logger(__name__)
 
 MAX_SKILLS = 150
@@ -150,11 +150,22 @@ async def _do_generate(
         template_content = await async_read_text(prompt_file)
         syntax_processor = SyntaxProcessor(agents_dir=agents_dir)
         from app.paths import PathManager
-        workspace_skills_dir = str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir()))
+        project_root = PathManager.get_project_root()
+        workspace_dir = PathManager.get_workspace_dir()
+        system_skills_dir = str(get_system_skills_dir().relative_to(project_root))
+        workspace_skills_dir = str(get_workspace_skills_dir().relative_to(workspace_dir))
+        crew_skills_dir = ""
+        if agent_name:
+            try:
+                crew_skills_dir = str(get_crew_skills_dir(agent_name).relative_to(project_root))
+            except (ValueError, Exception):
+                logger.warning(f"无法计算 crew skills 目录: agent_name={agent_name}")
         syntax_processor.set_variables({
             "mcp_notice": mcp_notice,
             "skills_content": skills_content,
+            "system_skills_dir": system_skills_dir,
             "workspace_skills_dir": workspace_skills_dir,
+            "crew_skills_dir": crew_skills_dir,
         })
 
         skills_prompt = syntax_processor.process_dynamic_syntax(template_content)
@@ -170,7 +181,6 @@ async def _do_generate(
 
 async def _load_skill_from_path(name: str, path: Path) -> Optional[SkillMetadata]:
     """从自定义目录加载 skill 元数据（path 覆盖默认查找路径）"""
-    from app.core.skill_utils.skill_directory_scan import discover_skills_in_directory
     skills = await asyncio.to_thread(discover_skills_in_directory, path)
     for s in skills:
         if s.name == name:

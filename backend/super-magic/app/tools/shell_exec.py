@@ -115,6 +115,22 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
                     except Exception as e:
                         logger.warning(f"Failed to dispatch after-execution event: {e}")
 
+            # 脚本文件未找到时追加提示，引导模型补充 cwd
+            if (
+                not params.cwd
+                and result.exit_code > 0
+                and params.command.strip().startswith("python")
+            ):
+                content = result.content or ""
+                stderr = result.extra_info.get("stderr", "") if result.extra_info else ""
+                if "can't open file" in content + stderr or "No such file or directory" in content + stderr:
+                    result.content = content + (
+                        "\n\n[Hint] The script file was not found in the default working directory. "
+                        "If you are executing a skill script, you MUST set `cwd` to the skill "
+                        "directory's absolute path (derive from the skill's `<location>` tag). "
+                        "Example: shell_exec(cwd='/absolute/path/to/skill-dir', command='python scripts/xxx.py')"
+                    )
+
             return result
 
         except Exception as e:
