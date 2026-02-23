@@ -46,8 +46,6 @@ class MessageProcessor:
     _MESSAGE_DEDUP_TTL: float = 600.0
 
     def __init__(self):
-        self.worker_task: Optional[asyncio.Task] = None
-
         self.agent_dispatcher = AgentDispatcher.get_instance()
 
         # 进程内中断互斥锁，用于进行中防抖
@@ -56,15 +54,6 @@ class MessageProcessor:
         # Message deduplication cache: message_id -> (start_timestamp, is_processing)
         # Used to prevent duplicate message processing when client retries
         self._processing_messages: Dict[str, tuple[float, bool]] = {}
-
-    async def cancel_task(self):
-        """取消任务"""
-        if self.worker_task and not self.worker_task.done():
-            self.worker_task.cancel()
-            try:
-                await self.worker_task
-            except asyncio.CancelledError:
-                logger.info("已取消正在运行的worker任务")
 
     def _cleanup_expired_messages(self) -> None:
         """Clean up expired message entries from deduplication cache"""
@@ -334,13 +323,7 @@ class MessageProcessor:
 
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP, ContextType.CONTINUE]:
 
-                # 停止当前 run（等 blocker → cleanup → cancel worker）
-                await agent_context.stop_run(reason=message.remark or "新消息打断")
-                # 复位状态，准备新 run
-                agent_context.reset_run_state()
-
-                agent_context.register_worker_cancel(self.cancel_task)
-                self.worker_task = asyncio.create_task(self._dispatch_agent_task(message))
+                await self.agent_dispatcher.submit_message(message)
                 return create_success_response("消息处理成功")
 
             elif message.context_type == ContextType.INTERRUPT:
@@ -429,38 +412,6 @@ class MessageProcessor:
             logger.error(f"处理继续指令失败: {e}")
             logger.error(traceback.format_exc())
             return create_error_response("继续指令处理失败")
-
-    async def _dispatch_agent_task(self, message: ChatClientMessage):
-        """在异步任务中调度 agent"""
-        try:
-            # 调度 agent
-            await self.agent_dispatcher.dispatch_agent(message)
-        except Exception as e:
-            logger.error(f"异步任务执行失败: {e}")
-            logger.error(traceback.format_exc())
-
-            # 发送错误事件和消息，确保用户能收到失败反馈
-            try:
-                agent_context = self.agent_dispatcher.agent_context
-                if agent_context:
-                    # 使用通用的错误消息，不暴露内部错误细节
-                    error_message = "Failed to process the request. Please contact the administrator."
-
-                    # 触发错误事件
-                    await agent_context.dispatch_event(
-                        EventType.ERROR,
-                        ErrorEventData(
-                            agent_context=agent_context,
-                            error_message=error_message,
-                            exception=e
-                        )
-                    )
-                    logger.info("已发送错误事件和消息到客户端")
-                else:
-                    logger.warning("agent_context 不可用，无法发送错误消息")
-            except Exception as notify_error:
-                logger.error(f"发送错误通知失败: {notify_error}")
-                logger.error(traceback.format_exc())
 
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串

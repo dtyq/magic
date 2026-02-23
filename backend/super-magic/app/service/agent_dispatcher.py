@@ -399,7 +399,61 @@ class AgentDispatcher(Base):
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
             logger.info("Falling back to default agent profile")
 
-    async def dispatch_agent(self, message: ChatClientMessage):
+    async def submit_message(self, message: ChatClientMessage) -> None:
+        """
+        Standard entry point for channel adapters to submit an inbound message.
+
+        Interrupts the current agent run if one is in progress, then schedules a
+        new run as a background task (non-blocking). The caller returns immediately
+        after the new task is enqueued.
+
+        Sequence: stop_run → reset_run_state → create_task → register_worker_cancel
+
+        To register channel-specific teardown (e.g. close a reply stream), call
+        agent_context.register_run_cleanup() immediately after this method returns —
+        it will run when the new run ends or is interrupted.
+        """
+        await self.agent_context.stop_run(reason="new message")
+        self.agent_context.reset_run_state()
+
+        task = asyncio.create_task(self._run_dispatch_task(message))
+
+        async def _cancel() -> None:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    logger.info("[AgentDispatcher] worker task cancelled")
+
+        self.agent_context.register_worker_cancel(_cancel)
+
+    async def _run_dispatch_task(self, message: ChatClientMessage) -> None:
+        """Background task wrapper for dispatch_message, used by submit_message."""
+        try:
+            await self.dispatch_message(message)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"[AgentDispatcher] dispatch task failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            try:
+                from agentlang.event.data import ErrorEventData
+                from agentlang.event.event import EventType
+                if self.agent_context:
+                    await self.agent_context.dispatch_event(
+                        EventType.ERROR,
+                        ErrorEventData(
+                            agent_context=self.agent_context,
+                            error_message="Failed to process the request. Please contact the administrator.",
+                            exception=e,
+                        ),
+                    )
+            except Exception:
+                pass
+
+    async def dispatch_message(self, message: ChatClientMessage):
         """
         调度agent执行任务
 
