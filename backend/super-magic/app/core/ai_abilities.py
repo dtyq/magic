@@ -35,7 +35,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Visual Understanding Ability
     # Used for image analysis and visual content understanding
     AIAbility.VISUAL_UNDERSTANDING: {
-        "model_id": "doubao-seed-1.6-vision",
+        "model_id": "qwen3.5-flash",
         "timeout": 120,
         "max_images": 10,
         "enabled": True,
@@ -44,7 +44,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Summarize Ability
     # Used for text summarization and information extraction
     AIAbility.SUMMARIZE: {
-        "model_id": "qwen-flash",
+        "model_id": "qwen3.5-flash",
         "default_target_length": 500,
         "enabled": True,
     },
@@ -52,7 +52,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Smart Filename Ability (v1.1)
     # Used for generating smart filenames from webpage titles
     AIAbility.SMART_FILENAME: {
-        "model_id": "deepseek-chat",
+        "model_id": "deepseek-v3.2",
         "timeout": 60,
         "enabled": True,
     },
@@ -60,7 +60,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Purify Ability (v1.1)
     # Used for content purification and cleaning
     AIAbility.PURIFY: {
-        "model_id": "deepseek-chat",
+        "model_id": "deepseek-v3.2",
         "max_tokens": 24000,
         "enabled": True,
     },
@@ -68,7 +68,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Deep Write Ability (v1.1)
     # Used for deep content writing with references
     AIAbility.DEEP_WRITE: {
-        "model_id": "deepseek-reasoner",
+        "model_id": "deepseek-v3.2",
         "temperature": 0.7,
         "min_reference_files": 3,
         "enabled": True,
@@ -77,7 +77,7 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # Analysis Slide Ability (v1.1)
     # Used for analyzing webpage/slide content
     AIAbility.ANALYSIS_SLIDE: {
-        "model_id": "deepseek-chat",
+        "model_id": "deepseek-v3.2",
         "timeout": 60,
         "enabled": True,
     },
@@ -140,7 +140,7 @@ def get_visual_understanding_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.VISUAL_UNDERSTANDING, "model_id", default="doubao-seed-1.6-vision")
+    return get_ability_config(AIAbility.VISUAL_UNDERSTANDING, "model_id", default="qwen3.5-flash")
 
 
 def get_summarize_model_id() -> str:
@@ -149,7 +149,7 @@ def get_summarize_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.SUMMARIZE, "model_id", default="qwen-flash")
+    return get_ability_config(AIAbility.SUMMARIZE, "model_id", default="qwen3.5-flash")
 
 
 def get_smart_filename_model_id() -> str:
@@ -158,7 +158,7 @@ def get_smart_filename_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.SMART_FILENAME, "model_id", default="deepseek-chat")
+    return get_ability_config(AIAbility.SMART_FILENAME, "model_id", default="deepseek-v3.2")
 
 
 def get_purify_model_id() -> str:
@@ -167,7 +167,7 @@ def get_purify_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.PURIFY, "model_id", default="deepseek-chat")
+    return get_ability_config(AIAbility.PURIFY, "model_id", default="deepseek-v3.2")
 
 
 def get_deep_write_model_id() -> str:
@@ -176,7 +176,7 @@ def get_deep_write_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.DEEP_WRITE, "model_id", default="deepseek-reasoner")
+    return get_ability_config(AIAbility.DEEP_WRITE, "model_id", default="deepseek-v3.2")
 
 
 def get_analysis_slide_model_id() -> str:
@@ -185,7 +185,7 @@ def get_analysis_slide_model_id() -> str:
     Returns:
         str: 模型ID
     """
-    return get_ability_config(AIAbility.ANALYSIS_SLIDE, "model_id", default="deepseek-chat")
+    return get_ability_config(AIAbility.ANALYSIS_SLIDE, "model_id", default="deepseek-v3.2")
 
 
 def get_analysis_audio_model_id() -> str:
