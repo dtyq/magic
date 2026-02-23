@@ -307,15 +307,15 @@ def is_session_expired_response(data: dict[str, Any]) -> bool:
 def describe_non_text_item(item: dict[str, Any]) -> str:
     item_type = item.get("type")
     if item_type == 2:
-        return "[收到一张图片]"
+        return "[image]"
     if item_type == 3:
         voice_text = str(((item.get("voice_item") or {}).get("text") or ""))
-        return voice_text or "[收到一条语音消息]"
+        return voice_text or "[voice message]"
     if item_type == 4:
-        return "[收到一条视频]"
+        return "[video]"
     if item_type == 5:
         file_name = str(((item.get("file_item") or {}).get("file_name") or "")).strip()
-        return f"[收到一个文件: {file_name}]" if file_name else "[收到一个文件]"
+        return f"[file: {file_name}]" if file_name else "[file]"
     return ""
 
 
@@ -355,7 +355,7 @@ def extract_text_from_item_list(item_list: list[dict[str, Any]] | None) -> str:
         fallback_text = describe_non_text_item(item)
         if fallback_text:
             return fallback_text
-    return "[收到一条暂不支持自动解析的消息]"
+    return "[unsupported message type]"
 
 
 def is_media_item(item: dict[str, Any]) -> bool:
