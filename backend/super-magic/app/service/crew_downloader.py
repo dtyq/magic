@@ -35,7 +35,7 @@ class CrewDownloader:
         """
         magic_api = get_magic_service_sdk()
         parameter = GetAgentOpenApiParameter(code=agent_code)
-        result = await magic_api.agent.get_agent_by_code_async(parameter)
+        result = await magic_api.agent.get_agent_by_code_latest_version(parameter)
 
         file_url = result.file_url
         if not file_url:

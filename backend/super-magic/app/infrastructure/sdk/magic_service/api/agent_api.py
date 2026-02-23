@@ -124,7 +124,7 @@ class AgentApi(MagicServiceAbstractApi):
         data = self.request_by_parameter(parameter, 'GET', endpoint_path)
         return AgentOpenApiResult(data)
 
-    async def get_agent_by_code_async(
+    async def get_agent_by_code_latest_version(
         self,
         parameter: GetAgentOpenApiParameter
     ) -> AgentOpenApiResult:
@@ -137,7 +137,7 @@ class AgentApi(MagicServiceAbstractApi):
         Returns:
             AgentOpenApiResult containing agent details
         """
-        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}"
+        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}/latest-version"
         data = await self.request_by_parameter_async(parameter, 'GET', endpoint_path)
         return AgentOpenApiResult(data)
 
