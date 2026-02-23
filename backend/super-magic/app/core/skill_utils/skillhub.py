@@ -126,11 +126,11 @@ def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str 
             shutil.copytree(tmp_path, install_dir, ignore=shutil.ignore_patterns("*.zip"))
             return
 
-        # 标准结构：取顶层单一目录，再按 subdir 定位
+        # 标准结构：取顶层单一目录，再按 subdir 定位，同时验证 SKILL.md 确实存在于该位置
         extracted = [p for p in tmp_path.iterdir() if p.is_dir() and p.name != "__MACOSX"]
         if extracted:
             src = extracted[0] / subdir if subdir else extracted[0]
-            if src.exists():
+            if src.exists() and (src / "SKILL.md").exists():
                 shutil.copytree(src, install_dir)
                 return
 

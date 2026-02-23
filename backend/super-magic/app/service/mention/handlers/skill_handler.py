@@ -6,8 +6,13 @@ from app.service.mention.base import BaseMentionHandler, logger
 _SOURCE_MINE = "mine"
 
 
+def _get_code(mention: Dict[str, Any]) -> str:
+    """取 code，兼容前端将平台 code 放在 id 字段的情况"""
+    return mention.get("code") or mention.get("id") or ""
+
+
 def _parse_mention_source(mention_source: str) -> str:
-    """解析 mention_source 字段，返回 source key。
+    """解析 mention_source 字段，返回第一个 source key（用于日志等场景）。
 
     支持两种格式：
     - 单值：`"mine"`
@@ -15,11 +20,22 @@ def _parse_mention_source(mention_source: str) -> str:
     """
     if not mention_source:
         return ""
-    # 取第一个 key=value 对，或整个字符串本身作为 key
     first_part = mention_source.split(",")[0].strip()
     if "=" in first_part:
         return first_part.split("=", 1)[0].strip()
     return first_part
+
+
+def _has_source(mention_source: str, target: str) -> bool:
+    """检查 mention_source 中是否包含指定的 source key，支持枚举描述串中任意位置匹配。"""
+    if not mention_source:
+        return False
+    for part in mention_source.split(","):
+        part = part.strip()
+        key = part.split("=", 1)[0].strip() if "=" in part else part
+        if key == target:
+            return True
+    return False
 
 
 class SkillHandler(BaseMentionHandler):
@@ -36,11 +52,11 @@ class SkillHandler(BaseMentionHandler):
         return "skill"
 
     async def get_tip(self, mention: Dict[str, Any]) -> str:
-        code = mention.get("code", "")
+        code = _get_code(mention)
         raw_source = mention.get("mention_source", "")
         source_key = _parse_mention_source(raw_source)
 
-        if source_key == _SOURCE_MINE and code:
+        if _has_source(raw_source, _SOURCE_MINE) and code:
             return (
                 "引用了「我的技能库」的技能，需先调用 skill_list 确认安装状态（installed 字段），"
                 "未安装的技能请加载并参考 find-skill 技能学习如何安装，"
@@ -66,7 +82,7 @@ class SkillHandler(BaseMentionHandler):
         if not name:
             return []
 
-        code = mention.get("code", "")
+        code = _get_code(mention)
         package_name = mention.get("package_name", "")
         description = mention.get("description", "")
         raw_source = mention.get("mention_source", "")
@@ -82,6 +98,6 @@ class SkillHandler(BaseMentionHandler):
         if code:
             lines.append(f"   - code: {code}")
         if description:
-            lines.append(f"   - 描述: {description}")
+            lines.append(f"   - description: {description}")
 
         return lines
