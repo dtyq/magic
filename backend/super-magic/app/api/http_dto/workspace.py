@@ -93,8 +93,8 @@ class WorkspaceExportRequest(BaseModel):
     code: str = Field(
         ..., description="Unique identifier for the agent/skill (e.g. 'SMA_XXXXXX')"
     )
-    upload_config: UploadConfigRequest = Field(
-        ..., description="Object storage credentials and configuration"
+    upload_config: Dict[str, Any] = Field(
+        ..., description="Object storage credentials and configuration (platform-specific)"
     )
 
 

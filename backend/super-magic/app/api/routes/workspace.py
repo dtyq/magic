@@ -152,12 +152,10 @@ async def get_all_workspace_statuses() -> BaseResponse:
 async def export_workspace_endpoint(request: WorkspaceExportRequest) -> BaseResponse:
     """Package and upload current workspace, returning file key and metadata."""
     try:
-        upload_config_dict = request.upload_config.model_dump()
-
         result = await export_workspace(
             export_type=request.type,
             code=request.code,
-            upload_config=upload_config_dict,
+            upload_config=request.upload_config,
         )
         response_data = WorkspaceExportData.model_validate(result)
 
