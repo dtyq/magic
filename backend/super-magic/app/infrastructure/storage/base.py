@@ -16,7 +16,7 @@ from loguru import logger
 from agentlang.utils.metadata import MetadataUtil
 
 from app.core.config.communication_config import STSTokenRefreshConfig
-from app.paths import PathManager
+from app.path_manager import PathManager
 from .types import BaseStorageCredentials, FileContent, Options, StorageResponse, PlatformType
 
 

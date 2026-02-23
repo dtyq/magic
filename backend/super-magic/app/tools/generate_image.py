@@ -34,13 +34,12 @@ from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.file import generate_safe_filename
 from agentlang.utils.metadata import MetadataUtil
 from agentlang.utils.retry import retry_with_exponential_backoff
-from app.utils.async_file_utils import async_exists, async_stat, async_mkdir, async_unlink
-from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
+from app.utils.async_file_utils import async_exists, async_stat, async_mkdir
 from app.api.http_dto.file_notification_dto import FileNotificationRequest
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
@@ -603,8 +602,6 @@ Call generate_image tool directly when user has following scenarios:
 
     async def _edit_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
         """通过 magic-service 平台编辑图片"""
-        # 记录本次调用中压缩产生的临时文件，用于最终清理
-        compressed_temp_files: List[str] = []
         try:
             # 获取 magic-service 相关配置
             api_base_url = config.get("image_generator.text_to_image_api_base_url")
@@ -645,9 +642,8 @@ Call generate_image tool directly when user has following scenarios:
             if not params.image_paths:
                 raise ValueError("Must provide at least one image path or URL for editing")
 
-            # 如果需要，将本地图片转换为 URL（超过 10MB 的图片先压缩）
+            # 如果需要，将本地图片转换为 URL
             image_urls = []
-            visual_dir = os.path.join(str(self.base_dir), ".visual")
             for image_source in params.image_paths:
                 image_url = image_source
 
@@ -655,28 +651,7 @@ Call generate_image tool directly when user has following scenarios:
                 if not image_source.startswith(("http://", "https://")):
                     # 处理本地文件路径
                     logger.info(f"将本地图片转换为 URL: {image_source}")
-
-                    # 超过 10MB 时先压缩到 .visual 目录，再生成预签名 URL
-                    effective_path = image_source
-                    await async_mkdir(visual_dir, parents=True, exist_ok=True)
-                    compressed_path = await compress_if_needed(image_source, output_dir=visual_dir)
-                    if compressed_path != image_source and await async_exists(compressed_path):
-                        logger.info(f"原图超过大小限制，已压缩: {image_source} -> {compressed_path}")
-                        compressed_temp_files.append(compressed_path)
-                        effective_path = compressed_path
-
-                    # 压缩后的文件使用绝对路径直接转相对路径生成预签名 URL，
-                    # 避免 _convert_local_image_to_url 对绝对路径 lstrip('/') 的处理问题
-                    if effective_path != image_source:
-                        workspace_dir = PathManager.get_workspace_dir()
-                        try:
-                            rel_path = str(Path(effective_path).relative_to(workspace_dir))
-                        except ValueError:
-                            rel_path = Path(effective_path).name
-                        image_url = await self._generate_presigned_url_for_file(rel_path)
-                    else:
-                        image_url = await self._convert_local_image_to_url(image_source, params.output_path)
-
+                    image_url = await self._convert_local_image_to_url(image_source, params.output_path)
                     if not image_url:
                         raise ValueError(f"Failed to convert local image to accessible URL: {image_source}")
                     logger.info(f"本地图片已转换为 URL: {image_source} -> {image_url}")
@@ -737,15 +712,6 @@ Call generate_image tool directly when user has following scenarios:
         except Exception as e:
             logger.error(f"magic-service 图片编辑失败: {e}")
             raise
-        finally:
-            # API 调用完成后清理压缩产生的临时文件
-            for temp_file in compressed_temp_files:
-                try:
-                    if await async_exists(temp_file):
-                        await async_unlink(temp_file)
-                        logger.debug(f"已清理临时压缩文件: {temp_file}")
-                except Exception as cleanup_e:
-                    logger.warning(f"清理临时压缩文件失败: {temp_file}, 错误: {cleanup_e}")
 
     def _process_url(self, url: str) -> str:
         """处理 URL，保留签名参数的原始编码"""

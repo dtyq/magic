@@ -21,7 +21,7 @@ from dotenv import dotenv_values
 
 from agentlang.logger import get_logger
 from app.core.entity.tool.tool_result import TerminalToolResult
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 logger = get_logger(__name__)
 

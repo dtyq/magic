@@ -9,7 +9,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.agent_runner import _inherit_parent_context
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.base_tool import BaseTool
@@ -175,7 +175,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
 
         except Exception as e:
             logger.exception(f"调用智能体失败: {e!s}")
-            return ToolResult.error(
+            return ToolResult(error=
                 _build_call_subagent_error_text(
                     agent_name=params.agent_name,
                     agent_id=params.agent_id,

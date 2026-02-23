@@ -35,7 +35,7 @@ class GlobalSkillManager:
     def get_project_root(cls) -> Path:
         """获取项目根目录（缓存）"""
         if cls._project_root is None:
-            from app.paths import PathManager
+            from app.path_manager import PathManager
             cls._project_root = PathManager.get_project_root()
         return cls._project_root
 

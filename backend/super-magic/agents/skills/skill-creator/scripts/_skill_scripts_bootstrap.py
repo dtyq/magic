@@ -29,7 +29,7 @@ def init_skill_script_environment() -> Path:
     root = setup_project_root()
 
     try:
-        from app.paths import PathManager as _PathManager
+        from app.path_manager import PathManager as _PathManager
         if not _PathManager._initialized:
             _PathManager.set_project_root(root)
     except Exception:

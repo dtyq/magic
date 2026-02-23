@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.utils.async_file_utils import async_exists, async_read_json, async_unlink, async_write_json
 
 logger = get_logger(__name__)

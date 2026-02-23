@@ -15,7 +15,7 @@ def get_skillhub_install_dir() -> Path:
     统一使用 .workspace/.magic/skills/ 作为安装目录，该目录持久化且对用户可见。
     skillhub CLI 命令在 shell_exec 中以此目录为 CWD 执行。
     """
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_magic_dir() / "skills"
 
 

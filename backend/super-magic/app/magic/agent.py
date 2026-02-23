@@ -49,7 +49,7 @@ from app.core.entity.message.client_message import MemoryItem
 # 多语言支持
 from app.magic.user_command_handler import Commands
 from app.magic.query_safety import QuerySafetyChecker
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.todo_service import TodoService
 from app.tools.core.app_tool_validator import app_tool_validator
 from app.tools.core.tool_executor import tool_executor

@@ -76,6 +76,14 @@ async def _do_generate(
         else:
             logger.warning(f"System skill 不存在: {entry.name}")
 
+    # ── 1b. system_skills_scan="*"：全量扫描 agents/skills/ ──────────────
+    if skills_config.system_skills_scan == "*":
+        for scanned in await discover_skills_in_directory(system_skills_dir):
+            if scanned.name not in loaded_names:
+                skills_metadata.append(scanned)
+                loaded_names.add(scanned.name)
+                logger.info(f"全量扫描追加 system skill: {scanned.name}")
+
     # ── 2. crew_skills：扫描 crew 私有 skills 目录，同名覆盖 system ────
     if skills_config.crew_skills == "*" and agent_name:
         try:
@@ -149,7 +157,7 @@ async def _do_generate(
 
         template_content = await async_read_text(prompt_file)
         syntax_processor = SyntaxProcessor(agents_dir=agents_dir)
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         project_root = PathManager.get_project_root()
         workspace_dir = PathManager.get_workspace_dir()
         system_skills_dir = str(get_system_skills_dir().relative_to(project_root))

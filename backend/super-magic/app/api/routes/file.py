@@ -21,7 +21,7 @@ from app.api.http_dto.response import (
 )
 from app.infrastructure.magic_service import MagicServiceClient, MagicServiceConfigLoader
 from app.infrastructure.magic_service.exceptions import ApiError, ConnectionError as MagicServiceConnectionError
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.file_save_service import FileSaveService
 from app.service.file_service import FileService
 from app.service.file_upload_service import FileUploadService

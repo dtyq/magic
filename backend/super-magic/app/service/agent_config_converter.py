@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class AgentConfigConverter:
     def __init__(self):
         # 使用主 agents/ 目录存储生成的 .agent 文件，这样 AgentLoader 可以直接找到
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         self.agents_dir = Path(PathManager.get_project_root()) / "agents"
 
     async def convert_api_to_agent_file(self, agent_id: str) -> Tuple[str, AgentDetailsResult]:
@@ -53,8 +53,8 @@ class AgentConfigConverter:
             raise
 
     async def _build_agent_file_content(self, agent_details: AgentDetailsResult) -> str:
-        """基于 user.agent.template 构建 .agent 文件内容"""
-        template_path = self.agents_dir / "user.agent.template"
+        """基于 user.template.agent 构建 .agent 文件内容"""
+        template_path = self.agents_dir / "user.template.agent"
         if not await async_exists(template_path):
             raise FileNotFoundError(f"模板文件不存在: {template_path}")
 
@@ -110,7 +110,6 @@ class AgentConfigConverter:
         if isinstance(raw, list):
             return [str(t).strip() for t in raw if str(t).strip()]
         if isinstance(raw, str):
-            # crew.agent.template 等模板文件中 tools 是占位符字符串（如 CREW_TOOLS），防御性处理
             return [raw.strip()] if raw.strip() else []
         raise ValueError(f"tools 字段格式不合法: {type(raw)}")
 

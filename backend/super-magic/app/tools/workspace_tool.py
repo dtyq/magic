@@ -4,7 +4,7 @@ from typing import Optional, TypeVar
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.tools.core.base_tool import BaseTool
 from app.tools.core.base_tool_params import BaseToolParams
 from app.utils.file_path_fuzzy_matcher import FilePathFuzzyMatcher

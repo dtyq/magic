@@ -22,7 +22,7 @@ from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.summarize import Summarize
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.utils.file import generate_safe_filename
 
 logger = get_logger(__name__)

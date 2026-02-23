@@ -650,7 +650,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             tuple[Optional[Path], Optional[str]]: (转换后文件路径, 转换策略)
         """
         try:
-            from app.paths import PathManager
+            from app.path_manager import PathManager
             workspace_root = PathManager.get_workspace_dir()
 
             # 1. 检查缓存：文件是否有变动

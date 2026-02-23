@@ -31,7 +31,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.snowflake import Snowflake
 from app.core.stream.websocket_stream import WebSocketStream
 from agentlang.config.dynamic_config import dynamic_config
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 router = APIRouter(prefix="/v1/messages", tags=["消息处理"])
 
@@ -221,18 +221,6 @@ class MessageProcessor:
         try:
             from agentlang.context.tool_context import ToolContext
             from agentlang.event.data import BeforeInitEventData, AfterInitEventData
-            from app.i18n import i18n
-
-            # Restore language from saved init metadata before dispatching init events.
-            # ContextVar changes made inside asyncio.create_task() (INIT handler) are
-            # task-local and do not propagate to this new request's context, so we must
-            # re-apply the language here to ensure i18n translations use the correct locale.
-            if metadata and metadata.language:
-                i18n.set_language(metadata.language)
-                logger.info(f"延迟 init 事件：从 metadata 恢复用户语言: {metadata.language}")
-            else:
-                i18n.set_language("zh_CN")
-                logger.info("延迟 init 事件：metadata 无语言设置，使用默认语言: zh_CN")
 
             # 创建 ToolContext
             tool_context = ToolContext(metadata=agent_context.get_metadata())
@@ -326,15 +314,6 @@ class MessageProcessor:
             except Exception as e:
                 logger.warning(f"注入 agent_code 失败: {e}")
 
-            # Crew agent: download + compile when agent_mode == "custom_agent"
-            try:
-                if str(message.agent_mode) == "custom_agent" and agent_code_val:
-                    agent_code = agent_code_val.strip()
-                    await self._prepare_crew_agent(agent_code, agent_context)
-            except Exception as e:
-                logger.error(f"Crew agent preparation failed: {e}")
-                logger.info("Crew agent preparation failed, falling back to default agent")
-
             # 🔥 ASR 录音纪要聊天模式路由：检测 asr_task_key 并切换 agent
             try:
                 if message.dynamic_config and message.dynamic_config.get("asr_task_key"):
@@ -355,15 +334,12 @@ class MessageProcessor:
 
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP, ContextType.CONTINUE]:
 
-                success = await agent_context.handle_user_interruption(
-                    cancel_task_func=self.cancel_task,
-                    reason=message.remark or "新消息打断",
-                    timeout=5
-                )
+                # 停止当前 run（等 blocker → cleanup → cancel worker）
+                await agent_context.stop_run(reason=message.remark or "新消息打断")
+                # 复位状态，准备新 run
+                agent_context.reset_run_state()
 
-                if not success:
-                    logger.error("用户中断处理失败，但将继续执行后续逻辑")
-
+                agent_context.register_worker_cancel(self.cancel_task)
                 self.worker_task = asyncio.create_task(self._dispatch_agent_task(message))
                 return create_success_response("消息处理成功")
 
@@ -382,23 +358,16 @@ class MessageProcessor:
 
                 try:
                     async with self._interrupt_lock:
-                        success = await agent_context.handle_user_interruption(
-                            cancel_task_func=self.cancel_task,
-                            reason=message.remark or "",
-                            timeout=5
-                        )
-                        if success:
-                            await agent_context.dispatch_event(
-                                EventType.AGENT_SUSPENDED,
-                                AgentSuspendedEventData(
-                                    agent_context=agent_context,
-                                    remark=message.remark,
-                                )
+                        # 停止当前 run（不 reset：中断状态保留到下次 stop_run）
+                        await agent_context.stop_run(reason=message.remark or "用户主动中断")
+                        await agent_context.dispatch_event(
+                            EventType.AGENT_SUSPENDED,
+                            AgentSuspendedEventData(
+                                agent_context=agent_context,
+                                remark=message.remark,
                             )
-                            return create_success_response("任务已中断")
-                        else:
-                            logger.info("中断已在进行或已完成，跳过重复触发")
-                            return create_success_response("任务已中断")
+                        )
+                        return create_success_response("任务已中断")
                 except Exception as e:
                     logger.error(f"中断处理异常: {e}")
                     logger.error(traceback.format_exc())
@@ -492,63 +461,6 @@ class MessageProcessor:
             except Exception as notify_error:
                 logger.error(f"发送错误通知失败: {notify_error}")
                 logger.error(traceback.format_exc())
-
-    async def _prepare_crew_agent(self, agent_code: str, agent_context: 'AgentContext') -> None:
-        """Download crew files (if needed) and compile them into a .agent file.
-
-        Also sets the AgentProfile on agent_context based on IDENTITY.md metadata.
-        """
-        from app.paths import PathManager
-        from app.service.crew_downloader import CrewDownloader
-        from app.service.crew_agent_compiler import CrewAgentCompiler
-        from app.core.entity.agent_profile import AgentProfile
-
-        crew_dir = PathManager.get_crew_agent_dir(agent_code)
-        output_agent_file = PathManager.get_compiled_agent_file(agent_code)
-        identity_file = PathManager.get_crew_identity_file(agent_code)
-        compiler = CrewAgentCompiler()
-        if output_agent_file.exists():
-            logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")
-            if not identity_file.exists():
-                logger.warning(
-                    f"IDENTITY.md not found for existing crew agent, skip profile setup: {identity_file}"
-                )
-                return
-            _, identity_meta = await compiler._read_with_yaml(identity_file)
-        else:
-            if not identity_file.exists():
-                logger.info(f"Crew files not found locally, downloading: {agent_code}")
-                downloader = CrewDownloader()
-                await downloader.download_and_extract(agent_code, crew_dir)
-            identity_meta = await compiler.compile(agent_code, crew_dir)
-
-        # Set AgentProfile from IDENTITY.md metadata
-        from app.i18n import i18n
-        lang = i18n.get_language()
-
-        name = identity_meta.get("name", "")
-        name_cn = identity_meta.get("name_cn", "")
-        role = identity_meta.get("role", "")
-        role_cn = identity_meta.get("role_cn", "")
-        description = identity_meta.get("description", "")
-        description_cn = identity_meta.get("description_cn", "")
-
-        if lang == "zh" or lang.startswith("zh"):
-            profile = AgentProfile(
-                name=name_cn or name,
-                role=role_cn or role,
-                description=description_cn or description,
-            )
-        else:
-            profile = AgentProfile(
-                name=name or name_cn,
-                role=role or role_cn,
-                description=description or description_cn,
-            )
-
-        if profile.name:
-            agent_context.set_agent_profile(profile)
-            logger.info(f"Set crew agent profile: name={profile.name}, role={profile.role}")
 
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串

@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.tools.subagent_runtime_models import (
     SubagentSessionConfigBlock,
     SubagentSessionDocument,

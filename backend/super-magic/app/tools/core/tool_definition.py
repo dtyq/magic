@@ -10,7 +10,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 logger = get_logger(__name__)
 

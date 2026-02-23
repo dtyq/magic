@@ -17,7 +17,7 @@ from typing import Any, Dict, List
 import yaml
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.utils.async_file_utils import (
     MarkdownFile,
     async_exists,

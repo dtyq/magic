@@ -15,7 +15,7 @@ from pydantic import Field
 
 from agentlang.config import config
 from agentlang.context.tool_context import ToolContext
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from agentlang.tools.tool_result import ToolResult

@@ -13,7 +13,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from app.tools.core import BaseToolParams, tool

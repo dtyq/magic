@@ -6,7 +6,7 @@
 import json
 from typing import Dict, List, Any, Optional
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.mcp.event_manager import (
     initialize_event_manager,
     cleanup_event_manager,

@@ -35,7 +35,7 @@ _PROJECT_ROOT = _setup_project_root()
 # 而 script_runner 常从 skill 子目录调用，cwd 并非 /app，导致路径错误。
 # 这里提前用已知的正确根目录初始化 PathManager，确保后续所有路径读取正确。
 try:
-    from app.paths import PathManager as _PathManager
+    from app.path_manager import PathManager as _PathManager
     if not _PathManager._initialized:
         _PathManager.set_project_root(_PROJECT_ROOT)
 except Exception:
@@ -89,7 +89,7 @@ def get_project_id() -> Optional[str]:
 def _get_model_id() -> Optional[str]:
     """从本地 session 文件读取 model_id"""
     try:
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         chat_history_dir = str(PathManager.get_chat_history_dir())
         session_file = os.path.join(chat_history_dir, "magic<main>.session.json")
         if not os.path.exists(session_file):

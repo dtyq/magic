@@ -13,14 +13,9 @@ from typing import Any, Dict, List, Optional
 import yaml
 from loguru import logger
 
-from app.infrastructure.storage.types import (
-    AliyunCredentials,
-    PlatformType,
-    VolcEngineCredentials,
-)
-from app.infrastructure.storage.aliyun import AliyunOSSUploader
+from app.infrastructure.storage.types import PlatformType, VolcEngineCredentials
 from app.infrastructure.storage.volcengine import VolcEngineUploader
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +223,12 @@ async def _package_and_upload(
     except ValueError:
         raise ValueError(f"Unsupported storage platform: {platform_str!r}")
 
+    if platform != PlatformType.tos:
+        raise ValueError(
+            f"Platform {platform_str!r} is not yet supported for workspace export. "
+            "Only 'tos' is currently supported."
+        )
+
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".zip")
     os.close(tmp_fd)
 
@@ -235,16 +236,8 @@ async def _package_and_upload(
         logger.info(f"Creating workspace ZIP from {workspace_dir} → {tmp_path} (arcdir={arcdir!r})")
         _zip_directory(workspace_dir, tmp_path, arcdir=arcdir)
 
-        if platform == PlatformType.tos:
-            credentials = VolcEngineCredentials(**upload_config)
-            uploader = VolcEngineUploader()
-        elif platform == PlatformType.aliyun:
-            credentials = AliyunCredentials(**upload_config)
-            uploader = AliyunOSSUploader()
-        else:
-            raise ValueError(
-                f"Platform {platform_str!r} is not yet supported for workspace export."
-            )
+        credentials = VolcEngineCredentials(**upload_config)
+        uploader = VolcEngineUploader()
         uploader.set_credentials(credentials)
 
         logger.info(f"Uploading workspace ZIP to {file_key}")
@@ -288,12 +281,7 @@ async def export_workspace(
     # ZIP filename : {code}_{timestamp}.zip  (e.g. SMA-abc_20260319205908.zip)
     # Folder inside ZIP: {code}              (e.g. SMA-abc/)
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-
-    # tos keeps dir inside temporary_credential; aliyun has it at top level
-    dir_prefix: str = (
-        upload_config.get("temporary_credential", {}).get("dir", "")
-        or upload_config.get("dir", "")
-    )
+    dir_prefix: str = upload_config.get("temporary_credential", {}).get("dir", "")
     if dir_prefix and not dir_prefix.endswith("/"):
         dir_prefix += "/"
     file_key = f"{dir_prefix}{export_type}/{code}_{timestamp}.zip"

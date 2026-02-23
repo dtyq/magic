@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, ClassVar
 
-from agentlang.paths import PathManager as BasePathManager
+from agentlang.path_manager import PathManager as BasePathManager
 
 class PathManager(BasePathManager):
     """

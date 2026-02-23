@@ -17,7 +17,7 @@ from app.infrastructure.checkpoint.storage import CheckpointStorage
 from app.infrastructure.checkpoint.file_snapshot_manager import FileSnapshotManager
 from app.infrastructure.checkpoint.metadata_manager import CheckpointMetadataManager
 from app.infrastructure.checkpoint.chat_history_snapshot_manager import ChatHistorySnapshotManager
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 from app.core.base_service import Base

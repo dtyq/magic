@@ -23,7 +23,7 @@ from app.service.agent_event.stream_listener_service import StreamListenerServic
 from app.service.agent_event.checkpoint_listener_service import CheckpointListenerService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.channel.startup import auto_connect_channels_for_current_sandbox
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
@@ -326,7 +326,7 @@ class AgentDispatcher(Base):
 
     async def _prepare_crew_agent(self, agent_code: str) -> None:
         """Download crew files (if needed), compile into .agent, set AgentProfile."""
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         from app.service.crew_downloader import CrewDownloader
         from app.service.crew_agent_compiler import CrewAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
@@ -361,7 +361,7 @@ class AgentDispatcher(Base):
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
         """Compile claw definition files into .agent (if needed) and set AgentProfile."""
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
         from app.utils.async_file_utils import async_read_markdown

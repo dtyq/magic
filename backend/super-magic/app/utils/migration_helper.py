@@ -15,7 +15,7 @@ from typing import Callable, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.logger import get_logger
 from app.utils.async_file_utils import async_copy2
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.utils.async_file_utils import async_read_json, async_write_json, async_exists
 
 logger = get_logger(__name__)

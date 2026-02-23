@@ -16,7 +16,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.utils.file import generate_safe_filename
 
 from app.utils.file_constants import CONVERTIBLE_EXTENSIONS, TEXT_EXTENSIONS

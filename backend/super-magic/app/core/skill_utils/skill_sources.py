@@ -25,29 +25,29 @@ ALL_SKILL_SOURCE_KEYS: FrozenSet[str] = frozenset(
 
 def get_agents_dir() -> Path:
     """返回 agents 根目录路径（agents/）"""
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_agents_dir()
 
 
 def get_system_skills_dir() -> Path:
     """返回 system skills 目录路径（agents/skills/）"""
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_agents_dir() / "skills"
 
 
 def get_workspace_skills_dir() -> Path:
     """返回 workspace skills 目录路径（.workspace/.magic/skills/）"""
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_magic_dir() / "skills"
 
 
 def get_crew_skills_dir(agent_code: str) -> Path:
     """返回指定 crew agent 的 skills 目录路径（agents/crew/{agent_code}/skills/）"""
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_crew_skills_dir(agent_code)
 
 
 def get_skills_instructions_prompt_file() -> Path:
     """返回 skills_instructions.prompt 模板文件路径（agents/prompts/skills_instructions.prompt）"""
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_agents_dir() / "prompts" / "skills_instructions.prompt"

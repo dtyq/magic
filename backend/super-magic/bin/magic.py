@@ -42,7 +42,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # 初始化步骤 - 所有项目内模块导入都放到sys.path设置后
-from app.paths import PathManager
+from app.path_manager import PathManager
 PathManager.set_project_root(project_root)
 from agentlang.context.application_context import ApplicationContext
 ApplicationContext.set_path_manager(PathManager())

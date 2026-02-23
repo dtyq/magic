@@ -13,7 +13,7 @@ import shutil
 import asyncio
 from pathlib import Path
 from typing import Optional
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.utils.async_file_utils import async_mkdir, async_rmtree, async_exists
 from agentlang.logger import get_logger
 

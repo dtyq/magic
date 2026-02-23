@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 logger = get_logger(__name__)
 
@@ -41,14 +41,14 @@ class I18nManager:
         if not language:
             return cls._DEFAULT_LANGUAGE
         normalized = language.replace("-", "_")
-        # Case-insensitive lookup: match regardless of how the client capitalizes the code.
+        # 仅处理有变体的语言，其余直接透传
         aliases = {
             "zh": "zh_CN",
-            "zh_cn": "zh_CN",
+            "zh_CN": "zh_CN",
             "en": "en_US",
-            "en_us": "en_US",
+            "en_US": "en_US",
         }
-        return aliases.get(normalized.lower(), normalized)
+        return aliases.get(normalized, normalized)
 
     @classmethod
     def set_language(cls, language: str) -> None:

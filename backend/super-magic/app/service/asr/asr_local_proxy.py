@@ -58,7 +58,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
         # 2. 使用应用工作目录下的缓存目录
         # 获取项目根目录（假设当前文件在 app/service/asr/ 下）
         try:
-            from app.paths import PathManager
+            from app.path_manager import PathManager
 
             project_root = PathManager.get_project_root()
             return str(project_root / ".local_cache" / "asr_workspace")

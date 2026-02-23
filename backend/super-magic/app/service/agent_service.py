@@ -18,7 +18,7 @@ from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
 from agentlang.logger import get_logger
 from app.magic.agent import Agent
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
 from app.service.attachment_service import AttachmentService
 from app.core.entity.project_archive import ProjectArchiveInfo

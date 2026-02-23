@@ -16,7 +16,7 @@ except ImportError:
 # from app.core.context.agent_context import AgentContext
 # from app.infrastructure.storage.base import AbstractStorage
 # from app.infrastructure.storage.factory import StorageFactory
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.api.http_dto.file_save_dto import FileEditItem, FileEditResult, FileEditResponse
 from agentlang.logger import get_logger
 from agentlang.utils.shadow_code import ShadowCode

@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, List
 from agentlang.logger import get_logger
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from app.utils.async_file_utils import (
     async_copy2,
     async_mkdir,
