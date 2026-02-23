@@ -223,21 +223,21 @@ class DingTalkChannel(BaseChannel):
 
         message_id = f"dingtalk_{uuid.uuid4().hex[:16]}"
 
-        try:
-            chat_msg = ChatClientMessage(
-                message_id=message_id,
-                prompt=content,
-                metadata=Metadata(agent_user_id=user_id),
-            )
-            logger.info(f"[DingTalkChannel] 分发消息: user_id={user_id}, len={len(content)}")
-            await dispatcher.dispatch_agent(chat_msg)
-        except Exception as e:
-            logger.error(f"[DingTalkChannel] dispatch_agent 失败: {e}")
-        finally:
+        chat_msg = ChatClientMessage(
+            message_id=message_id,
+            prompt=content,
+            metadata=Metadata(agent_user_id=user_id),
+        )
+        logger.info(f"[DingTalkChannel] 分发消息: user_id={user_id}, len={len(content)}")
+        await dispatcher.submit_message(chat_msg)
+
+        async def _cleanup() -> None:
             if dingtalk_stream:
                 ctx.remove_stream(dingtalk_stream)
             if dingtalk_driver:
                 ctx.remove_streaming_sink(dingtalk_driver)
+
+        ctx.register_run_cleanup("dingtalk_stream", _cleanup)
 
 
 class _DingTalkBotHandler(ChatbotHandler):

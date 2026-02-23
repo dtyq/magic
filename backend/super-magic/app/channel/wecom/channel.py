@@ -116,16 +116,16 @@ class WeComChannel(BaseChannel):
         ctx.add_stream(wecom_stream)
         ctx.add_streaming_sink(wecom_driver)
 
-        try:
-            chat_msg = ChatClientMessage(
-                message_id=stream_id,
-                prompt=content,
-                metadata=Metadata(agent_user_id=user_id),
-            )
-            logger.info(f"[WeComChannel] 分发消息: user_id={user_id}, len={len(content)}")
-            await dispatcher.dispatch_agent(chat_msg)
-        except Exception as e:
-            logger.error(f"[WeComChannel] dispatch_agent 失败: {e}")
-        finally:
+        chat_msg = ChatClientMessage(
+            message_id=stream_id,
+            prompt=content,
+            metadata=Metadata(agent_user_id=user_id),
+        )
+        logger.info(f"[WeComChannel] 分发消息: user_id={user_id}, len={len(content)}")
+        await dispatcher.submit_message(chat_msg)
+
+        async def _cleanup() -> None:
             ctx.remove_stream(wecom_stream)
             ctx.remove_streaming_sink(wecom_driver)
+
+        ctx.register_run_cleanup("wecom_stream", _cleanup)

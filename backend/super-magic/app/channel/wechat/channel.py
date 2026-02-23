@@ -66,11 +66,11 @@ class WechatChannel(BaseChannel):
         return f"Bot ID: {credential.ilink_bot_id}"
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
-        from app.channel.wechat.login import LoginStatus, get_active_session
+        from app.channel.wechat.login import LoginStatus, WechatLoginManager
 
         credential = config.wechat
         lines = [self.key]
-        active_session = get_active_session()
+        active_session = WechatLoginManager.get_instance().get_active_session()
 
         if self.is_session_paused:
             remaining_ms = self.get_session_pause_remaining_ms()
@@ -301,17 +301,20 @@ class WechatChannel(BaseChannel):
         )
         ctx.add_stream(wechat_stream)
 
-        try:
-            chat_msg = ChatClientMessage(
-                message_id=stream_id,
-                prompt=content,
-                metadata=Metadata(agent_user_id=user_id),
-            )
-            logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
-            await dispatcher.dispatch_agent(chat_msg)
-        except Exception as e:
-            logger.error(f"[WechatChannel] dispatch_agent 失败: {e}")
-        finally:
+        chat_msg = ChatClientMessage(
+            message_id=stream_id,
+            prompt=content,
+            metadata=Metadata(agent_user_id=user_id),
+        )
+        logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
+
+        # 打断当前 run（如有），以非阻塞 task 启动新 run，poll 循环可继续接收消息
+        await dispatcher.submit_message(chat_msg)
+
+        # 在 reset_run_state 之后注册本次 run 的 stream/typing cleanup
+        async def _stream_cleanup() -> None:
             ctx.remove_stream(wechat_stream)
             if typing_controller is not None:
                 await typing_controller.stop()
+
+        ctx.register_run_cleanup("wechat_stream", _stream_cleanup)
