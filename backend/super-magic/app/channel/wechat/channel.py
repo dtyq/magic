@@ -250,8 +250,9 @@ class WechatChannel(BaseChannel):
                     logger.error(f"[WechatChannel] 消息处理异常: {e}")
 
     async def _handle_message(self, msg: dict) -> None:
-        """提取文本与 context_token，转发给 AgentDispatcher。"""
+        """提取文本与 context_token，下载媒体，转发给 AgentDispatcher。"""
         from app.service.agent_dispatcher import AgentDispatcher
+        from app.channel.wechat.media import download_message_media
 
         dispatcher = AgentDispatcher.get_instance()
         if not dispatcher.agent_context:
@@ -265,8 +266,22 @@ class WechatChannel(BaseChannel):
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
-        assert self._credential is not None
+        # 下载媒体（图片/视频/文件/无转文字的语音），失败不阻断主流程
         assert self._http_session is not None
+        media_rel_path: str | None = None
+        try:
+            media_rel_path = await download_message_media(
+                self._http_session, msg.get("item_list") or [], user_id
+            )
+        except Exception as e:
+            logger.warning(f"[WechatChannel] 媒体下载失败，忽略: {e}")
+
+        if media_rel_path:
+            content = f"{content}\n\n[Media saved to workspace: {media_rel_path}]"
+            logger.info(f"[WechatChannel] 媒体已保存: {media_rel_path}")
+
+
+        assert self._credential is not None
 
         stream_id = msg.get("client_id") or msg.get("message_id") or f"wechat-{user_id}-{id(msg)}"
         ctx = dispatcher.agent_context

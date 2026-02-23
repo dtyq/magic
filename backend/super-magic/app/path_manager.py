@@ -428,6 +428,12 @@ class PathManager(BasePathManager):
         ts = run_at.strftime("%Y%m%dT%H%M%S")
         return cls.get_cron_result_dir() / date_dir / f"{job_id}-{ts}.md"
 
+    @classmethod
+    def get_wechat_im_uploads_dir(cls) -> Path:
+        """获取微信 IM 媒体存储根目录（.workspace/uploads/im-channels/wechat/，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls.get_workspace_dir() / "uploads" / "im-channels" / "wechat"
+
     # ── 内部工具方法 ──────────────────────────────────────────────────────────
 
     @classmethod
