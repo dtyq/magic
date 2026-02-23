@@ -60,12 +60,12 @@ class SkillHandler(BaseMentionHandler):
             return (
                 "引用了「我的技能库」的技能，需先调用 skill_list 确认安装状态（installed 字段），"
                 "未安装的技能请加载并参考 find-skill 技能学习如何安装，"
-                "安装完成后再用 skills_read 加载；"
-                "技能的 package_name 字段才是工具调用时使用的名称，如 skills_read(skill_names=[package_name])"
+                "安装完成后再用 read_skills 加载；"
+                "技能的 package_name 字段才是工具调用时使用的名称，如 read_skills(skill_names=[package_name])"
             )
         return (
-            "引用的技能需先通过 skills_read 加载后再使用；"
-            "技能的 package_name 字段才是工具调用时使用的名称，如 skills_read(skill_names=[package_name])"
+            "引用的技能需先通过 read_skills 加载后再使用；"
+            "技能的 package_name 字段才是工具调用时使用的名称，如 read_skills(skill_names=[package_name])"
         )
 
     async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:

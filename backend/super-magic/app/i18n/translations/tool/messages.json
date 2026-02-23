@@ -835,45 +835,25 @@
         "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
         "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency. It's recommended to start a new topic when handling new tasks."
     },
-    "skills_read.success": {
+    "read_skills.success": {
         "zh_CN": "技能学习成功",
         "en_US": "Skill learned"
     },
-    "skills_read.success_multiple": {
+    "read_skills.success_multiple": {
         "zh_CN": "已学习 {{skill_name}} 等 {{count}} 个技能",
         "en_US": "Learned {{skill_name}} and {{count}} other Skills"
     },
-    "skills_read.success_single": {
+    "read_skills.success_single": {
         "zh_CN": "已学习技能 {{skill_name}}",
         "en_US": "Learned Skill {{skill_name}}"
     },
-    "skills_read.error": {
+    "read_skills.error": {
         "zh_CN": "技能学习失败",
         "en_US": "Failed to learn Skill"
     },
-    "skills_read.error_with_name": {
+    "read_skills.error_with_name": {
         "zh_CN": "学习技能 {{skill_name}} 失败",
         "en_US": "Failed to learn Skill {{skill_name}}"
-    },
-    "skill_read_references.success": {
-        "zh_CN": "深入学习技能成功",
-        "en_US": "Skill references explored"
-    },
-    "skill_read_references.success_multiple": {
-        "zh_CN": "已深入学习 {{skill_name}} 等 {{count}} 份技能参考文档",
-        "en_US": "Explored {{skill_name}} and {{count}} other Skill references"
-    },
-    "skill_read_references.success_single": {
-        "zh_CN": "已深入学习 {{skill_name}} 技能参考文档",
-        "en_US": "Explored {{skill_name}} Skill references"
-    },
-    "skill_read_references.error": {
-        "zh_CN": "深入学习技能失败",
-        "en_US": "Failed to explore Skill references"
-    },
-    "skill_read_references.error_with_name": {
-        "zh_CN": "深入学习 {{skill_name}} 技能参考文档失败",
-        "en_US": "Failed to explore {{skill_name}} Skill references"
     },
     "create_memory.success": {
         "zh_CN": "{{preview}}",

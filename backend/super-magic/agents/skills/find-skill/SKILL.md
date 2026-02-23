@@ -52,9 +52,9 @@ shell_exec(
 ```
 
 <!--zh
-在 `my_skills` 中找到时，使用 `install-platform-me` 安装；在 `market` 中找到时，使用 `install-platform-market` 安装；安装完成后再用 `skills_read` 加载。参数传入搜索结果中的 `code` 字段：
+在 `my_skills` 中找到时，使用 `install-platform-me` 安装；在 `market` 中找到时，使用 `install-platform-market` 安装；安装完成后再用 `read_skills` 加载。参数传入搜索结果中的 `code` 字段：
 -->
-If found in `my_skills`, install with `install-platform-me`; if found in `market`, install with `install-platform-market`; then load with `skills_read`. Use the `code` field from search results as the argument:
+If found in `my_skills`, install with `install-platform-me`; if found in `market`, install with `install-platform-market`; then load with `read_skills`. Use the `code` field from search results as the argument:
 
 ```
 shell_exec(
@@ -69,7 +69,7 @@ shell_exec(
 ```
 
 ```
-skills_read(skill_names=["<skill-name>"])
+read_skills(skill_names=["<skill-name>"])
 ```
 
 <!--zh
@@ -104,11 +104,11 @@ shell_exec(
 <!--zh
 ## install — 安装技能
 
-`slug` 来自 `search` 结果的 `slug` 字段。安装完成后，使用 `skills_read` 工具加载技能内容，参数为 SKILL.md 中的 `name` 字段值。
+`slug` 来自 `search` 结果的 `slug` 字段。安装完成后，使用 `read_skills` 工具加载技能内容，参数为 SKILL.md 中的 `name` 字段值。
 -->
 ## install — Install a Skill
 
-The `slug` comes from the `slug` field in `search` results. After installation, use `skills_read` to load the skill — the parameter is the `name` field value in the skill's SKILL.md.
+The `slug` comes from the `slug` field in `search` results. After installation, use `read_skills` to load the skill — the parameter is the `name` field value in the skill's SKILL.md.
 
 ```
 shell_exec(
@@ -117,7 +117,7 @@ shell_exec(
 ```
 
 ```
-skills_read(skill_names=["<skill-name>"])
+read_skills(skill_names=["<skill-name>"])
 ```
 
 <!--zh
@@ -164,11 +164,11 @@ shell_exec(
 <!--zh
 ## install-github — 从 GitHub 安装技能
 
-支持整个仓库或仓库内子目录。安装完成后同样使用 `skills_read` 加载。
+支持整个仓库或仓库内子目录。安装完成后同样使用 `read_skills` 加载。
 -->
 ## install-github — Install a Skill from GitHub
 
-Supports a full repository or a subdirectory inside a repository. After installation, use `skills_read` to load it.
+Supports a full repository or a subdirectory inside a repository. After installation, use `read_skills` to load it.
 
 Install from a full repository:
 
@@ -187,7 +187,7 @@ shell_exec(
 ```
 
 ```
-skills_read(skill_names=["<skill-name>"])
+read_skills(skill_names=["<skill-name>"])
 ```
 
 <!--zh

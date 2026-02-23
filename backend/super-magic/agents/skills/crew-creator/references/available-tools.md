@@ -255,8 +255,7 @@ tools:
 | `summarize` | Summarize long content |
 | `deep_write` | Deep writing with multi-pass refinement |
 | `skill_list` | List all available skills |
-| `skills_read` | Read a skill's SKILL.md content |
-| `skill_read_references` | Read a skill's reference documents |
+| `read_skills` | Read a skill's SKILL.md content |
 | `run_skills_snippet` | Run a code snippet in the context of a skill |
 
 <!--zh

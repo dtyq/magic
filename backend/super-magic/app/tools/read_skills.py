@@ -1,4 +1,4 @@
-"""Skills Read Tool - 批量读取项目 skills 的完整内容"""
+"""Read Skills Tool - 批量读取项目 skills 的完整内容"""
 
 from app.i18n import i18n
 from typing import Any, Dict, List, Optional
@@ -14,8 +14,8 @@ from app.core.skill_manager import get_global_skill_manager, find_skill
 logger = get_logger(__name__)
 
 
-class SkillsReadParams(BaseToolParams):
-    """Skills Read 工具参数"""
+class ReadSkillsParams(BaseToolParams):
+    """Read Skills 工具参数"""
 
     skill_names: List[str] = Field(
         ...,
@@ -26,7 +26,7 @@ The list of skill names to read, e.g., ["canvas-design", "audio-chat"]""",
 
 
 @tool()
-class SkillsRead(BaseTool[SkillsReadParams]):
+class ReadSkills(BaseTool[ReadSkillsParams]):
     """<!--zh
     批量读取项目 skills 的完整内容工具
     用于一次性加载多个 skill 的详细使用说明、示例和参考文档
@@ -39,7 +39,7 @@ class SkillsRead(BaseTool[SkillsReadParams]):
     Strongly recommended to use this tool for batch reading multiple skills at once, rather than calling tools multiple times individually, which will greatly improve task efficiency
     """
 
-    async def execute(self, tool_context: ToolContext, params: SkillsReadParams) -> ToolResult:
+    async def execute(self, tool_context: ToolContext, params: ReadSkillsParams) -> ToolResult:
         """执行批量读取工具逻辑
 
         Args:
@@ -165,18 +165,18 @@ class SkillsRead(BaseTool[SkillsReadParams]):
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
         if not arguments or "skill_names" not in arguments:
-            return i18n.translate("skills_read.success", category="tool.messages")
+            return i18n.translate("read_skills.success", category="tool.messages")
 
         skill_names = arguments["skill_names"]
         skill_count = len(skill_names)
 
         if skill_count == 1:
             skill_name = skill_names[0]
-            return i18n.translate("skills_read.success_single", category="tool.messages", skill_name=skill_name)
+            return i18n.translate("read_skills.success_single", category="tool.messages", skill_name=skill_name)
         else:
             main_skill = skill_names[0]
             return i18n.translate(
-                "skills_read.success_multiple", category="tool.messages", skill_name=main_skill, count=skill_count
+                "read_skills.success_multiple", category="tool.messages", skill_name=main_skill, count=skill_count
             )
 
     async def get_after_tool_call_friendly_action_and_remark(
@@ -194,9 +194,9 @@ class SkillsRead(BaseTool[SkillsReadParams]):
             skill_name = skill_names[0] if skill_names else ""
 
             if skill_name:
-                remark = i18n.translate("skills_read.error_with_name", category="tool.messages", skill_name=skill_name)
+                remark = i18n.translate("read_skills.error_with_name", category="tool.messages", skill_name=skill_name)
             else:
-                remark = i18n.translate("skills_read.error", category="tool.messages")
+                remark = i18n.translate("read_skills.error", category="tool.messages")
 
             return {"action": i18n.translate(tool_name, category="tool.actions"), "remark": remark}
 

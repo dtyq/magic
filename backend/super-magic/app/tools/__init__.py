@@ -102,8 +102,7 @@ from app.tools.design.tools import (
 )
 
 # Skill 管理工具
-from app.tools.skills_read import SkillsRead
-from app.tools.skill_read_references import SkillReadReferences
+from app.tools.read_skills import ReadSkills
 from app.tools.run_skills_snippet import RunSkillsSnippet
 from app.tools.skill_list import SkillList
 
@@ -157,8 +156,7 @@ __all__ = [
     "ListDir",
     "Purify",
     "RunPythonSnippet",
-    "SkillsRead",
-    "SkillReadReferences",
+    "ReadSkills",
     "RunSkillsSnippet",
     "SkillList",
     "ReadFile",

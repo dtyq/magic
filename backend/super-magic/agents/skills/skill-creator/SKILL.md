@@ -51,12 +51,15 @@ Assess where the user is and jump in from there.
 <!--zh
 ## 工具调用格式
 
-在 SKILL.md 中，所有工具调用必须以 Python 代码形式描述，而不是只写工具名。
-格式如下：
+SKILL.md 中的工具分两类，格式不同：
+
+1. **`references/super-magic-tools.md` 中列出的工具**：这些工具在 skill 执行时通过 Python 代码片段（`run_skills_snippet`）运行，必须写 Python 代码形式：
 -->
 ## Tool Call Format in SKILL.md
 
-All tool calls in generated SKILL.md files must be shown as Python code, not just tool names.
+Tools in SKILL.md fall into two categories with different formats:
+
+1. **Tools listed in `references/super-magic-tools.md`**: These run inside Python code snippets (via `run_skills_snippet`) and must be shown as Python code:
 
 ```python
 from sdk.tool import tool
@@ -71,17 +74,18 @@ if result.ok and result.data:
 ```
 
 <!--zh
-在 skill 中引用工具前，先阅读 `references/super-magic-tools.md` 获取当前项目可用的完整工具列表及调用示例：
+2. **基础工具**（如 `read_files`、`read_skills`、`skill_list`、`shell_exec`、`run_python_snippet` 等）：直接以工具调用形式描述，不需要包在 Python 代码块中：
 -->
-Before specifying tools in the skill, read `references/super-magic-tools.md` for the full list of available tools and usage examples:
+2. **Basic tools** (e.g. `read_files`, `read_skills`, `skill_list`, `shell_exec`, `run_python_snippet`): Call them directly, no need to wrap in Python code:
 
-```python
-from sdk.tool import tool
-result = tool.call('skill_read_references', {
-    "skill_name": "skill-creator",
-    "references": ["super-magic-tools.md"]
-})
 ```
+read_files(files=[{"file_path": "path/to/file.md"}])
+```
+
+<!--zh
+在 skill 中引用工具前，先阅读 reference 文件 `references/super-magic-tools.md` 获取当前项目可用的完整工具列表及调用示例。
+-->
+Before specifying tools in the skill, read the reference file `references/super-magic-tools.md` for the full list of available tools and usage examples.
 
 <!--zh
 常用工具分类速查（详细说明和示例见 `references/super-magic-tools.md`）：
@@ -480,7 +484,7 @@ See `references/super-magic-tools.md` for the detailed procedure.
 If the user wants to verify the security of the newly created skill before packaging or sharing — for example, to confirm it contains no dangerous patterns — load `skill-vetter` to run a review:
 
 ```
-skills_read(skill_names=["skill-vetter"])
+read_skills(skill_names=["skill-vetter"])
 ```
 
 ---

@@ -279,13 +279,9 @@
         "zh_CN": "整理对话内容",
         "en_US": "Compact chat history"
     },
-    "skills_read": {
+    "read_skills": {
         "zh_CN": "学习技能",
         "en_US": "Learn Skill"
-    },
-    "skill_read_references": {
-        "zh_CN": "深入学习技能",
-        "en_US": "Deep dive into Skill"
     },
     "todo_create": {
         "zh_CN": "创建任务列表",

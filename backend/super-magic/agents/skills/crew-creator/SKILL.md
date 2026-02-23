@@ -154,8 +154,8 @@ The script generates files based on the config (TOOLS.md and SKILLS.md are inten
 ### 通用流程（适用于所有文件）
 
 1. **读取当前内容**：使用 `read_files` 读取目标文件的现有内容
-2. **加载质量指南**：通过 `skill_read_references` 加载 `prompt-engineering-guide` 参考文档
-3. **加载格式规范**：通过 `skill_read_references` 加载 `crew-file-format` 参考文档
+2. **加载质量指南**：读取 reference 文件 `references/prompt-engineering-guide.md`
+3. **加载格式规范**：读取 reference 文件 `references/crew-file-format.md`
 4. **编写/修改内容**：遵循格式规范和质量指南进行编辑
 5. **展示质量评估**：向用户展示修改后的内容和质量评估摘要
 6. **用户确认后写入**：用户确认无误后，使用 `write_file` 或 `edit_file` 写入文件
@@ -295,7 +295,7 @@ Can be multiple lines
 
 ## 参考文档
 
-使用 `skill_read_references` 工具加载详细指南：
+可阅读以下 reference 文档获取详细指南：
 
 - **crew-file-format** — 各定义文件的完整格式规范和示例
 - **prompt-engineering-guide** — 提示词工程最佳实践（结构模板、质量检查清单、反模式检测）
@@ -319,8 +319,8 @@ Manages the 4 core employee definition files under `.workspace/`, helping users 
 ### General Flow (applies to all files)
 
 1. **Read current content**: Use `read_files` to read the target file's existing content
-2. **Load quality guide**: Load `prompt-engineering-guide` reference via `skill_read_references`
-3. **Load format spec**: Load `crew-file-format` reference via `skill_read_references`
+2. **Load quality guide**: Read reference file `references/prompt-engineering-guide.md`
+3. **Load format spec**: Read reference file `references/crew-file-format.md`
 4. **Write/modify content**: Edit following the format spec and quality guide
 5. **Show quality assessment**: Present the modified content with a quality assessment summary
 6. **Write after confirmation**: After user confirms, use `write_file` or `edit_file` to save
@@ -430,7 +430,7 @@ Multiple lines allowed
 
 ## Reference Documents
 
-Use `skill_read_references` to load detailed guides:
+Reference documents with detailed guides:
 
 - **crew-file-format** — Complete format specs and examples for each definition file
 - **prompt-engineering-guide** — Prompt engineering best practices (structure templates, quality checklists, anti-pattern detection)

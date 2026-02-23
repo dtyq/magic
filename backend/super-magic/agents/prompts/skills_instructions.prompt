@@ -1,14 +1,16 @@
 <skills_instructions>
 <!--zh
 ## 如何读取 skills
-**读取内容**：`skills_read(skill_names=["skill-name"])`
-**读取参考文档**：`skill_read_references(skill_name="skill-name", references=["doc1.md"])`
-读取后如需配合其他 skill，可再次调用 `skills_read`。
+**读取内容**：`read_skills(skill_names=["skill-name"])`
+**读取参考文档**：使用 `read_files` 工具，路径从 skill 输出的 `<location>` 标签推导（取其父目录，拼上 `references/<filename>`）：
+`read_files(files=[{"file_path": "<skill_dir>/references/doc1.md"}])`
+读取后如需配合其他 skill，可再次调用 `read_skills`。
 -->
 ## How to read skills
-**Read content**: `skills_read(skill_names=["skill-name"])`
-**Read references**: `skill_read_references(skill_name="skill-name", references=["doc1.md"])`
-After reading, if another skill is also needed, call `skills_read` again for that skill.
+**Read content**: `read_skills(skill_names=["skill-name"])`
+**Read references**: Use `read_files`, deriving the path from the `<location>` tag in the skill output (take its parent directory, append `references/<filename>`):
+`read_files(files=[{"file_path": "<skill_dir>/references/doc1.md"}])`
+After reading, if another skill is also needed, call `read_skills` again for that skill.
 
 <!--zh
 ## 安装外部 skill 前建议先执行安全审查
@@ -22,7 +24,7 @@ For skills from the platform market, skillhub, GitHub, or any other external sou
 If the user explicitly confirms they want to proceed without review, skip the vetting step and install directly.
 
 ```
-skills_read(skill_names=["skill-vetter"])
+read_skills(skill_names=["skill-vetter"])
 ```
 
 {{ @variable("mcp_notice") }}

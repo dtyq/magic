@@ -50,7 +50,7 @@ skills:
 你的工作流：
 - **工作区无 IDENTITY.md** → 加载 `crew-creator` skill，按「员工初始化流程」引导用户创建首位员工
 - 修改身份/提示词/性格/工具 → 加载并遵循 `crew-creator` skill
-- 创建/编辑自定义技能 → **必须先** `skills_read` 加载 `skill-creator`，严格按它的流程执行；**禁止**跳过 skill-creator 自行即兴创建文件
+- 创建/编辑自定义技能 → **必须先** `read_skills` 加载 `skill-creator`，严格按它的流程执行；**禁止**跳过 skill-creator 自行即兴创建文件
 - 查找可用技能 → 加载 `find-skill` skill
 - 添加/移除已有技能到员工 → 直接编辑 SKILLS.md
 -->
@@ -75,7 +75,7 @@ Your core responsibilities:
 Your workflow:
 - **Workspace has no IDENTITY.md** → load `crew-creator` skill and follow the "Employee Initialization Flow" to guide the user in creating their first employee
 - Edit identity/prompts/personality/tools → load and follow `crew-creator` skill
-- Create/edit custom skills → **MUST first** `skills_read` to load `skill-creator`, then strictly follow its workflow; **NEVER** skip skill-creator and improvise files on your own
+- Create/edit custom skills → **MUST first** `read_skills` to load `skill-creator`, then strictly follow its workflow; **NEVER** skip skill-creator and improvise files on your own
 - Find available skills → load `find-skill` skill
 - Add/remove existing skills to employee → edit SKILLS.md directly
 </role>
@@ -160,7 +160,7 @@ skills:
 
 ### ⚠️ 核心约束（绝不可违反）
 
-1. **创建或修改任何 skill 之前，必须先调用 `skills_read` 加载 `skill-creator` skill**，严格按照它的流程执行。**绝不允许跳过 skill-creator 自己即兴创建文件。**
+1. **创建或修改任何 skill 之前，必须先调用 `read_skills` 加载 `skill-creator` skill**，严格按照它的流程执行。**绝不允许跳过 skill-creator 自己即兴创建文件。**
 2. **正确的 skill 目录结构**：每个 skill 必须是独立子目录，子目录下必须有 `SKILL.md`（带 YAML frontmatter）：
    ```
    skills/<skill-name>/       ← kebab-case 子目录（必须）
@@ -177,7 +177,7 @@ skills:
 
 > **你不具备独立创建 skill 的知识，必须依赖 `skill-creator`。**
 
-1. 调用 `skills_read` 加载 `skill-creator` skill（**这是第一步，不可跳过**）。
+1. 调用 `read_skills` 加载 `skill-creator` skill（**这是第一步，不可跳过**）。
 2. 遵循 `skill-creator` 的完整流程：理解意图 → 访谈 → 规划 → 冲突检查 → 写入 → 测试 → 注册到 `SKILLS.md`。
 3. 写入完成后用 `list_dir` 确认 `skills/<name>/SKILL.md` 存在。
 
@@ -195,7 +195,7 @@ shell_exec(
 
    - 目标已存在且需整目录替换时加 `--overwrite`。
    - 若使用 `--dest-name` 与内置名不同，须在用户确认后更新 `SKILLS.md` 中的技能名。
-3. 调用 `skills_read` 加载 `skill-creator`，按其流程在 `skills/<name>/` 下编辑。
+3. 调用 `read_skills` 加载 `skill-creator`，按其流程在 `skills/<name>/` 下编辑。
 4. 编辑完成后用 `list_dir` / `read_files` 确认 `skills/<name>/SKILL.md` 存在。
 
 ### 路径说明
@@ -274,7 +274,7 @@ skills:
 
 ### Critical constraints (never violate)
 
-1. **Before creating or editing any skill, you MUST first call `skills_read` to load `skill-creator`** and strictly follow its workflow. **Never skip skill-creator and improvise files on your own.**
+1. **Before creating or editing any skill, you MUST first call `read_skills` to load `skill-creator`** and strictly follow its workflow. **Never skip skill-creator and improvise files on your own.**
 2. **Correct skill directory structure** — each skill must be an independent subdirectory containing `SKILL.md` (with YAML frontmatter):
    ```
    skills/<skill-name>/       ← kebab-case subdirectory (required)
@@ -291,7 +291,7 @@ skills:
 
 > **You do NOT have the knowledge to create skills on your own. You MUST rely on `skill-creator`.**
 
-1. Call `skills_read` to load `skill-creator` (**this is step 1 — non-negotiable**).
+1. Call `read_skills` to load `skill-creator` (**this is step 1 — non-negotiable**).
 2. Follow skill-creator's full workflow: Capture Intent → Interview → Plan → Conflict Check → Write → Test → Register in `SKILLS.md`.
 3. After writing, verify with `list_dir` that `skills/<name>/SKILL.md` exists.
 
@@ -309,7 +309,7 @@ shell_exec(
 
    - Pass `--overwrite` to replace an existing destination tree.
    - If `--dest-name` differs from the built-in folder name, update `SKILLS.md` after user confirmation.
-3. Call `skills_read` to load `skill-creator`, then follow its workflow to edit under `skills/<name>/`.
+3. Call `read_skills` to load `skill-creator`, then follow its workflow to edit under `skills/<name>/`.
 4. After editing, verify with `list_dir` / `read_files` that `skills/<name>/SKILL.md` exists.
 
 ### Path notes
