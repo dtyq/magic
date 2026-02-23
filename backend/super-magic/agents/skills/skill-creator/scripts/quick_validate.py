@@ -56,18 +56,11 @@ async def validate_skill(skill_path):
     name = name.strip()
     if not name:
         return False, "Name cannot be empty"
-    # 只允许小写字母、数字、下划线（snake_case）
-    if not re.match(r'^[a-z0-9_]+$', name):
-        return False, f"Name '{name}' must contain only lowercase letters, digits, and underscores (snake_case)"
-    # 必须以字母开头，不能以数字或下划线开头
-    if not re.match(r'^[a-z]', name):
-        return False, f"Name '{name}' must start with a lowercase letter"
-    # 不能以下划线结尾
-    if name.endswith('_'):
-        return False, f"Name '{name}' must not end with an underscore"
-    # 不能有连续下划线
-    if '__' in name:
-        return False, f"Name '{name}' must not contain consecutive underscores"
+    # Check naming convention (kebab-case: lowercase with hyphens)
+    if not re.match(r'^[a-z0-9-]+$', name):
+        return False, f"Name '{name}' should be kebab-case (lowercase letters, digits, and hyphens only)"
+    if name.startswith('-') or name.endswith('-') or '--' in name:
+        return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
     # 长度限制：最短 2 字符，最长 64 字符
     if len(name) < 2:
         return False, f"Name '{name}' is too short. Minimum length is 2 characters."
