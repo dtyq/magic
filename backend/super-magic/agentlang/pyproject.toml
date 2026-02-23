@@ -7,10 +7,8 @@ name = "agentlang"
 version = "0.1.4"
 description = "Language-first AI Agent Framework - 以自然语言为核心构建 AI 智能体的框架"
 readme = "README.md"
-authors = [
-    {name = "SuperMagic Team", email = "dev@magicrew.ai"}
-]
-license = {text = "Apache-2.0"}
+authors = [{ name = "SuperMagic Team", email = "dev@magicrew.ai" }]
+license = { text = "Apache-2.0" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -27,7 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
-    "Typing :: Typed"
+    "Typing :: Typed",
 ]
 keywords = ["agent", "llm", "ai", "framework"]
 dependencies = [
