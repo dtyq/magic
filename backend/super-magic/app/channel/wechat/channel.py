@@ -177,7 +177,31 @@ class WechatChannel(BaseChannel):
             f"[WechatChannel] session 已过期(errcode={api.SESSION_EXPIRED_ERRCODE})，"
             f"暂停所有轮询约 {remaining_minutes} 分钟"
         )
+        # 向最近的对话推送过期通知，提示用户重新发起扫码登录
+        # TODO: 当前直接调用 send_message，可能与正在处理的 Agent 任务产生竞争；
+        #       后续应将此通知投入消息队列，由统一调度层在任务间隙发出
+        await self._notify_session_expired()
         await self._sleep_ms(self.get_session_pause_remaining_ms())
+
+    async def _notify_session_expired(self) -> None:
+        """向 LLM 的对话历史注入 session 过期通知，下次任务时 Agent 可感知并主动引导扫码登录。"""
+        from app.service.agent_dispatcher import AgentDispatcher
+
+        dispatcher = AgentDispatcher.get_instance()
+        chat_history = getattr(dispatcher.agent_context, "chat_history", None) if dispatcher.agent_context else None
+        if chat_history is None:
+            logger.warning("[WechatChannel] chat_history 不可用，无法注入 session 过期通知")
+            return
+        try:
+            await chat_history.append_user_message(
+                "[System Note] WeChat session has expired. "
+                "No further messages can be received via WeChat. "
+                "To reconnect, initiate a new WeChat QR code login flow.",
+                show_in_ui=False,
+            )
+            logger.info("[WechatChannel] 已向 LLM 上下文注入 session 过期通知")
+        except Exception as e:
+            logger.warning(f"[WechatChannel] 注入 session 过期通知失败: {e}")
 
     async def _poll_loop(self) -> None:
         """持续调用 getUpdates，将收到的消息分发给 AgentDispatcher。"""
