@@ -188,8 +188,7 @@ skills:
 
 ```python
 shell_exec(
-    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/crew-creator"
+    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]'
 )
 ```
 
@@ -302,8 +301,7 @@ skills:
 
 ```python
 shell_exec(
-    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]',
-    cwd="agents/skills/crew-creator"
+    command='python scripts/copy_skill_to_workspace.py <builtin-skill-name> [--dest-name <folder>] [--overwrite]'
 )
 ```
 

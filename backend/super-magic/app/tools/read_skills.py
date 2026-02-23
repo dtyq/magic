@@ -1,5 +1,7 @@
 """Read Skills Tool - 批量读取项目 skills 的完整内容"""
 
+from pathlib import Path
+
 from app.i18n import i18n
 from typing import Any, Dict, List, Optional
 
@@ -80,8 +82,12 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                     ]
 
                     location = skill.skill_file or skill.skill_dir
+                    skill_dir = skill.skill_dir or (str(Path(skill.skill_file).parent) if skill.skill_file else None)
                     if location:
                         skill_output_parts.append(f"<location>{location}</location>")
+                    if skill_dir:
+                        skill_output_parts.append(f"<skill_dir>{skill_dir}</skill_dir>")
+                    if location or skill_dir:
                         skill_output_parts.append("")
 
                     skill_output_parts += [skill.content, "</skill_content>"]

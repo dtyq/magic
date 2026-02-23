@@ -249,18 +249,14 @@ class LLMFactory:
             if response and response.choices and len(response.choices) > 0:
                 message = response.choices[0].message
                 if message and message.tool_calls:
-                    # 记录修复前的原始 tool_calls
-                    logger.info(f"[{request_id}] LLM原始响应包含 {len(message.tool_calls)} 个工具调用")
-                    for i, tc in enumerate(message.tool_calls):
-                        logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}")
-                        logger.info(f"[{request_id}] [修复前] Tool Call #{i} arguments原始内容: {tc.function.arguments}")
-
                     from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
+                    # 保存修复前的原始参数，用于修复后对比日志
+                    original_arguments = [tc.function.arguments for tc in message.tool_calls]
                     processed_count = preprocess_tool_calls_batch(message.tool_calls)
                     if processed_count > 0:
                         logger.info(f"[{request_id}] LLM响应修复了 {processed_count} 个工具调用的参数格式")
-                        # 记录修复后的结果
                         for i, tc in enumerate(message.tool_calls):
+                            logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}, arguments: {original_arguments[i]}")
                             logger.info(f"[{request_id}] [修复后] Tool Call #{i} arguments: {tc.function.arguments}")
 
             # 统一记录 token 使用情况
@@ -420,7 +416,7 @@ class LLMFactory:
             AsyncOpenAI 客户端实例。
         """
         default_headers = cls._build_default_headers()
-        
+
         logger.debug(
             f"OpenAI 客户端配置 - base_url: {llm_config.api_base_url}, "
             f"headers: {list(default_headers.keys())}"
@@ -437,54 +433,54 @@ class LLMFactory:
     @classmethod
     def _build_default_headers(cls) -> Dict[str, str]:
         """构建 OpenAI 客户端的默认请求头。
-        
+
         包含以下请求头（按优先级顺序添加）：
         1. Magic-Authorization：Magic 认证头
         2. User-Authorization：用户授权转发（如果启用）
         3. metadata headers：业务元数据（如 Magic-Task-Id 等）
         4. custom headers：配置文件中的自定义请求头
-        
+
         Returns:
             请求头字典。
         """
         headers: Dict[str, str] = {}
-        
+
         # 1-2. 添加 Magic-Authorization 与 User-Authorization
         MetadataUtil.add_magic_and_user_authorization_headers(headers)
-        
+
         # 3. 添加业务元数据请求头
         headers.update(MetadataUtil.get_llm_request_headers())
-        
+
         # 4. 添加自定义请求头
         headers.update(cls._parse_custom_headers())
-        
+
         return headers
 
     @classmethod
     def _parse_custom_headers(cls) -> Dict[str, str]:
         """解析配置文件中的自定义请求头。
-        
+
         支持 dict 或 JSON 字符串格式。
-        
+
         Returns:
             解析后的请求头字典，解析失败返回空字典。
         """
         try:
             raw = config.get("llm.custom_api_headers", {})
-            
+
             if isinstance(raw, dict):
                 return raw
-            
+
             if isinstance(raw, str) and raw.strip():
                 parsed = json.loads(raw)
                 if isinstance(parsed, dict):
                     return parsed
-                    
+
         except json.JSONDecodeError as e:
             logger.warning(f"解析自定义 API 请求头 JSON 失败: {e}")
         except Exception as e:
             logger.warning(f"处理自定义 API 请求头配置时出错: {e}")
-        
+
         return {}
 
     @classmethod

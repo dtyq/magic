@@ -61,8 +61,7 @@ write_file(
 
 # 2. 调用初始化脚本
 shell_exec(
-    command="python scripts/init_crew.py --config .workspace/.crew_init_config.json",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/init_crew.py --config .workspace/.crew_init_config.json"
 )
 ```
 
@@ -123,8 +122,7 @@ write_file(
 
 # 2. Call the init script
 shell_exec(
-    command="python scripts/init_crew.py --config .workspace/.crew_init_config.json",
-    cwd="agents/skills/crew-creator"
+    command="python scripts/init_crew.py --config .workspace/.crew_init_config.json"
 )
 ```
 

@@ -2,14 +2,16 @@
 <!--zh
 ## 如何读取 skills
 **读取内容**：`read_skills(skill_names=["skill-name"])`
-**读取参考文档**：使用 `read_files` 工具，路径从 skill 输出的 `<location>` 标签推导（取其父目录，拼上 `references/<filename>`）：
-`read_files(files=[{"file_path": "<skill_dir>/references/doc1.md"}])`
+**读取关联文件**：skill 内容中会列出需要阅读的关联文件路径（相对于 skill 目录），使用 `read_files` 读取时，必须拼成绝对路径。优先使用 `<skill_dir>` 标签给出的绝对 skill 目录，再拼上 skill 内容中给出的相对路径；若没有 `<skill_dir>`，再取 `<location>` 标签中的绝对路径并去掉文件名得到 skill 目录。
+例如 `<skill_dir>/abs/path/to/skill-name</skill_dir>` + skill 内容中的 `reference/doc.md` → `read_files(files=[{"file_path": "/abs/path/to/skill-name/reference/doc.md"}])`
+**禁止**使用相对路径；文件名和子目录名必须完全来自 skill 内容原文，不得凭经验猜测或自行补全。
 读取后如需配合其他 skill，可再次调用 `read_skills`。
 -->
 ## How to read skills
 **Read content**: `read_skills(skill_names=["skill-name"])`
-**Read references**: Use `read_files`, deriving the path from the `<location>` tag in the skill output (take its parent directory, append `references/<filename>`):
-`read_files(files=[{"file_path": "<skill_dir>/references/doc1.md"}])`
+**Read related files**: The skill content lists related file paths (relative to the skill directory). When using `read_files`, always construct an absolute path. Prefer the absolute skill directory from the `<skill_dir>` tag, then append the relative path given in the skill content. If `<skill_dir>` is unavailable, take the absolute path from the `<location>` tag and strip the filename to get the skill directory.
+Example: `<skill_dir>/abs/path/to/skill-name</skill_dir>` + `reference/doc.md` from skill content → `read_files(files=[{"file_path": "/abs/path/to/skill-name/reference/doc.md"}])`
+**Never** use a relative path. Copy the file name and subdirectory exactly as written in the skill content — do not guess or infer any part of the path.
 After reading, if another skill is also needed, call `read_skills` again for that skill.
 
 <!--zh
@@ -64,7 +66,7 @@ Result object fields: `content` (result content), `ok` (success status), `data` 
 - **crew**（当前 crew agent 私有）：`{{ @variable("crew_skills_dir") }}`（相对于项目根目录；未绑定 crew agent 时为空）
 
 ## 执行 skill 脚本
-执行任何 skill 脚本时，**必须**将 cwd 设置为该 skill 目录的绝对路径（从 skill 的 `<location>` 标签取父目录），禁止省略 cwd 或使用相对路径：
+执行任何 skill 脚本时，**必须**将 cwd 设置为该 skill 目录的绝对路径（优先使用 `<skill_dir>` 标签；若没有再从 `<location>` 标签取父目录），禁止省略 cwd 或使用相对路径：
 `shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 -->
 ## Skill Directories
@@ -74,7 +76,7 @@ Storage locations for each skill source (matches the `source` field in `skill_li
 - **crew** (current crew agent private): `{{ @variable("crew_skills_dir") }}` (relative to project root; empty if no crew agent is bound)
 
 ## Execute skill scripts
-When executing any skill script, you **MUST** set cwd to the skill directory's **absolute path** (derive from the skill's `<location>` tag, take the parent directory). Never omit cwd or use a relative path:
+When executing any skill script, you **MUST** set cwd to the skill directory's **absolute path** (prefer the `<skill_dir>` tag; if unavailable, derive it from the `<location>` tag by taking the parent directory). Never omit cwd or use a relative path:
 `shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 </skills_instructions>
 

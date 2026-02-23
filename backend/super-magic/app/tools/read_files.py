@@ -56,6 +56,7 @@ class FileReadingResult(BaseModel):
     content: str  # 完整内容（包含元信息）
     is_success: bool
     error_message: Optional[str] = None
+    error_type: Optional[str] = None  # 错误类型 code，来自 tool_context metadata
     tokens: int = 0  # token数量，用于计算截断
     # 截断信息（如果被截断）
     was_truncated: bool = False  # 是否被截断
@@ -186,6 +187,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                         content="",
                         is_success=False,
                         error_message=result.content,  # 失败时，content 实际是错误信息
+                        error_type=tool_context.get_metadata("error_type"),
                         tokens=0
                     ))
                     read_failure_count += 1
@@ -375,7 +377,21 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
             else:
                 # 对失败的文件添加具体的错误信息
                 if result.error_message:
-                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {result.error_message}\n")
+                    error_text = result.error_message
+                    # 文件不存在且路径为相对路径时，提示模型使用绝对路径
+                    # 用 error_type code 判断，不依赖特定语言的错误文本
+                    if (
+                        result.error_type == "read_file.error_file_not_exist"
+                        and not result.file_path.startswith("/")
+                    ):
+                        error_text += (
+                            "\n\n[Hint] The file path is relative and was not found. "
+                            "If you are reading a skill-related file, you MUST construct an absolute path: "
+                            "take the absolute path from the skill's `<location>` tag, strip the filename "
+                            "to get the skill directory, then append the relative path from the skill content. "
+                            "Example: read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])"
+                        )
+                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {error_text}\n")
                 else:
                     error_detail = i18n.translate("read_file.error_detail", category="tool.messages")
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n{error_detail}\n")
