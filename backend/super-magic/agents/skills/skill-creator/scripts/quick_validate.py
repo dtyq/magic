@@ -54,17 +54,29 @@ async def validate_skill(skill_path):
     if not isinstance(name, str):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
-    if name:
-        # 只允许英文字母、数字、下划线（snake_case），不允许连字符、中文、空格等
-        if not re.match(r'^[a-zA-Z0-9_]+$', name):
-            return False, f"Name '{name}' must contain only English letters, digits, and underscores (no hyphens, Chinese characters, spaces, or other special characters)"
-        # Check name length (max 64 characters per spec)
-        if len(name) > 64:
-            return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
-        # name 必须与目录名一致
-        dir_name = skill_path.name
-        if name != dir_name:
-            return False, f"Name '{name}' in frontmatter does not match directory name '{dir_name}'"
+    if not name:
+        return False, "Name cannot be empty"
+    # 只允许小写字母、数字、下划线（snake_case）
+    if not re.match(r'^[a-z0-9_]+$', name):
+        return False, f"Name '{name}' must contain only lowercase letters, digits, and underscores (snake_case)"
+    # 必须以字母开头，不能以数字或下划线开头
+    if not re.match(r'^[a-z]', name):
+        return False, f"Name '{name}' must start with a lowercase letter"
+    # 不能以下划线结尾
+    if name.endswith('_'):
+        return False, f"Name '{name}' must not end with an underscore"
+    # 不能有连续下划线
+    if '__' in name:
+        return False, f"Name '{name}' must not contain consecutive underscores"
+    # 长度限制：最短 2 字符，最长 64 字符
+    if len(name) < 2:
+        return False, f"Name '{name}' is too short. Minimum length is 2 characters."
+    if len(name) > 64:
+        return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
+    # name 必须与目录名一致
+    dir_name = skill_path.name
+    if name != dir_name:
+        return False, f"Name '{name}' in frontmatter does not match directory name '{dir_name}'"
 
     # Extract and validate description
     description = frontmatter.get('description', '')

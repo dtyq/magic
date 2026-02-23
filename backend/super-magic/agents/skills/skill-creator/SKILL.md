@@ -1,7 +1,7 @@
 ---
 name: skill-creator
-description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit or optimize an existing skill, run evals to test a skill, benchmark skill performance, or optimize a skill's description for better triggering accuracy. Also use when user asks to "capture this workflow as a skill", "make a skill for X", or "turn this into a reusable skill".
-description-cn: 创建新技能、修改和改进现有技能、评测技能性能。当用户想从零创建技能、编辑或优化现有技能、测试技能、对比技能性能，或者说"把这个工作流变成技能"、"给 X 功能做一个技能"时使用。
+description: Create, modify, evaluate, package, and upload skills. Use when users want to create a skill from scratch, edit or optimize an existing skill, run evals to test a skill, benchmark skill performance, optimize a skill's description for better triggering accuracy, package a skill into a zip, or upload a skill to their skill library. Also use when user asks to "capture this workflow as a skill", "make a skill for X", "turn this into a reusable skill", "package this skill", or "upload to my skill library".
+description-cn: 创建新技能、修改和改进现有技能、评测技能性能、打包技能、上传到我的技能库。当用户想从零创建技能、编辑或优化现有技能、测试技能、对比技能性能、打包技能为 zip、上传到技能库，或者说"把这个工作流变成技能"、"给 X 功能做一个技能"、"打包这个技能"、"上传到我的技能库"时使用。
 ---
 
 <!--zh
@@ -283,7 +283,7 @@ description-cn: "中文描述（可选）"
 
 <!--zh
 frontmatter 字段说明：
-- **name**（必填）: snake_case，只含英文字母、数字、下划线（不允许连字符、中文、空格或其他字符），最多 64 字符，必须与目录名完全一致
+- **name**（必填）: 只含小写字母、数字、下划线；不能为空；必须以字母开头；不能以下划线结尾；不能有连续下划线（`__`）；长度 2–64 字符；必须与目录名完全一致
 - **description**（必填）: 英文，语义触发依赖此字段，描述要稍微"主动"一些，最多 1024 字符，不含 `<` `>`
 - **description-cn**（可选）: 中文描述
 - 其他常见可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`；亦可按需增加任意 YAML 键（如 `description-cn`）
@@ -291,7 +291,7 @@ frontmatter 字段说明：
 **注意**：打包验证**仅要求** frontmatter 中必须包含 `name` 与 `description`，不对键名做白名单限制。
 -->
 Frontmatter fields:
-- **name** (required): snake_case, English letters/digits/underscores only — no hyphens, Chinese characters, spaces, or other special characters; max 64 chars; must exactly match the directory name
+- **name** (required): lowercase letters/digits/underscores only; must not be empty; must start with a letter; no trailing underscore; no consecutive underscores (`__`); length 2–64 chars; must exactly match the directory name
 - **description** (required): English, max 1024 chars, no angle brackets `<` `>`
 - **description-cn** (optional): Chinese description
 - Other common optional keys: `license`, `allowed-tools`, `metadata`, `compatibility`; you may add any extra YAML keys as needed (e.g. `description-cn`)
