@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
-from app.core.entity.tool.tool_result import TerminalToolResult
+from app.core.entity.tool.tool_result_types import TerminalToolResult
 
 logger = get_logger(__name__)
 

@@ -300,7 +300,7 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
                         }
                     )
                 else:
-                    return ToolResult(error="缓存下载失败")
+                    return ToolResult.error("缓存下载失败")
 
             # Normal mode: use safe path validation
             full_path = self.resolve_path(params.file_path)
@@ -376,7 +376,7 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
 
         except Exception as e:
             logger.error(f"下载文件失败: {e!s}")
-            return ToolResult(error="Failed to download file")
+            return ToolResult.error("Failed to download file")
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""

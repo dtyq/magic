@@ -112,7 +112,7 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
         try:
             re.compile(params.pattern)
         except re.error as e:
-            return ToolResult(error=f"Invalid regex pattern: {e}")
+            return ToolResult.error(f"Invalid regex pattern: {e}")
 
         # 执行搜索
         search_result = await self._run(

@@ -503,22 +503,22 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
             # 3. 读取项目配置
             config = await self._load_project_config(project_path)
             if not config:
-                return ToolResult(error=f"无法读取项目配置文件: {project_path}/magic.project.js")
+                return ToolResult.error(f"无法读取项目配置文件: {project_path}/magic.project.js")
 
             # 4. 读取录音文字稿（必须）
             transcript_file = config.get("files", {}).get("transcript")
             if not transcript_file:
-                return ToolResult(error="项目配置中缺少文字稿文件路径")
+                return ToolResult.error("项目配置中缺少文字稿文件路径")
 
             transcript_path = project_path / transcript_file
             transcript = await async_try_read_text(transcript_path)
             if not transcript:
-                return ToolResult(error=f"无法读取文字稿文件: {transcript_path}，此文件是必须的")
+                return ToolResult.error(f"无法读取文字稿文件: {transcript_path}，此文件是必须的")
 
             # 5. 校验转写纠错指导（必填，且不允许空字符串）
             transcript_correction_guidance = params.transcript_correction_guidance.strip()
             if not transcript_correction_guidance:
-                return ToolResult(error="参数 transcript_correction_guidance 不能为空。即使未发现错误，也请传入说明。")
+                return ToolResult.error("参数 transcript_correction_guidance 不能为空。即使未发现错误，也请传入说明。")
 
             # 6. 读取附加上下文文件（可选）
             context_contents = await self._read_context_files(project_path, params.context_files, config)
@@ -621,7 +621,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
                         logger.warning(f"分析类型 {analysis_type} 未在项目配置中定义，已跳过")
 
             if not tasks:
-                return ToolResult(error="没有可执行的分析任务，请检查 specified_analysis_types 参数")
+                return ToolResult.error("没有可执行的分析任务，请检查 specified_analysis_types 参数")
 
             logger.info(f"准备执行 {len(tasks)} 个分析任务: {task_names}")
 
@@ -678,7 +678,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
                 failed_core_tasks = [task for task in core_tasks if task in task_names and task in failed_tasks]
                 error_msg = f"核心分析任务全部失败: {', '.join(failed_core_tasks)}。至少需要完成 topics 或 summary 中的一个。"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             logger.info(f"核心任务完成情况: {completed_core_tasks}")
 
@@ -755,7 +755,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
 - 说话人标识用 Speaker-1、Speaker-2 等
 - 不要死板套用格式，根据内容灵活组织"""
 
-            return ToolResult(error=error_msg)
+            return ToolResult.error(error_msg)
 
     async def _load_project_config(self, project_path: Path) -> Optional[Dict]:
         """读取项目配置文件"""

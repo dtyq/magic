@@ -280,7 +280,7 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
             ToolResult: Aggregated markdown content from all webpages
         """
         if not params.urls:
-            return ToolResult(error="No URLs provided for reading")
+            return ToolResult.error("No URLs provided for reading")
 
         urls = params.urls
         start_time = asyncio.get_event_loop().time()

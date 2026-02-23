@@ -452,13 +452,13 @@ class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceTool
             if params.platform == "local" and not params.video_file:
                 error_msg = "当 platform 为 local 时，必须提供 video_file 参数，否则无法显示视频"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Validate: youtube platform must have youtube_video_id
             if params.platform == "youtube" and not params.youtube_video_id:
                 error_msg = "当 platform 为 youtube 时，必须提供 youtube_video_id 参数"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Convert video params to audio params
             audio_params = SetupAudioProjectParams(
@@ -493,7 +493,7 @@ class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceTool
 
         except Exception as e:
             logger.exception(f"视频项目搭建失败: {e!s}")
-            return ToolResult(error="Failed to setup video project")
+            return ToolResult.error("Failed to setup video project")
 
     async def _add_video_metadata(self, project_path: Path, params: SetupVideoProjectParams):
         """

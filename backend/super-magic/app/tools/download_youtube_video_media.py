@@ -168,17 +168,17 @@ class DownloadYoutubeVideoMedia(AbstractFileTool[DownloadYoutubeVideoMediaParams
         try:
             # 0. 参数验证：youtube_url 和 youtube_id 二选一
             if not params.youtube_url and not params.youtube_id:
-                return ToolResult(error="必须提供 youtube_url 或 youtube_id 参数之一")
+                return ToolResult.error("必须提供 youtube_url 或 youtube_id 参数之一")
 
             if params.youtube_url and params.youtube_id:
-                return ToolResult(error="youtube_url 和 youtube_id 只能提供其中一个，不能同时提供")
+                return ToolResult.error("youtube_url 和 youtube_id 只能提供其中一个，不能同时提供")
 
             # 1. 确定视频 ID 和 URL（目前仅支持 YouTube）
             if params.youtube_id:
                 # 用户提供了视频 ID，构建 URL
                 video_id = params.youtube_id.strip()
                 if not video_id:
-                    return ToolResult(error="视频 ID 不能为空")
+                    return ToolResult.error("视频 ID 不能为空")
                 youtube_url = f"https://www.youtube.com/watch?v={video_id}"
                 logger.info(f"使用 YouTube 视频 ID: {video_id}")
             else:
@@ -186,7 +186,7 @@ class DownloadYoutubeVideoMedia(AbstractFileTool[DownloadYoutubeVideoMediaParams
                 youtube_url = params.youtube_url
                 video_id = self._extract_youtube_video_id(youtube_url)
                 if not video_id:
-                    return ToolResult(error=f"无法从 URL 中提取视频 ID: {youtube_url}")
+                    return ToolResult.error(f"无法从 URL 中提取视频 ID: {youtube_url}")
                 logger.info(f"从 URL 提取 YouTube 视频 ID: {video_id}")
 
             # 2. 确定输出文件夹
@@ -197,10 +197,10 @@ class DownloadYoutubeVideoMedia(AbstractFileTool[DownloadYoutubeVideoMediaParams
                     await asyncio.to_thread(output_folder.mkdir, parents=True, exist_ok=True)
                     logger.info(f"已创建输出文件夹：{output_folder}")
                 except Exception as e:
-                    return ToolResult(error=f"无法创建输出文件夹 {output_folder}: {e}")
+                    return ToolResult.error(f"无法创建输出文件夹 {output_folder}: {e}")
 
             if not await asyncio.to_thread(output_folder.is_dir):
-                return ToolResult(error=f"路径不是文件夹：{output_folder}")
+                return ToolResult.error(f"路径不是文件夹：{output_folder}")
 
             # 3. 确定媒体文件名
             media_filename = params.media_filename if params.media_filename else video_id
@@ -211,7 +211,7 @@ class DownloadYoutubeVideoMedia(AbstractFileTool[DownloadYoutubeVideoMediaParams
 
             if not media_path:
                 error_detail = f"媒体文件下载失败: {error}" if error else "媒体文件下载失败，请检查网络连接或视频是否可用"
-                return ToolResult(error=error_detail)
+                return ToolResult.error(error_detail)
 
             # File events are handled in _download_youtube_media via _file_versioning_context
             created_files.append(Path(media_path))
@@ -230,7 +230,7 @@ class DownloadYoutubeVideoMedia(AbstractFileTool[DownloadYoutubeVideoMediaParams
             # 回滚：删除已创建的文件
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error="Failed to download media file")
+            return ToolResult.error("Failed to download media file")
 
     async def _rollback_created_files(self, created_files: list):
         """回滚已创建的文件"""

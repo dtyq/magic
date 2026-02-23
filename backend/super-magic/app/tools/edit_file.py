@@ -173,7 +173,7 @@ When editing the same file multiple times:
             is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             # Read file content
             original_content = await self._read_file(file_path)
@@ -264,7 +264,7 @@ When editing the same file multiple times:
                         "Remove the extra escape characters from your strings."
                     )
 
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Handle count mismatch
             if occurrences != params.expected_replacements:
@@ -282,7 +282,7 @@ When editing the same file multiple times:
                 if locations:
                     error_msg += f"Match locations:\n{locations}"
 
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Perform replacement
             new_content = original_content.replace(params.old_string, params.new_string, params.expected_replacements)

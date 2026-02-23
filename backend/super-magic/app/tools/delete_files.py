@@ -116,7 +116,7 @@ class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFiles
             # 构建结果信息
             if errors and not deleted_files:
                 # 全部失败
-                return ToolResult(error=f"批量删除失败:\n" + "\n".join(errors))
+                return ToolResult.error(f"批量删除失败:\n" + "\n".join(errors))
             elif errors and deleted_files:
                 # 部分成功
                 success_info = f"成功删除 {len(deleted_files)} 个文件:\n" + "\n".join(deleted_files)
@@ -128,7 +128,7 @@ class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFiles
 
         except Exception as e:
             logger.exception(f"批量删除文件失败: {e!s}")
-            return ToolResult(error="Failed to delete files")
+            return ToolResult.error("Failed to delete files")
 
 
 

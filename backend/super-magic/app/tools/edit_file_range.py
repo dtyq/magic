@@ -123,7 +123,7 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
 
             if params.replace_start == "" and params.replace_end == "":
                 tool_context.set_metadata("error_type", "edit_file.error_validation_failed")
-                return ToolResult(error="replace_start and replace_end cannot both be empty.")
+                return ToolResult.error("replace_start and replace_end cannot both be empty.")
 
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
@@ -136,7 +136,7 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             original_content = await self._read_file(file_path)
 

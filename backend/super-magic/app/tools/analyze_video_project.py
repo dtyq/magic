@@ -271,7 +271,7 @@ class AnalyzeVideoProject(AbstractFileTool[AnalyzeVideoProjectParams], Workspace
 
         except Exception as e:
             logger.exception(f"视频分析失败: {e!s}")
-            return ToolResult(error="Video analysis tool call failed")
+            return ToolResult.error("Video analysis tool call failed")
 
 
     async def _copy_visualization_template(self, tool_context: ToolContext, project_path: Path):

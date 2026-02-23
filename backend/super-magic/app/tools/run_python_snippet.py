@@ -7,7 +7,7 @@ from pydantic import Field, field_validator
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from app.core.entity.tool.tool_result import TerminalToolResult
+from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.workspace_tool import WorkspaceTool

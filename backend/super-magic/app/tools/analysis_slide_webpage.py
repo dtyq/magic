@@ -307,9 +307,9 @@ class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
                 # 验证本地文件是否存在
                 local_file_path = self.base_dir / target
                 if not local_file_path.exists():
-                    return ToolResult(error=f"本地文件不存在: {target}")
+                    return ToolResult.error(f"本地文件不存在: {target}")
                 if not local_file_path.is_file():
-                    return ToolResult(error=f"指定路径不是文件: {target}")
+                    return ToolResult.error(f"指定路径不是文件: {target}")
 
                 target_url = self._prepare_file_url(str(local_file_path))
                 logger.debug(f"使用本地文件: {target} -> {target_url}")
@@ -319,7 +319,7 @@ class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
             goto_result = await browser.goto(page_id=None, url=target_url)
 
             if hasattr(goto_result, 'error'):
-                return ToolResult(error=f"页面导航失败: {goto_result.error}")
+                return ToolResult.error(f"页面导航失败: {goto_result.error}")
 
             # 等待页面加载完成
             await asyncio.sleep(2)
@@ -327,7 +327,7 @@ class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
             # 获取活跃页面ID
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="无法获取活跃页面ID")
+                return ToolResult.error("无法获取活跃页面ID")
 
             # 注入并执行分析脚本
             analyzer_script = self._get_analyzer_script()
@@ -342,10 +342,10 @@ class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
             )
 
             if hasattr(analysis_result, 'error'):
-                return ToolResult(error=f"执行分析失败: {analysis_result.error}")
+                return ToolResult.error(f"执行分析失败: {analysis_result.error}")
 
             if not hasattr(analysis_result, 'result') or not analysis_result.result:
-                return ToolResult(error="分析结果为空")
+                return ToolResult.error("分析结果为空")
 
             # 获取浏览器分析结果
             browser_analysis = str(analysis_result.result)
@@ -368,7 +368,7 @@ class AnalysisSlideWebpage(WorkspaceTool[AnalysisSlideWebpageParams]):
 
         except Exception as e:
             logger.error(f"网页元素分析失败: {e}", exc_info=True)
-            return ToolResult(error="Analysis failed")
+            return ToolResult.error("Analysis failed")
 
         finally:
             # 清理浏览器资源

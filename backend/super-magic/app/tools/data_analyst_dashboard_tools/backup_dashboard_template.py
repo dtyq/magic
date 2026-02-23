@@ -80,12 +80,12 @@ class BackupDashboardTemplate(AbstractFileTool[BackupDashboardTemplateParams], W
             if not target_path.exists():
                 error_msg = f"Project does not exist: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             if not target_path.is_dir():
                 error_msg = f"Path is not a directory: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 定义需要恢复的文件列表
             files_to_restore = []
@@ -101,7 +101,7 @@ class BackupDashboardTemplate(AbstractFileTool[BackupDashboardTemplateParams], W
             if not files_to_restore:
                 error_msg = "No files specified for restoration"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 恢复指定的文件
             for file_name in files_to_restore:
@@ -150,7 +150,7 @@ class BackupDashboardTemplate(AbstractFileTool[BackupDashboardTemplateParams], W
 
         except Exception as e:
             logger.exception(f"恢复数据看板模板备份失败: {e}")
-            return ToolResult(error="Backup restoration failed")
+            return ToolResult.error("Backup restoration failed")
 
     def _generate_restore_result_content(self, params: BackupDashboardTemplateParams, restored_files: List[str]) -> str:
         """

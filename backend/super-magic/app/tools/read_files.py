@@ -116,7 +116,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         """
         if not params.operations:
             tool_context.set_metadata("error_type", "read_file.failed")
-            return ToolResult(error=i18n.translate("read_file.failed", category="tool.messages"))
+            return ToolResult.error(i18n.translate("read_file.failed", category="tool.messages"))
 
         results = []
         files_without_line_numbers = []  # 直接在这里收集不带行号的内容

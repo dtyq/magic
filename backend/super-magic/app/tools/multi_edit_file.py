@@ -130,7 +130,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
             is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             # Read original content
             original_content = await self._read_file(file_path)
@@ -172,7 +172,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                 # 直接从验证结果中获取错误类型
                 error_type = validation_result.get('error_type', "edit_file.error_validation_failed")
                 tool_context.set_metadata("error_type", error_type)
-                return ToolResult(error=validation_result['error'])
+                return ToolResult.error(validation_result['error'])
 
             # Apply edits sequentially
             working_content = original_content
@@ -211,7 +211,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
 
                     if punctuation_error:
                         error_msg = f"Edit {i+1}/{len(params.edits)} failed:\n{punctuation_error}"
-                        return ToolResult(error=error_msg)
+                        return ToolResult.error(error_msg)
 
                     error_msg = f"Edit {i+1}/{len(params.edits)} failed:\n"
                     error_msg += f"old_string not found in current content.\n"
@@ -231,7 +231,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                             "Remove the extra escape characters from your strings."
                         )
 
-                    return ToolResult(error=error_msg)
+                    return ToolResult.error(error_msg)
 
                 if occurrences != edit.expected_replacements:
                     tool_context.set_metadata("error_type", "edit_file.error_replacements_mismatch")
@@ -353,7 +353,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         except Exception as e:
             logger.exception(f"Failed to execute multi-edit: {e}")
             tool_context.set_metadata("error_type", "edit_file.error_unexpected")
-            return ToolResult(error="The multi_edit_file tool encountered an unexpected error. Try using multiple edit_file calls, shell commands (e.g., sed -i; avoid piping sed to cat -A for multi-byte characters), or write a Python script to perform these edits instead.")
+            return ToolResult.error("The multi_edit_file tool encountered an unexpected error. Try using multiple edit_file calls, shell commands (e.g., sed -i; avoid piping sed to cat -A for multi-byte characters), or write a Python script to perform these edits instead.")
 
     def _validate_all_edits(self, edits: List[EditOperation], content: str) -> dict:
         """

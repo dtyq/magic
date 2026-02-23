@@ -107,12 +107,12 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             if not template_source.exists():
                 error_msg = "Template source directory does not exist"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             if not template_source.is_dir():
                 error_msg = "Template source path is not a directory"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 获取安全的目标路径
             target_path = self.resolve_path(params.name)
@@ -122,7 +122,7 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             if target_path.exists():
                 error_msg = f"Directory already exists: {params.name}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 创建目标目录
             await asyncio.to_thread(os.makedirs, target_path, exist_ok=False)
@@ -180,7 +180,7 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             # 回滚：删除已创建的文件和文件夹
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error="Failed to create dashboard project")
+            return ToolResult.error("Failed to create dashboard project")
 
     async def _update_project_config(self, target_path: Path, project_name: str, sources: List[DataSourceConfig]):
         """

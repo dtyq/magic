@@ -82,7 +82,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             current_depth = parent.get_subagent_depth() if parent else 0
             tool_call_id = tool_context.tool_call_id or ""
             if current_depth >= _MAX_AGENT_DEPTH:
-                return ToolResult(error=(
+                return ToolResult.error((
                     f"Sub-agent spawn depth limit reached ({current_depth}/{_MAX_AGENT_DEPTH}). "
                     "Sub-agents are not allowed to call call_subagent."
                 ))
@@ -175,7 +175,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
 
         except Exception as e:
             logger.exception(f"调用智能体失败: {e!s}")
-            return ToolResult(error=
+            return ToolResult.error(
                 _build_call_subagent_error_text(
                     agent_name=params.agent_name,
                     agent_id=params.agent_id,

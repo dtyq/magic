@@ -1096,24 +1096,24 @@ Keyword Diversification Principles:
         if self.use_magic:
             if not self.magic_api_key:
                 logger.error("图片搜索工具配置错误: 配置项 'magic_image_search.api_key' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
             if not self.magic_endpoint:
                 logger.error("图片搜索工具配置错误: 配置项 'magic_image_search.api_endpoint' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
         elif self.use_serpapi:
             if not self.serpapi_key:
                 logger.error("图片搜索工具配置错误: 配置项 'serpapi.api_key' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
             if not self.serpapi_endpoint:
                 logger.error("图片搜索工具配置错误: 配置项 'serpapi.api_endpoint' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
         else:
             if not self.bing_api_key:
                 logger.error("图片搜索工具配置错误: 配置项 'bing.search_api_key' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
             if not self.bing_endpoint:
                 logger.error("图片搜索工具配置错误: 配置项 'bing.search_endpoint' 未设置或为空")
-                return ToolResult(error="图片搜索工具配置错误")
+                return ToolResult.error("图片搜索工具配置错误")
 
         # 解析XML需求
         # 当 search_only=True 时，visual_understanding_prompt 不是必填字段
@@ -1123,14 +1123,14 @@ Keyword Diversification Principles:
                 require_visual_understanding_prompt=not search_only
             )
         except ValueError as e:
-            return ToolResult(error=f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
+            return ToolResult.error(f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
 
         # Validate parameters for each requirement
         validated_requirements = []
         for i, req_data in enumerate(requirements_data):
             expected_ratio = _parse_aspect_ratio(req_data['expected_aspect_ratio'])
             if expected_ratio is None:
-                return ToolResult(error=f"需求 '{req_data['name']}' 无法解析期望的长宽比参数: '{req_data['expected_aspect_ratio']}'。请使用格式如 '16:9'、'4:3'、'1:1' 等")
+                return ToolResult.error(f"需求 '{req_data['name']}' 无法解析期望的长宽比参数: '{req_data['expected_aspect_ratio']}'。请使用格式如 '16:9'、'4:3'、'1:1' 等")
 
             # Calculate reasonable resolution based on aspect ratio
             expected_resolution = _calculate_reasonable_resolution_from_aspect_ratio(expected_ratio)

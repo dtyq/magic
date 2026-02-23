@@ -43,7 +43,7 @@ from app.utils.async_file_utils import async_exists, async_stat, async_mkdir
 from app.api.http_dto.file_notification_dto import FileNotificationRequest
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
-from app.core.entity.tool.tool_result import ImageToolResult
+from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
 from app.service.file_service import FileService

@@ -175,7 +175,7 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
             # Validate markdown file path
             markdown_path = self.resolve_path(params.markdown_file)
             if not markdown_path.exists():
-                return ToolResult(error=f"Markdown文件不存在: {markdown_path}")
+                return ToolResult.error(f"Markdown文件不存在: {markdown_path}")
 
             # Validate target folder path
             target_folder = self.resolve_path(params.target_folder)
@@ -184,7 +184,7 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
                 async with aiofiles.open(markdown_path, 'r', encoding='utf-8') as f:
                     markdown_content = await f.read()
             except Exception as e:
-                return ToolResult(error="Failed to read markdown file")
+                return ToolResult.error("Failed to read markdown file")
 
             # Parse resource information
             resources = self._parse_markdown_resources(markdown_content, params.file_extensions)
@@ -231,7 +231,7 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
 
         except Exception as e:
             logger.exception(f"执行Markdown图片下载失败: {e}")
-            return ToolResult(error="Download execution failed")
+            return ToolResult.error("Download execution failed")
 
     def _parse_markdown_resources(self, content: str, file_extensions: str) -> List[ResourceInfo]:
         """

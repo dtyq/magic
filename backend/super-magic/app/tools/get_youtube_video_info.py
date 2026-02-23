@@ -192,7 +192,7 @@ class GetYoutubeVideoInfo(BaseTool[GetYoutubeVideoInfoParams]):
         try:
             # 步骤 1: 参数验证
             if not params.youtube_url and not params.youtube_id:
-                return ToolResult(error="必须提供 youtube_url 或 youtube_id 参数之一")
+                return ToolResult.error("必须提供 youtube_url 或 youtube_id 参数之一")
 
             # 步骤 2: 确定视频 ID 和完整 URL
             # 如果同时提供 url 和 id，优先使用 url；如果 url 无法提取 ID，则使用 id
@@ -206,19 +206,19 @@ class GetYoutubeVideoInfo(BaseTool[GetYoutubeVideoInfoParams]):
                     if params.youtube_id:
                         video_id = params.youtube_id.strip()
                         if not video_id:
-                            return ToolResult(error="视频 ID 不能为空")
+                            return ToolResult.error("视频 ID 不能为空")
 
                         youtube_url = f"https://www.youtube.com/watch?v={video_id}"
                         logger.info(f"无法从 URL 提取视频 ID，使用传入的 ID: {video_id}")
                     else:
-                        return ToolResult(error=f"无法从 URL 中提取视频 ID: {youtube_url}\n支持的格式: youtube.com/watch?v=ID、youtu.be/ID、youtube.com/shorts/ID")
+                        return ToolResult.error(f"无法从 URL 中提取视频 ID: {youtube_url}\n支持的格式: youtube.com/watch?v=ID、youtu.be/ID、youtube.com/shorts/ID")
                 else:
                     logger.info(f"从 URL 提取视频 ID: {youtube_url} -> {video_id}")
             else:
                 # 用户只提供了视频 ID，构建标准 URL
                 video_id = params.youtube_id.strip()
                 if not video_id:
-                    return ToolResult(error="视频 ID 不能为空")
+                    return ToolResult.error("视频 ID 不能为空")
 
                 youtube_url = f"https://www.youtube.com/watch?v={video_id}"
                 logger.info(f"使用视频 ID 构建 URL: {video_id} -> {youtube_url}")
@@ -230,7 +230,7 @@ class GetYoutubeVideoInfo(BaseTool[GetYoutubeVideoInfoParams]):
             if not video_info:
                 error_detail = f"获取视频信息失败: {error}" if error else "获取视频信息失败，请检查 URL 是否正确"
                 logger.warning(f"视频信息获取失败 - ID: {video_id}, 错误: {error_detail}")
-                return ToolResult(error=error_detail)
+                return ToolResult.error(error_detail)
 
             # 步骤 4: 生成结果
             video_title = video_info.get('title', '未知')
@@ -256,7 +256,7 @@ class GetYoutubeVideoInfo(BaseTool[GetYoutubeVideoInfoParams]):
 
         except Exception as e:
             logger.exception(f"视频信息获取异常: {e!s}")
-            return ToolResult(error="Failed to get video info")
+            return ToolResult.error("Failed to get video info")
 
     async def get_after_tool_call_friendly_action_and_remark(
         self,

@@ -164,7 +164,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
 
         except Exception as e:
             logger.exception(f"写入文件失败: {e!s}")
-            return ToolResult(error="Failed to write file.\n\n"
+            return ToolResult.error("Failed to write file.\n\n"
                 "If the error is content length related, the content is too long and exceeds token limits.\n\n"
                 "SOLUTION:\n"
                 "1. Use write_file to create basic framework\n"

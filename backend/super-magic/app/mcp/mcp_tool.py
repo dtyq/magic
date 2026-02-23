@@ -396,7 +396,7 @@ class MCPTool(BaseTool):
         except Exception as e:
             error_msg = f"MCP 工具执行失败: {e}"
             logger.warning(f"执行 MCP 工具 '{self.get_effective_name()}' 失败: {e}")
-            return ToolResult(error=error_msg)  # type: ignore
+            return ToolResult.error(error_msg)  # type: ignore
 
     def __str__(self) -> str:
         """字符串表示"""

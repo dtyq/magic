@@ -99,10 +99,10 @@ class Purify(BaseTool[PurifyParams]):
                     original_content = await f.read()
             except FileNotFoundError:
                 logger.error(f"净化失败: 文件未找到 {file_path}")
-                return ToolResult(error=f"文件未找到: {file_path}")
+                return ToolResult.error(f"文件未找到: {file_path}")
             except Exception as e:
                 logger.exception(f"净化失败: 读取文件 {file_path} 时出错")
-                return ToolResult(error="Failed to read file")
+                return ToolResult.error("Failed to read file")
 
             if not original_content.strip():
                 logger.warning(f"文件 {file_path} 为空或只包含空白字符，无需净化。")
@@ -119,7 +119,7 @@ class Purify(BaseTool[PurifyParams]):
 
             if purified_content is None:
                 # purify_content 内部已记录错误
-                return ToolResult(error="净化处理失败，请检查日志获取详情")
+                return ToolResult.error("净化处理失败，请检查日志获取详情")
 
             # 3. 返回结果
             logger.info(f"文件 {file_path} 净化完成")
@@ -130,7 +130,7 @@ class Purify(BaseTool[PurifyParams]):
 
         except Exception as e:
             logger.exception(f"执行净化操作时发生未预料的错误: {e!s}")
-            return ToolResult(error="Purification failed")
+            return ToolResult.error("Purification failed")
 
 
     async def purify_content(

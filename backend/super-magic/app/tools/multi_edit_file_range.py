@@ -159,14 +159,14 @@ Key constraints:
             is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             original_content = await self._read_file(file_path)
             resolved_chunks = self._resolve_all_chunks(params.chunks, original_content)
             overlap_error = self._validate_no_overlaps(resolved_chunks)
             if overlap_error:
                 tool_context.set_metadata("error_type", "edit_file.error_conflict_detected")
-                return ToolResult(error=overlap_error)
+                return ToolResult.error(overlap_error)
 
             new_content = original_content
             for chunk in sorted(resolved_chunks, key=lambda item: item.range_info.start_index, reverse=True):
@@ -251,7 +251,7 @@ Key constraints:
         except ValueError as validation_error:
             logger.warning(f"Range batch edit validation failed: {validation_error}")
             tool_context.set_metadata("error_type", "edit_file.error_validation_failed")
-            return ToolResult(error=str(validation_error))
+            return ToolResult.error(str(validation_error))
         except Exception as e:
             logger.exception(f"Failed to execute multi file range edit: {e}")
             tool_context.set_metadata("error_type", "edit_file.error_unexpected")

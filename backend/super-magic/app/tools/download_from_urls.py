@@ -169,10 +169,10 @@ Prioritize using this tool for file downloads over wget or curl. Use batch downl
             try:
                 download_tasks = _parse_download_requirements_xml(params.downloads_xml)
             except ValueError as e:
-                return ToolResult(error=f"XML解析失败: {e}")
+                return ToolResult.error(f"XML解析失败: {e}")
 
             if not download_tasks:
-                return ToolResult(error="下载任务列表为空")
+                return ToolResult.error("下载任务列表为空")
 
             logger.info(f"开始批量下载: 任务数量={len(download_tasks)}")
 
@@ -200,7 +200,7 @@ Prioritize using this tool for file downloads over wget or curl. Use batch downl
 
         except Exception as e:
             logger.exception(f"批量下载操作失败: {e}")
-            return ToolResult(error="Batch download operation failed")
+            return ToolResult.error("Batch download operation failed")
 
     async def _execute_batch_downloads(self, downloader: DownloadFromUrl, download_tasks: List[Dict[str, Any]], tool_context: ToolContext) -> BatchDownloadResult:
         """

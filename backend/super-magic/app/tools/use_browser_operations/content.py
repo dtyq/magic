@@ -126,14 +126,14 @@ class ContentOperations(OperationGroup):
             return error_result
         page_id = params.page_id or await browser.get_active_page_id()
         if not page_id:
-            return ToolResult(error="无法确定要读取的页面ID")
+            return ToolResult.error("无法确定要读取的页面ID")
 
         # 2. 调用 MagicBrowser 的 read_as_markdown 方法
         try:
             result = await browser.read_as_markdown(page_id=page_id, scope=params.scope)
 
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, MarkdownSuccess):
                 # 提取数据
                 markdown_text = result.markdown
@@ -233,11 +233,11 @@ class ContentOperations(OperationGroup):
                 )
             else:
                 logger.error(f"read_as_markdown 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="read_as_markdown 操作返回了意外的结果类型。")
+                return ToolResult.error("read_as_markdown 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"read_as_markdown 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error="Failed to read as markdown")
+            return ToolResult.error("Failed to read as markdown")
 
     @operation(
         example=[{
@@ -259,7 +259,7 @@ class ContentOperations(OperationGroup):
         if error_result: return error_result
         page_id = params.page_id or await browser.get_active_page_id()
         if not page_id:
-            return ToolResult(error="无法确定要进行视觉查询的页面ID")
+            return ToolResult.error("无法确定要进行视觉查询的页面ID")
 
         logger.info(f"开始视觉查询: 页面={page_id}, 查询='{params.query}'")
 
@@ -271,10 +271,10 @@ class ContentOperations(OperationGroup):
 
             if isinstance(screenshot_result, MagicBrowserError):
                 logger.error(f"视觉查询截图失败: {screenshot_result.error}")
-                return ToolResult(error=f"视觉查询准备截图失败: {screenshot_result.error}")
+                return ToolResult.error(f"视觉查询准备截图失败: {screenshot_result.error}")
             elif not isinstance(screenshot_result, ScreenshotSuccess):
                 logger.error(f"take_screenshot 返回未知类型: {type(screenshot_result)}")
-                return ToolResult(error="截图操作返回意外结果类型。")
+                return ToolResult.error("截图操作返回意外结果类型。")
 
             screenshot_path = screenshot_result.path
             # 临时文件现在由 MagicBrowser 管理，这里不需要再关心 is_temp
@@ -289,7 +289,7 @@ class ContentOperations(OperationGroup):
             if not vision_result.ok:
                 error_msg = vision_result.content or "视觉模型执行失败"
                 logger.error(f"视觉理解失败: {error_msg}")
-                return ToolResult(error=f"视觉理解失败: {error_msg}")
+                return ToolResult.error(f"视觉理解失败: {error_msg}")
 
             # 4. 格式化成功结果
             analysis_content = vision_result.content
@@ -304,4 +304,4 @@ class ContentOperations(OperationGroup):
 
         except Exception as e:
             logger.exception(f"视觉查询操作中发生未预期的错误: {e!s}")
-            return ToolResult(error="Visual query failed")
+            return ToolResult.error("Visual query failed")

@@ -127,11 +127,11 @@ class DownloadDashboardMaps(
         try:
             project_dir = self.resolve_path(params.project_path)
             if not project_dir or not project_dir.exists():
-                return ToolResult(error=f"Project does not exist: {params.project_path}")
+                return ToolResult.error(f"Project does not exist: {params.project_path}")
 
             magic_project_path = project_dir / "magic.project.js"
             if not magic_project_path.exists():
-                return ToolResult(error="magic.project.js does not exist")
+                return ToolResult.error("magic.project.js does not exist")
 
             geo_dir = project_dir / "geo"
             geo_dir.mkdir(parents=True, exist_ok=True)
@@ -180,7 +180,7 @@ class DownloadDashboardMaps(
                     )
                 except Exception as e:
                     logger.warning("更新 geo 配置失败: %s", e)
-                    return ToolResult(error=f"Failed to update geo config: {e}")
+                    return ToolResult.error(f"Failed to update geo config: {e}")
 
             summary_parts = [
                 f"Downloaded: {len(downloaded_files)}, "
@@ -203,4 +203,4 @@ class DownloadDashboardMaps(
             )
         except Exception as e:
             logger.error("手动下载地图失败: %s", e, exc_info=True)
-            return ToolResult(error=f"Failed to download maps: {e}")
+            return ToolResult.error(f"Failed to download maps: {e}")

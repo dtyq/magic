@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from dotenv import dotenv_values
 
 from agentlang.logger import get_logger
-from app.core.entity.tool.tool_result import TerminalToolResult
+from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.path_manager import PathManager
 
 logger = get_logger(__name__)

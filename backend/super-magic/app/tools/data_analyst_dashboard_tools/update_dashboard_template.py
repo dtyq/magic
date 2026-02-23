@@ -80,7 +80,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             if not template_source.exists():
                 error_msg = "Template source directory does not exist"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 获取安全的目标路径
             target_path = self.resolve_path(params.target_project)
@@ -90,12 +90,12 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             if not target_path.exists():
                 error_msg = f"Project does not exist: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             if not target_path.is_dir():
                 error_msg = f"Path is not a directory: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 定义需要更新的文件列表
             files_to_update = []
@@ -111,7 +111,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             if not files_to_update:
                 error_msg = "No files specified for update"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 更新指定的文件
             for file_name in files_to_update:
@@ -189,7 +189,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             # 回滚：恢复备份文件
             await self._rollback_from_backup(backup_files)
 
-            return ToolResult(error="Template update failed")
+            return ToolResult.error("Template update failed")
 
     def _extract_ready_value_from_html(self, html_content: str) -> bool:
         """

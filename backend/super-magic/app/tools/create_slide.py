@@ -257,7 +257,7 @@ class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlide
             file_status, file_existed = await self._write_slide_file(tool_context, params)
         except Exception as e:
             logger.exception(f"文件写入失败: {e}")
-            return ToolResult(error="Failed to write file")
+            return ToolResult.error("Failed to write file")
 
         # 2. 浏览器分析阶段（失败不阻断）
         try:

@@ -152,7 +152,7 @@ class AppendToFile(AbstractFileTool[AppendToFileParams], WorkspaceTool[AppendToF
 
         except Exception as e:
             logger.exception(f"追加文件失败: {e!s}")
-            return ToolResult(error="Failed to append to file")
+            return ToolResult.error("Failed to append to file")
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""
