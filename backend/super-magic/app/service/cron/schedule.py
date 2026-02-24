@@ -81,7 +81,8 @@ def _next_for_cron(s: CronSchedule, now: int) -> int:
     if not s.expr:
         raise ValueError("schedule.expr is required for kind=cron")
 
-    tz = pytz.timezone(s.tz or "UTC")
+    from agentlang.utils.timezone_utils import get_system_timezone
+    tz = pytz.timezone(s.tz or get_system_timezone())
     now_dt = datetime.fromtimestamp(now / 1000, tz=tz)
     it = croniter(s.expr, start_time=now_dt)
     next_dt: datetime = it.get_next(datetime)

@@ -119,6 +119,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
 
         enabled = meta.get("enabled", True)
         name = meta.get("name")
+        timezone = meta.get("timezone")
 
         return CronJob(
             id=job_id,
@@ -128,6 +129,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             enabled=bool(enabled),
             name=name,
             mtime=mtime,
+            timezone=timezone or None,
         )
     except Exception as e:
         logger.warning(f"cron: parse error in {path}: {e}")
@@ -211,7 +213,9 @@ async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
     )
 
     # 时区转换优先于路径构建，目录日期以 job 配置的时区为准，避免跨时区用户看到日期错位
-    tz_str = getattr(job.schedule, "tz", None) or "UTC"
+    # 优先级：job.timezone（创建时写入）> schedule.tz（cron 表达式时区）> 系统时区
+    from agentlang.utils.timezone_utils import get_system_timezone
+    tz_str = job.timezone or getattr(job.schedule, "tz", None) or get_system_timezone()
     try:
         import pytz
         tz = pytz.timezone(tz_str)
@@ -251,12 +255,21 @@ def build_job_md(
     enabled: bool,
     name: Optional[str],
     body: str,
+    timezone: Optional[str] = None,
 ) -> str:
     """构建新 cron job MD 文件内容。"""
     import yaml
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone as dt_timezone
+    from agentlang.utils.timezone_utils import get_system_timezone
+    _tz_str = timezone or get_system_timezone()
+    try:
+        import pytz
+        _tz = pytz.timezone(_tz_str)
+        _now = datetime.now(_tz)
+    except Exception:
+        _now = datetime.now(dt_timezone.utc)
     frontmatter: Dict[str, Any] = {
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": _now.isoformat(),
         "schedule": schedule,
         "payload": {
             "kind": payload_kind,
@@ -266,6 +279,8 @@ def build_job_md(
     }
     if name:
         frontmatter["name"] = name
+    if timezone:
+        frontmatter["timezone"] = timezone
     if model_id is not None:
         frontmatter["payload"]["model_id"] = model_id
     if timeout_seconds is not None:

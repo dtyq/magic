@@ -239,11 +239,16 @@ CRITICAL CONSTRAINTS:
                 f"Job '{job_id}' already exists. Use action=update to modify, or action=remove then action=add to replace."
             )
 
+        agent_ctx = tool_context.get_extension("agent_context")
+
         model_id = params.model_id
         if model_id is None:
-            agent_ctx = tool_context.get_extension("agent_context")
             if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
                 model_id = agent_ctx.get_real_model_id() or None
+
+        user_timezone = None
+        if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
+            user_timezone = agent_ctx.get_user_timezone() or None
 
         content = build_job_md(
             schedule=params.schedule,
@@ -254,6 +259,7 @@ CRITICAL CONSTRAINTS:
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,
             body=params.message,
+            timezone=user_timezone,
         )
         await async_write_text(path, content)
         return ToolResult(content=f"Created cron job '{job_id}' at {path}")

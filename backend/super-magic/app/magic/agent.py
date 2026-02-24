@@ -36,7 +36,7 @@ from agentlang.llms.token_usage.models import TokenUsage
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from agentlang.utils.datetime_formatter import get_current_datetime_str
 from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
@@ -263,7 +263,7 @@ The following <dynamic_context> block contains system-provided context informati
 """
             context_footer = "\n</dynamic_context>"
             # 移除人类注解，只保留英文部分给 LLM
-            context_header_filtered = remove_human_annotations(context_header)
+            context_header_filtered = remove_developer_annotations(context_header)
             dynamic_context_content = context_header_filtered + dynamic_context_match.group(1).strip() + context_footer
             # 从 system prompt 中移除 dynamic_context 块，保留一行空行
             self.system_prompt = re.sub(r"\s*<dynamic_context>.*?</dynamic_context>\s*", "\n\n", self.system_prompt, count=1, flags=re.DOTALL)
@@ -432,7 +432,7 @@ The following <dynamic_context> block contains system-provided context informati
         # 构建动态变量字典
         # workspace_dir_files_list 使用占位符，在 async_complete_dynamic_init 中异步替换
         variables = {
-            "current_datetime": get_current_datetime_str(),
+            "current_datetime": get_current_datetime_str(self.agent_context.get_user_timezone()),
             "workspace_dir_files_list": self._WORKSPACE_DIR_FILES_PLACEHOLDER,
             "memory": memory_content,
         }

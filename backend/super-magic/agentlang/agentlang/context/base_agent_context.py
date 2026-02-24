@@ -58,6 +58,7 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
             "event_dispatcher": (EventDispatcher(), EventDispatcherInterface),
             "dynamic_model_id": (None, Optional[str]),  # 动态模型ID管理
             "non_human_options": (None, Optional[Any]),  # 非人类限流配置
+            "user_timezone": (None, Optional[str]),  # 用户时区（IANA 名称），None 时回落系统时区
         })
 
     def get_workspace_dir(self) -> str:
@@ -396,26 +397,9 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         """
         return 0
 
-    async def handle_user_interruption(self, cancel_task_func, reason: str = "用户主动中断", timeout: float = 10.0) -> bool:
-        """处理用户中断请求（默认实现：直接执行cancel_task_func）
-
-        子类应该重写此方法以提供具体的中断处理逻辑
-
-        Args:
-            cancel_task_func: 取消任务的函数
-            reason: 中断原因
-            timeout: 等待超时时间（秒）
-
-        Returns:
-            bool: 始终返回True
-        """
-        try:
-            logger.debug(f"BaseAgentContext处理用户中断: {reason}")
-            await cancel_task_func()
-            return True
-        except Exception as e:
-            logger.error(f"BaseAgentContext处理用户中断失败: {e}")
-            return False
+    async def stop_run(self, reason: str = "") -> None:
+        """停止当前 run（默认实现：子类应重写以提供具体流程）。"""
+        raise NotImplementedError
 
     # ====== LLM Request ID 相关方法 ======
 
@@ -435,3 +419,18 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
             Optional[str]: 当前 LLM 请求的 request_id，如果没有则返回 None
         """
         return self.shared_context.get_field("current_llm_request_id")
+
+    # ====== 时区 ======
+
+    def set_user_timezone(self, tz: str) -> None:
+        """设置用户时区（IANA 名称，如 Asia/Shanghai）。"""
+        self.shared_context.update_field("user_timezone", tz)
+
+    def get_user_timezone(self) -> str:
+        """获取用户时区（IANA 名称）。
+
+        优先返回通过 set_user_timezone() 设置的值，未设置时回落到系统时区。
+        """
+        from agentlang.utils.timezone_utils import get_system_timezone
+        tz = self.shared_context.get_field("user_timezone")
+        return tz if tz else get_system_timezone()

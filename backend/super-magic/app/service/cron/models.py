@@ -55,6 +55,7 @@ class CronJob:
     enabled: bool = True
     name: Optional[str] = None     # 可选的展示名称（从 frontmatter name 字段读取）
     mtime: float = 0.0             # 文件最后修改时间，用于变更检测
+    timezone: Optional[str] = None # 用户时区（IANA 名称），创建时写入，影响结果文件目录和时间戳展示
 
 
 @dataclass
