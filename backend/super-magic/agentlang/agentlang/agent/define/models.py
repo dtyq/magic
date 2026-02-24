@@ -21,18 +21,21 @@ class SystemSkillEntry:
 class SkillsConfig:
     """YAML frontmatter 中 skills 字段的完整配置
 
-    - system_skills: 显式列出的具名 skill 条目，只加载列出的条目
+    - system_skills: 显式列出的具名 skill 条目；值为 "*" 时扫描整个 agents/skills/ 目录
+    - system_skills_scan: 内部字段，由 parser 从 system_skills: "*" 派生，不直接对应 YAML key
     - crew_skills: 值为 "*" 时扫描整个 crew skills 目录；None 表示不纳入 prompt
     - workspace_skills: 值为 "*" 时扫描整个 workspace skills 目录；None 表示不纳入 prompt
     """
 
     system_skills: List[SystemSkillEntry] = field(default_factory=list)
+    system_skills_scan: Optional[str] = None
     crew_skills: Optional[str] = None
     workspace_skills: Optional[str] = None
 
     def is_empty(self) -> bool:
         return (
             not self.system_skills
+            and self.system_skills_scan is None
             and self.crew_skills is None
             and self.workspace_skills is None
         )

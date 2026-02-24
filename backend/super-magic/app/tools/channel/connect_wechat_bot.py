@@ -8,7 +8,8 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-from app.channel.wechat import login as wechat_login
+from app.channel.wechat.login import WechatLoginManager, LoginStatus
+from app.core.context.agent_context import AgentContext
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
@@ -31,22 +32,28 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWechatBotParams) -> ToolResult:
-        existing = wechat_login.get_active_session()
-        if existing and existing.is_active() and not params.force_refresh:
-            status_text = (
-                "waiting for scan"
-                if existing.status == wechat_login.LoginStatus.WAITING
-                else "scanned, waiting for confirmation in WeChat"
-            )
-            return ToolResult(content=_build_qr_render_message(existing.qrcode_js_string_literal(), status_text))
+        manager = WechatLoginManager.get_instance()
+        agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
 
         try:
-            session = await wechat_login.start_login_session(
-                force_refresh=params.force_refresh
-            )
-            return ToolResult(content=_build_qr_render_message(session.qrcode_js_string_literal()))
+            session = await manager.start_or_resume_session(force_refresh=params.force_refresh)
+
+            # 向当前 run 注册 cleanup：中断时自动取消此 session
+            if agent_context is not None:
+                captured_id = session.session_id
+
+                async def _wechat_cleanup() -> None:
+                    await manager.cancel_session(session_id=captured_id)
+
+                agent_context.register_run_cleanup("wechat_login", _wechat_cleanup)
+
+            # 复用已有 session 时，告知当前扫码状态
+            status_text: str | None = None
+            if session.status == LoginStatus.SCANNED:
+                status_text = "scanned, waiting for confirmation in WeChat"
+            return ToolResult(content=_build_qr_render_message(session.qrcode_js_string_literal(), status_text))
         except Exception as e:
-            logger.error(f"[ConnectWechatBot] 发起登录失败: {e}")
+            logger.error(f"[ConnectWechatBot] start session failed: {e}")
             return ToolResult.error(f"Failed to start the WeChat login flow: {e}")
 
 

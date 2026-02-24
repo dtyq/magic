@@ -6,7 +6,7 @@ import yaml
 import aiofiles
 import asyncio
 
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from .models import SkillMetadata
 from .exceptions import SkillLoadError, SkillParseError, SkillValidationError
 
@@ -59,7 +59,7 @@ class SkillLoader:
             markdown_content = content
 
         # 移除 markdown 内容中的中文注释，只保留英文内容给 LLM
-        markdown_content = remove_human_annotations(markdown_content)
+        markdown_content = remove_developer_annotations(markdown_content)
 
         # 验证必需字段
         self._validate_metadata(metadata_dict)

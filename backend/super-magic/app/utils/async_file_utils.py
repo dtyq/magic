@@ -7,13 +7,17 @@
 """
 
 import asyncio
+import re
 import aiofiles
 import aiofiles.os
 import shutil
 import json
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union, Any, Dict, Optional
+
+import yaml
 
 from agentlang.logger import get_logger
 
@@ -601,3 +605,48 @@ async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     except Exception as e:
         logger.error(f"异步遍历目录失败 {path_str}: {e}")
         raise
+
+
+# ── Markdown with YAML frontmatter ───────────────────────────────────────────
+
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+
+
+@dataclass
+class MarkdownFile:
+    """Parsed Markdown file with optional YAML frontmatter.
+
+    Attributes:
+        raw:  Original file content as-is.
+        meta: Parsed YAML frontmatter dict; empty if none present.
+        body: Content after stripping the frontmatter block.
+    """
+    raw: str
+    meta: Dict[str, Any] = field(default_factory=dict)
+    body: str = ""
+
+
+def _parse_markdown(raw: str) -> MarkdownFile:
+    m = _FRONTMATTER_RE.match(raw)
+    if not m:
+        return MarkdownFile(raw=raw, meta={}, body=raw)
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError:
+        meta = {}
+    return MarkdownFile(raw=raw, meta=meta, body=raw[m.end():])
+
+
+async def async_read_markdown(file_path: Union[str, Path]) -> MarkdownFile:
+    """Read and parse a Markdown file with optional YAML frontmatter.
+
+    Raises:
+        FileNotFoundError: if the file does not exist.
+    """
+    return _parse_markdown(await async_read_text(file_path))
+
+
+async def async_try_read_markdown(file_path: Union[str, Path]) -> Optional[MarkdownFile]:
+    """Read and parse a Markdown file; return None if the file does not exist."""
+    raw = await async_try_read_text(file_path)
+    return _parse_markdown(raw) if raw is not None else None

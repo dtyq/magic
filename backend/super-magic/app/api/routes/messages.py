@@ -210,6 +210,18 @@ class MessageProcessor:
         try:
             from agentlang.context.tool_context import ToolContext
             from agentlang.event.data import BeforeInitEventData, AfterInitEventData
+            from app.i18n import i18n
+
+            # Restore language from saved init metadata before dispatching init events.
+            # ContextVar changes made inside asyncio.create_task() (INIT handler) are
+            # task-local and do not propagate to this new request's context, so we must
+            # re-apply the language here to ensure i18n translations use the correct locale.
+            if metadata and metadata.language:
+                i18n.set_language(metadata.language)
+                logger.info(f"延迟 init 事件：从 metadata 恢复用户语言: {metadata.language}")
+            else:
+                i18n.set_language("zh_CN")
+                logger.info("延迟 init 事件：metadata 无语言设置，使用默认语言: zh_CN")
 
             # 创建 ToolContext
             tool_context = ToolContext(metadata=agent_context.get_metadata())

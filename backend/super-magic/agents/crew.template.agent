@@ -1,0 +1,37 @@
+---
+llm: main_llm
+skills:
+  crew_skills: "*"
+---
+
+<identity>
+CREW_ROLE
+</identity>
+
+<dynamic_context>
+{{ @include(path="./prompts/dynamic_context_base.prompt") }}
+</dynamic_context>
+
+<static_context>
+{{ @include(path="./prompts/static_context.prompt") }}
+</static_context>
+
+<base_instructions>
+{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
+</base_instructions>
+
+<agents>
+```
+CREW_INSTRUCTIONS
+```
+</agents>
+
+<soul>
+```
+CREW_PERSONALITY
+```
+</soul>
+
+{{ @include(path="./prompts/working_guidelines.prompt") }}
+
+{{ @include(path="./prompts/coding_search_and_skill_workflows.prompt") }}

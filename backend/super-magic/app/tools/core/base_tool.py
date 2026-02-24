@@ -15,7 +15,7 @@ from typing import Any, Dict, Generic, Optional, Type, TypeVar, ClassVar, get_ar
 from pydantic import ConfigDict, ValidationError
 
 from agentlang.utils.snowflake import Snowflake
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.message.server_message import ToolDetail
 from agentlang.tools.tool_result import ToolResult
@@ -883,17 +883,17 @@ class BaseTool(Generic[T], ABC):
 
     @staticmethod
     def _remove_annotations_recursive(obj):
-        """递归移除对象中所有字符串的人类注解（唯一过滤点）"""
+        """递归移除对象中所有字符串的开发者注解（唯一过滤点）"""
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if isinstance(value, str):
-                    obj[key] = remove_human_annotations(value)
+                    obj[key] = remove_developer_annotations(value)
                 elif isinstance(value, (dict, list)):
                     BaseTool._remove_annotations_recursive(value)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 if isinstance(item, str):
-                    obj[i] = remove_human_annotations(item)
+                    obj[i] = remove_developer_annotations(item)
                 elif isinstance(item, (dict, list)):
                     BaseTool._remove_annotations_recursive(item)
 

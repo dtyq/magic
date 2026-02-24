@@ -9,7 +9,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.channel.config import WechatCredential, load_config, save_config
-from app.channel.wechat import login as wechat_login
+from app.channel.wechat.login import WechatLoginManager, WechatLoginOutcome
 from app.channel.wechat.channel import WechatChannel
 from app.tools.core import BaseTool, BaseToolParams, tool
 
@@ -34,17 +34,19 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
 
     async def execute(self, tool_context: ToolContext, params: WaitWechatLoginParams) -> ToolResult:
         try:
-            outcome = await wechat_login.wait_for_login(params.timeout_seconds)
+            outcome = await WechatLoginManager.get_instance().wait_for_outcome(
+                timeout_seconds=params.timeout_seconds
+            )
             if outcome.requires_qr_render:
                 return ToolResult(content=_build_qr_refresh_message(outcome.qrcode_js_string_literal()))
             if outcome.success:
                 await self._activate_channel(outcome, tool_context.sandbox_id)
             return ToolResult(content=outcome.message)
         except Exception as e:
-            logger.error(f"[WaitWechatLogin] 等待登录结果失败: {e}")
+            logger.error(f"[WaitWechatLogin] wait_for_outcome failed: {e}")
             return ToolResult.error(f"WeChat login wait failed: {e}")
 
-    async def _activate_channel(self, outcome: wechat_login.WechatLoginOutcome, sandbox_id: str) -> None:
+    async def _activate_channel(self, outcome: WechatLoginOutcome, sandbox_id: str) -> None:
         """扫码成功后保存凭据并启动 WechatChannel。"""
         if outcome.result is None:
             raise RuntimeError("The WeChat login succeeded, but the result payload is missing.")
@@ -59,7 +61,7 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
             sandbox_id=sandbox_id,
         )
         await save_config(config)
-        logger.info("[WaitWechatLogin] 微信凭据已保存")
+        logger.info("[WaitWechatLogin] WeChat credentials saved")
 
         channel = WechatChannel.get_instance()
         await channel.connect(config.wechat)

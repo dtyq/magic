@@ -6,7 +6,7 @@ import logging
 import asyncio
 import aiofiles
 
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from .models import SkillMetadata
 from .loader import SkillLoader
 from .exceptions import SkillNotFoundError, SkillResourceError
@@ -224,7 +224,7 @@ class SkillManager:
         async with aiofiles.open(ref_path, mode='r', encoding='utf-8') as f:
             content = await f.read()
 
-        return remove_human_annotations(content)
+        return remove_developer_annotations(content)
 
     async def get_resource_path(self, skill_name: str, resource_path: str) -> Path:
         """获取资源文件路径（异步）

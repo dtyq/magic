@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agentlang.logger import get_logger
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 
 from .processors import (
     BaseSyntaxProcessor,
@@ -130,7 +130,7 @@ class SyntaxProcessor:
         """
         # Step 1: Remove human annotations before processing dynamic syntax
         # Enables bilingual maintenance (CN for humans, EN for LLM)
-        prompt = remove_human_annotations(prompt)
+        prompt = remove_developer_annotations(prompt)
 
         # 循环引用检测
         if current_file:

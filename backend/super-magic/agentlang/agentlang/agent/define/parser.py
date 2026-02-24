@@ -25,12 +25,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from agentlang.logger import get_logger
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from .models import AgentDefine, SkillsConfig, SystemSkillEntry
 
 logger = get_logger(__name__)
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n?", re.DOTALL)
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def parse_agent_file(content: str) -> Tuple[AgentDefine, str]:
@@ -62,7 +62,7 @@ def parse_agent_file(content: str) -> Tuple[AgentDefine, str]:
         skills_config=_parse_skills(data),
     )
 
-    prompt = _strip_html_comments(prompt_raw).strip()
+    prompt = remove_developer_annotations(prompt_raw).strip()
 
     return agent_define, prompt
 
@@ -108,17 +108,27 @@ def _parse_skills(data: Dict[str, Any]) -> Optional[SkillsConfig]:
     if not isinstance(raw, dict):
         raise ValueError(f"skills 字段格式不合法，期望 mapping，实际: {type(raw)}")
 
-    system_skills = _parse_system_skills(raw.get("system_skills"))
+    # system_skills: "*" 表示全量扫描，与 crew_skills/workspace_skills 的通配符语义一致
+    system_skills_raw = raw.get("system_skills")
+    if system_skills_raw == "*":
+        system_skills = []
+        system_skills_scan = "*"
+    else:
+        system_skills = _parse_system_skills(system_skills_raw)
+        system_skills_scan = None
+
     crew_skills = _parse_wildcard_source(raw.get("crew_skills"), "crew_skills")
     workspace_skills = _parse_wildcard_source(raw.get("workspace_skills"), "workspace_skills")
 
     cfg = SkillsConfig(
         system_skills=system_skills,
+        system_skills_scan=system_skills_scan,
         crew_skills=crew_skills,
         workspace_skills=workspace_skills,
     )
     logger.debug(
         f"解析 skills: system={[e.name for e in system_skills]}, "
+        f"system_scan={system_skills_scan}, "
         f"crew={crew_skills}, workspace={workspace_skills}"
     )
     return cfg
@@ -167,5 +177,3 @@ def _parse_wildcard_source(raw: Any, field_name: str) -> Optional[str]:
     return "*"
 
 
-def _strip_html_comments(text: str) -> str:
-    return _HTML_COMMENT_RE.sub("", text)

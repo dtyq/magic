@@ -27,12 +27,9 @@ YAML header carries agent-level metadata; the body defines the role description.
 
 | Field | Description | Maps to |
 |-------|-------------|---------|
-| `name` | Employee name (English) | `AgentProfile.name` |
-| `name_cn` | Employee name (Chinese) | `AgentProfile.name` (when lang=zh_CN) |
-| `role` | Employee role (English) | `AgentProfile.role` |
-| `role_cn` | Employee role (Chinese) | `AgentProfile.role` (when lang=zh_CN) |
-| `description` | Employee description (English) | `AgentProfile.description` |
-| `description_cn` | Employee description (Chinese) | `AgentProfile.description` (when lang=zh_CN) |
+| `name` | Employee name | `AgentProfile.name` |
+| `role` | Employee role | `AgentProfile.role` |
+| `description` | Employee description | `AgentProfile.description` |
 
 <!--zh
 ### AgentProfile 渲染规则
@@ -52,11 +49,8 @@ YAML header carries agent-level metadata; the body defines the role description.
 ```markdown
 ---
 name: Research Assistant
-name_cn: 研究助手
 role: Academic Researcher
-role_cn: 学术研究员
 description: A professional research assistant for academic work
-description_cn: 专业学术研究助手
 ---
 
 <!--zh
@@ -71,11 +65,11 @@ You have a rigorous academic attitude and critical thinking ability.
 <!--zh
 ### 编译后位置
 
-正文内容编译后注入 `.agent` 文件的 `<role>` 段。
+正文内容编译后注入 `.agent` 文件的 `<identity>` 段。
 -->
 ### Compilation Target
 
-Body content is injected into the `<role>` section of the compiled `.agent` file.
+Body content is injected into the `<identity>` section of the compiled `.agent` file.
 
 ---
 
@@ -123,7 +117,7 @@ This employee's specific workflow and rules. **No YAML header**, pure Markdown c
 
 ### 编译后位置
 
-编译后注入 `.agent` 文件的 `<user_custom_instructions>` 段，自动包裹安全提醒。
+编译后注入 `.agent` 文件的 `<agents>` 段。
 -->
 ### Writing Guidelines
 
@@ -134,7 +128,7 @@ This employee's specific workflow and rules. **No YAML header**, pure Markdown c
 
 ### Compilation Target
 
-Injected into the `<user_custom_instructions>` section of the compiled `.agent` file, automatically wrapped with security reminders.
+Injected into the `<agents>` section of the compiled `.agent` file.
 
 ---
 
@@ -179,7 +173,7 @@ Defines the employee's personality and behavior guidelines. **No YAML header**, 
 
 ### 编译后位置
 
-编译后注入 `.agent` 文件的 `<personality>` 段。
+编译后注入 `.agent` 文件的 `<soul>` 段。
 -->
 ### Writing Guidelines
 
@@ -189,7 +183,7 @@ Defines the employee's personality and behavior guidelines. **No YAML header**, 
 
 ### Compilation Target
 
-Injected into the `<personality>` section of the compiled `.agent` file.
+Injected into the `<soul>` section of the compiled `.agent` file.
 
 ---
 
@@ -242,9 +236,8 @@ tools:
 <!--zh
 ### 编译规则
 
-- YAML `tools` 列表 → 直接生成 `<!-- tools: ... -->` 行
-- 正文内容（如有）→ 注入 `<tool_preferences>` 段
-- 不提供 TOOLS.md → 使用 `crew.agent.template` 中的默认工具集
+- YAML `tools` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `tools` 字段
+- 不提供 TOOLS.md → 使用 `crew.template.agent` 中的默认工具集
 
 ### 注意事项
 
@@ -253,9 +246,8 @@ tools:
 -->
 ### Compilation Rules
 
-- YAML `tools` list → generates `<!-- tools: ... -->` line directly
-- Body content (if any) → injected into `<tool_preferences>` section
-- No TOOLS.md provided → uses default tool set from `crew.agent.template`
+- YAML `tools` list → overwrites the `tools` field in the compiled `.agent` file frontmatter
+- No TOOLS.md provided → uses default tool set from `crew.template.agent`
 
 ### Notes
 
@@ -288,13 +280,13 @@ skills:
 <!--zh
 ### 编译规则
 
-- YAML `skills` 列表 → 直接生成 `<!-- skills: ... -->` 行
-- 不提供 SKILLS.md → 使用 `crew.agent.template` 中的默认技能集
+- YAML `skills` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `skills.system_skills` 字段
+- 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集
 -->
 ### Compilation Rules
 
-- YAML `skills` list → generates `<!-- skills: ... -->` line directly
-- No SKILLS.md provided → uses default skill set from `crew.agent.template`
+- YAML `skills` list → overwrites the `skills.system_skills` field in the compiled `.agent` file frontmatter
+- No SKILLS.md provided → uses default skill set from `crew.template.agent`
 
 ---
 
@@ -412,8 +404,8 @@ English content
 | `IDENTITY.md` | **不合法** — 没有此文件则不认为是合法的 crew agent |
 | `AGENTS.md` | 无特定指令，等同于默认 magic.agent + 自定义身份 |
 | `SOUL.md` | 无额外性格定义，使用默认风格 |
-| `TOOLS.md` | 使用 crew.agent.template 中的默认工具集 |
-| `SKILLS.md` | 使用 crew.agent.template 中的默认技能集 |
+| `TOOLS.md` | 使用 crew.template.agent 中的默认工具集 |
+| `SKILLS.md` | 使用 crew.template.agent 中的默认技能集 |
 | `skills/` | 无自定义技能 |
 -->
 ## 8. Behavior When Files Are Missing
@@ -423,6 +415,6 @@ English content
 | `IDENTITY.md` | **Invalid** — without this file, the crew agent is not considered valid |
 | `AGENTS.md` | No specific instructions; equivalent to default magic.agent + custom identity |
 | `SOUL.md` | No extra personality; uses default style |
-| `TOOLS.md` | Uses default tool set from crew.agent.template |
-| `SKILLS.md` | Uses default skill set from crew.agent.template |
+| `TOOLS.md` | Uses default tool set from crew.template.agent |
+| `SKILLS.md` | Uses default skill set from crew.template.agent |
 | `skills/` | No custom skills |
