@@ -385,6 +385,71 @@ class MagicServiceClient:
             logger.error(traceback.format_exc())
             raise ApiError(f"Unexpected error: {e}")
 
+    async def check_sandbox_version(self, sandbox_id: str) -> Dict[str, Any]:
+        """
+        检查沙箱镜像版本（当前版本与最新版本对比，是否需要升级）
+
+        对应 Magic 开放接口：GET /api/v1/open-api/sandbox/version-check
+
+        Args:
+            sandbox_id: 沙箱 ID（即 topic_id）
+
+        Returns:
+            包含 current_version、latest_version、needs_update 的字典
+
+        Raises:
+            ApiError: If API request fails
+            ConnectionError: If connection fails
+        """
+        if not sandbox_id:
+            raise ApiError("sandbox_id is required")
+
+        api_url = f"{self.config.api_base_url.rstrip('/')}/api/v1/open-api/sandbox/version-check"
+        params = {"sandbox_id": sandbox_id}
+
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "MagicServiceClient/1.0"
+        }
+        MetadataUtil.add_magic_and_user_authorization_headers(headers)
+
+        logger.info(f"Checking sandbox version, sandbox_id: {sandbox_id}")
+        logger.info(f"Request URL: {api_url}")
+
+        try:
+            session_to_use = self.session or aiohttp.ClientSession()
+            should_close_session = self.session is None
+
+            try:
+                async with session_to_use.get(
+                    api_url,
+                    params=params,
+                    headers=headers
+                ) as response:
+                    response_text = await response.text()
+                    logger.info(f"Sandbox version-check API response status: {response.status}")
+                    logger.debug(f"Sandbox version-check API response: {response_text}")
+
+                    if response.status == 200:
+                        try:
+                            result = json.loads(response_text)
+                            return self._process_api_response(result, f"检查沙箱版本({sandbox_id})")
+                        except json.JSONDecodeError:
+                            raise ApiError(f"Invalid JSON response: {response_text[:200]}...", response.status)
+                    else:
+                        raise ApiError(f"HTTP error: {response.status}", response.status, {"response": response_text})
+            finally:
+                if should_close_session:
+                    await session_to_use.close()
+
+        except aiohttp.ClientError as e:
+            logger.error(f"Connection error during sandbox version check: {e}")
+            raise ConnectionError(f"Failed to connect to Magic Service: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error during sandbox version check: {e}")
+            logger.error(traceback.format_exc())
+            raise ApiError(f"Unexpected error: {e}")
+
     def _traverse_directory(self, path: str) -> List[str]:
         """
         Traverse directory recursively and collect all files and directories
