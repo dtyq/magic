@@ -327,6 +327,10 @@
         "zh_CN": "上传技能",
         "en_US": "Upload skill"
     },
+    "upgrade_sandbox": {
+        "zh_CN": "升级沙箱",
+        "en_US": "Upgrade sandbox"
+    },
     "manage_cron": {
         "zh_CN": "管理定时任务",
         "en_US": "Manage cron jobs"
