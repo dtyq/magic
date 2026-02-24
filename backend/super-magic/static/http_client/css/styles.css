@@ -425,6 +425,214 @@ input[type="checkbox"] {
     font-size: 13px;
 }
 
+/* AI 回复消息气泡 */
+.message.ai {
+    align-self: flex-start;
+    background-color: white;
+    color: var(--wechat-text-dark);
+    border-radius: 0 8px 8px 8px;
+    border: 1px solid var(--wechat-border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 8px 12px;
+    max-width: 85%;
+    word-break: break-word;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.message.ai .ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.message.ai .message-header {
+    color: var(--wechat-text-gray);
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+/* 原文 / MD 切换按钮 */
+.ai-toggle-btn {
+    font-size: 11px;
+    padding: 1px 7px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--wechat-text-gray);
+    cursor: pointer;
+    line-height: 1.6;
+    flex-shrink: 0;
+}
+.ai-toggle-btn:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+/* 原文视图 */
+.ai-raw-view {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    line-height: 1.6;
+}
+
+/* Markdown 渲染视图 */
+.ai-markdown {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--wechat-text-dark);
+}
+.ai-markdown p { margin: 0 0 8px; }
+.ai-markdown p:last-child { margin-bottom: 0; }
+.ai-markdown h1, .ai-markdown h2, .ai-markdown h3,
+.ai-markdown h4, .ai-markdown h5, .ai-markdown h6 {
+    margin: 12px 0 6px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.ai-markdown h1 { font-size: 1.3em; }
+.ai-markdown h2 { font-size: 1.15em; }
+.ai-markdown h3 { font-size: 1.05em; }
+.ai-markdown ul, .ai-markdown ol {
+    padding-left: 1.5em;
+    margin: 6px 0;
+}
+.ai-markdown li { margin: 2px 0; }
+.ai-markdown code {
+    background: rgba(0,0,0,0.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+.ai-markdown pre {
+    background: #f6f8fa;
+    border: 1px solid var(--wechat-border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+.ai-markdown pre code {
+    background: none;
+    padding: 0;
+    font-size: 12px;
+}
+.ai-markdown blockquote {
+    border-left: 3px solid var(--wechat-border);
+    margin: 6px 0;
+    padding: 2px 12px;
+    color: var(--wechat-text-gray);
+}
+.ai-markdown table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 13px;
+}
+.ai-markdown th, .ai-markdown td {
+    border: 1px solid var(--wechat-border);
+    padding: 5px 10px;
+    text-align: left;
+}
+.ai-markdown th { background: #f5f5f5; font-weight: 600; }
+.ai-markdown a { color: #4c8bf5; text-decoration: none; }
+.ai-markdown a:hover { text-decoration: underline; }
+.ai-markdown hr { border: none; border-top: 1px solid var(--wechat-border); margin: 10px 0; }
+.ai-markdown img { max-width: 100%; border-radius: 4px; }
+
+/* AI 回复中的 iframe 渲染区域 */
+.ai-iframe-wrapper {
+    margin-top: 8px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.ai-iframe {
+    display: block;
+    width: 100%;
+    height: 300px;
+    border: none;
+    background: #fff;
+}
+
+/* 思考过程折叠块 */
+.thinking-block {
+    align-self: flex-start;
+    max-width: 85%;
+    margin: 2px 0;
+}
+
+.thinking-summary {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: #9b59b6;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+    background-color: rgba(155, 89, 182, 0.06);
+    border: 1px solid rgba(155, 89, 182, 0.2);
+}
+
+.thinking-summary:hover {
+    background-color: rgba(155, 89, 182, 0.12);
+}
+
+.thinking-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: rgba(155, 89, 182, 0.04);
+    border: 1px solid rgba(155, 89, 182, 0.15);
+    border-radius: 4px;
+    font-size: 12px;
+    color: #7d6b8a;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* 事件日志折叠条目 */
+.event-log {
+    align-self: stretch;
+    margin: 2px 0;
+}
+
+.event-log-summary {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #aaa;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.event-log-summary:hover {
+    background-color: rgba(0,0,0,0.04);
+    color: #888;
+}
+
+.event-log-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: #f9f9f9;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--wechat-text-gray);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 /* 消息输入区域 */
 .message-input-panel {
     display: flex;
@@ -1086,4 +1294,260 @@ input[type="file"] {
     color: var(--wechat-text-gray);
     margin-bottom: 8px;
     line-height: 1.4;
+}
+
+/* ── 侧边栏整体布局调整 ── */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* 不再整体滚动，由子区域自行滚动 */
+}
+
+.connection-panel {
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+/* 连接按钮改为两列并排 */
+.connection-buttons {
+    flex-direction: row;
+    margin-top: 8px;
+    gap: 6px;
+}
+
+.connection-buttons .btn {
+    flex: 1;
+    padding: 7px 6px;
+    font-size: 12px;
+}
+
+/* ── 紧凑初始化配置折叠面板 ── */
+.config-panel-compact {
+    flex-shrink: 0;
+    background-color: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.config-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    background-color: #fafafa;
+}
+
+.config-panel-header:hover {
+    background-color: #f0f0f0;
+}
+
+.config-panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+}
+
+.config-panel-arrow {
+    font-size: 10px;
+    color: var(--wechat-text-gray);
+    transition: transform 0.2s;
+}
+
+.config-panel-arrow.open {
+    transform: rotate(90deg);
+}
+
+.config-panel-body {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--wechat-border);
+}
+
+.config-panel-body .config-textarea {
+    min-height: 120px;
+    font-size: 12px;
+}
+
+/* ── 文件树面板 ── */
+.filetree-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.filetree-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--wechat-border);
+    flex-shrink: 0;
+}
+
+.filetree-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+}
+
+.filetree-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-btn {
+    background: none;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--wechat-text-gray);
+    transition: background-color 0.15s;
+}
+
+.icon-btn:hover {
+    background-color: #f0f0f0;
+    color: var(--wechat-text-dark);
+}
+
+.filetree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.filetree-empty {
+    padding: 16px 12px;
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    text-align: center;
+    line-height: 1.8;
+}
+
+/* 文件树节点 */
+.ft-node {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--wechat-text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 3px;
+    margin: 0 4px;
+}
+
+.ft-node:hover {
+    background-color: #f0f0f0;
+}
+
+.ft-node.ft-dir {
+    font-weight: 500;
+}
+
+.ft-node.ft-selected {
+    background-color: rgba(7, 193, 96, 0.1);
+    color: var(--wechat-green);
+}
+
+.ft-icon {
+    flex-shrink: 0;
+    font-style: normal;
+    font-size: 12px;
+}
+
+.ft-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ft-children {
+    /* 子节点通过 padding-left 动态设置缩进 */
+}
+
+/* ── 文件预览弹窗 ── */
+.file-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+}
+
+.file-preview-dialog {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    width: 70vw;
+    max-width: 900px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.file-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--wechat-border);
+    background-color: #fafafa;
+    flex-shrink: 0;
+}
+
+.file-preview-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-preview-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--wechat-text-gray);
+    padding: 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.file-preview-close:hover {
+    color: var(--wechat-danger);
+}
+
+.file-preview-content {
+    flex: 1;
+    overflow: auto;
+    padding: 14px 16px;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--wechat-text-dark);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+    background-color: #fafafa;
 }

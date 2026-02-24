@@ -8,6 +8,96 @@ let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 
 // WebSocket相关变量
 let websocket = null;
 let isWebSocketConnected = false;
+let wsOpenCallbacks = []; // 等待连接建立的 Promise 回调队列
+
+// 确保 WebSocket 已连接，未连接则自动发起连接并等待
+function ensureWebSocketConnected() {
+    if (isWebSocketConnected) return Promise.resolve();
+
+    const serverUrl = serverUrlInput.value.trim();
+    if (!serverUrl) {
+        showSystemMessage("请先输入服务器地址");
+        return Promise.reject(new Error('no server url'));
+    }
+
+    return new Promise((resolve, reject) => {
+        wsOpenCallbacks.push({ resolve, reject });
+        // 未在连接中则发起连接
+        if (!websocket || websocket.readyState === WebSocket.CLOSED || websocket.readyState === WebSocket.CLOSING) {
+            connectWebSocket();
+        }
+    });
+}
+
+// 对话消息持久化
+const CHAT_LOG_KEY = 'chatMessageLog';
+const CHAT_LOG_MAX = 300; // 最多保留条数
+let chatLog = [];         // 消息数据列表
+let isRestoring = false;  // 恢复阶段不触发二次保存
+
+function saveChatLog() {
+    if (isRestoring) return;
+    try {
+        // 超出上限时丢弃最早的记录
+        if (chatLog.length > CHAT_LOG_MAX) chatLog = chatLog.slice(-CHAT_LOG_MAX);
+        localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(chatLog));
+    } catch (e) {
+        console.warn('保存对话记录失败:', e);
+    }
+}
+
+function pushLog(entry) {
+    chatLog.push(entry);
+    saveChatLog();
+}
+
+function clearChatLog() {
+    chatLog = [];
+    localStorage.removeItem(CHAT_LOG_KEY);
+}
+
+function restoreChatLog() {
+    try {
+        const saved = localStorage.getItem(CHAT_LOG_KEY);
+        if (!saved) return;
+        chatLog = JSON.parse(saved);
+    } catch (e) {
+        chatLog = [];
+        return;
+    }
+    isRestoring = true;
+    for (const entry of chatLog) {
+        renderLogEntry(entry);
+    }
+    isRestoring = false;
+    scrollToBottom();
+}
+
+function renderLogEntry(entry) {
+    switch (entry.type) {
+        case 'client':    renderClientEntry(entry); break;
+        case 'ai':        showAIMessage(entry.content, entry.timestamp, true); break;
+        case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
+        case 'event':     showEventLog(entry.data, true); break;
+        case 'system':    showSystemMessage(entry.text, true); break;
+    }
+}
+
+function renderClientEntry(entry) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message client';
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    const agentMode = entry.agentMode ? entry.agentMode.toUpperCase() : 'N/A';
+    const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
+    header.textContent = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.textContent = entry.prompt;
+    messageDiv.appendChild(header);
+    messageDiv.appendChild(content);
+    messageList.appendChild(messageDiv);
+}
 
 // 定义示例文本常量
 const EXAMPLE_TEXT = "我需要4月15日至23日从广东出发的北京7天行程，我和未婚妻的预算是2500-5000人民币。我们喜欢历史遗迹、隐藏的宝石和中国文化。我们想看看北京的长城，徒步探索城市。我打算在这次旅行中求婚，需要一个特殊的地点推荐。请提供详细的行程和简单的HTML旅行手册，包括地图，景点描述，必要的旅行提示，我们可以在整个旅程中参考。";
@@ -26,9 +116,25 @@ const configFileInput = document.getElementById('configFile');
 const currentFileNameDisplay = document.getElementById('currentFileName');
 const modeToggle = document.getElementById('modeToggle');
 const agentModeSelect = document.getElementById('agentModeSelect');
+const agentCodeInput = document.getElementById('agentCodeInput');
+const agentCodeGroup = document.getElementById('agentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
+
+// 初始化配置折叠面板
+const configPanelToggle = document.getElementById('configPanelToggle');
+const configPanelBody = document.getElementById('configPanelBody');
+const configPanelArrow = document.getElementById('configPanelArrow');
+if (configPanelToggle) {
+    // 默认展开
+    configPanelArrow.classList.add('open');
+    configPanelToggle.addEventListener('click', () => {
+        const isOpen = configPanelBody.style.display !== 'none';
+        configPanelBody.style.display = isOpen ? 'none' : 'block';
+        configPanelArrow.classList.toggle('open', !isOpen);
+    });
+}
 
 // 消息类型枚举
 const MessageType = {
@@ -76,7 +182,7 @@ function initResizers() {
     // 侧边栏拖拽
     const sidebar = document.querySelector('.sidebar');
     const sidebarResizer = document.getElementById('sidebarResizer');
-    
+
     let isResizingSidebar = false;
     let startX;
     let startWidth;
@@ -91,7 +197,7 @@ function initResizers() {
         isResizingSidebar = true;
         startX = e.clientX;
         startWidth = parseInt(document.defaultView.getComputedStyle(sidebar).width, 10);
-        
+
         sidebarResizer.classList.add('resizing');
         document.body.style.cursor = 'col-resize';
         // 防止拖拽时选中文本
@@ -102,7 +208,7 @@ function initResizers() {
     const inputPanel = document.getElementById('messageInputPanel');
     const inputResizer = document.getElementById('inputResizer');
     const messagesContainer = document.getElementById('messagesContainer');
-    
+
     let isResizingInput = false;
     let startY;
     let startHeight;
@@ -117,7 +223,7 @@ function initResizers() {
         isResizingInput = true;
         startY = e.clientY;
         startHeight = parseInt(document.defaultView.getComputedStyle(inputPanel).height, 10);
-        
+
         inputResizer.classList.add('resizing');
         document.body.style.cursor = 'row-resize';
         e.preventDefault();
@@ -132,7 +238,7 @@ function initResizers() {
                 sidebar.style.width = newWidth + 'px';
             }
         }
-        
+
         if (isResizingInput) {
             // 向上拖拽是增加高度，所以是减去差值
             const newHeight = startHeight - (e.clientY - startY);
@@ -195,6 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMessageHistory();
     console.log("DOM加载完成，已加载历史记录，数量:", messageHistory.length);
 
+    // 恢复对话消息
+    restoreChatLog();
+
     // 初始化消息按钮事件
     const sendInitBtn = document.getElementById('sendInitBtn');
     if (sendInitBtn) {
@@ -212,6 +321,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 中断按钮事件
     interruptBtn.addEventListener('click', () => sendInterrupt());
+
+    // 清除对话按钮事件
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    if (clearChatBtn) {
+        clearChatBtn.addEventListener('click', () => {
+            showConfirmDialog('确定要清除所有对话消息吗？', () => {
+                clearChatLog();
+                messageList.innerHTML = '';
+                showSystemMessage('对话已清除');
+            });
+        });
+    }
 
     // 加载示例文本按钮事件
     loadExampleBtn.addEventListener('click', loadExampleText);
@@ -333,15 +454,11 @@ async function sendHttpMessage(messageData) {
 
         const responseData = await response.json();
 
-        // 显示响应
-        showServerMessage(responseData);
-
-        // 检查响应状态
-        if (responseData.code === 1000) {
-            showSystemMessage(`发送成功: ${responseData.message}`);
-        } else if (responseData.code === 2000) {
-            showSystemMessage(`发送失败: ${responseData.message}`);
-        }
+        // 用可展开日志展示 HTTP 响应
+        const label = responseData.code === 1000
+            ? `HTTP 响应: ${responseData.message}`
+            : `HTTP 响应 (${responseData.code}): ${responseData.message || '未知'}`;
+        showEventLog({ label, ...responseData });
 
         return responseData;
     } catch (error) {
@@ -356,6 +473,12 @@ async function sendMessage(contextType = ContextType.NORMAL) {
     if (!serverUrl) {
         showSystemMessage("请输入服务器地址");
         return;
+    }
+
+    try {
+        await ensureWebSocketConnected();
+    } catch (e) {
+        return; // 连接失败时终止，错误已由 ensureWebSocketConnected 提示
     }
 
     // 高级模式：直接发送原始 JSON
@@ -452,6 +575,12 @@ async function sendInitMessage() {
     }
 
     try {
+        await ensureWebSocketConnected();
+    } catch (e) {
+        return;
+    }
+
+    try {
         // 解析配置内容
         const configData = JSON.parse(uploadConfigContent.value);
 
@@ -488,11 +617,11 @@ function handleConfigFileUpload(event) {
             JSON.parse(content); // 验证是否为有效JSON
 
             uploadConfigContent.value = content;
-            
+
             // 保存到 localStorage
             localStorage.setItem('savedConfigContent', content);
             localStorage.setItem('savedConfigFileName', currentFileName);
-            
+
             showSystemMessage(`配置文件 "${file.name}" 上传成功并已保存`);
         } catch (error) {
             showSystemMessage(`文件格式错误: ${error.message}`);
@@ -531,6 +660,14 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         message.model_id = modelId;
     }
 
+    // magiclaw 模式下从输入框读取 agent_code 注入 dynamic_config
+    if (currentAgentMode === 'magiclaw' && agentCodeInput) {
+        const agentCode = agentCodeInput.value.trim();
+        if (agentCode) {
+            message.dynamic_config = { agent_code: agentCode };
+        }
+    }
+
     // Add remark field if provided
     if (remark !== null) {
         message.remark = remark;
@@ -561,23 +698,21 @@ function toggleMessageControls(enabled) {
 
 // 显示客户端消息
 function showClientMessage(message) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message client';
-
-    const messageHeader = document.createElement('div');
-    messageHeader.className = 'message-header';
-    const agentMode = message.agent_mode ? message.agent_mode.toUpperCase() : 'N/A';
-    const modelId = message.model_id ? ` - Model: ${message.model_id}` : '';
-    messageHeader.textContent = `客户端消息 (${new Date().toLocaleTimeString()}) - Agent模式: ${agentMode}${modelId}`;
-
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    messageContent.textContent = message.prompt;
-
-    messageDiv.appendChild(messageHeader);
-    messageDiv.appendChild(messageContent);
-    messageList.appendChild(messageDiv);
-
+    const time = new Date().toLocaleTimeString();
+    pushLog({
+        type: 'client',
+        prompt: message.prompt || '',
+        agentMode: message.agent_mode || '',
+        modelId: message.model_id || '',
+        time,
+    });
+    renderClientEntry({
+        type: 'client',
+        prompt: message.prompt || '',
+        agentMode: message.agent_mode || '',
+        modelId: message.model_id || '',
+        time,
+    });
     scrollToBottom();
 }
 
@@ -602,7 +737,8 @@ function showServerMessage(message) {
 }
 
 // 显示系统消息
-function showSystemMessage(text) {
+function showSystemMessage(text, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'system', text });
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message system';
     messageDiv.textContent = `[系统] ${text} (${new Date().toLocaleTimeString()})`;
@@ -644,12 +780,17 @@ function changeAgentMode() {
     const selectedMode = agentModeSelect.value;
     currentAgentMode = selectedMode;
 
+    if (agentCodeGroup) {
+        agentCodeGroup.style.display = selectedMode === 'magiclaw' ? '' : 'none';
+    }
+
     const modeNames = {
         'magic': 'Magic模式',
         'general': 'General模式',
         'ppt': 'PPT模式',
         'data_analysis': '数据分析模式',
-        'summary': '总结模式'
+        'summary': '总结模式',
+        'magiclaw': 'MagicLaw模式'
     };
 
     showSystemMessage(`切换到 ${modeNames[selectedMode] || selectedMode}`);
@@ -996,30 +1137,202 @@ function handleWebSocketOpen(event) {
     isWebSocketConnected = true;
     updateSubscribeButtonState('connected');
     showSystemMessage("WebSocket连接已建立，开始接收消息");
+    // 通知所有等待连接的发送操作
+    wsOpenCallbacks.splice(0).forEach(cb => cb.resolve());
 }
 
 function handleWebSocketMessage(event) {
     try {
-        let displayData;
-
-        // 尝试解析JSON
+        let data;
         try {
-            displayData = JSON.parse(event.data);
+            data = JSON.parse(event.data);
         } catch (parseError) {
-            // 如果解析失败，创建一个包含原始数据的对象
-            displayData = {
-                error: "无法解析JSON",
-                raw_data: event.data
-            };
+            showEventLog({ error: "无法解析JSON", raw_data: event.data });
+            scrollToBottom();
+            return;
         }
 
-        // 直接传递对象给showServerMessage函数
-        // showServerMessage内部会自动格式化为易读的JSON
-        showServerMessage(displayData);
+        const payload = data && data.payload;
+        const eventType = payload && payload.event;
+        const contentType = payload && payload.content_type;
+        const content = payload && payload.content;
+
+        if (eventType === 'after_agent_reply' && content) {
+            if (contentType === 'content') {
+                // AI 正式回复 → 白色气泡
+                showAIMessage(content, payload.send_timestamp);
+            } else if (contentType === 'reasoning') {
+                // 思考过程 → 折叠的思考块
+                showThinkingMessage(content, payload.send_timestamp);
+            } else {
+                showEventLog(data);
+            }
+        } else {
+            // 其余所有事件 → 折叠日志条目
+            showEventLog(data);
+        }
         scrollToBottom();
     } catch (error) {
         showSystemMessage(`处理WebSocket消息时出错: ${error.message}`);
     }
+}
+
+// 将文本片段用 marked 渲染为 markdown，marked 不可用时降级为纯文本
+function renderMarkdown(text) {
+    const div = document.createElement('div');
+    div.className = 'ai-markdown';
+    try {
+        div.innerHTML = (typeof marked !== 'undefined')
+            ? marked.parse(text)
+            : text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    } catch (e) {
+        div.textContent = text;
+    }
+    return div;
+}
+
+// 将内容按 ```html 块拆分，返回渲染好的 DOM 片段数组
+function buildRenderedView(content) {
+    const fragment = document.createDocumentFragment();
+    const codeBlockRegex = /```(?:html|HTML)\n([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+        const before = content.slice(lastIndex, match.index);
+        if (before.trim()) fragment.appendChild(renderMarkdown(before));
+
+        // ```html 块 → iframe
+        const wrapper = document.createElement('div');
+        wrapper.className = 'ai-iframe-wrapper';
+        const iframe = document.createElement('iframe');
+        iframe.className = 'ai-iframe';
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+        iframe.srcdoc = match[1];
+        iframe.onload = () => {
+            try {
+                const h = iframe.contentDocument.body.scrollHeight;
+                if (h > 0) iframe.style.height = Math.min(h + 20, 600) + 'px';
+            } catch (e) {}
+        };
+        wrapper.appendChild(iframe);
+        fragment.appendChild(wrapper);
+        lastIndex = match.index + match[0].length;
+    }
+
+    const remaining = content.slice(lastIndex);
+    if (remaining.trim()) fragment.appendChild(renderMarkdown(remaining));
+    return fragment;
+}
+
+// 显示 AI 回复消息气泡，支持 markdown 渲染与原文切换
+function showAIMessage(content, timestamp, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'ai', content, timestamp });
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai';
+
+    const timeStr = timestamp
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    // 标题栏 + 切换按钮
+    const header = document.createElement('div');
+    header.className = 'message-header ai-header';
+
+    const headerText = document.createElement('span');
+    headerText.textContent = `AI 回复 (${timeStr})`;
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'ai-toggle-btn';
+    toggleBtn.textContent = '原文';
+
+    header.appendChild(headerText);
+    header.appendChild(toggleBtn);
+    messageDiv.appendChild(header);
+
+    // 渲染视图（默认显示）
+    const renderedView = document.createElement('div');
+    renderedView.className = 'ai-rendered-view';
+    renderedView.appendChild(buildRenderedView(content));
+
+    // 原文视图（隐藏）
+    const rawView = document.createElement('div');
+    rawView.className = 'ai-raw-view';
+    rawView.style.display = 'none';
+    rawView.textContent = content;
+
+    messageDiv.appendChild(renderedView);
+    messageDiv.appendChild(rawView);
+
+    // 切换逻辑
+    let showingRaw = false;
+    toggleBtn.addEventListener('click', () => {
+        showingRaw = !showingRaw;
+        renderedView.style.display = showingRaw ? 'none' : 'block';
+        rawView.style.display = showingRaw ? 'block' : 'none';
+        toggleBtn.textContent = showingRaw ? 'MD' : '原文';
+    });
+
+    messageList.appendChild(messageDiv);
+}
+
+// 显示思考过程（折叠展示）
+function showThinkingMessage(content, timestamp, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'thinking', content, timestamp });
+    const timeStr = timestamp
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'thinking-block';
+
+    const summary = document.createElement('div');
+    summary.className = 'thinking-summary';
+    summary.textContent = `▼ 思考过程 (${timeStr})`;
+    summary.addEventListener('click', () => {
+        const isHidden = detail.style.display === 'none';
+        detail.style.display = isHidden ? 'block' : 'none';
+        summary.textContent = (isHidden ? '▼' : '▶') + ` 思考过程 (${timeStr})`;
+    });
+
+    const detail = document.createElement('div');
+    detail.className = 'thinking-detail';
+    detail.textContent = content;
+
+    wrapper.appendChild(summary);
+    wrapper.appendChild(detail);
+    messageList.appendChild(wrapper);
+}
+
+// 显示折叠的事件日志条目
+function showEventLog(data, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'event', data });
+    const payload = data && data.payload;
+    const eventType = data.label || (payload && payload.event) || '未知事件';
+    const timeStr = (payload && payload.send_timestamp)
+        ? new Date(payload.send_timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'event-log';
+
+    const summary = document.createElement('div');
+    summary.className = 'event-log-summary';
+    summary.textContent = `▶ [${timeStr}] ${eventType}`;
+    summary.addEventListener('click', () => {
+        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+        summary.textContent = (detail.style.display === 'none' ? '▶' : '▼') + ` [${timeStr}] ${eventType}`;
+    });
+
+    const detail = document.createElement('pre');
+    detail.className = 'event-log-detail';
+    detail.style.display = 'none';
+    detail.textContent = JSON.stringify(data, null, 2);
+
+    wrapper.appendChild(summary);
+    wrapper.appendChild(detail);
+    messageList.appendChild(wrapper);
 }
 
 function handleWebSocketClose(event) {
@@ -1035,6 +1348,7 @@ function handleWebSocketClose(event) {
 
 function handleWebSocketError(error) {
     console.error('WebSocket error:', error);
+    wsOpenCallbacks.splice(0).forEach(cb => cb.reject(new Error('WebSocket连接失败')));
 
     // 根据错误类型提供不同的用户提示
     let errorMessage = "WebSocket连接发生错误";
@@ -1075,4 +1389,283 @@ function updateSubscribeButtonState(state, additionalInfo = '') {
             subscribeBtn.className = 'btn secondary';
             break;
     }
+}
+
+// ── 工作区文件树 ──────────────────────────────────────────────────────────────
+
+const filetreeContainer = document.getElementById('filetreeContainer');
+const selectWorkspaceBtn = document.getElementById('selectWorkspaceBtn');
+const refreshTreeBtn = document.getElementById('refreshTreeBtn');
+const filePreviewOverlay = document.getElementById('filePreviewOverlay');
+const filePreviewName = document.getElementById('filePreviewName');
+const filePreviewContent = document.getElementById('filePreviewContent');
+const filePreviewClose = document.getElementById('filePreviewClose');
+
+let workspaceDirHandle = null;
+let filetreeRefreshTimer = null;
+const expandedDirs = new Set();
+
+// ── IndexedDB 存取 DirectoryHandle ──
+const IDB_NAME = 'http-client-fs';
+const IDB_STORE = 'handles';
+const IDB_KEY = 'workspace';
+
+function openHandleDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function saveHandle(handle) {
+    try {
+        const db = await openHandleDB();
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+        await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+    } catch (e) {
+        console.warn('保存目录句柄失败', e);
+    }
+}
+
+async function loadHandle() {
+    try {
+        const db = await openHandleDB();
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        return await new Promise((res, rej) => {
+            const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+            req.onsuccess = () => res(req.result || null);
+            req.onerror = () => rej(req.error);
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+// 更新按钮状态
+function updateSelectBtn(state) {
+    if (!selectWorkspaceBtn) return;
+    if (state === 'active') {
+        selectWorkspaceBtn.title = '重新选择目录';
+        selectWorkspaceBtn.textContent = '✓';
+        selectWorkspaceBtn.style.color = 'var(--wechat-green)';
+    } else if (state === 'need-auth') {
+        selectWorkspaceBtn.title = '点击重新授权 .workspace';
+        selectWorkspaceBtn.textContent = '🔓';
+        selectWorkspaceBtn.style.color = 'var(--wechat-warning)';
+    } else {
+        selectWorkspaceBtn.title = '选择项目根目录（自动进入 .workspace）';
+        selectWorkspaceBtn.textContent = '📂';
+        selectWorkspaceBtn.style.color = '';
+    }
+}
+
+// 激活文件树（已有 handle）
+// 若选中的是项目根目录且含有 .workspace 子目录，自动进入 .workspace
+async function activateFiletree(handle) {
+    let target = handle;
+    try {
+        const sub = await handle.getDirectoryHandle('.workspace', { create: false });
+        target = sub;
+    } catch (e) {
+        // 没有 .workspace 子目录，直接展示所选目录
+    }
+    workspaceDirHandle = target;
+    await saveHandle(handle); // 存原始 handle，下次恢复时再次尝试进入 .workspace
+    updateSelectBtn('active');
+    await renderFileTree();
+    startFiletreeAutoRefresh();
+}
+
+// 页面加载时尝试恢复上次的目录
+(async () => {
+    const saved = await loadHandle();
+    if (!saved) return;
+    try {
+        // 检查权限，已授权则静默恢复
+        const perm = await saved.queryPermission({ mode: 'read' });
+        if (perm === 'granted') {
+            await activateFiletree(saved);
+            return;
+        }
+        // 权限过期，提示用户点击重新授权
+        workspaceDirHandle = saved;
+        updateSelectBtn('need-auth');
+        if (filetreeContainer) {
+            filetreeContainer.innerHTML = '<div class="filetree-empty">点击 🔓 重新授权读取 .workspace</div>';
+        }
+    } catch (e) {
+        console.warn('恢复目录句柄失败', e);
+    }
+})();
+
+// 点击授权/重新授权按钮
+if (selectWorkspaceBtn) {
+    selectWorkspaceBtn.addEventListener('click', async () => {
+        if (!('showDirectoryPicker' in window)) {
+            alert('当前浏览器不支持 File System Access API，请使用 Chrome / Edge 等现代浏览器。');
+            return;
+        }
+        try {
+            // 若已有 handle，先尝试 requestPermission 避免重新选目录
+            if (workspaceDirHandle) {
+                const perm = await workspaceDirHandle.requestPermission({ mode: 'read' });
+                if (perm === 'granted') {
+                    await activateFiletree(workspaceDirHandle);
+                    return;
+                }
+            }
+            // 无 handle 或 requestPermission 失败，让用户重新选
+            const handle = await window.showDirectoryPicker({ mode: 'read' });
+            await activateFiletree(handle);
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error('授权目录失败', e);
+        }
+    });
+}
+
+// 手动刷新
+if (refreshTreeBtn) {
+    refreshTreeBtn.addEventListener('click', async () => {
+        if (workspaceDirHandle) await renderFileTree();
+    });
+}
+
+// 关闭预览
+if (filePreviewClose) {
+    filePreviewClose.addEventListener('click', () => {
+        filePreviewOverlay.style.display = 'none';
+    });
+}
+if (filePreviewOverlay) {
+    filePreviewOverlay.addEventListener('click', (e) => {
+        if (e.target === filePreviewOverlay) filePreviewOverlay.style.display = 'none';
+    });
+}
+
+// 自动刷新（每 3 秒）
+function startFiletreeAutoRefresh() {
+    if (filetreeRefreshTimer) clearInterval(filetreeRefreshTimer);
+    filetreeRefreshTimer = setInterval(async () => {
+        if (workspaceDirHandle) await renderFileTree();
+    }, 3000);
+}
+
+// 读取并渲染文件树
+async function renderFileTree() {
+    if (!filetreeContainer) return;
+    try {
+        const frag = document.createDocumentFragment();
+        await buildTreeNodes(workspaceDirHandle, frag, '', 0);
+        filetreeContainer.innerHTML = '';
+        filetreeContainer.appendChild(frag);
+        if (!filetreeContainer.hasChildNodes() || filetreeContainer.children.length === 0) {
+            filetreeContainer.innerHTML = '<div class="filetree-empty">目录为空</div>';
+        }
+    } catch (e) {
+        console.error('渲染文件树失败', e);
+    }
+}
+
+// 递归构建树节点
+async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
+    const entries = [];
+    for await (const entry of dirHandle.values()) {
+        entries.push(entry);
+    }
+    // 目录排前，同类按名排序
+    entries.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    for (const entry of entries) {
+        const fullPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+        const isDir = entry.kind === 'directory';
+
+        const node = document.createElement('div');
+        node.className = `ft-node ${isDir ? 'ft-dir' : 'ft-file'}`;
+        node.style.paddingLeft = `${8 + depth * 14}px`;
+
+        const icon = document.createElement('span');
+        icon.className = 'ft-icon';
+        icon.textContent = isDir ? (expandedDirs.has(fullPath) ? '▾' : '▸') : getFileIcon(entry.name);
+
+        const name = document.createElement('span');
+        name.className = 'ft-name';
+        name.textContent = entry.name;
+
+        node.appendChild(icon);
+        node.appendChild(name);
+        container.appendChild(node);
+
+        if (isDir) {
+            const childContainer = document.createElement('div');
+            childContainer.className = 'ft-children';
+
+            if (expandedDirs.has(fullPath)) {
+                childContainer.style.display = 'block';
+                await buildTreeNodes(entry, childContainer, fullPath, depth + 1);
+            } else {
+                childContainer.style.display = 'none';
+            }
+            container.appendChild(childContainer);
+
+            node.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const isOpen = expandedDirs.has(fullPath);
+                if (isOpen) {
+                    expandedDirs.delete(fullPath);
+                    childContainer.style.display = 'none';
+                    childContainer.innerHTML = '';
+                    icon.textContent = '▸';
+                } else {
+                    expandedDirs.add(fullPath);
+                    childContainer.innerHTML = '';
+                    await buildTreeNodes(entry, childContainer, fullPath, depth + 1);
+                    childContainer.style.display = 'block';
+                    icon.textContent = '▾';
+                }
+            });
+        } else {
+            node.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await previewFile(entry, fullPath);
+            });
+        }
+    }
+}
+
+// 预览文件内容
+async function previewFile(fileHandle, filePath) {
+    try {
+        const file = await fileHandle.getFile();
+        const MAX_SIZE = 512 * 1024; // 512KB
+        let text;
+        if (file.size > MAX_SIZE) {
+            const slice = file.slice(0, MAX_SIZE);
+            text = await slice.text() + '\n\n... (文件过大，仅显示前 512KB) ...';
+        } else {
+            text = await file.text();
+        }
+        filePreviewName.textContent = filePath;
+        filePreviewContent.textContent = text;
+        filePreviewOverlay.style.display = 'flex';
+    } catch (e) {
+        console.error('读取文件失败', e);
+    }
+}
+
+// 根据扩展名返回图标
+function getFileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    const map = {
+        md: '📝', json: '{}', js: 'JS', ts: 'TS', py: '🐍',
+        txt: '📄', yaml: '⚙', yml: '⚙', sh: '>', html: '🌐',
+        css: '🎨', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼',
+        svg: '🖼', pdf: '📕', zip: '📦', env: '🔑',
+    };
+    return map[ext] || '📄';
 }
