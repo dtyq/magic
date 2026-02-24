@@ -196,12 +196,12 @@ class AgentDispatcher(Base):
                 logger.info("使用默认语言: zh_CN")
 
         # 设置 Agent Profile（如果提供）
-        if init_message.agent and init_message.agent.get("name", "").strip():
+        if init_message.agent and init_message.agent.name.strip():
             from app.core.entity.agent_profile import AgentProfile
 
             agent_profile = AgentProfile(
-                name=init_message.agent["name"].strip(),
-                description=init_message.agent.get("description", "").strip(),
+                name=init_message.agent.name.strip(),
+                description=init_message.agent.description.strip(),
             )
             self.agent_context.set_agent_profile(agent_profile)
             logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
@@ -474,7 +474,7 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
-            current_model_id = message.model_id or agent.llm_id
+            current_model_id = message.model_id
             current_image_model_id = None
             current_image_model_sizes = None
             current_mcp_servers = None

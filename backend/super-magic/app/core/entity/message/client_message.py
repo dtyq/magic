@@ -104,6 +104,8 @@ class AgentMode(str, Enum):
     SKILL = "skill"  # Skill模式，使用skill.agent
     CREW_CREATOR = "crew-creator"  # Crew管理模式，使用crew-creator.agent
     SKILL_CREATOR = "skill-creator"  # Skill 创作模式，使用skill-creator.agent
+    MAGICLAW = "magiclaw"  # Magic Claw 模式，从 agents/claws/<claw_code>/ 编译运行
+
     def get_agent_type(self) -> str:
         """获取对应的 agent_type"""
         agent_type_mapping = {
@@ -119,6 +121,7 @@ class AgentMode(str, Enum):
             AgentMode.SKILL: "skill",
             AgentMode.CREW_CREATOR: "crew-creator",
             AgentMode.SKILL_CREATOR: "skill-creator",
+            AgentMode.MAGICLAW: "magiclaw",
         }
         return agent_type_mapping.get(self, "magic")
 
@@ -220,6 +223,29 @@ class ChatClientMessage(ClientMessage):
         return v
 
 
+class InitAgentProfile(BaseModel):
+    """Claw / agent profile metadata attached to the agent config."""
+
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    template_code: Optional[str] = None
+
+
+class InitAgentConfig(BaseModel):
+    """Custom agent configuration carried in the INIT message.
+
+    name and description identify the agent in prompts.
+    type indicates which agent variant to use (e.g. 'magiclaw').
+    profile carries optional claw / template metadata.
+    """
+
+    name: str
+    description: str = "是一个专业的AI助手。"
+    type: Optional[str] = None
+    profile: Optional[InitAgentProfile] = None
+
+
 class InitClientMessage(ClientMessage):
     """
     初始化消息类型
@@ -244,29 +270,11 @@ class InitClientMessage(ClientMessage):
         default=None,
         description="长期记忆数据（新格式），数组格式，每个元素包含 id 和 content 字段"
     )  # 长期记忆数据，用于传递给 dynamic_context
-    agent: Optional[Dict[str, str]] = Field(
+    agent: Optional["InitAgentConfig"] = Field(
         default=None,
-        description="自定义 Agent 配置，包含 name(名称) 和 description(介绍)"
+        description="""<!--zh: 自定义 Agent 配置；含 name、description；magiclaw 等模式还会带 type、profile 嵌套对象-->
+Custom agent config. Contains name, description; magiclaw and similar modes also include type and an optional profile object."""
     )
-
-    @validator('agent', pre=True)
-    def validate_agent(cls, v):
-        """验证 agent 配置格式"""
-        if v is None:
-            return None
-
-        if not isinstance(v, dict):
-            raise ValueError("agent 必须是对象类型")
-
-        # 验证必需字段
-        if 'name' not in v:
-            raise ValueError("agent 必须包含 'name' 字段")
-
-        # description 可选，提供默认值
-        if 'description' not in v:
-            v['description'] = "是一个专业的AI助手。"
-
-        return v
 
     @validator("message_subscription_config")
     def validate_message_subscription_config(cls, v):
