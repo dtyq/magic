@@ -46,6 +46,7 @@ from app.tools.todo_read import TodoRead
 from app.tools.todo_create import TodoCreate
 from app.tools.todo_update import TodoUpdate
 from app.tools.update_memory import UpdateMemory
+from app.tools.upgrade_sandbox import UpgradeSandbox
 from app.tools.use_browser import UseBrowser
 from app.tools.write_file import WriteFile
 from app.tools.abstract_file_tool import AbstractFileTool

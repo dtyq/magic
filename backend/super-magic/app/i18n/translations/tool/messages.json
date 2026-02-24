@@ -1058,5 +1058,13 @@
     "skill_list.error": {
         "zh_CN": "列出技能失败",
         "en_US": "Failed to list skills"
+    },
+    "upgrade_sandbox.success": {
+        "zh_CN": "沙箱升级请求已提交",
+        "en_US": "Sandbox upgrade initiated"
+    },
+    "upgrade_sandbox.error": {
+        "zh_CN": "沙箱升级失败",
+        "en_US": "Sandbox upgrade failed"
     }
 }
