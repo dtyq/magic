@@ -243,7 +243,9 @@ def build_job_md(
 ) -> str:
     """构建新 cron job MD 文件内容。"""
     import yaml
+    from datetime import datetime, timezone
     frontmatter: Dict[str, Any] = {
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "schedule": schedule,
         "payload": {
             "kind": payload_kind,
