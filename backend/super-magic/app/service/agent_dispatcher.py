@@ -474,7 +474,7 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
-            current_model_id = message.model_id
+            current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
             current_mcp_servers = None
