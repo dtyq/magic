@@ -46,6 +46,8 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
     result = ""
     error = ""
 
+    logger.info(f"cron job [{job.id}] starting (agent={job.payload.agent_name})")
+
     timeout = job.payload.timeout_seconds
     try:
         coro = run_isolated_agent(
@@ -72,11 +74,17 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
         logger.exception(f"cron job [{job.id}] failed")
 
     duration_ms = _now_ms() - start_ms
+    if status == "ok":
+        logger.info(f"cron job [{job.id}] completed in {duration_ms}ms")
+    else:
+        logger.warning(f"cron job [{job.id}] finished with status={status} error={error!r} duration={duration_ms}ms")
+
     run_result = CronRunResult(
         status=status,
         result=result,
         error=error,
         duration_ms=duration_ms,
+        started_at_ms=start_ms,
     )
 
     try:

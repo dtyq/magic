@@ -203,22 +203,31 @@ def _truncate_result(text: str) -> str:
 
 async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
     """写入 cron-result/*.md 结果文件，返回文件路径。"""
-    run_at = datetime.now(timezone.utc)
-    path = PathManager.get_cron_result_file(job.id, run_at)
+    finished_at = datetime.now(timezone.utc)
+    started_at = (
+        datetime.fromtimestamp(result.started_at_ms / 1000, tz=timezone.utc)
+        if result.started_at_ms is not None
+        else finished_at
+    )
+    path = PathManager.get_cron_result_file(job.id, started_at)
     await async_mkdir(path.parent, parents=True, exist_ok=True)
 
     tz_str = getattr(job.schedule, "tz", None) or "UTC"
     try:
         import pytz
-        run_at_local = run_at.astimezone(pytz.timezone(tz_str))
+        tz = pytz.timezone(tz_str)
+        started_at_local = started_at.astimezone(tz)
+        finished_at_local = finished_at.astimezone(tz)
     except Exception:
-        run_at_local = run_at
+        started_at_local = started_at
+        finished_at_local = finished_at
 
     body = _truncate_result(result.result or result.error)
     content = (
         f"---\n"
         f"job: {job.id}\n"
-        f"run_at: \"{run_at_local.isoformat()}\"\n"
+        f"started_at: \"{started_at_local.isoformat()}\"\n"
+        f"finished_at: \"{finished_at_local.isoformat()}\"\n"
         f"status: {result.status}\n"
         f"duration_ms: {result.duration_ms}\n"
         f"agent_id: cron-{job.id}\n"

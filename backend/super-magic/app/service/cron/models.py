@@ -75,6 +75,7 @@ class CronRunResult:
     result: str = ""
     error: str = ""
     duration_ms: int = 0
+    started_at_ms: Optional[int] = None   # 执行开始时间戳（毫秒）
 
 
 @dataclass

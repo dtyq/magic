@@ -64,6 +64,8 @@ class CronService:
         # 内存中缓存的任务列表，避免每次 tick 都重建
         self._jobs: Dict[str, CronJob] = {}          # job_id → CronJob
         self._known_mtimes: Dict[str, float] = {}    # job_id → mtime
+        # 下次最近到期任务的时间戳（毫秒），用于动态 sleep
+        self._next_due_ms: Optional[int] = None
 
     def start(self) -> None:
         """启动调度器（在 asyncio event loop 中调用）。"""
@@ -84,6 +86,17 @@ class CronService:
 
     # ── 主循环 ────────────────────────────────────────────────────────────────
 
+    def _compute_sleep(self) -> float:
+        """
+        动态计算下次 sleep 时长。
+        若有已知的最近到期时间，提前 1s 醒来以保证分钟级精度；
+        否则退回到 MAX_SLEEP_S 兜底，防止时钟漂移。
+        """
+        if self._next_due_ms is not None:
+            remaining_s = (self._next_due_ms - now_ms()) / 1000 - 1
+            return max(MIN_SLEEP_S, min(remaining_s, MAX_SLEEP_S))
+        return MAX_SLEEP_S
+
     async def _run(self) -> None:
         """调度器主循环，捕获所有异常防止 task 静默死亡。"""
         # 启动时执行一次补偿检查
@@ -91,7 +104,8 @@ class CronService:
 
         while not self._stopped:
             try:
-                await asyncio.sleep(MAX_SLEEP_S)
+                sleep_s = self._compute_sleep()
+                await asyncio.sleep(sleep_s)
                 if not self._stopped:
                     await self._tick()
             except asyncio.CancelledError:
@@ -154,15 +168,22 @@ class CronService:
                 js = state.jobs.setdefault(job.id, CronJobState())
                 js.running_at_ms = current_ms
 
-            if due_jobs:
+            # 有任务变化（新增/修改/删除）或有到期任务时，持久化状态
+            # 注意：changed_ids 包含新增任务，若此时不保存，下次 tick 加载磁盘状态
+            # 会拿到空 state，导致 next_run_at_ms 丢失，任务永远无法被调度
+            if due_jobs or changed_ids or (set(state.jobs.keys()) != scanned_ids):
                 await save_cron_state(state)
 
         # 7. 派发独立 task，不阻塞 tick 返回
         for job in due_jobs:
+            logger.info(f"cron: dispatching job [{job.id}]")
             asyncio.create_task(
                 self._execute_and_update(job),
                 name=f"cron-job-{job.id}",
             )
+
+        # 8. 更新下次最近到期时间，供 _compute_sleep 使用
+        _update_next_due(self, state)
 
     async def _execute_and_update(self, job: CronJob) -> None:
         """
@@ -230,6 +251,7 @@ class CronService:
                         overdue.append(job)
 
                 await save_cron_state(state)
+                _update_next_due(self, state)
 
             if not overdue:
                 return
@@ -267,6 +289,16 @@ def _clear_stuck_jobs(state: CronState) -> None:
         if js.running_at_ms is not None:
             if current_ms - js.running_at_ms > _STUCK_TIMEOUT_MS:
                 js.running_at_ms = None
+
+
+def _update_next_due(self_obj: "CronService", state: "CronState") -> None:
+    """从当前 state 中找出最近一个 next_run_at_ms，缓存到 _next_due_ms。"""
+    candidates = [
+        js.next_run_at_ms
+        for js in state.jobs.values()
+        if js.next_run_at_ms is not None and js.running_at_ms is None
+    ]
+    self_obj._next_due_ms = min(candidates) if candidates else None
 
 
 def _recalculate_next_run(job: CronJob, js: CronJobState, current_ms: int) -> None:
