@@ -9,11 +9,8 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import Optional
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
 from app.service.agent_runner import run_isolated_agent
 from app.service.cron.models import CronJob, CronRunResult
 from app.service.cron.store import write_result_file

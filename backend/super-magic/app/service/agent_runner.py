@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional, TYPE_CHECKING
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.tools.subagent_runtime_models import SubagentSessionState, SubagentStatus, utc_now
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import subagent_session_manager

@@ -15,7 +15,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.cron.store import build_job_md, patch_job_md
 from app.service.cron.utils import ms_to_iso, name_to_job_id
 from app.tools.core import BaseToolParams, tool
