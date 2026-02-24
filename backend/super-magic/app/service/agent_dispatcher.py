@@ -280,6 +280,18 @@ class AgentDispatcher(Base):
                 else:
                     logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
                     agent_type = AgentMode.GENERAL.get_agent_type()
+
+            # 0b. magiclaw + agent_code => compiled claw agent (from agents/claws/<claw_code>/)
+            elif normalized_mode == "magiclaw":
+                if agent_code and agent_code.strip():
+                    agent_type = agent_code.strip()
+                    if agent_type in self.agents:
+                        del self.agents[agent_type]
+                    logger.info(f"magiclaw 模式，使用编译后的 claw agent: {agent_type}.agent")
+                else:
+                    logger.warning("magiclaw 未提供 agent_code，回退到默认模式")
+                    agent_type = AgentMode.GENERAL.get_agent_type()
+
             else:
                 try:
                     resolved_mode = AgentMode(normalized_mode)
@@ -312,6 +324,81 @@ class AgentDispatcher(Base):
         """
         await self.agent_service.run_agent(agent=agent)
 
+    async def _prepare_crew_agent(self, agent_code: str) -> None:
+        """Download crew files (if needed), compile into .agent, set AgentProfile."""
+        from app.paths import PathManager
+        from app.service.crew_downloader import CrewDownloader
+        from app.service.crew_agent_compiler import CrewAgentCompiler
+        from app.core.entity.agent_profile import AgentProfile
+        from app.utils.async_file_utils import async_read_markdown
+
+        crew_dir = PathManager.get_crew_agent_dir(agent_code)
+        output_agent_file = PathManager.get_compiled_agent_file(agent_code)
+        identity_file = PathManager.get_crew_identity_file(agent_code)
+        compiler = CrewAgentCompiler()
+
+        if output_agent_file.exists():
+            logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")
+            if not identity_file.exists():
+                logger.warning(f"IDENTITY.md not found for existing crew agent, skip profile setup: {identity_file}")
+                return
+            identity_meta = (await async_read_markdown(identity_file)).meta
+        else:
+            if not identity_file.exists():
+                logger.info(f"Crew files not found locally, downloading: {agent_code}")
+                downloader = CrewDownloader()
+                await downloader.download_and_extract(agent_code, crew_dir)
+            identity_meta = await compiler.compile(agent_code, crew_dir)
+
+        name        = identity_meta.get("name", "")
+        role        = identity_meta.get("role", "")
+        description = identity_meta.get("description", "")
+
+        if name:
+            profile = AgentProfile(name=name, role=role, description=description)
+            self.agent_context.set_agent_profile(profile)
+            logger.info(f"Set crew agent profile: name={name}, role={role}")
+
+    async def _prepare_claw_agent(self, claw_code: str) -> None:
+        """Compile claw definition files into .agent (if needed) and set AgentProfile."""
+        from app.paths import PathManager
+        from app.service.claw_agent_compiler import ClawAgentCompiler
+        from app.core.entity.agent_profile import AgentProfile
+        from app.utils.async_file_utils import async_read_markdown
+
+        claw_dir = PathManager.get_claw_agent_dir(claw_code)
+        output_agent_file = PathManager.get_compiled_agent_file(claw_code)
+        compiler = ClawAgentCompiler()
+
+        if output_agent_file.exists():
+            logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
+            identity_file = claw_dir / "IDENTITY.md"
+            if not identity_file.exists():
+                logger.warning(f"IDENTITY.md not found for existing claw agent: {identity_file}")
+                return
+            identity_meta = (await async_read_markdown(identity_file)).meta
+        else:
+            identity_meta = await compiler.compile(claw_code, claw_dir)
+
+        name        = identity_meta.get("name", "")
+        role        = identity_meta.get("role", "")
+        description = identity_meta.get("description", "")
+
+        if name:
+            self.agent_context.set_agent_profile(AgentProfile(name=name, role=role, description=description))
+            logger.info(f"Set claw agent profile: name={name}, role={role}")
+
+    async def _prepare_agent(self, agent_mode: str, agent_code: Optional[str]) -> None:
+        """Compile + set AgentProfile for modes that need it (crew / magiclaw)."""
+        try:
+            if agent_mode == "custom_agent" and agent_code:
+                await self._prepare_crew_agent(agent_code)
+            elif agent_mode == "magiclaw" and agent_code:
+                await self._prepare_claw_agent(agent_code)
+        except Exception as e:
+            logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
+            logger.info("Falling back to default agent profile")
+
     async def dispatch_agent(self, message: ChatClientMessage):
         """
         调度agent执行任务
@@ -343,6 +430,9 @@ class AgentDispatcher(Base):
             agent_code_val = message.dynamic_config.get("agent_code")
             if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
                 agent_code = agent_code_val.strip()
+
+        # Compile agent files and set AgentProfile before loading the agent instance
+        await self._prepare_agent(str(message.agent_mode), agent_code)
 
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
@@ -384,7 +474,7 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
-            current_model_id = message.model_id
+            current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
             current_mcp_servers = None

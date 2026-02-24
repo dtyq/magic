@@ -2,6 +2,7 @@
 路径相关的常量和工具函数，使用面向对象方式实现
 """
 
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, ClassVar
 
@@ -309,7 +310,22 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_crew_template_file(cls) -> Path:
-        return cls.get_agents_dir() / "crew.agent.template"
+        return cls.get_agents_dir() / "crew.template.agent"
+
+    @classmethod
+    def get_claws_root_dir(cls) -> Path:
+        """返回 claws 根目录：agents/claws/"""
+        return cls.get_agents_dir() / "claws"
+
+    @classmethod
+    def get_claw_agent_dir(cls, claw_code: str) -> Path:
+        """返回指定 claw 的定义目录：agents/claws/<claw_code>/"""
+        return cls.get_claws_root_dir() / claw_code.strip().lower()
+
+    @classmethod
+    def get_claw_template_file(cls) -> Path:
+        """返回 claw 编译模板路径：agents/claw.template.agent"""
+        return cls.get_agents_dir() / "claw.template.agent"
 
     @classmethod
     def get_checkpoints_dir(cls) -> Path:
@@ -384,6 +400,31 @@ class PathManager(BasePathManager):
         """获取临时目录路径（.workspace/.tmp，按需创建）"""
         cls._ensure_app_initialization()
         return cls._tmp_dir
+
+    # ── cron 相关路径（.workspace/.magic/cron/ 下，均为按需创建）──────────────
+
+    @classmethod
+    def get_cron_dir(cls) -> Path:
+        """获取 cron 任务定义目录（.workspace/.magic/cron/，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls.get_magic_dir() / "cron"
+
+    @classmethod
+    def get_cron_state_file(cls) -> Path:
+        """获取 cron 运行时状态文件（.workspace/.magic/cron/.cron-state.json）"""
+        return cls.get_cron_dir() / ".cron-state.json"
+
+    @classmethod
+    def get_cron_result_dir(cls) -> Path:
+        """获取 cron 任务结果目录（.workspace/.magic/cron-result/，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls.get_magic_dir() / "cron-result"
+
+    @classmethod
+    def get_cron_result_file(cls, job_id: str, run_at: datetime) -> Path:
+        """获取单次 cron 任务结果文件路径（.workspace/.magic/cron-result/{job_id}-{ts}.md）"""
+        ts = run_at.strftime("%Y%m%dT%H%M%S")
+        return cls.get_cron_result_dir() / f"{job_id}-{ts}.md"
 
     # ── 内部工具方法 ──────────────────────────────────────────────────────────
 

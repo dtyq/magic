@@ -10,6 +10,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
 from app.paths import PathManager
+from app.service.agent_runner import _inherit_parent_context
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.base_tool import BaseTool
 from app.tools.subagent_runtime_models import (
@@ -236,23 +237,6 @@ class CallSubagent(BaseTool[CallSubagentParams]):
         else:
             remark = i18n.translate("call_subagent.unknown_agent", category="tool.messages")
         return {"action": action, "remark": remark}
-
-
-def _inherit_parent_context(
-    child: "AgentContext",
-    parent: Optional["AgentContext"],
-    depth: int,
-) -> None:
-    """从父 Agent 继承必要配置，is_main_agent 保持 False，streaming 保持隔离。"""
-    if not parent:
-        return
-    if sandbox_id := parent.get_sandbox_id():
-        child.set_sandbox_id(sandbox_id)
-    if org_code := parent.get_organization_code():
-        child.set_organization_code(org_code)
-    child.set_subagent_depth(depth)
-    child.set_subagent_parent_agent_name(parent.get_agent_name())
-    # 不继承 streams、task_id、streaming_sinks，保持子 Agent 事件完全隔离
 
 
 def _mode_from_background(background: bool) -> SubagentExecutionMode:

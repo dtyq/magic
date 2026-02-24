@@ -1059,12 +1059,52 @@
         "zh_CN": "列出技能失败",
         "en_US": "Failed to list skills"
     },
-    "upgrade_sandbox.success": {
-        "zh_CN": "沙箱升级请求已提交",
-        "en_US": "Sandbox upgrade initiated"
+    "manage_cron.status": {
+        "zh_CN": "查看定时任务状态",
+        "en_US": "Checking cron job status"
     },
-    "upgrade_sandbox.error": {
-        "zh_CN": "沙箱升级失败",
-        "en_US": "Sandbox upgrade failed"
+    "manage_cron.list": {
+        "zh_CN": "列出定时任务",
+        "en_US": "Listing cron jobs"
+    },
+    "manage_cron.add": {
+        "zh_CN": "创建定时任务",
+        "en_US": "Creating cron job"
+    },
+    "manage_cron.update": {
+        "zh_CN": "更新定时任务",
+        "en_US": "Updating cron job"
+    },
+    "manage_cron.remove": {
+        "zh_CN": "删除定时任务",
+        "en_US": "Removing cron job"
+    },
+    "manage_cron.run": {
+        "zh_CN": "立即触发定时任务",
+        "en_US": "Triggering cron job"
+    },
+    "manage_cron.runs": {
+        "zh_CN": "查看定时任务执行记录",
+        "en_US": "Listing cron job runs"
+    },
+    "manage_cron.added": {
+        "zh_CN": "已创建定时任务 {{job_id}}",
+        "en_US": "Created cron job {{job_id}}"
+    },
+    "manage_cron.updated": {
+        "zh_CN": "已更新定时任务 {{job_id}}",
+        "en_US": "Updated cron job {{job_id}}"
+    },
+    "manage_cron.removed": {
+        "zh_CN": "已删除定时任务 {{job_id}}",
+        "en_US": "Removed cron job {{job_id}}"
+    },
+    "manage_cron.triggered": {
+        "zh_CN": "已触发定时任务 {{job_id}}",
+        "en_US": "Triggered cron job {{job_id}}"
+    },
+    "manage_cron.error": {
+        "zh_CN": "定时任务操作失败: {{error}}",
+        "en_US": "Cron job operation failed: {{error}}"
     }
 }

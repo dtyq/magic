@@ -22,6 +22,7 @@ from app.api.middleware import RequestLoggingMiddleware
 from app.api.routes import api_router
 from app.service.agent_dispatcher import AgentDispatcher
 from agentlang.logger import get_logger
+from app.service.cron.service import CronService
 from app.service.idle_monitor_service import IdleMonitorService
 from agentlang.utils.process_manager import ProcessManager
 from app.infrastructure.observability import (
@@ -282,6 +283,10 @@ def start_ws_server():
 
         IdleMonitorService.get_instance().start()
 
+        # 启动 cron 调度服务
+        cron_service = CronService()
+        cron_service.start()
+
         # 使用与原main()函数相似的代码，但只启动WebSocket服务
         # 创建并配置WebSocket socket
         ws_port = 8002
@@ -352,6 +357,7 @@ def start_ws_server():
 
             # 停止所有服务
             await process_manager.stop_all()
+            await cron_service.stop()
             IdleMonitorService.get_instance().stop()
 
             try:
