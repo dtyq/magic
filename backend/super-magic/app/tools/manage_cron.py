@@ -164,7 +164,7 @@ CRITICAL CONSTRAINTS:
             elif params.action == "list":
                 return await self._list(params)
             elif params.action == "add":
-                return await self._add(params)
+                return await self._add(params, tool_context)
             elif params.action == "update":
                 return await self._update(params)
             elif params.action == "remove":
@@ -223,7 +223,7 @@ CRITICAL CONSTRAINTS:
             ]
         })
 
-    async def _add(self, params: ManageCronParams) -> ToolResult:
+    async def _add(self, params: ManageCronParams, tool_context: ToolContext) -> ToolResult:
         if not params.name:
             return ToolResult.error("name is required for action=add")
         if not params.schedule:
@@ -239,11 +239,17 @@ CRITICAL CONSTRAINTS:
                 f"Job '{job_id}' already exists. Use action=update to modify, or action=remove then action=add to replace."
             )
 
+        model_id = params.model_id
+        if model_id is None:
+            agent_ctx = tool_context.get_extension("agent_context")
+            if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
+                model_id = agent_ctx.get_real_model_id() or None
+
         content = build_job_md(
             schedule=params.schedule,
             payload_kind=params.payload_kind or "agent_turn",
             agent_name=params.agent_name or "magic",
-            model_id=params.model_id,
+            model_id=model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,

@@ -312,9 +312,6 @@ def _recalculate_next_run(job: CronJob, js: CronJobState, current_ms: int) -> No
             else:
                 js.next_run_at_ms = next_ms
         elif job.schedule.kind == ScheduleKind.EVERY:
-            # every 类型：锚点不存在时以当前时间为锚，避免立即触发
-            if js.anchor_ms is None:
-                js.anchor_ms = current_ms
             js.next_run_at_ms = compute_next_run_ms(job, js, current_ms)
         else:
             js.next_run_at_ms = compute_next_run_ms(job, js, current_ms)
@@ -360,9 +357,6 @@ def _update_job_state_after_run(
 
     if result.status == "ok":
         js.consecutive_errors = 0
-        # every 类型：首次成功后记录锚点
-        if job.schedule.kind == ScheduleKind.EVERY and js.anchor_ms is None:
-            js.anchor_ms = current_ms
         # at 类型：执行完即禁用
         if job.schedule.kind == ScheduleKind.AT:
             job.enabled = False

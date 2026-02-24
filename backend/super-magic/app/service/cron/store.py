@@ -180,7 +180,7 @@ async def save_cron_state(state: CronState) -> None:
             for job_id, js in state.jobs.items()
         },
     }
-    await async_write_json(state_file, data, indent=2)
+    await async_write_json(state_file, data, indent=2, ensure_ascii=False)
 
 
 # ── 结果文件写入 ──────────────────────────────────────────────────────────────
