@@ -31,9 +31,9 @@ logger = get_logger(__name__)
 
 # ── 服务级配置常量 ─────────────────────────────────────────────────────────────
 
-MAX_CONCURRENT_RUNS = 1       # 全局并发上限，默认 1（防 API 配额突增）
+MAX_CONCURRENT_RUNS = 5       # 全局并发上限
 MAX_SLEEP_S = 60              # 调度器最大睡眠间隔（秒）
-MIN_SLEEP_S = 2               # 最小睡眠间隔，防热循环
+MIN_SLEEP_S = 0.1             # 最小睡眠间隔，让出事件循环即可，不需要强制等待
 
 # 错误退避延迟（连续错误次数 → 下次延迟毫秒数）
 _BACKOFF_MS = [
@@ -89,11 +89,11 @@ class CronService:
     def _compute_sleep(self) -> float:
         """
         动态计算下次 sleep 时长。
-        若有已知的最近到期时间，提前 1s 醒来以保证分钟级精度；
+        提前 100ms 醒来做最后一次检查，保证毫秒级精度；
         否则退回到 MAX_SLEEP_S 兜底，防止时钟漂移。
         """
         if self._next_due_ms is not None:
-            remaining_s = (self._next_due_ms - now_ms()) / 1000 - 1
+            remaining_s = (self._next_due_ms - now_ms()) / 1000 - 0.1
             return max(MIN_SLEEP_S, min(remaining_s, MAX_SLEEP_S))
         return MAX_SLEEP_S
 
