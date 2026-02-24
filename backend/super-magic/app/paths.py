@@ -422,7 +422,8 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_cron_result_file(cls, job_id: str, run_at: datetime) -> Path:
-        """获取单次 cron 任务结果文件路径（.workspace/.magic/cron-result/{YYYY-MM-DD}/{job_id}-{ts}.md）"""
+        """获取单次 cron 任务结果文件路径（.workspace/.magic/cron-result/{YYYY-MM-DD}/{job_id}-{ts}.md）。
+        run_at 应已转换为 job 配置的时区，目录日期和文件名均以该时区为准。"""
         date_dir = run_at.strftime("%Y-%m-%d")
         ts = run_at.strftime("%Y%m%dT%H%M%S")
         return cls.get_cron_result_dir() / date_dir / f"{job_id}-{ts}.md"

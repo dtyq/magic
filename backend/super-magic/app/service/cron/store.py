@@ -209,9 +209,8 @@ async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
         if result.started_at_ms is not None
         else finished_at
     )
-    path = PathManager.get_cron_result_file(job.id, started_at)
-    await async_mkdir(path.parent, parents=True, exist_ok=True)
 
+    # 时区转换优先于路径构建，目录日期以 job 配置的时区为准，避免跨时区用户看到日期错位
     tz_str = getattr(job.schedule, "tz", None) or "UTC"
     try:
         import pytz
@@ -221,6 +220,9 @@ async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
     except Exception:
         started_at_local = started_at
         finished_at_local = finished_at
+
+    path = PathManager.get_cron_result_file(job.id, started_at_local)
+    await async_mkdir(path.parent, parents=True, exist_ok=True)
 
     body = _truncate_result(result.result or result.error)
     content = (
