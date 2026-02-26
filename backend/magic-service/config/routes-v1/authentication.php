@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Interfaces\Authentication\Facade\Admin\ApiKeyProviderAdminApi;
 use App\Interfaces\Authentication\Facade\Admin\PersonalAccessTokenAdminApi;
+use App\Interfaces\Authentication\Facade\ModelGatewayTokenApi;
 use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
 use Hyperf\HttpServer\Router\Router;
 
@@ -26,4 +27,16 @@ Router::addGroup('/api/v1/authentication', static function () {
         Router::get('', [PersonalAccessTokenAdminApi::class, 'getTokenInfo']);
         Router::delete('', [PersonalAccessTokenAdminApi::class, 'deleteToken']);
     });
+
+    // 模型网关用户 token 首发签发（登录态用户）
+    Router::addGroup('/model-gateway-tokens', static function () {
+        Router::post('', [ModelGatewayTokenApi::class, 'issueModelGatewayToken']);
+    });
 }, ['middleware' => [UserAuthMiddleware::class]]);
+
+// 模型网关用户 token 刷新（refresh token 双旋转）
+Router::addGroup('/api/v1/authentication', static function () {
+    Router::addGroup('/model-gateway-tokens', static function () {
+        Router::post('/refresh', [ModelGatewayTokenApi::class, 'refreshModelGatewayToken']);
+    });
+});

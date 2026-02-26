@@ -6,6 +6,9 @@ declare(strict_types=1);
  */
 return [
     'personal_access_token_already_exists' => 'Mã thông báo truy cập cá nhân đã tồn tại, vui lòng sử dụng đặt lại để tạo lại',
+    'model_gateway_unauthorized' => 'Xác thực model gateway thất bại',
+    'model_gateway_refresh_token_invalid' => 'Refresh token của model gateway không hợp lệ hoặc đã hết hạn',
+    'model_gateway_refresh_token_mismatch' => 'Refresh token của model gateway không khớp với metadata',
     'fields' => [
         'organization_code' => 'Mã tổ chức',
         'rel_code' => 'Mã quan hệ',
