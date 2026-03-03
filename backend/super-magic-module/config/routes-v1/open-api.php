@@ -10,6 +10,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenWorkspaceApi;
@@ -142,6 +143,15 @@ Router::addGroup(
         Router::addGroup('/project', static function () {
             // 创建项目
             Router::post('', [OpenProjectApi::class, 'createProject']);
+        });
+
+        // 消息定时任务
+        Router::addGroup('/message-schedule', static function () {
+            Router::post('', [OpenMessageScheduleApi::class, 'createMessageSchedule']);
+            Router::get('/queries', [OpenMessageScheduleApi::class, 'queryMessageSchedules']);
+            Router::put('/{id}', [OpenMessageScheduleApi::class, 'updateMessageSchedule']);
+            Router::get('/{id}', [OpenMessageScheduleApi::class, 'getMessageScheduleDetail']);
+            Router::delete('/{id}', [OpenMessageScheduleApi::class, 'deleteMessageSchedule']);
         });
     },
     ['middleware' => [ApiKeyMiddleware::class]]
