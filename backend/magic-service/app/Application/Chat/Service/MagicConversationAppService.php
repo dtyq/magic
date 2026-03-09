@@ -24,6 +24,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\SlidingWindow\SlidingWindowUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService as SuperAgentTopicDomainService;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -51,7 +52,8 @@ class MagicConversationAppService extends AbstractAppService
         protected FileDomainService $fileDomainService,
         protected readonly MagicAgentDomainService $magicAgentDomainService,
         protected readonly SlidingWindowUtil $slidingWindowUtil,
-        protected readonly Redis $redis
+        protected readonly Redis $redis,
+        protected readonly SuperAgentTopicDomainService $superAgentTopicDomainService
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(get_class($this));
@@ -239,6 +241,18 @@ UserPrompt;
     public function agentSendMessageGetTopicId(MagicConversationEntity $senderConversationEntity): string
     {
         return $this->magicTopicDomainService->agentSendMessageGetTopicId($senderConversationEntity, 0);
+    }
+
+    /**
+     * Get conversation ID by SuperAgent topic ID.
+     *
+     * @param int $agentTopicId SuperAgent topic ID (magic_super_agent_topics.id)
+     * @return array [conversation ID (magic_super_agent_topics.chat_conversation_id), topic ID (magic_super_agent_topics.chat_topic_id)]
+     */
+    public function getConversationIdByAgentTopicIdAndUserId(int $agentTopicId, string $userId): ?array
+    {
+        $conversationInfo = $this->superAgentTopicDomainService->getChatConversationIdByTopicId($agentTopicId, $userId);
+        return $conversationInfo ?? [];
     }
 
     /**
