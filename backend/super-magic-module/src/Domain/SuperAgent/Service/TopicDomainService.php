@@ -813,7 +813,8 @@ class TopicDomainService
      * Get chat conversation ID by SuperAgent topic ID.
      *
      * @param int $topicId SuperAgent topic ID (magic_super_agent_topics.id)
-     * @return null|string conversation ID (magic_super_agent_topics.chat_conversation_id), null if topic not found
+     * @param string $userId User ID for authorization
+     * @return null|array [conversation_id, topic_id] or null if topic not found
      */
     public function getChatConversationIdByTopicId(int $topicId, string $userId): ?array
     {

@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Interfaces\Chat\Facade\Open;
 
 use App\Application\Agent\Service\MagicAgentAppService;
-use App\Application\Chat\Service\MagicChatGroupAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
 use App\Application\Chat\Service\MagicConversationAppService;
@@ -22,25 +21,18 @@ use App\Infrastructure\Util\Context\RequestCoContext;
 use Carbon\Carbon;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Logger\LoggerFactory;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
-use Psr\Log\LoggerInterface;
 
 #[ApiResponse('low_code')]
 class MagicChatOpenApi extends AbstractApi
 {
-    private LoggerInterface $logger;
-
     public function __construct(
         private readonly ValidatorFactoryInterface $validatorFactory,
         private readonly MagicChatMessageAppService $magicChatMessageAppService,
         private readonly MagicConversationAppService $magicConversationAppService,
-        private readonly MagicChatGroupAppService $chatGroupAppService,
         protected readonly MagicAgentAppService $magicAgentAppService,
         protected readonly MagicControlMessageAppService $magicControlMessageAppService,
-        LoggerFactory $loggerFactory,
     ) {
-        $this->logger = $loggerFactory->get(static::class);
     }
 
     /**
