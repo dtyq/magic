@@ -20,6 +20,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
@@ -67,6 +68,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly PlatformSettingsDomainService $platformSettingsDomainService,
+        private readonly ChatAppService $chatAppService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -83,6 +85,16 @@ class HandleTaskMessageAppService extends AbstractAppService
                 ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
             }
             $topicId = $topicEntity->getId();
+
+            // Resolve the correct agentUserId and chatConversationId for this topic.
+            // The initSandbox path is invoked via API (not IM), so the caller does not supply these.
+            // agentUserId is the Super Magic system AI user for the current organisation.
+            // chatConversationId must be the AI agent's conversation (owner = AI, receiver = human)
+            // because aiSendMessage() validates that the conversation owner is an AI user.
+            // The value stored on the topic entity is the human's conversation (owner = human), which
+            // would cause aiSendMessage() to throw USER_NOT_EXIST.
+            $agentUserId = $this->chatAppService->getSuperMagicAgentUserId($dataIsolation);
+            $chatConversationId = $this->chatAppService->getSuperMagicAgentConversationId($dataIsolation);
 
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId(), $userMessageDTO->getPrompt(), $userMessageDTO->getMentions());
@@ -123,7 +135,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             $taskId = (string) $taskEntity->getId();
 
             // Save user information
-            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
+            $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO, $agentUserId);
 
             // Check if this is the first task for the topic
             // If topic source is COPY, it's not the first task
@@ -134,9 +146,9 @@ class HandleTaskMessageAppService extends AbstractAppService
             $taskContext = new TaskContext(
                 task: $taskEntity,
                 dataIsolation: $dataIsolation,
-                chatConversationId: $userMessageDTO->getChatConversationId(),
+                chatConversationId: $chatConversationId,
                 chatTopicId: $userMessageDTO->getChatTopicId(),
-                agentUserId: $userMessageDTO->getAgentUserId(),
+                agentUserId: $agentUserId,
                 sandboxId: $topicEntity->getSandboxId(),
                 taskId: (string) $taskEntity->getId(),
                 instruction: ChatInstruction::FollowUp,
@@ -197,6 +209,13 @@ class HandleTaskMessageAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
 
+        // Resolve the correct agentUserId and chatConversationId for this topic.
+        // Callers that come through the API (not IM) may not supply these correctly.
+        // chatConversationId must be the AI agent's conversation (owner = AI, receiver = human)
+        // because aiSendMessage() validates that the conversation owner is an AI user.
+        $agentUserId = $this->chatAppService->getSuperMagicAgentUserId($dataIsolation);
+        $chatConversationId = $this->chatAppService->getSuperMagicAgentConversationId($dataIsolation);
+
         $data = [
             'user_id' => $dataIsolation->getCurrentUserId(),
             'workspace_id' => $topicEntity->getWorkspaceId(),
@@ -231,9 +250,9 @@ class HandleTaskMessageAppService extends AbstractAppService
         $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
-            chatConversationId: $userMessageDTO->getChatConversationId(),
+            chatConversationId: $chatConversationId,
             chatTopicId: $userMessageDTO->getChatTopicId(),
-            agentUserId: $userMessageDTO->getAgentUserId(),
+            agentUserId: $agentUserId,
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
@@ -417,7 +436,7 @@ class HandleTaskMessageAppService extends AbstractAppService
     /**
      * Save user information and corresponding attachments.
      */
-    private function saveUserMessage(DataIsolation $dataIsolation, TaskEntity $taskEntity, UserMessageDTO $userMessageDTO): void
+    private function saveUserMessage(DataIsolation $dataIsolation, TaskEntity $taskEntity, UserMessageDTO $userMessageDTO, string $agentUserId = ''): void
     {
         // Convert mentions string to array if not null
         $mentionsArray = $userMessageDTO->getMentions() !== null ? json_decode($userMessageDTO->getMentions(), true) : null;
@@ -425,12 +444,15 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Convert attachments string to array if not null
         $attachmentsArray = $userMessageDTO->getAttachments() !== null ? json_decode($userMessageDTO->getAttachments(), true) : null;
 
+        // Use the explicitly resolved agentUserId when provided; fall back to the DTO value for other callers.
+        $receiverUid = $agentUserId !== '' ? $agentUserId : $userMessageDTO->getAgentUserId();
+
         // Create TaskMessageDTO for user message
         $taskMessageDTO = new TaskMessageDTO(
             taskId: (string) $taskEntity->getId(),
             role: Role::User->value,
             senderUid: $dataIsolation->getCurrentUserId(),
-            receiverUid: $userMessageDTO->getAgentUserId(),
+            receiverUid: $receiverUid,
             messageType: 'chat',
             content: $taskEntity->getPrompt(),
             status: null,
