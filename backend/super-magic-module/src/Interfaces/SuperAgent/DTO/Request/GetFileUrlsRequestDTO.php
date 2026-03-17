@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request;
 
 use App\ErrorCode\GenericErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -22,10 +21,6 @@ class GetFileUrlsRequestDTO
     private string $token;
 
     private string $downloadMode;
-
-    private string $topicId;
-
-    private string $projectId;
 
     /**
      * Cache setting, default is true.
@@ -53,8 +48,6 @@ class GetFileUrlsRequestDTO
         $this->fileIds = $params['file_ids'] ?? [];
         $this->token = $params['token'] ?? '';
         $this->downloadMode = $params['download_mode'] ?? 'preview';
-        $this->topicId = $params['topic_id'] ?? '';
-        $this->projectId = $params['project_id'] ?? '';
         $this->cache = $params['cache'] ?? true;
         $this->fileVersions = $params['file_versions'] ?? [];
         $this->isDownload = $params['is_download'] ?? false;  // 默认为 false，不校验下载权限
@@ -88,24 +81,9 @@ class GetFileUrlsRequestDTO
         return $this->downloadMode;
     }
 
-    public function getTopicId(): string
-    {
-        return $this->topicId;
-    }
-
-    public function getProjectId(): string
-    {
-        return $this->projectId;
-    }
-
     public function getCache(): bool
     {
         return $this->cache;
-    }
-
-    public function setProjectId(string $projectId)
-    {
-        $this->projectId = $projectId;
     }
 
     /**
@@ -153,9 +131,6 @@ class GetFileUrlsRequestDTO
     {
         if (empty($this->fileIds)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'file_ids.required');
-        }
-        if (empty($this->projectId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project_id.required');
         }
 
         // 验证文件版本号格式
