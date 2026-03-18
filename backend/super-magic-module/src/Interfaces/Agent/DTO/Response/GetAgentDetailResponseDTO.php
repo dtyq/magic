@@ -36,7 +36,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
      * Agent图标.
      * 格式: {"url": "...", "type": "...", "color": "..."}.
      */
-    private array $icon;
+    private ?array $icon;
 
     /**
      * 图标类型 1:图标 2:图片.
@@ -85,7 +85,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         array $nameI18n,
         ?array $roleI18n,
         ?array $descriptionI18n,
-        array $icon,
+        ?array $icon,
         int $iconType,
         ?array $prompt,
         bool $enabled,
