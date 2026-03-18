@@ -16,6 +16,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use DirectoryIterator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
@@ -1487,14 +1488,8 @@ class ProjectAppService extends AbstractAppService
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
             $topicEntity = $this->initializeProject($dataIsolation, null, $projectEntity);
 
-            // 7. Initialize project root directory (audio project only creates root)
-            $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                projectId: $projectEntity->getId(),
-                workDir: $projectEntity->getWorkDir(),
-                userId: $dataIsolation->getCurrentUserId(),
-                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
-            );
+            // 2. Initialize root directory and upload custom agent template files
+            $this->initCustomTemplateFiles($projectEntity, $dataIsolation);
 
             Db::commit();
 
@@ -1512,7 +1507,7 @@ class ProjectAppService extends AbstractAppService
             ];
         } catch (Throwable $e) {
             Db::rollBack();
-            $this->logger->error('Create Audio Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
+            $this->logger->error('Create Agent Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, trans('project.create_project_failed'));
         }
     }
@@ -2003,6 +1998,89 @@ class ProjectAppService extends AbstractAppService
 
         // Delete core project
         $this->projectDomainService->deleteProject($projectId, $project->getUserId());
+    }
+
+    /**
+     * Initialize the project root directory and upload all template files from the
+     * custom_agent template directory into the project workspace.
+     *
+     * This method is called during agent project creation to pre-populate the project
+     * with the standard set of agent definition files (AGENTS.md, IDENTITY.md, etc.).
+     * It is always executed inside the outer database transaction of createAgentProject.
+     */
+    private function initCustomTemplateFiles(
+        ProjectEntity $projectEntity,
+        DataIsolation $dataIsolation
+    ): void {
+        // Create (or locate) the project root directory
+        $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+            projectId: $projectEntity->getId(),
+            workDir: $projectEntity->getWorkDir(),
+            userId: $dataIsolation->getCurrentUserId(),
+            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+            projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+        );
+
+        // @phpstan-ignore-next-line
+        $templateDir = SUPER_MAGIC_MODULE_PATH . '/storage/agent_template/custom_agent';
+
+        if (! is_dir($templateDir)) {
+            $this->logger->warning(sprintf('Custom agent template directory not found: %s', $templateDir));
+            return;
+        }
+
+        $this->processTemplateDirectory($dataIsolation, $projectEntity, $templateDir, $rootDirId);
+    }
+
+    /**
+     * Recursively upload all files (and subdirectories) found under $templateDir
+     * into the project workspace, rooted at the file entry identified by $parentId.
+     */
+    private function processTemplateDirectory(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        string $templateDir,
+        int $parentId
+    ): void {
+        $iterator = new DirectoryIterator($templateDir);
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDot()) {
+                continue;
+            }
+
+            $fileName = $fileInfo->getFilename();
+
+            if ($fileInfo->isDir()) {
+                $dirEntity = $this->taskFileDomainService->createProjectFile(
+                    $dataIsolation,
+                    $projectEntity,
+                    $parentId,
+                    $fileName,
+                    true
+                );
+                $this->processTemplateDirectory(
+                    $dataIsolation,
+                    $projectEntity,
+                    $fileInfo->getPathname(),
+                    $dirEntity->getFileId()
+                );
+                continue;
+            }
+
+            $content = file_get_contents($fileInfo->getPathname());
+            if ($content === false) {
+                $this->logger->warning(sprintf('Failed to read template file: %s', $fileInfo->getPathname()));
+                continue;
+            }
+
+            $this->taskFileDomainService->createProjectFileWithContent(
+                $dataIsolation,
+                $projectEntity,
+                $parentId,
+                $fileName,
+                $content
+            );
+        }
     }
 
     /**

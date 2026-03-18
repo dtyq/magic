@@ -22,6 +22,7 @@ enum ProjectMode: string
     case SUPER_MAGIC = 'super_magic';  // 超级麦吉模式
     case AUDIO = 'audio';              // 音频模式
     case CUSTOM_AGENT = 'custom_agent'; // 自定义 agent 模式
+    case AGENT_SKILL = 'agent_skill';  // agent 技能模式
 
     /**
      * Get all available project modes.
@@ -38,6 +39,7 @@ enum ProjectMode: string
             self::SUPER_MAGIC->value,
             self::AUDIO->value,
             self::CUSTOM_AGENT->value,
+            self::AGENT_SKILL->value,
         ];
     }
 
@@ -56,6 +58,7 @@ enum ProjectMode: string
             self::SUPER_MAGIC => '超级麦吉模式',
             self::AUDIO => '音频模式',
             self::CUSTOM_AGENT => '自定义 agent 模式',
+            self::AGENT_SKILL => 'agent 技能模式',
         };
     }
 }
