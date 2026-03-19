@@ -170,7 +170,7 @@ class AgentSkillEntity extends AbstractEntity
         return $this;
     }
 
-    public function getSkillVersionId(): int
+    public function getSkillVersionId(): ?int
     {
         return $this->skillVersionId;
     }
