@@ -36,7 +36,13 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
     {
         $authorization = $this->getAuthorization();
         $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
-        return $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema, true)->toArray();
+        $result = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema, true);
+        return SuperMagicAgentAssembler::createDetailResponseDTO(
+            $result['agent'],
+            $result['skills'],
+            $result['is_store_offline'],
+            true
+        )->toArray(true);
     }
 
     public function executeTool()

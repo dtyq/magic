@@ -75,6 +75,10 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private ?int $projectId = null;
 
+    private ?string $fileKey = null;
+
+    private ?string $fileUrl = null;
+
     public function __construct(
         int $id,
         string $code,
@@ -96,6 +100,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         array $playbooks,
         array $tools,
         ?int $projectId,
+        ?string $fileKey,
+        ?string $fileUrl,
         string $createdAt,
         string $updatedAt
     ) {
@@ -119,6 +125,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         $this->playbooks = $playbooks;
         $this->tools = $tools;
         $this->projectId = $projectId;
+        $this->fileKey = $fileKey;
+        $this->fileUrl = $fileUrl;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -141,9 +149,9 @@ class GetAgentDetailResponseDTO extends AbstractDTO
     /**
      * 转换为数组（输出保持下划线命名，以保持API兼容性）.
      */
-    public function toArray(): array
+    public function toArray(bool $withFileUrl = false): array
     {
-        return [
+        $result = [
             'id' => (string) $this->id,
             'code' => $this->code,
             'version_code' => $this->versionCode,
@@ -164,8 +172,16 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'playbooks' => $this->playbooks,
             'tools' => $this->tools,
             'project_id' => $this->projectId ? (string) $this->projectId : null,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'file_key' => $this->fileKey,
         ];
+
+        if ($withFileUrl) {
+            $result['file_url'] = $this->fileUrl;
+        }
+
+        $result['created_at'] = $this->createdAt;
+        $result['updated_at'] = $this->updatedAt;
+
+        return $result;
     }
 }

@@ -139,6 +139,16 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected ?int $projectId = null;
 
     /**
+     * Agent 文件key.
+     */
+    protected ?string $fileKey = null;
+
+    /**
+     * Agent 文件下载地址，仅用于返回值组装.
+     */
+    protected ?string $fileUrl = null;
+
+    /**
      * Category for agent classification.
      * Values: 'frequent', 'all'.
      */
@@ -247,6 +257,10 @@ class SuperMagicAgentEntity extends AbstractEntity
         // 更新 project_id（如果设置了）
         if (isset($this->projectId)) {
             $originalEntity->setProjectId($this->projectId);
+        }
+
+        if ($this->fileKey !== null) {
+            $originalEntity->setFileKey($this->fileKey);
         }
 
         $originalEntity->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -697,5 +711,25 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setProjectId(?int $projectId): void
     {
         $this->projectId = $projectId;
+    }
+
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
+    public function setFileKey(?string $fileKey): void
+    {
+        $this->fileKey = $fileKey;
+    }
+
+    public function getFileUrl(): ?string
+    {
+        return $this->fileUrl;
+    }
+
+    public function setFileUrl(?string $fileUrl): void
+    {
+        $this->fileUrl = $fileUrl;
     }
 }

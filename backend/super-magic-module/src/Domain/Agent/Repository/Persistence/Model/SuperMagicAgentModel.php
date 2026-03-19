@@ -38,6 +38,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property null|string $version_code 版本号
  * @property null|DateTime $pinned_at 置顶时间
  * @property null|int $project_id 项目ID
+ * @property null|string $file_key Agent 文件key
  */
 class SuperMagicAgentModel extends AbstractModel
 {
@@ -71,6 +72,7 @@ class SuperMagicAgentModel extends AbstractModel
         'version_code',
         'pinned_at',
         'project_id',
+        'file_key',
     ];
 
     protected array $casts = [
@@ -99,5 +101,6 @@ class SuperMagicAgentModel extends AbstractModel
         'version_code' => 'string',
         'pinned_at' => 'datetime',
         'project_id' => 'integer',
+        'file_key' => 'string',
     ];
 }

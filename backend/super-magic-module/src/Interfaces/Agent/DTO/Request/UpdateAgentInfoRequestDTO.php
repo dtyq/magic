@@ -35,6 +35,7 @@ class UpdateAgentInfoRequestDTO extends CreateAgentRequestDTO
             'icon.color' => 'nullable|string',
             'icon_type' => 'nullable|integer|in:1,2',
             'prompt_shadow' => 'nullable|string',
+            'file_key' => 'nullable|string|max:500',
         ];
     }
 
@@ -53,6 +54,8 @@ class UpdateAgentInfoRequestDTO extends CreateAgentRequestDTO
             'icon_type.integer' => __('crew.icon_type_must_be_integer'),
             'icon_type.in' => __('crew.icon_type_invalid'),
             'prompt_shadow.string' => __('crew.prompt_shadow_must_be_string'),
+            'file_key.string' => __('validation.string', ['attribute' => 'file_key']),
+            'file_key.max' => __('validation.max.string', ['attribute' => 'file_key', 'max' => 500]),
         ];
     }
 }

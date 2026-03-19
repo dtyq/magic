@@ -53,6 +53,11 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
     public ?string $promptShadow = null;
 
     /**
+     * Agent 文件key.
+     */
+    public ?string $fileKey = null;
+
+    /**
      * @phpstan-ignore-next-line property.unusedType
      */
     private ?array $visibilityConfig = null;
@@ -104,6 +109,11 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
         return $this->prompt;
     }
 
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
     public function setPrompt(array $prompt): void
     {
         $this->prompt = $prompt;
@@ -129,6 +139,7 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
             'icon.color' => 'nullable|string',
             'icon_type' => 'nullable|integer|in:1,2',
             'prompt_shadow' => 'nullable|string',
+            'file_key' => 'nullable|string|max:500',
             'visibilityConfig' => 'nullable|array',
         ];
     }
@@ -149,6 +160,8 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
             'icon_type.integer' => __('crew.icon_type_must_be_integer'),
             'icon_type.in' => __('crew.icon_type_invalid'),
             'prompt_shadow.string' => __('crew.prompt_shadow_must_be_string'),
+            'file_key.string' => __('validation.string', ['attribute' => 'file_key']),
+            'file_key.max' => __('validation.max.string', ['attribute' => 'file_key', 'max' => 500]),
         ];
     }
 }

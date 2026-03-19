@@ -100,14 +100,21 @@ class SuperMagicAgentApi extends AbstractApi
         $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
 
         // 调用应用服务层处理业务逻辑
-        $responseDTO = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema);
+        $result = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema);
+        $agent = $result['agent'];
 
         // 如果项目ID为空，则创建并绑定项目
         // 历史数据是没有项目的，需要在这里创建
-        if (empty($responseDTO->getProjectId())) {
-            $projectInfo = $this->createAndBindProject($authorization, $requestContext, $responseDTO->getName(), $code);
-            $responseDTO->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
+        if (empty($agent->getProjectId())) {
+            $projectInfo = $this->createAndBindProject($authorization, $requestContext, $agent->getName(), $code);
+            $agent->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
         }
+
+        $responseDTO = SuperMagicAgentAssembler::createDetailResponseDTO(
+            $agent,
+            $result['skills'],
+            $result['is_store_offline']
+        );
 
         // 返回数组格式
         return $responseDTO->toArray();

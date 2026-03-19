@@ -103,6 +103,10 @@ class SuperMagicAgentFactory
             $entity->setProjectId($model->project_id);
         }
 
+        if ($model->file_key !== null) {
+            $entity->setFileKey($model->file_key);
+        }
+
         return $entity;
     }
 }

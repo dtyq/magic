@@ -97,6 +97,8 @@ class SuperMagicAgentV2ApiTest extends AbstractApiTest
         $this->assertEquals($response['data']['description_i18n']['en_US'], $requestData['description_i18n']['en_US']);
         $this->assertEquals($response['data']['icon']['url'], $requestData['icon']['url']);
         $this->assertEquals($response['data']['icon_type'], 2);
+        $this->assertArrayHasKey('file_key', $response['data']);
+        $this->assertNull($response['data']['file_key']);
 
         $response = $this->delete(
             self::BASE_URI . '/' . $code,
@@ -123,6 +125,7 @@ class SuperMagicAgentV2ApiTest extends AbstractApiTest
 
         // 先创建一个员工作为测试数据
         $agentCode = $this->createTestAgent();
+        SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/original.zip']);
 
         // 测试基本查询
         $queryData = [
@@ -226,6 +229,7 @@ class SuperMagicAgentV2ApiTest extends AbstractApiTest
 
         // 先创建一个员工作为测试数据
         $agentCode = $this->createTestAgent();
+        SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/original.zip']);
 
         // 更新员工信息
         $updateData = [
@@ -271,6 +275,24 @@ class SuperMagicAgentV2ApiTest extends AbstractApiTest
         $detailData = $detailResponse['data'];
         $this->assertEquals('更新后的员工名称', $detailData['name_i18n']['zh_CN']);
         $this->assertEquals('Updated Agent Name', $detailData['name_i18n']['en_US']);
+        $this->assertEquals('agents/original.zip', $detailData['file_key']);
+
+        $updateWithFileKey = $updateData;
+        $updateWithFileKey['file_key'] = 'agents/updated.zip';
+        $response = $this->put(
+            self::BASE_URI . '/' . $agentCode,
+            $updateWithFileKey,
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $detailResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $detailResponse['code']);
+        $this->assertEquals('agents/updated.zip', $detailResponse['data']['file_key']);
 
         // 测试更新不存在的员工
         $notFoundResponse = $this->put(
@@ -330,6 +352,8 @@ class SuperMagicAgentV2ApiTest extends AbstractApiTest
         $this->assertArrayHasKey('playbooks', $data);
         $this->assertArrayHasKey('created_at', $data);
         $this->assertArrayHasKey('updated_at', $data);
+        $this->assertArrayHasKey('file_key', $data);
+        $this->assertArrayNotHasKey('file_url', $data);
 
         // 验证字段类型和值
         $this->assertIsString($data['id']);

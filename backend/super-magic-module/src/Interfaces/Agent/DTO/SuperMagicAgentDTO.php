@@ -74,6 +74,8 @@ class SuperMagicAgentDTO extends AbstractDTO
 
     protected ?string $projectId = null;
 
+    protected ?string $fileKey = null;
+
     public function getName(): string
     {
         return $this->name;
@@ -222,5 +224,15 @@ class SuperMagicAgentDTO extends AbstractDTO
     public function setProjectId(?string $projectId): void
     {
         $this->projectId = $projectId;
+    }
+
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
+    public function setFileKey(?string $fileKey): void
+    {
+        $this->fileKey = $fileKey;
     }
 }

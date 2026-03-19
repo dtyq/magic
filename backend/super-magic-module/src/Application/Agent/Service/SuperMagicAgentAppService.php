@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentSkillDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -35,9 +36,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetAgentDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
-use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Hyperf\Di\Annotation\Inject;
@@ -102,7 +101,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * 获取 Agent 详情.
      */
-    public function show(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withSkillFileUrl = false, bool $checkPermission = true): GetAgentDetailResponseDTO
+    /**
+     * @return array{
+     *     agent: SuperMagicAgentEntity,
+     *     skills: array<int, SkillEntity>,
+     *     is_store_offline: null|bool
+     * }
+     */
+    public function show(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withFileUrl = false, bool $checkPermission = true): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
@@ -140,8 +146,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 4. 更新 Agent、Playbook 和 Skill 的 URL（将路径转换为完整URL）
         $this->updateAgentEntityIcon($agent);
         $this->updateSkillLogoUrls($dataIsolation, $skillsMap);
-        if ($withSkillFileUrl) {
+        if ($withFileUrl) {
             $this->updateSkillFileUrl($dataIsolation, $skillsMap);
+            $this->updateAgentFileUrl($agent);
         }
 
         // 5. 查询商店状态（如果是 STORE 类型）
@@ -149,43 +156,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         if ($agent->getSourceType()->isMarket()) {
             $isStoreOffline = $this->superMagicAgentDomainService->getStoreAgentStatus($agent->getCode());
         }
-
-        // 6. 构建技能列表
-        $skills = [];
-        foreach ($agent->getSkills() as $agentSkill) {
-            $skill = $skillsMap[$agentSkill->getSkillId()] ?? null;
-            if (! $skill) {
-                continue;
-            }
-
-            $skills[] = [
-                'id' => (string) $agentSkill->getId(),
-                'skill_id' => (string) $agentSkill->getSkillId(),
-                'skill_code' => $agentSkill->getSkillCode(),
-                'name_i18n' => $skill->getNameI18n(),
-                'description_i18n' => $skill->getDescriptionI18n(),
-                'logo' => $skill->getLogo(),
-                'file_url' => $skill->getFileUrl(),
-                'sort_order' => $agentSkill->getSortOrder(),
-            ];
-        }
-
-        // 7. 构建 Playbook 列表
-        $features = [];
-        foreach ($agent->getPlaybooks() as $playbook) {
-            $features[] = [
-                'id' => (string) $playbook->getId(),
-                'name_i18n' => $playbook->getNameI18n(),
-                'description_i18n' => $playbook->getDescriptionI18n(),
-                'icon' => $playbook->getIcon(),
-                'theme_color' => $playbook->getThemeColor(),
-                'enabled' => $playbook->getIsEnabled(),
-                'sort_order' => $playbook->getSortOrder(),
-            ];
-        }
-
-        // 8. 处理 prompt（转换为字符串）
-        $promptString = json_encode($agent->getPrompt(), JSON_UNESCAPED_UNICODE);
 
         if ($checkPermission) {
             // 添加可见性配置
@@ -198,47 +168,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             );
         }
 
-        $prompt = $promptString ? Json::decode($promptString) : [];
-
-        // 兼容旧数据
-        $nameI18n = $agent->getNameI18n();
-        $descriptionI18n = $agent->getDescriptionI18n();
-        if (! $nameI18n) {
-            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-                $nameI18n[$languageCode] = $agent->getName();
-            }
-        }
-        if (! $descriptionI18n) {
-            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-                $descriptionI18n[$languageCode] = $agent->getDescription();
-            }
-        }
-
-        // 9. 构建响应 DTO
-        return new GetAgentDetailResponseDTO(
-            id: $agent->getId(),
-            code: $agent->getCode(),
-            versionCode: $agent->getVersionCode(),
-            versionId: (string) $agent->getVersionId(),
-            name: $agent->getI18nName($dataIsolation->getLanguage()),
-            description: $agent->getI18nDescription($dataIsolation->getLanguage()),
-            nameI18n: $nameI18n,
-            roleI18n: $descriptionI18n,
-            descriptionI18n: $agent->getDescriptionI18n(),
-            icon: $agent->getIcon(),
-            iconType: $agent->getIconType(),
-            prompt: $prompt,
-            enabled: $agent->getEnabled() ?? false,
-            sourceType: $agent->getSourceType()->value,
-            isStoreOffline: $isStoreOffline,
-            pinnedAt: $agent->getPinnedAt(),
-            skills: $skills,
-            playbooks: $features,
-            tools: $agent->getTools(),
-            projectId: $agent->getProjectId(),
-            createdAt: $agent->getCreatedAt(),
-            updatedAt: $agent->getUpdatedAt()
-        );
+        return [
+            'agent' => $agent,
+            'skills' => array_values($skillsMap),
+            'is_store_offline' => $isStoreOffline,
+        ];
     }
 
     /**

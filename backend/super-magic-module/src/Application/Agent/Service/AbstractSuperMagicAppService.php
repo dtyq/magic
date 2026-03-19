@@ -426,4 +426,15 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             $skillEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
         }
     }
+
+    protected function updateAgentFileUrl(SuperMagicAgentEntity $agentEntity): void
+    {
+        $fileKey = $agentEntity->getFileKey();
+        if (empty($fileKey)) {
+            return;
+        }
+
+        $fileLink = $this->getPrivateFileLinks($agentEntity->getOrganizationCode(), [$fileKey])[$fileKey] ?? null;
+        $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
+    }
 }
