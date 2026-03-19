@@ -9,7 +9,7 @@ FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 COPY patches ./patches
 COPY plugins ./plugins
 
