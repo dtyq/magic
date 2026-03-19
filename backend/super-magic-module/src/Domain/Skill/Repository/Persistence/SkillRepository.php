@@ -206,6 +206,67 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
     }
 
     /**
+     * Query visible skills by skill codes.
+     *
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array {
+        if ($codes === []) {
+            return [
+                'total' => 0,
+                'list' => [],
+            ];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+        $builder->whereIn('code', $codes);
+
+        $keyword = $query->getKeyword() ?? '';
+        $languageCode = $query->getLanguageCode() ?? 'en_US';
+        $sourceType = $query->getSourceType() ?? '';
+
+        if ($keyword !== '') {
+            $builder->where(function ($q) use ($keyword, $languageCode) {
+                $q->whereRaw(
+                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                );
+            });
+        }
+
+        if ($sourceType !== '') {
+            $builder->where('source_type', $sourceType);
+        }
+
+        $total = $builder->count();
+
+        $builder->orderByRaw('CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('pinned_at', 'DESC')
+            ->orderBy('updated_at', 'DESC');
+
+        $offset = ($page->getPage() - 1) * $page->getPageNum();
+        $models = $builder->offset($offset)->limit($page->getPageNum())->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $total,
+            'list' => $entities,
+        ];
+    }
+
+    /**
      * 查询用户技能总数（用于分页）.
      */
     public function countList(
@@ -370,6 +431,8 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'version_code' => $data['version_code'] ?? null,
             'is_enabled' => $data['is_enabled'] ?? true,
             'pinned_at' => $data['pinned_at'] ?? null,
+            'project_id' => isset($data['project_id']) ? (int) $data['project_id'] : null,
+            'latest_published_at' => isset($data['latest_published_at']) ? (is_string($data['latest_published_at']) ? $data['latest_published_at'] : $data['latest_published_at']?->format('Y-m-d H:i:s')) : null,
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,
@@ -398,6 +461,8 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'version_code' => $entity->getVersionCode(),
             'is_enabled' => $entity->getIsEnabled() ? 1 : 0,
             'pinned_at' => $entity->getPinnedAt(),
+            'project_id' => $entity->getProjectId(),
+            'latest_published_at' => $entity->getLatestPublishedAt(),
         ];
     }
 }

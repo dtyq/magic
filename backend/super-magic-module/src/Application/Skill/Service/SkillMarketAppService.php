@@ -40,7 +40,7 @@ class SkillMarketAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>} 市场技能列表结果
+     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, creatorSkillCodes: array<string, bool>} 市场技能列表结果
      */
     public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -69,12 +69,26 @@ class SkillMarketAppService extends AbstractSkillAppService
                 'total' => $total,
                 'userSkills' => [],
                 'publisherUserMap' => [],
+                'creatorSkillCodes' => [],
             ];
         }
 
         // 查询用户已添加的技能（用于判断 is_added 和 need_upgrade）
         $skillCodes = array_map(fn ($entity) => $entity->getSkillCode(), $storeSkillEntities);
         $userSkillsMap = $this->skillDomainService->findByVersionCodes($dataIsolation, $skillCodes);
+
+        $creatorSkillCodes = [];
+        $skillVersionIds = array_values(array_unique(array_map(
+            static fn (SkillMarketEntity $entity) => $entity->getSkillVersionId(),
+            $storeSkillEntities
+        )));
+        $skillVersionMap = $this->skillDomainService->findSkillVersionsByIdsWithoutOrganizationFilter($skillVersionIds);
+        foreach ($storeSkillEntities as $storeSkillEntity) {
+            $skillVersion = $skillVersionMap[$storeSkillEntity->getSkillVersionId()] ?? null;
+            if ($skillVersion !== null) {
+                $creatorSkillCodes[$storeSkillEntity->getSkillCode()] = $skillVersion->getCreatorId() === $dataIsolation->getCurrentUserId();
+            }
+        }
 
         // 批量更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillMarketLogoUrl($dataIsolation, $storeSkillEntities);
@@ -101,6 +115,7 @@ class SkillMarketAppService extends AbstractSkillAppService
             'total' => $total,
             'userSkills' => $userSkillsMap,
             'publisherUserMap' => $publisherUserMap,
+            'creatorSkillCodes' => $creatorSkillCodes,
         ];
     }
 }

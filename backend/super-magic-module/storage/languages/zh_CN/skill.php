@@ -51,4 +51,9 @@ return [
     'store_skill_already_added' => '该技能已添加到您的技能库',
     'skill_already_latest_version' => '该技能已是最新版本，无需升级',
     'non_store_skill_cannot_upgrade' => '仅允许升级商店来源的技能',
+    'version_already_exists' => '版本号已存在',
+    'publish_target_type_invalid' => '发布对象类型无效',
+    'publish_target_value_should_be_empty' => '发布对象参数必须为空',
+    'non_official_organization_cannot_publish_to_market' => '仅官方组织允许发布到市场',
+    'skill_creator_cannot_add_from_market' => '技能创建者不能从市场添加自己的技能',
 ];

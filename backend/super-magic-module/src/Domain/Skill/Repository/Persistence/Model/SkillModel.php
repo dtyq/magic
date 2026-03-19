@@ -30,6 +30,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property bool $is_enabled 是否启用
  * @property null|Carbon $pinned_at 置顶时间
  * @property null|int $project_id 项目ID
+ * @property null|Carbon $latest_published_at Latest published timestamp
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 更新时间
  * @property null|Carbon $deleted_at 软删除时间
@@ -59,6 +60,7 @@ class SkillModel extends AbstractModel
         'is_enabled',
         'pinned_at',
         'project_id',
+        'latest_published_at',
     ];
 
     protected array $casts = [
@@ -80,6 +82,7 @@ class SkillModel extends AbstractModel
         'is_enabled' => 'boolean',
         'pinned_at' => 'datetime',
         'project_id' => 'integer',
+        'latest_published_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

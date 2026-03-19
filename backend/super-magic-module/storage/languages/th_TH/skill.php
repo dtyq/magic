@@ -33,4 +33,9 @@ return [
     'keyword_must_be_string' => 'คำค้นหาต้องเป็นสตริง',
     'keyword_too_long' => 'คำค้นหายาวเกินไป',
     'invalid_source_type' => 'ประเภทแหล่งที่มาไม่ถูกต้อง',
+    'version_already_exists' => 'Version already exists',
+    'publish_target_type_invalid' => 'Invalid publish target type',
+    'publish_target_value_should_be_empty' => 'Publish target value must be empty',
+    'non_official_organization_cannot_publish_to_market' => 'Only the official organization can publish skills to the market',
+    'skill_creator_cannot_add_from_market' => 'The skill creator cannot add their own market skill',
 ];

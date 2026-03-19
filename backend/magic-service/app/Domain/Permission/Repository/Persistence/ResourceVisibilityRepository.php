@@ -96,9 +96,13 @@ class ResourceVisibilityRepository extends MagicAbstractRepository implements Re
      *
      * @return array<ResourceVisibilityEntity>
      */
-    public function listByPrincipalIds(PermissionDataIsolation $dataIsolation, array $principalIds, ResourceType $resourceType): array
-    {
-        if (empty($principalIds)) {
+    public function listByPrincipalIds(
+        PermissionDataIsolation $dataIsolation,
+        array $principalIds,
+        ResourceType $resourceType,
+        ?array $resourceIds = null
+    ): array {
+        if (empty($principalIds) || $resourceIds === []) {
             return [];
         }
 
@@ -106,6 +110,9 @@ class ResourceVisibilityRepository extends MagicAbstractRepository implements Re
 
         $builder->where('resource_type', $resourceType->value);
         $builder->whereIn('principal_id', $principalIds);
+        if ($resourceIds !== null) {
+            $builder->whereIn('resource_code', $resourceIds);
+        }
 
         $list = [];
         /** @var ResourceVisibilityModel $model */

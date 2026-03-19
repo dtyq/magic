@@ -130,6 +130,8 @@ return [
         'skill_name_must_be_string' => 'Skill name must be a string',
         'skill_not_found' => 'Skill not found',
         'skill_not_found_or_not_match' => 'Some skills not found or do not belong to current version',
+        'skill_access_denied' => 'Access denied to this skill',
+        'skill_version_not_found' => 'Skill version not found',
         'skill_not_belong_to_organization' => 'Skill does not belong to current organization',
         'duplicate_skill_id' => 'Duplicate skill ID in skills list',
         'duplicate_skill_code' => 'Duplicate skill code in skills list',

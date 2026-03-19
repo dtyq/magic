@@ -27,18 +27,29 @@ class UserSkillApiTest extends AbstractApiTest
 
     private ?string $testFile = null;
 
+    /**
+     * @var array<int, string>
+     */
+    private array $testFiles = [];
+
+    private int $testSkillZipSequence = 0;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->createTestSkillZip();
+        $this->testFile = $this->createTestSkillZip($this->name());
     }
 
     protected function tearDown(): void
     {
-        if ($this->testFile !== null && file_exists($this->testFile)) {
-            unlink($this->testFile);
-            $this->testFile = null;
+        foreach (array_unique($this->testFiles) as $testFile) {
+            if (file_exists($testFile)) {
+                unlink($testFile);
+            }
         }
+        $this->testFiles = [];
+        $this->testFile = null;
+        $this->testSkillZipSequence = 0;
         parent::tearDown();
     }
 
@@ -239,7 +250,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('source_type', $item);
             $this->assertArrayHasKey('is_enabled', $item);
             $this->assertArrayHasKey('pinned_at', $item);
-            $this->assertArrayHasKey('need_upgrade', $item);
+            $this->assertArrayHasKey('latest_published_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
             $this->assertArrayHasKey('created_at', $item);
         }
@@ -344,24 +355,6 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertEquals('LOCAL_UPLOAD', $item['source_type']);
         }
 
-        // 测试来源类型筛选 - STORE（应该没有结果或为空）
-        $storeSourceTypeData = [
-            'page' => 1,
-            'page_size' => 20,
-            'source_type' => 'STORE',
-        ];
-        $storeSourceTypeResponse = $this->post(
-            self::BASE_URI . '/queries',
-            $storeSourceTypeData,
-            $this->getCommonHeaders()
-        );
-        $this->assertEquals(1000, $storeSourceTypeResponse['code']);
-        $this->assertIsInt($storeSourceTypeResponse['data']['total']);
-        // 验证筛选结果中的 source_type 都是 STORE（如果有结果）
-        foreach ($storeSourceTypeResponse['data']['list'] as $item) {
-            $this->assertEquals('STORE', $item['source_type']);
-        }
-
         // 测试组合搜索（关键词 + 来源类型）
         $combinedQueryData = [
             'page' => 1,
@@ -435,6 +428,107 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertLessThanOrEqual(100, count($maxPageSizeResponse['data']['list']));
     }
 
+    public function testQueriesUseInstalledVersionSnapshotForNonCreator(): void
+    {
+        $this->switchUserTest1();
+
+        $skillCode = $this->createTestSkill();
+
+        $publishedInfo = [
+            'name_i18n' => [
+                'zh_CN' => '已发布技能名称',
+                'en_US' => 'Published Skill Name',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '已发布技能描述',
+                'en_US' => 'Published Skill Description',
+            ],
+            'logo' => 'skill/published-logo.png',
+        ];
+        $publishedInfoResponse = $this->put(
+            self::BASE_URI . '/' . $skillCode . '/info',
+            $publishedInfo,
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $publishedInfoResponse['code']);
+
+        $publishResponse = $this->publishSkillVersion($skillCode, IdGenerator::getUniqueId32(), 'MARKET');
+        $this->assertEquals(1000, $publishResponse['code']);
+        $versionId = $publishResponse['data']['version_id'] ?? null;
+        $this->assertNotNull($versionId);
+
+        $approveResponse = $this->put(
+            '/api/v1/admin/skills/versions/' . $versionId . '/review',
+            [
+                'action' => 'APPROVED',
+                'publisher_type' => 'USER',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $approveResponse['code']);
+
+        $draftInfo = [
+            'name_i18n' => [
+                'zh_CN' => '草稿技能名称',
+                'en_US' => 'Draft Skill Name',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '草稿技能描述',
+                'en_US' => 'Draft Skill Description',
+            ],
+            'logo' => 'skill/draft-logo.png',
+        ];
+        $draftInfoResponse = $this->put(
+            self::BASE_URI . '/' . $skillCode . '/info',
+            $draftInfo,
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $draftInfoResponse['code']);
+
+        $storeSkill = SkillMarketModel::query()
+            ->where('skill_code', $skillCode)
+            ->where('publish_status', 'PUBLISHED')
+            ->first();
+        $this->assertNotNull($storeSkill);
+
+        $this->switchUserTest2();
+
+        $addResponse = $this->post(
+            self::BASE_URI . '/from-store',
+            [
+                'store_skill_id' => (string) $storeSkill->id,
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $addResponse['code']);
+
+        $queryResponse = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $queryResponse['code']);
+
+        $targetSkill = null;
+        foreach ($queryResponse['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $skillCode) {
+                $targetSkill = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetSkill, 'Installed skill should be returned in the visible skill list');
+        $this->assertEquals('已发布技能名称', $targetSkill['name_i18n']['zh_CN'] ?? null);
+        $this->assertEquals('Published Skill Name', $targetSkill['name_i18n']['en_US'] ?? null);
+        $this->assertEquals('已发布技能描述', $targetSkill['description_i18n']['zh_CN'] ?? null);
+        $this->assertEquals('Published Skill Description', $targetSkill['description_i18n']['en_US'] ?? null);
+        $this->assertEquals('MARKET', $targetSkill['source_type'] ?? null);
+        $this->assertStringContainsString('published-logo.png', (string) ($targetSkill['logo'] ?? ''));
+    }
+
     /**
      * 测试获取技能详情.
      */
@@ -473,6 +567,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertArrayHasKey('file_key', $data);
         $this->assertArrayHasKey('source_id', $data);
         $this->assertArrayHasKey('source_meta', $data);
+        $this->assertArrayHasKey('latest_published_at', $data);
         $this->assertArrayHasKey('created_at', $data);
         $this->assertArrayHasKey('updated_at', $data);
 
@@ -483,6 +578,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertIsInt($data['is_enabled']);
         $this->assertIsArray($data['name_i18n']);
         $this->assertIsArray($data['description_i18n']);
+        $this->assertNull($data['latest_published_at']);
 
         // 测试不存在的技能
         $notFoundResponse = $this->get(
@@ -623,18 +719,19 @@ class UserSkillApiTest extends AbstractApiTest
         // 先导入一个技能作为测试数据
         $skillCode = $this->createTestSkill();
 
-        // 发布技能
-        $response = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
-            [],
-            $this->getCommonHeaders()
-        );
+        // 私有发布技能
+        $response = $this->publishSkillVersion($skillCode, '1.0.0', 'PRIVATE');
 
         // 验证响应
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
         $this->assertIsArray($response['data']);
         $this->assertArrayHasKey('version_id', $response['data']);
+        $this->assertEquals('PUBLISHED', $response['data']['publish_status']);
+        $this->assertEquals('APPROVED', $response['data']['review_status']);
+        $this->assertEquals('PRIVATE', $response['data']['publish_target_type']);
+        $this->assertTrue($response['data']['is_current_version']);
+        $this->assertNotNull($response['data']['published_at']);
 
         // 验证版本已创建：查询数据库获取版本ID
         $headers = $this->getCommonHeaders();
@@ -642,22 +739,27 @@ class UserSkillApiTest extends AbstractApiTest
         $versionId = $response['data']['version_id'] ?? null;
         $this->assertNotNull($versionId, '应该创建了技能版本');
 
-        // 验证版本状态为待发布且审核中
+        // 验证版本状态为已发布且审核通过
         $version = $this->getSkillVersionById($versionId, $organizationCode);
         $this->assertNotNull($version);
-        $this->assertEquals('UNPUBLISHED', $version['publish_status']);
-        $this->assertEquals('UNDER_REVIEW', $version['review_status'], '发布后应该处于审核中状态');
+        $this->assertEquals('PUBLISHED', $version['publish_status']);
+        $this->assertEquals('APPROVED', $version['review_status']);
+        $this->assertEquals('PRIVATE', $version['publish_target_type']);
+        $this->assertEquals(1, $version['is_current_version']);
+        $this->assertNotNull($version['published_at']);
 
-        // 测试发布商店来源的技能应该返回错误
-        // 注意：这里需要先有一个商店来源的技能，但为了简化测试，我们跳过这个测试
-        // 或者可以创建一个商店来源的技能来测试
-
-        // 测试发布不存在的技能
-        $notFoundResponse = $this->post(
-            self::BASE_URI . '/non_existent_skill_code_12345/publish',
+        $detailResponse = $this->get(
+            self::BASE_URI . '/' . $skillCode,
             [],
             $this->getCommonHeaders()
         );
+        $this->assertEquals(1000, $detailResponse['code']);
+        $this->assertEquals($version['published_at'], $detailResponse['data']['latest_published_at']);
+
+        $duplicateResponse = $this->publishSkillVersion($skillCode, '1.0.0', 'PRIVATE');
+        $this->assertNotEquals(1000, $duplicateResponse['code'], '重复版本号应该返回错误');
+
+        $notFoundResponse = $this->publishSkillVersion('non_existent_skill_code_12345', '9.9.9', 'PRIVATE');
         $this->assertNotEquals(1000, $notFoundResponse['code'], '不存在的技能应该返回错误');
     }
 
@@ -671,12 +773,8 @@ class UserSkillApiTest extends AbstractApiTest
         // 先导入并发布一个技能
         $skillCode = $this->createTestSkill();
 
-        // 发布技能
-        $publishResponse = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
-            [],
-            $this->getCommonHeaders()
-        );
+        // 发布到市场
+        $publishResponse = $this->publishSkillVersion($skillCode, IdGenerator::getUniqueId32(), 'MARKET');
         $this->assertEquals(1000, $publishResponse['code']);
 
         // 获取版本ID
@@ -708,12 +806,16 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals('PUBLISHED', $version['publish_status']);
         $this->assertEquals('APPROVED', $version['review_status']);
 
-        // 再次发布技能创建新版本
-        $publishResponse2 = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
+        $detailAfterApprove = $this->get(
+            self::BASE_URI . '/' . $skillCode,
             [],
             $this->getCommonHeaders()
         );
+        $this->assertEquals(1000, $detailAfterApprove['code']);
+        $this->assertNotNull($detailAfterApprove['data']['latest_published_at']);
+
+        // 再次发布技能创建新版本
+        $publishResponse2 = $this->publishSkillVersion($skillCode, IdGenerator::getUniqueId32(), 'MARKET');
         $this->assertEquals(1000, $publishResponse2['code']);
 
         $versionId2 = $publishResponse2['data']['version_id'] ?? null;
@@ -735,6 +837,7 @@ class UserSkillApiTest extends AbstractApiTest
         $version2 = $this->getSkillVersionById($versionId2, $organizationCode);
         $this->assertNotNull($version2);
         $this->assertEquals('REJECTED', $version2['review_status']);
+        $this->assertEquals(0, $version2['is_current_version']);
 
         // 测试无效的审核操作
         $invalidData = [
@@ -758,12 +861,8 @@ class UserSkillApiTest extends AbstractApiTest
         // 先导入、发布并审核通过一个技能
         $skillCode = $this->createTestSkill();
 
-        // 发布技能
-        $publishResponse = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
-            [],
-            $this->getCommonHeaders()
-        );
+        // 发布技能到市场
+        $publishResponse = $this->publishSkillVersion($skillCode, '1.0.0', 'MARKET');
         $this->assertEquals(1000, $publishResponse['code']);
 
         // 获取版本ID并审核通过
@@ -861,6 +960,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('publish_status', $item);
             $this->assertArrayHasKey('is_added', $item);
             $this->assertArrayHasKey('need_upgrade', $item);
+            $this->assertArrayHasKey('is_current_user_creator', $item);
             $this->assertArrayHasKey('created_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
 
@@ -874,6 +974,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertIsString($item['publish_status']);
             $this->assertIsBool($item['is_added']);
             $this->assertIsBool($item['need_upgrade']);
+            $this->assertIsBool($item['is_current_user_creator']);
 
             // 验证 publisher 对象结构
             $this->assertArrayHasKey('name', $item['publisher']);
@@ -1184,7 +1285,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('source_type', $item);
             $this->assertArrayHasKey('is_enabled', $item);
             $this->assertArrayHasKey('pinned_at', $item);
-            $this->assertArrayHasKey('need_upgrade', $item);
+            $this->assertArrayHasKey('latest_published_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
             $this->assertArrayHasKey('created_at', $item);
         }
@@ -1245,6 +1346,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('publisher', $item);
             $this->assertArrayHasKey('is_added', $item);
             $this->assertArrayHasKey('need_upgrade', $item);
+            $this->assertArrayHasKey('is_current_user_creator', $item);
             $this->assertArrayHasKey('updated_at', $item);
             $this->assertArrayHasKey('created_at', $item);
         }
@@ -1349,6 +1451,8 @@ class UserSkillApiTest extends AbstractApiTest
             ->where('skill_version_id', $storeSkillId)
             ->delete();
 
+        $this->switchUserTest2();
+
         // 测试添加技能
         $addData = [
             'store_skill_id' => (string) $storeSkillId,
@@ -1403,6 +1507,8 @@ class UserSkillApiTest extends AbstractApiTest
             ->where('skill_version_id', $storeSkillId)
             ->delete();
 
+        $this->switchUserTest2();
+
         // 第一次添加技能
         $addData = [
             'store_skill_id' => $storeSkillId,
@@ -1424,115 +1530,77 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertStringContainsString('已添加', $secondResponse['message'] ?? '', '错误消息应该包含"已添加"');
     }
 
-    /**
-     * 测试升级商店技能.
-     */
-    public function testUpgradeSkill(): void
+    public function testSkillCreatorCannotAddSkillFromStore(): void
     {
         $this->switchUserTest1();
 
-        // 创建已发布的商店技能
         $storeSkillData = $this->createPublishedStoreSkill();
         $storeSkillId = $storeSkillData['store_skill_id'];
-        $skillCode = $storeSkillData['skill_code'];
-        $originalVersionId = $storeSkillData['version_id'];
 
         SkillMarketModel::query()
             ->where('skill_version_id', $storeSkillId)
             ->delete();
 
-        // 先添加技能到用户技能库
-        $addData = [
-            'store_skill_id' => $storeSkillId,
-        ];
-        $addResponse = $this->post(
+        $response = $this->post(
             self::BASE_URI . '/from-store',
-            $addData,
+            [
+                'store_skill_id' => (string) $storeSkillId,
+            ],
             $this->getCommonHeaders()
         );
-        $this->assertEquals(1000, $addResponse['code'], '添加技能应该成功');
 
-        // 创建新版本并发布审核通过（模拟商店技能升级）
-        // 1. 再次发布技能创建新版本
-        $publishResponse2 = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
-            [],
-            $this->getCommonHeaders()
-        );
-        $this->assertEquals(1000, $publishResponse2['code']);
+        $this->assertNotEquals(1000, $response['code'], '技能创建者不应该能从市场添加自己的技能');
+        $this->assertStringContainsString('创建者', $response['message'] ?? '', '错误消息应该包含创建者限制');
+    }
 
-        // 2. 获取新版本ID并审核通过
-        $newVersionId = $publishResponse2['data']['version_id'];
-        $this->assertNotNull($newVersionId);
-        $this->assertNotEquals($originalVersionId, $newVersionId, '应该创建了新版本');
+    public function testGetSkillVersionList(): void
+    {
+        $this->switchUserTest1();
 
-        // 3. 审核通过新版本
-        $approveData = [
-            'action' => 'APPROVED',
-            'publisher_type' => 'USER',
-        ];
-        $approveResponse = $this->put(
-            '/api/v1/admin/skills/versions/' . $newVersionId . '/review',
-            $approveData,
-            $this->getCommonHeaders()
-        );
-        $this->assertEquals(1000, $approveResponse['code']);
+        $skillCode = $this->createTestSkill();
 
-        // 4. 验证商店技能已更新到新版本
-        $storeSkill = SkillMarketModel::query()
-            ->where('id', $storeSkillId)
-            ->first();
-        $this->assertNotNull($storeSkill);
-        $this->assertEquals($newVersionId, $storeSkill->skill_version_id, '商店技能应该更新到新版本');
+        $privatePublishResponse = $this->publishSkillVersion($skillCode, IdGenerator::getUniqueId32(), 'PRIVATE');
+        $this->assertEquals(1000, $privatePublishResponse['code']);
 
-        // 5. 测试升级技能
-        $upgradeResponse = $this->put(
-            self::BASE_URI . '/' . $skillCode . '/upgrade',
+        $marketPublishResponse = $this->publishSkillVersion($skillCode, IdGenerator::getUniqueId32(), 'MARKET');
+        $this->assertEquals(1000, $marketPublishResponse['code']);
+
+        $response = $this->get(
+            self::BASE_URI . '/' . $skillCode . '/versions',
             [],
             $this->getCommonHeaders()
         );
 
-        // 验证响应
-        $this->assertEquals(1000, $upgradeResponse['code'], $upgradeResponse['message'] ?? '');
-        $this->assertArrayHasKey('data', $upgradeResponse);
-        $this->assertIsArray($upgradeResponse['data']);
-        $this->assertEmpty($upgradeResponse['data'], '升级成功应返回空数组');
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertArrayHasKey('data', $response);
+        $this->assertArrayHasKey('list', $response['data']);
+        $this->assertArrayHasKey('page', $response['data']);
+        $this->assertArrayHasKey('page_size', $response['data']);
+        $this->assertArrayHasKey('total', $response['data']);
+        $this->assertGreaterThanOrEqual(2, $response['data']['total']);
 
-        // 验证用户技能已更新到新版本
-        $detailResponse = $this->get(
-            self::BASE_URI . '/' . $skillCode,
-            [],
-            $this->getCommonHeaders()
-        );
-        $this->assertEquals(1000, $detailResponse['code']);
-        $this->assertArrayHasKey('data', $detailResponse);
-        $this->assertEquals($newVersionId, $detailResponse['data']['version_id'], 'version_id应该更新为新版本ID');
-
-        // 6. 测试再次升级（应该返回错误，已是最新版本）
-        $upgradeAgainResponse = $this->put(
-            self::BASE_URI . '/' . $skillCode . '/upgrade',
-            [],
-            $this->getCommonHeaders()
-        );
-        $this->assertNotEquals(1000, $upgradeAgainResponse['code'], '已是最新版本应该返回错误');
-        $this->assertStringContainsString('最新版本', $upgradeAgainResponse['message'] ?? '', '错误消息应该包含"最新版本"');
-
-        // 7. 测试升级非商店来源的技能（应该返回错误）
-        // 创建一个非商店来源的技能
-        $localSkillCode = $this->createTestSkill();
-        $upgradeLocalResponse = $this->put(
-            self::BASE_URI . '/' . $localSkillCode . '/upgrade',
-            [],
-            $this->getCommonHeaders()
-        );
-        $this->assertNotEquals(1000, $upgradeLocalResponse['code'], '非商店来源的技能应该返回错误');
+        $item = $response['data']['list'][0];
+        $this->assertArrayHasKey('id', $item);
+        $this->assertArrayHasKey('version', $item);
+        $this->assertArrayHasKey('publish_status', $item);
+        $this->assertArrayHasKey('review_status', $item);
+        $this->assertArrayHasKey('publish_target_type', $item);
+        $this->assertArrayHasKey('publisher', $item);
+        $this->assertArrayHasKey('published_at', $item);
+        $this->assertArrayHasKey('is_current_version', $item);
+        $this->assertArrayHasKey('version_description_i18n', $item);
     }
 
     /**
      * 创建标准的测试 Skill Zip 文件，包含 SKILL.md 文件.
      */
-    private function createTestSkillZip(): void
+    private function createTestSkillZip(?string $seed = null): string
     {
+        ++$this->testSkillZipSequence;
+        $skillSeed = $seed ?? 'skill';
+        $sanitizedSeed = trim((string) preg_replace('/[^a-zA-Z0-9]+/', '-', $skillSeed), '-');
+        $uniqueSuffix = strtolower($sanitizedSeed . '-' . $this->testSkillZipSequence . '-' . IdGenerator::getUniqueId32());
+
         // 创建临时目录
         $tempDir = sys_get_temp_dir() . '/skill_test_' . uniqid();
         if (! is_dir($tempDir)) {
@@ -1540,9 +1608,9 @@ class UserSkillApiTest extends AbstractApiTest
         }
 
         // 创建 SKILL.md 文件内容
-        $skillMdContent = <<<'MD'
-name: test-skill
-description: This is a test skill for unit testing
+        $skillMdContent = <<<MD
+name: {$uniqueSuffix}
+description: Test skill package {$uniqueSuffix}
 MD;
 
         // 写入 SKILL.md 文件
@@ -1563,8 +1631,9 @@ MD;
         unlink($tempDir . '/SKILL.md');
         rmdir($tempDir);
 
-        // 保存文件路径
-        $this->testFile = $zipPath;
+        $this->testFiles[] = $zipPath;
+
+        return $zipPath;
     }
 
     /**
@@ -1574,7 +1643,7 @@ MD;
      */
     private function createTestSkill(): string
     {
-        $testFile = $this->testFile;
+        $testFile = $this->createTestSkillZip($this->name() . '-create-skill');
 
         $headers = $this->getCommonHeaders();
 
@@ -1675,11 +1744,7 @@ MD;
         $skillCode = $this->createTestSkill();
 
         // 2. 发布技能
-        $publishResponse = $this->post(
-            self::BASE_URI . '/' . $skillCode . '/publish',
-            [],
-            $this->getCommonHeaders()
-        );
+        $publishResponse = $this->publishSkillVersion($skillCode, '1.0.0', 'MARKET');
         $this->assertEquals(1000, $publishResponse['code']);
 
         // 3. 获取版本ID并审核通过
@@ -1711,5 +1776,25 @@ MD;
             'skill_code' => $skillCode,
             'version_id' => $versionId,
         ];
+    }
+
+    private function publishSkillVersion(
+        string $skillCode,
+        string $version,
+        string $publishTargetType,
+        ?array $versionDescriptionI18n = null
+    ): array {
+        return $this->post(
+            self::BASE_URI . '/' . $skillCode . '/publish',
+            [
+                'version' => $version,
+                'version_description_i18n' => $versionDescriptionI18n ?? [
+                    'zh_CN' => '测试版本说明',
+                    'en_US' => 'Test version description',
+                ],
+                'publish_target_type' => $publishTargetType,
+            ],
+            $this->getCommonHeaders()
+        );
     }
 }

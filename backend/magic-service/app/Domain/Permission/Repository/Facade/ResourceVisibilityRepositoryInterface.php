@@ -45,9 +45,15 @@ interface ResourceVisibilityRepositoryInterface
      * @param PermissionDataIsolation $dataIsolation 数据隔离对象
      * @param array $principalIds 主体ID数组（包含用户ID、部门ID列表、组织code）
      * @param ResourceType $resourceType 资源类型
+     * @param null|array $resourceIds 资源编码过滤列表，null 表示不过滤
      * @return array<ResourceVisibilityEntity> 实体数组
      */
-    public function listByPrincipalIds(PermissionDataIsolation $dataIsolation, array $principalIds, ResourceType $resourceType): array;
+    public function listByPrincipalIds(
+        PermissionDataIsolation $dataIsolation,
+        array $principalIds,
+        ResourceType $resourceType,
+        ?array $resourceIds = null
+    ): array;
 
     /**
      * 根据资源查询可见性列表.

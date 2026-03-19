@@ -20,6 +20,11 @@ enum ResourceType: int
      */
     case SUPER_MAGIC_AGENT = 1;
 
+    /**
+     * Skill resource.
+     */
+    case SKILL = 2;
+
     public static function make(mixed $type): ResourceType
     {
         if (! is_int($type)) {

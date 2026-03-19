@@ -51,4 +51,9 @@ return [
     'store_skill_already_added' => 'This skill has already been added to your skill library',
     'skill_already_latest_version' => 'This skill is already the latest version, no upgrade needed',
     'non_store_skill_cannot_upgrade' => 'Only store source skills can be upgraded',
+    'version_already_exists' => 'Version already exists',
+    'publish_target_type_invalid' => 'Invalid publish target type',
+    'publish_target_value_should_be_empty' => 'Publish target value must be empty',
+    'non_official_organization_cannot_publish_to_market' => 'Only the official organization can publish skills to the market',
+    'skill_creator_cannot_add_from_market' => 'The skill creator cannot add their own market skill',
 ];

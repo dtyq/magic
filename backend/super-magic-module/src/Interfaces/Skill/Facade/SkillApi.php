@@ -21,6 +21,8 @@ use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ImportSkillRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ParseFileImportRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\PublishSkillRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\FormRequest\SkillQueryFormRequest;
@@ -120,7 +122,6 @@ class SkillApi extends AbstractApi
 
         return SkillAssembler::createListResponseDTO(
             $result['list'],
-            $result['storeSkills'],
             $page->getPage(),
             $page->getPageNum(),
             $result['total']
@@ -186,7 +187,7 @@ class SkillApi extends AbstractApi
         $responseDTO = $this->userSkillAppService->getSkillDetail($requestContext, $code);
 
         // 如果项目ID为空，则创建并绑定项目（兼容历史数据）
-        if (empty($responseDTO->getProjectId())) {
+        if (empty($responseDTO->getProjectId()) && $responseDTO->getSourceType() !== SkillSourceType::MARKET->value) {
             $projectInfo = $this->createAndBindProject($requestContext, $responseDTO->getPackageName(), $code);
             $responseDTO->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
         }
@@ -195,23 +196,42 @@ class SkillApi extends AbstractApi
     }
 
     /**
-     * 发布技能到商店（创建待审核版本）.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $code Skill code
+     * Publish a skill version.
      */
     public function publishSkill(RequestContext $requestContext, string $code)
     {
         // 设置用户授权信息
         $requestContext->setUserAuthorization($this->getAuthorization());
 
-        // 调用应用服务层处理业务逻辑
-        $skillVersionEntity = $this->userSkillAppService->publishSkill($requestContext, $code);
+        $requestDTO = PublishSkillRequestDTO::fromRequest($this->request);
 
-        return [
-            'version_id' => (string) $skillVersionEntity->getId(),
-            'version' => $skillVersionEntity->getVersion(),
-        ];
+        $skillVersionEntity = $this->userSkillAppService->publishSkill($requestContext, $code, $requestDTO);
+
+        return SkillAssembler::createPublishVersionResponseDTO($skillVersionEntity)->toArray();
+    }
+
+    public function getVersionList(RequestContext $requestContext, string $code): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = QuerySkillVersionsRequestDTO::fromRequest($this->request);
+        $result = $this->userSkillAppService->queryVersions($requestContext, $code, $requestDTO);
+
+        $publisherUserIds = [];
+        foreach ($result['list'] as $versionEntity) {
+            $publisherUserId = $versionEntity->getPublisherUserId();
+            if (! empty($publisherUserId)) {
+                $publisherUserIds[] = $publisherUserId;
+            }
+        }
+
+        return SkillAssembler::createQuerySkillVersionsResponseDTO(
+            $result['list'],
+            $this->userSkillAppService->getUsers($this->getAuthorization()->getOrganizationCode(), $publisherUserIds),
+            $result['page'],
+            $result['page_size'],
+            $result['total']
+        )->toArray();
     }
 
     /**
@@ -228,25 +248,6 @@ class SkillApi extends AbstractApi
 
         // 调用应用服务层处理业务逻辑
         $this->userSkillAppService->offlineSkill($requestContext, $code);
-
-        // 返回空数组
-        return [];
-    }
-
-    /**
-     * 升级商店技能到当前版本.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $code Skill code
-     * @return array 空数组
-     */
-    public function upgradeSkill(RequestContext $requestContext, string $code): array
-    {
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        // 调用应用服务层处理业务逻辑
-        $this->userSkillAppService->upgradeSkill($requestContext, $code);
 
         // 返回空数组
         return [];

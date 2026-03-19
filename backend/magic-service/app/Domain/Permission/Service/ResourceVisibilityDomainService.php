@@ -89,12 +89,14 @@ readonly class ResourceVisibilityDomainService
      * @param PermissionDataIsolation $dataIsolation 数据隔离对象
      * @param string $userId 用户ID
      * @param ResourceType $resourceType 资源类型
+     * @param null|array $resourceIds 资源编码过滤列表，null 表示返回全部可访问资源
      * @return array resource_code 数组
      */
     public function getUserAccessibleResourceCodes(
         PermissionDataIsolation $dataIsolation,
         string $userId,
-        ResourceType $resourceType
+        ResourceType $resourceType,
+        ?array $resourceIds = null
     ): array {
         $contactDataIsolation = ContactDataIsolation::simpleMake(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -123,16 +125,17 @@ readonly class ResourceVisibilityDomainService
         $entities = $this->resourceVisibilityRepository->listByPrincipalIds(
             $dataIsolation,
             $principalIds,
-            $resourceType
+            $resourceType,
+            $resourceIds
         );
 
         // 从实体列表中提取资源编码并去重
-        $resourceCodes = [];
+        $codes = [];
         foreach ($entities as $entity) {
-            $resourceCodes[] = $entity->getResourceCode();
+            $codes[] = $entity->getResourceCode();
         }
 
-        return array_values(array_unique($resourceCodes));
+        return array_values(array_unique($codes));
     }
 
     /**

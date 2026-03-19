@@ -109,6 +109,11 @@ class SkillEntity extends AbstractEntity
     protected ?int $projectId = null;
 
     /**
+     * @var null|string Latest published timestamp
+     */
+    protected ?string $latestPublishedAt = null;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -152,6 +157,7 @@ class SkillEntity extends AbstractEntity
             'is_enabled' => $this->isEnabled ? 1 : 0,
             'pinned_at' => $this->pinnedAt,
             'project_id' => $this->projectId,
+            'latest_published_at' => $this->latestPublishedAt,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -417,6 +423,17 @@ class SkillEntity extends AbstractEntity
     public function setProjectId(?int $projectId): self
     {
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function getLatestPublishedAt(): ?string
+    {
+        return $this->latestPublishedAt;
+    }
+
+    public function setLatestPublishedAt(?string $latestPublishedAt): self
+    {
+        $this->latestPublishedAt = $latestPublishedAt;
         return $this;
     }
 

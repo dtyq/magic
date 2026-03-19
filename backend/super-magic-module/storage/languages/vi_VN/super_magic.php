@@ -57,6 +57,8 @@ return [
         'sort_order_must_be_integer' => 'Sort order must be an integer',
         'config_must_be_array' => 'Config must be an array',
         'skill_not_found' => 'Skill not found',
+        'skill_access_denied' => 'Access denied to this skill',
+        'skill_version_not_found' => 'Skill version not found',
         'duplicate_skill_code' => 'Duplicate skill code in skills list',
         'skill_code_must_be_string' => 'Skill code must be a string',
         'category_id_must_be_integer' => 'Category ID must be an integer',

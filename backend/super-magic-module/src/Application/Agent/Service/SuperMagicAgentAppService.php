@@ -32,6 +32,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentSkillDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -45,6 +46,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
@@ -144,10 +146,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 3. 批量查询技能详情
         $agentSkills = $agent->getSkills();
-        $skillIds = array_map(fn ($agentSkill) => $agentSkill->getSkillId(), $agentSkills);
+        $skillCodes = array_map(fn ($agentSkill) => $agentSkill->getSkillCode(), $agentSkills);
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
-        $skillsMap = $this->skillDomainService->findSkillsByIds($skillDataIsolation, $skillIds);
+        $skillsMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
 
         // 4. 更新 Agent、Playbook 和 Skill 的 URL（将路径转换为完整URL）
         $this->updateAgentEntityIcon($agent);
@@ -370,16 +372,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.duplicate_skill_code');
         }
 
-        // 3. 批量查询技能信息
-        $skillDataIsolation = new SkillDataIsolation();
-        $skillDataIsolation->extends($dataIsolation);
-
-        $skills = $this->skillDomainService->findUserSkillsByCodes($skillDataIsolation, $skillCodes);
-
-        // 校验所有技能 code 是否都存在
-        if (count($skills) !== count($skillCodes)) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_not_found');
-        }
+        $skillVersions = $this->resolveAccessibleSkillsWithCurrentVersion($dataIsolation, $skillCodes);
 
         // 4. 创建 AgentSkillEntity 列表
         $skillEntities = [];
@@ -388,15 +381,15 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.skill_code_must_be_string');
             }
 
-            $skill = $skills[$skillCode];
+            $skillVersion = $skillVersions[$skillCode];
 
             // 创建 AgentSkillEntity
             $agentSkillEntity = new AgentSkillEntity();
             $agentSkillEntity->setAgentId($agent->getId());
             $agentSkillEntity->setAgentCode($agent->getCode());
-            $agentSkillEntity->setSkillId($skill->getId());
-            $agentSkillEntity->setSkillVersionId($skill->getVersionId());
-            $agentSkillEntity->setSkillCode($skill->getCode());
+            $agentSkillEntity->setSkillId($skillVersion->getId());
+            $agentSkillEntity->setSkillVersionId($skillVersion->getId());
+            $agentSkillEntity->setSkillCode($skillVersion->getCode());
             $agentSkillEntity->setSortOrder($index);
             $agentSkillEntity->setCreatorId($dataIsolation->getCurrentUserId());
             $agentSkillEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
@@ -423,16 +416,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.duplicate_skill_code');
         }
 
-        // 3. 批量查询技能信息
-        $skillDataIsolation = new SkillDataIsolation();
-        $skillDataIsolation->extends($dataIsolation);
-
-        $skills = $this->skillDomainService->findUserSkillsByCodes($skillDataIsolation, $skillCodes);
-
-        // 校验所有技能 code 是否都存在
-        if (count($skills) !== count($skillCodes)) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_not_found');
-        }
+        $skillVersions = $this->resolveAccessibleSkillsWithCurrentVersion($dataIsolation, $skillCodes);
 
         // 4. 创建 AgentSkillEntity 列表
         $skillEntities = [];
@@ -441,15 +425,15 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.skill_code_must_be_string');
             }
 
-            $skill = $skills[$skillCode];
+            $skillVersion = $skillVersions[$skillCode];
 
             // 创建 AgentSkillEntity（sort_order 会在领域服务层设置）
             $agentSkillEntity = new AgentSkillEntity();
             $agentSkillEntity->setAgentId($agent->getId());
             $agentSkillEntity->setAgentCode($agent->getCode());
-            $agentSkillEntity->setSkillId($skill->getId());
-            $agentSkillEntity->setSkillVersionId($skill->getVersionId());
-            $agentSkillEntity->setSkillCode($skill->getCode());
+            $agentSkillEntity->setSkillId($skillVersion->getId());
+            $agentSkillEntity->setSkillVersionId($skillVersion->getId());
+            $agentSkillEntity->setSkillCode($skillVersion->getCode());
             $agentSkillEntity->setCreatorId($dataIsolation->getCurrentUserId());
             $agentSkillEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
@@ -744,6 +728,42 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'fail_count' => $failCount,
             'results' => $results,
         ];
+    }
+
+    /**
+     * 校验技能可见权限并补齐当前版本数据.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离
+     * @param array $skillCodes 技能编码列表
+     * @return array<string, SkillVersionEntity>
+     */
+    private function resolveAccessibleSkillsWithCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        );
+
+        $accessibleSkillCodeMap = array_flip($accessibleSkillCodes);
+        foreach ($skillCodes as $skillCode) {
+            if (! isset($accessibleSkillCodeMap[$skillCode])) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_access_denied');
+            }
+        }
+
+        $skillDataIsolation = new SkillDataIsolation();
+        $skillDataIsolation->extends($dataIsolation);
+        $skillVersions = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
+        foreach ($skillCodes as $skillCode) {
+            if (! isset($skillVersions[$skillCode])) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_version_not_found');
+            }
+        }
+
+        return $skillVersions;
     }
 
     private function buildAgentDetailFromVersion(SuperMagicAgentEntity $baseAgent, AgentVersionEntity $versionEntity): SuperMagicAgentEntity

@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
@@ -70,7 +71,9 @@ class SkillVersionEntity extends AbstractEntity
     /**
      * @var string 压缩包在对象存储中的 key
      */
-    protected string $fileKey;
+    protected ?string $fileKey = null;
+
+    protected ?string $fileUrl = null;
 
     /**
      * @var PublishStatus 发布状态
@@ -81,6 +84,36 @@ class SkillVersionEntity extends AbstractEntity
      * @var null|ReviewStatus 审核状态
      */
     protected ?ReviewStatus $reviewStatus = ReviewStatus::PENDING;
+
+    /**
+     * @var PublishTargetType Publish target type
+     */
+    protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
+
+    /**
+     * @var null|array Actual publish target payload
+     */
+    protected ?array $publishTargetValue = null;
+
+    /**
+     * @var null|array Version description in i18n format
+     */
+    protected ?array $versionDescriptionI18n = null;
+
+    /**
+     * @var null|string Publisher user ID
+     */
+    protected ?string $publisherUserId = null;
+
+    /**
+     * @var null|string Published timestamp
+     */
+    protected ?string $publishedAt = null;
+
+    /**
+     * @var bool Whether this is the current version
+     */
+    protected bool $isCurrentVersion = false;
 
     /**
      * @var SkillSourceType 来源类型
@@ -141,6 +174,12 @@ class SkillVersionEntity extends AbstractEntity
             'file_key' => $this->fileKey,
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus?->value,
+            'publish_target_type' => $this->publishTargetType->value,
+            'publish_target_value' => $this->publishTargetValue,
+            'version_description_i18n' => $this->versionDescriptionI18n,
+            'publisher_user_id' => $this->publisherUserId,
+            'published_at' => $this->publishedAt,
+            'is_current_version' => $this->isCurrentVersion,
             'source_type' => $this->sourceType->value,
             'source_id' => $this->sourceId,
             'source_meta' => $this->sourceMeta,
@@ -269,15 +308,24 @@ class SkillVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getFileKey(): string
+    public function getFileKey(): ?string
     {
         return $this->fileKey;
     }
 
-    public function setFileKey(string $fileKey): self
+    public function setFileKey(?string $fileKey): void
     {
         $this->fileKey = $fileKey;
-        return $this;
+    }
+
+    public function getFileUrl(): ?string
+    {
+        return $this->fileUrl;
+    }
+
+    public function setFileUrl(?string $fileUrl): void
+    {
+        $this->fileUrl = $fileUrl;
     }
 
     public function getPublishStatus(): PublishStatus
@@ -311,6 +359,76 @@ class SkillVersionEntity extends AbstractEntity
         } else {
             $this->reviewStatus = ReviewStatus::from($reviewStatus);
         }
+        return $this;
+    }
+
+    public function getPublishTargetType(): PublishTargetType
+    {
+        return $this->publishTargetType;
+    }
+
+    public function setPublishTargetType(PublishTargetType|string $publishTargetType): self
+    {
+        if ($publishTargetType instanceof PublishTargetType) {
+            $this->publishTargetType = $publishTargetType;
+        } else {
+            $this->publishTargetType = PublishTargetType::from($publishTargetType);
+        }
+        return $this;
+    }
+
+    public function getPublishTargetValue(): ?array
+    {
+        return $this->publishTargetValue;
+    }
+
+    public function setPublishTargetValue(?array $publishTargetValue): self
+    {
+        $this->publishTargetValue = $publishTargetValue;
+        return $this;
+    }
+
+    public function getVersionDescriptionI18n(): ?array
+    {
+        return $this->versionDescriptionI18n;
+    }
+
+    public function setVersionDescriptionI18n(?array $versionDescriptionI18n): self
+    {
+        $this->versionDescriptionI18n = $versionDescriptionI18n;
+        return $this;
+    }
+
+    public function getPublisherUserId(): ?string
+    {
+        return $this->publisherUserId;
+    }
+
+    public function setPublisherUserId(?string $publisherUserId): self
+    {
+        $this->publisherUserId = $publisherUserId;
+        return $this;
+    }
+
+    public function getPublishedAt(): ?string
+    {
+        return $this->publishedAt;
+    }
+
+    public function setPublishedAt(?string $publishedAt): self
+    {
+        $this->publishedAt = $publishedAt;
+        return $this;
+    }
+
+    public function isCurrentVersion(): bool
+    {
+        return $this->isCurrentVersion;
+    }
+
+    public function setIsCurrentVersion(bool|int $isCurrentVersion): self
+    {
+        $this->isCurrentVersion = (bool) $isCurrentVersion;
         return $this;
     }
 

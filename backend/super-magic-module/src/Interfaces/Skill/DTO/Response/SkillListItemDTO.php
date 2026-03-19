@@ -30,11 +30,11 @@ class SkillListItemDTO implements JsonSerializable
 
     private ?string $pinnedAt;
 
-    private bool $needUpgrade;
-
     private string $updatedAt;
 
     private string $createdAt;
+
+    private ?string $latestPublishedAt;
 
     private string $name;
 
@@ -51,9 +51,9 @@ class SkillListItemDTO implements JsonSerializable
         string $sourceType,
         int $isEnabled,
         ?string $pinnedAt,
-        bool $needUpgrade,
         string $updatedAt,
-        string $createdAt
+        string $createdAt,
+        ?string $latestPublishedAt
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -65,9 +65,9 @@ class SkillListItemDTO implements JsonSerializable
         $this->sourceType = $sourceType;
         $this->isEnabled = $isEnabled;
         $this->pinnedAt = $pinnedAt;
-        $this->needUpgrade = $needUpgrade;
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
+        $this->latestPublishedAt = $latestPublishedAt;
     }
 
     public function jsonSerialize(): array
@@ -83,7 +83,7 @@ class SkillListItemDTO implements JsonSerializable
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,
             'pinned_at' => $this->pinnedAt,
-            'need_upgrade' => $this->needUpgrade,
+            'latest_published_at' => $this->latestPublishedAt,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
         ];
