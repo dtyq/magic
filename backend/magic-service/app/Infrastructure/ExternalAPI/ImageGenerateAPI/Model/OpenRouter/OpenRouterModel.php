@@ -40,7 +40,11 @@ class OpenRouterModel extends AbstractImageGenerate
     {
         $this->apiKey = $config['api_key'] ?? '';
 
-        $this->url = empty($config['url']) ? $this->url : rtrim($config['url']);
+        $url = empty($config['url']) ? $this->url : rtrim($config['url']);
+        if (! empty($config['url']) && preg_match('#/api/v1/?$#', $url)) {
+            $url = rtrim($url, '/') . '/chat/completions';
+        }
+        $this->url = $url;
 
         $proxyUrl = $config['proxy_url'] ?? null;
         $this->siteUrl = $config['site_url'] ?? '';
