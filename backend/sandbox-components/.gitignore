@@ -1,0 +1,60 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output directory
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go build cache
+.gocache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Config files (may contain sensitive information)
+config/local.yaml
+config/dev.yaml
+config/prod.yaml
+
+# Docker
+Dockerfile.local
+docker-compose.local.yml
+
+# Kubernetes
+k8s/local/
+*.kubeconfig
+
+# Application specific
+tmp/
+temp/
+debug/
+.env
+.env.local
+.env.*.local 

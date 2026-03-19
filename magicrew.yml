@@ -5,7 +5,7 @@ images:
     context: ./backend/magic-gateway
   super-magic:
     context: ./backend/super-magic
-  sandbox-gateway:
-    context: ./backend/sandbox-gateway
+  sandbox-components:
+    context: ./backend/sandbox-components
   magic-web:
     context: ./frontend/magic-web
