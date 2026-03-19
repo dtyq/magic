@@ -1,10 +1,10 @@
-name: Build and push sandbox-gateway image
+name: Build and push sandbox-components image
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'backend/sandbox-gateway/**'
+      - 'backend/sandbox-components/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build and push sandbox-gateway image
+    name: Build and push sandbox-components image
     uses: ./.github/workflows/image-build.yml
     with:
-      imageName: sandbox-gateway
+      imageName: sandbox-components
