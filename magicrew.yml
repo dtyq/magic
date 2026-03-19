@@ -10,4 +10,4 @@ images:
   magic-web:
     context: ./frontend/magic-web
   playwright-mod:
-    context: ./thirt-party/playwright-mod
+    context: ./thirdparty/playwright-mod
