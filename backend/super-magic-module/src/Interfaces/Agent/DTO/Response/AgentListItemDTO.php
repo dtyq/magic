@@ -27,7 +27,7 @@ class AgentListItemDTO extends AbstractDTO
     /**
      * Agent图标对象，包含 type 和 value.
      */
-    private array $icon;
+    private ?array $icon;
 
     private int $iconType;
 
@@ -58,7 +58,7 @@ class AgentListItemDTO extends AbstractDTO
         array $nameI18n,
         ?array $roleI18n,
         ?array $descriptionI18n,
-        array $icon,
+        ?array $icon,
         int $iconType,
         array $playbooks,
         string $sourceType,
