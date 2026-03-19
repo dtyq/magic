@@ -27,6 +27,8 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\RecycleBin\Enum\RecycleBinResourceType;
+use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
@@ -79,7 +81,8 @@ class WorkspaceAppService extends AbstractAppService
         protected LoggerFactory $loggerFactory,
         protected FileCleanupAppService $fileCleanupAppService,
         protected FileDomainService $fileDomainService,
-        protected LongTermMemoryDomainService $longTermMemoryDomainService
+        protected LongTermMemoryDomainService $longTermMemoryDomainService,
+        protected RecycleBinDomainService $recycleBinDomainService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -370,6 +373,12 @@ class WorkspaceAppService extends AbstractAppService
         // 调用领域服务执行删除
         Db::beginTransaction();
         try {
+            // 先获取工作区信息(用于记录到回收站)
+            $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+            if ($workspace === null) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+            }
+
             // 先获取工作区下的所有项目ID，用于删除长期记忆
             $projectIds = $this->projectDomainService->getProjectIdsByWorkspaceId($dataIsolation, $workspaceId);
 
@@ -408,6 +417,17 @@ class WorkspaceAppService extends AbstractAppService
                 $workspaceId,
                 $event->getEventId()
             ));
+
+            // 记录到回收站表
+            $this->recycleBinDomainService->recordDeletion(
+                resourceType: RecycleBinResourceType::Workspace,
+                resourceId: $workspaceId,
+                resourceName: $workspace->getName(),
+                ownerId: (string) $workspace->getUserId(),
+                deletedBy: (string) $dataIsolation->getCurrentUserId(),
+                parentId: null,
+                extraData: null
+            );
 
             Db::commit();
         } catch (Throwable $e) {

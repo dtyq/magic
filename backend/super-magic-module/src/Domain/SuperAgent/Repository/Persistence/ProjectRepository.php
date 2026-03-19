@@ -518,6 +518,99 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
     }
 
     /**
+     * 查询项目（包含软删除）.
+     *
+     * @param int $id 项目ID
+     */
+    public function findByIdWithTrashed(int $id): ?ProjectEntity
+    {
+        $model = $this->projectModel::withTrashed()->find($id);
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->modelToEntityForRestore($model);
+    }
+
+    /**
+     * 恢复单个项目.
+     *
+     * @param int $id 项目ID
+     * @param string $userId 操作用户ID
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool
+    {
+        return $this->projectModel::withTrashed()
+            ->where('id', $id)
+            ->update([
+                'deleted_at' => null,
+                'updated_uid' => $userId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    /**
+     * 检查项目是否存在且未被删除.
+     *
+     * @param int $id 项目ID
+     * @return bool 项目存在且未被删除返回true，否则返回false
+     */
+    public function existsAndNotDeleted(int $id): bool
+    {
+        return $this->projectModel::query()
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
+    /**
+     * 查询工作区下的项目ID（排除指定ID）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeIds 需要排除的项目ID
+     * @return array 项目ID数组
+     */
+    public function findProjectIdsByWorkspaceId(int $workspaceId, array $excludeIds): array
+    {
+        $query = $this->projectModel::query()
+            ->where('workspace_id', $workspaceId)
+            ->whereNull('deleted_at');
+
+        if (! empty($excludeIds)) {
+            $query->whereNotIn('id', $excludeIds);
+        }
+
+        return $query->pluck('id')->toArray();
+    }
+
+    /**
+     * 批量恢复工作区下的项目（带排除）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeIds 需要排除的项目ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的项目数量
+     */
+    public function restoreByWorkspaceId(int $workspaceId, array $excludeIds, string $userId): int
+    {
+        $query = $this->projectModel::withTrashed()
+            ->where('workspace_id', $workspaceId)
+            ->whereNotNull('deleted_at');
+
+        if (! empty($excludeIds)) {
+            $query->whereNotIn('id', $excludeIds);
+        }
+
+        return $query->update([
+            'deleted_at' => null,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * 模型转实体.
      */
     protected function modelToEntity(ProjectModel $model): ProjectEntity
@@ -608,5 +701,21 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'updated_uid' => $entity->getUpdatedUid(),
             'updated_at' => $entity->getUpdatedAt(),
         ];
+    }
+
+    /**
+     * Model 转 Entity（简化版，仅用于验证父级）.
+     *
+     * 注意：此方法从 ProjectRestoreRepository 复制而来，
+     * 保持原有逻辑不变，只返回必要的字段。
+     */
+    private function modelToEntityForRestore(ProjectModel $model): ProjectEntity
+    {
+        $entity = new ProjectEntity();
+        $entity->setId($model->id);
+        $entity->setWorkspaceId($model->workspace_id);
+        $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
+
+        return $entity;
     }
 }

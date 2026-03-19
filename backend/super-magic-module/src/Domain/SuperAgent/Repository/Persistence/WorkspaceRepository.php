@@ -276,6 +276,38 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
     }
 
     /**
+     * 恢复单个工作区.
+     *
+     * @param int $id 工作区ID
+     * @param string $userId 操作用户ID（用于更新 updated_uid）
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool
+    {
+        return $this->model::withTrashed()
+            ->where('id', $id)
+            ->update([
+                'deleted_at' => null,
+                'updated_uid' => $userId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    /**
+     * 检查工作区是否存在且未被删除.
+     *
+     * @param int $id 工作区ID
+     * @return bool 工作区存在且未被删除返回true，否则返回false
+     */
+    public function existsAndNotDeleted(int $id): bool
+    {
+        return $this->model::query()
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
+    /**
      * 将模型对象转换为实体对象
      *
      * @param null|WorkspaceModel $model 模型对象

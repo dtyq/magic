@@ -228,4 +228,41 @@ interface TopicRepositoryInterface
      * @return bool Whether the operation succeeded
      */
     public function detachWorkspace(int $workspaceId, string $userId): bool;
+
+    /**
+     * 查询话题（包含软删除）.
+     *
+     * @param int $id 话题ID
+     */
+    public function findByIdWithTrashed(int $id): ?TopicEntity;
+
+    /**
+     * 恢复单个话题.
+     *
+     * @param int $id 话题ID
+     * @param string $userId 操作用户ID
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool;
+
+    /**
+     * 批量恢复项目下的话题（带排除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $excludeIds 需要排除的话题ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的话题数量
+     */
+    public function restoreByProjectId(int $projectId, array $excludeIds, string $userId): int;
+
+    /**
+     * 批量恢复工作区下的话题（带排除）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeProjectIds 需要排除的项目ID数组
+     * @param array $excludeTopicIds 需要排除的话题ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的话题数量
+     */
+    public function restoreByWorkspaceId(int $workspaceId, array $excludeProjectIds, array $excludeTopicIds, string $userId): int;
 }

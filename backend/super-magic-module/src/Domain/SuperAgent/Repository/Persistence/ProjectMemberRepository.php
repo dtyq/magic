@@ -50,7 +50,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
-     * 根据项目ID删除所有成员.
+     * 根据项目ID软删除所有成员.
      */
     public function deleteByProjectId(int $projectId, array $roles = []): int
     {
@@ -58,7 +58,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         if (! empty($roles)) {
             $query = $query->whereIn('role', $roles);
         }
-        return $query->where('project_id', $projectId)->delete();
+        return $query->where('project_id', $projectId)->update(['deleted_at' => date('Y-m-d H:i:s')]);
     }
 
     /**
@@ -70,9 +70,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return 0;
         }
 
-        return $this->projectMemberModel::query()
+        return $this->projectMemberModel::withTrashed()
             ->whereIn('id', $ids)
-            ->delete();
+            ->forceDelete();
     }
 
     /**
@@ -80,11 +80,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      */
     public function deleteByProjectAndUser(int $projectId, string $userId): int
     {
-        return $this->projectMemberModel::query()
+        return $this->projectMemberModel::withTrashed()
             ->where('project_id', $projectId)
             ->where('target_type', 'User')
             ->where('target_id', $userId)
-            ->delete();
+            ->forceDelete();
     }
 
     /**
@@ -92,11 +92,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
      */
     public function deleteByProjectAndTarget(int $projectId, string $targetType, string $targetId): int
     {
-        return $this->projectMemberModel::query()
+        return $this->projectMemberModel::withTrashed()
             ->where('project_id', $projectId)
             ->where('target_type', $targetType)
             ->where('target_id', $targetId)
-            ->delete();
+            ->forceDelete();
     }
 
     /**
@@ -460,8 +460,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         string $sortDirection = 'desc',
         ?array $organizationCodes = null
     ): array {
-        // 构建基础查询
+        // 构建基础查询（去掉软删除全局 scope，改用别名 pm 引用 deleted_at，避免表别名与字段引用不一致）
         $query = $this->projectMemberModel::query()
+            ->withoutGlobalScopes()
             ->from('magic_super_agent_project_members as pm')
             ->join('magic_super_agent_project as p', 'pm.project_id', '=', 'p.id')
             ->leftJoin('magic_super_agent_project_member_settings as pms', function ($join) use ($userId) {
@@ -481,6 +482,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
                             ->where('p.is_collaboration_enabled', 1);
                     });
             })
+            ->whereNull('pm.deleted_at')
             ->whereNull('p.deleted_at');
 
         // 工作区限制（可选）
@@ -679,11 +681,10 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return 0;
         }
 
-        // 使用硬删除，因为表没有deleted_at字段
-        return $this->projectMemberModel::query()
+        return $this->projectMemberModel::withTrashed()
             ->where('project_id', $projectId)
             ->whereIn('target_id', $memberIds)
-            ->delete();
+            ->forceDelete();
     }
 
     /**
@@ -801,11 +802,26 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             return 0;
         }
 
-        return $this->projectMemberModel::query()
+        return $this->projectMemberModel::withTrashed()
             ->whereIn('project_id', $projectIds)
             ->where('target_type', MemberType::USER->value)
             ->where('target_id', $userId)
-            ->delete();
+            ->forceDelete();
+    }
+
+    public function restoreByProjectIds(array $projectIds, string $userId): int
+    {
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        return $this->projectMemberModel::withTrashed()
+            ->whereIn('project_id', $projectIds)
+            ->whereNotNull('deleted_at')
+            ->update([
+                'deleted_at' => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
     }
 
     /**

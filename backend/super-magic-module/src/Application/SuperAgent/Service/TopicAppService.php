@@ -23,6 +23,8 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\RecycleBin\Enum\RecycleBinResourceType;
+use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
@@ -94,6 +96,7 @@ class TopicAppService extends AbstractAppService
         protected ClientMessageAppService $clientMessageAppService,
         protected AgentDomainService $agentDomainService,
         protected Redis $redis,
+        protected RecycleBinDomainService $recycleBinDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -258,7 +261,7 @@ class TopicAppService extends AbstractAppService
 
     public function renameTopic(MagicUserAuthorization $authorization, int $topicId, string $userQuestion, string $language = 'zh_CN'): array
     {
-        // Fetch the topic and verify it exists
+        // 获取话题内容
         $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
         if (! $topicEntity) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
@@ -278,7 +281,7 @@ class TopicAppService extends AbstractAppService
             $dataIsolation = $this->createDataIsolation($authorization);
             $this->topicDomainService->updateTopicName($dataIsolation, $topicId, $text);
 
-            // Fetch the updated entity and dispatch the renamed event
+            // 获取更新后的话题实体并发布重命名事件
             $updatedTopicEntity = $this->topicDomainService->getTopicById($topicId);
             if ($updatedTopicEntity) {
                 $topicRenamedEvent = new TopicRenamedEvent($updatedTopicEntity, $authorization);
@@ -313,7 +316,7 @@ class TopicAppService extends AbstractAppService
         // 获取话题ID
         $topicId = $requestDTO->getId();
 
-        // 先获取话题实体用于事件发布
+        // 先获取话题实体用于事件发布和回收站记录
         $topicEntity = $this->topicDomainService->getTopicById((int) $topicId);
 
         // 调用领域服务执行删除
@@ -336,6 +339,33 @@ class TopicAppService extends AbstractAppService
             );
             $publisher = new StopRunningTaskPublisher($event);
             $this->producer->produce($publisher);
+
+            // 记录到回收站表
+            if ($topicEntity) {
+                // 获取父级信息用于写入 extra_data
+                $projectId = $topicEntity->getProjectId();
+                $workspaceId = $topicEntity->getWorkspaceId();
+
+                $project = $this->projectDomainService->getProjectNotUserId($projectId);
+                $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+
+                $this->recycleBinDomainService->recordDeletion(
+                    resourceType: RecycleBinResourceType::Topic,
+                    resourceId: (int) $topicId,
+                    resourceName: $topicEntity->getTopicName(),
+                    ownerId: $topicEntity->getUserId(),
+                    deletedBy: (string) $dataIsolation->getCurrentUserId(),
+                    parentId: $topicEntity->getProjectId(),
+                    extraData: [
+                        'parent_info' => [
+                            'workspace_id' => $workspaceId,
+                            'workspace_name' => $workspace ? $workspace->getName() : '',
+                            'project_id' => $projectId,
+                            'project_name' => $project ? $project->getProjectName() : '',
+                        ],
+                    ]
+                );
+            }
         }
 
         // 如果删除失败，抛出异常
@@ -464,7 +494,7 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
-     * Get topic attachment list for authenticated users.
+     * 获取话题的附件列表.(管理后台使用).
      *
      * @param MagicUserAuthorization $userAuthorization 用户授权信息
      * @param GetTopicAttachmentsRequestDTO $requestDto 话题附件请求DTO
@@ -472,6 +502,7 @@ class TopicAppService extends AbstractAppService
      */
     public function getTopicAttachments(MagicUserAuthorization $userAuthorization, GetTopicAttachmentsRequestDTO $requestDto): array
     {
+        // 获取当前话题的创建者
         $topicEntity = $this->topicDomainService->getTopicById((int) $requestDto->getTopicId());
         if ($topicEntity === null) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');

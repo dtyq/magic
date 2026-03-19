@@ -205,4 +205,47 @@ interface ProjectRepositoryInterface
      * @return int Number of updated projects
      */
     public function batchEnableCollaboration(array $projectIds): int;
+
+    /**
+     * 查询项目（包含软删除）.
+     *
+     * @param int $id 项目ID
+     */
+    public function findByIdWithTrashed(int $id): ?ProjectEntity;
+
+    /**
+     * 恢复单个项目.
+     *
+     * @param int $id 项目ID
+     * @param string $userId 操作用户ID
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool;
+
+    /**
+     * 检查项目是否存在且未被删除.
+     *
+     * @param int $id 项目ID
+     * @return bool 项目存在且未被删除返回true，否则返回false
+     */
+    public function existsAndNotDeleted(int $id): bool;
+
+    /**
+     * 查询工作区下的项目ID（排除指定ID）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeIds 需要排除的项目ID
+     * @return array 项目ID数组
+     */
+    public function findProjectIdsByWorkspaceId(int $workspaceId, array $excludeIds): array;
+
+    /**
+     * 批量恢复工作区下的项目（带排除）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeIds 需要排除的项目ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的项目数量
+     */
+    public function restoreByWorkspaceId(int $workspaceId, array $excludeIds, string $userId): int;
 }

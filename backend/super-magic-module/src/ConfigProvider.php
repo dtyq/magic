@@ -39,6 +39,8 @@ use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionItemRe
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Persistence\FileCollectionItemRepository;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Persistence\FileCollectionRepository;
+use Dtyq\SuperMagic\Domain\RecycleBin\Repository\Facade\RecycleBinRepositoryInterface;
+use Dtyq\SuperMagic\Domain\RecycleBin\Repository\Persistence\RecycleBinRepository;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareAccessLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareCopyLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Share\Repository\Facade\ResourceShareRepositoryInterface;
@@ -219,6 +221,9 @@ class ConfigProvider
                 SkillVersionRepositoryInterface::class => SkillVersionRepository::class,
                 SkillMarketRepositoryInterface::class => SkillMarketRepository::class,
                 SkillCategoryRepositoryInterface::class => SkillCategoryRepository::class,
+
+                // recycle bin 回收站
+                RecycleBinRepositoryInterface::class => RecycleBinRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,

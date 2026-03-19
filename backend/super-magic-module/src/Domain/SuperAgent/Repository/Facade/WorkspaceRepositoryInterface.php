@@ -112,4 +112,21 @@ interface WorkspaceRepositoryInterface
      * 根据用户和名称查找工作区（未删除的精确匹配）.
      */
     public function findByUserAndName(string $userId, string $organizationCode, string $name): ?WorkspaceEntity;
+
+    /**
+     * 恢复单个工作区.
+     *
+     * @param int $id 工作区ID
+     * @param string $userId 操作用户ID（用于更新 updated_uid）
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool;
+
+    /**
+     * 检查工作区是否存在且未被删除.
+     *
+     * @param int $id 工作区ID
+     * @return bool 工作区存在且未被删除返回true，否则返回false
+     */
+    public function existsAndNotDeleted(int $id): bool;
 }

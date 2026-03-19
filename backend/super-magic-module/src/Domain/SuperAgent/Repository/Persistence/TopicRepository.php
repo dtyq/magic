@@ -793,6 +793,96 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
+     * 查询话题（包含软删除）.
+     *
+     * @param int $id 话题ID
+     */
+    public function findByIdWithTrashed(int $id): ?TopicEntity
+    {
+        $model = $this->model::withTrashed()->find($id);
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->modelToEntityForRestore($model);
+    }
+
+    /**
+     * 恢复单个话题.
+     *
+     * @param int $id 话题ID
+     * @param string $userId 操作用户ID
+     * @return bool 是否成功
+     */
+    public function restore(int $id, string $userId): bool
+    {
+        return $this->model::withTrashed()
+            ->where('id', $id)
+            ->update([
+                'deleted_at' => null,
+                'updated_uid' => $userId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    /**
+     * 批量恢复项目下的话题（带排除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array $excludeIds 需要排除的话题ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的话题数量
+     */
+    public function restoreByProjectId(int $projectId, array $excludeIds, string $userId): int
+    {
+        $query = $this->model::withTrashed()
+            ->where('project_id', $projectId)
+            ->whereNotNull('deleted_at');
+
+        if (! empty($excludeIds)) {
+            $query->whereNotIn('id', $excludeIds);
+        }
+
+        return $query->update([
+            'deleted_at' => null,
+            'updated_uid' => $userId,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * 批量恢复工作区下的话题（带排除）.
+     *
+     * @param int $workspaceId 工作区ID
+     * @param array $excludeProjectIds 需要排除的项目ID数组
+     * @param array $excludeTopicIds 需要排除的话题ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的话题数量
+     */
+    public function restoreByWorkspaceId(int $workspaceId, array $excludeProjectIds, array $excludeTopicIds, string $userId): int
+    {
+        $query = $this->model::withTrashed()
+            ->join('magic_super_agent_project', 'magic_super_agent_topics.project_id', '=', 'magic_super_agent_project.id')
+            ->where('magic_super_agent_project.workspace_id', $workspaceId)
+            ->whereNotNull('magic_super_agent_topics.deleted_at');
+
+        if (! empty($excludeProjectIds)) {
+            $query->whereNotIn('magic_super_agent_topics.project_id', $excludeProjectIds);
+        }
+
+        if (! empty($excludeTopicIds)) {
+            $query->whereNotIn('magic_super_agent_topics.id', $excludeTopicIds);
+        }
+
+        return $query->update([
+            'magic_super_agent_topics.deleted_at' => null,
+            'magic_super_agent_topics.updated_uid' => $userId,
+            'magic_super_agent_topics.updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * 将数据库模型数据转换为实体数据.
      * @param array $modelData 模型数据
      * @return array 实体数据
@@ -819,5 +909,20 @@ class TopicRepository implements TopicRepositoryInterface
     {
         // 处理连字符和下划线的情况
         return lcfirst(str_replace(' ', '', ucwords(str_replace(['_', '-'], ' ', $snake))));
+    }
+
+    /**
+     * Model 转 Entity（简化版，仅用于验证父级）.
+     *
+     * 保持原有逻辑不变，只返回必要的字段。
+     */
+    private function modelToEntityForRestore(TopicModel $model): TopicEntity
+    {
+        $entity = new TopicEntity();
+        $entity->setId($model->id);
+        $entity->setProjectId($model->project_id);
+        $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
+
+        return $entity;
     }
 }
