@@ -45,9 +45,9 @@ export default function vitePluginTransformBaseImports(
 				return null
 			}
 
-			// Match import statements from @/opensource/components/base
+			// Match import statements from @/components/base
 			// Match complete import statements on a single line or multiple lines
-			// Pattern: import { ... } from "@/opensource/components/base"
+			// Pattern: import { ... } from "@/components/base"
 			const lines = code.split("\n")
 			const transformedLines: string[] = []
 			let hasChanges = false
@@ -123,7 +123,7 @@ function escapeRegex(value: string): string {
 
 function normalizeTargetPaths(paths?: TransformBaseImportsOptions["paths"]) {
 	if (!paths || paths.length === 0) {
-		return [{ base: "@/opensource/components/base", subDirectory: "" }]
+		return [{ base: "@/components/base", subDirectory: "" }]
 	}
 
 	return paths.map((path) => {

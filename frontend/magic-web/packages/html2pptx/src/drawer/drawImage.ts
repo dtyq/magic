@@ -2,6 +2,7 @@ import type { PPTImageNode, Slide } from "../types/index"
 import { log, LogLevel } from "../logger"
 import { snapdom } from "@zumer/snapdom"
 import { imageToBase64, isGifSource } from "../parsers/parseImage"
+import { withAbort } from "../renderer/abort"
 
 const imageBase64Cache = new Map<string, Promise<string>>()
 
@@ -11,9 +12,10 @@ const imageBase64Cache = new Map<string, Promise<string>>()
 export async function drawImage(
 	slide: Slide,
 	node: PPTImageNode,
+	signal?: AbortSignal,
 ): Promise<void> {
 	const { x, y, w, h, sizing, radius, transparency, rotate } = node
-	const src = await resolveImageSource(node)
+	const src = await resolveImageSource(node, signal)
 	if (!src) return
 
 	// 构建图片选项
@@ -56,7 +58,10 @@ export async function drawImage(
 
 	// 圆角处理（GIF 跳过 Canvas 裁剪以保留动画帧）
 	if (radius && radius > 0 && !isGifSource(node.src)) {
-		const roundedData = await applyImageRounding(src, radius, w, h, sizing)
+		const roundedData = await withAbort({
+			task: applyImageRounding(src, radius, w, h, sizing),
+			signal,
+		})
 		if (roundedData) {
 			options.data = roundedData
 		}
@@ -163,16 +168,26 @@ async function applyImageRounding(
 
 async function resolveImageSource(
 	node: PPTImageNode,
+	signal?: AbortSignal,
 ): Promise<string | null> {
 	if (node.capture === "snapdom" && node.captureElement) {
 		if (node.captureBackgroundOnly) {
-			return captureBackgroundToDataUrl(node.captureElement, node.w, node.h)
+			return withAbort({
+				task: captureBackgroundToDataUrl(node.captureElement, node.w, node.h),
+				signal,
+			})
 		}
-		return captureElementToDataUrl(node.captureElement)
+		return withAbort({
+			task: captureElementToDataUrl(node.captureElement),
+			signal,
+		})
 	}
 	if (node.src.startsWith("data:")) return node.src
 	try {
-		return await getCachedBase64(node.src)
+		return await withAbort({
+			task: getCachedBase64(node.src),
+			signal,
+		})
 	} catch (error) {
 		log(LogLevel.L3, "base64 convert failed", { src: node.src.slice(0, 80), error: String(error) })
 		return null

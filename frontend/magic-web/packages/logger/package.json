@@ -1,5 +1,5 @@
 {
-	"name": "@dtyq/logger",
+	"name": "@magic-web/logger",
 	"version": "1.0.0",
 	"description": "Unified logging and tracing solution for Aliyun ARMS and Volcengine APMPlus",
 	"keywords": [

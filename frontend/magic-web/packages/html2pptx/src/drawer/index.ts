@@ -23,7 +23,7 @@ export async function draw(
 				drawShape(slide, node)
 				break
 			case "image":
-				await drawImage(slide, node)
+				await drawImage(slide, node, signal)
 				break
 			case "text":
 				drawText(slide, node)

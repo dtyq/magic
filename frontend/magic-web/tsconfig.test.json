@@ -28,8 +28,8 @@
 		"typeRoots": ["./types"]
 	},
 	"files": [
-		"src/opensource/assets/tabler-icons/tabler-icons-tags.json",
-		"src/opensource/layouts/BaseLayout/components/Sketch/routeSketchMap.ts"
+		"src/assets/tabler-icons/tabler-icons-tags.json",
+		"src/layouts/BaseLayout/components/Sketch/routeSketchMap.ts"
 	],
 	"include": [
 		"src/**/*.ts",

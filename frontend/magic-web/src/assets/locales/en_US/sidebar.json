@@ -1,0 +1,76 @@
+{
+	"agents": {
+		"aiChat": "AI Chat"
+	},
+	"appsMenu": {
+		"aiApps": "AI Apps",
+		"aiFinance": "AI Finance",
+		"aiSearch": "AI Search",
+		"apps": "Apps",
+		"more": "More"
+	},
+	"crewMarket": {
+		"title": "My Crews"
+	},
+	"footer": {
+		"defaultUser": "User",
+		"feedback": "Feedback",
+		"freeAccount": "Free",
+		"helpCenter": "Help Center",
+		"inbox": "Inbox",
+		"recycleBin": "Recycle Bin",
+		"renew": "Renew",
+		"themeAuto": "System",
+		"themeDark": "Dark Mode",
+		"themeLight": "Light Mode",
+		"upgradeNow": "Upgrade"
+	},
+	"home": {
+		"title": "Home"
+	},
+	"mySkills": {
+		"title": "Skill Library"
+	},
+	"organizationSwitch": {
+		"addAccount": "Add Account",
+		"currentAccount": "Current Account",
+		"logoutAccount": "Log Out Account",
+		"otherAccount": "Other Accounts",
+		"personalVersion": "Personal Edition",
+		"saasPlatform": "SaaS"
+	},
+	"project": {
+		"empty": "No projects",
+		"enterName": "Enter new project name",
+		"loading": "Loading..."
+	},
+	"superLobster": {
+		"card": {
+			"betaAccess": "Limited Beta Access",
+			"description": "One-Click Cloud Deployment, Available 24/7",
+			"title": "Create Your SuperClaw AI Assistant"
+		},
+		"description": "Your 24/7 Personalized AI Assistant",
+		"features": {
+			"connect": {
+				"description": "Seamlessly integrates with popular platforms like Lark, WeChat, DingTalk, and more. Break down app barriers and make SuperClaw your go-to assistant, always within reach.",
+				"title": "Connect Anywhere, Chat Wherever You Like"
+			},
+			"customization": {
+				"description": "More than just code-it's your digital companion. Customize personality traits in depth and enjoy powerful long-term memory that recalls every detail of your conversations, just like an old friend.",
+				"title": "Bring It to Life with Deep Customization & Lasting Memory"
+			},
+			"deployment": {
+				"description": "No complex setup needed-get started with one click. Experience 24/7 availability and millisecond-level response times, keeping your AI assistant always one step ahead.",
+				"title": "Instant Evolution, One-Click Cloud Deployment"
+			}
+		},
+		"getStarted": "Get Started",
+		"title": "Super Claw",
+		"titleAccent": "Claw"
+	},
+	"workspace": {
+		"add": "New Workspace",
+		"title": "Workspaces"
+	}
+}

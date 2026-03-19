@@ -1,4 +1,4 @@
-import { routesMatch } from "@/opensource/routes/history/helpers"
+import { routesMatch } from "@/routes/history/helpers"
 
 interface PidExtractor {
 	(url: string): string

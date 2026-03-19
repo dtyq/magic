@@ -1,47 +1,47 @@
 {
-	"name": "@dtyq/html2pptx",
-	"version": "0.1.0",
-	"private": false,
-	"description": "Convert HTML content to PPTX slides",
-	"license": "MIT",
-	"type": "module",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"require": "./dist/index.cjs"
-		}
-	},
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "pnpm exec vite build --config ./vite.config.ts --mode production && pnpm run build:types",
-		"build:types": "tsc -p ./tsconfig.build.json --emitDeclarationOnly",
-		"dev": "pnpm exec vite --config ./vite.config.ts",
-		"prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build",
-		"preview": "pnpm exec vite preview --config ./vite.config.ts --mode production",
-		"test": "pnpm exec vitest run --config ./vitest.config.ts",
-		"test:update": "pnpm exec vitest run --config ./vitest.config.ts -u",
-		"test:watch": "pnpm exec vitest --config ./vitest.config.ts",
-		"typecheck": "tsc -p ./tsconfig.json --noEmit"
-	},
-	"devDependencies": {
-		"@types/node": "^22.13.10",
-		"@zumer/snapdom": "^2.0.2",
-		"pptxgenjs": "^4.0.1",
-		"typescript": "^5.4.5",
-		"vite": "^6.0.3",
-		"vitest": "^3.0.7"
-	},
-	"peerDependencies": {
-		"@zumer/snapdom": "^2.0.2",
-		"pptxgenjs": "^4.0.1"
-	},
-	"publishConfig": {
-		"access": "public"
-	}
+  "name": "@magic-web/html2pptx",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Convert HTML content to PPTX slides",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "pnpm exec vite build --config ./vite.config.ts --mode production && pnpm run build:types",
+    "build:types": "tsc -p ./tsconfig.build.json --emitDeclarationOnly",
+    "dev": "pnpm exec vite --config ./vite.config.ts",
+    "prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "preview": "pnpm exec vite preview --config ./vite.config.ts --mode production",
+    "test": "pnpm exec vitest run --config ./vitest.config.ts",
+    "test:update": "pnpm exec vitest run --config ./vitest.config.ts -u",
+    "test:watch": "pnpm exec vitest --config ./vitest.config.ts",
+    "typecheck": "tsc -p ./tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@zumer/snapdom": "^2.0.2",
+    "pptxgenjs": "^4.0.1",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.3",
+    "vitest": "^3.0.7"
+  },
+  "peerDependencies": {
+    "@zumer/snapdom": "^2.0.2",
+    "pptxgenjs": "^4.0.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

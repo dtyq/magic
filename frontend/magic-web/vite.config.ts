@@ -42,7 +42,7 @@ function getBaseViteConfig(): UserConfig {
 			outDir: resolve(__dirname, "dist"),
 			reportCompressedSize: false,
 			sourcemap: isEnableSourceMap,
-			target: "es2015",
+			target: "es2020",
 			rollupOptions: {
 				// 只在生产环境将 React、React-DOM、Lodash 和 Tabler Icons 设置为外部依赖
 				external: isDev ? [] : ["react", "react-dom", "lodash-es"],
@@ -89,16 +89,6 @@ function getBaseViteConfig(): UserConfig {
 		},
 		server: {
 			host: "0.0.0.0", // 监听所有地址
-			proxy: {
-				// Proxy for CDN resources to avoid CORS issues in development
-				// 代理 CDN 资源以避免开发环境跨域问题
-				"/api/cdn": {
-					target: "https://public-cdn.letsmagic.cn",
-					changeOrigin: true,
-					secure: true,
-					rewrite: (path) => path.replace(/^\/api\/cdn/, ""),
-				},
-			},
 		},
 		envPrefix: ENV_PREFIX,
 		optimizeDeps: {
@@ -174,32 +164,14 @@ function getBaseViteConfig(): UserConfig {
 						},
 					]
 					: []),
-				...(!isDev
-					? [
-						{
-							find: "./xxtt",
-							replacement: resolve(
-								__dirname,
-								"src/opensource/pages/login/components/EmailVerificationCodeForm/utils/xxtt-simple.obfuscated.ts",
-							),
-						},
-						{
-							find: "./operations",
-							replacement: resolve(
-								__dirname,
-								"src/opensource/pages/login/components/EmailVerificationCodeForm/utils/operations.obfuscated.ts",
-							),
-						},
-					]
-					: []),
 			],
 		},
 		plugins: [
-			// Transform named imports from @/opensource/components/base to default imports
-			// 将 @/opensource/components/base 的命名导入转换为默认导入
+			// Transform named imports from @/components/base to default imports
+			// 将 @/components/base 的命名导入转换为默认导入
 			vitePluginTransformBaseImports({
 				paths: [
-					"@/opensource/components/base",
+					"@/components/base",
 					{ base: "@/enhance/tabler/icons-react", subDirectory: "icons" },
 				],
 			}),
@@ -294,7 +266,7 @@ function getBaseViteConfig(): UserConfig {
 					mkcert({
 						// 本地配置该地址的 host, 满足文件私有桶上传
 						hosts: [
-							"magic.com",
+							"magic.com"
 						],
 					}),
 					http2Proxy({ quiet: true }),

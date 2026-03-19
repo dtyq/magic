@@ -102,7 +102,7 @@ export default function vitePluginEnterpriseOverlay(
 	): string | null {
 		// Build 阶段部分 "@/..." 导入会先被 Vite alias 展开成绝对路径。
 		// 如果这里不把绝对的 src/enterprise 路径还原成逻辑路径，
-		// enterprise/a 内部导入 "@/opensource/..." 时就会直接落到物理 src，
+		// enterprise/a 内部导入 "@/..." 时就会直接落到物理 src，
 		// 从而绕过 overlay，导致 src 中已删除但仅存在于 enterprise 的模块加载失败。
 		if (path.isAbsolute(sourcePath))
 			return getLogicalPathFromAbsolutePath(sourcePath)

@@ -20,7 +20,7 @@ function getEnterpriseBuildInputs({
 		// AudioWorklet 处理器作为独立入口进行编译
 		"worklets/recorder-worklet-processor": resolve(
 			projectRoot,
-			"src/opensource/services/recordSummary/MediaRecorderService/worklets/recorder-worklet-processor.ts",
+			"src/services/recordSummary/MediaRecorderService/worklets/recorder-worklet-processor.ts",
 		),
 	}
 }
