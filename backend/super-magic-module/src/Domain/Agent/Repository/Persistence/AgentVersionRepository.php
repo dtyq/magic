@@ -83,10 +83,6 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
     {
         $attributes = $this->entityToModelAttributes($entity);
 
-        if (isset($attributes['icon'])) {
-            $attributes['icon'] = Json::encode($attributes['icon']);
-        }
-
         if ($entity->getId() && $entity->getId() > 0) {
             // 更新：通过 id 和 organization_code 查找，确保更新正确的记录
             $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
