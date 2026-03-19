@@ -8,12 +8,15 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model;
 
 use App\Infrastructure\Core\AbstractModel;
+use Hyperf\Database\Model\SoftDeletes;
 
 /**
  * 项目成员模型.
  */
 class ProjectMemberModel extends AbstractModel
 {
+    use SoftDeletes;
+
     protected ?string $table = 'magic_super_agent_project_members';
 
     protected array $fillable = [
@@ -27,6 +30,7 @@ class ProjectMemberModel extends AbstractModel
         'invited_by',
         'created_at',
         'updated_at',
+        'deleted_at',
     ];
 
     protected array $casts = [
@@ -35,6 +39,7 @@ class ProjectMemberModel extends AbstractModel
         'status' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     /**

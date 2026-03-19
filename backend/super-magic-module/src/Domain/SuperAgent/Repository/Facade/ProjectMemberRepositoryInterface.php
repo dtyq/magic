@@ -280,4 +280,13 @@ interface ProjectMemberRepositoryInterface
      * @return array Project IDs with effective collaborators
      */
     public function getProjectIdsWithEffectiveCollaborators(array $projectIds): array;
+
+    /**
+     * 批量恢复项目成员（恢复曾被级联删除的成员）.
+     *
+     * @param array $projectIds 项目ID数组
+     * @param string $userId 操作用户ID
+     * @return int 恢复的成员数量
+     */
+    public function restoreByProjectIds(array $projectIds, string $userId): int;
 }

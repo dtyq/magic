@@ -27,6 +27,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectExtraDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectListResponseDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\RecycleBin\Enum\RecycleBinResourceType;
+use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
@@ -125,6 +127,7 @@ class ProjectAppService extends AbstractAppService
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly PackageFilterInterface $packageFilterService,
         private readonly AudioProjectDomainService $audioProjectDomainService,
+        private readonly RecycleBinDomainService $recycleBinDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -343,15 +346,36 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        // 先获取项目实体用于事件发布
+        // 先获取项目实体用于事件发布和回收站记录
         $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
-        $result = Db::transaction(function () use ($projectId, $dataIsolation) {
+        $result = Db::transaction(function () use ($projectId, $dataIsolation, $projectEntity) {
             // 删除项目
             $result = $this->projectDomainService->deleteProject($projectId, $dataIsolation->getCurrentUserId());
 
             // 删除项目协作关系
             $this->projectMemberDomainService->deleteByProjectId($projectId);
+
+            // 获取工作区信息用于写入 extra_data
+            $workspaceId = $projectEntity->getWorkspaceId();
+            $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+
+            // 记录到回收站表
+            $this->recycleBinDomainService->recordDeletion(
+                resourceType: RecycleBinResourceType::Project,
+                resourceId: $projectId,
+                resourceName: $projectEntity->getProjectName(),
+                ownerId: $projectEntity->getUserId(),
+                deletedBy: (string) $dataIsolation->getCurrentUserId(),
+                parentId: $projectEntity->getWorkspaceId(),
+                extraData: [
+                    'parent_info' => [
+                        'workspace_id' => $workspaceId,
+                        'workspace_name' => $workspace ? $workspace->getName() : '',
+                    ],
+                ]
+            );
+
             return $result;
         });
 
