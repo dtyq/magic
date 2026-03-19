@@ -139,7 +139,13 @@ class BootstrapApiTest extends TestCase
         RequestInterface $request,
         ?MagicSettingAppService $magicSettingAppService = null
     ): BootstrapApi {
-        $magicSettingAppService ??= $this->createMock(MagicSettingAppService::class);
+        if ($magicSettingAppService === null) {
+            $magicSettingAppService = $this->createMock(MagicSettingAppService::class);
+            $globalConfig = new GlobalConfig();
+            $globalConfig->setNeedInitial(true);
+            $magicSettingAppService->method('getWithoutCache')->willReturn($globalConfig);
+        }
+
         return new BootstrapApi($request, $magicSettingAppService);
     }
 }
