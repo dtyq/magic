@@ -21,7 +21,7 @@ ARG DEBIAN_APT_MIRROR=mirrors.aliyun.com
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
     --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists,target=/var/lib/apt/lists \
     # setup apt mirror follow deb-822 format
-    sed -i.bak "s/deb.debian.org/${APT_MIRROR}/g" /etc/apt/sources.list.d/debian.sources && \
+    sed -i.bak "s/deb.debian.org/${DEBIAN_APT_MIRROR}/g" /etc/apt/sources.list.d/debian.sources && \
     # debian的docker会自动删除下载的包 导致缓存失效 因此修改一下
     mv /etc/apt/apt.conf.d/docker-clean /tmp/docker-clean.bak && \
     apt-get update && \
