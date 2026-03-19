@@ -17,7 +17,7 @@ SHELL ["/bin/bash", "-c"]
 
 # 准备基础依赖
 ARG DEBIAN_VERSION=trixie
-ARG APT_MIRROR=mirrors.aliyun.com
+ARG DEBIAN_APT_MIRROR=mirrors.aliyun.com
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
     --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists,target=/var/lib/apt/lists \
     # setup apt mirror follow deb-822 format
