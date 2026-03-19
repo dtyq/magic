@@ -104,7 +104,7 @@ for tagPolicy in json.loads(tagsPolicy):
 
 imageFullTags = []
 imagePrefixies = context["vars"].get(
-    "IMAGE_PREFIXIES", '["ghcr.io/dtyq/", "", "public.ecr.aws/dtyq/"]'
+    "IMAGE_PREFIXIES", '["ghcr.io/dtyq/", "dtyq/", "public.ecr.aws/dtyq/"]'
 )
 for imagePrefix in json.loads(imagePrefixies):
     if imagePrefix.startswith("ghcr.io/"):
