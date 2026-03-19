@@ -14,5 +14,6 @@ jobs:
   build:
     name: Build and push magic-web image
     uses: ./.github/workflows/image-build.yml
+    secrets: inherit
     with:
       imageName: magic-web
