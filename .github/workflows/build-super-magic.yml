@@ -15,5 +15,10 @@ jobs:
     name: Build and push super-magic image
     uses: ./.github/workflows/image-build.yml
     secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     with:
       imageName: super-magic
