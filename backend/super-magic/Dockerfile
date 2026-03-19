@@ -143,7 +143,7 @@ COPY . .
 COPY scripts/preload_tiktoken.py /app/scripts/preload_tiktoken.py
 RUN mkdir -p /app/tiktoken_cache && \
     chmod 777 /app/tiktoken_cache && \
-    pip install ./agentlang ./filebase ./enterprise && \
+    pip install ./agentlang && \
     python3 /app/scripts/preload_tiktoken.py && \
     python3 main.py tools generate
 

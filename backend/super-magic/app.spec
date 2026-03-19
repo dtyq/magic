@@ -70,20 +70,12 @@ a = Analysis(
         ('app/i18n/translations', 'app/i18n/translations'),
         ('magic_use/magic_monkey', 'magic_use/magic_monkey'),
         # 添加需要被动态加载的组件包的元数据，使得 importlib.metadata.entry_points 可以发现工具包
-        *copy_metadata('filebase'),
-        *copy_metadata('enterprise')
     ],
     # 需要被动态加载的隐性组件包
     hiddenimports=[
         *extra_hiddenimports,
         'tiktoken_ext.openai_public', 'tiktoken_ext',
         # 使得包可以被动态 import 进来
-        'filebase.tools',
-        'filebase.plugins.watcher_process',
-        'filebase.service.filebase_watcher_service',
-        'enterprise.tools',
-        'enterprise.service.agent_event',
-        'enterprise.service.cost_limit.service',
         'pydantic',
         'pydantic_core',
         'pydantic_core._pydantic_core',
