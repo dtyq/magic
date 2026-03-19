@@ -103,4 +103,19 @@ enum SkillErrorCode: int
 
     #[ErrorMessage('skill.skill_source_type_error')]
     case SKILL_SOURCE_TYPE_ERROR = 51268;
+
+    #[ErrorMessage('skill.version_already_exists')]
+    case VERSION_ALREADY_EXISTS = 51269;
+
+    #[ErrorMessage('skill.publish_target_type_invalid')]
+    case PUBLISH_TARGET_TYPE_INVALID = 51270;
+
+    #[ErrorMessage('skill.publish_target_value_should_be_empty')]
+    case PUBLISH_TARGET_VALUE_SHOULD_BE_EMPTY = 51271;
+
+    #[ErrorMessage('skill.non_official_organization_cannot_publish_to_market')]
+    case NON_OFFICIAL_ORGANIZATION_CANNOT_PUBLISH_TO_MARKET = 51272;
+
+    #[ErrorMessage('skill.skill_creator_cannot_add_from_market')]
+    case SKILL_CREATOR_CANNOT_ADD_FROM_MARKET = 51273;
 }

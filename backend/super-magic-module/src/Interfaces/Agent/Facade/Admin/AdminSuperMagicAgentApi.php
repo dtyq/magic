@@ -17,7 +17,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
 use Hyperf\Di\Annotation\Inject;
 
 #[ApiResponse(version: 'low_code')]
-class SuperMagicAgentAdminApi extends AbstractSuperMagicApi
+class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
 {
     #[Inject]
     protected AdminSuperMagicAgentAppService $adminAgentAppService;

@@ -49,6 +49,7 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
             $result['list'],
             $result['userSkills'],
             $result['publisherUserMap'],
+            $result['creatorSkillCodes'],
             $page->getPage(),
             $page->getPageNum(),
             $result['total']
@@ -73,7 +74,6 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
 
         return SkillAssembler::createListResponseDTO(
             $result['list'],
-            $result['storeSkills'],
             $page->getPage(),
             $page->getPageNum(),
             $result['total']

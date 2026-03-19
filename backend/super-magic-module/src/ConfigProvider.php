@@ -51,10 +51,12 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterf
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\UserSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillCategoryRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillMarketRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillVersionRepository;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\UserSkillRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
@@ -222,6 +224,7 @@ class ConfigProvider
                 SkillVersionRepositoryInterface::class => SkillVersionRepository::class,
                 SkillMarketRepositoryInterface::class => SkillMarketRepository::class,
                 SkillCategoryRepositoryInterface::class => SkillCategoryRepository::class,
+                UserSkillRepositoryInterface::class => UserSkillRepository::class,
             ],
             'listeners' => [
                 AddRouteListener::class,

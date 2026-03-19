@@ -70,6 +70,13 @@ interface SkillMarketRepositoryInterface
     public function findPublishedById(int $id): ?SkillMarketEntity;
 
     /**
+     * Batch query market skills by IDs.
+     *
+     * @return array<int, SkillMarketEntity>
+     */
+    public function findByIds(array $ids): array;
+
+    /**
      * 增加市场技能的安装次数.
      *
      * @param int $id 市场技能 ID

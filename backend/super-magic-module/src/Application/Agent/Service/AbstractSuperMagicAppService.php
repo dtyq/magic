@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -310,7 +311,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      * 更新 Skill 实体的 Logo URL（将路径转换为完整URL）.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity[] $skillEntities Skill 实体数组
+     * @param SkillEntity|SkillVersionEntity[] $skillEntities Skill 实体数组
      */
     protected function updateSkillLogoUrls(SuperMagicAgentDataIsolation $dataIsolation, array $skillEntities): void
     {

@@ -130,6 +130,8 @@ return [
         'skill_name_must_be_string' => '技能名称必须是字符串',
         'skill_not_found' => '技能未找到',
         'skill_not_found_or_not_match' => '部分技能未找到或不属于当前版本',
+        'skill_access_denied' => '无权访问该技能',
+        'skill_version_not_found' => '技能版本未找到',
         'skill_not_belong_to_organization' => '技能不属于当前组织',
         'duplicate_skill_id' => '技能列表中存在重复的技能 ID',
         'duplicate_skill_code' => '技能列表中存在重复的技能编码',

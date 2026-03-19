@@ -36,6 +36,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private bool $needUpgrade;
 
+    private bool $isCreator;
+
     private string $createdAt;
 
     private string $updatedAt;
@@ -58,6 +60,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         string $publishStatus,
         bool $isAdded,
         bool $needUpgrade,
+        bool $isCreator,
         string $createdAt,
         string $updatedAt
     ) {
@@ -74,6 +77,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->publishStatus = $publishStatus;
         $this->isAdded = $isAdded;
         $this->needUpgrade = $needUpgrade;
+        $this->isCreator = $isCreator;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -94,6 +98,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'publish_status' => $this->publishStatus,
             'is_added' => $this->isAdded,
             'need_upgrade' => $this->needUpgrade,
+            'is_creator' => $this->isCreator,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

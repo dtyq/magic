@@ -6,7 +6,6 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
-use Dtyq\SuperMagic\Interfaces\Skill\Facade\Admin\AdminSkillApi;
 use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillApi;
 use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillMarketApi;
 use Hyperf\HttpServer\Router\Router;
@@ -40,21 +39,16 @@ Router::addGroup('/api/v1', static function () {
         // 更新技能基本信息（仅允许更新非商店来源的技能）
         Router::put('/{code}/info', [SkillApi::class, 'updateSkillInfo']);
 
-        // 发布技能到商店（创建待审核版本）
+        // 查询技能版本列表
+        Router::get('/{code}/versions', [SkillApi::class, 'getVersionList']);
+
+        // 发布技能版本
         Router::post('/{code}/publish', [SkillApi::class, 'publishSkill']);
 
         // 下架技能版本
-        Router::put('/{code}/offline', [SkillApi::class, 'offlineSkill']);
-
-        // 升级商店技能到当前版本
-        Router::put('/{code}/upgrade', [SkillApi::class, 'upgradeSkill']);
+        //        Router::put('/{code}/offline', [SkillApi::class, 'offlineSkill']);
 
         // 批量获取技能 file_key 及下载 URL（仅返回当前用户自己的技能）
         Router::post('/file-urls', [SkillApi::class, 'getSkillFileUrls']);
-    });
-
-    // Admin 路由组
-    Router::addGroup('/admin/skills', static function () {
-        Router::put('/versions/{id}/review', [AdminSkillApi::class, 'reviewSkillVersion']);
     });
 }, ['middleware' => [RequestContextMiddleware::class, UserAuthMiddleware::class]]);

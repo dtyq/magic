@@ -39,6 +39,11 @@ enum ResourceType: int
      */
     case CustomAgent = 6;
 
+    /**
+     * Skill resource.
+     */
+    case Skill = 7;
+
     public static function make(mixed $type): ResourceType
     {
         if (! is_int($type)) {

@@ -194,6 +194,25 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return $this->toEntity($model->toArray());
     }
 
+    public function findByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->skillMarketModel::query()
+            ->whereIn('id', $ids)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = $this->toEntity($model->toArray());
+            $result[$entity->getId()] = $entity;
+        }
+
+        return $result;
+    }
+
     /**
      * 增加商店技能的安装次数.
      */

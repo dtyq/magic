@@ -9,6 +9,12 @@ namespace Dtyq\SuperMagic\Application\Skill\Service;
 
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
+use App\Domain\Permission\Service\OperationPermissionDomainService;
+use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -22,9 +28,10 @@ use App\Infrastructure\Util\ZipUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
-use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
@@ -35,6 +42,8 @@ use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ImportSkillRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ParseFileImportRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\PublishSkillRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\ParseFileImportResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillDetailResponseDTO;
@@ -98,6 +107,8 @@ class SkillAppService extends AbstractSkillAppService
         protected LockerInterface $locker,
         protected Redis $redis,
         protected ProjectAppService $projectAppService,
+        protected ResourceVisibilityDomainService $resourceVisibilityDomainService,
+        protected OperationPermissionDomainService $operationPermissionDomainService,
         LoggerFactory $loggerFactory
     ) {
         parent::__construct($fileDomainService);
@@ -271,8 +282,17 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        // 调用领域服务处理业务逻辑
-        return $this->skillDomainService->addSkillFromMarket($dataIsolation, (int) $requestDTO->getStoreSkillId());
+        Db::beginTransaction();
+        try {
+            $skillEntity = $this->skillDomainService->addSkillFromMarket($dataIsolation, (int) $requestDTO->getStoreSkillId());
+            $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+            Db::commit();
+
+            return $skillEntity;
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
     }
 
     /**
@@ -281,7 +301,7 @@ class SkillAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillEntity[], total: int, storeSkills: array<string, SkillMarketEntity>} 技能列表结果
+     * @return array{list: SkillEntity[], total: int} 技能列表结果
      */
     public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -298,26 +318,19 @@ class SkillAppService extends AbstractSkillAppService
             $query->setLanguageCode($languageCode);
         }
 
-        // 查询技能列表（包含总数）
-        $result = $this->skillDomainService->queries($dataIsolation, $query, $page);
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL
+        );
 
-        $skillEntities = $result['list'];
+        $result = $this->skillDomainService->queriesByCodes($dataIsolation, $accessibleSkillCodes, $query, $page);
 
-        // 查询商店技能的最新版本信息（仅针对 source_type='STORE' 的技能）
-        $storeSkillCodes = [];
-        foreach ($skillEntities as $entity) {
-            if ($entity->getSourceType()->isMarket() && $entity->getVersionCode()) {
-                $storeSkillCodes[] = $entity->getVersionCode();
-            }
-        }
-        $storeSkillsMap = [];
-        if (! empty($storeSkillCodes)) {
-            $storeSkills = $this->skillMarketDomainService->findLatestPublishedBySkillCodes($storeSkillCodes);
-            // 使用 versionCode 作为 key（对应 SkillEntity 的 versionCode）
-            foreach ($storeSkills as $skillCode => $storeSkill) {
-                $storeSkillsMap[$skillCode] = $storeSkill;
-            }
-        }
+        $skillEntities = $this->skillDomainService->replaceVisibleSkillDisplayFields(
+            $dataIsolation,
+            $result['list']
+        );
 
         // 批量更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillLogoUrl($dataIsolation, $skillEntities);
@@ -325,7 +338,6 @@ class SkillAppService extends AbstractSkillAppService
         return [
             'list' => $skillEntities,
             'total' => $result['total'],
-            'storeSkills' => $storeSkillsMap,
         ];
     }
 
@@ -343,31 +355,22 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        // 查询技能记录，如果不存在或不属于当前用户则返回错误
-        $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
-        // 执行软删除
-        $this->skillDomainService->deleteSkill($dataIsolation, $code);
-    }
+        Db::beginTransaction();
+        try {
+            if (! $skillEntity->getSourceType()->isMarket()) {
+                $this->skillDomainService->deleteSkill($dataIsolation, $code);
+            }
 
-    /**
-     * 升级来自市场的技能到最新版本.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $code Skill code
-     * @return array 空数组
-     */
-    public function upgradeSkill(RequestContext $requestContext, string $code): array
-    {
-        $userAuthorization = $requestContext->getUserAuthorization();
-
-        // 创建数据隔离对象
-        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
-
-        // 调用领域服务处理业务逻辑
-        $this->skillDomainService->upgradeMarketSkill($dataIsolation, $code);
-
-        return [];
+            $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
+            $this->clearSkillVisibility($dataIsolation, $code);
+            $this->clearSkillOwnerPermission($dataIsolation, $code);
+            Db::commit();
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
     }
 
     /**
@@ -448,6 +451,7 @@ class SkillAppService extends AbstractSkillAppService
             $skillEntity->getSourceId(),
             $skillEntity->getSourceMeta(),
             $skillEntity->getProjectId(),
+            $skillEntity->getLatestPublishedAt(),
             $skillEntity->getCreatedAt() ?? '',
             $skillEntity->getUpdatedAt() ?? ''
         );
@@ -474,6 +478,10 @@ class SkillAppService extends AbstractSkillAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
         }
 
+        if ($skillEntity->getSourceType()->isMarket()) {
+            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_UPDATE, 'skill.store_skill_cannot_update');
+        }
+
         if ($projectEntity->getUserOrganizationCode() !== $skillEntity->getOrganizationCode()
             || $projectEntity->getUserId() !== $skillEntity->getCreatorId()) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
@@ -484,82 +492,62 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * 批量获取技能详情.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param array<string> $codes Skill code 列表
-     * @return array<SkillDetailResponseDTO> 技能详情响应 DTO 数组
+     * Publish a skill version.
      */
-    public function getSkillDetails(RequestContext $requestContext, array $codes, bool $withFileUrl = false): array
-    {
-        if (empty($codes)) {
-            return [];
-        }
-
-        $authorization = $requestContext->getUserAuthorization();
-        $dataIsolation = SkillDataIsolation::create(
-            $authorization->getOrganizationCode(),
-            $authorization->getId()
-        );
-
-        // 批量查询技能记录（校验权限）
-        $skillEntities = $this->skillDomainService->findUserSkillsByCodes($dataIsolation, $codes);
-
-        if (empty($skillEntities)) {
-            return [];
-        }
-
-        // 更新 logo URL（如果存储的是路径，需要转换为完整URL）
-        $this->updateSkillLogoUrl($dataIsolation, $skillEntities);
-        if ($withFileUrl) {
-            $this->updateSkillFileUrl($dataIsolation, $skillEntities);
-        }
-
-        // 构建响应 DTO 数组
-        $result = [];
-        foreach ($skillEntities as $skillEntity) {
-            $result[] = new SkillDetailResponseDTO(
-                $skillEntity->getId(),
-                $skillEntity->getCode(),
-                $skillEntity->getVersionId(),
-                $skillEntity->getVersionCode(),
-                $skillEntity->getSourceType()->value,
-                $skillEntity->getIsEnabled() ? 1 : 0,
-                $skillEntity->getPinnedAt(),
-                $skillEntity->getNameI18n(),
-                $skillEntity->getDescriptionI18n() ?? [],
-                $skillEntity->getLogo() ?? '',
-                $skillEntity->getPackageName(),
-                $skillEntity->getPackageDescription(),
-                $skillEntity->getFileKey(),
-                $skillEntity->getFileUrl(),
-                $skillEntity->getSourceId(),
-                $skillEntity->getSourceMeta(),
-                $skillEntity->getProjectId(),
-                $skillEntity->getCreatedAt() ?? '',
-                $skillEntity->getUpdatedAt() ?? ''
-            );
-        }
-
-        return $result;
-    }
-
-    /**
-     * 发布技能到商店（创建待审核版本）.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $code Skill code
-     * @return SkillVersionEntity 发布结果
-     */
-    public function publishSkill(RequestContext $requestContext, string $code): SkillVersionEntity
+    public function publishSkill(RequestContext $requestContext, string $code, PublishSkillRequestDTO $requestDTO): SkillVersionEntity
     {
         $authorization = $requestContext->getUserAuthorization();
 
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
-        // 调用领域服务处理业务逻辑
-        return $this->skillDomainService->publishSkill($dataIsolation, $code);
+        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+
+        $versionEntity = new SkillVersionEntity();
+        $versionEntity->setVersion($requestDTO->getVersion());
+        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
+        $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
+        $versionEntity->setPublishTargetValue($requestDTO->getPublishTargetValue());
+
+        Db::beginTransaction();
+        try {
+            $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
+            Db::commit();
+            return $versionEntity;
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
+    }
+
+    /**
+     * Query published version records.
+     *
+     * @return array{list: SkillVersionEntity[], page: int, page_size: int, total: int}
+     */
+    public function queryVersions(RequestContext $requestContext, string $code, QuerySkillVersionsRequestDTO $requestDTO): array
+    {
+        $authorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($authorization);
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+
+        $publishTargetType = $requestDTO->getPublishTargetType() ? PublishTargetType::from($requestDTO->getPublishTargetType()) : null;
+        $reviewStatus = $requestDTO->getStatus() ? ReviewStatus::from($requestDTO->getStatus()) : null;
+
+        $result = $this->skillDomainService->queryVersionsByCode(
+            $dataIsolation,
+            $code,
+            $publishTargetType,
+            $reviewStatus,
+            $page
+        );
+
+        return [
+            'list' => $result['list'],
+            'page' => $page->getPage(),
+            'page_size' => $page->getPageNum(),
+            'total' => $result['total'],
+        ];
     }
 
     /**
@@ -1075,7 +1063,11 @@ class SkillAppService extends AbstractSkillAppService
         $skillEntity->setIsEnabled(true);
         // version_id 和 version_code 保持为 NULL（LOCAL_UPLOAD 和 AGENT_THIRD_PARTY_IMPORT 类型不需要版本）
 
-        return $this->skillDomainService->saveSkill($dataIsolation, $skillEntity);
+        $skillEntity = $this->skillDomainService->saveSkill($dataIsolation, $skillEntity);
+        $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+        $this->grantSkillOwnerPermission($dataIsolation, $skillEntity->getCode(), $skillEntity->getCreatorId());
+
+        return $skillEntity;
     }
 
     /**
@@ -1120,6 +1112,59 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         return $this->skillDomainService->saveSkill($dataIsolation, $skillEntity);
+    }
+
+    /**
+     * Save the visibility configuration for a skill.
+     */
+    private function saveSkillVisibility(SkillDataIsolation $dataIsolation, string $code, VisibilityType $visibilityType): void
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $visibilityConfig = new VisibilityConfig([
+            'visibility_type' => $visibilityType->value,
+        ]);
+
+        $this->resourceVisibilityDomainService->saveVisibilityConfig(
+            $permissionDataIsolation,
+            ResourceVisibilityResourceType::SKILL,
+            $code,
+            $visibilityConfig
+        );
+    }
+
+    /**
+     * Grant owner permission for a local skill.
+     */
+    private function grantSkillOwnerPermission(SkillDataIsolation $dataIsolation, string $code, string $userId): void
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $this->operationPermissionDomainService->accessOwner(
+            $permissionDataIsolation,
+            OperationPermissionResourceType::Skill,
+            $code,
+            $userId
+        );
+    }
+
+    /**
+     * Clear the visibility configuration for a skill.
+     */
+    private function clearSkillVisibility(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        $this->saveSkillVisibility($dataIsolation, $code, VisibilityType::NONE);
+    }
+
+    /**
+     * Clear owner permissions for a skill resource.
+     */
+    private function clearSkillOwnerPermission(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $this->operationPermissionDomainService->deleteByResource(
+            $permissionDataIsolation,
+            OperationPermissionResourceType::Skill,
+            $code
+        );
     }
 
     /**

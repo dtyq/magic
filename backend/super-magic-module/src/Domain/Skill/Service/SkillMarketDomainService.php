@@ -91,6 +91,16 @@ class SkillMarketDomainService
     }
 
     /**
+     * Batch query market skills by IDs.
+     *
+     * @return array<int, SkillMarketEntity>
+     */
+    public function findByIds(array $ids): array
+    {
+        return $this->skillMarketRepository->findByIds($ids);
+    }
+
+    /**
      * 增加商店技能的安装次数.
      *
      * @param int $id 商店技能 ID
