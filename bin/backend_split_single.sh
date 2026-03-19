@@ -54,7 +54,15 @@ fi
 
 function split()
 {
-    SHA1=`./bin/splitsh-lite --prefix=$1`
+    # 使用 || true 防止 set -e 在 splitsh-lite 返回非零退出码时直接终止脚本
+    SHA1=$(./bin/splitsh-lite --prefix=$1) || true
+
+    # SHA1 应为 40 位十六进制字符串，格式不符则视为失败
+    if ! [[ $SHA1 =~ ^[0-9a-f]{40}$ ]]; then
+        echo "splitsh-lite 执行失败，prefix=$1，输出: $SHA1"
+        return 1
+    fi
+
     git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f
 }
 

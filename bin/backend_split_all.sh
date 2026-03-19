@@ -32,11 +32,12 @@ REPOS=$@
 
 function split()
 {
-    # 使用 --scratch 在 CI 环境中避免缓存问题
+    # 不捕获 stderr，进度信息和错误信息走 stderr 直接打印
     # 使用 || true 防止 set -e 在 splitsh-lite 返回非零退出码时直接终止脚本
-    SHA1=$(./bin/splitsh-lite --prefix=$1 --scratch 2>&1) || true
+    SHA1=$(./bin/splitsh-lite --prefix=$1 --scratch) || true
 
-    if [[ $SHA1 == *"object not found"* ]] || [[ $SHA1 == *"error"* ]] || [ -z "$SHA1" ]; then
+    # SHA1 应为 40 位十六进制字符串，格式不符则视为失败
+    if ! [[ $SHA1 =~ ^[0-9a-f]{40}$ ]]; then
         echo "splitsh-lite 执行失败，prefix=$1，输出: $SHA1"
         return 1
     fi
@@ -92,15 +93,24 @@ TEMP_DIR="./tmp"
 mkdir -p $TEMP_DIR
 rm -rf $TEMP_DIR
 
+FAILED_REPOS=()
+
 for REPO in $REPOS ; do
     remote $REPO
-    split "backend/$REPO" $REPO
+    split "backend/$REPO" $REPO || {
+        echo "跳过 $REPO，分发失败"
+        FAILED_REPOS+=("$REPO")
+    }
 done
 
 # 处理 docs 仓库
 remote "magic-docs"
-split "docs" "magic-docs" || true
+split "docs" "magic-docs" || echo "跳过 magic-docs，分发失败"
 
 # 处理 frontend/magic-web 仓库
 remote "magic-web"
-split "frontend/magic-web" "magic-web" || true
+split "frontend/magic-web" "magic-web" || echo "跳过 magic-web，分发失败"
+
+if [ ${#FAILED_REPOS[@]} -gt 0 ]; then
+    echo "以下仓库分发失败: ${FAILED_REPOS[*]}"
+fi
