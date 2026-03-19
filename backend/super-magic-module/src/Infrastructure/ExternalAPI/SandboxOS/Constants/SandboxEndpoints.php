@@ -37,4 +37,9 @@ class SandboxEndpoints
      * 工作区状态查询端点.
      */
     public const WORKSPACE_STATUS = 'api/v1/workspace/status';
+
+    /**
+     * Workspace export endpoint.
+     */
+    public const WORKSPACE_EXPORT = 'api/v1/workspace/export';
 }

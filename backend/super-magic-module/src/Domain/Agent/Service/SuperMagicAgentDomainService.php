@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Agent\Service;
 
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
@@ -33,7 +35,12 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterf
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\DbConnection\Annotation\Transactional;
 
 readonly class SuperMagicAgentDomainService
@@ -43,7 +50,10 @@ readonly class SuperMagicAgentDomainService
         protected AgentSkillRepositoryInterface $agentSkillRepository,
         protected AgentPlaybookRepositoryInterface $agentPlaybookRepository,
         protected AgentMarketRepositoryInterface $storeAgentRepository,
-        protected AgentVersionRepositoryInterface $agentVersionRepository
+        protected AgentVersionRepositoryInterface $agentVersionRepository,
+        protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected SandboxGatewayInterface $sandboxGateway,
+        protected WorkspaceExporterInterface $workspaceExporter,
     ) {
     }
 
@@ -527,6 +537,42 @@ readonly class SuperMagicAgentDomainService
                 ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.operation_failed');
             }
         }
+    }
+
+    /**
+     * Export agent workspace from sandbox to object storage.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
+     * @param string $code Agent code, e.g. "SMA-xxx"
+     * @param int $projectId Associated project ID
+     * @param string $fullWorkdir Full working directory path on object storage
+     * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
+     */
+    public function exportAgentFromSandbox(SuperMagicAgentDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
+    {
+        // Build sandbox ID (same strategy as file converter)
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+
+        // Ensure sandbox is running
+        $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
+
+        // Build upload_config: STS credentials for private bucket, matches sandbox API contract
+        $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
+            $dataIsolation->getCurrentOrganizationCode(),
+            StorageBucketType::Private,
+            $fullWorkdir
+        );
+
+        // Call sandbox workspace export API via proxy request
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $response = $this->workspaceExporter->export($sandboxId, $request);
+
+        if (! $response->isSuccess()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+        }
+
+        return $response->toArray();
     }
 
     /**

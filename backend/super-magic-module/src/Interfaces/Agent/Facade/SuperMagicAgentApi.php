@@ -260,12 +260,18 @@ class SuperMagicAgentApi extends AbstractApi
     /**
      * 创建并绑定项目（带重试机制）.
      *
-     * @param Authenticatable $authorization 授权对象
-     * @param RequestContext $requestContext 请求上下文
-     * @param string $projectName 项目名称
-     * @param string $agentCode Agent编码
      * @return array 项目信息数组，包含 project 和 topic
      */
+    /**
+     * Export agent workspace to object storage via sandbox.
+     * Returns the uploaded file key and agent metadata.
+     */
+    public function export(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        return $this->superMagicAgentAppService->exportAgent($authorization, $code);
+    }
+
     private function createAndBindProject(Authenticatable $authorization, RequestContext $requestContext, string $projectName, string $agentCode): array
     {
         return retry(3, function () use ($authorization, $requestContext, $projectName, $agentCode) {
