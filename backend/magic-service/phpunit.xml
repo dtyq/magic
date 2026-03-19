@@ -36,6 +36,7 @@
       <directory suffix="Test.php">test/Cases/Application/Permission</directory>
       <directory suffix="Test.php">test/Cases/Permission</directory>
       <directory suffix="Test.php">test/Cases/Api/Permission</directory>
+      <directory suffix="Test.php">test/Cases/Infrastructure/Util/Auth</directory>
     </testsuite>
     <testsuite name="组织测试">
       <directory suffix="Test.php">test/Cases/Domain/Organization</directory>
