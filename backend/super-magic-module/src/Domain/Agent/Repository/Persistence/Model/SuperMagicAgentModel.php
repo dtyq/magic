@@ -39,6 +39,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property null|DateTime $pinned_at 置顶时间
  * @property null|int $project_id 项目ID
  * @property null|string $file_key Agent 文件key
+ * @property null|DateTime $latest_published_at Latest published timestamp
  */
 class SuperMagicAgentModel extends AbstractModel
 {
@@ -73,6 +74,7 @@ class SuperMagicAgentModel extends AbstractModel
         'pinned_at',
         'project_id',
         'file_key',
+        'latest_published_at',
     ];
 
     protected array $casts = [
@@ -102,5 +104,6 @@ class SuperMagicAgentModel extends AbstractModel
         'pinned_at' => 'datetime',
         'project_id' => 'integer',
         'file_key' => 'string',
+        'latest_published_at' => 'datetime',
     ];
 }

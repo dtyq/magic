@@ -79,6 +79,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private ?string $fileUrl = null;
 
+    private ?string $latestPublishedAt = null;
+
     public function __construct(
         int $id,
         string $code,
@@ -102,6 +104,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         ?int $projectId,
         ?string $fileKey,
         ?string $fileUrl,
+        ?string $latestPublishedAt,
         string $createdAt,
         string $updatedAt
     ) {
@@ -127,6 +130,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         $this->projectId = $projectId;
         $this->fileKey = $fileKey;
         $this->fileUrl = $fileUrl;
+        $this->latestPublishedAt = $latestPublishedAt;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -173,6 +177,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'tools' => $this->tools,
             'project_id' => $this->projectId ? (string) $this->projectId : null,
             'file_key' => $this->fileKey,
+            'latest_published_at' => $this->latestPublishedAt,
         ];
 
         if ($withFileUrl) {

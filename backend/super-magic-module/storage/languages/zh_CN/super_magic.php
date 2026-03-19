@@ -87,6 +87,9 @@ return [
         'official_agent_cannot_delete' => '无法删除官方员工',
         'agent_version_not_found' => 'Agent 版本未找到',
         'can_only_review_pending_version' => '只能审核待审核的版本',
+        'version_already_exists' => '版本号已存在',
+        'publish_target_type_invalid' => '发布对象类型无效',
+        'publish_target_value_should_be_empty' => '当前发布对象不允许传 publish_target_value',
         'store_agent_not_found' => '商店员工未找到',
         'store_agent_already_added' => '该商店员工已添加，不允许重复添加',
         // 从 crew.php 迁移的键

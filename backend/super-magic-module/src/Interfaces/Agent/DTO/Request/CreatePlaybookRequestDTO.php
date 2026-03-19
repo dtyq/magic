@@ -75,16 +75,16 @@ class CreatePlaybookRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationMessage(): array
     {
         return [
-            'name_i18n.required' => __('crew.name_i18n_required'),
-            'name_i18n.array' => __('crew.name_i18n_must_be_array'),
-            'name_i18n.' . LanguageEnum::DEFAULT->value . '.string' => __('crew.name_i18n_en_must_be_string'),
-            'description_i18n.array' => __('crew.description_i18n_must_be_array'),
-            'icon.string' => __('crew.icon_must_be_string'),
-            'icon.max' => __('crew.icon_max_length_64'),
-            'theme_color.regex' => __('crew.theme_color_invalid'),
-            'enabled.boolean' => __('crew.enabled_must_be_boolean'),
-            'sort_order.integer' => __('crew.sort_order_must_be_integer'),
-            'config.array' => __('crew.config_must_be_array'),
+            'name_i18n.required' => __('super_magic.agent.name_i18n_required'),
+            'name_i18n.array' => __('super_magic.agent.name_i18n_must_be_array'),
+            'name_i18n.' . LanguageEnum::DEFAULT->value . '.string' => __('super_magic.agent.name_i18n_en_must_be_string'),
+            'description_i18n.array' => __('super_magic.agent.description_i18n_must_be_array'),
+            'icon.string' => __('super_magic.agent.icon_must_be_string'),
+            'icon.max' => __('super_magic.agent.icon_max_length_64'),
+            'theme_color.regex' => __('super_magic.agent.theme_color_invalid'),
+            'enabled.boolean' => __('super_magic.agent.enabled_must_be_boolean'),
+            'sort_order.integer' => __('super_magic.agent.sort_order_must_be_integer'),
+            'config.array' => __('super_magic.agent.config_must_be_array'),
         ];
     }
 

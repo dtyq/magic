@@ -32,6 +32,8 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::post('/queries', [SuperMagicAgentApi::class, 'queries']);
         Router::post('', [SuperMagicAgentApi::class, 'create']);
         Router::put('/{code}', [SuperMagicAgentApi::class, 'update']);
+        Router::put('/{code}/updated-at', [SuperMagicAgentApi::class, 'touchUpdatedAt']);
+        Router::get('/{code}/versions', [SuperMagicAgentApi::class, 'getVersionList']);
         Router::get('/{code}', [SuperMagicAgentApi::class, 'show']);
         Router::delete('/{code}', [SuperMagicAgentOldApi::class, 'destroy']);
         Router::post('/{code}/publish', [SuperMagicAgentApi::class, 'publishAgent']);

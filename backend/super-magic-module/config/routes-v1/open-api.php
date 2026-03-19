@@ -77,8 +77,10 @@ Router::addGroup(
     static function () {
         Router::addGroup('/agents', static function () {
             Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
+            Router::get('/{code}/latest-version', [SuperMagicAgentSandboxApi::class, 'showLatestVersion']);
             Router::get('/{code}', [SuperMagicAgentSandboxApi::class, 'show']);
             Router::put('/{code}', [SuperMagicAgentSandboxApi::class, 'update']);
+            Router::put('/{code}/updated-at', [SuperMagicAgentSandboxApi::class, 'touchUpdatedAt']);
             Router::post('/{code}/skills', [SuperMagicAgentSandboxApi::class, 'addAgentSkills']);
             Router::delete('/{code}/skills', [SuperMagicAgentSandboxApi::class, 'removeAgentSkills']);
         });

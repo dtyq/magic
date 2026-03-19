@@ -63,6 +63,46 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         return $entities;
     }
 
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId, ?bool $isEnabled = null): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentPlaybookModel::query());
+
+        $builder = $builder
+            ->select([
+                'id',
+                'organization_code',
+                'agent_id',
+                'agent_version_id',
+                'agent_code',
+                'name_i18n',
+                'description_i18n',
+                'icon',
+                'theme_color',
+                'is_enabled',
+                'sort_order',
+            ])
+            ->where('agent_version_id', $agentVersionId);
+
+        if ($isEnabled === true) {
+            $builder->where('is_enabled', 1);
+        } elseif ($isEnabled === false) {
+            $builder->where('is_enabled', 0);
+        }
+
+        $models = $builder
+            ->orderBy('is_enabled', 'DESC')
+            ->orderBy('sort_order', 'DESC')
+            ->orderBy('created_at', 'ASC')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new AgentPlaybookEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
     /**
      * 批量根据 agent_code 列表查询 Playbook 列表.
      */

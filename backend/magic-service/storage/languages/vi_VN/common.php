@@ -20,6 +20,7 @@ return [
     'request_timeout' => 'Hết thời gian yêu cầu',
     'system_exception' => 'Ngoại lệ hệ thống',
     'parameter_missing' => 'Thiếu tham số',
+    'parameter_required' => 'Cần cung cấp :label',
     'illegal_operation' => 'Thao tác không hợp lệ',
     'parameter_validation_error' => 'Lỗi xác thực tham số',
     'access_denied' => 'Từ chối truy cập',

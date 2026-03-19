@@ -23,25 +23,27 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentSkillEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentSkillDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
 use Hyperf\DbConnection\Annotation\Transactional;
-use Hyperf\DbConnection\Db;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
-use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
@@ -59,6 +61,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected SuperMagicAgentPlaybookDomainService $superMagicAgentPlaybookDomainService;
+
+    #[Inject]
+    protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
 
     #[Transactional]
     public function save(Authenticatable $authorization, SuperMagicAgentEntity $entity, bool $checkPrompt = true): SuperMagicAgentEntity
@@ -176,6 +181,73 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * @return array{
+     *     agent: SuperMagicAgentEntity,
+     *     skills: array<int, SkillEntity>,
+     *     is_store_offline: null|bool
+     * }
+     */
+    public function showLatestVersion(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withFileUrl = false): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
+
+        $baseAgent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+
+        $versionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
+        if ($versionEntity === null) {
+            return $this->show($authorization, $code, $withToolSchema, $withFileUrl);
+        }
+
+        $agent = $this->buildAgentDetailFromVersion($baseAgent, $versionEntity);
+
+        if ($withToolSchema) {
+            $remoteToolCodes = [];
+            foreach ($agent->getTools() as $tool) {
+                if ($tool->getType()->isRemote()) {
+                    $remoteToolCodes[] = $tool->getCode();
+                }
+            }
+            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
+            foreach ($agent->getTools() as $tool) {
+                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
+                if ($remoteTool) {
+                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
+                }
+            }
+        }
+
+        $versionSkills = $this->superMagicAgentSkillDomainService->getByAgentVersionId($dataIsolation, (int) $versionEntity->getId());
+        $agent->setSkills($versionSkills);
+        $agent->setPlaybooks(
+            $this->superMagicAgentPlaybookDomainService->getByAgentVersionId($dataIsolation, (int) $versionEntity->getId())
+        );
+
+        $skillIds = array_map(fn ($agentSkill) => $agentSkill->getSkillId(), $versionSkills);
+        $skillDataIsolation = new SkillDataIsolation();
+        $skillDataIsolation->extends($dataIsolation);
+        $skillsMap = $this->skillDomainService->findSkillsByIds($skillDataIsolation, $skillIds);
+
+        $this->updateAgentEntityIcon($agent);
+        $this->updateSkillLogoUrls($dataIsolation, $skillsMap);
+        if ($withFileUrl) {
+            $this->updateSkillFileUrl($dataIsolation, $skillsMap);
+            $this->updateAgentFileUrl($agent);
+        }
+
+        $isStoreOffline = null;
+        if ($agent->getSourceType()->isMarket()) {
+            $isStoreOffline = $this->superMagicAgentDomainService->getStoreAgentStatus($agent->getCode());
+        }
+
+        return [
+            'agent' => $agent,
+            'skills' => array_values($skillsMap),
+            'is_store_offline' => $isStoreOffline,
+        ];
+    }
+
+    /**
      * 查询员工列表.
      */
     public function queries(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): QueryAgentsResponseDTO
@@ -268,6 +340,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 isStoreOffline: $isStoreOffline,
                 needUpgrade: $needUpgrade,
                 pinnedAt: $agent->getPinnedAt(),
+                latestPublishedAt: $agent->getLatestPublishedAt(),
                 updatedAt: $agent->getUpdatedAt(),
                 createdAt: $agent->getCreatedAt()
             );
@@ -293,7 +366,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 2. 检查是否有重复的技能 code
         if (count($skillCodes) !== count(array_unique($skillCodes))) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'crew.duplicate_skill_code');
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.duplicate_skill_code');
         }
 
         // 3. 批量查询技能信息
@@ -304,14 +377,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 校验所有技能 code 是否都存在
         if (count($skills) !== count($skillCodes)) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'crew.skill_not_found');
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_not_found');
         }
 
         // 4. 创建 AgentSkillEntity 列表
         $skillEntities = [];
         foreach ($skillCodes as $index => $skillCode) {
             if (! is_string($skillCode)) {
-                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'crew.skill_code_must_be_string');
+                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.skill_code_must_be_string');
             }
 
             $skill = $skills[$skillCode];
@@ -346,7 +419,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 2. 检查是否有重复的技能 code
         if (count($skillCodes) !== count(array_unique($skillCodes))) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'crew.duplicate_skill_code');
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.duplicate_skill_code');
         }
 
         // 3. 批量查询技能信息
@@ -357,14 +430,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 校验所有技能 code 是否都存在
         if (count($skills) !== count($skillCodes)) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'crew.skill_not_found');
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_not_found');
         }
 
         // 4. 创建 AgentSkillEntity 列表
         $skillEntities = [];
         foreach ($skillCodes as $skillCode) {
             if (! is_string($skillCode)) {
-                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'crew.skill_code_must_be_string');
+                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.skill_code_must_be_string');
             }
 
             $skill = $skills[$skillCode];
@@ -401,33 +474,68 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 发布员工到商店（创建待审核版本）.
+     * Publish an agent version.
      *
-     * @param Authenticatable $authorization 授权对象
+     * @param Authenticatable $authorization Authorization user
      * @param string $code Agent code
-     * @return AgentVersionEntity 发布的版本实体
+     * @return AgentVersionEntity Created version entity
      */
-    public function publishAgent(Authenticatable $authorization, string $code): AgentVersionEntity
+    #[Transactional]
+    public function publishAgent(Authenticatable $authorization, string $code, PublishAgentRequestDTO $requestDTO): AgentVersionEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // 1. 查询员工基础信息（校验权限和来源类型）
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
 
-        // 2. 获取 icon 和 iconType
-        $icon = $agentEntity->getIcon();
-        $iconType = $agentEntity->getIconType();
+        $versionEntity = new AgentVersionEntity();
+        $versionEntity->setCode($code);
+        $versionEntity->setVersion($requestDTO->getVersion());
+        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n() ?? []);
+        $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
+        $versionEntity->setPublishTargetValue($requestDTO->getPublishTargetValue());
 
-        // 3. 使用事务调用 DomainService 发布员工
-        Db::beginTransaction();
-        try {
-            $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $icon, $iconType);
-            Db::commit();
-            return $versionEntity;
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
+        return $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
+    }
+
+    /**
+     * @return array{
+     *     list: array<int, AgentVersionEntity>,
+     *     page: int,
+     *     page_size: int,
+     *     total: int
+     * }
+     */
+    public function queryVersions(Authenticatable $authorization, string $code, QueryAgentVersionsRequestDTO $requestDTO): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+
+        $publishTargetType = $requestDTO->getPublishTargetType() ? PublishTargetType::from($requestDTO->getPublishTargetType()) : null;
+        $reviewStatus = $requestDTO->getStatus() ? ReviewStatus::from($requestDTO->getStatus()) : null;
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+
+        $result = $this->superMagicAgentVersionDomainService->queriesByCode(
+            $dataIsolation,
+            $code,
+            $publishTargetType,
+            $reviewStatus,
+            $page
+        );
+        return [
+            'list' => $result['list'],
+            'page' => $requestDTO->getPage(),
+            'page_size' => $requestDTO->getPageSize(),
+            'total' => $result['total'],
+        ];
+    }
+
+    public function touchUpdatedAt(Authenticatable $authorization, string $code): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        $this->superMagicAgentDomainService->updateUpdatedAtByCode($dataIsolation, $code);
     }
 
     /**
@@ -635,6 +743,30 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'fail_count' => $failCount,
             'results' => $results,
         ];
+    }
+
+    private function buildAgentDetailFromVersion(SuperMagicAgentEntity $baseAgent, AgentVersionEntity $versionEntity): SuperMagicAgentEntity
+    {
+        $agent = clone $baseAgent;
+        $agent->setName($versionEntity->getName());
+        $agent->setDescription($versionEntity->getDescription());
+        $agent->setIcon($versionEntity->getIcon());
+        $agent->setIconType($versionEntity->getIconType());
+        $agent->setPrompt($versionEntity->getPrompt() ?? []);
+        $agent->setTools($versionEntity->getTools() ?? []);
+        $agent->setType($versionEntity->getType());
+        $agent->setEnabled(true);
+        $agent->setNameI18n($versionEntity->getNameI18n());
+        $agent->setRoleI18n($versionEntity->getRoleI18n());
+        $agent->setDescriptionI18n($versionEntity->getDescriptionI18n());
+        $agent->setVersionId($versionEntity->getId());
+        $agent->setVersionCode($versionEntity->getVersion());
+        $agent->setProjectId($versionEntity->getProjectId());
+        $agent->setFileKey($versionEntity->getFileKey());
+        $agent->setCreatedAt($versionEntity->getCreatedAt() ?? $baseAgent->getCreatedAt());
+        $agent->setUpdatedAt($versionEntity->getUpdatedAt() ?? $baseAgent->getUpdatedAt());
+
+        return $agent;
     }
 
     /**

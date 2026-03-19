@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinAgent;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -310,47 +311,54 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
-     * 发布员工到商店（创建待审核版本）.
+     * Publish an agent version snapshot.
      *
-     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SuperMagicAgentEntity $agentEntity Agent 实体
-     * @param array $icon Icon 图标
-     * @param int $iconType Icon 类型
-     * @return AgentVersionEntity 创建的版本实体
+     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
+     * @param SuperMagicAgentEntity $agentEntity Source agent entity
+     * @param AgentVersionEntity $versionEntity Version draft from request
+     * @return AgentVersionEntity Created version entity
      */
-    public function publishAgent(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $agentEntity, array $icon = [], int $iconType = 1): AgentVersionEntity
-    {
+    public function publishAgent(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        SuperMagicAgentEntity $agentEntity,
+        AgentVersionEntity $versionEntity
+    ): AgentVersionEntity {
         // 1. 校验来源类型：仅允许发布非商店来源的员工
         if ($agentEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::StoreAgentCannotPublish, 'super_magic.agent.store_agent_cannot_publish');
         }
 
-        // 2. 查询该员工的最新版本号（用于版本号递增）
-        $latestVersion = $this->agentVersionRepository->findLatestByCode($dataIsolation, $agentEntity->getCode());
-
-        // 3. 自动递增版本号（从1开始递增：1, 2, 3, 4...）
-        $newVersion = '1';
-        if ($latestVersion) {
-            $latestVersionNumber = (int) $latestVersion->getVersion();
-            $newVersion = (string) ($latestVersionNumber + 1);
+        // 2. 第一阶段仅支持私有发布
+        $publishTargetType = $versionEntity->getPublishTargetType();
+        if ($publishTargetType !== PublishTargetType::PRIVATE) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_type_invalid');
         }
 
-        // 4. 从 name_i18n 提取 name（英文）
+        $publishTargetValue = $versionEntity->getPublishTargetValue();
+        if ($publishTargetValue !== null) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_value_should_be_empty');
+        }
+
+        $version = $versionEntity->getVersion();
+        if ($this->agentVersionRepository->existsByCodeAndVersion($dataIsolation, $agentEntity->getCode(), $version)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.version_already_exists');
+        }
+
+        // 3. 从 name_i18n 提取 name（英文）
         $nameI18n = $agentEntity->getNameI18n();
         $name = $nameI18n[LanguageEnum::EN_US->value] ?? ($nameI18n[LanguageEnum::ZH_CN->value] ?? '');
 
-        // 5. 从 description_i18n 提取 description（英文）
+        // 4. 从 description_i18n 提取 description（英文）
         $descriptionI18n = $agentEntity->getDescriptionI18n();
         $description = '';
         if ($descriptionI18n) {
             $description = $descriptionI18n[LanguageEnum::EN_US->value] ?? ($descriptionI18n[LanguageEnum::ZH_CN->value] ?? '');
         }
 
-        // 6. 创建 Agent 版本记录（待发布、审核中状态）
-        $versionEntity = new AgentVersionEntity();
+        // 5. Create the version snapshot for private publish.
         $versionEntity->setCode($agentEntity->getCode());
         $versionEntity->setOrganizationCode($agentEntity->getOrganizationCode());
-        $versionEntity->setVersion($newVersion);
+        $versionEntity->setVersion($version);
         $versionEntity->setName($name);
         $versionEntity->setDescription($description);
         $versionEntity->setIcon($agentEntity->getIcon());
@@ -364,12 +372,25 @@ readonly class SuperMagicAgentDomainService
         $versionEntity->setNameI18n($agentEntity->getNameI18n());
         $versionEntity->setRoleI18n($agentEntity->getRoleI18n());
         $versionEntity->setDescriptionI18n($agentEntity->getDescriptionI18n());
+        $versionEntity->setPublishTargetType($publishTargetType);
+        $versionEntity->setPublishTargetValue($publishTargetValue);
+        $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
+        $versionEntity->setIsCurrentVersion(true);
         $versionEntity->setProjectId($agentEntity->getProjectId());
-        $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
-        $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+        $versionEntity->setFileKey($agentEntity->getFileKey());
+        $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+        $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+        $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+
+        // 6. 切换当前版本标记
+        $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $agentEntity->getCode());
 
         // 7. 保存版本记录
         $versionEntity = $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+
+        $agentEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+        $agentEntity->setModifier($dataIsolation->getCurrentUserId());
+        $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
 
         // 8. 查询当前 Agent 绑定的 Skill 列表
         $agentSkills = $this->agentSkillRepository->getByAgentCodeForCurrentVersion($dataIsolation, $agentEntity->getCode());
@@ -408,6 +429,7 @@ readonly class SuperMagicAgentDomainService
      * @param string $modifier 修改者
      * @param null|string $publisherType 发布者类型（仅在 action=APPROVED 时有效）
      */
+    #[Transactional]
     public function reviewAgentVersion(
         SuperMagicAgentDataIsolation $dataIsolation,
         int $versionId,
@@ -441,6 +463,25 @@ readonly class SuperMagicAgentDomainService
             if (! $success) {
                 ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.operation_failed');
             }
+
+            $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $versionEntity->getCode());
+            $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
+            $versionEntity->setIsCurrentVersion(true);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setPublisherUserId($versionEntity->getCreator());
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setModifier($modifier);
+            $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+
+            // Persist the latest published timestamp on the live agent record.
+            $agentEntity = $this->superMagicAgentRepository->getByCode($dataIsolation, $versionEntity->getCode());
+            if (! $agentEntity) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $versionEntity->getCode()]);
+            }
+            $agentEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+            $agentEntity->setModifier($modifier);
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
 
             // 处理 publisher_type：如果用户传入了，使用用户传入的值，否则使用默认值 USER
             $publisherTypeEnum = PublisherType::USER;

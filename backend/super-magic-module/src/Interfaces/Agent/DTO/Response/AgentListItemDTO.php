@@ -48,6 +48,8 @@ class AgentListItemDTO extends AbstractDTO
 
     private ?string $pinnedAt;
 
+    private ?string $latestPublishedAt;
+
     private string $updatedAt;
 
     private string $createdAt;
@@ -66,6 +68,7 @@ class AgentListItemDTO extends AbstractDTO
         ?bool $isStoreOffline,
         bool $needUpgrade,
         ?string $pinnedAt,
+        ?string $latestPublishedAt,
         string $updatedAt,
         string $createdAt
     ) {
@@ -82,6 +85,7 @@ class AgentListItemDTO extends AbstractDTO
         $this->isStoreOffline = $isStoreOffline;
         $this->needUpgrade = $needUpgrade;
         $this->pinnedAt = $pinnedAt;
+        $this->latestPublishedAt = $latestPublishedAt;
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
     }
@@ -105,6 +109,7 @@ class AgentListItemDTO extends AbstractDTO
             'is_store_offline' => $this->isStoreOffline,
             'need_upgrade' => $this->needUpgrade,
             'pinned_at' => $this->pinnedAt,
+            'latest_published_at' => $this->latestPublishedAt,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
         ];

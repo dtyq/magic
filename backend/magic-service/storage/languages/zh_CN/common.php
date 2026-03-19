@@ -20,6 +20,7 @@ return [
     'request_timeout' => '请求超时',
     'system_exception' => '系统异常',
     'parameter_missing' => '缺少参数',
+    'parameter_required' => ':label 不能为空',
     'illegal_operation' => '非法操作',
     'parameter_validation_error' => '参数校验错误',
     'access_denied' => '访问被拒绝',

@@ -45,6 +45,20 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
         )->toArray(true);
     }
 
+    public function showLatestVersion(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
+        $result = $this->superMagicAgentAppService->showLatestVersion($authorization, $code, $withToolSchema, true);
+
+        return SuperMagicAgentAssembler::createDetailResponseDTO(
+            $result['agent'],
+            $result['skills'],
+            $result['is_store_offline'],
+            true
+        )->toArray(true);
+    }
+
     public function executeTool()
     {
         $authorization = $this->getAuthorization();
@@ -69,6 +83,12 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
 
         return SuperMagicAgentAssembler::createDTO($entity, $users, $withPromptString);
+    }
+
+    public function touchUpdatedAt(string $code): array
+    {
+        $this->superMagicAgentAppService->touchUpdatedAt($this->getAuthorization(), $code);
+        return [];
     }
 
     /**

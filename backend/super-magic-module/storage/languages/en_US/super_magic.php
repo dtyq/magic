@@ -87,6 +87,9 @@ return [
         'official_agent_cannot_delete' => 'Cannot delete official agent',
         'agent_version_not_found' => 'Agent version not found',
         'can_only_review_pending_version' => 'Can only review pending versions',
+        'version_already_exists' => 'Version already exists',
+        'publish_target_type_invalid' => 'Invalid publish target type',
+        'publish_target_value_should_be_empty' => 'publish_target_value must be empty for current publish target type',
         'store_agent_not_found' => 'Store agent not found',
         'store_agent_already_added' => 'This store agent has already been added, duplicate addition is not allowed',
         // Migrated from crew.php

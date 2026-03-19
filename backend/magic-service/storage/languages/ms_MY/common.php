@@ -20,6 +20,7 @@ return [
     'request_timeout' => 'Masa menunggu permintaan tamat',
     'system_exception' => 'Pengecualian sistem',
     'parameter_missing' => 'Parameter hilang',
+    'parameter_required' => ':label diperlukan',
     'illegal_operation' => 'Operasi haram',
     'parameter_validation_error' => 'Ralat pengesahan parameter',
     'access_denied' => 'Akses dinafikan',

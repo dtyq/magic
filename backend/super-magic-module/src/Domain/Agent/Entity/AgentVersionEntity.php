@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Hyperf\Codec\Json;
 
@@ -113,6 +114,36 @@ class AgentVersionEntity extends AbstractEntity
     protected ReviewStatus $reviewStatus = ReviewStatus::PENDING;
 
     /**
+     * @var PublishTargetType Publish target type
+     */
+    protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
+
+    /**
+     * @var null|array Actual publish target payload
+     */
+    protected ?array $publishTargetValue = null;
+
+    /**
+     * @var null|array Version description in i18n format
+     */
+    protected ?array $versionDescriptionI18n = null;
+
+    /**
+     * @var null|string Publisher user ID
+     */
+    protected ?string $publisherUserId = null;
+
+    /**
+     * @var null|string Published timestamp
+     */
+    protected ?string $publishedAt = null;
+
+    /**
+     * @var bool Whether this is the current version
+     */
+    protected bool $isCurrentVersion = false;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -131,6 +162,11 @@ class AgentVersionEntity extends AbstractEntity
      * @var null|int 项目ID
      */
     protected ?int $projectId = null;
+
+    /**
+     * @var null|string Agent package file key snapshot
+     */
+    protected ?string $fileKey = null;
 
     public function __construct(array $data = [])
     {
@@ -162,7 +198,14 @@ class AgentVersionEntity extends AbstractEntity
             'description_i18n' => $this->descriptionI18n,
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus->value,
+            'publish_target_type' => $this->publishTargetType->value,
+            'publish_target_value' => $this->publishTargetValue,
+            'version_description_i18n' => $this->versionDescriptionI18n,
+            'publisher_user_id' => $this->publisherUserId,
+            'published_at' => $this->publishedAt,
+            'is_current_version' => $this->isCurrentVersion,
             'project_id' => $this->projectId,
+            'file_key' => $this->fileKey,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -398,6 +441,76 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
+    public function getPublishTargetType(): PublishTargetType
+    {
+        return $this->publishTargetType;
+    }
+
+    public function setPublishTargetType(PublishTargetType|string $publishTargetType): self
+    {
+        if ($publishTargetType instanceof PublishTargetType) {
+            $this->publishTargetType = $publishTargetType;
+        } else {
+            $this->publishTargetType = PublishTargetType::from($publishTargetType);
+        }
+        return $this;
+    }
+
+    public function getPublishTargetValue(): ?array
+    {
+        return $this->publishTargetValue;
+    }
+
+    public function setPublishTargetValue(?array $publishTargetValue): self
+    {
+        $this->publishTargetValue = $publishTargetValue;
+        return $this;
+    }
+
+    public function getVersionDescriptionI18n(): ?array
+    {
+        return $this->versionDescriptionI18n;
+    }
+
+    public function setVersionDescriptionI18n(?array $versionDescriptionI18n): self
+    {
+        $this->versionDescriptionI18n = $versionDescriptionI18n;
+        return $this;
+    }
+
+    public function getPublisherUserId(): ?string
+    {
+        return $this->publisherUserId;
+    }
+
+    public function setPublisherUserId(?string $publisherUserId): self
+    {
+        $this->publisherUserId = $publisherUserId;
+        return $this;
+    }
+
+    public function getPublishedAt(): ?string
+    {
+        return $this->publishedAt;
+    }
+
+    public function setPublishedAt(?string $publishedAt): self
+    {
+        $this->publishedAt = $publishedAt;
+        return $this;
+    }
+
+    public function isCurrentVersion(): bool
+    {
+        return $this->isCurrentVersion;
+    }
+
+    public function setIsCurrentVersion(bool|int $isCurrentVersion): self
+    {
+        $this->isCurrentVersion = (bool) $isCurrentVersion;
+        return $this;
+    }
+
     public function getCreatedAt(): ?string
     {
         return $this->createdAt;
@@ -439,6 +552,17 @@ class AgentVersionEntity extends AbstractEntity
     public function setProjectId(?int $projectId): self
     {
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
+    public function setFileKey(?string $fileKey): self
+    {
+        $this->fileKey = $fileKey;
         return $this;
     }
 }

@@ -45,6 +45,24 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
         return $entities;
     }
 
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentSkillModel::query());
+
+        $models = $builder
+            ->where('agent_version_id', $agentVersionId)
+            ->orderBy('sort_order', 'ASC')
+            ->orderBy('created_at', 'ASC')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new AgentSkillEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
     /**
      * 删除该 Agent 的所有现有绑定关系（软删除）.
      */

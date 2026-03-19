@@ -7,18 +7,23 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
+use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentVersionListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetAgentDetailResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\PublishAgentVersionResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentCategorizedListDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentListDTO;
@@ -257,8 +262,51 @@ class SuperMagicAgentAssembler
             projectId: $agent->getProjectId(),
             fileKey: $agent->getFileKey(),
             fileUrl: $withFileUrl ? $agent->getFileUrl() : null,
+            latestPublishedAt: $agent->getLatestPublishedAt(),
             createdAt: $agent->getCreatedAt(),
             updatedAt: $agent->getUpdatedAt()
         );
+    }
+
+    public static function createPublishVersionResponseDTO(AgentVersionEntity $version): PublishAgentVersionResponseDTO
+    {
+        return new PublishAgentVersionResponseDTO(
+            versionId: (string) $version->getId(),
+            version: $version->getVersion(),
+            publishStatus: $version->getPublishStatus()->value,
+            reviewStatus: $version->getReviewStatus()->value,
+            publishTargetType: $version->getPublishTargetType()->value,
+            isCurrentVersion: $version->isCurrentVersion(),
+            publishedAt: $version->getPublishedAt(),
+        );
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $users
+     * @param AgentVersionEntity[] $versions
+     */
+    public static function createQueryAgentVersionsResponseDTO(
+        array $versions,
+        array $users,
+        int $page,
+        int $pageSize,
+        int $total
+    ): QueryAgentVersionsResponseDTO {
+        $list = [];
+        foreach ($versions as $version) {
+            $list[] = new AgentVersionListItemDTO(
+                id: (string) $version->getId(),
+                version: $version->getVersion(),
+                publishStatus: $version->getPublishStatus()->value,
+                reviewStatus: $version->getReviewStatus()->value,
+                publishTargetType: $version->getPublishTargetType()->value,
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($users[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publishedAt: $version->getPublishedAt(),
+                isCurrentVersion: $version->isCurrentVersion(),
+                versionDescriptionI18n: $version->getVersionDescriptionI18n(),
+            );
+        }
+
+        return new QueryAgentVersionsResponseDTO($list, $page, $pageSize, $total);
     }
 }

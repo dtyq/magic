@@ -20,6 +20,7 @@ return [
     'request_timeout' => 'คำขอหมดเวลา',
     'system_exception' => 'ข้อยกเว้นของระบบ',
     'parameter_missing' => 'ขาดพารามิเตอร์',
+    'parameter_required' => 'จำเป็นต้องระบุ :label',
     'illegal_operation' => 'การดำเนินการที่ผิดกฎหมาย',
     'parameter_validation_error' => 'ข้อผิดพลาดการตรวจสอบพารามิเตอร์',
     'access_denied' => 'การเข้าถึงถูกปฏิเสธ',

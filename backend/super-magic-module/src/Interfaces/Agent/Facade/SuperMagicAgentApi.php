@@ -17,7 +17,9 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequest
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
@@ -120,6 +122,12 @@ class SuperMagicAgentApi extends AbstractApi
         return $responseDTO->toArray();
     }
 
+    public function touchUpdatedAt(string $code): array
+    {
+        $this->superMagicAgentAppService->touchUpdatedAt($this->getAuthorization(), $code);
+        return [];
+    }
+
     /**
      * 查询员工列表.
      */
@@ -189,17 +197,44 @@ class SuperMagicAgentApi extends AbstractApi
     }
 
     /**
-     * 发布员工到商店（创建待审核版本）.
+     * Publish an agent version.
      */
     public function publishAgent(string $code): array
     {
         $authorization = $this->getAuthorization();
+        $requestDTO = PublishAgentRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        $versionEntity = $this->superMagicAgentAppService->publishAgent($authorization, $code);
+        $versionEntity = $this->superMagicAgentAppService->publishAgent($authorization, $code, $requestDTO);
 
-        // 返回版本ID
-        return ['version_id' => (string) $versionEntity->getId()];
+        return SuperMagicAgentAssembler::createPublishVersionResponseDTO($versionEntity)->toArray();
+    }
+
+    public function getVersionList(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentVersionsRequestDTO::fromRequest($this->request);
+        $result = $this->superMagicAgentAppService->queryVersions($authorization, $code, $requestDTO);
+
+        $publisherUserIds = [];
+        foreach ($result['list'] as $versionEntity) {
+            $publisherUserId = $versionEntity->getPublisherUserId();
+            if (! empty($publisherUserId)) {
+                $publisherUserIds[] = $publisherUserId;
+            }
+        }
+        $users = $this->superMagicAgentAppService->getUsers(
+            $authorization->getOrganizationCode(),
+            $publisherUserIds
+        );
+
+        return SuperMagicAgentAssembler::createQueryAgentVersionsResponseDTO(
+            $result['list'],
+            $users,
+            $result['page'],
+            $result['page_size'],
+            $result['total']
+        )->toArray();
     }
 
     /**

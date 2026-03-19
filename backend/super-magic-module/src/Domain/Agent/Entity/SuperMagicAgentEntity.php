@@ -149,6 +149,11 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected ?string $fileUrl = null;
 
     /**
+     * Latest published timestamp persisted on the agent record.
+     */
+    protected ?string $latestPublishedAt = null;
+
+    /**
      * Category for agent classification.
      * Values: 'frequent', 'all'.
      */
@@ -731,5 +736,15 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setFileUrl(?string $fileUrl): void
     {
         $this->fileUrl = $fileUrl;
+    }
+
+    public function getLatestPublishedAt(): ?string
+    {
+        return $this->latestPublishedAt;
+    }
+
+    public function setLatestPublishedAt(?string $latestPublishedAt): void
+    {
+        $this->latestPublishedAt = $latestPublishedAt;
     }
 }

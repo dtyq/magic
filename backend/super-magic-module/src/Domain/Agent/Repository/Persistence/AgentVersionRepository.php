@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Agent\Repository\Persistence;
 
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
@@ -44,6 +46,34 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         }
 
         return $this->toEntity($model->toArray());
+    }
+
+    public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        /** @var null|AgentVersionModel $model */
+        $model = $builder
+            ->where('code', $code)
+            ->whereNull('deleted_at')
+            ->orderBy('is_current_version', 'DESC')
+            ->orderBy('created_at', 'DESC')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->toEntity($model->toArray());
+    }
+
+    public function existsByCodeAndVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $version): bool
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        return $builder
+            ->where('code', $code)
+            ->where('version', $version)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     /**
@@ -141,6 +171,19 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         return true;
     }
 
+    public function clearCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        return $builder
+            ->where('code', $code)
+            ->where('is_current_version', 1)
+            ->whereNull('deleted_at')
+            ->update([
+                'is_current_version' => 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
     public function offlineByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): bool
     {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
@@ -176,6 +219,37 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         return $this->toEntity($model->toArray());
     }
 
+    public function queriesByCode(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        ?PublishTargetType $publishTargetType = null,
+        ?ReviewStatus $reviewStatus = null,
+        Page $page = new Page()
+    ): array {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
+            ->where('code', $code)
+            ->whereNull('deleted_at');
+
+        if ($publishTargetType !== null) {
+            $builder->where('publish_target_type', $publishTargetType->value);
+        }
+
+        if ($reviewStatus !== null) {
+            $builder->where('review_status', $reviewStatus->value);
+        }
+
+        $builder->orderBy('created_at', 'DESC');
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+        $result['list'] = $list;
+
+        return $result;
+    }
+
     /**
      * 将模型数据转换为实体.
      */
@@ -196,6 +270,16 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $descriptionI18n = $data['description_i18n'] ?? null;
         if (is_string($descriptionI18n)) {
             $descriptionI18n = Json::decode($descriptionI18n);
+        }
+
+        $publishTargetValue = $data['publish_target_value'] ?? null;
+        if (is_string($publishTargetValue)) {
+            $publishTargetValue = Json::decode($publishTargetValue);
+        }
+
+        $versionDescriptionI18n = $data['version_description_i18n'] ?? null;
+        if (is_string($versionDescriptionI18n)) {
+            $versionDescriptionI18n = Json::decode($versionDescriptionI18n);
         }
 
         $prompt = $data['prompt'] ?? null;
@@ -228,6 +312,14 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $entity->setDescriptionI18n($descriptionI18n);
         $entity->setPublishStatus($data['publish_status'] ?? PublishStatus::UNPUBLISHED->value);
         $entity->setReviewStatus($data['review_status'] ?? ReviewStatus::PENDING->value);
+        $entity->setPublishTargetType($data['publish_target_type'] ?? PublishTargetType::MARKET->value);
+        $entity->setPublishTargetValue($publishTargetValue);
+        $entity->setVersionDescriptionI18n($versionDescriptionI18n);
+        $entity->setPublisherUserId($data['publisher_user_id'] ?? null);
+        $entity->setPublishedAt(isset($data['published_at']) ? (is_string($data['published_at']) ? $data['published_at'] : $data['published_at']?->format('Y-m-d H:i:s')) : null);
+        $entity->setIsCurrentVersion($data['is_current_version'] ?? false);
+        $entity->setProjectId(isset($data['project_id']) ? (int) $data['project_id'] : null);
+        $entity->setFileKey($data['file_key'] ?? null);
 
         if (isset($data['created_at'])) {
             $entity->setCreatedAt(is_string($data['created_at']) ? $data['created_at'] : $data['created_at']->format('Y-m-d H:i:s'));
@@ -267,6 +359,13 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'description_i18n' => $entity->getDescriptionI18n(),
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()->value,
+            'publish_target_type' => $entity->getPublishTargetType()->value,
+            'publish_target_value' => $entity->getPublishTargetValue(),
+            'version_description_i18n' => $entity->getVersionDescriptionI18n(),
+            'publisher_user_id' => $entity->getPublisherUserId(),
+            'published_at' => $entity->getPublishedAt(),
+            'is_current_version' => $entity->isCurrentVersion() ? 1 : 0,
+            'file_key' => $entity->getFileKey(),
         ];
 
         // 如果是更新操作，添加 updated_at

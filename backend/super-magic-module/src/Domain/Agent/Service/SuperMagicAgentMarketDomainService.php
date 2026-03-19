@@ -127,6 +127,8 @@ class SuperMagicAgentMarketDomainService
         $entity->setSourceId($agentMarket->getId());
         $entity->setVersionId($agentMarket->getAgentVersionId());
         $entity->setVersionCode($agentMarket->getAgentCode());
+        $entity->setFileKey($agentVersion->getFileKey());
+        $entity->setLatestPublishedAt($agentVersion->getPublishedAt());
 
         // 7. 保存 Agent 记录
         $savedEntity = $this->superMagicAgentRepository->save($dataIsolation, $entity);

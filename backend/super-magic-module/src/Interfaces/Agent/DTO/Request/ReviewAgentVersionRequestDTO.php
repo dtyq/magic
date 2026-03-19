@@ -60,11 +60,11 @@ class ReviewAgentVersionRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'action.required' => __('crew.action_required'),
-            'action.string' => __('crew.action_must_be_string'),
-            'action.in' => __('crew.invalid_review_action'),
-            'publisher_type.string' => __('crew.publisher_type_must_be_string'),
-            'publisher_type.in' => __('crew.publisher_type_invalid'),
+            'action.required' => __('super_magic.agent.action_required'),
+            'action.string' => __('super_magic.agent.action_must_be_string'),
+            'action.in' => __('super_magic.agent.invalid_review_action'),
+            'publisher_type.string' => __('super_magic.agent.publisher_type_must_be_string'),
+            'publisher_type.in' => __('super_magic.agent.publisher_type_invalid'),
         ];
     }
 }

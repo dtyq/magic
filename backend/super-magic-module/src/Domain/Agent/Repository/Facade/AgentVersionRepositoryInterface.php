@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Agent\Repository\Facade;
 
+use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 
@@ -25,6 +27,8 @@ interface AgentVersionRepositoryInterface
      * @return null|AgentVersionEntity 不存在返回 null
      */
     public function findLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
+
+    public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
     /**
      * 保存 Agent 版本.
@@ -73,4 +77,19 @@ interface AgentVersionRepositoryInterface
      * @return null|AgentVersionEntity 不存在返回 null
      */
     public function findById(int $id): ?AgentVersionEntity;
+
+    public function existsByCodeAndVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $version): bool;
+
+    public function clearCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * @return array{total:int, list: array<AgentVersionEntity>}
+     */
+    public function queriesByCode(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        ?PublishTargetType $publishTargetType = null,
+        ?ReviewStatus $reviewStatus = null,
+        Page $page = new Page()
+    ): array;
 }

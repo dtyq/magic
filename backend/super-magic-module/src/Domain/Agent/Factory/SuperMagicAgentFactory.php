@@ -107,6 +107,13 @@ class SuperMagicAgentFactory
             $entity->setFileKey($model->file_key);
         }
 
+        if (isset($model->latest_published_at)) {
+            $latestPublishedAt = $model->latest_published_at;
+            $entity->setLatestPublishedAt(
+                is_string($latestPublishedAt) ? $latestPublishedAt : $latestPublishedAt?->format('Y-m-d H:i:s')
+            );
+        }
+
         return $entity;
     }
 }

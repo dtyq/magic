@@ -147,4 +147,12 @@ class SuperMagicAgentSkillDomainService
 
         return $skillCodesToRemoveCount;
     }
+
+    /**
+     * @return AgentSkillEntity[]
+     */
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId): array
+    {
+        return $this->agentSkillRepository->getByAgentVersionId($dataIsolation, $agentVersionId);
+    }
 }

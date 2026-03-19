@@ -19,6 +19,7 @@ return [
     'request_timeout' => 'Request timeout',
     'system_exception' => 'System exception',
     'parameter_missing' => 'Parameter missing',
+    'parameter_required' => ':label is required',
     'illegal_operation' => 'Illegal operation',
     'parameter_validation_error' => 'Parameter validation error',
     'access_denied' => 'Access denied',
