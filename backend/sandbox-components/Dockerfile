@@ -1,7 +1,7 @@
 
 ARG DOCKERHUB_LIBRARY_IMAGE_PREFIX=public.ecr.aws/docker/library/
 ARG GOLANG_VERSION=1.24
-ARG GOLANG_IMAGE=${DOCKERHUB_LIBRARY_IMAGE_PREFIX}golang:${GOLANG_VERSION}-alpine
+ARG ALPINE_VERSION=latest
 FROM ${DOCKERHUB_LIBRARY_IMAGE_PREFIX}golang:${GOLANG_VERSION}-alpine AS builder
 
 ARG CI_COMMIT_SHA=""
@@ -46,6 +46,7 @@ LABEL org.opencontainers.image.source="https://github.com/dtyq/sandbox-component
 # setup timezone
 ARG APK_MIRROR=mirrors.aliyun.com
 ARG TZ=Asia/Shanghai
+ARG ALPINE_VERSION=latest
 RUN --mount=type=cache,id=alpine-${ALPINE_VERSION},target=/var/cache/apk \
     # setup apk mirror
     sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
