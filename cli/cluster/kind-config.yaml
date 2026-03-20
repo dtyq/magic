@@ -1,0 +1,31 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: {{ .Name }}
+networking:
+  disableDefaultCNI: false
+  podSubnet: "{{ .PodSubnet }}"
+nodes:
+  - role: control-plane
+    image: {{ .NodeImage }}
+    extraMounts:
+      - hostPath: {{ .LocalPathProvisionerHostDir }}
+        containerPath: /var/local-path-provisioner
+      - hostPath: {{ .ClusterNodeDataHostDir }}
+        containerPath: /data/{{ .Name }}
+    extraPortMappings:
+      - containerPort: 32080
+        hostPort: {{ .WebHTTPHostPort }}
+        protocol: TCP
+      - containerPort: 32443
+        hostPort: {{ .WebHTTPSHostPort }}
+        protocol: TCP
+      - containerPort: 32090
+        hostPort: {{ .MinIOHostPort }}
+        protocol: TCP
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      [plugins."io.containerd.grpc.v1.cri".registry.mirrors."{{ .RegistryHost }}"]
+        endpoint = ["http://{{ .RegistryHost }}"]
+      [plugins."io.containerd.grpc.v1.cri".registry.configs."{{ .RegistryHost }}".tls]
+        insecure_skip_verify = true

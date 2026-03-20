@@ -1,0 +1,95 @@
+package cli
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+
+	"github.com/dtyq/magicrew-cli/deployer"
+	"github.com/spf13/cobra"
+)
+
+const envMagicWebBaseURL = "MAGIC_WEB_BASE_URL"
+
+var (
+	deployChartsDir  string
+	deployValuesFile string
+	deployChartRepo  string
+	deployPlainHTTP  bool
+	deployWebURL     string
+
+	deployCmd = &cobra.Command{
+		Use:   "deploy",
+		Short: "Deploy magic charts to a local kind cluster",
+		RunE:  runDeploy,
+	}
+)
+
+func init() {
+	deployCmd.Flags().StringVar(&deployChartsDir, "charts-dir", "", "Path to local charts directory (overrides remote source)")
+	deployCmd.Flags().StringVar(&deployValuesFile, "values", "", "Additional values file (merged with highest priority)")
+	deployCmd.Flags().StringVar(&deployChartRepo, "chart-repo", "", "Remote chart repository URL (supports https:// and oci://)")
+	deployCmd.Flags().BoolVar(&deployPlainHTTP, "plain-http", false, "Use plain HTTP for OCI chart repository")
+	deployCmd.Flags().StringVar(&deployWebURL, "web-url", "", "magic-web external access URL (for server deploy; overrides MAGIC_WEB_BASE_URL)")
+	deployCmd.Flags().BoolP("help", "h", false, "Help for deploy")
+	rootCmd.AddCommand(deployCmd)
+}
+
+func runDeploy(cmd *cobra.Command, args []string) error {
+	chartRepoURL := cfg.Deploy.ChartRepo.URL
+	if deployChartRepo != "" {
+		chartRepoURL = deployChartRepo
+	}
+	plainHTTP := cfg.Deploy.ChartRepo.PlainHTTP
+	if deployPlainHTTP {
+		plainHTTP = true
+	}
+	valuesFile := cfg.Deploy.Values
+	if deployValuesFile != "" {
+		valuesFile = deployValuesFile
+	}
+
+	chartsDir := deployChartsDir
+	if chartsDir == "" && chartRepoURL == "" {
+		// local 模式且未传 --charts-dir 时，默认用当前目录下的 charts
+		if cwd, err := getwd(); err == nil {
+			chartsDir = filepath.Join(cwd, "charts")
+		}
+	}
+
+	webBaseURL := deployWebURL
+	if webBaseURL == "" {
+		webBaseURL = os.Getenv(envMagicWebBaseURL)
+	}
+
+	chartSpecs := buildChartSpecsFromConfig()
+	return deployer.New(deployer.Options{
+		ChartsDir:     chartsDir,
+		ChartRepo:     chartRepoURL,
+		PlainHTTP:     plainHTTP,
+		ChartRepoUser: cfg.Deploy.ChartRepo.Username,
+		ChartRepoPass: cfg.Deploy.ChartRepo.Password,
+		PassCredsAll:  cfg.Deploy.ChartRepo.PassCredentialsAll,
+		ChartSpecs:    chartSpecs,
+		ValuesFile:    valuesFile,
+		WebBaseURL:    webBaseURL,
+		Registry:      cfg.Deploy.Registry,
+		Kind:          cfg.Deploy.Kind,
+		InfraUseProxy: cfg.Deploy.InfraUseProxy,
+		Log:           lg,
+	}).Run(context.Background())
+}
+
+// getwd 返回当前工作目录，便于测试替换。
+var getwd = os.Getwd
+
+func buildChartSpecsFromConfig() map[string]deployer.ChartSpec {
+	if cfg.Deploy.Charts == nil {
+		return make(map[string]deployer.ChartSpec)
+	}
+	out := make(map[string]deployer.ChartSpec, len(cfg.Deploy.Charts))
+	for key, spec := range cfg.Deploy.Charts {
+		out[key] = deployer.ChartSpec{Name: spec.Name, Version: spec.Version}
+	}
+	return out
+}

@@ -1,0 +1,369 @@
+
+zh_Hans:
+  trueMark: "✓"
+  falseMark: "✗"
+  errorGettingHomeDir: "无法获取用户主目录，使用 %[1]s 作为主目录"
+  runningCommand: "运行命令: %[1]s"
+  noPermissionForPackageManager: "没有权限，无法通过包管理器 %[1]s 安装软件包 %[2]s"
+  youMayTryInstallItAsRoot: |
+    您可能需要以 sudo 运行本工具或手动以 root 身份安装软件包:
+        %[1]s
+  cannotDeterminePackages: "无法确定如何通过包管理器 %[1]s 安装 %[2]s"
+  youMayTryInstallItManually: "您可能需要手动安装 %[1]s"
+  errorReadingConfig: "读取配置文件失败: %[1]v"
+  errorUnmarshallingConfig: "解析配置文件失败: %[1]v"
+  errorCreatingLoggers: "创建日志器失败: %[1]v"
+  errorReadDepsData: "读取依赖数据失败: %[1]v"
+  cobraHelpUsageTemplate: |
+    用法:{{if .Runnable}}
+      {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+      {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+    别名:
+      {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+    示例:
+    {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+    可用命令:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+    {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+    额外命令:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+    选项:
+    {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+    全局选项:
+    {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+    额外帮助主题:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+      {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+    使用 "{{.CommandPath}} [command] --help" 获取更多关于命令的信息。{{end}}
+  cobraHelpFor: "显示 %[1]s 的帮助"
+  mainArgHelpConfig: |
+    配置文件路径
+    默认是 %[1]s
+    一般在 %[2]s
+  depsCommandShort: "依赖管理"
+  depsListCommandShort: "列出依赖"
+  depsUpdateCommandShort: "更新依赖"
+  depsResolveCommandShort: "解决依赖"
+  errorUpdateDeps: "更新依赖失败: %[1]v"
+  errorResolveDeps: "解决依赖失败: %[1]v"
+  depsArgHelpDeps: "依赖信息"
+  depsName: "名称：%[1]s"
+  depsVersion: "版本：%[1]s"
+  depsResolved: "已安装：%[1]s"
+  depsUpToDate: "是最新：%[1]s"
+  depInstalled: "%[1]s 已安装"
+  depsUpdateLatestFlagHelp: "已经是最新版本时仍旧尝试更新"
+  depsUpdateAlreadyLatest: "%[1]s 已经是最新版本，无需更新"
+  depResolved: "%[1]s 已就绪"
+  depUpdated: "%[1]s 已更新"
+  imageCommandShort: "镜像管理"
+  imageBuildCommandShort: "构建镜像"
+  imageBuildCommandPushHelp: "推送镜像到注册表"
+  imageBuildCommandImagePrefixHelp: "镜像前缀，例如ghcr.io/dtyq/"
+  imageBuildCommandProgressModeHelp: |
+    进度模式（镜像构建日志输出格式）
+    支持"auto"(默认), "none",  "plain", "quiet", "rawjson", "tty"
+    参考docker buildx build的--progress选项
+  imageBuildCommandPullHelp: "构建时拉取最新镜像"
+  imageBuildCommandNoCacheHelp: "构建时不使用缓存"
+  imageBuildCommandTagsPolicyHelp: |
+    镜像标签策略，支持
+      "latest": 固定为"latest"
+      "nightly-date": 日期，如"nightly-%[1]s"
+      "commit": 当前HEAD提交的哈希，如果有变更，则加上"-dirty"
+      "git-tags": 当前HEAD提交的所有标签，如"v1.0.0"，"1.0.0"，如果有变更，则加上"-dirty"
+      "branch": 当前工作目录的分支，如"someDevBranch"
+    多个策略用逗号分隔，例如 "latest,commit,nightly-date"
+    默认策略为"latest"
+  imageBuildCommandFailedToGetCommitHash: "无法获取当前HEAD提交的哈希: %[1]v"
+  imageBuildCommandFailedToGetCommitTags: "无法获取当前HEAD提交的标签: %[1]v"
+  imageBuildCommandFailedToReadDockerfile: "无法读取Dockerfile: %[1]v"
+  imageBuildCommandFailedToBuildImage: "构建镜像 %[1]s 失败: %[2]v"
+  imageBuildCommandImageNotFound: "镜像 %[1]s 不存在"
+  imageBuildCommandBuildingAllImages: "构建所有镜像"
+
+zh_Hant:
+  trueMark: "✓"
+  falseMark: "✗"
+  errorGettingHomeDir: "無法取得使用者主目錄，使用 %[1]s 作為主目錄"
+  runningCommand: "執行命令: %[1]s"
+  noPermissionForPackageManager: "沒有權限，無法透過套件管理器 %[1]s 安裝套件 %[2]s"
+  youMayTryInstallItAsRoot: |
+    您可能需要以 sudo 執行本工具或手動以 root 身分安裝套件:
+        %[1]s
+  cannotDeterminePackages: "無法確定如何透過套件管理器 %[1]s 安裝 %[2]s"
+  youMayTryInstallItManually: "您可能需要手動安裝 %[1]s"
+  errorReadingConfig: "讀取設定檔失敗: %[1]v"
+  errorUnmarshallingConfig: "解析設定檔失敗: %[1]v"
+  errorCreatingLoggers: "建立記錄器失敗: %[1]v"
+  errorReadDepsData: "讀取依賴資訊失敗: %[1]v"
+  cobraHelpUsageTemplate: |
+    用法:{{if .Runnable}}
+      {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+      {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+    別名:
+      {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+    範例:
+    {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+    可用指令:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+    {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+    額外指令:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+    選項:
+    {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+    全域選項:
+    {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+    額外幫助主題:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+      {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+    使用 "{{.CommandPath}} [command] --help" 獲取更多關於指令的資訊。{{end}}
+  cobraHelpFor: "顯示 %[1]s 的說明"
+  mainArgHelpConfig: |
+    設定檔路徑
+    預設是 %[1]s
+    一般在 %[2]s
+  depsCommandShort: "依賴管理"
+  depsListCommandShort: "列出依賴"
+  depsUpdateCommandShort: "更新依賴"
+  depsResolveCommandShort: "解決依賴"
+  errorUpdateDeps: "更新依賴失敗: %[1]v"
+  errorResolveDeps: "解決依賴失敗: %[1]v"
+  depsArgHelpDeps: "依賴資訊"
+  depsName: "名稱：%[1]s"
+  depsVersion: "版本：%[1]s"
+  depsResolved: "已安裝：%[1]s"
+  depsUpToDate: "為最新：%[1]s"
+  depInstalled: "%[1]s 已安裝"
+  depsUpdateLatestFlagHelp: "即使已是最新版本仍嘗試更新"
+  depsUpdateAlreadyLatest: "%[1]s 已是最新版本，無需更新"
+  depResolved: "%[1]s 已就緒"
+  depUpdated: "%[1]s 已更新"
+  imageCommandShort: "映像管理"
+  imageBuildCommandShort: "建構映像"
+  imageBuildCommandPushHelp: "推送映像至儲存庫"
+  imageBuildCommandImagePrefixHelp: "映像前綴，例如ghcr.io/dtyq/"
+  imageBuildCommandProgressModeHelp: |
+    進度模式（映像建構日誌輸出格式）
+    支援"auto"(預設), "none", "plain", "quiet", "rawjson", "tty"
+    參考docker buildx build的--progress選項
+  imageBuildCommandPullHelp: "建構時拉取最新映像"
+  imageBuildCommandNoCacheHelp: "建構時不使用快取"
+  imageBuildCommandTagsPolicyHelp: |
+    映像標籤策略，支援
+      "latest": 固定為"latest"
+      "nightly-date": 日期，如"nightly-%[1]s"
+      "commit": 目前HEAD提交的雜湊，如有變更則加上"-dirty"
+      "git-tags": 目前HEAD提交的所有標籤，如"v1.0.0"、"1.0.0"，如有變更則加上"-dirty"
+      "branch": 目前工作目錄的分支，如"someDevBranch"
+    多個策略用逗號分隔，例如 "latest,commit,nightly-date"
+    預設策略為"latest"# zh_Hant
+  imageBuildCommandFailedToGetCommitHash: "無法取得目前HEAD提交的雜湊: %[1]v"
+  imageBuildCommandFailedToGetCommitTags: "無法取得目前HEAD提交的標籤: %[1]v"
+  imageBuildCommandFailedToReadDockerfile: "無法讀取Dockerfile: %[1]v"
+  imageBuildCommandFailedToBuildImage: "建構映像 %[1]s 失敗: %[2]v"
+  imageBuildCommandImageNotFound: "映像 %[1]s 不存在"
+  imageBuildCommandBuildingAllImages: "建構所有映像"
+
+
+ja_JP:
+  trueMark: "✓"
+  falseMark: "✗"
+  errorGettingHomeDir: "ユーザーのホームディレクトリを取得できません。%[1]s をホームディレクトリとして使用します"
+  runningCommand: "コマンドを実行: %[1]s"
+  noPermissionForPackageManager: "権限がないため、パッケージマネージャー %[1]s でパッケージ %[2]s をインストールできません"
+  youMayTryInstallItAsRoot: |
+    本ツールを sudo で実行するか、root 権限で手動でパッケージをインストールしてください:
+        %[1]s
+  cannotDeterminePackages: "パッケージマネージャー %[1]s で %[2]s のインストール方法を特定できません"
+  youMayTryInstallItManually: "%[1]s を手動でインストールする必要があるかもしれません"
+  errorReadingConfig: "設定ファイルの読み込みに失敗しました: %[1]v"
+  errorUnmarshallingConfig: "設定ファイルの解析に失敗しました: %[1]v"
+  errorCreatingLoggers: "ロガーの作成に失敗しました: %[1]v"
+  errorReadDepsData: "依存関係データの読み込みに失敗しました: %[1]v"  
+  cobraHelpUsageTemplate: |
+    使用方法:{{if .Runnable}}
+      {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+      {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+    エイリアス:
+      {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+    使用例:
+    {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+    利用可能なコマンド:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+    {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+    その他のコマンド:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+    オプション:
+    {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+    グローバルオプション:
+    {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+    その他のヘルプトピック:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+      {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+    各コマンドの詳細は "{{.CommandPath}} [command] --help" を参照してください。{{end}}
+  cobraHelpFor: "%[1]s のヘルプを表示"
+  mainArgHelpConfig: |
+    設定ファイルのパス
+    デフォルトは %[1]s
+    通常は %[2]s
+  depsCommandShort: "依存関係の管理"
+  depsListCommandShort: "依存関係の一覧"
+  depsUpdateCommandShort: "依存関係の更新"
+  depsResolveCommandShort: "依存関係の解決"
+  errorUpdateDeps: "依存関係の更新に失敗しました: %[1]v"
+  errorResolveDeps: "依存関係の解決に失敗しました: %[1]v"
+  depsArgHelpDeps: "依存関係の情報"
+  depsName: "名前: %[1]s"
+  depsVersion: "バージョン: %[1]s"
+  depsResolved: "インストール済み: %[1]s"
+  depsUpToDate: "最新: %[1]s"
+  depInstalled: "%[1]s はインストール済みです"
+  depsUpdateLatestFlagHelp: "最新バージョンでも更新を試みる"
+  depsUpdateAlreadyLatest: "%[1]s は最新バージョンのため、更新は不要です"
+  depResolved: "%[1]s の準備ができています"
+  depUpdated: "%[1]s は更新されました"
+  imageCommandShort: "イメージ管理"
+  imageBuildCommandShort: "イメージのビルド"
+  imageBuildCommandPushHelp: "イメージをレジストリにプッシュ"
+  imageBuildCommandImagePrefixHelp: "イメージプレフィックス、例: ghcr.io/dtyq/"
+  imageBuildCommandProgressModeHelp: |
+    進捗モード（イメージビルドログの出力形式）
+    "auto"(デフォルト), "none", "plain", "quiet", "rawjson", "tty" をサポート
+    docker buildx buildの--progressオプションを参照
+  imageBuildCommandPullHelp: "ビルド時に最新イメージをプル"
+  imageBuildCommandNoCacheHelp: "ビルド時にキャッシュを使用しない"
+  imageBuildCommandTagsPolicyHelp: |
+    イメージタグポリシー、以下をサポート
+      "latest": 固定で"latest"
+      "nightly-date": 日付、例: "nightly-%[1]s"
+      "commit": 現在のHEADコミットのハッシュ、変更がある場合は"-dirty"を付加
+      "git-tags": 現在のHEADコミットの全タグ、例: "v1.0.0"、"1.0.0"、変更がある場合は"-dirty"を付加
+      "branch": 現在の作業ディレクトリのブランチ、例: "someDevBranch"
+    複数のポリシーはカンマで区切ります、例: "latest,commit,nightly-date"
+    デフォルトポリシーは"latest"
+  imageBuildCommandFailedToGetCommitHash: "現在のHEADコミットのハッシュを取得できません: %[1]v"
+  imageBuildCommandFailedToGetCommitTags: "現在のHEADコミットのタグを取得できません: %[1]v"
+  imageBuildCommandFailedToReadDockerfile: "Dockerfileの読み込みに失敗しました: %[1]v"
+  imageBuildCommandFailedToBuildImage: "イメージ %[1]s のビルドに失敗しました: %[2]v"
+  imageBuildCommandImageNotFound: "イメージ %[1]s が存在しません"
+  imageBuildCommandBuildingAllImages: "すべてのイメージをビルド"
+
+en_US:
+  trueMark: "✓"
+  falseMark: "✗"
+  errorGettingHomeDir: "Failed to get user home directory, using %[1]s as home directory"
+  runningCommand: "Running command: %[1]s"
+  noPermissionForPackageManager: "No permission, cannot install package %[2]s with package manager %[1]s"
+  youMayTryInstallItAsRoot: |
+    You may need to run this tool with sudo or manually install the package as root:
+        %[1]s
+  cannotDeterminePackages: "Cannot determine how to install %[2]s with package manager %[1]s"
+  youMayTryInstallItManually: "You may need to manually install %[1]s"
+  errorReadingConfig: "Failed to read config file: %[1]v"
+  errorUnmarshallingConfig: "Failed to unmarshal config file: %[1]v"
+  errorCreatingLoggers: "Failed to create loggers: %[1]v"
+  errorReadDepsData: "Failed to read dependency data: %[1]v"
+  cobraHelpUsageTemplate: |
+    Usage:{{if .Runnable}}
+      {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+      {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+    Aliases:
+      {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+    Examples:
+    {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+    Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+    {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+    Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+      {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+    Flags:
+    {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+    Global Flags:
+    {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+    Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+      {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+    Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+  cobraHelpFor: "Show help for %[1]s"
+  mainArgHelpConfig: |
+    Config file path
+    Default is %[1]s
+    Usually at %[2]s
+  depsCommandShort: "Dependency Management"
+  depsListCommandShort: "List dependencies"
+  depsUpdateCommandShort: "Update dependencies"
+  depsResolveCommandShort: "Resolve dependencies"
+  errorUpdateDeps: "Failed to update dependencies: %[1]v"
+  errorResolveDeps: "Failed to resolve dependencies: %[1]v"
+  depsArgHelpDeps: "Dependency information"
+  depsName: "Name: %[1]s"
+  depsVersion: "Version: %[1]s"
+  depsResolved: "Installed: %[1]s"
+  depsUpToDate: "Up to date: %[1]s"
+  depInstalled: "%[1]s is installed"
+  depsUpdateLatestFlagHelp: "Try to update even if already up to date"
+  depsUpdateAlreadyLatest: "%[1]s is already up to date, no need to update"
+  depResolved: "%[1]s is ready"
+  depUpdated: "%[1]s has been updated"
+  imageCommandShort: "Image management"
+  imageBuildCommandShort: "Build image"
+  imageBuildCommandPushHelp: "Push image to registry"
+  imageBuildCommandImagePrefixHelp: "Image prefix, e.g. ghcr.io/dtyq/"
+  imageBuildCommandProgressModeHelp: |
+    Progress mode (image build log output format)
+    Supports "auto"(default), "none", "plain", "quiet", "rawjson", "tty"
+    Refer to the --progress option of docker buildx build
+  imageBuildCommandPullHelp: "Pull latest image when building"
+  imageBuildCommandNoCacheHelp: "Build without cache"
+  imageBuildCommandTagsPolicyHelp: |
+    Image tag policy, supports
+      "latest": fixed as "latest"
+      "nightly-date": date, e.g. "nightly-%[1]s"
+      "commit": hash of current HEAD commit, with "-dirty" appended if there are changes
+      "git-tags": all tags of current HEAD commit, e.g. "v1.0.0", "1.0.0", with "-dirty" appended if there are changes
+      "branch": branch of current working directory, e.g. "someDevBranch"
+    Multiple policies separated by commas, e.g. "latest,commit,nightly-date"
+    Default policy is "latest"
+  imageBuildCommandFailedToGetCommitHash: "Failed to get current HEAD commit hash: %[1]v"
+  imageBuildCommandFailedToGetCommitTags: "Failed to get current HEAD commit tags: %[1]v"
+  imageBuildCommandFailedToReadDockerfile: "Failed to read Dockerfile: %[1]v"
+  imageBuildCommandFailedToBuildImage: "Failed to build image %[1]s: %[2]v"
+  imageBuildCommandImageNotFound: "Image %[1]s does not exist"
+  imageBuildCommandBuildingAllImages: "Building all images"
