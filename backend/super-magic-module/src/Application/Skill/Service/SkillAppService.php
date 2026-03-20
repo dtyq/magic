@@ -9,9 +9,12 @@ namespace Dtyq\SuperMagic\Application\Skill\Service;
 
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Permission\Entity\ResourceVisibilityEntity;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepartment;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
@@ -32,6 +35,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
@@ -295,7 +299,7 @@ class SkillAppService extends AbstractSkillAppService
         Db::beginTransaction();
         try {
             $skillEntity = $this->skillDomainService->addSkillFromMarket($dataIsolation, (int) $requestDTO->getStoreSkillId());
-            $this->syncSkillVisibilityWithOwners($dataIsolation, $skillEntity->getCode());
+            $this->appendSkillVisibilityUsers($dataIsolation, $skillEntity->getCode(), [$dataIsolation->getCurrentUserId()]);
             Db::commit();
 
             return $skillEntity;
@@ -409,13 +413,15 @@ class SkillAppService extends AbstractSkillAppService
         try {
             if ($userSkillEntity !== null && $userSkillEntity->getSourceType()->isMarket()) {
                 $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
-                $this->syncSkillVisibilityWithOwners($dataIsolation, $code);
+                if (! $this->shouldKeepDirectSkillVisibilityAfterMarketRemoval($dataIsolation, $code, $dataIsolation->getCurrentUserId())) {
+                    $this->removeSkillVisibilityUsers($dataIsolation, $code, [$dataIsolation->getCurrentUserId()]);
+                }
                 Db::commit();
                 return;
             }
 
             $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
-            $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
+            $this->skillDomainService->deleteAllUserSkillOwnershipsByCode($dataIsolation, $code);
             $this->clearSkillVisibility($dataIsolation, $code);
             $this->clearSkillOwnerPermission($dataIsolation, $code);
             $this->skillDomainService->deleteSkill($dataIsolation, $code);
@@ -552,7 +558,12 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * Publish a skill version.
+     * 发布一个 Skill 版本。
+     *
+     * 规则说明：
+     * - `PRIVATE / MEMBER / ORGANIZATION` 属于组织内发布范围，新的发布会覆盖旧的组织内范围
+     * - `MARKET` 只新增市场分发能力，不主动清理现有组织内可见范围
+     * - 一旦从市场重新切回组织内范围，需要回收非创建者的市场安装关系，并将市场状态下线
      */
     public function publishSkill(RequestContext $requestContext, string $code, PublishSkillRequestDTO $requestDTO): SkillVersionEntity
     {
@@ -569,7 +580,7 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity->setVersion($requestDTO->getVersion());
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
         $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
-        $versionEntity->setPublishTargetValue($requestDTO->getPublishTargetValue());
+        $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
         $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
         $skillEntity->setFileKey($fileMetadata['file_key']);
@@ -577,6 +588,7 @@ class SkillAppService extends AbstractSkillAppService
         Db::beginTransaction();
         try {
             $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
+            $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
             Db::commit();
             return $versionEntity;
         } catch (Throwable $throwable) {
@@ -1286,18 +1298,32 @@ class SkillAppService extends AbstractSkillAppService
      * Save the visibility configuration for a skill.
      *
      * @param array<string> $userIds
+     * @param array<string> $departmentIds
      */
-    private function saveSkillVisibility(SkillDataIsolation $dataIsolation, string $code, VisibilityType $visibilityType, array $userIds = []): void
-    {
+    private function saveSkillVisibility(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        VisibilityType $visibilityType,
+        array $userIds = [],
+        array $departmentIds = []
+    ): void {
+        $userIds = array_values(array_unique($userIds));
+        $departmentIds = array_values(array_unique($departmentIds));
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
         $visibilityConfig = new VisibilityConfig();
         $visibilityConfig->setVisibilityType($visibilityType);
 
         if ($visibilityType === VisibilityType::SPECIFIC) {
-            foreach (array_values(array_unique($userIds)) as $userId) {
+            foreach ($userIds as $userId) {
                 $visibilityUser = new VisibilityUser();
                 $visibilityUser->setId($userId);
                 $visibilityConfig->addUser($visibilityUser);
+            }
+
+            foreach ($departmentIds as $departmentId) {
+                $visibilityDepartment = new VisibilityDepartment();
+                $visibilityDepartment->setId($departmentId);
+                $visibilityConfig->addDepartment($visibilityDepartment);
             }
         }
 
@@ -1332,28 +1358,183 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * Keep skill visibility in sync with the local owner and installed market users.
+     * 根据最新发布版本，重新同步 Skill 的可见范围和安装关系。
+     *
+     * 这里的职责是把“发布语义”真正落成存储状态：
+     * - `MARKET` 不动现有范围，只保留市场分发
+     * - `PRIVATE / MEMBER / ORGANIZATION` 会回收市场安装用户，并重建组织内可见范围
+     *
+     * 注意：
+     * - `deleteUserSkillOwnershipsExceptUser()` 只处理 `magic_user_skills`，不影响最终可见范围
+     * - 真正的可见范围由 `saveSkillVisibility()` 决定，而它底层会先删掉该资源的全部旧可见记录，再写入新配置
+     * - 因此这里不需要额外单独删除“非创建者可见范围”；重新保存时已经会整体覆盖
      */
-    private function syncSkillVisibilityWithOwners(SkillDataIsolation $dataIsolation, string $code): void
-    {
-        $userIds = [];
-
-        $skillEntity = $this->skillDomainService->findOptionalSkillByCode($dataIsolation, $code);
-        if ($skillEntity !== null && $skillEntity->getCreatorId() !== '') {
-            $userIds[] = $skillEntity->getCreatorId();
-        }
-
-        foreach ($this->skillDomainService->findAllUserSkillOwnershipsByCode($dataIsolation, $code) as $userSkillEntity) {
-            $userIds[] = $userSkillEntity->getUserId();
-        }
-
-        $userIds = array_values(array_unique(array_filter($userIds)));
-        if ($userIds === []) {
-            $this->clearSkillVisibility($dataIsolation, $code);
+    private function syncPublishedSkillScope(
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity,
+        SkillVersionEntity $versionEntity
+    ): void {
+        $publishTargetType = $versionEntity->getPublishTargetType();
+        if ($publishTargetType === PublishTargetType::MARKET) {
             return;
         }
 
-        $this->saveSkillVisibility($dataIsolation, $code, VisibilityType::SPECIFIC, $userIds);
+        // 回收市场安装关系。
+        // 这里删除的是“安装所有权”，不是可见范围本身：
+        // - 创建者自己的 user_skill 保留
+        // - 其他用户如果之后仍应可见，会通过下面的 visibility 规则重新获得访问能力
+        $this->skillDomainService->deleteUserSkillOwnershipsExceptUser(
+            $dataIsolation,
+            $skillEntity->getCode(),
+            $skillEntity->getCreatorId()
+        );
+        // 从 MARKET 切回组织内发布范围时，市场分发能力需要收口，因此将历史市场记录统一下线。
+        $this->skillMarketDomainService->updateAllPublishStatusBySkillCode(
+            $skillEntity->getCode(),
+            PublishStatus::OFFLINE->value
+        );
+
+        if ($publishTargetType === PublishTargetType::ORGANIZATION) {
+            // 组织内全员可见，不需要单独保留创建者用户记录。
+            $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+            return;
+        }
+
+        if ($publishTargetType === PublishTargetType::MEMBER) {
+            $publishTargetValue = $versionEntity->getPublishTargetValue();
+            // 创建者要始终保留可见，否则“只选部门/成员但没选自己”时，发布者自己会失去访问权限。
+            // 这里的 user_ids 只负责“显式成员可见”，部门范围仍然通过 department_ids 单独保存。
+            $userIds = array_values(array_unique(array_merge(
+                [$skillEntity->getCreatorId()],
+                $publishTargetValue?->getUserIds() ?? []
+            )));
+
+            $this->saveSkillVisibility(
+                $dataIsolation,
+                $skillEntity->getCode(),
+                VisibilityType::SPECIFIC,
+                $userIds,
+                $publishTargetValue?->getDepartmentIds() ?? []
+            );
+            return;
+        }
+
+        $this->saveSkillVisibility(
+            $dataIsolation,
+            $skillEntity->getCode(),
+            VisibilityType::SPECIFIC,
+            [$skillEntity->getCreatorId()]
+        );
+    }
+
+    /**
+     * 追加用户级可见范围。
+     *
+     * 这里是市场安装场景的“增量授权”：
+     * - 只检查当前用户这条记录是否已存在
+     * - 不读取整份资源可见范围
+     * - 不会影响组织级、部门级或其他用户已有的可见记录
+     *
+     * @param array<string> $userIds
+     */
+    private function appendSkillVisibilityUsers(SkillDataIsolation $dataIsolation, string $code, array $userIds): void
+    {
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if ($userIds === []) {
+            return;
+        }
+
+        $this->resourceVisibilityDomainService->addResourceVisibilityByPrincipalsIfMissing(
+            $this->createPermissionDataIsolation($dataIsolation),
+            ResourceVisibilityResourceType::SKILL,
+            $code,
+            PrincipalType::USER,
+            $userIds
+        );
+    }
+
+    /**
+     * 精准删除用户级别的可见范围。
+     *
+     * 这里只删除命中的用户主体记录，不会读取全部可见范围，更不会做“整表重建”。
+     * 因此组织级、部门级以及其他用户的可见配置都会被保留。
+     *
+     * @param array<string> $userIds
+     */
+    private function removeSkillVisibilityUsers(SkillDataIsolation $dataIsolation, string $code, array $userIds): void
+    {
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if ($userIds === []) {
+            return;
+        }
+
+        $this->resourceVisibilityDomainService->deleteResourceVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($dataIsolation),
+            ResourceVisibilityResourceType::SKILL,
+            $code,
+            PrincipalType::USER,
+            $userIds
+        );
+    }
+
+    /**
+     * @return ResourceVisibilityEntity[]
+     */
+    private function listSkillVisibilityEntities(SkillDataIsolation $dataIsolation, string $code): array
+    {
+        return $this->resourceVisibilityDomainService->listResourceVisibility(
+            $this->createPermissionDataIsolation($dataIsolation),
+            ResourceVisibilityResourceType::SKILL,
+            $code
+        );
+    }
+
+    /**
+     * @param ResourceVisibilityEntity[] $entities
+     */
+    private function saveSkillVisibilityEntities(SkillDataIsolation $dataIsolation, string $code, array $entities): void
+    {
+        $this->resourceVisibilityDomainService->batchSaveResourceVisibility(
+            $this->createPermissionDataIsolation($dataIsolation),
+            ResourceVisibilityResourceType::SKILL,
+            $code,
+            $entities
+        );
+    }
+
+    private function buildSkillVisibilityEntity(
+        SkillDataIsolation $dataIsolation,
+        PrincipalType $principalType,
+        string $principalId
+    ): ResourceVisibilityEntity {
+        $entity = new ResourceVisibilityEntity();
+        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $entity->setPrincipalType($principalType);
+        $entity->setPrincipalId($principalId);
+        $entity->setCreator($dataIsolation->getCurrentUserId());
+        $entity->setModifier($dataIsolation->getCurrentUserId());
+
+        return $entity;
+    }
+
+    private function shouldKeepDirectSkillVisibilityAfterMarketRemoval(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        string $userId
+    ): bool {
+        foreach ($this->skillDomainService->findAllPublishedSkillVersionsByCode($dataIsolation, $code) as $publishedVersion) {
+            if ($publishedVersion->getPublishTargetType() === PublishTargetType::MARKET) {
+                continue;
+            }
+
+            if ($publishedVersion->getPublishTargetType() !== PublishTargetType::MEMBER) {
+                return false;
+            }
+
+            return $publishedVersion->getPublishTargetValue()?->containsUserId($userId) ?? false;
+        }
+
+        return false;
     }
 
     /**

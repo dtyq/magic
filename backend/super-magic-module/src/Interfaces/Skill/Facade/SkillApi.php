@@ -221,7 +221,17 @@ class SkillApi extends AbstractApi
     }
 
     /**
-     * Publish a skill version.
+     * 发布 Skill 版本。
+     *
+     * 发布规则：
+     * - `PRIVATE`：仅创建者自己可见
+     * - `MEMBER`：仅创建者 + 指定成员/部门可见，必须传 `publish_target_value`
+     * - `ORGANIZATION`：组织内全员可见
+     * - `MARKET`：仅新增市场分发能力，不清理当前组织内可见范围
+     *
+     * 切换规则：
+     * - `PRIVATE / MEMBER / ORGANIZATION` 互相覆盖，后一次发布会替换当前组织内范围
+     * - 从市场重新切回组织内范围时，会回收非创建者的市场安装关系并下线市场记录
      */
     public function publishSkill(RequestContext $requestContext, string $code)
     {

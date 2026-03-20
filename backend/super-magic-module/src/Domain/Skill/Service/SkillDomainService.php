@@ -587,11 +587,11 @@ class SkillDomainService
         }
 
         $publishTargetType = $versionEntity->getPublishTargetType();
-        if (! in_array($publishTargetType, [PublishTargetType::PRIVATE, PublishTargetType::MARKET], true)) {
+        if (! in_array($publishTargetType, [PublishTargetType::PRIVATE, PublishTargetType::MEMBER, PublishTargetType::ORGANIZATION, PublishTargetType::MARKET], true)) {
             ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
         }
 
-        if (
+        /*if (
             $publishTargetType === PublishTargetType::MARKET
             && ! OfficialOrganizationUtil::isOfficialOrganization($dataIsolation->getCurrentOrganizationCode())
         ) {
@@ -599,9 +599,14 @@ class SkillDomainService
                 SkillErrorCode::NON_OFFICIAL_ORGANIZATION_CANNOT_PUBLISH_TO_MARKET,
                 'skill.non_official_organization_cannot_publish_to_market'
             );
-        }
+        }*/
 
-        if ($versionEntity->getPublishTargetValue() !== null) {
+        if ($publishTargetType->requiresTargetValue()) {
+            $publishTargetValue = $versionEntity->getPublishTargetValue();
+            if ($publishTargetValue === null || ! $publishTargetValue->hasTargets()) {
+                ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_VALUE_REQUIRED, 'skill.publish_target_value_required');
+            }
+        } elseif ($versionEntity->getPublishTargetValue() !== null) {
             ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_VALUE_SHOULD_BE_EMPTY, 'skill.publish_target_value_should_be_empty');
         }
 
@@ -624,7 +629,7 @@ class SkillDomainService
         $versionEntity->setProjectId($skillEntity->getProjectId());
         $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
 
-        if ($publishTargetType === PublishTargetType::PRIVATE) {
+        if ($publishTargetType !== PublishTargetType::MARKET) {
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
@@ -831,6 +836,16 @@ class SkillDomainService
     public function deleteUserSkillOwnership(SkillDataIsolation $dataIsolation, string $code): bool
     {
         return $this->userSkillRepository->deleteBySkillCode($dataIsolation, $code);
+    }
+
+    public function deleteUserSkillOwnershipsExceptUser(SkillDataIsolation $dataIsolation, string $code, string $excludedUserId): int
+    {
+        return $this->userSkillRepository->deleteBySkillCodeExceptUser($dataIsolation, $code, $excludedUserId);
+    }
+
+    public function deleteAllUserSkillOwnershipsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->userSkillRepository->deleteAllBySkillCode($dataIsolation, $code);
     }
 
     /**

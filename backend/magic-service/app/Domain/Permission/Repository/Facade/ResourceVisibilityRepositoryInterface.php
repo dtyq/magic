@@ -9,6 +9,7 @@ namespace App\Domain\Permission\Repository\Facade;
 
 use App\Domain\Permission\Entity\ResourceVisibilityEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
 
 interface ResourceVisibilityRepositoryInterface
@@ -38,6 +39,36 @@ interface ResourceVisibilityRepositoryInterface
      * 删除资源的所有可见性记录.
      */
     public function deleteByResourceCode(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, string $resourceCode): bool;
+
+    /**
+     * 按资源和主体批量删除可见性记录.
+     *
+     * @param array<string> $principalIds
+     */
+    public function deleteByResourceAndPrincipals(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): int;
+
+    /**
+     * @param array<string> $principalIds
+     * @return array<string>
+     */
+    public function listExistingPrincipalIdsByResourceAndType(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): array;
+
+    /**
+     * @param array<ResourceVisibilityEntity> $entities
+     */
+    public function batchInsertOrIgnore(PermissionDataIsolation $dataIsolation, array $entities): int;
 
     /**
      * 根据主体ID列表查询可见性实体列表.

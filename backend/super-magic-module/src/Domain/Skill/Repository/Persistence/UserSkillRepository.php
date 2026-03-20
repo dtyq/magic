@@ -118,6 +118,25 @@ class UserSkillRepository extends AbstractRepository implements UserSkillReposit
             ->delete() > 0;
     }
 
+    public function deleteBySkillCodeExceptUser(SkillDataIsolation $dataIsolation, string $skillCode, string $excludedUserId): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
+
+        return $builder
+            ->where('skill_code', $skillCode)
+            ->where('user_id', '!=', $excludedUserId)
+            ->delete();
+    }
+
+    public function deleteAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
+
+        return $builder
+            ->where('skill_code', $skillCode)
+            ->delete();
+    }
+
     private function toUserSkillEntity(array $data): UserSkillEntity
     {
         return new UserSkillEntity([

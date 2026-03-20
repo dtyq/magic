@@ -47,7 +47,7 @@ class QuerySkillVersionsRequestDTO extends AbstractRequestDTO
         return [
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:100',
-            'publish_target_type' => ['nullable', 'string', Rule::in(['PRIVATE', 'MARKET'])],
+            'publish_target_type' => ['nullable', 'string', Rule::in(['PRIVATE', 'MEMBER', 'ORGANIZATION', 'MARKET'])],
             'status' => ['nullable', 'string', Rule::in(['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'])],
         ];
     }

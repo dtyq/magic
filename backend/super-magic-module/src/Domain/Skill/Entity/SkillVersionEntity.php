@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Entity;
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetValue;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
@@ -91,9 +92,9 @@ class SkillVersionEntity extends AbstractEntity
     protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
 
     /**
-     * @var null|array Actual publish target payload
+     * @var null|PublishTargetValue 实际发布目标值，仅 MEMBER 发布时使用
      */
-    protected ?array $publishTargetValue = null;
+    protected ?PublishTargetValue $publishTargetValue = null;
 
     /**
      * @var null|array Version description in i18n format
@@ -175,7 +176,7 @@ class SkillVersionEntity extends AbstractEntity
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus?->value,
             'publish_target_type' => $this->publishTargetType->value,
-            'publish_target_value' => $this->publishTargetValue,
+            'publish_target_value' => $this->publishTargetValue?->toArray(),
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publisher_user_id' => $this->publisherUserId,
             'published_at' => $this->publishedAt,
@@ -383,13 +384,17 @@ class SkillVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getPublishTargetValue(): ?array
+    public function getPublishTargetValue(): ?PublishTargetValue
     {
         return $this->publishTargetValue;
     }
 
-    public function setPublishTargetValue(?array $publishTargetValue): self
+    public function setPublishTargetValue(null|array|PublishTargetValue $publishTargetValue): self
     {
+        if (is_array($publishTargetValue)) {
+            $publishTargetValue = PublishTargetValue::fromArray($publishTargetValue);
+        }
+
         $this->publishTargetValue = $publishTargetValue;
         return $this;
     }

@@ -118,4 +118,7 @@ enum SkillErrorCode: int
 
     #[ErrorMessage('skill.skill_creator_cannot_add_from_market')]
     case SKILL_CREATOR_CANNOT_ADD_FROM_MARKET = 51273;
+
+    #[ErrorMessage('skill.publish_target_value_required')]
+    case PUBLISH_TARGET_VALUE_REQUIRED = 51274;
 }

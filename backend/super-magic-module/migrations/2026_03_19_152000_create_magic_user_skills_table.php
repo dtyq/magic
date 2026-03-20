@@ -26,7 +26,7 @@ return new class extends Migration {
                 $table->timestamps();
                 $table->softDeletes();
 
-                $table->unique(['organization_code', 'user_id', 'skill_code'], 'uk_org_user_skill_code');
+                $table->unique(['organization_code', 'user_id', 'skill_code', 'deleted_at'], 'uk_org_user_skill_code');
                 $table->index(['organization_code', 'user_id'], 'idx_org_user');
                 $table->index(['organization_code', 'skill_code'], 'idx_org_skill_code');
                 $table->index(['skill_version_id'], 'idx_skill_version_id');

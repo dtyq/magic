@@ -233,7 +233,6 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         /** @var null|SkillVersionModel $model */
         $model = $builder
             ->where('id', $id)
-            ->where('publish_status', PublishStatus::UNPUBLISHED->value)
             ->where('review_status', ReviewStatus::UNDER_REVIEW->value)
             ->whereNull('deleted_at')
             ->first();
@@ -479,7 +478,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()?->value,
             'publish_target_type' => $entity->getPublishTargetType()->value,
-            'publish_target_value' => $entity->getPublishTargetValue(),
+            'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),
             'publisher_user_id' => $entity->getPublisherUserId(),
             'published_at' => $entity->getPublishedAt(),

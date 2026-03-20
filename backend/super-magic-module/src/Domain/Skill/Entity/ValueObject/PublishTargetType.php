@@ -18,7 +18,22 @@ enum PublishTargetType: string
     case PRIVATE = 'PRIVATE';
 
     /**
+     * Publish to specific members or departments.
+     */
+    case MEMBER = 'MEMBER';
+
+    /**
+     * Publish organization-wide.
+     */
+    case ORGANIZATION = 'ORGANIZATION';
+
+    /**
      * Publish to the skill market.
      */
     case MARKET = 'MARKET';
+
+    public function requiresTargetValue(): bool
+    {
+        return $this === self::MEMBER;
+    }
 }

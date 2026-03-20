@@ -26,5 +26,9 @@ interface UserSkillRepositoryInterface
      */
     public function findAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): array;
 
+    public function deleteBySkillCodeExceptUser(SkillDataIsolation $dataIsolation, string $skillCode, string $excludedUserId): int;
+
+    public function deleteAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): int;
+
     public function deleteBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): bool;
 }
