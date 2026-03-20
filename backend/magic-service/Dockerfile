@@ -20,6 +20,7 @@ RUN mkdir -p /etc/php/conf.d && \
     echo "max_execution_time = 0" > /etc/php/conf.d/max-execution-time.ini
 
 # install dependencies
+ARG APK_MIRROR=mirrors.aliyun.com
 RUN --mount=type=cache,id=alpine-apk-3.23-${TARGETARCH},target=/var/cache/apk \
     # setup apk mirror
     sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
