@@ -60,6 +60,13 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
             $builder->where('creator', $query->getCreatorId());
         }
 
+        if ($query->getSourceTypes() !== null) {
+            if (empty($query->getSourceTypes())) {
+                return ['total' => 0, 'list' => []];
+            }
+            $builder->whereIn('source_type', $query->getSourceTypes());
+        }
+
         if ($query->getName()) {
             $builder->where('name', 'like', '%' . $query->getName() . '%');
         }

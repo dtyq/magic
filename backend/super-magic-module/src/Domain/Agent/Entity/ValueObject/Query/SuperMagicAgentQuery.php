@@ -19,6 +19,11 @@ class SuperMagicAgentQuery extends AbstractQuery
 
     protected ?string $creatorId = null;
 
+    /**
+     * @var null|array<string>
+     */
+    protected ?array $sourceTypes = null;
+
     protected ?string $keyword = null;
 
     protected ?string $languageCode = null;
@@ -61,6 +66,16 @@ class SuperMagicAgentQuery extends AbstractQuery
     public function setCreatorId(?string $creatorId): void
     {
         $this->creatorId = $creatorId;
+    }
+
+    public function getSourceTypes(): ?array
+    {
+        return $this->sourceTypes;
+    }
+
+    public function setSourceTypes(?array $sourceTypes): void
+    {
+        $this->sourceTypes = $sourceTypes;
     }
 
     public function getKeyword(): ?string

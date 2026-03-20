@@ -14,15 +14,22 @@ use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentMarketListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentVersionListItemDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\CategoryListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetAgentDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\PublishAgentVersionResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentCategorizedListDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
@@ -282,6 +289,114 @@ class SuperMagicAgentAssembler
     }
 
     /**
+     * @param array<int, SuperMagicAgentEntity> $agents
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     */
+    public static function createMyAgentsResponseDTO(
+        array $agents,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        int $page,
+        int $pageSize,
+        int $total
+    ): QueryAgentsResponseDTO {
+        $list = [];
+        foreach ($agents as $agent) {
+            $list[] = self::createAgentListItemDTO(
+                $agent,
+                $playbooksMap,
+                $storeAgentsMap,
+                $latestVersionsMap,
+                true
+            );
+        }
+
+        return new QueryAgentsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<int, SuperMagicAgentEntity> $agents
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     */
+    public static function createExternalAgentsResponseDTO(
+        array $agents,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        string $currentUserId,
+        int $page,
+        int $pageSize,
+        int $total
+    ): QueryAgentsResponseDTO {
+        $list = [];
+        foreach ($agents as $agent) {
+            $allowDelete = $agent->getCreator() === $currentUserId && $agent->getSourceType()->isMarket();
+            $list[] = self::createAgentListItemDTO(
+                $agent,
+                $playbooksMap,
+                $storeAgentsMap,
+                $latestVersionsMap,
+                $allowDelete
+            );
+        }
+
+        return new QueryAgentsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<int, AgentMarketEntity> $agentMarkets
+     * @param array<string, SuperMagicAgentEntity> $userAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
+     */
+    public static function createQueryAgentMarketsResponseDTO(
+        array $agentMarkets,
+        array $userAgentsMap,
+        array $latestVersionsMap,
+        array $playbooksMap,
+        int $page,
+        int $pageSize,
+        int $total
+    ): QueryAgentMarketsResponseDTO {
+        $list = [];
+        foreach ($agentMarkets as $agentMarket) {
+            $list[] = self::createAgentMarketListItemDTO(
+                $agentMarket,
+                $userAgentsMap,
+                $latestVersionsMap,
+                $playbooksMap
+            );
+        }
+
+        return new QueryAgentMarketsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<int, array{id:int, name_i18n:array, logo:?string, sort_order:int, crew_count:int}> $items
+     * @return array<int, CategoryListItemDTO>
+     */
+    public static function createCategoryListItemDTOs(array $items): array
+    {
+        $list = [];
+        foreach ($items as $item) {
+            $list[] = new CategoryListItemDTO(
+                id: $item['id'],
+                nameI18n: $item['name_i18n'],
+                logo: $item['logo'],
+                sortOrder: $item['sort_order'],
+                crewCount: $item['crew_count'],
+            );
+        }
+
+        return $list;
+    }
+
+    /**
      * @param array<string, MagicUserEntity> $users
      * @param AgentVersionEntity[] $versions
      */
@@ -308,5 +423,112 @@ class SuperMagicAgentAssembler
         }
 
         return new QueryAgentVersionsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<string, SuperMagicAgentEntity> $userAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
+     */
+    private static function createAgentMarketListItemDTO(
+        AgentMarketEntity $agentMarket,
+        array $userAgentsMap,
+        array $latestVersionsMap,
+        array $playbooksMap
+    ): AgentMarketListItemDTO {
+        $agentCode = $agentMarket->getAgentCode();
+        $userAgent = $userAgentsMap[$agentCode] ?? null;
+        $agentVersionId = $agentMarket->getAgentVersionId();
+        $playbooks = $playbooksMap[$agentVersionId] ?? [];
+
+        $features = [];
+        foreach ($playbooks as $playbook) {
+            $features[] = [
+                'name_i18n' => $playbook->getNameI18n() ?? [],
+                'icon' => $playbook->getIcon(),
+                'theme_color' => $playbook->getThemeColor(),
+            ];
+        }
+
+        $isAdded = $userAgent !== null;
+        $allowDelete = $isAdded && $userAgent?->getSourceType()->isMarket() === true;
+        $latestVersionCode = isset($latestVersionsMap[$agentCode]) ? $latestVersionsMap[$agentCode]->getVersion() : null;
+
+        return new AgentMarketListItemDTO(
+            id: $agentMarket->getId() ?? 0,
+            agentCode: $agentCode,
+            userCode: $userAgent?->getCode(),
+            nameI18n: $agentMarket->getNameI18n() ?? [],
+            roleI18n: $agentMarket->getRoleI18n(),
+            descriptionI18n: $agentMarket->getDescriptionI18n(),
+            icon: $agentMarket->getIcon(),
+            iconType: $agentMarket->getIconType()->value,
+            playbooks: $features,
+            publisherType: $agentMarket->getPublisherType()->value,
+            categoryId: $agentMarket->getCategoryId(),
+            isAdded: $isAdded,
+            latestVersionCode: $latestVersionCode,
+            allowDelete: $allowDelete,
+            createdAt: $agentMarket->getCreatedAt() ?? '',
+            updatedAt: $agentMarket->getUpdatedAt() ?? '',
+        );
+    }
+
+    /**
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     */
+    private static function createAgentListItemDTO(
+        SuperMagicAgentEntity $agent,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        bool $allowDelete
+    ): AgentListItemDTO {
+        $playbooks = $playbooksMap[$agent->getCode()] ?? [];
+        $features = [];
+        foreach ($playbooks as $playbook) {
+            $features[] = [
+                'name_i18n' => $playbook->getNameI18n(),
+                'icon' => $playbook->getIcon(),
+                'theme_color' => $playbook->getThemeColor(),
+            ];
+        }
+
+        $versionLookupCode = $agent->getSourceType()->isMarket()
+            ? ($agent->getVersionCode() ?: $agent->getCode())
+            : $agent->getCode();
+        $latestVersionCode = isset($latestVersionsMap[$versionLookupCode]) ? $latestVersionsMap[$versionLookupCode]->getVersion() : null;
+
+        $isStoreOffline = null;
+        if ($agent->getSourceType()->isMarket()) {
+            $storeAgent = $storeAgentsMap[$versionLookupCode] ?? null;
+            if ($storeAgent === null) {
+                $isStoreOffline = true;
+            } else {
+                $isStoreOffline = false;
+            }
+        }
+
+        return new AgentListItemDTO(
+            id: $agent->getId(),
+            code: $agent->getCode(),
+            nameI18n: $agent->getNameI18n() ?? [],
+            roleI18n: $agent->getRoleI18n() ?? [],
+            descriptionI18n: $agent->getDescriptionI18n() ?? [],
+            icon: $agent->getIcon(),
+            iconType: $agent->getIconType(),
+            playbooks: $features,
+            sourceType: $agent->getSourceType()->value,
+            enabled: $agent->getEnabled() ?? false,
+            isStoreOffline: $isStoreOffline,
+            latestVersionCode: $latestVersionCode,
+            allowDelete: $allowDelete,
+            pinnedAt: $agent->getPinnedAt(),
+            latestPublishedAt: $agent->getLatestPublishedAt(),
+            updatedAt: $agent->getUpdatedAt(),
+            createdAt: $agent->getCreatedAt(),
+        );
     }
 }

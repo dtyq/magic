@@ -16,8 +16,6 @@ class AgentMarketListItemDTO extends AbstractDTO
 {
     public bool $isAdded;
 
-    public bool $needUpgrade;
-
     public string $createdAt;
 
     public string $updatedAt;
@@ -52,6 +50,10 @@ class AgentMarketListItemDTO extends AbstractDTO
 
     private ?int $categoryId;
 
+    private ?string $latestVersionCode;
+
+    private bool $allowDelete;
+
     public function __construct(
         int $id,
         string $agentCode,
@@ -65,7 +67,8 @@ class AgentMarketListItemDTO extends AbstractDTO
         string $publisherType,
         ?int $categoryId,
         bool $isAdded,
-        bool $needUpgrade,
+        ?string $latestVersionCode,
+        bool $allowDelete,
         string $createdAt,
         string $updatedAt
     ) {
@@ -81,7 +84,8 @@ class AgentMarketListItemDTO extends AbstractDTO
         $this->publisherType = $publisherType;
         $this->categoryId = $categoryId;
         $this->isAdded = $isAdded;
-        $this->needUpgrade = $needUpgrade;
+        $this->latestVersionCode = $latestVersionCode;
+        $this->allowDelete = $allowDelete;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -104,7 +108,8 @@ class AgentMarketListItemDTO extends AbstractDTO
             'publisher_type' => $this->publisherType,
             'category_id' => (string) $this->categoryId,
             'is_added' => $this->isAdded,
-            'need_upgrade' => $this->needUpgrade,
+            'latest_version_code' => $this->latestVersionCode,
+            'allow_delete' => $this->allowDelete,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Agent;
 
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
+use App\Domain\Permission\Repository\Persistence\Model\ResourceVisibilityModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentCategoryModel;
@@ -165,6 +168,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $this->assertArrayHasKey('enabled', $item);
             $this->assertArrayHasKey('is_store_offline', $item);
             $this->assertArrayHasKey('need_upgrade', $item);
+            $this->assertArrayHasKey('latest_version_code', $item);
+            $this->assertArrayHasKey('allow_delete', $item);
             $this->assertArrayHasKey('pinned_at', $item);
             $this->assertArrayHasKey('latest_published_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
@@ -221,6 +226,205 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
+    }
+
+    public function testQueryAgentsOnlyReturnsLocalCreateAgents(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '9.9.9', $publisherHeaders, true);
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $localAgentCode = $this->createTestAgent();
+
+        $publishResponse = $this->post(
+            self::BASE_URI . '/' . $localAgentCode . '/publish',
+            [
+                'version' => '1.0.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '首个版本',
+                    'en_US' => 'First version',
+                ],
+                'publish_target_type' => 'PRIVATE',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $publishResponse['code'], $publishResponse['message'] ?? '');
+
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $hiredMarketAgent = SuperMagicAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('creator', $headers['user-id'])
+            ->where('version_code', $marketAgentCode)
+            ->first();
+        $this->assertNotNull($hiredMarketAgent);
+
+        $response = $this->post(
+            self::BASE_URI . '/queries',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $codes = array_column($response['data']['list'], 'code');
+        $this->assertContains($localAgentCode, $codes);
+        $this->assertNotContains($hiredMarketAgent->code, $codes);
+        $this->assertSame(
+            ['LOCAL_CREATE'],
+            array_values(array_unique(array_column($response['data']['list'], 'source_type')))
+        );
+
+        $localItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $localAgentCode) {
+                $localItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($localItem);
+        $this->assertEquals('LOCAL_CREATE', $localItem['source_type']);
+        $this->assertEquals('1.0.0', $localItem['latest_version_code']);
+        $this->assertTrue($localItem['allow_delete']);
+        $this->assertFalse($localItem['need_upgrade']);
+    }
+
+    public function testQueryExternalAgents(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '2.5.0', $publisherHeaders, true);
+        $sharedAgentCode = $this->createTestAgent();
+
+        $publishSharedResponse = $this->post(
+            self::BASE_URI . '/' . $sharedAgentCode . '/publish',
+            [
+                'version' => '3.1.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '共享版本',
+                    'en_US' => 'Shared version',
+                ],
+                'publish_target_type' => 'PRIVATE',
+            ],
+            $publisherHeaders
+        );
+        $this->assertEquals(1000, $publishSharedResponse['code'], $publishSharedResponse['message'] ?? '');
+
+        $this->shareAgentWithUser($sharedAgentCode, $publisherHeaders['user-id'], env('TEST1_USER_ID'));
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $hiredMarketAgent = SuperMagicAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('creator', $headers['user-id'])
+            ->where('version_code', $marketAgentCode)
+            ->first();
+        $this->assertNotNull($hiredMarketAgent);
+
+        $response = $this->post(
+            self::BASE_URI . '/external/queries',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertGreaterThanOrEqual(2, $response['data']['total']);
+
+        $sharedItem = null;
+        $marketItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $sharedAgentCode) {
+                $sharedItem = $item;
+            }
+            if (($item['code'] ?? null) === $hiredMarketAgent->code) {
+                $marketItem = $item;
+            }
+        }
+
+        $this->assertNotNull($sharedItem, '应该返回别人发布给我的员工');
+        $this->assertEquals('LOCAL_CREATE', $sharedItem['source_type']);
+        $this->assertEquals('3.1.0', $sharedItem['latest_version_code']);
+        $this->assertFalse($sharedItem['allow_delete']);
+
+        $this->assertNotNull($marketItem, '应该返回从市场添加的员工');
+        $this->assertEquals('MARKET', $marketItem['source_type']);
+        $this->assertEquals('2.5.0', $marketItem['latest_version_code']);
+        $this->assertTrue($marketItem['allow_delete']);
+    }
+
+    public function testQueryAgentMarketReturnsLatestVersionAndAllowDelete(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '4.2.0', $publisherHeaders, true);
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+
+        $beforeHireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/queries',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+        $this->assertEquals(1000, $beforeHireResponse['code'], $beforeHireResponse['message'] ?? '');
+
+        $marketItem = null;
+        foreach ($beforeHireResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $marketAgentCode) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem);
+        $this->assertFalse($marketItem['is_added']);
+        $this->assertEquals('4.2.0', $marketItem['latest_version_code']);
+        $this->assertFalse($marketItem['allow_delete']);
+        $this->assertArrayNotHasKey('need_upgrade', $marketItem);
+
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $afterHireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/queries',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+        $this->assertEquals(1000, $afterHireResponse['code'], $afterHireResponse['message'] ?? '');
+
+        $marketItemAfterHire = null;
+        foreach ($afterHireResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $marketAgentCode) {
+                $marketItemAfterHire = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItemAfterHire);
+        $this->assertTrue($marketItemAfterHire['is_added']);
+        $this->assertTrue($marketItemAfterHire['allow_delete']);
+        $this->assertEquals('4.2.0', $marketItemAfterHire['latest_version_code']);
     }
 
     /**
@@ -2099,6 +2303,106 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNotNull($skillCode, 'skill_code 不应为空');
 
         return $skillCode;
+    }
+
+    private function createPublishedAgentVersionRecord(
+        string $agentCode,
+        string $version,
+        array $headers,
+        bool $withMarketRecord = false
+    ): int {
+        $organizationCode = $headers['organization-code'];
+        $userId = $headers['user-id'];
+        $versionId = IdGenerator::getSnowId();
+        $publishedAt = date('Y-m-d H:i:s');
+
+        AgentVersionModel::query()->create([
+            'id' => $versionId,
+            'code' => $agentCode,
+            'organization_code' => $organizationCode,
+            'version' => $version,
+            'name' => 'Published Agent',
+            'description' => 'Published agent for test',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '测试发布员工',
+                'en_US' => 'Published Test Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '测试发布员工描述',
+                'en_US' => 'Published test agent description',
+            ],
+            'publish_status' => PublishStatus::PUBLISHED->value,
+            'review_status' => 'APPROVED',
+            'publish_target_type' => $withMarketRecord ? 'MARKET' : 'PRIVATE',
+            'publisher_user_id' => $userId,
+            'published_at' => $publishedAt,
+            'is_current_version' => true,
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        if ($withMarketRecord) {
+            AgentMarketModel::query()->create([
+                'id' => IdGenerator::getSnowId(),
+                'agent_code' => $agentCode,
+                'agent_version_id' => $versionId,
+                'name_i18n' => [
+                    'zh_CN' => '市场员工',
+                    'en_US' => 'Market Agent',
+                ],
+                'role_i18n' => [
+                    'zh_CN' => ['测试角色'],
+                    'en_US' => ['Tester'],
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '市场员工描述',
+                    'en_US' => 'Market agent description',
+                ],
+                'icon' => [
+                    'type' => 'IconAccessibleFilled',
+                    'url' => '',
+                    'color' => '#4F46E5',
+                ],
+                'publish_status' => PublishStatus::PUBLISHED->value,
+                'publisher_id' => $userId,
+                'publisher_type' => 'USER',
+                'organization_code' => $organizationCode,
+                'created_at' => $publishedAt,
+                'updated_at' => $publishedAt,
+            ]);
+        }
+
+        return $versionId;
+    }
+
+    private function shareAgentWithUser(string $agentCode, string $ownerUserId, string $targetUserId): void
+    {
+        ResourceVisibilityModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => env('TEST_ORGANIZATION_CODE'),
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $targetUserId,
+            'resource_type' => ResourceType::SUPER_MAGIC_AGENT->value,
+            'resource_code' => $agentCode,
+            'creator' => $ownerUserId,
+            'modifier' => $ownerUserId,
+        ]);
     }
 
     /**

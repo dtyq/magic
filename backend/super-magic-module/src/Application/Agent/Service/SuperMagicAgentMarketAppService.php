@@ -9,13 +9,15 @@ namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentMarketListItemDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\CategoryListItemDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseDTO;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -30,31 +32,31 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
     #[Inject]
     protected SuperMagicAgentMarketDomainService $superMagicAgentMarketDomainService;
 
+    #[Inject]
+    protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
     /**
      * 获取分类列表（包含每个分类下的员工数量统计）.
+     */
+    /**
+     * @return array<int, array{id:int, name_i18n:array, logo:?string, sort_order:int, crew_count:int}>
      */
     public function getCategories(Authenticatable $authorization): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询分类列表（包含员工数量统计）
         $categories = $this->superMagicAgentCategoryDomainService->getCategoriesWithCrewCount($dataIsolation);
-
-        // 2. 更新 Category Logo URL（将路径转换为完整URL）
         $this->updateCategoryLogoUrls($dataIsolation, $categories);
 
-        // 3. 构建 DTO 列表
         $list = [];
         foreach ($categories as $category) {
-            $logo = $category['logo'] ?? null;
-
-            $list[] = new CategoryListItemDTO(
-                id: $category['id'],
-                nameI18n: $category['name_i18n'],
-                logo: $logo ?: null,
-                sortOrder: $category['sort_order'],
-                crewCount: $category['crew_count']
-            );
+            $list[] = [
+                'id' => $category['id'],
+                'name_i18n' => $category['name_i18n'],
+                'logo' => ($category['logo'] ?? null) ?: null,
+                'sort_order' => $category['sort_order'],
+                'crew_count' => $category['crew_count'],
+            ];
         }
 
         return $list;
@@ -62,8 +64,18 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
     /**
      * 查询员工市场列表.
+     *
+     * @return array{
+     *     agent_markets: array<int, AgentMarketEntity>,
+     *     user_agents_map: array<string, SuperMagicAgentEntity>,
+     *     latest_versions_map: array<string, AgentVersionEntity>,
+     *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
+     *     page: int,
+     *     page_size: int,
+     *     total: int
+     * }
      */
-    public function queries(Authenticatable $authorization, QueryAgentMarketsRequestDTO $requestDTO): QueryAgentMarketsResponseDTO
+    public function queries(Authenticatable $authorization, QueryAgentMarketsRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
@@ -87,84 +99,39 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         $total = $result['total'];
 
         if (empty($agentMarkets)) {
-            return new QueryAgentMarketsResponseDTO(
-                list: [],
-                page: $requestDTO->getPage(),
-                pageSize: $requestDTO->getPageSize(),
-                total: $total
-            );
+            return [
+                'agent_markets' => [],
+                'user_agents_map' => [],
+                'latest_versions_map' => [],
+                'playbooks_map' => [],
+                'page' => $requestDTO->getPage(),
+                'page_size' => $requestDTO->getPageSize(),
+                'total' => $total,
+            ];
         }
 
-        // 5. 查询当前用户已添加的员工（用于判断 is_added 和 need_upgrade）
+        // 5. 查询当前用户已添加的员工（用于判断 is_added）
         $agentCodes = array_map(fn ($agentMarket) => $agentMarket->getAgentCode(), $agentMarkets);
         $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByVersionCodes(
             $dataIsolation,
             $dataIsolation->getCurrentUserId(),
             $agentCodes
         );
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
 
         // 6. 批量查询 Playbook 列表
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
         $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
 
-        // 8. 构建员工列表项并设置 is_added 和 need_upgrade
-        $list = [];
-        foreach ($agentMarkets as $agentMarket) {
-            $agentCode = $agentMarket->getAgentCode();
-            $userAgent = $userAgentsMap[$agentCode] ?? null;
-
-            // 8.1 判断 is_added
-            $isAdded = $userAgent !== null;
-
-            // 8.2 判断 need_upgrade
-            $needUpgrade = false;
-            if ($isAdded && $userAgent !== null) {
-                $userSourceType = $userAgent->getSourceType();
-                if ($userSourceType->isMarket()) {
-                    $userVersionId = $userAgent->getVersionId();
-                    $agentMarketVersionId = $agentMarket->getAgentVersionId();
-                    $needUpgrade = ($userVersionId !== null && $userVersionId !== $agentMarketVersionId);
-                }
-            }
-
-            // 8.3 构建 Playbook 列表（features）
-            $agentVersionId = $agentMarket->getAgentVersionId();
-            $playbooks = $playbooksMap[$agentVersionId] ?? [];
-            $features = [];
-            foreach ($playbooks as $playbook) {
-                $features[] = [
-                    'name_i18n' => $playbook->getNameI18n() ?? [],
-                    'icon' => $playbook->getIcon(),
-                    'theme_color' => $playbook->getThemeColor(),
-                ];
-            }
-
-            // 8.4 构建列表项 DTO
-            $list[] = new AgentMarketListItemDTO(
-                id: $agentMarket->getId() ?? 0,
-                agentCode: $agentCode,
-                userCode: $userAgent?->getCode() ?? null,
-                nameI18n: $agentMarket->getNameI18n() ?? [],
-                roleI18n: $agentMarket->getRoleI18n(),
-                descriptionI18n: $agentMarket->getDescriptionI18n(),
-                icon: $agentMarket->getIcon(),
-                iconType: $agentMarket->getIconType()->value,
-                playbooks: $features,
-                publisherType: $agentMarket->getPublisherType()->value,
-                categoryId: $agentMarket->getCategoryId(),
-                isAdded: $isAdded,
-                needUpgrade: $needUpgrade,
-                createdAt: $agentMarket->getCreatedAt() ?? '',
-                updatedAt: $agentMarket->getUpdatedAt() ?? ''
-            );
-        }
-
-        return new QueryAgentMarketsResponseDTO(
-            list: $list,
-            page: $requestDTO->getPage(),
-            pageSize: $requestDTO->getPageSize(),
-            total: $total
-        );
+        return [
+            'agent_markets' => $agentMarkets,
+            'user_agents_map' => $userAgentsMap,
+            'latest_versions_map' => $latestVersionsMap,
+            'playbooks_map' => $playbooksMap,
+            'page' => $requestDTO->getPage(),
+            'page_size' => $requestDTO->getPageSize(),
+            'total' => $total,
+        ];
     }
 
     /**

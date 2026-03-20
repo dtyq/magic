@@ -140,9 +140,37 @@ class SuperMagicAgentApi extends AbstractApi
         $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        $responseDTO = $this->superMagicAgentAppService->queries($authorization, $requestDTO);
+        $result = $this->superMagicAgentAppService->queries($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
+            $result['agents'],
+            $result['playbooks_map'],
+            $result['store_agents_map'],
+            $result['latest_versions_map'],
+            $result['page'],
+            $result['page_size'],
+            $result['total']
+        );
 
         // 返回数组格式
+        return $responseDTO->toArray();
+    }
+
+    public function externalQueries(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
+        $result = $this->superMagicAgentAppService->externalQueries($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
+            $result['agents'],
+            $result['playbooks_map'],
+            $result['store_agents_map'],
+            $result['latest_versions_map'],
+            $authorization->getId(),
+            $result['page'],
+            $result['page_size'],
+            $result['total']
+        );
+
         return $responseDTO->toArray();
     }
 

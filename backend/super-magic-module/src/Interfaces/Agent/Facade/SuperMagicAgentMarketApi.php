@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Facade;
 
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentMarketAppService;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
@@ -34,7 +35,8 @@ class SuperMagicAgentMarketApi extends AbstractApi
         $authorization = $this->getAuthorization();
 
         // 调用应用服务层处理业务逻辑
-        $responseDTO = $this->superMagicAgentMarketAppService->getCategories($authorization);
+        $result = $this->superMagicAgentMarketAppService->getCategories($authorization);
+        $responseDTO = SuperMagicAgentAssembler::createCategoryListItemDTOs($result);
 
         // 返回响应
         return ['list' => $responseDTO];
@@ -51,7 +53,16 @@ class SuperMagicAgentMarketApi extends AbstractApi
         $requestDTO = QueryAgentMarketsRequestDTO::fromRequest($this->request);
 
         // 调用应用服务层处理业务逻辑
-        $responseDTO = $this->superMagicAgentMarketAppService->queries($authorization, $requestDTO);
+        $result = $this->superMagicAgentMarketAppService->queries($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createQueryAgentMarketsResponseDTO(
+            $result['agent_markets'],
+            $result['user_agents_map'],
+            $result['latest_versions_map'],
+            $result['playbooks_map'],
+            $result['page'],
+            $result['page_size'],
+            $result['total']
+        );
 
         // 返回数组格式
         return $responseDTO->toArray();

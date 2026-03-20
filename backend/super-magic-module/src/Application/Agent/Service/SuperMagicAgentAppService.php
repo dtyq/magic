@@ -19,6 +19,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentSkillEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
@@ -43,8 +45,6 @@ use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -258,107 +258,88 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * 查询员工列表.
      */
-    public function queries(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): QueryAgentsResponseDTO
+    /**
+     * @return array{
+     *     agents: array<int, SuperMagicAgentEntity>,
+     *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
+     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     latest_versions_map: array<string, AgentVersionEntity>,
+     *     page: int,
+     *     page_size: int,
+     *     total: int
+     * }
+     */
+    public function queries(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-
-        // 1. 获取用户语言偏好，默认 en_US
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
-
-        // 2. 创建查询对象
         $query = new SuperMagicAgentQuery();
         $query->setKeyword(trim($requestDTO->getKeyword()));
         $query->setLanguageCode($languageCode);
         $query->setCreatorId($dataIsolation->getCurrentUserId());
-
-        // 3. 创建分页对象
+        $query->setSourceTypes([AgentSourceType::LOCAL_CREATE->value]);
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
-
-        // 4. 查询员工列表
         $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
-        $agents = $result['list'];
-        $total = $result['total'];
+        return $this->buildAgentListResult(
+            dataIsolation: $dataIsolation,
+            requestDTO: $requestDTO,
+            agents: $result['list'],
+            total: $result['total']
+        );
+    }
 
-        $this->updateAgentEntitiesIcon($agents);
-        if (empty($agents)) {
-            return new QueryAgentsResponseDTO(
-                list: [],
-                page: $requestDTO->getPage(),
-                pageSize: $requestDTO->getPageSize(),
-                total: $total
-            );
+    /**
+     * @return array{
+     *     agents: array<int, SuperMagicAgentEntity>,
+     *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
+     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     latest_versions_map: array<string, AgentVersionEntity>,
+     *     page: int,
+     *     page_size: int,
+     *     total: int
+     * }
+     */
+    public function externalQueries(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $currentUserId = $dataIsolation->getCurrentUserId();
+        $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
+
+        $marketQuery = new SuperMagicAgentQuery();
+        $marketQuery->setCreatorId($currentUserId);
+        $marketQuery->setSourceTypes([AgentSourceType::MARKET->value]);
+        $marketAgents = $this->superMagicAgentDomainService->queries($dataIsolation, $marketQuery, Page::createNoPage());
+        $marketCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $marketAgents['list']);
+
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $currentUserId);
+        $queryCodes = array_values(array_unique(array_merge($marketCodes, $accessibleAgentResult['accessible'])));
+
+        if ($queryCodes === []) {
+            return [
+                'agents' => [],
+                'playbooks_map' => [],
+                'store_agents_map' => [],
+                'latest_versions_map' => [],
+                'page' => $requestDTO->getPage(),
+                'page_size' => $requestDTO->getPageSize(),
+                'total' => 0,
+            ];
         }
 
-        // 5. 批量查询 Playbook 列表
-        $agentCodes = array_map(fn ($agent) => $agent->getCode(), $agents);
-        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+        $query = new SuperMagicAgentQuery();
+        $query->setKeyword(trim($requestDTO->getKeyword()));
+        $query->setLanguageCode($languageCode);
+        $query->setCodes($queryCodes);
+        $query->setSourceTypes([AgentSourceType::LOCAL_CREATE->value, AgentSourceType::MARKET->value]);
 
-        // 6. 批量查询商店状态（仅查询 STORE 类型的员工）
-        $storeAgentCodes = [];
-        foreach ($agents as $agent) {
-            if ($agent->getSourceType()->isMarket()) {
-                $storeAgentCodes[] = $agent->getCode();
-            }
-        }
-        $storeAgentsMap = ! empty($storeAgentCodes) ? $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes($storeAgentCodes) : [];
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
 
-        // 8. 构建员工列表项
-        $list = [];
-        foreach ($agents as $agent) {
-            // 8.1 构建 Playbook 列表（features）
-            $playbooks = $playbooksMap[$agent->getCode()] ?? [];
-            $features = [];
-            foreach ($playbooks as $playbook) {
-                $features[] = [
-                    'name_i18n' => $playbook->getNameI18n(),
-                    'icon' => $playbook->getIcon(),
-                    'theme_color' => $playbook->getThemeColor(),
-                ];
-            }
-
-            // 8.2 处理商店状态和升级判断
-            $isStoreOffline = null;
-            $needUpgrade = false;
-            if ($agent->getSourceType()->isMarket()) {
-                $storeAgent = $storeAgentsMap[$agent->getCode()] ?? null;
-                if ($storeAgent === null) {
-                    // 商店记录不存在，已下架
-                    $isStoreOffline = true;
-                } else {
-                    // 判断是否需要升级：比较用户的 version_id 和商店的 agent_version_id
-                    $userVersionId = $agent->getVersionId();
-                    $storeVersionId = $storeAgent->getAgentVersionId();
-                    $needUpgrade = ($userVersionId !== null && $userVersionId !== $storeVersionId);
-                    $isStoreOffline = false;
-                }
-            }
-
-            // 8.3 构建列表项 DTO
-            $list[] = new AgentListItemDTO(
-                id: $agent->getId(),
-                code: $agent->getCode(),
-                nameI18n: $agent->getNameI18n(),
-                roleI18n: $agent->getRoleI18n(),
-                descriptionI18n: $agent->getDescriptionI18n(),
-                icon: $agent->getIcon(),
-                iconType: $agent->getIconType(),
-                playbooks: $features,
-                sourceType: $agent->getSourceType()->value,
-                enabled: $agent->getEnabled() ?? false,
-                isStoreOffline: $isStoreOffline,
-                needUpgrade: $needUpgrade,
-                pinnedAt: $agent->getPinnedAt(),
-                latestPublishedAt: $agent->getLatestPublishedAt(),
-                updatedAt: $agent->getUpdatedAt(),
-                createdAt: $agent->getCreatedAt()
-            );
-        }
-
-        return new QueryAgentsResponseDTO(
-            list: $list,
-            page: $requestDTO->getPage(),
-            pageSize: $requestDTO->getPageSize(),
-            total: $total
+        return $this->buildAgentListResult(
+            dataIsolation: $dataIsolation,
+            requestDTO: $requestDTO,
+            agents: $result['list'],
+            total: $result['total']
         );
     }
 
@@ -790,6 +771,70 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $projectId,
             $fullWorkdir
         );
+    }
+
+    /**
+     * @param array<SuperMagicAgentEntity> $agents
+     * @return array{
+     *     agents: array<int, SuperMagicAgentEntity>,
+     *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
+     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     latest_versions_map: array<string, AgentVersionEntity>,
+     *     page: int,
+     *     page_size: int,
+     *     total: int
+     * }
+     */
+    private function buildAgentListResult(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        QueryAgentsRequestDTO $requestDTO,
+        array $agents,
+        int $total
+    ): array {
+        $this->updateAgentEntitiesIcon($agents);
+        if ($agents === []) {
+            return [
+                'agents' => [],
+                'playbooks_map' => [],
+                'store_agents_map' => [],
+                'latest_versions_map' => [],
+                'page' => $requestDTO->getPage(),
+                'page_size' => $requestDTO->getPageSize(),
+                'total' => $total,
+            ];
+        }
+
+        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+
+        $storeSourceCodesByAgentCode = [];
+        $latestVersionLookupCodes = [];
+        foreach ($agents as $agent) {
+            $versionLookupCode = $agent->getCode();
+            if ($agent->getSourceType()->isMarket()) {
+                $versionLookupCode = $agent->getVersionCode() ?: $agent->getCode();
+                $storeSourceCodesByAgentCode[$agent->getCode()] = $versionLookupCode;
+            }
+            $latestVersionLookupCodes[] = $versionLookupCode;
+        }
+
+        $storeAgentsMap = $storeSourceCodesByAgentCode === []
+            ? []
+            : $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes(array_values(array_unique($storeSourceCodesByAgentCode)));
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes(
+            $dataIsolation,
+            array_values(array_unique($latestVersionLookupCodes))
+        );
+
+        return [
+            'agents' => $agents,
+            'playbooks_map' => $playbooksMap,
+            'store_agents_map' => $storeAgentsMap,
+            'latest_versions_map' => $latestVersionsMap,
+            'page' => $requestDTO->getPage(),
+            'page_size' => $requestDTO->getPageSize(),
+            'total' => $total,
+        ];
     }
 
     /**
