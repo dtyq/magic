@@ -1,5 +1,5 @@
 
-ARG BASE_IMAGE=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.22-swow-1.6.1-jsonpath-parle-xlswriter
+ARG BASE_IMAGE=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.23-swow-ci-jsonpath-parle-xlswriter
 FROM ${BASE_IMAGE}
 
 ARG TARGETARCH
@@ -18,6 +18,19 @@ ENV TZ=${TZ} \
 RUN mkdir -p /etc/php/conf.d && \
     echo "memory_limit = -1" > /etc/php/conf.d/memory-limit.ini && \
     echo "max_execution_time = 0" > /etc/php/conf.d/max-execution-time.ini
+
+# install dependencies
+RUN --mount=type=cache,id=alpine-apk-3.23-${TARGETARCH},target=/var/cache/apk \
+    # setup apk mirror
+    sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
+    apk update && \
+    apk add \
+        icu-data-full \
+        tzdata \
+        tini \
+    && \
+    # restore apk repositories
+    mv /etc/apk/repositories.bak /etc/apk/repositories
 
 COPY . /opt/www
 
