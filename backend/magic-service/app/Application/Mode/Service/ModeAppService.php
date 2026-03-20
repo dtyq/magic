@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
+use App\Application\Mode\DTO\ModeAggregateDTO;
 use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
@@ -15,6 +16,8 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\ErrorCode\ModeErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -226,65 +229,8 @@ class ModeAppService extends AbstractModeAppService
 
         // 批量构建模式聚合根
         $modeAggregates = $this->modeDomainService->batchBuildModeAggregates($modeDataIsolation, $modeEnabledList);
-
-        // 批量查询所有模型和服务商状态
-        $allProviderModelsWithStatus = $this->getProviderModelsByModeAggregates($modeAggregates);
-
-        // 步骤3：组织模型过滤
-
-        // 首先收集所有需要过滤的模型（LLM）
-        $allAggregateModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
-        }
-
-        // 收集所有需要过滤的图像模型（VLM）
-        $allAggregateImageModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateImageModels = $this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateImageModels = array_merge($allAggregateImageModels, $aggregateImageModels);
-        }
-
-        // 需要升级套餐
-        $upgradeRequiredModelIds = [];
-
-        // 使用组织过滤器进行过滤（LLM）
-        if ($this->organizationModelFilter) {
-            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateModels
-            );
-            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateImageModels
-            );
-            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
-        } else {
-            // 如果没有组织过滤器，返回所有模型（开源版本行为）
-            $providerModels = $allAggregateModels;
-            $providerImageModels = $allAggregateImageModels;
-        }
-
-        // 转换为DTO数组
-        $modeAggregateDTOs = [];
-        foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds, $providerImageModels);
-        }
-
-        // 处理图标URL转换
-        $allModels = [];
-        foreach ($modeAggregateDTOs as $aggregateDTO) {
-            $this->processModeAggregateIcons($aggregateDTO);
-            foreach ($aggregateDTO->getGroups() as $modeAggregateDTO) {
-                foreach ($modeAggregateDTO->getModels() as $model) {
-                    $allModels[$model->getId()] = $model;
-                }
-                foreach ($modeAggregateDTO->getImageModels() as $imageModel) {
-                    $allModels[$imageModel->getId()] = $imageModel;
-                }
-            }
-        }
+        $modeRuntimeData = $this->buildModeRuntimeData($authorization, $modeAggregates);
+        $modeAggregateDTOs = $modeRuntimeData['mode_aggregates'];
 
         $list = [];
         foreach ($allAgents as $agent) {
@@ -300,18 +246,6 @@ class ModeAppService extends AbstractModeAppService
             // 如果没有配置任何模型，要被过滤
             if (empty($modeAggregateDTO->getAllModelIds())) {
                 continue;
-            }
-
-            $modeGroups = [];
-            foreach ($modeAggregateDTO->getGroups() as $group) {
-                $modelGroup = $group->getGroup()->toArray();
-                $modeGroups[] = [
-                    'group' => $modelGroup,
-                    //                    'models' => $group->getModels(),
-                    //                    'image_models' => $group->getImageModels(),
-                    'model_ids' => array_map(fn ($model) => $model->getId(), $group->getModels()),
-                    'image_model_ids' => array_map(fn ($model) => $model->getId(), $group->getImageModels()),
-                ];
             }
 
             $playbookArray = [];
@@ -345,15 +279,151 @@ class ModeAppService extends AbstractModeAppService
                     'type' => $agent->getType()->value,
                     'category' => $agent->getCategory(),
                 ],
-                'groups' => $modeGroups,
+                'groups' => $this->buildModeGroups($modeAggregateDTO),
             ];
         }
 
         return [
             'total' => count($list),
             'list' => $list,
+            'models' => $modeRuntimeData['models'],
+        ];
+    }
+
+    public function show(MagicUserAuthorization $authorization, string $identifier): array
+    {
+        $modeDataIsolation = $this->getModeDataIsolation($authorization);
+        $modeDataIsolation->disabled();
+
+        $modeAggregate = $this->modeDomainService->getModeDetailByIdentifier($modeDataIsolation, $identifier);
+        if (! $modeAggregate) {
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+
+        $modeRuntimeData = $this->buildModeRuntimeData($authorization, [$modeAggregate]);
+        $modeAggregateDTO = $modeRuntimeData['mode_aggregates'][$identifier] ?? null;
+        if (! $modeAggregateDTO) {
+            ExceptionBuilder::throw(ModeErrorCode::MODE_NOT_FOUND);
+        }
+
+        return [
+            'mode' => [
+                'id' => (string) $modeAggregate->getMode()->getId(),
+                'name' => $modeAggregate->getMode()->getName(),
+                'description' => $modeAggregate->getMode()->getDescription(),
+                'placeholder' => $modeAggregate->getMode()->getPlaceholder(),
+                'identifier' => $modeAggregate->getMode()->getIdentifier(),
+                'icon_type' => $modeAggregate->getMode()->getIconType(),
+                'icon_url' => $this->resolveModeIconUrl($modeAggregate),
+                'icon' => $modeAggregate->getMode()->getIcon(),
+                'color' => $modeAggregate->getMode()->getColor(),
+                'playbooks' => [],
+                'sort' => $modeAggregate->getMode()->getSort(),
+            ],
+            'agent' => [
+                'type' => 1,
+                'category' => 'all',
+            ],
+            'models' => $modeRuntimeData['models'],
+            'groups' => $this->buildModeGroups($modeAggregateDTO),
+        ];
+    }
+
+    /**
+     * @param ModeAggregate[] $modeAggregates
+     * @return array{mode_aggregates: array<string, ModeAggregateDTO>, models: array<string, mixed>}
+     */
+    private function buildModeRuntimeData(MagicUserAuthorization $authorization, array $modeAggregates): array
+    {
+        if (empty($modeAggregates)) {
+            return [
+                'mode_aggregates' => [],
+                'models' => [],
+            ];
+        }
+
+        $allProviderModelsWithStatus = $this->getProviderModelsByModeAggregates($modeAggregates);
+
+        $allAggregateModels = [];
+        foreach ($modeAggregates as $aggregate) {
+            $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
+            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
+        }
+
+        $allAggregateImageModels = [];
+        foreach ($modeAggregates as $aggregate) {
+            $aggregateImageModels = $this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus);
+            $allAggregateImageModels = array_merge($allAggregateImageModels, $aggregateImageModels);
+        }
+
+        $upgradeRequiredModelIds = [];
+        if ($this->organizationModelFilter) {
+            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateModels
+            );
+            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateImageModels
+            );
+            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
+        } else {
+            $providerModels = $allAggregateModels;
+            $providerImageModels = $allAggregateImageModels;
+        }
+
+        $modeAggregateDTOs = [];
+        foreach ($modeAggregates as $aggregate) {
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO(
+                $aggregate,
+                $providerModels,
+                $upgradeRequiredModelIds,
+                $providerImageModels
+            );
+        }
+
+        $allModels = [];
+        foreach ($modeAggregateDTOs as $aggregateDTO) {
+            $this->processModeAggregateIcons($aggregateDTO);
+            foreach ($aggregateDTO->getGroups() as $groupAggregateDTO) {
+                foreach ($groupAggregateDTO->getModels() as $model) {
+                    $allModels[$model->getId()] = $model;
+                }
+                foreach ($groupAggregateDTO->getImageModels() as $imageModel) {
+                    $allModels[$imageModel->getId()] = $imageModel;
+                }
+            }
+        }
+
+        return [
+            'mode_aggregates' => $modeAggregateDTOs,
             'models' => $allModels,
         ];
+    }
+
+    private function buildModeGroups(ModeAggregateDTO $modeAggregateDTO): array
+    {
+        $modeGroups = [];
+        foreach ($modeAggregateDTO->getGroups() as $group) {
+            $modeGroups[] = [
+                'group' => $group->getGroup()->toArray(),
+                'model_ids' => array_map(fn ($model) => $model->getId(), $group->getModels()),
+                'image_model_ids' => array_map(fn ($model) => $model->getId(), $group->getImageModels()),
+            ];
+        }
+
+        return $modeGroups;
+    }
+
+    private function resolveModeIconUrl(ModeAggregate $modeAggregate): string
+    {
+        $iconPath = EasyFileTools::formatPath($modeAggregate->getMode()->getIconUrl());
+        if ($iconPath === '') {
+            return '';
+        }
+
+        $iconUrls = $this->getIconsWithSmartOrganization([$iconPath]);
+        return $iconUrls[$iconPath]?->getUrl() ?? $iconPath;
     }
 
     /**

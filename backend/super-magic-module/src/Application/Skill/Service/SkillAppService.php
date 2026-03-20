@@ -25,6 +25,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\ZipUtil;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
@@ -36,8 +37,11 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
@@ -110,6 +114,8 @@ class SkillAppService extends AbstractSkillAppService
         protected ProjectAppService $projectAppService,
         protected ResourceVisibilityDomainService $resourceVisibilityDomainService,
         protected OperationPermissionDomainService $operationPermissionDomainService,
+        protected ProjectDomainService $projectDomainService,
+        protected TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         parent::__construct($fileDomainService);
@@ -289,6 +295,44 @@ class SkillAppService extends AbstractSkillAppService
             $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
             Db::commit();
 
+            return $skillEntity;
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
+    }
+
+    /**
+     * 从 Agent 创建空技能.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     */
+    public function create(RequestContext $requestContext): SkillEntity
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
+        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
+
+        $skillCode = IdGenerator::getUniqueId32();
+
+        Db::beginTransaction();
+        try {
+            $skillEntity = $this->createSkillInternal(
+                $dataIsolation,
+                $userId,
+                $organizationCode,
+                '',
+                '',
+                '',
+                $skillCode,
+                SkillSourceType::AGENT_CREATED,
+                [],
+                [],
+                null
+            );
+
+            Db::commit();
             return $skillEntity;
         } catch (Throwable $throwable) {
             Db::rollBack();
@@ -509,6 +553,9 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
         $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
         $versionEntity->setPublishTargetValue($requestDTO->getPublishTargetValue());
+
+        $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+        $skillEntity->setFileKey($fileMetadata['file_key']);
 
         Db::beginTransaction();
         try {
@@ -980,6 +1027,33 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         return [$nameI18n, $descriptionI18n];
+    }
+
+    /**
+     * Export agent workspace to object storage via sandbox.
+     *
+     * @param MagicUserAuthorization $authorization User authorization
+     * @return array{file_key: string, metadata: array} Export result
+     */
+    private function exportFileFromProject(MagicUserAuthorization $authorization, string $code, int $projectId): array
+    {
+        $dataIsolation = $this->createSkillDataIsolation($authorization);
+
+        // Get project entity to build the full working directory
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        if (! $project) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
+
+        return $this->skillDomainService->exportAgentFromSandbox(
+            $dataIsolation,
+            $code,
+            $projectId,
+            $fullWorkdir
+        );
     }
 
     /**

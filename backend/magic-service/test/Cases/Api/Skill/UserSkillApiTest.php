@@ -168,6 +168,56 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertNotEquals(1000, $duplicateResponse['code'], 'token 应该在第一次导入后被删除');
     }
 
+    public function testAddSkillFromAgent(): void
+    {
+        $this->switchUserTest1();
+
+        $response = $this->post(
+            self::BASE_URI . '/from-agent',
+            [],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertArrayHasKey('data', $response);
+        $this->assertArrayHasKey('id', $response['data']);
+        $this->assertArrayHasKey('skill_code', $response['data']);
+        $this->assertIsString($response['data']['id']);
+        $this->assertIsString($response['data']['skill_code']);
+
+        $skillCode = $response['data']['skill_code'];
+
+        $queryResponse = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $queryResponse['code'], $queryResponse['message'] ?? '');
+
+        $found = false;
+        foreach ($queryResponse['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $skillCode) {
+                $found = true;
+                $this->assertEquals('AGENT_CREATED', $item['source_type']);
+                break;
+            }
+        }
+
+        $this->assertTrue($found, '通过 Agent 创建的技能应该出现在列表中');
+
+        $detailResponse = $this->get(
+            self::BASE_URI . '/' . $skillCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $detailResponse['code'], $detailResponse['message'] ?? '');
+        $this->assertSame('', $detailResponse['data']['file_key']);
+    }
+
     /**
      * 测试查询技能列表.
      */

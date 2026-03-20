@@ -38,7 +38,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::get('/{code}', [SuperMagicAgentApi::class, 'show']);
         Router::delete('/{code}', [SuperMagicAgentOldApi::class, 'destroy']);
         Router::post('/{code}/publish', [SuperMagicAgentApi::class, 'publishAgent']);
-        Router::post('/{code}/export', [SuperMagicAgentApi::class, 'export']);
+        //        Router::post('/{code}/export', [SuperMagicAgentApi::class, 'export']);
         //        Router::put('/{code}/project', [SuperMagicAgentApi::class, 'bindProject']);
 
         // playbooks
