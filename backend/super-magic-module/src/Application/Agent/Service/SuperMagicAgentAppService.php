@@ -117,7 +117,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * @return array{
      *     agent: SuperMagicAgentEntity,
-     *     skills: array<int, SkillEntity>,
+     *     skills: array<int, SkillEntity|SkillVersionEntity>,
      *     is_store_offline: null|bool
      * }
      */
@@ -191,7 +191,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * @return array{
      *     agent: SuperMagicAgentEntity,
-     *     skills: array<int, SkillEntity>,
+     *     skills: array<int, SkillEntity|SkillVersionEntity>,
      *     is_store_offline: null|bool
      * }
      */
