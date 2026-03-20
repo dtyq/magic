@@ -4,6 +4,7 @@ name: {{ .Name }}
 networking:
   disableDefaultCNI: false
   podSubnet: "{{ .PodSubnet }}"
+  serviceSubnet: "{{ .ServiceSubnet }}"
 nodes:
   - role: control-plane
     image: {{ .NodeImage }}

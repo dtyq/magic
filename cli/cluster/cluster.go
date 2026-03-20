@@ -21,6 +21,7 @@ const (
 	defaultKindClusterName = "magic"
 
 	defaultKindPodSubnet     = "10.244.0.0/16"
+	defaultKindServiceSubnet = "172.22.224.0/24"
 	defaultKindNodeImage     = "kindest/node:v1.32.8"
 	defaultKindMinIOHostPort = 39000
 	defaultKindWebHTTPPort   = 38080
@@ -32,7 +33,9 @@ type KindClusterConfig struct {
 	Name string `yaml:"name"`
 	// PodSubnet is the Kubernetes pod CIDR (e.g. 10.244.0.0/16).
 	PodSubnet string `yaml:"podSubnet"`
-	NodeImage string `yaml:"nodeImage"`
+	// ServiceSubnet is the Kubernetes service CIDR (e.g. 172.22.224.0/24).
+	ServiceSubnet string `yaml:"serviceSubnet"`
+	NodeImage     string `yaml:"nodeImage"`
 	// LocalPathProvisionerHostDir is the host path bind-mounted into the kind node at /var/local-path-provisioner. Empty uses ~/.magic/docker/local-path-provisioner at runtime.
 	LocalPathProvisionerHostDir string `yaml:"localPathProvisionerHostDir"`
 	// ClusterNodeDataHostDir is the host path bind-mounted into the kind node at /data/<Name>. Empty uses ~/.magic/docker/data at runtime.
@@ -52,6 +55,9 @@ func NormalizeKindCluster(k KindClusterConfig) KindClusterConfig {
 	}
 	if k.PodSubnet == "" {
 		k.PodSubnet = defaultKindPodSubnet
+	}
+	if k.ServiceSubnet == "" {
+		k.ServiceSubnet = defaultKindServiceSubnet
 	}
 	if k.NodeImage == "" {
 		k.NodeImage = defaultKindNodeImage

@@ -28,8 +28,9 @@ func TestKindConfig_Render_LocalKindWithPrivateRegistry(t *testing.T) {
 	)
 
 	path, cleanup, err := RenderConfig(KindClusterConfig{
-		Name: clusterName,
+		Name:                        clusterName,
 		PodSubnet:                   "10.244.0.0/16",
+		ServiceSubnet:               "172.22.224.0/24",
 		NodeImage:                   "kindest/node:v1.32.8",
 		LocalPathProvisionerHostDir: localPathDir,
 		ClusterNodeDataHostDir:      dataDir,
@@ -51,6 +52,7 @@ func TestKindConfig_Render_LocalKindWithPrivateRegistry(t *testing.T) {
 	net, ok := doc["networking"].(map[string]interface{})
 	require.True(t, ok, "networking should be a map")
 	assert.Equal(t, "10.244.0.0/16", net["podSubnet"])
+	assert.Equal(t, "172.22.224.0/24", net["serviceSubnet"])
 
 	nodes, ok := doc["nodes"].([]interface{})
 	require.True(t, ok, "nodes should be a list")
@@ -113,6 +115,7 @@ func TestKindConfig_Render_IPPortRegistryMirror(t *testing.T) {
 	path, cleanup, err := RenderConfig(KindClusterConfig{
 		Name:                        "magic",
 		PodSubnet:                   "10.244.0.0/16",
+		ServiceSubnet:               "172.22.224.0/24",
 		NodeImage:                   "kindest/node:v1.32.8",
 		LocalPathProvisionerHostDir: filepath.Join(tmp, "lp"),
 		ClusterNodeDataHostDir:      filepath.Join(tmp, "data"),
@@ -144,6 +147,7 @@ func TestKindConfig_Render_CleanupRemovesTempFile(t *testing.T) {
 	path, cleanup, err := RenderConfig(KindClusterConfig{
 		Name:                        "magic",
 		PodSubnet:                   "10.244.0.0/16",
+		ServiceSubnet:               "172.22.224.0/24",
 		NodeImage:                   "kindest/node:v1.32.8",
 		LocalPathProvisionerHostDir: filepath.Join(tmp, "lp"),
 		ClusterNodeDataHostDir:      filepath.Join(tmp, "data"),

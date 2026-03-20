@@ -107,3 +107,50 @@ func TestInjectWebBaseURL_empty_noop(t *testing.T) {
 	)
 	assert.Equal(t, "http://localhost:38080", got)
 }
+
+func TestInjectMagicGatewayAllowedTargetIP(t *testing.T) {
+	t.Run("user value wins", func(t *testing.T) {
+		merged := map[string]interface{}{
+			releaseNameMagicSandbox: map[string]interface{}{
+				"magic-gateway": map[string]interface{}{
+					"gateway": map[string]interface{}{
+						"allowedTargetIp": "10.0.0.0/24",
+					},
+				},
+			},
+		}
+
+		injectMagicGatewayAllowedTargetIP(merged, "172.22.224.0/24")
+		got := stringAtPath(
+			mapValue(merged[releaseNameMagicSandbox]),
+			"magic-gateway", "gateway", "allowedTargetIp",
+		)
+		assert.Equal(t, "10.0.0.0/24", got)
+	})
+
+	t.Run("config wins over default", func(t *testing.T) {
+		merged := map[string]interface{}{
+			releaseNameMagicSandbox: map[string]interface{}{},
+		}
+
+		injectMagicGatewayAllowedTargetIP(merged, "172.22.224.0/24")
+		got := stringAtPath(
+			mapValue(merged[releaseNameMagicSandbox]),
+			"magic-gateway", "gateway", "allowedTargetIp",
+		)
+		assert.Equal(t, "172.22.224.0/24", got)
+	})
+
+	t.Run("fallback to default", func(t *testing.T) {
+		merged := map[string]interface{}{
+			releaseNameMagicSandbox: map[string]interface{}{},
+		}
+
+		injectMagicGatewayAllowedTargetIP(merged, "")
+		got := stringAtPath(
+			mapValue(merged[releaseNameMagicSandbox]),
+			"magic-gateway", "gateway", "allowedTargetIp",
+		)
+		assert.Equal(t, "172.22.224.0/24", got)
+	})
+}

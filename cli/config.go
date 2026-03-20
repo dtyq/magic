@@ -72,6 +72,9 @@ imageBuilder:
 deploy:
   chartRepo:
     url: ""
+    username: ""
+    password: ""
+    passCredentialsAll: false
   values: ""
   registry:
     name: magic-kind-registry

@@ -9,6 +9,8 @@ import (
 	"github.com/dtyq/magicrew-cli/chart"
 )
 
+const defaultMagicGatewayAllowedTargetIP = "172.22.224.0/24"
+
 // PrepareValuesStage loads chart defaults and merges them with the user values file.
 type PrepareValuesStage struct {
 	BaseStage
@@ -37,6 +39,7 @@ func (s *PrepareValuesStage) Exec(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("merge values: %w", err)
 	}
+	injectMagicGatewayAllowedTargetIP(merged, s.d.opts.Kind.ServiceSubnet)
 	injectWebBaseURL(merged, s.d.opts.WebBaseURL)
 	s.d.merged = merged
 	return nil
@@ -54,6 +57,25 @@ func injectWebBaseURL(merged map[string]interface{}, url string) {
 	mw["proxy"] = proxy
 	magicV["magic-web"] = mw
 	merged[releaseNameMagic] = magicV
+}
+
+// injectMagicGatewayAllowedTargetIP sets magic-sandbox.magic-gateway.gateway.allowedTargetIp.
+// Priority is user values > config > default.
+func injectMagicGatewayAllowedTargetIP(merged map[string]interface{}, serviceSubnet string) {
+	sandboxV := mapValue(merged[releaseNameMagicSandbox])
+	magicGatewayV := mapValue(sandboxV["magic-gateway"])
+	gatewayV := mapValue(magicGatewayV["gateway"])
+	if strings.TrimSpace(stringValue(gatewayV["allowedTargetIp"])) != "" {
+		return
+	}
+	ip := strings.TrimSpace(serviceSubnet)
+	if ip == "" {
+		ip = defaultMagicGatewayAllowedTargetIP
+	}
+	gatewayV["allowedTargetIp"] = ip
+	magicGatewayV["gateway"] = gatewayV
+	sandboxV["magic-gateway"] = magicGatewayV
+	merged[releaseNameMagicSandbox] = sandboxV
 }
 
 // buildDeployValues merges chart default values with a single values file.
