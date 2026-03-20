@@ -25,6 +25,11 @@ class ShareTitleResponseDTO extends AbstractDTO
     public int $resourceType = 0;
 
     /**
+     * Resource name.
+     */
+    public string $resourceName = '';
+
+    /**
      * Topic name (empty if not a topic share).
      */
     public string $topicName = '';
@@ -44,6 +49,7 @@ class ShareTitleResponseDTO extends AbstractDTO
         return [
             'project_name' => $this->projectName,
             'resource_type' => $this->resourceType,
+            'resource_name' => $this->resourceName,
             'topic_name' => $this->topicName,
             'file_names' => $this->fileNames,
         ];
