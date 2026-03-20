@@ -37,7 +37,11 @@ readonly class ModelFallbackChainManager
             return [$modelId];
         }
 
-        // 如果不在，则获取第一个模型
+        // 如果不在，则获取第一个可用模型；若当前组织无任何可用模型则无法回退，返回空数组表示该能力当前不可用
+        if ($modelIds === []) {
+            return [];
+        }
+
         return [$modelIds[0]];
     }
 }

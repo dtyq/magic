@@ -15,6 +15,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Message\SystemMessage;
 use Hyperf\Odin\Message\UserMessage;
+use Nyholm\Psr7\Response;
 
 class MicroAgent
 {
@@ -51,6 +52,10 @@ class MicroAgent
 
         // Get model ID with fallback chain if enabled
         $modelId = $this->getResolvedModelId($dataIsolation);
+        if ($modelId === '') {
+            // 回退链返回空：当前组织无可用模型，视为本能力不可用，返回空补全而非继续请求网关
+            return $this->createUnavailableModelChatCompletionResponse();
+        }
 
         $messages = [
             $systemPrompt,
@@ -233,5 +238,23 @@ class MicroAgent
         }
 
         return $this->modelId;
+    }
+
+    /**
+     * 模型不可用（如无可用 chat 模型）时返回与 Odin 兼容的响应：choices 为空数组，表示无补全结果。
+     */
+    private function createUnavailableModelChatCompletionResponse(): ChatCompletionResponse
+    {
+        $payload = [
+            'id' => 'model-fallback-unavailable',
+            'object' => 'chat.completion',
+            'created' => time(),
+            'model' => '',
+            'choices' => [],
+        ];
+        $json = json_encode($payload) ?: '{"id":"model-fallback-unavailable","object":"chat.completion","choices":[]}';
+        $psrResponse = new Response(200, ['Content-Type' => 'application/json'], $json);
+
+        return new ChatCompletionResponse($psrResponse);
     }
 }
