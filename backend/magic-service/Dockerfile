@@ -34,7 +34,11 @@ RUN --mount=type=cache,id=composer-cache-v1-${TARGETARCH},target=/root/.composer
     } && \
     composer update && \
     # restore composer mirror
-    rm /root/.config/composer/config.json
+    { \
+        [ -f /root/.config/composer/config.json ] && \
+        rm /root/.config/composer/config.json || \
+        true ; \
+    }
 
 # 可选的：标记expose端口
 EXPOSE 9501
