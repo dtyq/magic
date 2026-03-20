@@ -74,6 +74,7 @@ enum ProviderCode: string
                     default => [
                         'api_key' => $config->getApiKey(),
                         'base_url' => $config->getUrl(),
+                        'auto_cache' => config('llm.openai_auto_cache', true),
                         'auto_cache_config' => [
                             'auto_enabled' => config('llm.openai_auto_cache', true),
                         ],
@@ -92,6 +93,7 @@ enum ProviderCode: string
                 return [
                     'api_key' => $config->getApiKey(),
                     'base_url' => $config->getUrl(),
+                    'auto_cache' => config('llm.openai_auto_cache', true),
                     'auto_cache_config' => [
                         'auto_enabled' => config('llm.openai_auto_cache', true),
                     ],
