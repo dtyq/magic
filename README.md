@@ -32,11 +32,11 @@
 
 ![MagiCrew](https://public-cdn.letsmagic.ai/static/img/3.0/magicrew-publish-head.png)
 
-[🦞 OpenClaw](https://github.com/openclaw/openclaw) is your personal AI assistant — connecting all major IMs as conversation channels, supporting any LLM, running autonomously 24/7.
+[🦞 OpenClaw](https://github.com/openclaw/openclaw) is a great personal AI assistant — connecting all major IMs as conversation channels, supporting any LLM, running autonomously 24/7.
 
-But the moment it enters an enterprise, real problems surface: data trapped in individual accounts, budgets with no guardrails, output that never goes beyond plain text, and no gating mechanism for high-risk actions.
+But when we bring it into an enterprise context, new challenges naturally emerge: data scattered across individual accounts, no budget guardrails, output that stops at plain text, high-risk actions without an approval gate.
 
-Magic is built to solve exactly these problems: a **secure, controllable, business-result-oriented AI Agent platform that runs autonomously around the clock**.
+Magic is built for exactly these challenges: an enterprise AI Agent platform built for **security, control, direct business outcomes, and autonomous 24/7 operation**.
 
 ---
 
