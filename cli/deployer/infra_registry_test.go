@@ -231,6 +231,48 @@ func TestInfraRegistry_GetMinIO_ErrorForUnknownApp(t *testing.T) {
 
 // ── Template Rendering ────────────────────────────────────────────────────────
 
+const testInfraValuesTemplate = `
+mysql:
+  auth:
+    rootPassword: {{ quote .MySQL.RootPassword }}
+  initdbScripts:
+    init.sql: |
+{{ .MySQL.InitSQL }}
+
+redis:
+  auth:
+    password: {{ quote .Redis.AdminPassword }}
+  commonConfiguration: |
+    {{- range .Redis.Users }}
+    user {{ .Username }} on >{{ .Password }} {{ .ACLRules }}
+    {{- end }}
+
+rabbitmq:
+  auth:
+    password: {{ quote .RabbitMQ.AdminPassword }}
+  extraSecrets:
+    load-definition:
+      load_definition.json: |
+        {{ .RabbitMQ.LoadDefinitionJSON }}
+
+minio:
+  auth:
+    rootPassword: {{ quote .MinIO.RootPassword }}
+  provisioning:
+    users:
+      {{- range .MinIO.Users }}
+      - username: {{ .Username }}
+        password: {{ .Password }}
+      {{- end }}
+    buckets:
+      {{- range .MinIO.Buckets }}
+      - name: {{ .Name }}
+        region: {{ .Region }}
+      {{- end }}
+    extraCommands:
+      - mc anonymous set download provisioning/magic-public
+`
+
 func TestInfraRegistry_RenderOverlay_ProducesValidYAML(t *testing.T) {
 	reg := newTestRegistry(t)
 	reg.Register(
@@ -274,9 +316,7 @@ func TestInfraRegistry_RenderOverlay_ProducesValidYAML(t *testing.T) {
 	)
 	require.NoError(t, reg.ResolveCredentials())
 
-	// Use the real charts/infra/values.tmpl resolved relative to the repo root.
-	tmplPath := "../../charts/infra/values.tmpl"
-	overlay, err := reg.RenderOverlay(tmplPath)
+	overlay, err := reg.RenderOverlayFromBytes([]byte(testInfraValuesTemplate))
 	require.NoError(t, err, "RenderOverlay should succeed")
 
 	// Top-level keys present.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,10 @@ import (
 )
 
 func TestDockerBuildKitBuilderBuild(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("skip docker buildkit integration test on non-linux systems")
+	}
+
 	var err error
 	tempdir := t.TempDir()
 	defer os.RemoveAll(tempdir)
