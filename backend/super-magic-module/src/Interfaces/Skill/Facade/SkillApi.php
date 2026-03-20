@@ -13,6 +13,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\SkillAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
@@ -333,7 +334,7 @@ class SkillApi extends AbstractApi
             $projectRequestDTO->setProjectName($projectName);
 
             // 创建项目
-            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO);
+            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::CUSTOM_SKILL);
 
             $projectId = (int) ($projectResult['project']['id'] ?? 0);
             if ($projectId <= 0) {

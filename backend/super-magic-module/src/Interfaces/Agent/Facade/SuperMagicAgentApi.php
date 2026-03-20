@@ -15,6 +15,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
@@ -280,7 +281,7 @@ class SuperMagicAgentApi extends AbstractApi
             $projectRequestDTO->setProjectName($projectName);
 
             // 创建项目
-            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO);
+            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::CUSTOM_AGENT);
 
             $projectId = (int) ($projectResult['project']['id'] ?? 0);
             if ($projectId <= 0) {

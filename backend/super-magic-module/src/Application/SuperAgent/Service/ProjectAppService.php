@@ -1459,8 +1459,11 @@ class ProjectAppService extends AbstractAppService
     // ========================================
     // Agent Project Methods
     // ========================================
-    public function createAgentProject(RequestContext $requestContext, CreateAgentProjectRequestDTO $requestDTO)
-    {
+    public function createAgentProject(
+        RequestContext $requestContext,
+        CreateAgentProjectRequestDTO $requestDTO,
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT
+    ) {
         $this->logger->info('Starting agent project creation');
 
         // Get user authorization and create data isolation
@@ -1469,8 +1472,8 @@ class ProjectAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
-            // 1. Create project entity (audio mode)
-            $this->logger->info('Creating core project for audio');
+            // 1. Create project entity
+            $this->logger->info(sprintf('Creating core project with mode=%s', $projectMode->value));
             $projectEntity = $this->projectDomainService->createProject(
                 0,
                 $requestDTO->getProjectName(),
@@ -1478,7 +1481,7 @@ class ProjectAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 '',
                 '',
-                ProjectMode::CUSTOM_AGENT->value,
+                $projectMode->value,
                 CreationSource::USER_CREATED->value,
                 true,
                 HiddenType::AGENT->value
@@ -1488,8 +1491,8 @@ class ProjectAppService extends AbstractAppService
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
             $topicEntity = $this->initializeProject($dataIsolation, null, $projectEntity);
 
-            // 2. Initialize root directory and upload custom agent template files
-            $this->initCustomTemplateFiles($projectEntity, $dataIsolation);
+            // 2. Initialize root directory and upload agent template files
+            $this->initCustomTemplateFiles($projectEntity, $dataIsolation, $projectMode);
 
             Db::commit();
 
@@ -2010,7 +2013,8 @@ class ProjectAppService extends AbstractAppService
      */
     private function initCustomTemplateFiles(
         ProjectEntity $projectEntity,
-        DataIsolation $dataIsolation
+        DataIsolation $dataIsolation,
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT
     ): void {
         // Create (or locate) the project root directory
         $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -2021,11 +2025,17 @@ class ProjectAppService extends AbstractAppService
             projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
         );
 
+        $templateSubDir = match ($projectMode) {
+            ProjectMode::MAGIC_CLAW => 'magic_claw',
+            ProjectMode::CUSTOM_SKILL => 'custom_skill',
+            default => 'custom_agent',
+        };
+
         // @phpstan-ignore-next-line
-        $templateDir = SUPER_MAGIC_MODULE_PATH . '/storage/agent_template/custom_agent';
+        $templateDir = SUPER_MAGIC_MODULE_PATH . '/storage/agent_template/' . $templateSubDir;
 
         if (! is_dir($templateDir)) {
-            $this->logger->warning(sprintf('Custom agent template directory not found: %s', $templateDir));
+            $this->logger->warning(sprintf('Agent template directory not found: %s', $templateDir));
             return;
         }
 
