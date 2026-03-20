@@ -112,6 +112,28 @@ class SkillDomainService
     }
 
     /**
+     * Query current published versions by skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryCurrentPublishedVersionsByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        ?string $keyword,
+        string $languageCode,
+        Page $page
+    ): array {
+        return $this->skillVersionRepository->queriesCurrentPublishedByCodes(
+            $dataIsolation,
+            $codes,
+            $keyword,
+            $languageCode,
+            $page
+        );
+    }
+
+    /**
      * 根据 ID 查找 Skill 版本（不进行组织过滤，用于查询公开的商店技能版本）.
      *
      * @param int $id 版本 ID

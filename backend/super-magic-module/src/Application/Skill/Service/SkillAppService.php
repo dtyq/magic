@@ -39,6 +39,7 @@ use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ImportSkillRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ParseFileImportRequestDTO;
@@ -601,6 +602,61 @@ class SkillAppService extends AbstractSkillAppService
             ),
             $skillEntities
         ));
+    }
+
+    /**
+     * Query latest published current versions for accessible skills by codes.
+     *
+     * @return array{list: SkillVersionEntity[], total: int, page: int, page_size: int}
+     */
+    public function getLatestPublishedVersionsByCodes(
+        RequestContext $requestContext,
+        GetLatestPublishedSkillVersionsRequestDTO $requestDTO
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
+        $filterCodes = $requestDTO->getCodes() ?? [];
+
+        $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
+        $requestedCodes = array_values(array_unique(array_filter($filterCodes ?? [])));
+
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL
+        );
+
+        if ($requestedCodes) {
+            $accessibleSkillCodes = array_values(array_intersect($requestedCodes, $accessibleSkillCodes));
+        }
+
+        if ($accessibleSkillCodes === []) {
+            return [
+                'list' => [],
+                'total' => 0,
+                'page' => $requestDTO->getPage(),
+                'page_size' => $requestDTO->getPageSize(),
+            ];
+        }
+
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
+            $dataIsolation,
+            $accessibleSkillCodes,
+            $requestDTO->getKeyword(),
+            $languageCode,
+            $page
+        );
+
+        $this->updateSkillVersionAssetUrls($dataIsolation, $result['list']);
+
+        return [
+            'list' => $result['list'],
+            'total' => $result['total'],
+            'page' => $page->getPage(),
+            'page_size' => $page->getPageNum(),
+        ];
     }
 
     /**

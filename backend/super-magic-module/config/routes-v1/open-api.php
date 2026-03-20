@@ -89,6 +89,8 @@ Router::addGroup(
         Router::addGroup('/skills', static function () {
             // 获取用户技能列表
             Router::post('/queries', [SkillSandboxApi::class, 'queries']);
+            // 批量查询当前用户技能的最新已发布当前版本
+            Router::post('/last-versions/queries', [SkillSandboxApi::class, 'queryLatestPublishedVersions']);
             // 批量获取技能 file_key 及下载 URL（仅返回当前用户自己的技能）
             Router::post('/file-urls', [SkillSandboxApi::class, 'getSkillFileUrls']);
             // Agent 第三方导入技能

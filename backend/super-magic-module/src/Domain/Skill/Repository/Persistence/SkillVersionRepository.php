@@ -332,6 +332,52 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $result;
     }
 
+    public function queriesCurrentPublishedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        ?string $keyword,
+        string $languageCode,
+        Page $page
+    ): array {
+        if ($codes === []) {
+            return [
+                'total' => 0,
+                'list' => [],
+            ];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
+            ->whereIn('code', $codes)
+            ->where('is_current_version', 1)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('review_status', ReviewStatus::APPROVED->value)
+            ->whereNull('deleted_at');
+
+        $keyword = trim((string) $keyword);
+        if ($keyword !== '') {
+            $builder->where(function ($query) use ($keyword, $languageCode) {
+                $query->whereRaw(
+                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                );
+            });
+        }
+
+        $builder->orderBy('published_at', 'DESC')->orderBy('created_at', 'DESC');
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+        $result['list'] = $list;
+
+        return $result;
+    }
+
     /**
      * 将模型数据转换为实体.
      */

@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\Assembler\SkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ImportSkillRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ParseFileImportRequestDTO;
@@ -296,6 +297,24 @@ class SkillApi extends AbstractApi
 
         // 调用应用服务层处理业务逻辑
         return $this->userSkillAppService->importSkillFromAgent($requestContext, $tempFile, $skillSource);
+    }
+
+    /**
+     * Batch query latest published current skill versions by codes.
+     */
+    public function queryLatestPublishedVersions(RequestContext $requestContext)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetLatestPublishedSkillVersionsRequestDTO::fromRequest($this->request);
+        $result = $this->userSkillAppService->getLatestPublishedVersionsByCodes($requestContext, $requestDTO);
+
+        return SkillAssembler::createLatestPublishedVersionsResponseDTO(
+            $result['list'],
+            $result['page'],
+            $result['page_size'],
+            $result['total'],
+        );
     }
 
     /**

@@ -14,6 +14,8 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionItemDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\PublishSkillResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillDetailResponseDTO;
@@ -163,6 +165,45 @@ class SkillAssembler
             isCurrentVersion: $version->isCurrentVersion(),
             publishedAt: $version->getPublishedAt(),
         );
+    }
+
+    /**
+     * @param SkillVersionEntity[] $versions
+     */
+    public static function createLatestPublishedVersionsResponseDTO(
+        array $versions,
+        int $page,
+        int $pageSize,
+        int $total,
+        bool $withFileUrl = false,
+    ): LatestPublishedSkillVersionsResponseDTO {
+        $language = CoContext::getLanguage();
+        $list = [];
+
+        foreach ($versions as $version) {
+            $list[] = new LatestPublishedSkillVersionItemDTO(
+                id: (string) $version->getId(),
+                code: $version->getCode(),
+                version: $version->getVersion(),
+                name: $version->getNameI18n()[$language] ?? '',
+                description: $version->getDescriptionI18n()[$language] ?? '',
+                nameI18n: $version->getNameI18n(),
+                descriptionI18n: $version->getDescriptionI18n(),
+                logo: $version->getLogo() ?? '',
+                fileKey: $withFileUrl ? $version->getFileKey() : null,
+                fileUrl: $withFileUrl ? $version->getFileUrl() : null,
+                sourceType: $version->getSourceType()->value,
+                publishStatus: $version->getPublishStatus()->value,
+                reviewStatus: $version->getReviewStatus()?->value,
+                publishTargetType: $version->getPublishTargetType()->value,
+                publishedAt: $version->getPublishedAt(),
+                projectId: $version->getProjectId(),
+                createdAt: $version->getCreatedAt(),
+                updatedAt: $version->getUpdatedAt(),
+            );
+        }
+
+        return new LatestPublishedSkillVersionsResponseDTO($list, $page, $pageSize, $total);
     }
 
     /**

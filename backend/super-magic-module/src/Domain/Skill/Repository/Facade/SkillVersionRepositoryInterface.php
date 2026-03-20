@@ -104,4 +104,18 @@ interface SkillVersionRepositoryInterface
         ?ReviewStatus $reviewStatus = null,
         Page $page = new Page()
     ): array;
+
+    /**
+     * Query current published versions by skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queriesCurrentPublishedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        ?string $keyword,
+        string $languageCode,
+        Page $page
+    ): array;
 }

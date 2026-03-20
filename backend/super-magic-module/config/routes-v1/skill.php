@@ -50,5 +50,8 @@ Router::addGroup('/api/v1', static function () {
 
         // 批量获取技能 file_key 及下载 URL（仅返回当前用户自己的技能）
         Router::post('/file-urls', [SkillApi::class, 'getSkillFileUrls']);
+
+        // 批量查询当前用户技能的最新已发布当前版本
+        Router::post('/last-versions/queries', [SkillApi::class, 'queryLatestPublishedVersions']);
     });
 }, ['middleware' => [RequestContextMiddleware::class, UserAuthMiddleware::class]]);
