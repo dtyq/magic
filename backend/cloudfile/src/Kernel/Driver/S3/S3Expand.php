@@ -241,9 +241,24 @@ class S3Expand implements ExpandInterface
 
         // Build policy based on sts type
         $dir = $credentialPolicy->getDir();
-        $resource = "arn:aws:s3:::{$this->getBucket()}";
+        $bucketArn = "arn:aws:s3:::{$this->getBucket()}";
+
+        // Build resource ARN(s) covering the target directory.
+        //
+        // When $dir is non-empty it always ends with '/' (enforced by CredentialPolicy::formatDirPath).
+        // MinIO STS evaluates '*' as "one or more characters" in some configurations, which means
+        // the pattern "dir/*" does NOT match the directory marker "dir/" itself (empty suffix).
+        // To ensure both the folder marker and all objects inside are covered, we emit two ARNs:
+        //   1. The exact directory marker:  "arn:...bucket/dir/"
+        //   2. All objects inside:          "arn:...bucket/dir/*"
         if (! empty($dir)) {
-            $resource = "{$resource}/{$dir}*";
+            $dirArn = "{$bucketArn}/{$dir}"; // e.g. "arn:aws:s3:::magic-sandbox/org/open/proj/workspace/"
+            $resource = [
+                $dirArn,        // directory marker: ".../workspace/"
+                $dirArn . '*',  // all objects inside: ".../workspace/*"
+            ];
+        } else {
+            $resource = $bucketArn;
         }
 
         $stsPolicy = match ($credentialPolicy->getStsType()) {
@@ -256,7 +271,7 @@ class S3Expand implements ExpandInterface
                             's3:ListBucket',
                             's3:ListBucketVersions',
                         ],
-                        'Resource' => "arn:aws:s3:::{$this->getBucket()}",
+                        'Resource' => $bucketArn,
                         'Condition' => [
                             'StringLike' => [
                                 's3:prefix' => [

@@ -1049,35 +1049,18 @@ class FileManagementAppService extends AbstractAppService
      * Get file URLs for multiple files.
      *
      * @param RequestContext $requestContext Request context
-     * @param string $projectId Project ID
      * @param array $fileIds Array of file IDs
      * @param string $downloadMode Download mode (download, preview)
      * @param array $options Additional options
      * @return array File URLs
      */
-    public function getFileUrls(RequestContext $requestContext, string $projectId, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
+    public function getFileUrls(RequestContext $requestContext, array $fileIds, string $downloadMode, array $options = [], array $fileVersions = []): array
     {
         try {
             $userAuthorization = $requestContext->getUserAuthorization();
             $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-            // 兼容前端传 project id 的错误问题
-            //            if (count($fileIds) > 0) {
-            //                $taskFileEntity = $this->taskFileDomainService->getById((int) $fileIds[0]);
-            //                $projectId = $taskFileEntity?->getProjectId() ?? (int) $projectId;
-            //            }
-
-            $projectEntity = $this->getAccessibleProject((int) $projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-
-            return $this->taskFileDomainService->getFileUrls(
-                $projectEntity->getUserOrganizationCode(),
-                $projectEntity->getId(),
-                $fileIds,
-                $downloadMode,
-                $options,
-                $fileVersions,
-                true
-            );
+            return $this->getFileUrlsGroupedByProject($dataIsolation, $fileIds, $downloadMode, $options, $fileVersions);
         } catch (BusinessException $e) {
             $this->logger->warning(sprintf(
                 'Business logic error in get file URLs: %s, File IDs: %s, Download Mode: %s, Error Code: %d',
@@ -2023,6 +2006,46 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_tree_failed'));
         }
+    }
+
+    /**
+     * 通过 file_ids 批量查询文件实体，按 project_id 分组分别做权限校验和 URL 生成，合并结果返回.
+     */
+    private function getFileUrlsGroupedByProject(DataIsolation $dataIsolation, array $fileIds, string $downloadMode, array $options, array $fileVersions): array
+    {
+        $fileEntities = $this->taskFileDomainService->getFilesByIds($fileIds);
+        if (empty($fileEntities)) {
+            return [];
+        }
+
+        // 按 project_id 分组收集 file_id 列表
+        $fileIdsByProject = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIdsByProject[$fileEntity->getProjectId()][] = (string) $fileEntity->getFileId();
+        }
+
+        $result = [];
+        foreach ($fileIdsByProject as $groupProjectId => $groupFileIds) {
+            $projectEntity = $this->getAccessibleProject(
+                $groupProjectId,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+
+            $urls = $this->taskFileDomainService->getFileUrls(
+                $projectEntity->getUserOrganizationCode(),
+                $projectEntity->getId(),
+                $groupFileIds,
+                $downloadMode,
+                $options,
+                $fileVersions,
+                true
+            );
+
+            $result = array_merge($result, $urls);
+        }
+
+        return $result;
     }
 
     /**
