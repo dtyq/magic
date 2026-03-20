@@ -3,6 +3,8 @@ ARG GOLANG_VERSION=1.24
 ARG DOCKERHUB_LIBRARY_IMAGE_PREFIX=public.ecr.aws/docker/library/
 FROM ${DOCKERHUB_LIBRARY_IMAGE_PREFIX}golang:${GOLANG_VERSION}-alpine AS builder
 
+ARG TARGETARCH
+
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOLANG_VERSION=1.24
 
@@ -12,16 +14,18 @@ ENV GOPROXY=${GOPROXY}
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-alpine,target=/go/pkg/mod \
+RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-alpine-${TARGETARCH},target=/go/pkg/mod \
     go mod download
 
 COPY . .
-RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-alpine,target=/go/pkg/mod \
-    --mount=type=cache,id=go-build-${GOLANG_VERSION}-alpine,target=/root/.cache/go-build \
+RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-alpine-${TARGETARCH},target=/go/pkg/mod \
+    --mount=type=cache,id=go-build-${GOLANG_VERSION}-alpine-${TARGETARCH},target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -o api-gateway .
 
 ARG DOCKERHUB_LIBRARY_IMAGE_PREFIX=public.ecr.aws/docker/library/
 FROM ${DOCKERHUB_LIBRARY_IMAGE_PREFIX}alpine:latest
+
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -31,9 +35,10 @@ COPY --from=builder /app/api-gateway /app/
 # setup timezone
 ARG APK_MIRROR=mirrors.aliyun.com
 ARG TZ=Asia/Shanghai
-RUN --mount=type=cache,id=alpine-${ALPINE_VERSION},target=/var/cache/apk \
+RUN --mount=type=cache,id=alpine-apk-latest-${TARGETARCH},target=/var/cache/apk \
     # setup apk mirror
     sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
+    apk update && \
     apk add tzdata && \
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \
     echo "${TZ}" > /etc/timezone && \
