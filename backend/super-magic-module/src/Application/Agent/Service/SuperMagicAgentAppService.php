@@ -36,8 +36,10 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
@@ -67,6 +69,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
+    #[Inject]
+    protected TaskFileDomainService $taskFileDomainService;
 
     #[Transactional]
     public function save(Authenticatable $authorization, SuperMagicAgentEntity $entity, bool $checkPrompt = true): SuperMagicAgentEntity
@@ -728,6 +733,45 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'fail_count' => $failCount,
             'results' => $results,
         ];
+    }
+
+    /**
+     * Export agent workspace to object storage via sandbox.
+     *
+     * @param Authenticatable $authorization User authorization
+     * @param string $code Agent code
+     * @return array{file_key: string, metadata: array} Export result
+     */
+    public function exportAgent(Authenticatable $authorization, string $code): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $code);
+
+        // Get agent entity to retrieve the bound project ID
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+
+        $projectId = $agent->getProjectId();
+        if (empty($projectId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+
+        // Get project entity to build the full working directory
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        if (! $project) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
+
+        return $this->superMagicAgentDomainService->exportAgentFromSandbox(
+            $dataIsolation,
+            $code,
+            $projectId,
+            $fullWorkdir
+        );
     }
 
     /**
