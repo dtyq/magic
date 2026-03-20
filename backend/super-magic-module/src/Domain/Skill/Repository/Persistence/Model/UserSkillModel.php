@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model;
 
 use App\Infrastructure\Core\AbstractModel;
 use Carbon\Carbon;
+use Hyperf\Database\Model\SoftDeletes;
 
 /**
  * @property int $id Primary key ID
@@ -23,6 +24,8 @@ use Carbon\Carbon;
  */
 class UserSkillModel extends AbstractModel
 {
+    use SoftDeletes;
+
     protected ?string $table = 'magic_user_skills';
 
     protected array $fillable = [

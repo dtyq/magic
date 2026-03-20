@@ -13,6 +13,7 @@ use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -30,6 +31,7 @@ use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
@@ -41,6 +43,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
@@ -292,7 +295,7 @@ class SkillAppService extends AbstractSkillAppService
         Db::beginTransaction();
         try {
             $skillEntity = $this->skillDomainService->addSkillFromMarket($dataIsolation, (int) $requestDTO->getStoreSkillId());
-            $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+            $this->syncSkillVisibilityWithOwners($dataIsolation, $skillEntity->getCode());
             Db::commit();
 
             return $skillEntity;
@@ -370,6 +373,7 @@ class SkillAppService extends AbstractSkillAppService
             ResourceVisibilityResourceType::SKILL
         );
 
+        $dataIsolation->disabled();
         $result = $this->skillDomainService->queriesByCodes($dataIsolation, $accessibleSkillCodes, $query, $page);
 
         $skillEntities = $this->skillDomainService->replaceVisibleSkillDisplayFields(
@@ -399,18 +403,22 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getOrganizationCode(),
             $authorization->getId()
         );
-
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        $userSkillEntity = $this->skillDomainService->findUserSkillOwnershipByCode($dataIsolation, $code);
 
         Db::beginTransaction();
         try {
-            if (! $skillEntity->getSourceType()->isMarket()) {
-                $this->skillDomainService->deleteSkill($dataIsolation, $code);
+            if ($userSkillEntity !== null && $userSkillEntity->getSourceType()->isMarket()) {
+                $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
+                $this->syncSkillVisibilityWithOwners($dataIsolation, $code);
+                Db::commit();
+                return;
             }
 
+            $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
             $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
             $this->clearSkillVisibility($dataIsolation, $code);
             $this->clearSkillOwnerPermission($dataIsolation, $code);
+            $this->skillDomainService->deleteSkill($dataIsolation, $code);
             Db::commit();
         } catch (Throwable $throwable) {
             Db::rollBack();
@@ -432,6 +440,8 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getOrganizationCode(),
             $authorization->getId()
         );
+
+        $this->checkPermission($dataIsolation, $code);
 
         // 查询技能记录（校验权限）
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
@@ -472,7 +482,10 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
+        $this->checkPermission($dataIsolation, $code);
+
         // 查询技能记录（校验权限）
+        $dataIsolation->disabled();
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
         // 更新 logo URL（如果存储的是路径，需要转换为完整URL）
@@ -517,6 +530,8 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
+        $this->checkPermission($dataIsolation, $code);
+
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
         $projectEntity = $this->projectAppService->getProjectNotUserId($projectId);
         if (! $projectEntity) {
@@ -545,6 +560,8 @@ class SkillAppService extends AbstractSkillAppService
 
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
+
+        $this->checkPermission($dataIsolation, $code);
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
@@ -610,6 +627,8 @@ class SkillAppService extends AbstractSkillAppService
 
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
+
+        $this->checkPermission($dataIsolation, $code);
 
         // 调用领域服务处理业务逻辑
         $this->skillDomainService->offlineSkill($dataIsolation, $code);
@@ -688,6 +707,7 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $dataIsolation->disabled();
         $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
             $dataIsolation,
             $accessibleSkillCodes,
@@ -801,6 +821,18 @@ class SkillAppService extends AbstractSkillAppService
             if ($tempFilePath && file_exists($tempFilePath)) {
                 @unlink($tempFilePath);
             }
+        }
+    }
+
+    protected function checkPermission(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        if (! $this->operationPermissionDomainService->isResourceOwner(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            $code,
+            $dataIsolation->getCurrentUserId()
+        )) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
     }
 
@@ -1194,7 +1226,13 @@ class SkillAppService extends AbstractSkillAppService
         // version_id 和 version_code 保持为 NULL（LOCAL_UPLOAD 和 AGENT_THIRD_PARTY_IMPORT 类型不需要版本）
 
         $skillEntity = $this->skillDomainService->saveSkill($dataIsolation, $skillEntity);
-        $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+        $this->skillDomainService->saveUserSkillOwnership($dataIsolation, new UserSkillEntity([
+            'organization_code' => $organizationCode,
+            'user_id' => $userId,
+            'skill_code' => $skillEntity->getCode(),
+            'source_type' => $sourceType->value,
+        ]));
+        $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::SPECIFIC, [$dataIsolation->getCurrentUserId()]);
         $this->grantSkillOwnerPermission($dataIsolation, $skillEntity->getCode(), $skillEntity->getCreatorId());
 
         return $skillEntity;
@@ -1246,13 +1284,22 @@ class SkillAppService extends AbstractSkillAppService
 
     /**
      * Save the visibility configuration for a skill.
+     *
+     * @param array<string> $userIds
      */
-    private function saveSkillVisibility(SkillDataIsolation $dataIsolation, string $code, VisibilityType $visibilityType): void
+    private function saveSkillVisibility(SkillDataIsolation $dataIsolation, string $code, VisibilityType $visibilityType, array $userIds = []): void
     {
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $visibilityConfig = new VisibilityConfig([
-            'visibility_type' => $visibilityType->value,
-        ]);
+        $visibilityConfig = new VisibilityConfig();
+        $visibilityConfig->setVisibilityType($visibilityType);
+
+        if ($visibilityType === VisibilityType::SPECIFIC) {
+            foreach (array_values(array_unique($userIds)) as $userId) {
+                $visibilityUser = new VisibilityUser();
+                $visibilityUser->setId($userId);
+                $visibilityConfig->addUser($visibilityUser);
+            }
+        }
 
         $this->resourceVisibilityDomainService->saveVisibilityConfig(
             $permissionDataIsolation,
@@ -1282,6 +1329,31 @@ class SkillAppService extends AbstractSkillAppService
     private function clearSkillVisibility(SkillDataIsolation $dataIsolation, string $code): void
     {
         $this->saveSkillVisibility($dataIsolation, $code, VisibilityType::NONE);
+    }
+
+    /**
+     * Keep skill visibility in sync with the local owner and installed market users.
+     */
+    private function syncSkillVisibilityWithOwners(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        $userIds = [];
+
+        $skillEntity = $this->skillDomainService->findOptionalSkillByCode($dataIsolation, $code);
+        if ($skillEntity !== null && $skillEntity->getCreatorId() !== '') {
+            $userIds[] = $skillEntity->getCreatorId();
+        }
+
+        foreach ($this->skillDomainService->findAllUserSkillOwnershipsByCode($dataIsolation, $code) as $userSkillEntity) {
+            $userIds[] = $userSkillEntity->getUserId();
+        }
+
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if ($userIds === []) {
+            $this->clearSkillVisibility($dataIsolation, $code);
+            return;
+        }
+
+        $this->saveSkillVisibility($dataIsolation, $code, VisibilityType::SPECIFIC, $userIds);
     }
 
     /**

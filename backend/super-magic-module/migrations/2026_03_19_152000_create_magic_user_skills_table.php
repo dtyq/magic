@@ -24,6 +24,7 @@ return new class extends Migration {
                 $table->string('source_type', 32)->comment('Ownership source type');
                 $table->bigInteger('source_id')->nullable()->comment('Source record ID');
                 $table->timestamps();
+                $table->softDeletes();
 
                 $table->unique(['organization_code', 'user_id', 'skill_code'], 'uk_org_user_skill_code');
                 $table->index(['organization_code', 'user_id'], 'idx_org_user');

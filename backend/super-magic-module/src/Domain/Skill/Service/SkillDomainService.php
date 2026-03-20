@@ -76,6 +76,21 @@ class SkillDomainService
         return $skillEntity;
     }
 
+    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    {
+        $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
+        if (! $skillEntity) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
+        }
+
+        return $skillEntity;
+    }
+
+    public function findOptionalSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    {
+        return $this->skillRepository->findByCode($dataIsolation, $code);
+    }
+
     /**
      * 根据 code 列表批量查询技能.
      *
@@ -285,6 +300,19 @@ class SkillDomainService
         return $this->userSkillRepository->findBySkillCode($dataIsolation, $code) !== null;
     }
 
+    public function findUserSkillOwnershipByCode(SkillDataIsolation $dataIsolation, string $code): ?UserSkillEntity
+    {
+        return $this->userSkillRepository->findBySkillCode($dataIsolation, $code);
+    }
+
+    /**
+     * @return UserSkillEntity[]
+     */
+    public function findAllUserSkillOwnershipsByCode(SkillDataIsolation $dataIsolation, string $code): array
+    {
+        return $this->userSkillRepository->findAllBySkillCode($dataIsolation, $code);
+    }
+
     /**
      * 查询用户技能列表（支持分页、关键词搜索、来源类型筛选）.
      *
@@ -414,24 +442,11 @@ class SkillDomainService
      */
     public function deleteSkill(SkillDataIsolation $dataIsolation, string $code): bool
     {
-        // 使用事务处理删除逻辑
         Db::beginTransaction();
         try {
-            // 1. 查询该技能的所有版本（不限制状态）
-            $allVersions = $this->findAllSkillVersionsByCode($dataIsolation, $code);
-
-            // 2. 将所有版本的状态改为 OFFLINE（如果当前不是 OFFLINE）
-            foreach ($allVersions as $version) {
-                if (! $version->getPublishStatus()->isOffline()) {
-                    $version->setPublishStatus(PublishStatus::OFFLINE);
-                    $this->saveSkillVersion($dataIsolation, $version);
-                }
-            }
-
-            // 3. 更新市场技能表中对应记录的发布状态为 OFFLINE（不限制当前状态）
             $this->skillMarketDomainService->updateAllPublishStatusBySkillCode($code, PublishStatus::OFFLINE->value);
+            $this->skillVersionRepository->deleteByCode($dataIsolation, $code);
 
-            // 4. 执行软删除
             $result = $this->skillRepository->deleteByCode($dataIsolation, $code);
 
             Db::commit();

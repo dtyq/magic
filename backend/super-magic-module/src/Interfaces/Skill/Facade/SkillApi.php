@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\Facade;
 
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\SkillAppService;
@@ -16,7 +15,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
-use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\Assembler\SkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
@@ -118,9 +116,16 @@ class SkillApi extends AbstractApi
 
         $skillEntity = $this->userSkillAppService->create($requestContext);
 
+        // 如果项目ID为空，则创建并绑定项目（兼容历史数据）
+        if (empty($skillEntity->getProjectId())) {
+            $projectInfo = $this->createAndBindProject($requestContext, $skillEntity->getPackageName(), $skillEntity->getCode());
+            $skillEntity->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
+        }
+
         return [
             'id' => (string) $skillEntity->getId(),
             'skill_code' => $skillEntity->getCode(),
+            'project_id' => (string) $skillEntity->getProjectId(),
         ];
     }
 

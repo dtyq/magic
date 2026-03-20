@@ -13,6 +13,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillMarketModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Hyperf\DbConnection\Db;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
 use RuntimeException;
 use ZipArchive;
@@ -157,6 +158,14 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertIsString($response['data']['id']);
         $this->assertIsString($response['data']['skill_code']);
 
+        $userSkillCount = Db::table('magic_user_skills')
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('skill_code', $response['data']['skill_code'])
+            ->where('source_type', 'LOCAL_UPLOAD')
+            ->count();
+        $this->assertSame(1, $userSkillCount, '导入创建 skill 时应该同步写入 user_skills');
+
         // 验证 token 已失效：再次使用同一个 token 应该报错
         $duplicateResponse = $this->post(
             self::BASE_URI . '/import',
@@ -186,6 +195,15 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertIsString($response['data']['skill_code']);
 
         $skillCode = $response['data']['skill_code'];
+        $headers = $this->getCommonHeaders();
+
+        $userSkillCount = Db::table('magic_user_skills')
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('skill_code', $skillCode)
+            ->where('source_type', 'AGENT_CREATED')
+            ->count();
+        $this->assertSame(1, $userSkillCount, 'Agent 创建 skill 时应该同步写入 user_skills');
 
         $queryResponse = $this->post(
             self::BASE_URI . '/queries',
@@ -645,8 +663,9 @@ class UserSkillApiTest extends AbstractApiTest
     {
         $this->switchUserTest1();
 
-        // 先导入一个技能作为测试数据
-        $skillCode = $this->createTestSkill();
+        // 创建一个已上架的技能，验证 owner 删除时会同步清理版本并下架市场
+        $storeSkillData = $this->createPublishedStoreSkill();
+        $skillCode = $storeSkillData['skill_code'];
 
         // 删除技能
         $response = $this->delete(
@@ -668,6 +687,18 @@ class UserSkillApiTest extends AbstractApiTest
         );
         $this->assertNotEquals(1000, $getResponse['code'], '已删除的技能应该返回错误');
 
+        $deletedVersionCount = Db::table('magic_skill_versions')
+            ->where('code', $skillCode)
+            ->whereNotNull('deleted_at')
+            ->count();
+        $this->assertGreaterThan(0, $deletedVersionCount, '所有技能版本都应该被软删除');
+
+        $storeSkill = SkillMarketModel::query()
+            ->where('skill_code', $skillCode)
+            ->first();
+        $this->assertNotNull($storeSkill);
+        $this->assertEquals('OFFLINE', $storeSkill->publish_status, '删除 owner 技能后，市场记录应该下架');
+
         // 测试删除不存在的技能
         $notFoundResponse = $this->delete(
             self::BASE_URI . '/non_existent_skill_code_12345',
@@ -675,6 +706,55 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertNotEquals(1000, $notFoundResponse['code'], '不存在的技能应该返回错误');
+    }
+
+    public function testDeleteMarketInstalledSkill(): void
+    {
+        $this->switchUserTest1();
+        $storeSkillData = $this->createPublishedStoreSkill();
+        $storeSkillId = $storeSkillData['store_skill_id'];
+        $skillCode = $storeSkillData['skill_code'];
+
+        $this->switchUserTest2();
+        $addResponse = $this->post(
+            self::BASE_URI . '/from-store',
+            [
+                'store_skill_id' => (string) $storeSkillId,
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $addResponse['code']);
+
+        $deleteResponse = $this->delete(
+            self::BASE_URI . '/' . $skillCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $deleteResponse['code'], $deleteResponse['message'] ?? '');
+
+        $deletedDetailResponse = $this->get(
+            self::BASE_URI . '/' . $skillCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertNotEquals(1000, $deletedDetailResponse['code'], '市场添加的技能删除后，对当前用户应不可见');
+
+        $reAddResponse = $this->post(
+            self::BASE_URI . '/from-store',
+            [
+                'store_skill_id' => (string) $storeSkillId,
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $reAddResponse['code'], '删除后应该允许再次从市场添加');
+
+        $this->switchUserTest1();
+        $ownerDetailResponse = $this->get(
+            self::BASE_URI . '/' . $skillCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $ownerDetailResponse['code'], '市场安装用户删除后，不应影响 owner 的技能可见性');
     }
 
     /**

@@ -93,6 +93,11 @@ interface SkillVersionRepositoryInterface
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int;
 
     /**
+     * 根据 code 软删除所有版本.
+     */
+    public function deleteByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
      * 查询版本列表.
      *
      * @return array{list: SkillVersionEntity[], total: int}

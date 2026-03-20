@@ -21,5 +21,10 @@ interface UserSkillRepositoryInterface
      */
     public function findBySkillCodes(SkillDataIsolation $dataIsolation, array $skillCodes): array;
 
+    /**
+     * @return UserSkillEntity[]
+     */
+    public function findAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): array;
+
     public function deleteBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): bool;
 }

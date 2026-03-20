@@ -9,12 +9,15 @@ namespace Dtyq\SuperMagic\Domain\Skill\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
+use Hyperf\Database\Model\SoftDeletes;
 
 /**
  * User-owned skill relation entity.
  */
 class UserSkillEntity extends AbstractEntity
 {
+    use SoftDeletes;
+
     /**
      * Primary key ID.
      */

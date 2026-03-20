@@ -94,6 +94,21 @@ class UserSkillRepository extends AbstractRepository implements UserSkillReposit
         return $result;
     }
 
+    public function findAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
+        $models = $builder
+            ->where('skill_code', $skillCode)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $result[] = $this->toUserSkillEntity($model->toArray());
+        }
+
+        return $result;
+    }
+
     public function deleteBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): bool
     {
         $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
