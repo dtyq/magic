@@ -117,7 +117,7 @@ class FindSimilarShareRequestDTO extends AbstractDTO
     {
         return [
             // 文件查找模式：file_ids（可选，但如果传了必须符合格式）
-            'file_ids' => 'array|min:1|max:100', // 限制最多100个文件ID，防止SQL语句过长
+            'file_ids' => 'array|min:1', // 移除最大数量限制
             'file_ids.*' => 'required_with:file_ids|string|max:64|regex:/^\d+$/', // 验证文件ID必须是数字字符串
 
             // 项目查找模式：project_id 和 share_project=true
@@ -135,7 +135,6 @@ class FindSimilarShareRequestDTO extends AbstractDTO
             // 文件查找相关
             'file_ids.array' => '文件ID列表必须是数组',
             'file_ids.min' => '至少选择一个文件',
-            'file_ids.max' => '文件ID列表最多支持100个文件',
             'file_ids.*.required_with' => '文件ID不能为空',
             'file_ids.*.regex' => '文件ID格式不正确，必须是数字',
 
