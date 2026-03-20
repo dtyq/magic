@@ -311,7 +311,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      * 更新 Skill 实体的 Logo URL（将路径转换为完整URL）.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity|SkillVersionEntity[] $skillEntities Skill 实体数组
+     * @param array<SkillEntity|SkillVersionEntity> $skillEntities Skill 实体数组
      */
     protected function updateSkillLogoUrls(SuperMagicAgentDataIsolation $dataIsolation, array $skillEntities): void
     {
@@ -400,7 +400,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      * 更新 Skill 实体的 FileUrl（根据 fileKey 获取私有链接）.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity[] $skillEntities Skill 实体数组
+     * @param array<SkillEntity|SkillVersionEntity> $skillEntities Skill 实体数组
      */
     protected function updateSkillFileUrl(SuperMagicAgentDataIsolation $dataIsolation, array $skillEntities): void
     {

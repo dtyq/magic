@@ -27,12 +27,14 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterfac
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentCategoryRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentMarketRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentPlaybookRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentSkillRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentVersionRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\MagicClawRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionItemRepositoryInterface;
@@ -203,6 +205,7 @@ class ConfigProvider
                 FileCollectionItemRepositoryInterface::class => FileCollectionItemRepository::class,
 
                 // agent 管理
+                MagicClawRepositoryInterface::class => MagicClawRepository::class,
                 SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
                 TaskFileVersionDomainService::class => TaskFileVersionDomainService::class,
                 MessageScheduleDomainService::class => MessageScheduleDomainService::class,

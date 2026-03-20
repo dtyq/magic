@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
+use Dtyq\SuperMagic\Interfaces\Agent\Facade\MagicClawApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Old\SuperMagicAgentOldApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentMarketApi;
@@ -60,6 +61,14 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::post('/{code}/hire', [SuperMagicAgentMarketApi::class, 'hireAgent']);
         Router::get('/categories', [SuperMagicAgentMarketApi::class, 'getCategories']);
     });
+}, ['middleware' => [SandboxUserAuthMiddleware::class]]);
+
+Router::addGroup('/api/v1/magic-claw', static function () {
+    Router::post('/queries', [MagicClawApi::class, 'queries']); // static route must be before /{code}
+    Router::post('', [MagicClawApi::class, 'create']);
+    Router::get('/{code}', [MagicClawApi::class, 'show']);
+    Router::put('/{code}', [MagicClawApi::class, 'update']);
+    Router::delete('/{code}', [MagicClawApi::class, 'destroy']);
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);
 
 Router::addGroup('/api/v1/super-agents', static function () {

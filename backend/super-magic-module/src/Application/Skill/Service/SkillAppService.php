@@ -618,7 +618,7 @@ class SkillAppService extends AbstractSkillAppService
         $filterCodes = $requestDTO->getCodes() ?? [];
 
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
-        $requestedCodes = array_values(array_unique(array_filter($filterCodes ?? [])));
+        $requestedCodes = array_values(array_unique(array_filter($filterCodes)));
 
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
         $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
