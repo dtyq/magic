@@ -13,9 +13,9 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\SkillAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\Assembler\SkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
@@ -104,6 +104,24 @@ class SkillApi extends AbstractApi
         $this->userSkillAppService->addSkillFromStore($requestContext, $requestDTO);
 
         return [];
+    }
+
+    /**
+     * 从 Agent 创建空技能.
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @return array 创建结果，包含 id 和 skill_code
+     */
+    public function create(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $skillEntity = $this->userSkillAppService->create($requestContext);
+
+        return [
+            'id' => (string) $skillEntity->getId(),
+            'skill_code' => $skillEntity->getCode(),
+        ];
     }
 
     /**
@@ -269,35 +287,6 @@ class SkillApi extends AbstractApi
         $requestDTO = GetSkillFileUrlsRequestDTO::fromRequest($this->request);
 
         return $this->userSkillAppService->getSkillFileUrlsByIds($requestContext, $requestDTO);
-    }
-
-    /**
-     * Agent 第三方导入技能（一步完成：上传、校验、解压、上传到私有桶、创建或更新）.
-     *
-     * @param RequestContext $requestContext 请求上下文
-     * @return array 导入结果，包含 id 和 skill_code
-     */
-    public function importSkillFromAgent(RequestContext $requestContext): array
-    {
-        // 设置用户授权信息
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        $uploadedFile = $this->request->file('file');
-        $source = (string) $this->request->input('source', '');
-        if (! $uploadedFile) {
-            ExceptionBuilder::throw(SkillErrorCode::FILE_UPLOAD_FAILED, 'skill.file_upload_failed');
-        }
-        // 保存到临时文件
-        $tempFile = sys_get_temp_dir() . '/' . uniqid('skill_import_', true) . '.' . $uploadedFile->getExtension();
-        $uploadedFile->moveTo($tempFile);
-
-        $skillSource = SkillSourceType::tryFrom($source);
-        if (! $skillSource) {
-            ExceptionBuilder::throw(SkillErrorCode::SKILL_SOURCE_TYPE_ERROR);
-        }
-
-        // 调用应用服务层处理业务逻辑
-        return $this->userSkillAppService->importSkillFromAgent($requestContext, $tempFile, $skillSource);
     }
 
     /**

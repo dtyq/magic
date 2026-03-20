@@ -265,6 +265,11 @@ class SkillEntity extends AbstractEntity
         return $this->logo;
     }
 
+    public function getFileKey(): string
+    {
+        return $this->fileKey;
+    }
+
     public function setLogo(?string $logo): self
     {
         $this->logo = $logo;
@@ -276,17 +281,19 @@ class SkillEntity extends AbstractEntity
         return $this->fileUrl;
     }
 
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
     public function setFileUrl(?string $fileUrl): self
     {
         $this->fileUrl = $fileUrl;
         return $this;
     }
 
-    public function getFileKey(): string
-    {
-        return $this->fileKey;
-    }
-
+    /**
+     * Note: File links will not be stored in the database.
+     * @return $this
+     */
     public function setFileKey(string $fileKey): self
     {
         $this->fileKey = $fileKey;

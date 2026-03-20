@@ -21,6 +21,9 @@ Router::addGroup('/api/v1', static function () {
         // 获取用户技能列表
         Router::post('/queries', [SkillApi::class, 'queries']);
 
+        // 从 Agent 创建空技能
+        Router::post('', [SkillApi::class, 'create']);
+
         // 从技能市场添加技能
         Router::post('/from-store', [SkillApi::class, 'addSkillFromStore']);
 

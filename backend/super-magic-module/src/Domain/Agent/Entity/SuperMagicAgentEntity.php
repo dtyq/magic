@@ -144,7 +144,7 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected ?string $fileKey = null;
 
     /**
-     * Agent 文件下载地址，仅用于返回值组装.
+     * Note: File links must be obtained from the file service using the file_key.
      */
     protected ?string $fileUrl = null;
 
@@ -728,11 +728,17 @@ class SuperMagicAgentEntity extends AbstractEntity
         $this->fileKey = $fileKey;
     }
 
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
     public function getFileUrl(): ?string
     {
         return $this->fileUrl;
     }
 
+    /**
+     * Note: File links will not be stored in the database.
+     */
     public function setFileUrl(?string $fileUrl): void
     {
         $this->fileUrl = $fileUrl;

@@ -369,8 +369,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $code);
+
         // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
         // 2. 检查是否有重复的技能 code
         if (count($skillCodes) !== count(array_unique($skillCodes))) {
@@ -413,8 +416,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $code);
+
         // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
         // 2. 检查是否有重复的技能 code
         if (count($skillCodes) !== count(array_unique($skillCodes))) {
@@ -456,8 +462,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $agentCode);
+
         // 校验权限
-        $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $agentCode);
+        $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
 
         // 4. 删除技能
         $this->superMagicAgentSkillDomainService->removeAgentSkills($dataIsolation, $agentCode, $skillCodes);
@@ -475,8 +484,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $code);
+
         // 1. 查询员工基础信息（校验权限和来源类型）
-        $agentEntity = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
         $versionEntity = new AgentVersionEntity();
         $versionEntity->setCode($code);
@@ -484,6 +496,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n() ?? []);
         $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
         $versionEntity->setPublishTargetValue($requestDTO->getPublishTargetValue());
+
+        $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
+        $agentEntity->setFileKey($fileMetadata['file_key']);
 
         return $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
     }
@@ -500,7 +515,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        // Verify the caller owns the agent
+        $this->checkPermission($dataIsolation, $code);
+
+        $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
         $publishTargetType = $requestDTO->getPublishTargetType() ? PublishTargetType::from($requestDTO->getPublishTargetType()) : null;
         $reviewStatus = $requestDTO->getStatus() ? ReviewStatus::from($requestDTO->getStatus()) : null;
@@ -756,6 +774,33 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         if (empty($projectId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
         }
+
+        // Get project entity to build the full working directory
+        $project = $this->projectDomainService->getProjectNotUserId($projectId);
+        if (! $project) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
+
+        return $this->superMagicAgentDomainService->exportAgentFromSandbox(
+            $dataIsolation,
+            $code,
+            $projectId,
+            $fullWorkdir
+        );
+    }
+
+    /**
+     * Export agent workspace to object storage via sandbox.
+     *
+     * @param Authenticatable $authorization User authorization
+     * @return array{file_key: string, metadata: array} Export result
+     */
+    private function exportFileFromProject(Authenticatable $authorization, string $code, int $projectId): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Get project entity to build the full working directory
         $project = $this->projectDomainService->getProjectNotUserId($projectId);

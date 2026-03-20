@@ -318,11 +318,17 @@ class SkillVersionEntity extends AbstractEntity
         $this->fileKey = $fileKey;
     }
 
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
     public function getFileUrl(): ?string
     {
         return $this->fileUrl;
     }
 
+    /**
+     * Note: File links will not be stored in the database.
+     */
     public function setFileUrl(?string $fileUrl): void
     {
         $this->fileUrl = $fileUrl;
