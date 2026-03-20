@@ -1,11 +1,9 @@
 <div align="left">
-  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
-  <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
+  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9" height="20"></a>
+  <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9" height="20"></a>
 </div>
 
-![Magic Open Source Product Matrix](https://public-cdn.letsmagic.ai/static/img/super-magic-publish-header-en.png?v=20250819)
-
-# 🔥 Magic - First Open-Source All-in-One AI Productivity Platform
+# 🔥 Magic - Enterprise-Grade Open-Source AI Agent Platform
 
 <div align="center">
   <p align="center">
@@ -30,169 +28,170 @@
   </p>
 </div>
 
-Magic aims to help enterprises of all sizes quickly build and deploy AI applications to achieve a 100x increase in productivity.
+<br/>
 
-## Magic Product Matrix
+![MagiCrew](https://public-cdn.letsmagic.ai/static/img/3.0/magicrew-publish-head.png)
 
-Magic is the first **"open-source all-in-one AI productivity platform"**, not a single AI product, but a comprehensive product matrix with rich capabilities.
+[🦞 OpenClaw](https://github.com/openclaw/openclaw) is your personal AI assistant — connecting all major IMs as conversation channels, supporting any LLM, running autonomously 24/7.
 
-![Product Matrix](https://public-cdn.letsmagic.ai/static/img/super-magic-open-source-projects-en.png?v=20250819)
+But the moment it enters an enterprise, real problems surface: data trapped in individual accounts, budgets with no guardrails, output that never goes beyond plain text, and no gating mechanism for high-risk actions.
 
-- **[Super Magic](https://github.com/dtyq/super-magic)** - A **general-purpose AI Agent** designed for complex task scenarios
-- **[Magic IM](https://github.com/dtyq/magic)** - An enterprise-grade instant messaging system that integrates AI Agent conversations with internal enterprise communication
-- **[Magic Flow](https://github.com/dtyq/magic)** - A powerful visual AI workflow orchestration system
-- **Teamshare OS** (Coming soon) - An enterprise-grade online collaborative office system
+Magic is built to solve exactly these problems: a **secure, controllable, business-result-oriented AI Agent platform that runs autonomously around the clock**.
 
-In addition to the above AI products, we have also open-sourced some of the infrastructure we used to build these products:
+---
 
-- **[Agentlang](https://github.com/dtyq/agentlang)** - A language-first AI Agent Framework for building AI agents with natural language (currently available in Python version, TypeScript version coming soon)
-- **[Magic Lens](https://github.com/dtyq/magiclens)** - A powerful and flexible HTML to Markdown conversion tool that uses an extensible rule system to accurately convert complex HTML documents to concise Markdown format
-- **Magic Use** (Coming soon) - A revolutionary browser operation tool specifically designed for AI Agents
-- **Magic Space** (Coming soon) - A new static content hosting management system specifically designed for AI Agents
-- **Sandbox OS** (Coming soon) - A powerful sandbox system for AI Agent runtime
+## Stop Tinkering. Start Building Your Enterprise AI Engine.
 
-### Super Magic
+Personal AI tools consistently hit the same walls when deployed at scale. Here's how Magic addresses each one:
 
-A powerful **general-purpose AI Agent** specially designed for complex task scenarios. Through a multi-agent design system and rich tool capabilities, Super Magic supports intelligent abilities such as **autonomous task understanding**, **autonomous task planning**, **autonomous action**, and **autonomous error correction**. It can understand natural language instructions, execute various business processes, and deliver final target results. As the flagship product of the Magic product matrix, Super Magic provides powerful secondary development capabilities through open source, allowing enterprises to quickly build and deploy intelligent assistants that meet specific business needs, greatly improving decision-making efficiency and quality.
+- Data locked in employee accounts, gone when they leave → Unified data hub; institutional knowledge stays with the org
+- Unpredictable API costs, budget overruns at month-end → Per-department, per-user, per-task budget caps
+- Staff using third-party tools, core data at risk → In-house sandbox isolation; data never leaves the trusted boundary
+- AI automation deleting files, sending wrong emails → High-risk actions require human approval; humans stay in control
+- Can't connect to ERP, CRM → Wrap internal systems as digital employees, accessible to everyone
+- Output is just text, still requires manual formatting into decks → Deliver finished artifacts: dashboards, reports, PPTs, Excel files
 
-![Super Magic](https://public-cdn.letsmagic.ai/static/img/super-magic-buffett.gif)
+## Built for Any Scale
 
-#### Super Magic Case Studies
-- [Analysis of Investment Insights from Buffett's 2025 Shareholders Meeting](https://www.letsmagic.cn/share/777665156986277889)
-- [Analysis of Stocks Related to Beijing Humanoid Robot Half Marathon](https://www.letsmagic.cn/share/774280936479625217)
-- [Summary of Key Points from 'Thinking, Fast and Slow](https://www.letsmagic.cn/share/777461325648195584)
-- [Auntie Jenny IPO Analysis and Investment Recommendations](https://www.letsmagic.cn/share/777604044873928705)
-- [SKU Sales Forecast Requirements](https://www.letsmagic.cn/share/771022574397648897)
-- For more case studies, please visit the [Official Website](https://www.letsmagic.ai)
+Magic isn't only for large enterprises. **From a one-person shop to a 10,000-person organization, it solves the same problem: the output of 100 people at the cost of 1.**
 
-### Magic Flow
+It's a natural fit for **OPC (One Person Company)** and **OPT (One Person Team)** operating models — lean assets, zero headcount overhead, fast delivery of tangible results, plug in new capabilities on demand. Whether you're a solo founder or a small team, you can command an entire AI workforce.
 
-Magic Flow is a powerful visual AI workflow orchestration system that allows users to build complex AI Agent workflows on a free canvas. It has the following core features:
+**Solo founders / one-person teams**
 
-- **Visual Orchestration**: Intuitive drag-and-drop interface allows designing complex AI workflows without coding, easily implementing various functional combinations through node connections.
-- **Rich Component Library**: Built-in variety of preset components, including text processing, image generation, code execution modules, meeting diverse business needs.
-- **Comprehensive Model Support**: Compatible with any large model following the OpenAI API protocol, flexibly choosing AI capabilities suitable for business scenarios.
-- **System Integration Capability**: Seamless integration with Magic IM and other third-party IM systems (WeCom, DingTalk, Feishu), enabling cross-platform collaboration.
-- **Custom Extensions**: Support for custom tool node development to meet specific business scenario requirements.
-- **Real-time Debugging and Monitoring**: Providing comprehensive debugging and monitoring functions to help quickly identify and solve problems in workflows, ensuring stable operation of AI applications.
+Let AI cover the roles you haven't hired yet — marketing, operations, legal, data analysis, customer support, design, copywriting, finance. Zero labor cost, 24/7 output. Ship dashboards, reports, and draft contracts fast. Need a new capability? Just add an Agent.
 
-![Magic Flow](https://public-cdn.letsmagic.ai/static/img/magic-flow.png)
+**Enterprises / mid-size teams**
 
-As an important component of the Magic product matrix, Magic Flow can be seamlessly integrated with other Magic products to create a complete enterprise-level AI application ecosystem.
+Centralized platform to manage AI across the entire org, eliminating data leakage risk. Department budgets are transparent and attributable. Internal expertise is packaged into digital employees, reusable across departments — knowledge never walks out the door. High-risk actions require approval. Sandbox isolation ensures data never leaks.
 
-![Magic Multi-Agents and Events](https://public-cdn.letsmagic.ai/static/img/super-magic-multi-agents-and-events-en.png?v=20250819)
+---
 
-### Magic IM
+## 7 Enterprise-Grade Core Capabilities
 
-Magic IM is an enterprise-grade AI Agent conversation system designed specifically for internal knowledge management and intelligent customer service scenarios. It provides rich conversational capabilities, supporting multi-turn dialogues, context understanding, knowledge base retrieval, and other functions, allowing enterprises to quickly build intelligent customer service, knowledge assistants, and other applications.
+### 1. Enterprise Knowledge Consolidation
 
-Magic IM has the following core features:
+Deeply encapsulate fragmented internal systems (ERP / CRM / databases) and domain expertise into **digital employees accessible to everyone**. Break down silos and turn scattered API calls into reusable core digital assets at scale.
 
-- **Knowledge Base Management**: Powerful knowledge base management functions, supporting import of various document formats, automatic indexing, and semantic retrieval, ensuring AI answers based on authentic enterprise knowledge.
-- **Conversation Management**: Comprehensive conversation management, supporting topic distinction for different conversation content, enabling both AI Agent conversations and communication with people within the organization.
-- **Group Chat Capability**: Powerful group chat functionality, supporting real-time collaborative discussions among multiple people, with AI intelligently participating in group chats and providing instant answers, promoting efficient team communication and knowledge sharing.
-- **Multi-organizational Architecture**: Support for multi-organization deployment and strict organizational data isolation, with each organization having independent data space and access permissions.
-- **Data Security**: Strict data isolation and access control mechanisms, multi-level permission management, safeguarding sensitive enterprise information and ensuring no data leakage between organizations.
+![digital-employee-market](https://public-cdn.letsmagic.ai/static/img/3.0/digital-employee-market.png)
 
-![Magic IM](https://public-cdn.letsmagic.ai/static/img/magic-im-group-chat-en.png?v=20250819)
+### 2. Results as Deliverables
 
-## Teamshare OS
+No more stopping at "Chat." The built-in rendering framework transforms AI output directly into finished artifacts — **PPTs, data dashboards, meeting summaries, professional reports, Excel files, infinite canvases (image creation)** — ready to use, no post-processing required.
 
-Teamshare OS is a modern enterprise-grade collaborative office platform designed to enhance team collaboration efficiency and knowledge management. As an important component of the Magic product matrix, Teamshare deeply integrates AI capabilities into daily office scenarios, achieving intelligent workflows and knowledge management.
+![openclaw-enterprise-research-report](https://public-cdn.letsmagic.ai/static/img/3.0/openclaw-enterprise-research-report.png)
+![solution-ppt-demo](https://public-cdn.letsmagic.ai/static/img/3.0/solution-ppt-demo.png)
+![earnings-call-analysis](https://public-cdn.letsmagic.ai/static/img/3.0/earnings-call-analysis.png)
+![canvas-poster-design](https://public-cdn.letsmagic.ai/static/img/3.0/canvas-poster-design.png)
 
-Teamshare OS has the following core features:
+### 3. Enterprise Security & Compliance
 
-- **Intelligent Document Management**: Support for online editing, collaboration, and version control of various document formats, AI-assisted content generation and optimization, making team document management more efficient.
-- **Magic Table**: Powerful multi-dimensional data management tool, supporting custom field types, diverse views, and automated workflows, combined with AI capabilities to achieve intelligent data processing, meeting diverse data management needs.
-- **Project Collaboration Management**: Intuitive project boards and task management, supporting custom workflows, combined with AI intelligent analysis to provide project progress forecasting and resource optimization suggestions.
-- **Knowledge Base**: Powerful knowledge consolidation and retrieval system, automatically structuring internal enterprise documents to form sustainable accumulated enterprise knowledge assets.
-- **Comprehensive Integration Capability**: Seamless integration with Magic product matrix, while supporting connection with mainstream office software and enterprise applications, creating a unified work platform.
+Every Agent runs inside a **proprietary sandbox container**, isolated from the main system in a separate VPC and connected via private endpoints — zero risk of unauthorized access. A Sidecar network proxy manages traffic independently per user, with **complete resource and data isolation across tenants**. A strict **plugin security review** catches malicious code before publishing, keeping enterprise data within a trusted boundary at all times.
 
-### Magic Table
+### 4. Human-in-the-Loop Control
 
-https://gist.github.com/user-attachments/assets/6ef46e66-292c-4a8a-8a00-a3b9fb7beec7
+When an Agent attempts a high-risk operation, an approval workflow is triggered. Routine actions run autonomously; destructive ones — like deleting data or sending emails — **require explicit human confirmation**. Decision authority stays with people.
 
-### Magic Doc
+### 5. Granular Cost Control
 
-https://gist.github.com/user-attachments/assets/7327f331-be7d-4aeb-8e19-0949adde66b2
+An enterprise-grade cost compass lets you set precise **daily budgets per department, per user, and per Agent**. AI spending becomes predictable and controllable — every dollar justified.
 
-## 🚀 Using Super Magic
+### 6. Team-Wide Collaboration
+
+Multiple people share a single project, each owning different modules, advancing in parallel with real-time visibility. Expert users can jump into a colleague's project and help on the spot. **Experience accumulates naturally through projects and compounds across the team.** Progress can be automatically reported to WeCom, DingTalk, or Lark groups — true zero-friction collaboration.
+
+### 7. Open Ecosystem Compatibility
+
+Fully compatible with the **[Anthropic Skills](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview) ecosystem** and the **[OpenClaw Skills](https://github.com/openclaw/openclaw) ecosystem**. Existing tools and skills plug right in — zero migration cost to enterprise-grade.
+
+![skill-creator](https://public-cdn.letsmagic.ai/static/img/3.0/skill-creator.png)
+
+---
+
+## Personal AI Assistant + Expert Agents: Everyone Commands an AI Army
+
+Magic brings two complementary capabilities to the enterprise:
+
+**Every employee gets a personal AI assistant**
+
+Think of it as assigning each employee a dedicated 🦞, on call 24/7. The personal assistant doesn't just connect to IM — it **connects to everything**: calendars, email, internal systems, data, tools, and specialist Agents. One instruction is all it takes to mobilize the right resources and expertise — the true meaning of "100-person output at 1-person cost."
+
+**Expert Agents as domain specialists**
+
+Codify the know-how and workflows of legal, finance, sales, operations, and every other function into digital employees. Each Expert Agent is **deep and comprehensive within its domain**, ready to be invoked by users through their personal assistant. A new hire calling in an expert gets senior-level judgment from day one. Domain expertise stops being person-dependent and becomes a reusable organizational asset.
+
+**If you're a decision-maker, picture these scenarios:**
+
+### 8 people doing the work of 80
+
+> A cross-border e-commerce company runs with a team of 8. Each person has a personal AI assistant connected to Expert Agents for product selection, listing, advertising, customer service, logistics, and translation — end-to-end, fully automated. Their competitor does the same work with 80 people. And slower.
+
+### Not monthly reports — operational truth, any time
+
+> 2 AM, a question surfaces: "Can our East China gross margin hold this quarter?" The personal assistant connects to ERP, finance systems, and CRM, calls the finance Expert Agent, and delivers a live dashboard in 30 seconds. Management cadence is no longer held hostage by reporting cycles.
+
+### Global business, never offline
+
+> A New York client sends an urgent email at 3 AM. The customer service Expert Agent is already on it. It knows the product, understands return policy, and communicates fluently in natural English. By morning, what you see isn't a to-do — it's a resolved ticket summary. Time zones are no longer a bottleneck.
+
+### Risk intercepted before it happens
+
+> Every outbound contract passes through the legal Expert Agent before it leaves the building. Risky clauses are flagged and revision-suggested before the client ever sees them, with human approval triggered when needed. Compliance isn't a speed bump — it's a safety net running silently in the background.
+
+### The compounding value of organizational memory
+
+> Every business decision, every problem solved, every client interaction makes the Expert Agents smarter. A year in, your AI workforce carries not one person's experience but the collective intelligence of hundreds — and it never takes leave, never resigns, never withholds what it knows.
+
+### New hire. Day one. Senior-level output.
+
+> It used to take six months to develop a capable project manager. Now, on the first day, the personal assistant connects the new hire to the project management Expert Agent, the industry knowledge base, and the historical case library. Every pitfall has already been documented; every template is already packaged. Ramp time drops from six months to one week, with full productivity from day one.
+
+### 3 people, 10 markets
+
+> A three-person go-global team needs to enter 10 countries. The personal assistant invokes the market expansion Expert Agent to run the full playbook: research local regulations, generate compliant product descriptions and marketing copy, manage listings on local platforms, and track orders and after-sales across regions. Not a few translated paragraphs — a fully operational market entry, end to end.
+
+### The retiring expert whose knowledge never leaves
+
+> The after-sales team has a veteran engineer who can diagnose any failure the moment a customer describes it — what to check, how to fix it, where to source the part. That expertise is now fully encoded in the after-sales Expert Agent: symptom → diagnostic path → solution → parts procurement, a complete decision chain. A junior tech hits a tough problem, asks via their personal assistant, and gets a diagnosis at the veteran's level.
+
+### No more two-hour meetings that go nowhere
+
+> Before: the personal assistant auto-compiles relevant data and open items. During: the meeting Expert Agent transcribes in real time, flags contested points, tracks every action item. Five minutes after it ends: a structured summary — with owners and deadlines — is pushed to every attendee. Meetings become what they should be: decisions, not time sinks.
+
+---
+
+## 🚀 Quick Start
+
+### Self-Hosted Deployment
+
+We built a lightweight local Kubernetes deployment stack on top of [kind](https://kind.sigs.k8s.io/). The `magicrew-cli` tool handles the full pipeline in one command: environment checks, local image registry, cluster creation, infrastructure provisioning (MySQL / Redis / RabbitMQ / MinIO), and service deployment — ready out of the box.
+
+The deployment toolchain is being finalized and will be open-sourced shortly. Stay tuned.
 
 ### Cloud Service
 
-We provide [cloud services](https://www.letsmagic.ai) for [Super Magic](https://www.letsmagic.ai), [Magic IM](https://www.letsmagic.ai), and [Magic Flow](https://www.letsmagic.ai), allowing anyone to start trying and using them with zero setup, providing all features of the open-source version.
-*Currently, an invitation code is required for access, which can be applied for online and granted for trial use after approval.*
+Prefer not to self-host? Use the cloud version — sign up and go, zero configuration:
 
-### Magic for Enterprises/Organizations
+- **China**: [Magic](https://www.letsmagic.cn)
+- **International**: [MagiCrew](https://www.letsmagic.ai)
 
-We provide more powerful management capabilities and features for teams and enterprises. [Send us an email](mailto:bd@dtyq.com?subject=[GitHub]Business%20License%20Inquiry) to discuss enterprise needs.
+### Enterprise Edition
 
-### Self-hosted Community Edition
+We offer enhanced management capabilities and features for teams and enterprises, including private deployment, dedicated model integration, and deep custom integration with your internal systems. [Email us](mailto:bd@dtyq.com?subject=[GitHub]Business%20License%20Inquiry) to discuss your needs.
 
-#### System Requirements
-- Docker 24.0+
-- Docker Compose 2.0+
-
-#### Start the System Using Docker
-
-```bash
-# Clone repository
-git clone https://github.com/dtyq/magic.git
-cd magic
-
-# Start service in foreground
-./bin/magic.sh start
-```
-
-##### Other Commands
-
-```bash
-# Start service in background
-./bin/magic.sh daemon
-
-# Check service status
-./bin/magic.sh status
-
-# View logs
-./bin/magic.sh logs
-```
-
-##### Configure Environment Variables
-
-```bash
-# Configure Magic environment variables, must configure at least one large language model's environment variables to use Magic normally
-cp .env.example .env
-
-# Configure Super Magic environment variables, must configure any large language model that supports OpenAI format to use it normally
-./bin/magic.sh status
-cp config/.env_super_magic.example .env_super_magic
-```
-
-##### Access Services
-- API Service: http://localhost:9501
-- Web Application: http://localhost:8080
-  - Account `13812345678`：Password `letsmagic.ai`
-  - Account `13912345678`：Password `letsmagic.ai`
-- RabbitMQ Management Interface: http://localhost:15672
-  - Username: admin
-  - Password: magic123456
-
-
-Official Website: [https://www.letsmagic.ai](https://www.letsmagic.ai)
-Documentation: [https://docs.letsmagic.cn/en](https://docs.letsmagic.cn/en)
+---
 
 ## Contribution
 
-For those who want to contribute code, please refer to our [Contribution Guide](https://github.com/dtyq/magic/blob/master/CONTRIBUTING.md).
-Also, please consider supporting Magic through social media, events, and conferences. The development of Magic relies on your support.
+To contribute code, see the [Contribution Guide](https://github.com/dtyq/magic/blob/master/CONTRIBUTING.md) / [贡献指南（中文）](https://github.com/dtyq/magic/blob/master/CONTRIBUTING_CN.md). You're also welcome to support Magic through social media, events, and conferences — the project grows with community involvement.
 
 ## Security Vulnerabilities
 
-If you discover a security vulnerability in Magic, please send an email to the Magic official team at [team@dtyq.com](mailto:team@dtyq.com). All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability, email [team@dtyq.com](mailto:team@dtyq.com). All security issues are handled promptly.
 
 ## 📄 License
 
-This repository follows the [Magic Open Source License](LICENSE), which is essentially Apache 2.0 but with some additional restrictions.
+This repository is licensed under the [Magic Open Source License](LICENSE), based on Apache 2.0 with additional restrictions.
 
 ## 🙏 Acknowledgements
 
