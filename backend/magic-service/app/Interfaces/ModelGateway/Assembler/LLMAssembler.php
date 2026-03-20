@@ -55,10 +55,12 @@ class LLMAssembler
             $message = $choice->getMessage();
             if ($message instanceof AssistantMessage && $message->hasToolCalls()) {
                 $delta = $message->toArrayWithStream();
-                // Fix tool_calls index for streaming
+                // 补全 tool_calls index：优先使用 stream_index（来自上游 provider），无则用数组位置兜底
                 if (isset($delta['tool_calls']) && is_array($delta['tool_calls'])) {
-                    foreach ($delta['tool_calls'] as $index => &$toolCall) {
-                        $toolCall['index'] = $index;
+                    foreach ($delta['tool_calls'] as $arrIdx => &$toolCall) {
+                        if (! isset($toolCall['index'])) {
+                            $toolCall['index'] = $arrIdx;
+                        }
                     }
                 }
             } else {
