@@ -304,7 +304,7 @@ class SuperMagicAgentAssembler
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
-        array $userAgentsMap = [],
+        array $userAgentsMap,
         int $page,
         int $pageSize,
         int $total
@@ -334,7 +334,7 @@ class SuperMagicAgentAssembler
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
-        array $userAgentsMap = [],
+        array $userAgentsMap,
         string $currentUserId,
         int $page,
         int $pageSize,

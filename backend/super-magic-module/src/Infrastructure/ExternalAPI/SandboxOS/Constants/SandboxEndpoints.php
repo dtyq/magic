@@ -42,4 +42,9 @@ class SandboxEndpoints
      * Workspace export endpoint.
      */
     public const WORKSPACE_EXPORT = 'api/v1/workspace/export';
+
+    /**
+     * Workspace import endpoint.
+     */
+    public const WORKSPACE_IMPORT = 'api/v1/workspace/import';
 }

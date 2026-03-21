@@ -34,7 +34,9 @@ use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ImportWorkspaceRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\DbConnection\Db;
 use Throwable;
@@ -53,6 +55,7 @@ class SkillDomainService
         protected CloudFileRepositoryInterface $cloudFileRepository,
         protected SandboxGatewayInterface $sandboxGateway,
         protected WorkspaceExporterInterface $workspaceExporter,
+        protected WorkspaceImporterInterface $workspaceImporter,
     ) {
     }
 
@@ -181,6 +184,33 @@ class SkillDomainService
 
         if (! $response->isSuccess()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+        }
+
+        return $response->toArray();
+    }
+
+    /**
+     * Import skill workspace archive from URL into sandbox workspace.
+     *
+     * @return array{workspace_dir: string, extracted_files: int}
+     */
+    public function importSkillWorkspaceFromSandbox(
+        SkillDataIsolation $dataIsolation,
+        int $projectId,
+        string $fullWorkdir,
+        string $fileUrl,
+        string $targetDir = ''
+    ): array {
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+
+        $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
+
+        $request = new ImportWorkspaceRequest($fileUrl, $targetDir);
+        $response = $this->workspaceImporter->import($sandboxId, $request);
+
+        if (! $response->isSuccess()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, $response->getMessage());
         }
 
         return $response->toArray();
