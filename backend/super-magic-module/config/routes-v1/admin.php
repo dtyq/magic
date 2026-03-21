@@ -19,7 +19,7 @@ Router::addGroup('/api/v2/admin', static function () {
 Router::addGroup('/api/v1/admin', static function () {
     // Admin 路由组
     Router::addGroup('/skills', static function () {
-        Router::post('/versions', [AdminSkillApi::class, 'queryVersions']);
+        Router::post('/versions/queries', [AdminSkillApi::class, 'queryVersions']);
         Router::put('/versions/{id}/review', [AdminSkillApi::class, 'reviewSkillVersion']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);
