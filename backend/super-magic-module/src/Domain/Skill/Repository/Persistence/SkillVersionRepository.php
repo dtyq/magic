@@ -227,9 +227,9 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
     /**
      * 根据 ID 查找待审核的技能版本（publish_status = UNPUBLISHED 且 review_status = UNDER_REVIEW）.
      */
-    public function findPendingReviewById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity
+    public function findPendingReviewById(int $id): ?SkillVersionEntity
     {
-        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+        $builder = $this->skillVersionModel::query();
         /** @var null|SkillVersionModel $model */
         $model = $builder
             ->where('id', $id)

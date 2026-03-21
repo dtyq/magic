@@ -545,9 +545,9 @@ class SkillDomainService
     /**
      * 查找待审核的技能版本.
      */
-    public function findPendingReviewSkillVersionById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity
+    public function findPendingReviewSkillVersionById(int $id): ?SkillVersionEntity
     {
-        return $this->skillVersionRepository->findPendingReviewById($dataIsolation, $id);
+        return $this->skillVersionRepository->findPendingReviewById($id);
     }
 
     /**
@@ -729,7 +729,7 @@ class SkillDomainService
     public function reviewSkillVersion(SkillDataIsolation $dataIsolation, int $id, string $action, string $publisherType = ''): void
     {
         // 1. 查找待审核的技能版本
-        $skillVersion = $this->findPendingReviewSkillVersionById($dataIsolation, $id);
+        $skillVersion = $this->findPendingReviewSkillVersionById($id);
         if (! $skillVersion) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.skill_version_not_found');
         }
@@ -971,6 +971,8 @@ class SkillDomainService
      */
     private function approveSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $skillVersion, PublisherType $publisherType): void
     {
+        $dataIsolation->disabled();
+
         // 1. 更新技能版本状态为已发布和审核通过
         $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillVersion->getCode());
         $skillVersion->setReviewStatus(ReviewStatus::APPROVED);

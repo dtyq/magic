@@ -59,7 +59,7 @@ interface SkillVersionRepositoryInterface
     /**
      * 根据 ID 查找待审核的技能版本.
      */
-    public function findPendingReviewById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity;
+    public function findPendingReviewById(int $id): ?SkillVersionEntity;
 
     /**
      * 根据 code 查找所有已发布版本的 Skill 版本.

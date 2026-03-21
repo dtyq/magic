@@ -489,6 +489,8 @@ readonly class SuperMagicAgentDomainService
         string $modifier,
         ?string $publisherType = null
     ): void {
+        $dataIsolation->disabled();
+
         // 1. 查询待审核的版本
         $versionEntity = $this->agentVersionRepository->findPendingReviewById($dataIsolation, $versionId);
         if (! $versionEntity) {

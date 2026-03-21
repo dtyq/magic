@@ -276,11 +276,14 @@ class SkillAssembler
                 $publisherUserMap[$skillMarketEntity->getPublisherId()] ?? null
             );
 
+            $isCreator = $creatorSkillCodes[$skillCode] ?? false;
+            $isAdded = $isCreator ?: $isAdded;
+
             $listItems[] = self::createMarketListItemDTO(
                 $skillMarketEntity,
                 $isAdded,
                 $needUpgrade,
-                $creatorSkillCodes[$skillCode] ?? false,
+                $isCreator,
                 $publisher
             );
         }
