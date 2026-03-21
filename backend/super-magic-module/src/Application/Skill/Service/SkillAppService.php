@@ -11,7 +11,6 @@ use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
-use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
@@ -999,14 +998,6 @@ class SkillAppService extends AbstractSkillAppService
         $userMap = [];
         if ($userIds !== []) {
             $userMap = $this->getUsers($organizationCode, array_unique($userIds));
-
-            $missingUserIds = array_diff(array_unique($userIds), array_keys($userMap));
-            foreach ($missingUserIds as $missingUserId) {
-                $userEntity = di(MagicUserDomainService::class)->getByUserId($missingUserId);
-                if ($userEntity !== null) {
-                    $userMap[$userEntity->getUserId()] = $userEntity;
-                }
-            }
         }
 
         $memberDepartmentMap = [];
@@ -1017,14 +1008,6 @@ class SkillAppService extends AbstractSkillAppService
                 array_unique($memberDepartmentIds),
                 true
             );
-
-            $missingDepartmentIds = array_diff(array_unique($memberDepartmentIds), array_keys($memberDepartmentMap));
-            if ($missingDepartmentIds !== []) {
-                $memberDepartmentMap += $this->magicDepartmentDomainService->getDepartmentByIdsInMagic(
-                    $missingDepartmentIds,
-                    true
-                );
-            }
         }
 
         return [$userMap, $memberDepartmentMap];

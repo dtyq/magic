@@ -12,7 +12,6 @@ use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
-use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -942,14 +941,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $userMap = [];
         if ($userIds !== []) {
             $userMap = $this->getUsers($organizationCode, array_unique($userIds));
-
-            $missingUserIds = array_diff(array_unique($userIds), array_keys($userMap));
-            foreach ($missingUserIds as $missingUserId) {
-                $userEntity = di(MagicUserDomainService::class)->getByUserId($missingUserId);
-                if ($userEntity !== null) {
-                    $userMap[$userEntity->getUserId()] = $userEntity;
-                }
-            }
         }
 
         $memberDepartmentMap = [];
@@ -959,14 +950,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 array_unique($memberDepartmentIds),
                 true
             );
-
-            $missingDepartmentIds = array_diff(array_unique($memberDepartmentIds), array_keys($memberDepartmentMap));
-            if ($missingDepartmentIds !== []) {
-                $memberDepartmentMap += $this->magicDepartmentDomainService->getDepartmentByIdsInMagic(
-                    $missingDepartmentIds,
-                    true
-                );
-            }
         }
 
         return [$userMap, $memberDepartmentMap];
