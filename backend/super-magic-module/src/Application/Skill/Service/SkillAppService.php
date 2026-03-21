@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Skill\Service;
 
+use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\Permission\Entity\ResourceVisibilityEntity;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -362,35 +362,127 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        // 获取用户语言偏好，从 dataIsolation 中获取
-        $languageCode = $query->getLanguageCode() ?: ($dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value);
+        $this->fillLanguageCode($dataIsolation, $query);
 
-        // 设置语言代码到查询对象
-        if (! $query->getLanguageCode()) {
-            $query->setLanguageCode($languageCode);
-        }
-
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $permissionDataIsolation,
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL
-        );
+        $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
 
         $dataIsolation->disabled();
         $result = $this->skillDomainService->queriesByCodes($dataIsolation, $accessibleSkillCodes, $query, $page);
 
-        $skillEntities = $this->skillDomainService->replaceVisibleSkillDisplayFields(
-            $dataIsolation,
-            $result['list']
-        );
+        return $this->buildSkillListResult($dataIsolation, $result);
+    }
 
-        // 批量更新 logo URL（如果存储的是路径，需要转换为完整URL）
-        $this->updateSkillLogoUrl($dataIsolation, $skillEntities);
+    /**
+     * 查询我创建的技能列表.
+     *
+     * @return array{list: SkillEntity[], total: int}
+     */
+    public function queriesCreated(RequestContext $requestContext, SkillQuery $query, Page $page): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
+
+        $this->fillLanguageCode($dataIsolation, $query);
+
+        $result = $this->skillDomainService->queries($dataIsolation, $query, $page);
+        $this->updateSkillLogoUrl($dataIsolation, $result['list']);
+        $creatorUserMap = $this->buildCreatorUserMapFromSkillEntities($dataIsolation, $result['list']);
+        $latestVersionMap = $this->buildLatestVersionMapFromSkillEntities($dataIsolation, $result['list']);
 
         return [
-            'list' => $skillEntities,
+            'list' => $result['list'],
             'total' => $result['total'],
+            'creatorUserMap' => $creatorUserMap,
+            'latestVersionMap' => $latestVersionMap,
+        ];
+    }
+
+    /**
+     * 查询团队共享的技能列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queriesTeamShared(RequestContext $requestContext, SkillQuery $query, Page $page): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
+
+        $this->fillLanguageCode($dataIsolation, $query);
+
+        $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
+        $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
+        $sharedSkillCodes = array_values(array_diff($accessibleSkillCodes, $currentUserSkillCodes));
+
+        if ($sharedSkillCodes) {
+            return [
+                'list' => [],
+                'total' => 0,
+            ];
+        }
+
+        $dataIsolation->disabled();
+        $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
+            $dataIsolation,
+            $sharedSkillCodes,
+            $query->getKeyword(),
+            $query->getLanguageCode() ?: LanguageEnum::EN_US->value,
+            $page
+        );
+
+        $this->updateSkillVersionAssetUrls($dataIsolation, $result['list']);
+        $creatorUserMap = $this->buildCreatorUserMapFromSkillVersions($dataIsolation, $result['list']);
+        $latestVersionMap = $this->buildLatestVersionMapFromSkillVersions($result['list']);
+
+        return [
+            'list' => $result['list'],
+            'total' => $result['total'],
+            'creatorUserMap' => $creatorUserMap,
+            'latestVersionMap' => $latestVersionMap,
+        ];
+    }
+
+    /**
+     * 查询从市场安装的技能列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queriesMarketInstalled(RequestContext $requestContext, SkillQuery $query, Page $page): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
+
+        $this->fillLanguageCode($dataIsolation, $query);
+
+        $marketInstalledCodes = $this->skillDomainService->findCurrentUserSkillCodesBySourceType(
+            $dataIsolation,
+            SkillSourceType::MARKET
+        );
+
+        if ($marketInstalledCodes === []) {
+            return [
+                'list' => [],
+                'total' => 0,
+            ];
+        }
+
+        $dataIsolation->disabled();
+        $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
+            $dataIsolation,
+            $marketInstalledCodes,
+            $query->getKeyword(),
+            $query->getLanguageCode() ?: LanguageEnum::EN_US->value,
+            $page
+        );
+
+        $this->updateSkillVersionAssetUrls($dataIsolation, $result['list']);
+        $creatorUserMap = $this->buildCreatorUserMapFromSkillVersions($dataIsolation, $result['list']);
+        $latestVersionMap = $this->buildLatestVersionMapFromSkillVersions($result['list']);
+
+        return [
+            'list' => $result['list'],
+            'total' => $result['total'],
+            'creatorUserMap' => $creatorUserMap,
+            'latestVersionMap' => $latestVersionMap,
         ];
     }
 
@@ -1473,64 +1565,135 @@ class SkillAppService extends AbstractSkillAppService
         );
     }
 
-    /**
-     * @return ResourceVisibilityEntity[]
-     */
-    private function listSkillVisibilityEntities(SkillDataIsolation $dataIsolation, string $code): array
+    private function fillLanguageCode(SkillDataIsolation $dataIsolation, SkillQuery $query): void
     {
-        return $this->resourceVisibilityDomainService->listResourceVisibility(
-            $this->createPermissionDataIsolation($dataIsolation),
-            ResourceVisibilityResourceType::SKILL,
-            $code
-        );
-    }
-
-    /**
-     * @param ResourceVisibilityEntity[] $entities
-     */
-    private function saveSkillVisibilityEntities(SkillDataIsolation $dataIsolation, string $code, array $entities): void
-    {
-        $this->resourceVisibilityDomainService->batchSaveResourceVisibility(
-            $this->createPermissionDataIsolation($dataIsolation),
-            ResourceVisibilityResourceType::SKILL,
-            $code,
-            $entities
-        );
-    }
-
-    private function buildSkillVisibilityEntity(
-        SkillDataIsolation $dataIsolation,
-        PrincipalType $principalType,
-        string $principalId
-    ): ResourceVisibilityEntity {
-        $entity = new ResourceVisibilityEntity();
-        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $entity->setPrincipalType($principalType);
-        $entity->setPrincipalId($principalId);
-        $entity->setCreator($dataIsolation->getCurrentUserId());
-        $entity->setModifier($dataIsolation->getCurrentUserId());
-
-        return $entity;
-    }
-
-    private function shouldKeepDirectSkillVisibilityAfterMarketRemoval(
-        SkillDataIsolation $dataIsolation,
-        string $code,
-        string $userId
-    ): bool {
-        foreach ($this->skillDomainService->findAllPublishedSkillVersionsByCode($dataIsolation, $code) as $publishedVersion) {
-            if ($publishedVersion->getPublishTargetType() === PublishTargetType::MARKET) {
-                continue;
-            }
-
-            if ($publishedVersion->getPublishTargetType() !== PublishTargetType::MEMBER) {
-                return false;
-            }
-
-            return $publishedVersion->getPublishTargetValue()?->containsUserId($userId) ?? false;
+        if ($query->getLanguageCode()) {
+            return;
         }
 
-        return false;
+        $query->setLanguageCode($dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value);
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $this->createPermissionDataIsolation($dataIsolation),
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL
+        );
+    }
+
+    /**
+     * @param array{list: SkillEntity[], total: int} $result
+     * @return array{list: SkillEntity[], total: int}
+     */
+    private function buildSkillListResult(SkillDataIsolation $dataIsolation, array $result): array
+    {
+        $skillEntities = $this->skillDomainService->replaceVisibleSkillDisplayFields(
+            $dataIsolation,
+            $result['list']
+        );
+
+        $this->updateSkillLogoUrl($dataIsolation, $skillEntities);
+        $creatorUserMap = $this->buildCreatorUserMapFromSkillEntities($dataIsolation, $skillEntities);
+        $latestVersionMap = $this->buildLatestVersionMapFromSkillEntities($dataIsolation, $skillEntities);
+
+        return [
+            'list' => $skillEntities,
+            'total' => $result['total'],
+            'creatorUserMap' => $creatorUserMap,
+            'latestVersionMap' => $latestVersionMap,
+        ];
+    }
+
+    /**
+     * @param SkillEntity[] $skillEntities
+     * @return array<string, MagicUserEntity>
+     */
+    private function buildCreatorUserMapFromSkillEntities(SkillDataIsolation $dataIsolation, array $skillEntities): array
+    {
+        $creatorIds = array_values(array_unique(array_filter(array_map(
+            static fn (SkillEntity $skillEntity) => $skillEntity->getCreatorId(),
+            $skillEntities
+        ))));
+
+        return $this->buildCreatorUserMap($dataIsolation, $creatorIds);
+    }
+
+    /**
+     * @param SkillVersionEntity[] $skillVersionEntities
+     * @return array<string, MagicUserEntity>
+     */
+    private function buildCreatorUserMapFromSkillVersions(SkillDataIsolation $dataIsolation, array $skillVersionEntities): array
+    {
+        $creatorIds = array_values(array_unique(array_filter(array_map(
+            static fn (SkillVersionEntity $skillVersionEntity) => $skillVersionEntity->getCreatorId(),
+            $skillVersionEntities
+        ))));
+
+        return $this->buildCreatorUserMap($dataIsolation, $creatorIds);
+    }
+
+    /**
+     * @param array<string> $creatorIds
+     * @return array<string, MagicUserEntity>
+     */
+    private function buildCreatorUserMap(SkillDataIsolation $dataIsolation, array $creatorIds): array
+    {
+        if ($creatorIds === []) {
+            return [];
+        }
+
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($creatorIds);
+        $this->updateUserAvatarUrl($dataIsolation, $userEntities);
+
+        $creatorUserMap = [];
+        foreach ($userEntities as $userEntity) {
+            $creatorUserMap[$userEntity->getUserId()] = $userEntity;
+        }
+
+        return $creatorUserMap;
+    }
+
+    /**
+     * @param SkillEntity[] $skillEntities
+     * @return array<string, string>
+     */
+    private function buildLatestVersionMapFromSkillEntities(SkillDataIsolation $dataIsolation, array $skillEntities): array
+    {
+        $skillCodes = array_values(array_unique(array_filter(array_map(
+            static fn (SkillEntity $skillEntity) => $skillEntity->getCode(),
+            $skillEntities
+        ))));
+
+        if ($skillCodes === []) {
+            return [];
+        }
+
+        $publishedVersionMap = $this->skillDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $skillCodes);
+        $latestVersionMap = [];
+        foreach ($skillCodes as $skillCode) {
+            $latestVersionMap[$skillCode] = isset($publishedVersionMap[$skillCode]) ? $publishedVersionMap[$skillCode]->getVersion() : '';
+        }
+
+        return $latestVersionMap;
+    }
+
+    /**
+     * @param SkillVersionEntity[] $skillVersionEntities
+     * @return array<string, string>
+     */
+    private function buildLatestVersionMapFromSkillVersions(array $skillVersionEntities): array
+    {
+        $latestVersionMap = [];
+        foreach ($skillVersionEntities as $skillVersionEntity) {
+            $latestVersionMap[$skillVersionEntity->getCode()] = $skillVersionEntity->getVersion();
+        }
+
+        return $latestVersionMap;
     }
 
     /**

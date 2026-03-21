@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
+use App\Interfaces\Kernel\DTO\OperatorDTO;
 use JsonSerializable;
 
 /**
@@ -36,9 +37,13 @@ class SkillListItemDTO implements JsonSerializable
 
     private ?string $latestPublishedAt;
 
+    private string $latestVersion;
+
     private string $name;
 
     private string $description;
+
+    private ?OperatorDTO $creatorInfo;
 
     public function __construct(
         string $id,
@@ -53,7 +58,9 @@ class SkillListItemDTO implements JsonSerializable
         ?string $pinnedAt,
         string $updatedAt,
         string $createdAt,
-        ?string $latestPublishedAt
+        ?string $latestPublishedAt,
+        string $latestVersion = '',
+        ?OperatorDTO $creatorInfo = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -68,6 +75,8 @@ class SkillListItemDTO implements JsonSerializable
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
         $this->latestPublishedAt = $latestPublishedAt;
+        $this->latestVersion = $latestVersion;
+        $this->creatorInfo = $creatorInfo;
     }
 
     public function jsonSerialize(): array
@@ -84,8 +93,10 @@ class SkillListItemDTO implements JsonSerializable
             'is_enabled' => $this->isEnabled,
             'pinned_at' => $this->pinnedAt,
             'latest_published_at' => $this->latestPublishedAt,
+            'latest_version' => $this->latestVersion,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
+            'creator_info' => $this->creatorInfo,
         ];
     }
 }

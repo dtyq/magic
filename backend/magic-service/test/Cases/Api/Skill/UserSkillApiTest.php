@@ -319,9 +319,20 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('is_enabled', $item);
             $this->assertArrayHasKey('pinned_at', $item);
             $this->assertArrayHasKey('latest_published_at', $item);
+            $this->assertArrayHasKey('latest_version', $item);
             $this->assertArrayHasKey('updated_at', $item);
             $this->assertArrayHasKey('created_at', $item);
         }
+
+        $queriedSkill = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $skillCode) {
+                $queriedSkill = $item;
+                break;
+            }
+        }
+        $this->assertNotNull($queriedSkill, '基础技能列表中应该能查到刚创建的技能');
+        $this->assertSame('', $queriedSkill['latest_version'] ?? null);
 
         // 测试关键词搜索（中文）
         $keywordQueryData = [
@@ -596,6 +607,190 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals('已发布技能描述', $targetSkill['description_i18n']['zh_CN'] ?? null);
         $this->assertEquals('Published Skill Description', $targetSkill['description_i18n']['en_US'] ?? null);
         $this->assertEquals('MARKET', $targetSkill['source_type'] ?? null);
+    }
+
+    public function testQueriesCreated(): void
+    {
+        $this->switchUserTest1();
+
+        $skillCode = $this->createTestSkill();
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/created',
+            [
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $targetSkill = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $skillCode) {
+                $targetSkill = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetSkill, '我创建的技能应该出现在 queries/created 列表中');
+        $this->assertSame('LOCAL_UPLOAD', $targetSkill['source_type'] ?? null);
+        $this->assertArrayHasKey('creator_info', $targetSkill);
+        $this->assertSame('', $targetSkill['latest_version'] ?? null);
+        $this->assertSame($this->getCommonHeaders()['user-id'], $targetSkill['creator_info']['id'] ?? null);
+    }
+
+    public function testQueriesTeamShared(): void
+    {
+        $this->switchUserTest1();
+
+        $createdSkillCode = $this->createTestSkill();
+
+        $sharedSkillCode = $this->createTestSkill();
+        $publishedInfoResponse = $this->put(
+            self::BASE_URI . '/' . $sharedSkillCode . '/info',
+            [
+                'name_i18n' => [
+                    'zh_CN' => '团队共享已发布名称',
+                    'en_US' => 'Team Shared Published Name',
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '团队共享已发布描述',
+                    'en_US' => 'Team Shared Published Description',
+                ],
+                'logo' => 'skill/team-shared-published-logo.png',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $publishedInfoResponse['code']);
+        $publishResponse = $this->publishSkillVersion($sharedSkillCode, '1.0.0', 'ORGANIZATION');
+        $this->assertEquals(1000, $publishResponse['code']);
+        $draftInfoResponse = $this->put(
+            self::BASE_URI . '/' . $sharedSkillCode . '/info',
+            [
+                'name_i18n' => [
+                    'zh_CN' => '团队共享草稿名称',
+                    'en_US' => 'Team Shared Draft Name',
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '团队共享草稿描述',
+                    'en_US' => 'Team Shared Draft Description',
+                ],
+                'logo' => 'skill/team-shared-draft-logo.png',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $draftInfoResponse['code']);
+
+        $marketSkillData = $this->createPublishedStoreSkill();
+
+        $this->switchUserTest2();
+
+        $addResponse = $this->post(
+            self::BASE_URI . '/from-store',
+            [
+                'store_skill_id' => (string) $marketSkillData['store_skill_id'],
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $addResponse['code']);
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/team-shared',
+            [
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $skillCodes = array_column($response['data']['list'], 'code');
+
+        $this->assertContains($sharedSkillCode, $skillCodes, '团队共享技能应该出现在 queries/team-shared 列表中');
+        $this->assertNotContains($createdSkillCode, $skillCodes, '我创建的技能不应该出现在 queries/team-shared 列表中');
+        $this->assertNotContains($marketSkillData['skill_code'], $skillCodes, '从市场安装的技能不应该出现在 queries/team-shared 列表中');
+
+        $targetSkill = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $sharedSkillCode) {
+                $targetSkill = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetSkill, '团队共享技能应该出现在 queries/team-shared 列表中');
+        $this->assertNotSame('MARKET', $targetSkill['source_type'] ?? null);
+        $this->assertSame('团队共享已发布名称', $targetSkill['name_i18n']['zh_CN'] ?? null);
+        $this->assertSame('Team Shared Published Name', $targetSkill['name_i18n']['en_US'] ?? null);
+        $this->assertSame('团队共享已发布描述', $targetSkill['description_i18n']['zh_CN'] ?? null);
+        $this->assertSame('Team Shared Published Description', $targetSkill['description_i18n']['en_US'] ?? null);
+        $this->assertSame('1.0.0', $targetSkill['latest_version'] ?? null);
+        $this->assertArrayHasKey('creator_info', $targetSkill);
+        $this->assertNotEmpty($targetSkill['creator_info']['id'] ?? null);
+    }
+
+    public function testQueriesMarketInstalled(): void
+    {
+        $storeSkillData = $this->createPublishedStoreSkill();
+
+        $this->switchUserTest1();
+        $draftInfoResponse = $this->put(
+            self::BASE_URI . '/' . $storeSkillData['skill_code'] . '/info',
+            [
+                'name_i18n' => [
+                    'zh_CN' => '市场安装草稿名称',
+                    'en_US' => 'Market Installed Draft Name',
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '市场安装草稿描述',
+                    'en_US' => 'Market Installed Draft Description',
+                ],
+                'logo' => 'skill/market-installed-draft-logo.png',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $draftInfoResponse['code']);
+
+        $this->switchUserTest2();
+
+        $addResponse = $this->post(
+            self::BASE_URI . '/from-store',
+            [
+                'store_skill_id' => (string) $storeSkillData['store_skill_id'],
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $addResponse['code']);
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/market-installed',
+            [
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $targetSkill = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? '') === $storeSkillData['skill_code']) {
+                $targetSkill = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($targetSkill, '从市场安装的技能应该出现在 queries/market-installed 列表中');
+        $this->assertSame('MARKET', $targetSkill['source_type'] ?? null);
+        $this->assertSame('测试技能', $targetSkill['name_i18n']['zh_CN'] ?? null);
+        $this->assertSame('Test Skill', $targetSkill['name_i18n']['en_US'] ?? null);
+        $this->assertSame('1.0.0', $targetSkill['latest_version'] ?? null);
+        $this->assertArrayHasKey('creator_info', $targetSkill);
+        $this->assertNotEmpty($targetSkill['creator_info']['id'] ?? null);
     }
 
     /**

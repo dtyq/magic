@@ -100,7 +100,7 @@ Router::addGroup(
         // 市场技能库相关
         Router::addGroup('/skill-market', static function () {
             // 获取市场技能库列表
-            Router::post('/queries', [SkillSandboxApi::class, 'queries']);
+            Router::post('/queries', [SkillSandboxApi::class, 'queriesMarket']);
         });
     },
     ['middleware' => [SandboxUserAuthMiddleware::class]]

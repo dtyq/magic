@@ -88,6 +88,19 @@ interface SkillRepositoryInterface
     ): array;
 
     /**
+     * Query shared skills by visible skill codes.
+     *
+     * @param array<string> $codes Visible skill code list
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesSharedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array;
+
+    /**
      * 查询用户技能总数（用于分页）.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象

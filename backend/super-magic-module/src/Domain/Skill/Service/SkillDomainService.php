@@ -138,6 +138,17 @@ class SkillDomainService
     }
 
     /**
+     * 根据 code 列表批量查询当前已发布版本.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findCurrentPublishedVersionsByCodes(SkillDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentPublishedByCodes($dataIsolation, $codes);
+    }
+
+    /**
      * Export agent workspace from sandbox to object storage.
      *
      * @param SkillDataIsolation $dataIsolation Data isolation context
@@ -306,6 +317,14 @@ class SkillDomainService
     }
 
     /**
+     * @return array<string>
+     */
+    public function findCurrentUserSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        return $this->userSkillRepository->findCurrentUserSkillCodes($dataIsolation);
+    }
+
+    /**
      * @return UserSkillEntity[]
      */
     public function findAllUserSkillOwnershipsByCode(SkillDataIsolation $dataIsolation, string $code): array
@@ -345,6 +364,31 @@ class SkillDomainService
     }
 
     /**
+     * Query shared skills by visible skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesSharedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array {
+        return $this->skillRepository->queriesSharedByCodes($dataIsolation, $codes, $query, $page);
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function findCurrentUserSkillCodesBySourceType(
+        SkillDataIsolation $dataIsolation,
+        SkillSourceType|string $sourceType
+    ): array {
+        return $this->userSkillRepository->findSkillCodesBySourceType($dataIsolation, $sourceType);
+    }
+
+    /**
      * Replace visible skill display fields with the installed version snapshot
      * when the current user is not the creator of the local skill record.
      *
@@ -368,14 +412,17 @@ class SkillDomainService
             return $skillEntities;
         }
 
-        $userSkillMap = $this->userSkillRepository->findBySkillCodes(
+        $skillCodesToReplace = array_values(array_unique($skillCodesToReplace));
+
+        $publishedVersionMap = $this->findCurrentPublishedVersionsByCodes(
             $dataIsolation,
-            array_values(array_unique($skillCodesToReplace))
+            $skillCodesToReplace
         );
 
-        if ($userSkillMap === []) {
-            return $skillEntities;
-        }
+        $userSkillMap = $this->userSkillRepository->findBySkillCodes(
+            $dataIsolation,
+            $skillCodesToReplace
+        );
 
         $versionIds = [];
         foreach ($userSkillMap as $userSkillEntity) {
@@ -384,11 +431,9 @@ class SkillDomainService
             }
         }
 
-        if ($versionIds === []) {
-            return $skillEntities;
-        }
-
-        $versionMap = $this->findSkillVersionsByIdsWithoutOrganizationFilter(array_values(array_unique($versionIds)));
+        $versionMap = $versionIds === []
+            ? []
+            : $this->findSkillVersionsByIdsWithoutOrganizationFilter(array_values(array_unique($versionIds)));
 
         foreach ($skillEntities as $index => $skillEntity) {
             if ($skillEntity->getCreatorId() === $dataIsolation->getCurrentUserId()) {
@@ -400,15 +445,22 @@ class SkillDomainService
                 ? ($versionMap[$userSkillEntity->getSkillVersionId()] ?? null)
                 : null;
 
-            if ($userSkillEntity === null || $skillVersionEntity === null) {
+            if ($userSkillEntity !== null && $skillVersionEntity !== null) {
+                $skillEntities[$index] = $this->applyInstalledVersionSnapshotToSkill(
+                    $skillEntity,
+                    $userSkillEntity,
+                    $skillVersionEntity
+                );
                 continue;
             }
 
-            $skillEntities[$index] = $this->applyInstalledVersionSnapshotToSkill(
-                $skillEntity,
-                $userSkillEntity,
-                $skillVersionEntity
-            );
+            $publishedVersionEntity = $publishedVersionMap[$skillEntity->getCode()] ?? null;
+            if ($publishedVersionEntity !== null) {
+                $skillEntities[$index] = $this->applyPublishedVersionSnapshotToSkill(
+                    $skillEntity,
+                    $publishedVersionEntity
+                );
+            }
         }
 
         return $skillEntities;
@@ -950,14 +1002,45 @@ class SkillDomainService
         UserSkillEntity $userSkillEntity,
         SkillVersionEntity $skillVersionEntity
     ): SkillEntity {
+        $skillEntity->setPackageName($skillVersionEntity->getPackageName());
+        $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
         $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
         $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
         $skillEntity->setLogo($skillVersionEntity->getLogo());
+        $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
         $skillEntity->setSourceType($userSkillEntity->getSourceType());
         $skillEntity->setSourceId($userSkillEntity->getSourceId());
         $skillEntity->setVersionId($skillVersionEntity->getId());
         $skillEntity->setVersionCode($skillVersionEntity->getVersion());
+        $skillEntity->setProjectId($skillVersionEntity->getProjectId());
         $skillEntity->setLatestPublishedAt($skillVersionEntity->getPublishedAt());
+        $skillEntity->setCreatedAt($skillVersionEntity->getCreatedAt());
+        $skillEntity->setUpdatedAt($skillVersionEntity->getUpdatedAt());
+
+        return $skillEntity;
+    }
+
+    /**
+     * Apply the current published version snapshot fields to a visible shared skill entity.
+     */
+    private function applyPublishedVersionSnapshotToSkill(
+        SkillEntity $skillEntity,
+        SkillVersionEntity $skillVersionEntity
+    ): SkillEntity {
+        $skillEntity->setPackageName($skillVersionEntity->getPackageName());
+        $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
+        $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
+        $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
+        $skillEntity->setLogo($skillVersionEntity->getLogo());
+        $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
+        $skillEntity->setSourceType($skillVersionEntity->getSourceType());
+        $skillEntity->setSourceId($skillVersionEntity->getSourceId());
+        $skillEntity->setVersionId($skillVersionEntity->getId());
+        $skillEntity->setVersionCode($skillVersionEntity->getVersion());
+        $skillEntity->setProjectId($skillVersionEntity->getProjectId());
+        $skillEntity->setLatestPublishedAt($skillVersionEntity->getPublishedAt());
+        $skillEntity->setCreatedAt($skillVersionEntity->getCreatedAt());
+        $skillEntity->setUpdatedAt($skillVersionEntity->getUpdatedAt());
 
         return $skillEntity;
     }

@@ -149,7 +149,80 @@ class SkillApi extends AbstractApi
             $result['list'],
             $page->getPage(),
             $page->getPageNum(),
-            $result['total']
+            $result['total'],
+            $result['creatorUserMap'] ?? [],
+            $result['latestVersionMap'] ?? []
+        );
+    }
+
+    /**
+     * 查询我创建的技能列表.
+     */
+    public function queriesCreated(RequestContext $requestContext, SkillQueryFormRequest $request)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestData = $request->validated();
+        $query = new SkillQuery($requestData);
+        $page = $this->createPage();
+
+        $result = $this->userSkillAppService->queriesCreated($requestContext, $query, $page);
+
+        return SkillAssembler::createListResponseDTO(
+            $result['list'],
+            $page->getPage(),
+            $page->getPageNum(),
+            $result['total'],
+            $result['creatorUserMap'] ?? [],
+            $result['latestVersionMap'] ?? []
+        );
+    }
+
+    /**
+     * 查询团队共享的技能列表.
+     */
+    public function queriesTeamShared(RequestContext $requestContext, SkillQueryFormRequest $request)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestData = $request->validated();
+        $query = new SkillQuery($requestData);
+        $page = $this->createPage();
+
+        $result = $this->userSkillAppService->queriesTeamShared($requestContext, $query, $page);
+
+        return SkillAssembler::createListResponseDTOFromVersions(
+            $result['list'],
+            $page->getPage(),
+            $page->getPageNum(),
+            $result['total'],
+            null,
+            $result['creatorUserMap'] ?? [],
+            $result['latestVersionMap'] ?? []
+        );
+    }
+
+    /**
+     * 查询从市场安装的技能列表.
+     */
+    public function queriesMarketInstalled(RequestContext $requestContext, SkillQueryFormRequest $request)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestData = $request->validated();
+        $query = new SkillQuery($requestData);
+        $page = $this->createPage();
+
+        $result = $this->userSkillAppService->queriesMarketInstalled($requestContext, $query, $page);
+
+        return SkillAssembler::createListResponseDTOFromVersions(
+            $result['list'],
+            $page->getPage(),
+            $page->getPageNum(),
+            $result['total'],
+            SkillSourceType::MARKET->value,
+            $result['creatorUserMap'] ?? [],
+            $result['latestVersionMap'] ?? []
         );
     }
 

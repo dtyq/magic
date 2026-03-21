@@ -21,6 +21,15 @@ Router::addGroup('/api/v1', static function () {
         // 获取用户技能列表
         Router::post('/queries', [SkillApi::class, 'queries']);
 
+        // 获取我创建的技能列表
+        Router::post('/queries/created', [SkillApi::class, 'queriesCreated']);
+
+        // 获取团队共享的技能列表
+        Router::post('/queries/team-shared', [SkillApi::class, 'queriesTeamShared']);
+
+        // 获取从市场安装的技能列表
+        Router::post('/queries/market-installed', [SkillApi::class, 'queriesMarketInstalled']);
+
         // 从 Agent 创建空技能
         Router::post('', [SkillApi::class, 'create']);
 

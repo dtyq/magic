@@ -33,8 +33,11 @@ class SkillAssembler
      * @param SkillEntity $entity 技能实体
      * @return SkillListItemDTO 技能列表项 DTO
      */
-    public static function createListItemDTO(SkillEntity $entity): SkillListItemDTO
-    {
+    public static function createListItemDTO(
+        SkillEntity $entity,
+        ?MagicUserEntity $creator = null,
+        string $latestVersion = ''
+    ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
         $descriptionI18n = $entity->getDescriptionI18n() ?? [];
@@ -54,7 +57,40 @@ class SkillAssembler
             pinnedAt: $entity->getPinnedAt(),
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
-            latestPublishedAt: $entity->getLatestPublishedAt()
+            latestPublishedAt: $entity->getLatestPublishedAt(),
+            latestVersion: $latestVersion,
+            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
+        );
+    }
+
+    public static function createListItemDTOFromVersion(
+        SkillVersionEntity $entity,
+        ?string $sourceType = null,
+        ?MagicUserEntity $creator = null,
+        ?string $latestVersion = null
+    ): SkillListItemDTO {
+        $language = CoContext::getLanguage();
+        $nameI18n = $entity->getNameI18n() ?? [];
+        $descriptionI18n = $entity->getDescriptionI18n() ?? [];
+        $name = $nameI18n[$language] ?? '';
+        $description = $descriptionI18n[$language] ?? '';
+
+        return new SkillListItemDTO(
+            id: $entity->getCode(),
+            code: $entity->getCode(),
+            name: $name,
+            description: $description,
+            nameI18n: $nameI18n,
+            descriptionI18n: $descriptionI18n,
+            logo: $entity->getLogo() ?? '',
+            sourceType: $sourceType ?? $entity->getSourceType()->value,
+            isEnabled: 1,
+            pinnedAt: null,
+            updatedAt: $entity->getUpdatedAt() ?? '',
+            createdAt: $entity->getCreatedAt() ?? '',
+            latestPublishedAt: $entity->getPublishedAt(),
+            latestVersion: $latestVersion ?? $entity->getVersion(),
+            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
         );
     }
 
@@ -139,11 +175,47 @@ class SkillAssembler
         array $skillEntities,
         int $page,
         int $pageSize,
-        int $total
+        int $total,
+        array $creatorUserMap = [],
+        array $latestVersionMap = []
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillEntities as $entity) {
-            $listItems[] = self::createListItemDTO($entity);
+            $listItems[] = self::createListItemDTO(
+                $entity,
+                $creatorUserMap[$entity->getCreatorId()] ?? null,
+                $latestVersionMap[$entity->getCode()] ?? ''
+            );
+        }
+
+        return new SkillListResponseDTO(
+            list: $listItems,
+            page: $page,
+            pageSize: $pageSize,
+            total: $total
+        );
+    }
+
+    /**
+     * @param SkillVersionEntity[] $skillVersionEntities
+     */
+    public static function createListResponseDTOFromVersions(
+        array $skillVersionEntities,
+        int $page,
+        int $pageSize,
+        int $total,
+        ?string $sourceType = null,
+        array $creatorUserMap = [],
+        array $latestVersionMap = []
+    ): SkillListResponseDTO {
+        $listItems = [];
+        foreach ($skillVersionEntities as $entity) {
+            $listItems[] = self::createListItemDTOFromVersion(
+                $entity,
+                $sourceType,
+                $creatorUserMap[$entity->getCreatorId()] ?? null,
+                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion()
+            );
         }
 
         return new SkillListResponseDTO(

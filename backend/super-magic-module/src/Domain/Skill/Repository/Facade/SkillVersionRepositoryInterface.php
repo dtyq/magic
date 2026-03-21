@@ -47,6 +47,14 @@ interface SkillVersionRepositoryInterface
     public function findCurrentOrLatestByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
 
     /**
+     * 根据 code 列表批量查询当前已发布版本.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> key 为 skill code
+     */
+    public function findCurrentPublishedByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
+
+    /**
      * 检查同一个 Skill 下版本号是否已存在.
      */
     public function existsByCodeAndVersion(SkillDataIsolation $dataIsolation, string $code, string $version): bool;

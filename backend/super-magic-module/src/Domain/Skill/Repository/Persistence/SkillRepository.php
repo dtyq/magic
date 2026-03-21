@@ -266,6 +266,63 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         ];
     }
 
+    public function queriesSharedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array {
+        if ($codes === []) {
+            return [
+                'total' => 0,
+                'list' => [],
+            ];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+        $builder->whereIn('code', $codes)
+            ->where('creator_id', '!=', $dataIsolation->getCurrentUserId());
+
+        $keyword = $query->getKeyword() ?? '';
+        $languageCode = $query->getLanguageCode() ?? 'en_US';
+        $sourceType = $query->getSourceType() ?? '';
+
+        if ($keyword !== '') {
+            $builder->where(function ($q) use ($keyword, $languageCode) {
+                $q->whereRaw(
+                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
+                    [$languageCode, '%' . $keyword . '%']
+                );
+            });
+        }
+
+        if ($sourceType !== '') {
+            $builder->where('source_type', $sourceType);
+        }
+
+        $total = $builder->count();
+
+        $builder->orderByRaw('CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('pinned_at', 'DESC')
+            ->orderBy('updated_at', 'DESC');
+
+        $offset = ($page->getPage() - 1) * $page->getPageNum();
+        $models = $builder->offset($offset)->limit($page->getPageNum())->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $total,
+            'list' => $entities,
+        ];
+    }
+
     /**
      * 查询用户技能总数（用于分页）.
      */

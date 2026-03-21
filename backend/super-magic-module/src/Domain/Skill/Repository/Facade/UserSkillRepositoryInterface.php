@@ -9,12 +9,18 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
 interface UserSkillRepositoryInterface
 {
     public function save(SkillDataIsolation $dataIsolation, UserSkillEntity $entity): UserSkillEntity;
 
     public function findBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): ?UserSkillEntity;
+
+    /**
+     * @return array<string>
+     */
+    public function findCurrentUserSkillCodes(SkillDataIsolation $dataIsolation): array;
 
     /**
      * @return array<string, UserSkillEntity>
@@ -25,6 +31,14 @@ interface UserSkillRepositoryInterface
      * @return UserSkillEntity[]
      */
     public function findAllBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): array;
+
+    /**
+     * @return array<string>
+     */
+    public function findSkillCodesBySourceType(
+        SkillDataIsolation $dataIsolation,
+        SkillSourceType|string $sourceType
+    ): array;
 
     public function deleteBySkillCodeExceptUser(SkillDataIsolation $dataIsolation, string $skillCode, string $excludedUserId): int;
 

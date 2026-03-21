@@ -73,6 +73,17 @@ class UserSkillRepository extends AbstractRepository implements UserSkillReposit
         return $model ? $this->toUserSkillEntity($model->toArray()) : null;
     }
 
+    public function findCurrentUserSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
+
+        return $builder
+            ->where('user_id', $dataIsolation->getCurrentUserId())
+            ->pluck('skill_code')
+            ->map(static fn ($skillCode) => (string) $skillCode)
+            ->all();
+    }
+
     public function findBySkillCodes(SkillDataIsolation $dataIsolation, array $skillCodes): array
     {
         if (empty($skillCodes)) {
@@ -107,6 +118,22 @@ class UserSkillRepository extends AbstractRepository implements UserSkillReposit
         }
 
         return $result;
+    }
+
+    public function findSkillCodesBySourceType(
+        SkillDataIsolation $dataIsolation,
+        SkillSourceType|string $sourceType
+    ): array {
+        $sourceTypeValue = $sourceType instanceof SkillSourceType ? $sourceType->value : $sourceType;
+
+        $builder = $this->createBuilder($dataIsolation, $this->userSkillModel::query());
+
+        return $builder
+            ->where('user_id', $dataIsolation->getCurrentUserId())
+            ->where('source_type', $sourceTypeValue)
+            ->pluck('skill_code')
+            ->map(static fn ($skillCode) => (string) $skillCode)
+            ->all();
     }
 
     public function deleteBySkillCode(SkillDataIsolation $dataIsolation, string $skillCode): bool
