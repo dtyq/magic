@@ -96,13 +96,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $this->checkPermission($dataIsolation, $entity->getCode());
         }
 
-        $validationConfig = $entity->getVisibilityConfig() ? new VisibilityConfig($entity->getVisibilityConfig()) : null;
-
-        if ($validationConfig && $validationConfig->getVisibilityType() !== VisibilityType::NONE) {
-            // 检测是否组织管理员权限
-            $this->checkOrgAdmin($dataIsolation);
-        }
-
         $iconArr = $entity->getIcon();
         if (! empty($iconArr['value'])) {
             $iconArr['value'] = EasyFileTools::formatPath($iconArr['value']);
@@ -111,15 +104,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $entity = $this->superMagicAgentDomainService->save($dataIsolation, $entity, $checkPrompt);
 
-        // 保存可见性配置
-        if ($validationConfig) {
-            $this->resourceVisibilityDomainService->saveVisibilityConfig(
-                $dataIsolation,
-                ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
-                $entity->getCode(),
-                $validationConfig
-            );
-            $entity->setVisibilityConfig($validationConfig?->toArray() ?? null);
+        if ($isCreate) {
+            $this->saveAgentVisibility($dataIsolation, $entity->getCode(), VisibilityType::SPECIFIC, [$entity->getCreator()]);
         }
 
         return $entity;
