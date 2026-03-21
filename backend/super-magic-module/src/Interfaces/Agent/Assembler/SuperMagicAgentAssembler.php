@@ -188,7 +188,9 @@ class SuperMagicAgentAssembler
         SuperMagicAgentEntity $agent,
         array $skills,
         ?bool $isStoreOffline,
-        bool $withFileUrl = false
+        bool $withFileUrl = false,
+        ?string $publishType = null,
+        array $allowedPublishTargetTypes = []
     ): GetAgentDetailResponseDTO {
         $language = CoContext::getLanguage();
 
@@ -271,6 +273,8 @@ class SuperMagicAgentAssembler
             fileKey: $agent->getFileKey(),
             fileUrl: $withFileUrl ? $agent->getFileUrl() : null,
             latestPublishedAt: $agent->getLatestPublishedAt(),
+            publishType: $publishType,
+            allowedPublishTargetTypes: $allowedPublishTargetTypes,
             createdAt: $agent->getCreatedAt(),
             updatedAt: $agent->getUpdatedAt()
         );

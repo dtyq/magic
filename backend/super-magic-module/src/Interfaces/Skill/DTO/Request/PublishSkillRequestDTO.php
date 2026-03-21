@@ -8,9 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Request;
 
 use App\Infrastructure\Core\AbstractRequestDTO;
-use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetValue;
-use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
 use Hyperf\Validation\Rule;
 
 use function Hyperf\Translation\__;
@@ -21,9 +19,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
 
     public ?array $versionDescriptionI18n = null;
 
-    public ?string $publishType = null;
-
-    public ?string $publishTargetType = null;
+    public string $publishTargetType = 'PRIVATE';
 
     public ?array $publishTargetValue = null;
 
@@ -37,50 +33,14 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
         return $this->versionDescriptionI18n;
     }
 
-    public function getPublishType(): ?string
-    {
-        return $this->publishType;
-    }
-
     public function getPublishTargetType(): string
     {
-        return (string) $this->publishTargetType;
+        return $this->publishTargetType;
     }
 
     public function getPublishTargetValue(): ?array
     {
         return $this->publishTargetValue;
-    }
-
-    public function resolvePublishType(): ?PublishType
-    {
-        if (! empty($this->publishType)) {
-            return PublishType::from($this->publishType);
-        }
-
-        if (empty($this->publishTargetType)) {
-            return null;
-        }
-
-        return PublishType::fromPublishTargetType(PublishTargetType::from($this->publishTargetType));
-    }
-
-    public function resolvePublishTargetType(): ?PublishTargetType
-    {
-        $publishType = $this->resolvePublishType();
-        if ($publishType === null) {
-            return null;
-        }
-
-        if ($publishType === PublishType::MARKET && empty($this->publishTargetType)) {
-            return PublishTargetType::MARKET;
-        }
-
-        if (empty($this->publishTargetType)) {
-            return null;
-        }
-
-        return PublishTargetType::from($this->publishTargetType);
     }
 
     public function toPublishTargetValue(): ?PublishTargetValue
@@ -111,8 +71,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'version_description_i18n' => 'required|array',
             'version_description_i18n.zh_CN' => 'nullable|string|max:1000',
             'version_description_i18n.en_US' => 'nullable|string|max:1000',
-            'publish_type' => ['nullable', 'string', Rule::in(['INTERNAL', 'MARKET'])],
-            'publish_target_type' => ['nullable', 'string', Rule::in(['PRIVATE', 'MEMBER', 'ORGANIZATION', 'MARKET'])],
+            'publish_target_type' => ['required', 'string', Rule::in(['PRIVATE', 'MEMBER', 'ORGANIZATION', 'MARKET'])],
             'publish_target_value' => 'nullable|array',
             'publish_target_value.user_ids' => 'nullable|array',
             'publish_target_value.user_ids.*' => 'string|max:64',
@@ -133,8 +92,6 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'version_description_i18n.zh_CN.max' => __('validation.max.string', ['attribute' => 'version_description_i18n.zh_CN', 'max' => 1000]),
             'version_description_i18n.en_US.string' => __('validation.string', ['attribute' => 'version_description_i18n.en_US']),
             'version_description_i18n.en_US.max' => __('validation.max.string', ['attribute' => 'version_description_i18n.en_US', 'max' => 1000]),
-            'publish_type.string' => __('validation.string', ['attribute' => 'publish_type']),
-            'publish_type.in' => __('skill.publish_type_invalid'),
             'publish_target_type.required' => __('common.parameter_required', ['label' => 'publish_target_type']),
             'publish_target_type.string' => __('validation.string', ['attribute' => 'publish_target_type']),
             'publish_target_type.in' => __('skill.publish_target_type_invalid'),

@@ -2226,8 +2226,7 @@ MD;
         string $version,
         string $publishTargetType,
         ?array $versionDescriptionI18n = null,
-        ?array $publishTargetValue = null,
-        ?string $publishType = null
+        ?array $publishTargetValue = null
     ): array {
         $requestData = [
             'version' => $version,
@@ -2238,10 +2237,6 @@ MD;
             'publish_target_type' => $publishTargetType,
             'publish_target_value' => $publishTargetValue,
         ];
-
-        if ($publishType !== null) {
-            $requestData['publish_type'] = $publishType;
-        }
 
         return $this->post(
             self::BASE_URI . '/' . $skillCode . '/publish',

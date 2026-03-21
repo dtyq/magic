@@ -41,7 +41,9 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
             $result['agent'],
             $result['skills'],
             $result['is_store_offline'],
-            true
+            true,
+            $result['publish_type'],
+            $result['allowed_publish_target_types']
         )->toArray(true);
     }
 
@@ -55,7 +57,9 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
             $result['agent'],
             $result['skills'],
             $result['is_store_offline'],
-            true
+            true,
+            $result['publish_type'],
+            $result['allowed_publish_target_types']
         )->toArray(true);
     }
 

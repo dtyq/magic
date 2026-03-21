@@ -84,6 +84,10 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private ?string $latestPublishedAt = null;
 
+    private ?string $publishType = null;
+
+    private array $allowedPublishTargetTypes = [];
+
     public function __construct(
         string $id,
         string $code,
@@ -108,6 +112,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         ?string $fileKey,
         ?string $fileUrl,
         ?string $latestPublishedAt,
+        ?string $publishType,
+        array $allowedPublishTargetTypes,
         string $createdAt,
         string $updatedAt
     ) {
@@ -134,6 +140,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         $this->fileKey = $fileKey;
         $this->fileUrl = $fileUrl;
         $this->latestPublishedAt = $latestPublishedAt;
+        $this->publishType = $publishType;
+        $this->allowedPublishTargetTypes = $allowedPublishTargetTypes;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -181,6 +189,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'project_id' => $this->projectId ? (string) $this->projectId : null,
             'file_key' => $this->fileKey,
             'latest_published_at' => $this->latestPublishedAt,
+            'publish_type' => $this->publishType,
+            'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
         ];
 
         if ($withFileUrl) {

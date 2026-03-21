@@ -116,7 +116,10 @@ class SuperMagicAgentApi extends AbstractApi
         $responseDTO = SuperMagicAgentAssembler::createDetailResponseDTO(
             $agent,
             $result['skills'],
-            $result['is_store_offline']
+            $result['is_store_offline'],
+            false,
+            $result['publish_type'],
+            $result['allowed_publish_target_types']
         );
 
         // 返回数组格式

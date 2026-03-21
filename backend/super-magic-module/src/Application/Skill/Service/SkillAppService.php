@@ -674,11 +674,7 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity = new SkillVersionEntity();
         $versionEntity->setVersion($requestDTO->getVersion());
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
-        $versionEntity->setPublishType($requestDTO->resolvePublishType());
-        $publishTargetType = $requestDTO->resolvePublishTargetType();
-        if ($publishTargetType !== null) {
-            $versionEntity->setPublishTargetType($publishTargetType);
-        }
+        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
         $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
@@ -963,7 +959,6 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         $organizationType = $dataIsolation->getOrganizationInfoManager()->getOrganizationType();
-        var_dump($organizationType);
         if ($organizationType === OrganizationType::Personal) {
             return [PublishTargetType::PRIVATE->value];
         }

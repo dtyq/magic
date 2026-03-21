@@ -104,8 +104,12 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals($response['data']['icon_type'], 2);
         $this->assertArrayHasKey('file_key', $response['data']);
         $this->assertArrayHasKey('latest_published_at', $response['data']);
+        $this->assertArrayHasKey('publish_type', $response['data']);
+        $this->assertArrayHasKey('allowed_publish_target_types', $response['data']);
         $this->assertNull($response['data']['file_key']);
         $this->assertNull($response['data']['latest_published_at']);
+        $this->assertNull($response['data']['publish_type']);
+        $this->assertSame([], $response['data']['allowed_publish_target_types']);
 
         $userAgent = UserAgentModel::query()
             ->where('organization_code', $headers['organization-code'])
@@ -640,6 +644,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertArrayHasKey('skills', $data);
         $this->assertArrayHasKey('playbooks', $data);
         $this->assertArrayHasKey('latest_published_at', $data);
+        $this->assertArrayHasKey('publish_type', $data);
+        $this->assertArrayHasKey('allowed_publish_target_types', $data);
         $this->assertArrayHasKey('created_at', $data);
         $this->assertArrayHasKey('updated_at', $data);
         $this->assertArrayHasKey('file_key', $data);
@@ -654,6 +660,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertIsArray($data['skills']);
         $this->assertIsArray($data['playbooks']);
         $this->assertNull($data['latest_published_at']);
+        $this->assertNull($data['publish_type']);
+        $this->assertSame([], $data['allowed_publish_target_types']);
 
         // 测试不存在的员工
         $notFoundResponse = $this->get(
@@ -2153,7 +2161,11 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertArrayHasKey('file_key', $data);
         $this->assertArrayHasKey('file_url', $data);
         $this->assertArrayHasKey('latest_published_at', $data);
+        $this->assertArrayHasKey('publish_type', $data);
+        $this->assertArrayHasKey('allowed_publish_target_types', $data);
         $this->assertNotNull($data['latest_published_at']);
+        $this->assertSame('INTERNAL', $data['publish_type']);
+        $this->assertSame(['PRIVATE', 'MEMBER', 'ORGANIZATION'], $data['allowed_publish_target_types']);
         $this->assertIsArray($data['skills']);
         $this->assertCount(1, $data['skills']);
         $this->assertArrayHasKey('file_url', $data['skills'][0]);
@@ -2250,6 +2262,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $detailResponse['code'], $detailResponse['message'] ?? '');
         $this->assertEquals($version['published_at'], $detailResponse['data']['latest_published_at']);
+        $this->assertSame('MARKET', $detailResponse['data']['publish_type']);
+        $this->assertSame([], $detailResponse['data']['allowed_publish_target_types']);
 
         $listResponse = $this->post(
             self::BASE_URI . '/queries',

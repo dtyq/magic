@@ -641,24 +641,8 @@ class SkillDomainService
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
         }
 
-        // 发布请求允许前端传两层语义：
-        // - publish_type: INTERNAL / MARKET
-        // - publish_target_type: PRIVATE / MEMBER / ORGANIZATION / MARKET
-        // 领域层统一校验这两层语义，避免其他入口绕过 AppService 时丢失规则。
         $publishTargetType = $versionEntity->getPublishTargetType();
-        if ($versionEntity->getPublishType() === null && ! $versionEntity->hasExplicitPublishTargetType()) {
-            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
-        }
-
-        // 若未显式传 publish_type，则兼容历史调用，按底层 publish_target_type 反推。
-        $publishType = $versionEntity->getPublishType() ?? PublishType::fromPublishTargetType($publishTargetType);
-        if ($publishType === PublishType::MARKET) {
-            if ($publishTargetType !== PublishTargetType::MARKET) {
-                ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
-            }
-        } elseif (! $publishType->acceptsPublishTargetType($publishTargetType)) {
-            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
-        }
+        $publishType = PublishType::fromPublishTargetType($publishTargetType);
 
         // 个人组织没有成员/组织范围，内部发布只能退化为 PRIVATE。
         if (

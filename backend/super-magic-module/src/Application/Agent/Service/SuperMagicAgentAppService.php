@@ -18,6 +18,7 @@ use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepart
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
+use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
@@ -32,6 +33,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -130,7 +132,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      * @return array{
      *     agent: SuperMagicAgentEntity,
      *     skills: array<int, SkillEntity|SkillVersionEntity>,
-     *     is_store_offline: null|bool
+     *     is_store_offline: null|bool,
+     *     publish_type: null|string,
+     *     allowed_publish_target_types: array<int, string>
      * }
      */
     public function show(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withFileUrl = false, bool $checkPermission = true): array
@@ -142,6 +146,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 1. 查询 Agent 详情（包含技能列表和 Playbook 列表）
         $agent = $this->superMagicAgentDomainService->getDetail($dataIsolation, $code);
+        $latestVersionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
 
         // 2. 加载tool
         if ($withToolSchema) {
@@ -191,6 +196,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'agent' => $agent,
             'skills' => array_values($skillsMap),
             'is_store_offline' => false,
+            'publish_type' => PublishType::fromPublishTargetType($latestVersionEntity?->getPublishTargetType())?->value,
+            'allowed_publish_target_types' => $this->resolveAllowedPublishTargetTypes(
+                $dataIsolation,
+                PublishType::fromPublishTargetType($latestVersionEntity?->getPublishTargetType())
+            ),
         ];
     }
 
@@ -198,7 +208,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      * @return array{
      *     agent: SuperMagicAgentEntity,
      *     skills: array<int, SkillEntity|SkillVersionEntity>,
-     *     is_store_offline: null|bool
+     *     is_store_offline: null|bool,
+     *     publish_type: null|string,
+     *     allowed_publish_target_types: array<int, string>
      * }
      */
     public function showLatestVersion(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withFileUrl = false): array
@@ -217,6 +229,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'agent' => null,
                 'skills' => [],
                 'is_store_offline' => false,
+                'publish_type' => null,
+                'allowed_publish_target_types' => [],
             ];
         }
 
@@ -260,6 +274,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'agent' => $agent,
             'skills' => array_values($skillsMap),
             'is_store_offline' => false,
+            'publish_type' => PublishType::fromPublishTargetType($versionEntity->getPublishTargetType())?->value,
+            'allowed_publish_target_types' => $this->resolveAllowedPublishTargetTypes(
+                $dataIsolation,
+                PublishType::fromPublishTargetType($versionEntity->getPublishTargetType())
+            ),
         ];
     }
 
@@ -496,7 +515,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntity->setCode($code);
         $versionEntity->setVersion($requestDTO->getVersion());
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n() ?? []);
-        $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
+        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
         $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
@@ -1518,6 +1537,24 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $agents;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function resolveAllowedPublishTargetTypes(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        ?PublishType $publishType
+    ): array {
+        if ($publishType === null || $publishType === PublishType::MARKET) {
+            return [];
+        }
+
+        if ($dataIsolation->getOrganizationInfoManager()->getOrganizationType() === OrganizationType::Personal) {
+            return [PublishTargetType::PRIVATE->value];
+        }
+
+        return $publishType->getAllowedPublishTargetTypeValues();
     }
 
     private function ensureAgentAccessible(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
