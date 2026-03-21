@@ -81,6 +81,10 @@ class SkillApi extends AbstractApi
         return [
             'id' => (string) $skillEntity->getId(),
             'skill_code' => $skillEntity->getCode(),
+            'name_i18n' => $skillEntity->getNameI18n(),
+            'description_i18n' => $skillEntity->getDescriptionI18n(),
+            'created_at' => $skillEntity->getCreatedAt(),
+            'updated_at' => $skillEntity->getUpdatedAt(),
         ];
     }
 
