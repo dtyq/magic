@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Skill\Event\Subscribe;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -18,8 +19,12 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Annotation\Listener;
@@ -40,12 +45,14 @@ class SkillImportedEventSubscriber implements ListenerInterface
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly SkillDomainService $skillDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ProjectDomainService $projectDomainService,
+        private readonly TopicDomainService $topicDomainService,
+        private readonly TaskDomainService $taskDomainService,
+        private readonly AgentDomainService $agentDomainService,
         private readonly FileDomainService $fileDomainService,
-        private readonly LockerInterface $locker
+        private readonly LockerInterface $locker,
+        LoggerFactory $loggerFactory
     ) {
-        /** @var LoggerFactory $loggerFactory */
-        $loggerFactory = $this->container->get(LoggerFactory::class);
         $this->logger = $loggerFactory->get(static::class);
     }
 
@@ -100,8 +107,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectRequestDTO->setProjectName($skillEntity->getPackageName() ?: $skillEntity->getCode());
                 $projectRequestDTO->setInitTemplateFiles(false);
 
-                $projectAppService = $this->getProjectAppService();
-                $projectResult = $projectAppService->createAgentProject(
+                $projectResult = $this->getProjectAppService()->createAgentProject(
                     $requestContext,
                     $projectRequestDTO,
                     ProjectMode::CUSTOM_SKILL
@@ -126,19 +132,16 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 throw new RuntimeException('Failed to resolve skill file_url from file_key');
             }
 
-            $projectAppService = $this->getProjectAppService();
-            $projectEntity = $projectAppService->getProjectNotUserId($projectId);
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
             if ($projectEntity === null) {
                 throw new RuntimeException('Project not found for imported skill');
             }
 
-            $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
-            $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+            $sandboxId = $this->ensureProjectSandboxInitialized($organizationCode, $userId, $projectEntity);
 
             $this->skillDomainService->importSkillWorkspaceFromSandbox(
                 $dataIsolation,
-                $projectId,
-                $fullWorkdir,
+                $sandboxId,
                 $fileUrl
             );
 
@@ -162,6 +165,41 @@ class SkillImportedEventSubscriber implements ListenerInterface
         $fileLink = $this->fileDomainService->getLinks($organizationCode, [$fileKey], StorageBucketType::Private)[$fileKey] ?? null;
 
         return $fileLink instanceof FileLink ? $fileLink->getUrl() : '';
+    }
+
+    private function ensureProjectSandboxInitialized(
+        string $organizationCode,
+        string $userId,
+        ProjectEntity $projectEntity
+    ): string {
+        $topicId = (int) $projectEntity->getCurrentTopicId();
+        if ($topicId <= 0) {
+            throw new RuntimeException('Current topic not found for imported skill project');
+        }
+
+        $topicEntity = $this->topicDomainService->getTopicById($topicId);
+        if ($topicEntity === null) {
+            throw new RuntimeException('Topic not found for imported skill project');
+        }
+
+        if ($topicEntity->getUserId() !== $userId) {
+            throw new RuntimeException('Imported skill topic access denied');
+        }
+
+        $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
+        $taskEntity = $this->taskDomainService->initPreWarmTask($dataIsolation, $topicEntity);
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectEntity->getId() . '_custom_agent');
+
+        $agentContext = $this->agentDomainService->buildInitAgentContext(
+            dataIsolation: $dataIsolation,
+            projectEntity: $projectEntity,
+            topicEntity: $topicEntity,
+            taskEntity: $taskEntity,
+            sandboxId: $sandboxId,
+            skipInitMessage: true,
+        );
+
+        return $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
     }
 
     private function getProjectAppService(): ProjectAppService
