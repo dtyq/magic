@@ -71,6 +71,11 @@ class AgentInitContext
     private string $magicServiceHost = '';
 
     /**
+     * Magic service websocket host URL.
+     */
+    private string $magicServiceWsHost = '';
+
+    /**
      * Long-term memories.
      */
     private ?array $memories = null;
@@ -303,6 +308,23 @@ class AgentInitContext
     }
 
     /**
+     * Get magic service websocket host.
+     */
+    public function getMagicServiceWsHost(): string
+    {
+        return $this->magicServiceWsHost;
+    }
+
+    /**
+     * Set magic service websocket host.
+     */
+    public function setMagicServiceWsHost(string $magicServiceWsHost): self
+    {
+        $this->magicServiceWsHost = $magicServiceWsHost;
+        return $this;
+    }
+
+    /**
      * Get memories.
      */
     public function getMemories(): ?array
@@ -421,6 +443,7 @@ class AgentInitContext
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
             'magic_service_host' => $this->magicServiceHost,
+            'magic_service_ws_host' => $this->magicServiceWsHost,
             'memories' => $this->memories,
             'chat_history_dir' => $this->chatHistoryDir,
             'work_dir' => $this->workDir,

@@ -150,6 +150,7 @@ class AgentDomainService
         $agentInitContext->setAgentMode($topicEntity->getTopicMode());
         // 设置 magic_service_host
         $agentInitContext->setMagicServiceHost(config('super-magic.sandbox.callback_host', ''));
+        $agentInitContext->setMagicServiceWsHost(config('super-magic.sandbox.magic_service_ws_host', ''));
         // 设置记忆
         $agentInitContext->setMemories($memories);
         // 设置路径
@@ -1055,6 +1056,7 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'magic_service_ws_host' => config('super-magic.sandbox.magic_service_ws_host', ''),
             'memories' => $initMetadata->getMemories(),
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,
