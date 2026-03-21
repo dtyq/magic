@@ -254,7 +254,7 @@ class S3Expand implements ExpandInterface
         //   1. The exact directory marker:  "arn:...bucket/dir/"
         //   2. All objects inside:          "arn:...bucket/dir/*"
         if (! empty($dir)) {
-            $dirArn = "{$bucketArn}/{$dir}"; // e.g. "arn:aws:s3:::magic-sandbox/org/open/proj/workspace/"
+            $dirArn = "{$bucketArn}/{$dir}"; // e.g. "arn:aws:s3:::xxxxx/xxx/xxx/xx/workspace/"
             $objectResource = [
                 $dirArn,        // directory marker: ".../workspace/"
                 $dirArn . '*',  // all objects inside: ".../workspace/*"
