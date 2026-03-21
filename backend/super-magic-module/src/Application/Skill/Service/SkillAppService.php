@@ -1060,31 +1060,15 @@ class SkillAppService extends AbstractSkillAppService
             throw $e;
         }
 
-        // 检查解压后的目录，查找包含 SKILL.md 的目录（只检查一层）
+        // 检查解压后的目录，查找包含 SKILL.md 的目录（支持递归查找子目录）
         if (! is_dir($extractBaseDir)) {
             ZipUtil::removeDirectory($extractBaseDir);
             ExceptionBuilder::throw(SkillErrorCode::EXTRACTED_DIRECTORY_NOT_FOUND, 'skill.extracted_directory_not_found');
         }
 
-        // 优先检查根目录是否包含 SKILL.md
-        if (file_exists($extractBaseDir . '/SKILL.md')) {
-            return $extractBaseDir;
-        }
-
-        $items = scandir($extractBaseDir);
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..' || $item === '__MACOSX') {
-                continue;
-            }
-            $itemPath = $extractBaseDir . '/' . $item;
-            if (is_dir($itemPath)) {
-                // 检查该目录下是否包含 SKILL.md（只检查一层）
-                $skillMdPath = $itemPath . '/SKILL.md';
-                if (file_exists($skillMdPath)) {
-                    // 找到包含 SKILL.md 的目录，返回该目录路径
-                    return $itemPath;
-                }
-            }
+        $skillDir = SkillUtil::findSkillMdDirectory($extractBaseDir);
+        if ($skillDir !== null) {
+            return $skillDir;
         }
 
         // 如果没有找到包含 SKILL.md 的目录，抛出异常
