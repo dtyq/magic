@@ -772,6 +772,37 @@ class SkillDomainService
     }
 
     /**
+     * 查询管理后台版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryVersions(
+        SkillDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $sourceType,
+        ?string $version,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        return $this->skillVersionRepository->queryVersions(
+            $dataIsolation,
+            $reviewStatus,
+            $publishStatus,
+            $publishTargetType,
+            $sourceType,
+            $version,
+            $startTime,
+            $endTime,
+            $orderBy,
+            $page
+        );
+    }
+
+    /**
      * 下架技能版本（下架所有已发布的版本，并更新商店表）.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象

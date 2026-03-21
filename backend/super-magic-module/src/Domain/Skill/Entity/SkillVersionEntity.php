@@ -453,7 +453,7 @@ class SkillVersionEntity extends AbstractEntity
         if ($sourceType instanceof SkillSourceType) {
             $this->sourceType = $sourceType;
         } else {
-            $this->sourceType = SkillSourceType::from($sourceType);
+            $this->sourceType = SkillSourceType::tryFrom($sourceType) ?? SkillSourceType::LOCAL_UPLOAD;
         }
         return $this;
     }

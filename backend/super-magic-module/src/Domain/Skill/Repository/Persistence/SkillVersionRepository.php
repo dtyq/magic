@@ -420,6 +420,63 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $result;
     }
 
+    public function queryVersions(
+        SkillDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $sourceType,
+        ?string $version,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        $dataIsolation->disabled();
+
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
+            ->whereNull('deleted_at');
+
+        if ($reviewStatus !== null && $reviewStatus !== '') {
+            $builder->where('review_status', $reviewStatus);
+        }
+
+        if ($publishStatus !== null && $publishStatus !== '') {
+            $builder->where('publish_status', $publishStatus);
+        }
+
+        if ($publishTargetType !== null && $publishTargetType !== '') {
+            $builder->where('publish_target_type', $publishTargetType);
+        }
+
+        if ($sourceType !== null && $sourceType !== '') {
+            $builder->where('source_type', $sourceType);
+        }
+
+        if ($version !== null && $version !== '') {
+            $builder->where('version', $version);
+        }
+
+        if ($startTime !== null && $startTime !== '') {
+            $builder->where('created_at', '>=', $this->normalizeStartTime($startTime));
+        }
+
+        if ($endTime !== null && $endTime !== '') {
+            $builder->where('created_at', '<=', $this->normalizeEndTime($endTime));
+        }
+
+        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+        $result['list'] = $list;
+
+        return $result;
+    }
+
     /**
      * 将模型数据转换为实体.
      */
@@ -527,5 +584,15 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         }
 
         return $attributes;
+    }
+
+    private function normalizeStartTime(string $startTime): string
+    {
+        return strlen($startTime) === 10 ? $startTime . ' 00:00:00' : $startTime;
+    }
+
+    private function normalizeEndTime(string $endTime): string
+    {
+        return strlen($endTime) === 10 ? $endTime . ' 23:59:59' : $endTime;
     }
 }
