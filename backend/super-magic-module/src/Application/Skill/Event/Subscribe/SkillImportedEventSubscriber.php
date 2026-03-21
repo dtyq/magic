@@ -166,7 +166,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
 
     private function getProjectAppService(): ProjectAppService
     {
-        /** @var ProjectAppService $projectAppService */
+        /* @var ProjectAppService $projectAppService */
         return $this->container->get(ProjectAppService::class);
     }
 }
