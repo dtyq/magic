@@ -128,7 +128,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     /**
      * @return array{
-     *     agent: SuperMagicAgentEntity,
+     *     agent: null|SuperMagicAgentEntity,
      *     skills: array<int, SkillEntity|SkillVersionEntity>,
      *     is_store_offline: null|bool
      * }
@@ -196,7 +196,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     /**
      * @return array{
-     *     agent: SuperMagicAgentEntity,
+     *     agent: null|SuperMagicAgentEntity,
      *     skills: array<int, SkillEntity|SkillVersionEntity>,
      *     is_store_offline: null|bool
      * }
@@ -301,6 +301,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
      *     store_agents_map: array<string, AgentMarketEntity>,
+     *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     page: int,
      *     page_size: int,
@@ -320,6 +321,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'agents' => [],
                 'playbooks_map' => [],
                 'store_agents_map' => [],
+                'user_agents_map' => [],
                 'latest_versions_map' => [],
                 'page' => $requestDTO->getPage(),
                 'page_size' => $requestDTO->getPageSize(),
@@ -333,6 +335,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'agents' => [],
                 'playbooks_map' => [],
                 'store_agents_map' => [],
+                'user_agents_map' => [],
                 'latest_versions_map' => [],
                 'page' => $requestDTO->getPage(),
                 'page_size' => $requestDTO->getPageSize(),
@@ -885,6 +888,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
      *     store_agents_map: array<string, AgentMarketEntity>,
+     *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     page: int,
      *     page_size: int,
@@ -912,7 +916,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
-        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+        $rawPlaybooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+        $playbooksMap = [];
+        foreach ($rawPlaybooksMap as $agentCode => $playbooks) {
+            $playbooksMap[(string) $agentCode] = array_values($playbooks);
+        }
 
         $storeSourceCodesByAgentCode = [];
         $marketSourceIds = [];
@@ -1333,140 +1341,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ResourceType::CustomAgent,
             $code
         );
-    }
-
-    /**
-     * 市场安装的 Agent 详情/列表对当前用户需要呈现为 MARKET 来源。
-     * 主表仍然保留原始 LOCAL_CREATE 资源形态，MARKET 语义由用户关系表覆盖出来。
-     */
-    private function applyInstalledMarketOwnership(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $agent): void
-    {
-        $userAgentOwnership = $this->userAgentDomainService->findUserAgentOwnershipByCode($dataIsolation, $agent->getCode());
-        if ($userAgentOwnership === null || ! $userAgentOwnership->getSourceType()->isMarket()) {
-            return;
-        }
-
-        $agent->setSourceType(AgentSourceType::MARKET);
-        $agent->setSourceId($userAgentOwnership->getSourceId());
-        $agent->setVersionId(null);
-        $agent->setVersionCode(null);
-    }
-
-    /**
-     * @param UserAgentEntity[] $userAgentOwnerships
-     * @return array<SuperMagicAgentEntity>
-     */
-    private function buildInstalledMarketAgentEntities(SuperMagicAgentDataIsolation $dataIsolation, array $userAgentOwnerships): array
-    {
-        if ($userAgentOwnerships === []) {
-            return [];
-        }
-
-        $marketIds = [];
-        $versionIds = [];
-        foreach ($userAgentOwnerships as $userAgentOwnership) {
-            if (! $userAgentOwnership->getSourceType()->isMarket()) {
-                continue;
-            }
-            if ($userAgentOwnership->getSourceId() !== null) {
-                $marketIds[] = $userAgentOwnership->getSourceId();
-            }
-            if ($userAgentOwnership->getAgentVersionId() !== null) {
-                $versionIds[] = $userAgentOwnership->getAgentVersionId();
-            }
-        }
-
-        $marketMap = $this->superMagicAgentDomainService->getStoreAgentsByIds(array_values(array_unique($marketIds)));
-        $versionMap = $this->superMagicAgentVersionDomainService->findByIdsWithoutOrganizationFilter(array_values(array_unique($versionIds)));
-
-        $result = [];
-        foreach ($userAgentOwnerships as $userAgentOwnership) {
-            $marketAgent = $userAgentOwnership->getSourceId() !== null ? ($marketMap[$userAgentOwnership->getSourceId()] ?? null) : null;
-            $agentVersion = $userAgentOwnership->getAgentVersionId() !== null ? ($versionMap[$userAgentOwnership->getAgentVersionId()] ?? null) : null;
-            $agentEntity = $this->buildInstalledMarketAgentEntity($dataIsolation, $userAgentOwnership, $marketAgent, $agentVersion);
-            if ($agentEntity !== null) {
-                $result[] = $agentEntity;
-            }
-        }
-
-        return $result;
-    }
-
-    private function buildInstalledMarketAgentEntity(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        UserAgentEntity $userAgentOwnership,
-        ?AgentMarketEntity $marketAgent,
-        ?AgentVersionEntity $agentVersion
-    ): ?SuperMagicAgentEntity {
-        if (! $userAgentOwnership->getSourceType()->isMarket() || $marketAgent === null || $agentVersion === null) {
-            return null;
-        }
-
-        $agent = new SuperMagicAgentEntity();
-        $agent->setId($userAgentOwnership->getId());
-        $agent->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $agent->setCode($userAgentOwnership->getAgentCode());
-        $agent->setName($agentVersion->getName());
-        $agent->setDescription($agentVersion->getDescription());
-        $agent->setIcon($marketAgent->getIcon());
-        $agent->setIconType($agentVersion->getIconType());
-        $agent->setType($agentVersion->getType());
-        $agent->setEnabled($agentVersion->getEnabled());
-        $agent->setPrompt($agentVersion->getPrompt() ?? []);
-        $agent->setTools($agentVersion->getTools() ?? []);
-        $agent->setCreator($agentVersion->getCreator());
-        $agent->setModifier($agentVersion->getModifier());
-        $agent->setNameI18n($marketAgent->getNameI18n() ?? $agentVersion->getNameI18n());
-        $agent->setRoleI18n($marketAgent->getRoleI18n() ?? $agentVersion->getRoleI18n());
-        $agent->setDescriptionI18n($marketAgent->getDescriptionI18n() ?? $agentVersion->getDescriptionI18n());
-        $agent->setSourceType(AgentSourceType::MARKET);
-        $agent->setSourceId($userAgentOwnership->getSourceId());
-        $agent->setVersionId(null);
-        $agent->setVersionCode(null);
-        $agent->setProjectId($agentVersion->getProjectId());
-        $agent->setFileKey($agentVersion->getFileKey());
-        $agent->setLatestPublishedAt($agentVersion->getPublishedAt());
-        $agent->setCreatedAt($userAgentOwnership->getCreatedAt() ?? $agentVersion->getCreatedAt());
-        $agent->setUpdatedAt($userAgentOwnership->getUpdatedAt() ?? $agentVersion->getUpdatedAt());
-
-        return $agent;
-    }
-
-    /**
-     * @return array{0: SuperMagicAgentEntity, 1: array<string, SkillEntity|SkillVersionEntity>}
-     */
-    private function buildInstalledMarketAgentDetail(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        UserAgentEntity $userAgentOwnership
-    ): array {
-        $marketAgent = $userAgentOwnership->getSourceId() !== null
-            ? ($this->superMagicAgentDomainService->getStoreAgentsByIds([$userAgentOwnership->getSourceId()])[$userAgentOwnership->getSourceId()] ?? null)
-            : null;
-        $agentVersion = $userAgentOwnership->getAgentVersionId() !== null
-            ? ($this->superMagicAgentVersionDomainService->findByIdsWithoutOrganizationFilter([$userAgentOwnership->getAgentVersionId()])[$userAgentOwnership->getAgentVersionId()] ?? null)
-            : null;
-
-        $agent = $this->buildInstalledMarketAgentEntity($dataIsolation, $userAgentOwnership, $marketAgent, $agentVersion);
-        if ($agent === null) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $userAgentOwnership->getAgentCode()]);
-        }
-
-        $versionSkills = $userAgentOwnership->getAgentVersionId() !== null
-            ? $this->superMagicAgentSkillDomainService->getByAgentVersionId($dataIsolation, $userAgentOwnership->getAgentVersionId())
-            : [];
-        $agent->setSkills($versionSkills);
-        $agent->setPlaybooks(
-            $userAgentOwnership->getAgentVersionId() !== null
-                ? $this->superMagicAgentPlaybookDomainService->getByAgentVersionId($dataIsolation, $userAgentOwnership->getAgentVersionId())
-                : []
-        );
-
-        $skillIds = array_map(fn ($agentSkill) => $agentSkill->getSkillId(), $versionSkills);
-        $skillDataIsolation = new SkillDataIsolation();
-        $skillDataIsolation->extends($dataIsolation);
-        $skillsMap = $this->skillDomainService->findSkillsByIds($skillDataIsolation, $skillIds);
-
-        return [$agent, $skillsMap];
     }
 
     /**

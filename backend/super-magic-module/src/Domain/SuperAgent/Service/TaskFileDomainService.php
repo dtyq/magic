@@ -2606,6 +2606,58 @@ class TaskFileDomainService
     }
 
     /**
+     * Create a new directory entity.
+     * Returns existing directory id when the same parent/name already exists.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param string $dirName Directory name
+     * @param string $relativePath Relative path from project root
+     * @param string $workDir Project work directory
+     * @return int Created directory file_id
+     */
+    public function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    {
+        $existingDir = $this->findDirectoryByParentIdAndName($parentId, $dirName, $projectId);
+        if ($existingDir !== null) {
+            return $existingDir->getFileId();
+        }
+
+        $dirEntity = new TaskFileEntity();
+        $dirEntity->setFileId(IdGenerator::getSnowId());
+        $dirEntity->setProjectId($projectId);
+        $dirEntity->setUserId($userId);
+        $dirEntity->setOrganizationCode($organizationCode);
+        $dirEntity->setFileName($dirName);
+
+        // Build complete file_key: workDir + relativePath + trailing slash
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
+        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
+        $fileKey = ltrim($fileKey, '/') . '/';
+        $dirEntity->setFileKey($fileKey);
+        $dirEntity->setFileSize(0);
+        $dirEntity->setFileType(FileType::DIRECTORY->value);
+        $dirEntity->setIsDirectory(true);
+        $dirEntity->setParentId($parentId);
+        $dirEntity->setSource($source);
+        if (WorkFileUtil::isSnapshotFile($fileKey)) {
+            $dirEntity->setStorageType(StorageType::SNAPSHOT);
+        } else {
+            $dirEntity->setStorageType(StorageType::WORKSPACE);
+        }
+        $dirEntity->setIsHidden(false);
+        $dirEntity->setSort(0);
+
+        $now = date('Y-m-d H:i:s');
+        $dirEntity->setCreatedAt($now);
+        $dirEntity->setUpdatedAt($now);
+
+        $this->insertOrUpdate($dirEntity);
+
+        return $dirEntity->getFileId();
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *
@@ -2945,52 +2997,6 @@ class TaskFileDomainService
         }
 
         return null;
-    }
-
-    /**
-     * Create a new directory entity.
-     *
-     * @param int $projectId Project ID
-     * @param int $parentId Parent directory ID
-     * @param string $dirName Directory name
-     * @param string $relativePath Relative path from project root
-     * @param string $workDir Project work directory
-     * @return int Created directory file_id
-     */
-    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
-    {
-        $dirEntity = new TaskFileEntity();
-        $dirEntity->setFileId(IdGenerator::getSnowId());
-        $dirEntity->setProjectId($projectId);
-        $dirEntity->setUserId($userId);
-        $dirEntity->setOrganizationCode($organizationCode);
-        $dirEntity->setFileName($dirName);
-
-        // Build complete file_key: workDir + relativePath + trailing slash
-        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
-        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
-        $fileKey = ltrim($fileKey, '/') . '/';
-        $dirEntity->setFileKey($fileKey);
-        $dirEntity->setFileSize(0);
-        $dirEntity->setFileType(FileType::DIRECTORY->value);
-        $dirEntity->setIsDirectory(true);
-        $dirEntity->setParentId($parentId);
-        $dirEntity->setSource($source);
-        if (WorkFileUtil::isSnapshotFile($fileKey)) {
-            $dirEntity->setStorageType(StorageType::SNAPSHOT);
-        } else {
-            $dirEntity->setStorageType(StorageType::WORKSPACE);
-        }
-        $dirEntity->setIsHidden(false);
-        $dirEntity->setSort(0);
-
-        $now = date('Y-m-d H:i:s');
-        $dirEntity->setCreatedAt($now);
-        $dirEntity->setUpdatedAt($now);
-
-        $this->insertOrUpdate($dirEntity);
-
-        return $dirEntity->getFileId();
     }
 
     /**

@@ -1491,8 +1491,13 @@ class ProjectAppService extends AbstractAppService
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
             $topicEntity = $this->initializeProject($dataIsolation, null, $projectEntity);
 
-            // 2. Initialize root directory and upload agent template files
-            $this->initCustomTemplateFiles($projectEntity, $dataIsolation, $projectMode);
+            // 2. Initialize root directory and optionally upload template files
+            $this->initCustomTemplateFiles(
+                $projectEntity,
+                $dataIsolation,
+                $projectMode,
+                $requestDTO->getInitTemplateFiles()
+            );
 
             Db::commit();
 
@@ -2014,7 +2019,8 @@ class ProjectAppService extends AbstractAppService
     private function initCustomTemplateFiles(
         ProjectEntity $projectEntity,
         DataIsolation $dataIsolation,
-        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT,
+        bool $initTemplateFiles = true
     ): void {
         // Create (or locate) the project root directory
         $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -2025,11 +2031,32 @@ class ProjectAppService extends AbstractAppService
             projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
         );
 
+        if (! $initTemplateFiles) {
+            $this->logger->info('Skip initializing template files for project', [
+                'project_id' => $projectEntity->getId(),
+                'project_mode' => $projectMode->value,
+            ]);
+            return;
+        }
+
         $templateSubDir = match ($projectMode) {
-            ProjectMode::MAGIC_CLAW => 'magic_claw',
-            ProjectMode::CUSTOM_SKILL => 'custom_skill',
+            ProjectMode::MAGICLAW => 'magiclaw',
             default => 'custom_agent',
         };
+
+        $templateRootDirId = $rootDirId;
+        if ($projectMode === ProjectMode::MAGICLAW) {
+            $templateRootDirId = $this->taskFileDomainService->createDirectory(
+                projectId: $projectEntity->getId(),
+                parentId: $rootDirId,
+                dirName: '.magiclaw',
+                relativePath: '.magiclaw',
+                workDir: $projectEntity->getWorkDir(),
+                userId: $dataIsolation->getCurrentUserId(),
+                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+            );
+        }
 
         // @phpstan-ignore-next-line
         $templateDir = SUPER_MAGIC_MODULE_PATH . '/storage/agent_template/' . $templateSubDir;
@@ -2039,7 +2066,7 @@ class ProjectAppService extends AbstractAppService
             return;
         }
 
-        $this->processTemplateDirectory($dataIsolation, $projectEntity, $templateDir, $rootDirId);
+        $this->processTemplateDirectory($dataIsolation, $projectEntity, $templateDir, $templateRootDirId);
     }
 
     /**

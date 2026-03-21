@@ -41,6 +41,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
+use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -269,6 +270,15 @@ class SkillAppService extends AbstractSkillAppService
 
                 // 6. 删除 import_token 缓存（导入成功后不再需要）
                 $this->deleteImportToken($requestDTO->getImportToken());
+
+                try {
+                    event_dispatch(new SkillImportedEvent($userAuthorization, $result->getCode()));
+                } catch (Throwable $eventException) {
+                    $this->logger->error('Dispatch SkillImportedEvent failed', [
+                        'skill_code' => $result->getCode(),
+                        'error' => $eventException->getMessage(),
+                    ]);
+                }
 
                 return $result;
             } catch (Throwable $e) {

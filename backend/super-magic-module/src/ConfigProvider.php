@@ -117,6 +117,8 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayI
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -175,6 +177,7 @@ class ConfigProvider
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
                 WorkspaceExporterInterface::class => WorkspaceExporterService::class,
+                WorkspaceImporterInterface::class => WorkspaceImporterService::class,
                 AsrRecorderInterface::class => AsrRecorderService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入

@@ -942,9 +942,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
     {
-        /** @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() */
-        $model = $this->model::query()
-            ->withTrashed()
+        $model = $this->model::withTrashed()
             ->where('project_id', $projectId)
             ->orderBy('updated_at', 'desc')
             ->first();
@@ -963,9 +961,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      */
     public function getLatestUpdatedTimeByProjectId(int $projectId): ?string
     {
-        /* @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() */
-        return $this->model::query()
-            ->withTrashed()
+        return $this->model::withTrashed()
             ->where('project_id', $projectId)
             ->max('updated_at');
     }
@@ -1105,10 +1101,12 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      */
     public function restoreFile(int $fileId): void
     {
-        /* @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() and restore() */
         $this->model::withTrashed()
             ->where('file_id', $fileId)
-            ->restore();
+            ->update([
+                'deleted_at' => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
     }
 
     /**

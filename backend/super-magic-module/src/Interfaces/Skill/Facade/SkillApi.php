@@ -409,6 +409,7 @@ class SkillApi extends AbstractApi
             // 创建项目请求DTO
             $projectRequestDTO = new CreateAgentProjectRequestDTO();
             $projectRequestDTO->setProjectName($projectName);
+            $projectRequestDTO->setInitTemplateFiles(false);
 
             // 创建项目
             $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::CUSTOM_SKILL);
