@@ -131,4 +131,22 @@ interface SkillVersionRepositoryInterface
         string $languageCode,
         Page $page
     ): array;
+
+    /**
+     * 查询管理后台版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryVersions(
+        SkillDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $sourceType,
+        ?string $version,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
 }
