@@ -14,7 +14,7 @@ use App\Infrastructure\Core\AbstractDTO;
  */
 class GetAgentDetailResponseDTO extends AbstractDTO
 {
-    private int $id;
+    private string $id;
 
     private string $code;
 
@@ -85,7 +85,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
     private ?string $latestPublishedAt = null;
 
     public function __construct(
-        int $id,
+        string $id,
         string $code,
         ?string $versionCode,
         ?string $versionId,

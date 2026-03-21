@@ -248,7 +248,7 @@ class SuperMagicAgentAssembler
         }
 
         return new GetAgentDetailResponseDTO(
-            id: $agent->getId(),
+            id: $agent->getCode(),
             code: $agent->getCode(),
             versionCode: null,
             versionId: null,

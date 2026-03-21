@@ -14,7 +14,7 @@ use JsonSerializable;
  */
 class SkillListItemDTO implements JsonSerializable
 {
-    private int $id;
+    private string $id;
 
     private string $code;
 
@@ -41,7 +41,7 @@ class SkillListItemDTO implements JsonSerializable
     private string $description;
 
     public function __construct(
-        int $id,
+        string $id,
         string $code,
         string $name,
         string $description,
