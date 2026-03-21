@@ -245,8 +245,7 @@ class FileAppService extends AbstractAppService
         int $expires = 3600,
         bool $autoBucket = true,
         array $options = []
-    ): array
-    {
+    ): array {
         // 调用文件服务获取STS Token
         $data = $this->fileDomainService->getStsTemporaryCredential(
             $organizationCode,
