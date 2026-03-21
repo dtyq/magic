@@ -98,14 +98,6 @@ class SuperMagicAgentOldApi extends AbstractSuperMagicApi
         return SuperMagicAgentAssembler::createDTO($entity, $users, $withPromptString);
     }
 
-    public function destroy(string $code)
-    {
-        $authorization = $this->getAuthorization();
-        $result = $this->superMagicAgentAppService->delete($authorization, $code);
-
-        return ['success' => $result];
-    }
-
     public function enable(string $code)
     {
         $authorization = $this->getAuthorization();

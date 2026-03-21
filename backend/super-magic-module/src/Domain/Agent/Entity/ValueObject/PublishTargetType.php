@@ -10,16 +10,15 @@ namespace Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject;
 enum PublishTargetType: string
 {
     case PRIVATE = 'PRIVATE';
-    case USER = 'USER';
-    case DEPARTMENT = 'DEPARTMENT';
+    case MEMBER = 'MEMBER';
     case ORGANIZATION = 'ORGANIZATION';
     case MARKET = 'MARKET';
 
     public function requiresTargetValue(): bool
     {
         return match ($this) {
-            self::USER, self::DEPARTMENT, self::ORGANIZATION => true,
-            self::PRIVATE, self::MARKET => false,
+            self::MEMBER => true,
+            self::PRIVATE, self::ORGANIZATION, self::MARKET => false,
         };
     }
 
@@ -27,8 +26,7 @@ enum PublishTargetType: string
     {
         return match ($this) {
             self::PRIVATE => 'Private',
-            self::USER => 'Specific Members',
-            self::DEPARTMENT => 'Departments',
+            self::MEMBER => 'Specific Members',
             self::ORGANIZATION => 'Organization-wide',
             self::MARKET => 'Crew Market',
         };

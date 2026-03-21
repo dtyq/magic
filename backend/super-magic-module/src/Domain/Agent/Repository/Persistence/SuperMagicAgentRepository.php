@@ -31,18 +31,26 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
         return SuperMagicAgentFactory::createEntity($model);
     }
 
-    public function getUserAgentByVersionCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?SuperMagicAgentEntity
+    public function findByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
     {
-        $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
-
-        /** @var null|SuperMagicAgentModel $model */
-        $model = $builder->where('version_code', $code)->where('creator', $dataIsolation->getCurrentUserId())->first();
-
-        if (! $model) {
-            return null;
+        $codes = array_values(array_unique(array_filter($codes)));
+        if ($codes === []) {
+            return [];
         }
 
-        return SuperMagicAgentFactory::createEntity($model);
+        $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
+        $models = $builder
+            ->whereIn('code', $codes)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = SuperMagicAgentFactory::createEntity($model);
+            $result[$entity->getCode()] = $entity;
+        }
+
+        return $result;
     }
 
     public function queries(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentQuery $query, Page $page): array
@@ -150,37 +158,6 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
     {
         $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
         return $builder->where('code', $code)->exists();
-    }
-
-    /**
-     * 根据 version_code 列表查询用户已添加的 Agent（用于判断 is_added 和 need_upgrade）.
-     *
-     * @return array<string, SuperMagicAgentEntity> Agent 实体数组，key 为 version_code
-     */
-    public function findByVersionCodes(SuperMagicAgentDataIsolation $dataIsolation, string $userId, array $versionCodes): array
-    {
-        if (empty($versionCodes)) {
-            return [];
-        }
-
-        $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
-
-        $models = $builder
-            ->where('creator', $userId)
-            ->whereIn('version_code', $versionCodes)
-            ->whereNull('deleted_at')
-            ->get();
-
-        $result = [];
-        foreach ($models as $model) {
-            $entity = SuperMagicAgentFactory::createEntity($model);
-            $versionCode = $entity->getVersionCode();
-            if ($versionCode !== null) {
-                $result[$versionCode] = $entity;
-            }
-        }
-
-        return $result;
     }
 
     public function updateUpdatedAtByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $modifier): bool

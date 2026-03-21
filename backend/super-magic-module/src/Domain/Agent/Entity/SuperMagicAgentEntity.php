@@ -109,22 +109,22 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
-     * 关联来源类型：LOCAL_CREATE=本地创建, STORE=商店添加.
+     * 关联来源类型：LOCAL_CREATE=本地创建, MARKET/STORE=市场添加（兼容历史值）.
      */
     protected AgentSourceType $sourceType = AgentSourceType::LOCAL_CREATE;
 
     /**
-     * 来源关联 ID：source_type=STORE 时关联 magic_super_magic_agent_market.id，其余为 NULL.
+     * 来源关联 ID：source_type=MARKET/STORE 时关联 magic_super_magic_agent_market.id，其余为 NULL.
      */
     protected ?int $sourceId = null;
 
     /**
-     * 版本ID，对应 magic_super_magic_agent_versions.id；source_type=STORE 时有值，其他为空.
+     * 版本ID，对应 magic_super_magic_agent_versions.id；source_type=MARKET/STORE 时有值，其他为空.
      */
     protected ?int $versionId = null;
 
     /**
-     * 版本号，对应 magic_super_magic_agent_versions.version；source_type=STORE 时有值，其他为空.
+     * 版本号，对应市场原始 Agent code；source_type=MARKET/STORE 时有值，其他为空.
      */
     protected ?string $versionCode = null;
 

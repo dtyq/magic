@@ -445,6 +445,7 @@ class SkillDomainService
         Db::beginTransaction();
         try {
             $this->skillMarketDomainService->updateAllPublishStatusBySkillCode($code, PublishStatus::OFFLINE->value);
+            $this->deleteAllUserSkillOwnershipsByCode($dataIsolation, $code);
             $this->skillVersionRepository->deleteByCode($dataIsolation, $code);
 
             $result = $this->skillRepository->deleteByCode($dataIsolation, $code);

@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Entity;
 use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Hyperf\Codec\Json;
 
@@ -118,10 +119,7 @@ class AgentVersionEntity extends AbstractEntity
      */
     protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
 
-    /**
-     * @var null|array Actual publish target payload
-     */
-    protected ?array $publishTargetValue = null;
+    protected ?PublishTargetValue $publishTargetValue = null;
 
     /**
      * @var null|array Version description in i18n format
@@ -199,7 +197,7 @@ class AgentVersionEntity extends AbstractEntity
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus->value,
             'publish_target_type' => $this->publishTargetType->value,
-            'publish_target_value' => $this->publishTargetValue,
+            'publish_target_value' => $this->publishTargetValue?->toArray(),
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publisher_user_id' => $this->publisherUserId,
             'published_at' => $this->publishedAt,
@@ -456,14 +454,18 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getPublishTargetValue(): ?array
+    public function getPublishTargetValue(): ?PublishTargetValue
     {
         return $this->publishTargetValue;
     }
 
-    public function setPublishTargetValue(?array $publishTargetValue): self
+    public function setPublishTargetValue(null|array|PublishTargetValue $publishTargetValue): self
     {
-        $this->publishTargetValue = $publishTargetValue;
+        if (is_array($publishTargetValue)) {
+            $this->publishTargetValue = PublishTargetValue::fromArray($publishTargetValue);
+        } else {
+            $this->publishTargetValue = $publishTargetValue;
+        }
         return $this;
     }
 

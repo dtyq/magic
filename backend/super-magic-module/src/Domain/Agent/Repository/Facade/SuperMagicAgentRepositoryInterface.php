@@ -16,7 +16,11 @@ interface SuperMagicAgentRepositoryInterface
 {
     public function getByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?SuperMagicAgentEntity;
 
-    public function getUserAgentByVersionCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?SuperMagicAgentEntity;
+    /**
+     * @param array<string> $codes
+     * @return array<string, SuperMagicAgentEntity>
+     */
+    public function findByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
 
     /**
      * @return array{total: int, list: array<SuperMagicAgentEntity>}
@@ -48,16 +52,6 @@ interface SuperMagicAgentRepositoryInterface
      * 检查 code 是否已存在.
      */
     public function codeExists(SuperMagicAgentDataIsolation $dataIsolation, string $code): bool;
-
-    /**
-     * 根据 version_code 列表查询用户已添加的 Agent（用于判断 is_added 和 need_upgrade）.
-     *
-     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param string $userId 用户ID
-     * @param string[] $versionCodes version_code 列表
-     * @return array<string, SuperMagicAgentEntity> Agent 实体数组，key 为 version_code
-     */
-    public function findByVersionCodes(SuperMagicAgentDataIsolation $dataIsolation, string $userId, array $versionCodes): array;
 
     /**
      * 根据 code 更新 Agent 的 updated_at 时间.

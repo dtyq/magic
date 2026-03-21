@@ -23,7 +23,6 @@ use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Flow\DTO\MagicFlowApiChatDTO;
 use Dtyq\SuperMagic\Application\Agent\Service\AbstractSuperMagicAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
@@ -169,25 +168,6 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
         }
 
         return $entity;
-    }
-
-    public function delete(Authenticatable $authorization, string $code): bool
-    {
-        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-
-        $this->checkPermission($dataIsolation, $code);
-
-        // 如果是官方组织，检查该Agent的code是否在Mode的identifier中配置
-        if (OfficialOrganizationUtil::isOfficialOrganization($dataIsolation->getCurrentOrganizationCode())) {
-            $modeDataIsolation = $this->createModeDataIsolation($dataIsolation);
-            $modeDataIsolation->setOnlyOfficialOrganization(true);
-            $mode = $this->modeDomainService->getModeDetailByIdentifier($modeDataIsolation, $code);
-            if ($mode !== null) {
-                ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.official_agent_cannot_delete');
-            }
-        }
-
-        return $this->superMagicAgentDomainService->delete($dataIsolation, $code);
     }
 
     public function enable(Authenticatable $authorization, string $code): SuperMagicAgentEntity

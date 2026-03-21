@@ -42,6 +42,9 @@ class AgentListItemDTO extends AbstractDTO
 
     private bool $enabled;
 
+    /**
+     * 历史字段名沿用 `store`，实际语义表示“市场来源的 Agent 是否已从市场下架”.
+     */
     private ?bool $isStoreOffline;
 
     private ?string $latestVersionCode;

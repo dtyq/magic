@@ -67,18 +67,4 @@ class SuperMagicAgentMarketApi extends AbstractApi
         // 返回数组格式
         return $responseDTO->toArray();
     }
-
-    /**
-     * 雇用一名市场员工（加入我的员工）.
-     */
-    public function hireAgent(string $code): array
-    {
-        $authorization = $this->getAuthorization();
-
-        // 调用应用服务层处理业务逻辑
-        $this->superMagicAgentMarketAppService->hireAgent($authorization, $code);
-
-        // 返回空数组
-        return [];
-    }
 }

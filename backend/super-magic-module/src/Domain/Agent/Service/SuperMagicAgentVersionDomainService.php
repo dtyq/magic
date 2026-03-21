@@ -50,4 +50,26 @@ class SuperMagicAgentVersionDomainService
     {
         return $this->agentVersionRepository->findCurrentOrLatestByCodes($dataIsolation, $codes);
     }
+
+    /**
+     * @param array<int> $ids
+     * @return array<int, AgentVersionEntity>
+     */
+    public function findByIdsWithoutOrganizationFilter(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($ids as $id) {
+            $entity = $this->agentVersionRepository->findById((int) $id);
+            if ($entity !== null) {
+                $result[(int) $id] = $entity;
+            }
+        }
+
+        return $result;
+    }
 }

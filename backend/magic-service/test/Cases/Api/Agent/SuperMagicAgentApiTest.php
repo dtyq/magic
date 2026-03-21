@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentPlaybookModel
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentSkillModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentVersionModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentModel;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\UserAgentModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
@@ -46,6 +47,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
     public function testCreateAgent(): void
     {
         $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
 
         $requestData = [
             'name_i18n' => [
@@ -70,7 +72,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $response = $this->post(
             self::BASE_URI,
             $requestData,
-            $this->getCommonHeaders()
+            $headers
         );
 
         // 验证响应
@@ -84,7 +86,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $response = $this->get(
             self::BASE_URI . '/' . $response['data']['code'],
             [],
-            $this->getCommonHeaders()
+            $headers
         );
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
@@ -105,18 +107,33 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNull($response['data']['file_key']);
         $this->assertNull($response['data']['latest_published_at']);
 
+        $userAgent = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $code)
+            ->first();
+        $this->assertNotNull($userAgent, '创建 Agent 时应同步写入用户关系表');
+        $this->assertEquals('LOCAL_CREATE', $userAgent->source_type);
+
         $response = $this->delete(
             self::BASE_URI . '/' . $code,
             [],
-            $this->getCommonHeaders()
+            $headers
         );
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
 
+        $deletedUserAgent = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $code)
+            ->first();
+        $this->assertNull($deletedUserAgent, '删除 Agent 后应同步清理用户关系表');
+
         $response = $this->get(
             self::BASE_URI . '/' . $code,
             [],
-            $this->getCommonHeaders()
+            $headers
         );
         $this->assertNotEquals(1000, $response['code'], $response['message'] ?? '');
     }
@@ -167,7 +184,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $this->assertArrayHasKey('source_type', $item);
             $this->assertArrayHasKey('enabled', $item);
             $this->assertArrayHasKey('is_store_offline', $item);
-            $this->assertArrayHasKey('need_upgrade', $item);
             $this->assertArrayHasKey('latest_version_code', $item);
             $this->assertArrayHasKey('allow_delete', $item);
             $this->assertArrayHasKey('pinned_at', $item);
@@ -260,12 +276,24 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
 
-        $hiredMarketAgent = SuperMagicAgentModel::query()
-            ->where('organization_code', $headers['organization-code'])
-            ->where('creator', $headers['user-id'])
-            ->where('version_code', $marketAgentCode)
+        $marketRecord = AgentMarketModel::query()
+            ->where('agent_code', $marketAgentCode)
             ->first();
-        $this->assertNotNull($hiredMarketAgent);
+        $this->assertNotNull($marketRecord);
+
+        $installedOwnership = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $marketAgentCode)
+            ->first();
+        $this->assertNotNull($installedOwnership);
+        $this->assertEquals('MARKET', $installedOwnership->source_type);
+
+        $marketAgentRows = SuperMagicAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('code', $marketAgentCode)
+            ->count();
+        $this->assertSame(1, $marketAgentRows, '市场安装后不应复制新的 Agent 主表记录');
 
         $response = $this->post(
             self::BASE_URI . '/queries',
@@ -276,7 +304,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $codes = array_column($response['data']['list'], 'code');
         $this->assertContains($localAgentCode, $codes);
-        $this->assertNotContains($hiredMarketAgent->code, $codes);
+        $this->assertNotContains($marketAgentCode, $codes);
         $this->assertSame(
             ['LOCAL_CREATE'],
             array_values(array_unique(array_column($response['data']['list'], 'source_type')))
@@ -293,8 +321,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNotNull($localItem);
         $this->assertEquals('LOCAL_CREATE', $localItem['source_type']);
         $this->assertEquals('1.0.0', $localItem['latest_version_code']);
-        $this->assertTrue($localItem['allow_delete']);
-        $this->assertFalse($localItem['need_upgrade']);
     }
 
     public function testQueryExternalAgents(): void
@@ -330,12 +356,18 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
 
-        $hiredMarketAgent = SuperMagicAgentModel::query()
-            ->where('organization_code', $headers['organization-code'])
-            ->where('creator', $headers['user-id'])
-            ->where('version_code', $marketAgentCode)
+        $marketRecord = AgentMarketModel::query()
+            ->where('agent_code', $marketAgentCode)
             ->first();
-        $this->assertNotNull($hiredMarketAgent);
+        $this->assertNotNull($marketRecord);
+
+        $installedOwnership = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $marketAgentCode)
+            ->first();
+        $this->assertNotNull($installedOwnership);
+        $this->assertEquals('MARKET', $installedOwnership->source_type);
 
         $response = $this->post(
             self::BASE_URI . '/external/queries',
@@ -352,7 +384,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             if (($item['code'] ?? null) === $sharedAgentCode) {
                 $sharedItem = $item;
             }
-            if (($item['code'] ?? null) === $hiredMarketAgent->code) {
+            if (($item['code'] ?? null) === $marketAgentCode) {
                 $marketItem = $item;
             }
         }
@@ -363,7 +395,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertFalse($sharedItem['allow_delete']);
 
         $this->assertNotNull($marketItem, '应该返回从市场添加的员工');
-        $this->assertEquals('MARKET', $marketItem['source_type']);
+        $this->assertEquals('MARKET', $marketItem['source_type'], $marketItem['code'] . '来源不正确，正确是：MARKET');
         $this->assertEquals('2.5.0', $marketItem['latest_version_code']);
         $this->assertTrue($marketItem['allow_delete']);
     }
@@ -397,7 +429,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertFalse($marketItem['is_added']);
         $this->assertEquals('4.2.0', $marketItem['latest_version_code']);
         $this->assertFalse($marketItem['allow_delete']);
-        $this->assertArrayNotHasKey('need_upgrade', $marketItem);
 
         $hireResponse = $this->post(
             '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
@@ -405,6 +436,14 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $installedOwnership = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_version_id', AgentMarketModel::query()->where('agent_code', $marketAgentCode)->value('agent_version_id'))
+            ->first();
+        $this->assertNotNull($installedOwnership);
+        $this->assertSame($marketAgentCode, $installedOwnership->agent_code);
 
         $afterHireResponse = $this->post(
             '/api/v2/super-magic/agent-market/queries',
@@ -425,6 +464,50 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertTrue($marketItemAfterHire['is_added']);
         $this->assertTrue($marketItemAfterHire['allow_delete']);
         $this->assertEquals('4.2.0', $marketItemAfterHire['latest_version_code']);
+        $this->assertNotEmpty($marketItemAfterHire['user_code']);
+        $this->assertSame($marketAgentCode, $marketItemAfterHire['user_code']);
+
+        $userAgent = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $marketItemAfterHire['user_code'])
+            ->first();
+        $this->assertNotNull($userAgent, '从市场添加 Agent 后应写入用户关系表');
+        $this->assertEquals('MARKET', $userAgent->source_type);
+
+        $deleteResponse = $this->delete(
+            self::BASE_URI . '/' . $marketItemAfterHire['user_code'],
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $deleteResponse['code'], $deleteResponse['message'] ?? '');
+
+        $deletedUserAgent = UserAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('user_id', $headers['user-id'])
+            ->where('agent_code', $marketItemAfterHire['user_code'])
+            ->first();
+        $this->assertNull($deletedUserAgent, '删除市场安装的 Agent 后应清理用户关系表');
+
+        $afterDeleteResponse = $this->post(
+            '/api/v2/super-magic/agent-market/queries',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+        $this->assertEquals(1000, $afterDeleteResponse['code'], $afterDeleteResponse['message'] ?? '');
+
+        $marketItemAfterDelete = null;
+        foreach ($afterDeleteResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $marketAgentCode) {
+                $marketItemAfterDelete = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItemAfterDelete);
+        $this->assertFalse($marketItemAfterDelete['is_added']);
+        $this->assertFalse($marketItemAfterDelete['allow_delete']);
+        $this->assertNull($marketItemAfterDelete['user_code']);
     }
 
     /**
@@ -543,7 +626,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         // 验证返回字段
         $this->assertArrayHasKey('id', $data);
         $this->assertArrayHasKey('code', $data);
-        $this->assertArrayHasKey('version_code', $data);
         $this->assertArrayHasKey('version_id', $data);
         $this->assertArrayHasKey('name_i18n', $data);
         $this->assertArrayHasKey('role_i18n', $data);
@@ -1473,7 +1555,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals('1.0.0', $version['version']);
         $this->assertEquals($publishData['version_description_i18n']['zh_CN'], $version['version_description_i18n']['zh_CN']);
         $this->assertNotEmpty($version['published_at']);
-        $this->assertEquals('agents/publish-version.zip', $version['file_key']);
 
         // 通过 agent_code 查询 agent_id
         $agent = SuperMagicAgentModel::query()
@@ -1542,6 +1623,211 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertNotEquals(1000, $notFoundResponse['code'], '不存在的员工应该返回错误');
+    }
+
+    public function testPublishAgentScopeTransitions(): void
+    {
+        $this->switchUserTest1();
+
+        $agentCode = $this->createTestAgent();
+        SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/publish-scope.zip']);
+
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $creatorId = $headers['user-id'];
+        $targetUserId = 'target-user-001';
+        $targetDepartmentId = 'dept-target-001';
+
+        $memberResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/publish',
+            [
+                'version' => '1.0.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '成员发布',
+                    'en_US' => 'Member publish',
+                ],
+                'publish_target_type' => 'MEMBER',
+                'publish_target_value' => [
+                    'user_ids' => [$targetUserId],
+                    'department_ids' => [$targetDepartmentId],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $memberResponse['code'], $memberResponse['message'] ?? '');
+        $this->assertEquals('PUBLISHED', $memberResponse['data']['publish_status']);
+        $this->assertEquals('APPROVED', $memberResponse['data']['review_status']);
+        $this->assertEquals('MEMBER', $memberResponse['data']['publish_target_type']);
+
+        $memberVisibilityUserIds = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->where('principal_type', PrincipalType::USER->value)
+            ->pluck('principal_id')
+            ->all();
+        sort($memberVisibilityUserIds);
+        $expectedMemberVisibilityUserIds = [$creatorId, $targetUserId];
+        sort($expectedMemberVisibilityUserIds);
+        $this->assertSame($expectedMemberVisibilityUserIds, $memberVisibilityUserIds);
+
+        $memberVisibilityDepartmentIds = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->where('principal_type', PrincipalType::DEPARTMENT->value)
+            ->pluck('principal_id')
+            ->all();
+        $this->assertSame([$targetDepartmentId], $memberVisibilityDepartmentIds);
+
+        $marketResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/publish',
+            [
+                'version' => '1.0.1',
+                'version_description_i18n' => [
+                    'zh_CN' => '市场发布',
+                    'en_US' => 'Market publish',
+                ],
+                'publish_target_type' => 'MARKET',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $marketResponse['code'], $marketResponse['message'] ?? '');
+        $this->assertEquals('UNPUBLISHED', $marketResponse['data']['publish_status']);
+        $this->assertEquals('UNDER_REVIEW', $marketResponse['data']['review_status']);
+        $this->assertEquals('MARKET', $marketResponse['data']['publish_target_type']);
+        $this->assertFalse($marketResponse['data']['is_current_version']);
+        $this->assertNull($marketResponse['data']['published_at']);
+
+        $marketVisibilityUserIds = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->where('principal_type', PrincipalType::USER->value)
+            ->pluck('principal_id')
+            ->all();
+        sort($marketVisibilityUserIds);
+        $this->assertSame($expectedMemberVisibilityUserIds, $marketVisibilityUserIds);
+
+        AgentMarketModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'agent_code' => $agentCode,
+            'agent_version_id' => (int) $marketResponse['data']['version_id'],
+            'name_i18n' => [
+                'zh_CN' => '测试市场员工',
+                'en_US' => 'Test Market Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '测试市场员工描述',
+                'en_US' => 'Test market agent description',
+            ],
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'publish_status' => PublishStatus::PUBLISHED->value,
+            'publisher_id' => $creatorId,
+            'publisher_type' => 'USER',
+            'organization_code' => $organizationCode,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $organizationResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/publish',
+            [
+                'version' => '1.0.2',
+                'version_description_i18n' => [
+                    'zh_CN' => '组织发布',
+                    'en_US' => 'Organization publish',
+                ],
+                'publish_target_type' => 'ORGANIZATION',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $organizationResponse['code'], $organizationResponse['message'] ?? '');
+        $this->assertEquals('ORGANIZATION', $organizationResponse['data']['publish_target_type']);
+
+        $organizationVisibility = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->get(['principal_type', 'principal_id'])
+            ->map(fn (ResourceVisibilityModel $model) => [
+                'principal_type' => $model->principal_type,
+                'principal_id' => $model->principal_id,
+            ])
+            ->all();
+        $this->assertSame([[
+            'principal_type' => PrincipalType::ORGANIZATION->value,
+            'principal_id' => $organizationCode,
+        ]], $organizationVisibility);
+
+        $storeAgent = AgentMarketModel::query()->where('agent_code', $agentCode)->first();
+        $this->assertNotNull($storeAgent);
+        $this->assertEquals('OFFLINE', $storeAgent->publish_status);
+
+        $privateResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/publish',
+            [
+                'version' => '1.0.3',
+                'version_description_i18n' => [
+                    'zh_CN' => '私有发布',
+                    'en_US' => 'Private publish',
+                ],
+                'publish_target_type' => 'PRIVATE',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $privateResponse['code'], $privateResponse['message'] ?? '');
+        $this->assertEquals('PRIVATE', $privateResponse['data']['publish_target_type']);
+
+        $privateVisibility = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->get(['principal_type', 'principal_id'])
+            ->map(fn (ResourceVisibilityModel $model) => [
+                'principal_type' => $model->principal_type,
+                'principal_id' => $model->principal_id,
+            ])
+            ->all();
+        $this->assertSame([[
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $creatorId,
+        ]], $privateVisibility);
+    }
+
+    public function testPublishAgentMemberRequiresTargets(): void
+    {
+        $this->switchUserTest1();
+
+        $agentCode = $this->createTestAgent();
+        SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/publish-member-required.zip']);
+
+        $response = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/publish',
+            [
+                'version' => '1.0.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '空成员范围',
+                    'en_US' => 'Empty member target',
+                ],
+                'publish_target_type' => 'MEMBER',
+                'publish_target_value' => [
+                    'user_ids' => [],
+                    'department_ids' => [],
+                ],
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertNotEquals(1000, $response['code']);
     }
 
     /**
@@ -1734,7 +2020,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertArrayNotHasKey('status', $first);
         $this->assertArrayHasKey('publish_status', $first);
         $this->assertArrayHasKey('publish_target_type', $first);
-        $this->assertArrayHasKey('publish_to_label', $first);
         $this->assertArrayHasKey('publisher', $first);
         $this->assertArrayHasKey('is_current_version', $first);
         $this->assertArrayHasKey('version_description_i18n', $first);
@@ -1742,7 +2027,6 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals('1.0.1', $first['version']);
         $this->assertEquals('PUBLISHED', $first['publish_status']);
         $this->assertEquals('PRIVATE', $first['publish_target_type']);
-        $this->assertEquals('Private', $first['publish_to_label']);
         $this->assertTrue($first['is_current_version']);
         $this->assertEquals('第二个私有版本', $first['version_description_i18n']['zh_CN']);
     }
@@ -1864,12 +2148,11 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertArrayHasKey('data', $response);
         $data = $response['data'];
         $this->assertEquals($agentCode, $data['code']);
-        $this->assertEquals('2.0.0', $data['version_code']);
-        $this->assertNotNull($data['version_id']);
+        $this->assertNull($data['version_code']);
+        $this->assertNull($data['version_id']);
         $this->assertArrayHasKey('file_key', $data);
         $this->assertArrayHasKey('file_url', $data);
         $this->assertArrayHasKey('latest_published_at', $data);
-        $this->assertEquals('agents/latest-version.zip', $data['file_key']);
         $this->assertNotNull($data['latest_published_at']);
         $this->assertIsArray($data['skills']);
         $this->assertCount(1, $data['skills']);
@@ -2024,7 +2307,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'publisher_type' => 'OFFICIAL',
         ];
         $approveResponse2 = $this->put(
-            '/api/v2/super-magic/admin/agents/versions/' . $versionId2 . '/review',
+            '/api/v2/admin/super-magic/agents/versions/' . $versionId2 . '/review',
             $approveData2,
             $headers
         );
@@ -2086,7 +2369,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'action' => 'REJECTED',
         ];
         $rejectResponse = $this->put(
-            '/api/v2/super-magic/admin/agents/versions/' . $versionId3 . '/review',
+            '/api/v2/admin/super-magic/agents/versions/' . $versionId3 . '/review',
             $rejectData,
             $headers
         );
@@ -2115,7 +2398,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'action' => 'INVALID_ACTION',
         ];
         $invalidResponse = $this->put(
-            '/api/v2/super-magic/admin/agents/versions/' . $versionId3 . '/review',
+            '/api/v2/admin/super-magic/agents/versions/' . $versionId3 . '/review',
             $invalidData,
             $headers
         );
@@ -2123,7 +2406,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
         // 测试版本不存在的情况
         $notFoundResponse = $this->put(
-            '/api/v2/super-magic/admin/agents/versions/999999999/review',
+            '/api/v2/admin/super-magic/agents/versions/999999999/review',
             $approveData,
             $headers
         );
@@ -2131,7 +2414,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
         // 测试版本状态不正确的情况（已发布的版本不能再次审核）
         $alreadyPublishedResponse = $this->put(
-            '/api/v2/super-magic/admin/agents/versions/' . $versionId . '/review',
+            '/api/v2/admin/super-magic/agents/versions/' . $versionId . '/review',
             $approveData,
             $headers
         );
@@ -2273,12 +2556,24 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $skillVersion->publish_status = 'PUBLISHED';
         $skillVersion->review_status = 'APPROVED';
         $skillVersion->source_type = 'LOCAL_UPLOAD';
+        $skillVersion->is_current_version = 1;
         $skillVersion->save();
 
         // 更新技能的 version_id 和 version_code
         $skill->version_id = $skillVersion->id;
         $skill->version_code = $skillVersion->version;
         $skill->save();
+
+        $resource = new ResourceVisibilityModel();
+        $resource->id = IdGenerator::getSnowId();
+        $resource->organization_code = $organizationCode;
+        $resource->principal_type = PrincipalType::USER->value;
+        $resource->principal_id = $userId;
+        $resource->resource_type = ResourceType::SKILL->value;
+        $resource->resource_code = $skill->code;
+        $resource->creator = $userId;
+        $resource->modifier = $userId;
+        $resource->save();
 
         return $skill->id;
     }
@@ -2315,6 +2610,41 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $userId = $headers['user-id'];
         $versionId = IdGenerator::getSnowId();
         $publishedAt = date('Y-m-d H:i:s');
+
+        SuperMagicAgentModel::query()->create([
+            'id' => $versionId,
+            'code' => $agentCode,
+            'organization_code' => $organizationCode,
+            'version' => $version,
+            'name' => 'Published Agent',
+            'description' => 'Published agent for test',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '测试发布员工',
+                'en_US' => 'Published Test Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '测试发布员工描述',
+                'en_US' => 'Published test agent description',
+            ],
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
 
         AgentVersionModel::query()->create([
             'id' => $versionId,

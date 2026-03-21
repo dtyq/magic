@@ -12,6 +12,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
@@ -338,7 +339,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $entity->setPublishStatus($data['publish_status'] ?? PublishStatus::UNPUBLISHED->value);
         $entity->setReviewStatus($data['review_status'] ?? ReviewStatus::PENDING->value);
         $entity->setPublishTargetType($data['publish_target_type'] ?? PublishTargetType::MARKET->value);
-        $entity->setPublishTargetValue($publishTargetValue);
+        $entity->setPublishTargetValue(PublishTargetValue::fromArray($publishTargetValue));
         $entity->setVersionDescriptionI18n($versionDescriptionI18n);
         $entity->setPublisherUserId($data['publisher_user_id'] ?? null);
         $entity->setPublishedAt(isset($data['published_at']) ? (is_string($data['published_at']) ? $data['published_at'] : $data['published_at']?->format('Y-m-d H:i:s')) : null);
@@ -385,7 +386,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()->value,
             'publish_target_type' => $entity->getPublishTargetType()->value,
-            'publish_target_value' => $entity->getPublishTargetValue(),
+            'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),
             'publisher_user_id' => $entity->getPublisherUserId(),
             'published_at' => $entity->getPublishedAt(),

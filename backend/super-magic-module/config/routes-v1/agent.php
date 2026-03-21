@@ -37,7 +37,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::put('/{code}/updated-at', [SuperMagicAgentApi::class, 'touchUpdatedAt']);
         Router::get('/{code}/versions', [SuperMagicAgentApi::class, 'getVersionList']);
         Router::get('/{code}', [SuperMagicAgentApi::class, 'show']);
-        Router::delete('/{code}', [SuperMagicAgentOldApi::class, 'destroy']);
+        Router::delete('/{code}', [SuperMagicAgentApi::class, 'destroy']);
         Router::post('/{code}/publish', [SuperMagicAgentApi::class, 'publishAgent']);
         //        Router::post('/{code}/export', [SuperMagicAgentApi::class, 'export']);
         //        Router::put('/{code}/project', [SuperMagicAgentApi::class, 'bindProject']);
@@ -59,7 +59,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
 
     Router::addGroup('/agent-market', static function () {
         Router::post('/queries', [SuperMagicAgentMarketApi::class, 'queries']);
-        Router::post('/{code}/hire', [SuperMagicAgentMarketApi::class, 'hireAgent']);
+        Router::post('/{code}/hire', [SuperMagicAgentApi::class, 'hireAgent']);
         Router::get('/categories', [SuperMagicAgentMarketApi::class, 'getCategories']);
     });
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);

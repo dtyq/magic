@@ -34,6 +34,14 @@ interface AgentMarketRepositoryInterface
     public function findByAgentCodes(array $agentCodes): array;
 
     /**
+     * 批量根据市场记录 ID 列表查询市场记录（不限制发布状态）.
+     *
+     * @param int[] $ids 市场记录 ID 列表
+     * @return array<int, AgentMarketEntity> 市场 Agent 实体数组，key 为 id
+     */
+    public function findByIds(array $ids): array;
+
+    /**
      * 根据 agent_code 查询市场记录（不限制发布状态）.
      *
      * @param string $agentCode Agent code

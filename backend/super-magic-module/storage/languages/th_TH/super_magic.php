@@ -72,6 +72,7 @@ return [
         'invalid_review_action' => 'Invalid review action',
         'publisher_type_must_be_string' => 'Publisher type must be a string',
         'publisher_type_invalid' => 'Invalid publisher type',
+        'publish_target_value_required' => 'publish_target_value is required for current publish target type',
     ],
     'task' => [
         'prompt_length_exceeded' => 'ข้อความที่ป้อนยาวเกินไป กรุณาอัปโหลดเป็นไฟล์และอ้างอิงในกล่องโต้ตอบ',

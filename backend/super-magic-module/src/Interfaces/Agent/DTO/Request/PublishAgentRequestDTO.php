@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\Agent\DTO\Request;
 
 use App\Infrastructure\Core\AbstractRequestDTO;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
 use Hyperf\Validation\Rule;
 
 use function Hyperf\Translation\__;
@@ -42,6 +43,27 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
         return $this->publishTargetValue;
     }
 
+    public function toPublishTargetValue(): ?PublishTargetValue
+    {
+        return PublishTargetValue::fromArray($this->publishTargetValue);
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getPublishTargetUserIds(): array
+    {
+        return $this->toPublishTargetValue()?->getUserIds() ?? [];
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getPublishTargetDepartmentIds(): array
+    {
+        return $this->toPublishTargetValue()?->getDepartmentIds() ?? [];
+    }
+
     protected static function getHyperfValidationRules(): array
     {
         return [
@@ -49,8 +71,12 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             'version_description_i18n' => 'required|array',
             'version_description_i18n.zh_CN' => 'nullable|string|max:1000',
             'version_description_i18n.en_US' => 'nullable|string|max:1000',
-            'publish_target_type' => ['required', 'string', Rule::in(['PRIVATE'])],
+            'publish_target_type' => ['required', 'string', Rule::in(['PRIVATE', 'MEMBER', 'ORGANIZATION', 'MARKET'])],
             'publish_target_value' => 'nullable|array',
+            'publish_target_value.user_ids' => 'nullable|array',
+            'publish_target_value.user_ids.*' => 'string|max:64',
+            'publish_target_value.department_ids' => 'nullable|array',
+            'publish_target_value.department_ids.*' => 'string|max:64',
         ];
     }
 
@@ -70,6 +96,12 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             'publish_target_type.string' => __('validation.string', ['attribute' => 'publish_target_type']),
             'publish_target_type.in' => __('super_magic.agent.publish_target_type_invalid'),
             'publish_target_value.array' => __('validation.array', ['attribute' => 'publish_target_value']),
+            'publish_target_value.user_ids.array' => __('validation.array', ['attribute' => 'publish_target_value.user_ids']),
+            'publish_target_value.user_ids.*.string' => __('validation.string', ['attribute' => 'publish_target_value.user_ids']),
+            'publish_target_value.user_ids.*.max' => __('validation.max.string', ['attribute' => 'publish_target_value.user_ids', 'max' => 64]),
+            'publish_target_value.department_ids.array' => __('validation.array', ['attribute' => 'publish_target_value.department_ids']),
+            'publish_target_value.department_ids.*.string' => __('validation.string', ['attribute' => 'publish_target_value.department_ids']),
+            'publish_target_value.department_ids.*.max' => __('validation.max.string', ['attribute' => 'publish_target_value.department_ids', 'max' => 64]),
         ];
     }
 }

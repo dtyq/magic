@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
@@ -249,8 +250,8 @@ class SuperMagicAgentAssembler
         return new GetAgentDetailResponseDTO(
             id: $agent->getId(),
             code: $agent->getCode(),
-            versionCode: $agent->getVersionCode(),
-            versionId: (string) $agent->getVersionId(),
+            versionCode: null,
+            versionId: null,
             name: $agent->getI18nName($language),
             description: $agent->getI18nDescription($language),
             nameI18n: $nameI18n,
@@ -299,6 +300,7 @@ class SuperMagicAgentAssembler
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
+        array $userAgentsMap = [],
         int $page,
         int $pageSize,
         int $total
@@ -310,7 +312,7 @@ class SuperMagicAgentAssembler
                 $playbooksMap,
                 $storeAgentsMap,
                 $latestVersionsMap,
-                true
+                $userAgentsMap
             );
         }
 
@@ -328,6 +330,7 @@ class SuperMagicAgentAssembler
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
+        array $userAgentsMap = [],
         string $currentUserId,
         int $page,
         int $pageSize,
@@ -335,13 +338,12 @@ class SuperMagicAgentAssembler
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
-            $allowDelete = $agent->getCreator() === $currentUserId && $agent->getSourceType()->isMarket();
             $list[] = self::createAgentListItemDTO(
                 $agent,
                 $playbooksMap,
                 $storeAgentsMap,
                 $latestVersionsMap,
-                $allowDelete
+                $userAgentsMap
             );
         }
 
@@ -350,7 +352,7 @@ class SuperMagicAgentAssembler
 
     /**
      * @param array<int, AgentMarketEntity> $agentMarkets
-     * @param array<string, SuperMagicAgentEntity> $userAgentsMap
+     * @param array<string, UserAgentEntity> $userAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
      */
@@ -426,7 +428,7 @@ class SuperMagicAgentAssembler
     }
 
     /**
-     * @param array<string, SuperMagicAgentEntity> $userAgentsMap
+     * @param array<string, UserAgentEntity> $userAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
      */
@@ -457,7 +459,7 @@ class SuperMagicAgentAssembler
         return new AgentMarketListItemDTO(
             id: $agentMarket->getId() ?? 0,
             agentCode: $agentCode,
-            userCode: $userAgent?->getCode(),
+            userCode: $userAgent?->getAgentCode(),
             nameI18n: $agentMarket->getNameI18n() ?? [],
             roleI18n: $agentMarket->getRoleI18n(),
             descriptionI18n: $agentMarket->getDescriptionI18n(),
@@ -484,7 +486,7 @@ class SuperMagicAgentAssembler
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
-        bool $allowDelete
+        array $userAgentsMap = []
     ): AgentListItemDTO {
         $playbooks = $playbooksMap[$agent->getCode()] ?? [];
         $features = [];
@@ -496,20 +498,28 @@ class SuperMagicAgentAssembler
             ];
         }
 
-        $versionLookupCode = $agent->getSourceType()->isMarket()
-            ? ($agent->getVersionCode() ?: $agent->getCode())
-            : $agent->getCode();
+        $versionLookupCode = $agent->getCode();
+        if ($agent->getSourceType()->isMarket()) {
+            $versionLookupCode = $storeAgentsMap[$agent->getCode()]?->getAgentCode() ?? $agent->getCode();
+        }
         $latestVersionCode = isset($latestVersionsMap[$versionLookupCode]) ? $latestVersionsMap[$versionLookupCode]->getVersion() : null;
 
+        // 对市场来源的本地 Agent，仍需额外告知其原始市场记录是否已经下架。
         $isStoreOffline = null;
         if ($agent->getSourceType()->isMarket()) {
-            $storeAgent = $storeAgentsMap[$versionLookupCode] ?? null;
+            $storeAgent = $storeAgentsMap[$agent->getCode()] ?? null;
             if ($storeAgent === null) {
                 $isStoreOffline = true;
             } else {
-                $isStoreOffline = false;
+                $isStoreOffline = ! $storeAgent->getPublishStatus()->isPublished();
             }
         }
+
+        $userAgent = $userAgentsMap[$agent->getCode()] ?? null;
+        $isAdded = $userAgent !== null;
+        $allowDelete = $userAgent === null
+            ? $agent->getSourceType()->isMarket()
+            : ($isAdded && $userAgent?->getSourceType()->isMarket() === true);
 
         return new AgentListItemDTO(
             id: $agent->getId(),

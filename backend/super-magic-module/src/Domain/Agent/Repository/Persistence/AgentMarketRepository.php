@@ -68,6 +68,28 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         return $result;
     }
 
+    public function findByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->agentMarketModel::query()
+            ->whereIn('id', $ids)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = new AgentMarketEntity($model->toArray());
+            if ($entity->getId() !== null) {
+                $result[$entity->getId()] = $entity;
+            }
+        }
+
+        return $result;
+    }
+
     /**
      * 根据 agent_code 查询市场记录（不限制发布状态）.
      */

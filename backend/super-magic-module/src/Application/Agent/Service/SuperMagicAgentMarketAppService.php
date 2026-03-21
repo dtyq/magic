@@ -12,7 +12,7 @@ use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
-use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
@@ -67,7 +67,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *
      * @return array{
      *     agent_markets: array<int, AgentMarketEntity>,
-     *     user_agents_map: array<string, SuperMagicAgentEntity>,
+     *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
      *     page: int,
@@ -112,9 +112,8 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
         // 5. 查询当前用户已添加的员工（用于判断 is_added）
         $agentCodes = array_map(fn ($agentMarket) => $agentMarket->getAgentCode(), $agentMarkets);
-        $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByVersionCodes(
+        $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByAgentCodes(
             $dataIsolation,
-            $dataIsolation->getCurrentUserId(),
             $agentCodes
         );
         $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
@@ -132,16 +131,5 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             'page_size' => $requestDTO->getPageSize(),
             'total' => $total,
         ];
-    }
-
-    /**
-     * 雇用市场员工（从市场添加到用户员工列表）.
-     */
-    public function hireAgent(Authenticatable $authorization, string $agentMarketCode): void
-    {
-        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-
-        // 调用 DomainService 处理业务逻辑
-        $this->superMagicAgentMarketDomainService->hireAgent($dataIsolation, $agentMarketCode);
     }
 }

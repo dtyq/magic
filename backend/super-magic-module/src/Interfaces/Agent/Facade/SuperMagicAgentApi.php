@@ -108,7 +108,7 @@ class SuperMagicAgentApi extends AbstractApi
 
         // 如果项目ID为空，则创建并绑定项目
         // 历史数据是没有项目的，需要在这里创建
-        if (empty($agent->getProjectId())) {
+        if (empty($agent->getProjectId()) && $agent->getCreator() === $authorization->getId()) {
             $projectInfo = $this->createAndBindProject($authorization, $requestContext, $agent->getName(), $code);
             $agent->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
         }
@@ -146,6 +146,7 @@ class SuperMagicAgentApi extends AbstractApi
             $result['playbooks_map'],
             $result['store_agents_map'],
             $result['latest_versions_map'],
+            $result['user_agents_map'] ?? [],
             $result['page'],
             $result['page_size'],
             $result['total']
@@ -165,6 +166,7 @@ class SuperMagicAgentApi extends AbstractApi
             $result['playbooks_map'],
             $result['store_agents_map'],
             $result['latest_versions_map'],
+            $result['user_agents_map'] ?? [],
             $authorization->getId(),
             $result['page'],
             $result['page_size'],
@@ -227,6 +229,12 @@ class SuperMagicAgentApi extends AbstractApi
 
     /**
      * Publish an agent version.
+     *
+     * 发布规则：
+     * - `PRIVATE`：仅创建者自己可见
+     * - `MEMBER`：仅创建者 + 指定成员/部门可见，必须传 `publish_target_value`
+     * - `ORGANIZATION`：组织内全员可见
+     * - `MARKET`：提交市场发布流程，不主动清理当前组织内可见范围
      */
     public function publishAgent(string $code): array
     {
@@ -299,6 +307,28 @@ class SuperMagicAgentApi extends AbstractApi
     {
         $authorization = $this->getAuthorization();
         return $this->superMagicAgentAppService->exportAgent($authorization, $code);
+    }
+
+    public function destroy(string $code)
+    {
+        $authorization = $this->getAuthorization();
+        $result = $this->superMagicAgentAppService->delete($authorization, $code);
+
+        return ['success' => $result];
+    }
+
+    /**
+     * 雇用一名市场员工（加入我的员工）.
+     */
+    public function hireAgent(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+
+        // 调用应用服务层处理业务逻辑
+        $this->superMagicAgentAppService->hireAgent($authorization, $code);
+
+        // 返回空数组
+        return [];
     }
 
     private function createAndBindProject(Authenticatable $authorization, RequestContext $requestContext, string $projectName, string $agentCode): array

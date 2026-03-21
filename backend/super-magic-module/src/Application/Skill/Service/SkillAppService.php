@@ -413,15 +413,11 @@ class SkillAppService extends AbstractSkillAppService
         try {
             if ($userSkillEntity !== null && $userSkillEntity->getSourceType()->isMarket()) {
                 $this->skillDomainService->deleteUserSkillOwnership($dataIsolation, $code);
-                if (! $this->shouldKeepDirectSkillVisibilityAfterMarketRemoval($dataIsolation, $code, $dataIsolation->getCurrentUserId())) {
-                    $this->removeSkillVisibilityUsers($dataIsolation, $code, [$dataIsolation->getCurrentUserId()]);
-                }
+                $this->removeSkillVisibilityUsers($dataIsolation, $code, [$dataIsolation->getCurrentUserId()]);
                 Db::commit();
                 return;
             }
 
-            $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
-            $this->skillDomainService->deleteAllUserSkillOwnershipsByCode($dataIsolation, $code);
             $this->clearSkillVisibility($dataIsolation, $code);
             $this->clearSkillOwnerPermission($dataIsolation, $code);
             $this->skillDomainService->deleteSkill($dataIsolation, $code);

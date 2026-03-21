@@ -29,6 +29,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\UserAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentCategoryRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentMarketRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentPlaybookRepository;
@@ -36,6 +37,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentSkillRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentVersionRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\MagicClawRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\UserAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionItemRepositoryInterface;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionRepositoryInterface;
@@ -214,6 +216,7 @@ class ConfigProvider
                 AgentVersionRepositoryInterface::class => AgentVersionRepository::class,
                 AgentCategoryRepositoryInterface::class => AgentCategoryRepository::class,
                 AgentSkillRepositoryInterface::class => AgentSkillRepository::class,
+                UserAgentRepositoryInterface::class => UserAgentRepository::class,
 
                 // transfer 转让
                 TransferLogRepositoryInterface::class => TransferLogRepository::class,

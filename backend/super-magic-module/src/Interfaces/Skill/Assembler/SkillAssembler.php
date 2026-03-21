@@ -42,7 +42,7 @@ class SkillAssembler
         $description = $entity->getI18nDescription($language);
 
         return new SkillListItemDTO(
-            id: $entity->getId() ?? 0,
+            id: $entity->getCode(),
             code: $entity->getCode(),
             name: $name,
             description: $description,

@@ -49,6 +49,9 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private string $sourceType;
 
+    /**
+     * 实际语义表示“市场来源的 Agent 是否已从市场下架”.
+     */
     private ?bool $isStoreOffline;
 
     private ?string $pinnedAt;
