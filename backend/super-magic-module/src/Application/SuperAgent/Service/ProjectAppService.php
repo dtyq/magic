@@ -2049,8 +2049,8 @@ class ProjectAppService extends AbstractAppService
             $templateRootDirId = $this->taskFileDomainService->createDirectory(
                 projectId: $projectEntity->getId(),
                 parentId: $rootDirId,
-                dirName: '.magiclaw',
-                relativePath: '.magiclaw',
+                dirName: '.magic',
+                relativePath: '.magic',
                 workDir: $projectEntity->getWorkDir(),
                 userId: $dataIsolation->getCurrentUserId(),
                 organizationCode: $dataIsolation->getCurrentOrganizationCode(),
