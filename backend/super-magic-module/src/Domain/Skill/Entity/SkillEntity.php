@@ -205,6 +205,12 @@ class SkillEntity extends AbstractEntity
         return $this;
     }
 
+    /** 新业务 code：`SKILL-` + uniqid 片段（生成规则与 Agent `SMA-` code 一致）. */
+    public static function generateNewCode(): string
+    {
+        return 'SKILL-' . str_replace('.', '-', uniqid('', true));
+    }
+
     public function getCreatorId(): string
     {
         return $this->creatorId;

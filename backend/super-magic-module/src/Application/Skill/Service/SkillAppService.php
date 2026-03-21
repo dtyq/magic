@@ -257,7 +257,7 @@ class SkillAppService extends AbstractSkillAppService
                         $requestDTO->getLogo()
                     );
                 } else {
-                    $skillCode = IdGenerator::getUniqueId32();
+                    $skillCode = SkillEntity::generateNewCode();
                     $result = $this->createSkillInternal(
                         $dataIsolation,
                         $userId,
@@ -338,7 +338,7 @@ class SkillAppService extends AbstractSkillAppService
         $organizationCode = $userAuthorization->getOrganizationCode();
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        $skillCode = IdGenerator::getUniqueId32();
+        $skillCode = SkillEntity::generateNewCode();
 
         Db::beginTransaction();
         try {
@@ -932,7 +932,7 @@ class SkillAppService extends AbstractSkillAppService
             $existingSkillEntity = $this->skillDomainService->findSkillByPackageNameAndCreator($dataIsolation, $packageName);
 
             // 4. 生成 skill_code（新建时生成，更新时使用已有的）
-            $skillCode = $existingSkillEntity ? $existingSkillEntity->getCode() : IdGenerator::getUniqueId32();
+            $skillCode = $existingSkillEntity ? $existingSkillEntity->getCode() : SkillEntity::generateNewCode();
 
             // 5. 上传文件到私有桶
             $fileKey = $this->uploadFileToPrivateStorage($organizationCode, $tempFilePath, $skillCode);
