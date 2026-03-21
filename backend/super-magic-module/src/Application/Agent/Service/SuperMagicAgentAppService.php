@@ -58,6 +58,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentPublishPrefillResponseDTO;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Hyperf\Di\Annotation\Inject;
@@ -522,6 +523,41 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
 
         return $versionEntity;
+    }
+
+    /**
+     * 发布表单预填：版本号规则与 Skill 一致；发布范围取自按 created_at 最新一条版本；无版本时 publish_target 为 null.
+     */
+    public function getPublishPrefill(Authenticatable $authorization, string $code): AgentPublishPrefillResponseDTO
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        $this->checkPermission($dataIsolation, $code);
+
+        $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+
+        $versionRecordCount = $this->superMagicAgentVersionDomainService->countVersionsByCode($dataIsolation, $code);
+        $descriptionI18n = $agentEntity->getDescriptionI18n();
+        $version = sprintf('%d.0.0', $versionRecordCount + 1);
+        $versionDescriptionI18n = is_array($descriptionI18n) ? $descriptionI18n : [];
+
+        $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $code);
+        if ($latestVersion !== null) {
+            $publishTargetType = $latestVersion->getPublishTargetType()->value;
+            $publishTargetValue = $latestVersion->getPublishTargetType()->requiresTargetValue()
+                ? $latestVersion->getPublishTargetValue()?->toArray()
+                : null;
+        } else {
+            $publishTargetType = null;
+            $publishTargetValue = null;
+        }
+
+        return new AgentPublishPrefillResponseDTO(
+            version: $version,
+            versionDescriptionI18n: $versionDescriptionI18n,
+            publishTargetType: $publishTargetType,
+            publishTargetValue: $publishTargetValue,
+        );
     }
 
     /**

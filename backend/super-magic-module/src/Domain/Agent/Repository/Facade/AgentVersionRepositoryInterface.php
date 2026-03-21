@@ -28,6 +28,16 @@ interface AgentVersionRepositoryInterface
      */
     public function findLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
+    /**
+     * 统计某 Agent 下版本记录总数（未软删）.
+     */
+    public function countByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * 按 created_at 倒序取最新一条（未软删），与版本列表排序一致.
+     */
+    public function findLatestByCreatedAtDesc(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
+
     public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
     /**

@@ -250,6 +250,13 @@ class SuperMagicAgentApi extends AbstractApi
         return SuperMagicAgentAssembler::createPublishVersionResponseDTO($versionEntity)->toArray();
     }
 
+    public function getPublishPrefill(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+
+        return $this->superMagicAgentAppService->getPublishPrefill($authorization, $code)->toArray();
+    }
+
     public function getVersionList(string $code): array
     {
         $authorization = $this->getAuthorization();

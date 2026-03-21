@@ -37,6 +37,16 @@ class SuperMagicAgentVersionDomainService
         return $this->agentVersionRepository->queriesByCode($dataIsolation, $code, $publishTargetType, $reviewStatus, $page);
     }
 
+    public function countVersionsByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->agentVersionRepository->countByCode($dataIsolation, $code);
+    }
+
+    public function findLatestVersionByCreatedAt(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity
+    {
+        return $this->agentVersionRepository->findLatestByCreatedAtDesc($dataIsolation, $code);
+    }
+
     public function getCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity
     {
         return $this->agentVersionRepository->findCurrentOrLatestByCode($dataIsolation, $code);
