@@ -425,14 +425,13 @@ class SkillAppService extends AbstractSkillAppService
         $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
         $sharedSkillCodes = array_values(array_diff($accessibleSkillCodes, $currentUserSkillCodes));
 
-        if ($sharedSkillCodes) {
+        if (! $sharedSkillCodes) {
             return [
                 'list' => [],
                 'total' => 0,
             ];
         }
 
-        $dataIsolation->disabled();
         $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
             $dataIsolation,
             $sharedSkillCodes,
