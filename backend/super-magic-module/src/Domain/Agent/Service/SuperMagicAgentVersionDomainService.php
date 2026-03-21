@@ -43,6 +43,14 @@ class SuperMagicAgentVersionDomainService
     }
 
     /**
+     * Return a version snapshot by id without organization scoping.
+     */
+    public function findByIdWithoutOrganizationFilter(int $id): ?AgentVersionEntity
+    {
+        return $this->agentVersionRepository->findById($id);
+    }
+
+    /**
      * @param array<string> $codes
      * @return array<string, AgentVersionEntity>
      */

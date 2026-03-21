@@ -9,7 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Facade;
 
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentMarketAppService;
-use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentMarketAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
@@ -28,33 +28,43 @@ class SuperMagicAgentMarketApi extends AbstractApi
     }
 
     /**
-     * 获取员工市场分类列表.
+     * Return the available market categories.
      */
     public function getCategories(): array
     {
         $authorization = $this->getAuthorization();
 
-        // 调用应用服务层处理业务逻辑
         $result = $this->superMagicAgentMarketAppService->getCategories($authorization);
-        $responseDTO = SuperMagicAgentAssembler::createCategoryListItemDTOs($result);
+        $responseDTO = SuperMagicAgentMarketAssembler::createCategoryListItemDTOs($result);
 
-        // 返回响应
         return ['list' => $responseDTO];
     }
 
     /**
-     * 查询员工市场列表.
+     * Return the market detail for a published agent.
+     */
+    public function show(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $result = $this->superMagicAgentMarketAppService->show($authorization, $code);
+
+        return SuperMagicAgentMarketAssembler::createAgentMarketDetailResponseDTO(
+            $result['agent_market'],
+            $result['agent_version']
+        )->toArray();
+    }
+
+    /**
+     * Query the published market list.
      */
     public function queries(): array
     {
         $authorization = $this->getAuthorization();
 
-        // 从请求创建DTO
         $requestDTO = QueryAgentMarketsRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务层处理业务逻辑
         $result = $this->superMagicAgentMarketAppService->queries($authorization, $requestDTO);
-        $responseDTO = SuperMagicAgentAssembler::createQueryAgentMarketsResponseDTO(
+        $responseDTO = SuperMagicAgentMarketAssembler::createQueryAgentMarketsResponseDTO(
             $result['agent_markets'],
             $result['user_agents_map'],
             $result['latest_versions_map'],
@@ -64,7 +74,6 @@ class SuperMagicAgentMarketApi extends AbstractApi
             $result['total']
         );
 
-        // 返回数组格式
         return $responseDTO->toArray();
     }
 }

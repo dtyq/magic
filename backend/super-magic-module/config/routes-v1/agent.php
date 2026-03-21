@@ -12,14 +12,14 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentMarketApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentPlaybookApi;
 use Hyperf\HttpServer\Router\Router;
 
-// 旧版本，新版本上线后可删除
+// Legacy version. This group can be removed after the new version is fully rolled out.
 Router::addGroup('/api/v1/super-magic', static function () {
     Router::addGroup('/agents', static function () {
         Router::post('', [SuperMagicAgentOldApi::class, 'save']);
         Router::post('/queries', [SuperMagicAgentOldApi::class, 'queries']);
         Router::post('/ai-optimize', [SuperMagicAgentOldApi::class, 'aiOptimize']);
         Router::post('/order', [SuperMagicAgentOldApi::class, 'saveOrder']);
-        // 静态路由必须放在变量路由之前，否则会被 /{code} 遮蔽
+        // Static routes must be declared before variable routes, otherwise /{code} will shadow them.
         Router::get('/builtin-tools', [SuperMagicAgentOldApi::class, 'tools']);
         Router::get('/{code}', [SuperMagicAgentOldApi::class, 'show']);
         Router::delete('/{code}', [SuperMagicAgentApi::class, 'destroy']);
@@ -59,8 +59,9 @@ Router::addGroup('/api/v2/super-magic', static function () {
 
     Router::addGroup('/agent-market', static function () {
         Router::post('/queries', [SuperMagicAgentMarketApi::class, 'queries']);
-        Router::post('/{code}/hire', [SuperMagicAgentApi::class, 'hireAgent']);
         Router::get('/categories', [SuperMagicAgentMarketApi::class, 'getCategories']);
+        Router::get('/{code}', [SuperMagicAgentMarketApi::class, 'show']);
+        Router::post('/{code}/hire', [SuperMagicAgentApi::class, 'hireAgent']);
     });
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);
 

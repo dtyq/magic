@@ -7,22 +7,26 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
+use App\Infrastructure\Util\File\EasyFileTools;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
 /**
- * Agent Market 应用服务.
+ * Application service for market agent use cases.
  */
 class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 {
@@ -36,7 +40,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
     protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
 
     /**
-     * 获取分类列表（包含每个分类下的员工数量统计）.
+     * Return all categories with their published crew counts.
      */
     /**
      * @return array<int, array{id:int, name_i18n:array, logo:?string, sort_order:int, crew_count:int}>
@@ -63,7 +67,39 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 查询员工市场列表.
+     * Return the detail view for a published market agent.
+     *
+     * @return array{
+     *     agent_market: AgentMarketEntity,
+     *     agent_version: AgentVersionEntity
+     * }
+     */
+    public function show(Authenticatable $authorization, string $code): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        $agentMarket = $this->superMagicAgentMarketDomainService->getPublishedByAgentCode($code);
+        if ($agentMarket === null) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
+        }
+
+        $agentVersion = $this->superMagicAgentVersionDomainService->findByIdWithoutOrganizationFilter(
+            $agentMarket->getAgentVersionId()
+        );
+        if ($agentVersion === null) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::AgentVersionNotFound, 'super_magic.agent.agent_version_not_found');
+        }
+
+        $this->updateAgentMarketIcon($dataIsolation, $agentMarket);
+
+        return [
+            'agent_market' => $agentMarket,
+            'agent_version' => $agentVersion,
+        ];
+    }
+
+    /**
+     * Query the published market list.
      *
      * @return array{
      *     agent_markets: array<int, AgentMarketEntity>,
@@ -79,10 +115,10 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 获取用户语言偏好，默认 en_US
+        // Use the user's preferred language and fall back to en_US.
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
 
-        // 2. 创建查询对象
+        // Build the market query object.
         $query = new AgentMarketQuery();
         $query->setKeyword(trim($requestDTO->getKeyword()));
         $query->setLanguageCode($languageCode);
@@ -90,10 +126,10 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             $query->setCategoryId((int) $requestDTO->getCategoryId());
         }
 
-        // 3. 创建分页对象
+        // Build the page request.
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
 
-        // 4. 查询市场员工列表
+        // Fetch the published market list.
         $result = $this->superMagicAgentMarketDomainService->queries($query, $page);
         $agentMarkets = $result['list'];
         $total = $result['total'];
@@ -110,7 +146,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             ];
         }
 
-        // 5. 查询当前用户已添加的员工（用于判断 is_added）
+        // Load the current user's installed agents to compute is_added.
         $agentCodes = array_map(fn ($agentMarket) => $agentMarket->getAgentCode(), $agentMarkets);
         $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByAgentCodes(
             $dataIsolation,
@@ -118,7 +154,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         );
         $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
 
-        // 6. 批量查询 Playbook 列表
+        // Load playbooks in batch for the list cards.
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
         $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
 
@@ -131,5 +167,29 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             'page_size' => $requestDTO->getPageSize(),
             'total' => $total,
         ];
+    }
+
+    /**
+     * Resolve the market icon path into a public URL when possible.
+     */
+    private function updateAgentMarketIcon(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentMarketEntity $agentMarket
+    ): void {
+        $icon = $agentMarket->getIcon() ?? [];
+        $formattedPath = EasyFileTools::formatPath($icon['url'] ?? $icon['value'] ?? '');
+        if ($formattedPath === '') {
+            return;
+        }
+
+        $organizationCode = $agentMarket->getOrganizationCode() ?: $dataIsolation->getCurrentOrganizationCode();
+        $fileLink = $this->getIcons($organizationCode, [$formattedPath])[$formattedPath] ?? null;
+        if ($fileLink === null) {
+            return;
+        }
+
+        $icon['url'] = $fileLink->getUrl();
+        $icon['value'] = $fileLink->getUrl();
+        $agentMarket->setIcon($icon);
     }
 }

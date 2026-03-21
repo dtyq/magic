@@ -92,6 +92,7 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
 
     /**
      * 批量创建技能绑定关系.
+     * toArray() 会过滤 null，导致不同实体列不一致，需规范化确保每行列相同.
      */
     public function batchSave(SuperMagicAgentDataIsolation $dataIsolation, array $entities): array
     {
