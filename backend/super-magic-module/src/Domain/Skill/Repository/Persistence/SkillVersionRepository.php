@@ -343,6 +343,15 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             ->delete();
     }
 
+    public function countByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
+            ->where('code', $code)
+            ->whereNull('deleted_at');
+
+        return (int) $builder->count();
+    }
+
     public function queriesByCode(
         SkillDataIsolation $dataIsolation,
         string $code,

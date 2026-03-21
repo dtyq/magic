@@ -771,6 +771,11 @@ class SkillDomainService
         );
     }
 
+    public function countSkillVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->skillVersionRepository->countByCode($dataIsolation, $code);
+    }
+
     /**
      * 下架技能版本（下架所有已发布的版本，并更新商店表）.
      *

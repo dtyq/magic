@@ -54,6 +54,9 @@ Router::addGroup('/api/v1', static function () {
         // 查询技能版本列表
         Router::get('/{code}/versions', [SkillApi::class, 'getVersionList']);
 
+        // 发布表单预填（版本号、描述等，与 POST publish 请求体字段对齐）
+        Router::get('/{code}/publish/prefill', [SkillApi::class, 'getPublishPrefill']);
+
         // 发布技能版本
         Router::post('/{code}/publish', [SkillApi::class, 'publishSkill']);
 

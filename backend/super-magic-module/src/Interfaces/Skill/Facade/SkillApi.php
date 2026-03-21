@@ -298,6 +298,16 @@ class SkillApi extends AbstractApi
     }
 
     /**
+     * 获取发布表单的预填数据（与 POST publish 请求体字段一致，便于一键发布）.
+     */
+    public function getPublishPrefill(RequestContext $requestContext, string $code): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->userSkillAppService->getPublishPrefill($requestContext, $code)->toArray();
+    }
+
+    /**
      * 发布 Skill 版本。
      *
      * 发布规则：

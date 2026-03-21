@@ -66,6 +66,7 @@ use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillInfoRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\ParseFileImportResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillFileUrlItemDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillPublishPrefillResponseDTO;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -744,6 +745,42 @@ class SkillAppService extends AbstractSkillAppService
             'userMap' => $userMap,
             'memberDepartmentMap' => $memberDepartmentMap,
         ];
+    }
+
+    /**
+     * 获取发布版本接口的表单预填：版本号为当前版本记录数 + 1 的主版本，描述为当前 Skill 描述（与 POST publish 请求体字段对齐）.
+     */
+    public function getPublishPrefill(RequestContext $requestContext, string $code): SkillPublishPrefillResponseDTO
+    {
+        $authorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createSkillDataIsolation($authorization);
+
+        $this->checkPermission($dataIsolation, $code);
+
+        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+
+        $versionRecordCount = $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $code);
+        $descriptionI18n = $skillEntity->getDescriptionI18n();
+        $version = sprintf('%d.0.0', $versionRecordCount + 1);
+        $versionDescriptionI18n = is_array($descriptionI18n) ? $descriptionI18n : [];
+
+        $latestVersion = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
+        if ($latestVersion !== null) {
+            $publishTargetType = $latestVersion->getPublishTargetType()->value;
+            $publishTargetValue = $latestVersion->getPublishTargetType()->requiresTargetValue()
+                ? $latestVersion->getPublishTargetValue()?->toArray()
+                : null;
+        } else {
+            $publishTargetType = null;
+            $publishTargetValue = null;
+        }
+
+        return new SkillPublishPrefillResponseDTO(
+            version: $version,
+            versionDescriptionI18n: $versionDescriptionI18n,
+            publishTargetType: $publishTargetType,
+            publishTargetValue: $publishTargetValue,
+        );
     }
 
     /**

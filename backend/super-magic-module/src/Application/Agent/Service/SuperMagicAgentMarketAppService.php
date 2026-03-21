@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
@@ -16,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
@@ -39,6 +42,9 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
+    #[Inject]
+    protected MagicUserDomainService $magicUserDomainService;
 
     /**
      * Return all categories with their published crew counts.
@@ -104,6 +110,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *
      * @return array{
      *     agent_markets: array<int, AgentMarketEntity>,
+     *     publisher_user_map: array<string, MagicUserEntity>,
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
@@ -138,6 +145,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         if (empty($agentMarkets)) {
             return [
                 'agent_markets' => [],
+                'publisher_user_map' => [],
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
                 'playbooks_map' => [],
@@ -149,6 +157,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
         // Load the current user's installed agents to compute is_added.
         $agentCodes = array_map(fn ($agentMarket) => $agentMarket->getAgentCode(), $agentMarkets);
+        $publisherUserMap = $this->loadPublisherUserMap($agentMarkets);
         $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByAgentCodes(
             $dataIsolation,
             $agentCodes
@@ -162,6 +171,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
         return [
             'agent_markets' => $agentMarkets,
+            'publisher_user_map' => $publisherUserMap,
             'user_agents_map' => $userAgentsMap,
             'latest_versions_map' => $latestVersionsMap,
             'playbooks_map' => $playbooksMap,
@@ -224,5 +234,31 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         }
 
         return $userAgentsMap;
+    }
+
+    /**
+     * @param AgentMarketEntity[] $agentMarkets
+     * @return array<string, MagicUserEntity>
+     */
+    private function loadPublisherUserMap(array $agentMarkets): array
+    {
+        $publisherIds = [];
+        foreach ($agentMarkets as $agentMarket) {
+            if ($agentMarket->getPublisherType() !== PublisherType::OFFICIAL) {
+                $publisherIds[] = $agentMarket->getPublisherId();
+            }
+        }
+
+        if ($publisherIds === []) {
+            return [];
+        }
+
+        $publisherUserMap = [];
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization(array_unique($publisherIds));
+        foreach ($userEntities as $userEntity) {
+            $publisherUserMap[$userEntity->getUserId()] = $userEntity;
+        }
+
+        return $publisherUserMap;
     }
 }

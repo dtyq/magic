@@ -106,6 +106,11 @@ interface SkillVersionRepositoryInterface
     public function deleteByCode(SkillDataIsolation $dataIsolation, string $code): int;
 
     /**
+     * 统计某 Skill 下版本记录总数（未软删，与组织隔离一致）.
+     */
+    public function countByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
      * 查询版本列表.
      *
      * @return array{list: SkillVersionEntity[], total: int}

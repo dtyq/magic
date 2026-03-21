@@ -48,6 +48,8 @@ class AgentMarketListItemDTO extends AbstractDTO
 
     private string $publisherType;
 
+    private array $publisher;
+
     private ?int $categoryId;
 
     private ?string $latestVersionCode;
@@ -65,6 +67,7 @@ class AgentMarketListItemDTO extends AbstractDTO
         int $iconType,
         array $playbooks,
         string $publisherType,
+        array $publisher,
         ?int $categoryId,
         bool $isAdded,
         ?string $latestVersionCode,
@@ -82,6 +85,7 @@ class AgentMarketListItemDTO extends AbstractDTO
         $this->iconType = $iconType;
         $this->playbooks = $playbooks;
         $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
         $this->categoryId = $categoryId;
         $this->isAdded = $isAdded;
         $this->latestVersionCode = $latestVersionCode;
@@ -106,6 +110,7 @@ class AgentMarketListItemDTO extends AbstractDTO
             'icon_type' => $this->iconType,
             'playbooks' => $this->playbooks,
             'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
             'category_id' => (string) $this->categoryId,
             'is_added' => $this->isAdded,
             'latest_version_code' => $this->latestVersionCode,

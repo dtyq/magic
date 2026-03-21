@@ -66,6 +66,7 @@ class SuperMagicAgentMarketApi extends AbstractApi
         $result = $this->superMagicAgentMarketAppService->queries($authorization, $requestDTO);
         $responseDTO = SuperMagicAgentMarketAssembler::createQueryAgentMarketsResponseDTO(
             $result['agent_markets'],
+            $result['publisher_user_map'],
             $result['user_agents_map'],
             $result['latest_versions_map'],
             $result['playbooks_map'],
