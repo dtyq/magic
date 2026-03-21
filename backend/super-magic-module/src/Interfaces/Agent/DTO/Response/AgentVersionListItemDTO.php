@@ -22,6 +22,7 @@ class AgentVersionListItemDTO extends AbstractDTO
         private readonly ?string $publishedAt,
         private readonly bool $isCurrentVersion,
         private readonly ?array $versionDescriptionI18n,
+        private readonly ?array $publishTargetValue = null,
     ) {
     }
 
@@ -37,6 +38,7 @@ class AgentVersionListItemDTO extends AbstractDTO
             'published_at' => $this->publishedAt,
             'is_current_version' => $this->isCurrentVersion,
             'version_description_i18n' => $this->versionDescriptionI18n,
+            'publish_target_value' => $this->publishTargetValue,
         ];
     }
 }

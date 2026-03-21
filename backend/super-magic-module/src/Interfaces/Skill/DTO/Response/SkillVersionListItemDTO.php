@@ -22,6 +22,7 @@ class SkillVersionListItemDTO extends AbstractDTO
         private readonly ?string $publishedAt,
         private readonly bool $isCurrentVersion,
         private readonly ?array $versionDescriptionI18n,
+        private readonly ?array $publishTargetValue = null,
     ) {
     }
 
@@ -33,6 +34,7 @@ class SkillVersionListItemDTO extends AbstractDTO
             'publish_status' => $this->publishStatus,
             'review_status' => $this->reviewStatus,
             'publish_target_type' => $this->publishTargetType,
+            'publish_target_value' => $this->publishTargetValue,
             'publisher' => $this->publisher?->toArray(),
             'published_at' => $this->publishedAt,
             'is_current_version' => $this->isCurrentVersion,

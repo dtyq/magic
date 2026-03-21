@@ -256,24 +256,13 @@ class SuperMagicAgentApi extends AbstractApi
         $requestDTO = QueryAgentVersionsRequestDTO::fromRequest($this->request);
         $result = $this->superMagicAgentAppService->queryVersions($authorization, $code, $requestDTO);
 
-        $publisherUserIds = [];
-        foreach ($result['list'] as $versionEntity) {
-            $publisherUserId = $versionEntity->getPublisherUserId();
-            if (! empty($publisherUserId)) {
-                $publisherUserIds[] = $publisherUserId;
-            }
-        }
-        $users = $this->superMagicAgentAppService->getUsers(
-            $authorization->getOrganizationCode(),
-            $publisherUserIds
-        );
-
         return SuperMagicAgentAssembler::createQueryAgentVersionsResponseDTO(
             $result['list'],
-            $users,
+            $result['userMap'],
             $result['page'],
             $result['page_size'],
-            $result['total']
+            $result['total'],
+            $result['memberDepartmentMap'],
         )->toArray();
     }
 

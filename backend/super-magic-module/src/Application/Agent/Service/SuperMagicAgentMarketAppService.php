@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
@@ -152,6 +153,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             $dataIsolation,
             $agentCodes
         );
+        $userAgentsMap = $this->mergeVisibleAgentOwnerships($dataIsolation, $agentCodes, $userAgentsMap);
         $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
 
         // Load playbooks in batch for the list cards.
@@ -191,5 +193,36 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         $icon['url'] = $fileLink->getUrl();
         $icon['value'] = $fileLink->getUrl();
         $agentMarket->setIcon($icon);
+    }
+
+    /**
+     * Merge visible non-market agents into the ownership map so the UI can treat
+     * them as already added while keeping delete disabled.
+     *
+     * @param string[] $agentCodes
+     * @param array<string, UserAgentEntity> $userAgentsMap
+     * @return array<string, UserAgentEntity>
+     */
+    private function mergeVisibleAgentOwnerships(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        array $agentCodes,
+        array $userAgentsMap
+    ): array {
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $dataIsolation->getCurrentUserId());
+        $visibleAgentCodes = array_intersect($agentCodes, $accessibleAgentResult['codes']);
+
+        foreach ($visibleAgentCodes as $agentCode) {
+            if (isset($userAgentsMap[$agentCode])) {
+                continue;
+            }
+
+            $userAgentsMap[$agentCode] = (new UserAgentEntity())
+                ->setOrganizationCode($dataIsolation->getCurrentOrganizationCode())
+                ->setUserId($dataIsolation->getCurrentUserId())
+                ->setAgentCode($agentCode)
+                ->setSourceType(AgentSourceType::LOCAL_CREATE);
+        }
+
+        return $userAgentsMap;
     }
 }

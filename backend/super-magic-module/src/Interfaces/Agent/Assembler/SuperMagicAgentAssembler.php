@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
@@ -351,32 +352,82 @@ class SuperMagicAgentAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $users
+     * @param array<string, MagicUserEntity> $userMap
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap
      * @param AgentVersionEntity[] $versions
      */
     public static function createQueryAgentVersionsResponseDTO(
         array $versions,
-        array $users,
+        array $userMap,
         int $page,
         int $pageSize,
-        int $total
+        int $total,
+        array $memberDepartmentMap = []
     ): QueryAgentVersionsResponseDTO {
         $list = [];
         foreach ($versions as $version) {
+            $enrichedPublishTargetValue = self::buildEnrichedPublishTargetValue(
+                $version,
+                $userMap,
+                $memberDepartmentMap
+            );
+
             $list[] = new AgentVersionListItemDTO(
                 id: (string) $version->getId(),
                 version: $version->getVersion(),
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value,
                 publishTargetType: $version->getPublishTargetType()->value,
-                publisher: OperatorAssembler::createOperatorDTOByUserEntity($users[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),
                 isCurrentVersion: $version->isCurrentVersion(),
                 versionDescriptionI18n: $version->getVersionDescriptionI18n(),
+                publishTargetValue: $enrichedPublishTargetValue,
             );
         }
 
         return new QueryAgentVersionsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * 构建 MEMBER 类型的 publishTargetValue enriched 数据.
+     *
+     * @param array<string, MagicUserEntity> $userMap
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap
+     * @return null|array{users: array<array{id: string, name: string}>, departments: array<array{id: string, name: string}>}
+     */
+    private static function buildEnrichedPublishTargetValue(
+        AgentVersionEntity $version,
+        array $userMap,
+        array $memberDepartmentMap
+    ): ?array {
+        $targetValue = $version->getPublishTargetValue();
+        if ($targetValue === null || ! $version->getPublishTargetType()->requiresTargetValue()) {
+            return null;
+        }
+
+        $users = [];
+        foreach ($targetValue->getUserIds() as $userId) {
+            $userEntity = $userMap[$userId] ?? null;
+            $users[] = [
+                'id' => $userId,
+                'name' => $userEntity?->getNickname() ?: $userId,
+            ];
+        }
+
+        $departments = [];
+        foreach ($targetValue->getDepartmentIds() as $departmentId) {
+            $departmentEntity = $memberDepartmentMap[$departmentId] ?? null;
+            $departments[] = [
+                'id' => $departmentId,
+                'name' => $departmentEntity?->getName() ?: $departmentId,
+            ];
+        }
+
+        return [
+            'users' => $users,
+            'departments' => $departments,
+        ];
     }
 
     /**

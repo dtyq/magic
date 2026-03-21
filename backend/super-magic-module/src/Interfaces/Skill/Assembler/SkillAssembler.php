@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\Assembler;
 
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -281,28 +282,37 @@ class SkillAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $users
+     * @param array<string, MagicUserEntity> $userMap key 为 userId，同时用于发布者和 MEMBER 类型成员名称展示
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap key 为 departmentId，用于 MEMBER 类型的部门名称展示
      * @param SkillVersionEntity[] $versions
      */
     public static function createQuerySkillVersionsResponseDTO(
         array $versions,
-        array $users,
+        array $userMap,
         int $page,
         int $pageSize,
-        int $total
+        int $total,
+        array $memberDepartmentMap = [],
     ): QuerySkillVersionsResponseDTO {
         $list = [];
         foreach ($versions as $version) {
+            $enrichedPublishTargetValue = self::buildEnrichedPublishTargetValue(
+                $version,
+                $userMap,
+                $memberDepartmentMap
+            );
+
             $list[] = new SkillVersionListItemDTO(
                 id: (string) $version->getId(),
                 version: $version->getVersion(),
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value ?? '',
                 publishTargetType: $version->getPublishTargetType()->value,
-                publisher: OperatorAssembler::createOperatorDTOByUserEntity($users[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),
                 isCurrentVersion: $version->isCurrentVersion(),
                 versionDescriptionI18n: $version->getVersionDescriptionI18n(),
+                publishTargetValue: $enrichedPublishTargetValue,
             );
         }
 
@@ -368,6 +378,49 @@ class SkillAssembler
             pageSize: $pageSize,
             total: $total
         );
+    }
+
+    /**
+     * 构建 MEMBER 类型的 publishTargetValue enriched 数据.
+     *
+     * 仅当 publishTargetType 为 MEMBER 时才返回数据，其他类型返回 null。
+     *
+     * @param array<string, MagicUserEntity> $userMap
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap
+     * @return null|array{users: array<array{id: string, name: string}>, departments: array<array{id: string, name: string}>}
+     */
+    private static function buildEnrichedPublishTargetValue(
+        SkillVersionEntity $version,
+        array $userMap,
+        array $memberDepartmentMap
+    ): ?array {
+        $targetValue = $version->getPublishTargetValue();
+        if ($targetValue === null || ! $version->getPublishTargetType()->requiresTargetValue()) {
+            return null;
+        }
+
+        $users = [];
+        foreach ($targetValue->getUserIds() as $userId) {
+            $userEntity = $userMap[$userId] ?? null;
+            $users[] = [
+                'id' => $userId,
+                'name' => $userEntity?->getNickname() ?: $userId,
+            ];
+        }
+
+        $departments = [];
+        foreach ($targetValue->getDepartmentIds() as $departmentId) {
+            $departmentEntity = $memberDepartmentMap[$departmentId] ?? null;
+            $departments[] = [
+                'id' => $departmentId,
+                'name' => $departmentEntity?->getName() ?: $departmentId,
+            ];
+        }
+
+        return [
+            'users' => $users,
+            'departments' => $departments,
+        ];
     }
 
     /**

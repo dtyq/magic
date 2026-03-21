@@ -328,20 +328,13 @@ class SkillApi extends AbstractApi
         $requestDTO = QuerySkillVersionsRequestDTO::fromRequest($this->request);
         $result = $this->userSkillAppService->queryVersions($requestContext, $code, $requestDTO);
 
-        $publisherUserIds = [];
-        foreach ($result['list'] as $versionEntity) {
-            $publisherUserId = $versionEntity->getPublisherUserId();
-            if (! empty($publisherUserId)) {
-                $publisherUserIds[] = $publisherUserId;
-            }
-        }
-
         return SkillAssembler::createQuerySkillVersionsResponseDTO(
             $result['list'],
-            $this->userSkillAppService->getUsers($this->getAuthorization()->getOrganizationCode(), $publisherUserIds),
+            $result['userMap'],
             $result['page'],
             $result['page_size'],
-            $result['total']
+            $result['total'],
+            $result['memberDepartmentMap'],
         )->toArray();
     }
 

@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Skill\Service;
 
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
@@ -119,6 +122,7 @@ class SkillAppService extends AbstractSkillAppService
         protected SkillDomainService $skillDomainService,
         protected SkillMarketDomainService $skillMarketDomainService,
         protected MagicUserDomainService $magicUserDomainService,
+        protected MagicDepartmentDomainService $magicDepartmentDomainService,
         protected LockerInterface $locker,
         protected Redis $redis,
         protected ProjectAppService $projectAppService,
@@ -704,7 +708,7 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * Query published version records.
      *
-     * @return array{list: SkillVersionEntity[], page: int, page_size: int, total: int}
+     * @return array{list: SkillVersionEntity[], page: int, page_size: int, total: int, userMap: array<string, MagicUserEntity>, memberDepartmentMap: array<string, MagicDepartmentEntity>}
      */
     public function queryVersions(RequestContext $requestContext, string $code, QuerySkillVersionsRequestDTO $requestDTO): array
     {
@@ -723,11 +727,22 @@ class SkillAppService extends AbstractSkillAppService
             $page
         );
 
+        /** @var SkillVersionEntity[] $versions */
+        $versions = $result['list'];
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        [$userMap, $memberDepartmentMap] = $this->batchLoadVersionRelatedEntities(
+            $organizationCode,
+            $versions
+        );
+
         return [
-            'list' => $result['list'],
+            'list' => $versions,
             'page' => $page->getPage(),
             'page_size' => $page->getPageNum(),
             'total' => $result['total'],
+            'userMap' => $userMap,
+            'memberDepartmentMap' => $memberDepartmentMap,
         ];
     }
 
@@ -950,6 +965,69 @@ class SkillAppService extends AbstractSkillAppService
         )) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
+    }
+
+    /**
+     * 批量加载版本列表关联的用户与部门信息.
+     *
+     * 一次遍历版本列表，收集所有需要查询的 publisherUserId、MEMBER 类型的 userIds 和 departmentIds，
+     *
+     * @param SkillVersionEntity[] $versions
+     * @return array{0: array<string, MagicUserEntity>, 1: array<string, MagicDepartmentEntity>}
+     */
+    private function batchLoadVersionRelatedEntities(string $organizationCode, array $versions): array
+    {
+        $userIds = [];
+        $memberDepartmentIds = [];
+
+        foreach ($versions as $version) {
+            if (! empty($version->getPublisherUserId())) {
+                $userIds[] = $version->getPublisherUserId();
+            }
+
+            $targetValue = $version->getPublishTargetValue();
+            if ($targetValue !== null && $version->getPublishTargetType()->requiresTargetValue()) {
+                foreach ($targetValue->getUserIds() as $userId) {
+                    $userIds[] = $userId;
+                }
+                foreach ($targetValue->getDepartmentIds() as $departmentId) {
+                    $memberDepartmentIds[] = $departmentId;
+                }
+            }
+        }
+
+        $userMap = [];
+        if ($userIds !== []) {
+            $userMap = $this->getUsers($organizationCode, array_unique($userIds));
+
+            $missingUserIds = array_diff(array_unique($userIds), array_keys($userMap));
+            foreach ($missingUserIds as $missingUserId) {
+                $userEntity = di(MagicUserDomainService::class)->getByUserId($missingUserId);
+                if ($userEntity !== null) {
+                    $userMap[$userEntity->getUserId()] = $userEntity;
+                }
+            }
+        }
+
+        $memberDepartmentMap = [];
+        if ($memberDepartmentIds !== []) {
+            $contactDataIsolation = ContactDataIsolation::simpleMake($organizationCode);
+            $memberDepartmentMap = $this->magicDepartmentDomainService->getDepartmentByIds(
+                $contactDataIsolation,
+                array_unique($memberDepartmentIds),
+                true
+            );
+
+            $missingDepartmentIds = array_diff(array_unique($memberDepartmentIds), array_keys($memberDepartmentMap));
+            if ($missingDepartmentIds !== []) {
+                $memberDepartmentMap += $this->magicDepartmentDomainService->getDepartmentByIdsInMagic(
+                    $missingDepartmentIds,
+                    true
+                );
+            }
+        }
+
+        return [$userMap, $memberDepartmentMap];
     }
 
     /**

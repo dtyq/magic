@@ -8,6 +8,11 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
+use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
+use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -85,6 +90,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected TaskFileDomainService $taskFileDomainService;
+
+    #[Inject]
+    protected MagicDepartmentDomainService $magicDepartmentDomainService;
 
     #[Transactional]
     public function save(Authenticatable $authorization, SuperMagicAgentEntity $entity, bool $checkPrompt = true): SuperMagicAgentEntity
@@ -521,7 +529,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      *     list: array<int, AgentVersionEntity>,
      *     page: int,
      *     page_size: int,
-     *     total: int
+     *     total: int,
+     *     userMap: array<string, MagicUserEntity>,
+     *     memberDepartmentMap: array<string, MagicDepartmentEntity>
      * }
      */
     public function queryVersions(Authenticatable $authorization, string $code, QueryAgentVersionsRequestDTO $requestDTO): array
@@ -544,11 +554,21 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $reviewStatus,
             $page
         );
+
+        /** @var AgentVersionEntity[] $versions */
+        $versions = $result['list'];
+        [$userMap, $memberDepartmentMap] = $this->batchLoadVersionRelatedEntities(
+            $authorization->getOrganizationCode(),
+            $versions
+        );
+
         return [
-            'list' => $result['list'],
+            'list' => $versions,
             'page' => $requestDTO->getPage(),
             'page_size' => $requestDTO->getPageSize(),
             'total' => $result['total'],
+            'userMap' => $userMap,
+            'memberDepartmentMap' => $memberDepartmentMap,
         ];
     }
 
@@ -875,6 +895,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $dataIsolation->getCurrentUserId());
+        if (in_array($agentMarketCode, $accessibleAgentResult['codes'], true)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.store_agent_already_added');
+        }
+
         Db::beginTransaction();
         try {
             // 调用 DomainService 处理业务逻辑
@@ -885,6 +910,66 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             Db::rollBack();
             throw $throwable;
         }
+    }
+
+    /**
+     * 批量加载版本列表关联的用户与部门信息.
+     *
+     * @param AgentVersionEntity[] $versions
+     * @return array{0: array<string, MagicUserEntity>, 1: array<string, MagicDepartmentEntity>}
+     */
+    private function batchLoadVersionRelatedEntities(string $organizationCode, array $versions): array
+    {
+        $userIds = [];
+        $memberDepartmentIds = [];
+
+        foreach ($versions as $version) {
+            if (! empty($version->getPublisherUserId())) {
+                $userIds[] = $version->getPublisherUserId();
+            }
+
+            $targetValue = $version->getPublishTargetValue();
+            if ($targetValue !== null && $version->getPublishTargetType()->requiresTargetValue()) {
+                foreach ($targetValue->getUserIds() as $userId) {
+                    $userIds[] = $userId;
+                }
+                foreach ($targetValue->getDepartmentIds() as $departmentId) {
+                    $memberDepartmentIds[] = $departmentId;
+                }
+            }
+        }
+
+        $userMap = [];
+        if ($userIds !== []) {
+            $userMap = $this->getUsers($organizationCode, array_unique($userIds));
+
+            $missingUserIds = array_diff(array_unique($userIds), array_keys($userMap));
+            foreach ($missingUserIds as $missingUserId) {
+                $userEntity = di(MagicUserDomainService::class)->getByUserId($missingUserId);
+                if ($userEntity !== null) {
+                    $userMap[$userEntity->getUserId()] = $userEntity;
+                }
+            }
+        }
+
+        $memberDepartmentMap = [];
+        if ($memberDepartmentIds !== []) {
+            $memberDepartmentMap = $this->magicDepartmentDomainService->getDepartmentByIds(
+                ContactDataIsolation::simpleMake($organizationCode),
+                array_unique($memberDepartmentIds),
+                true
+            );
+
+            $missingDepartmentIds = array_diff(array_unique($memberDepartmentIds), array_keys($memberDepartmentMap));
+            if ($missingDepartmentIds !== []) {
+                $memberDepartmentMap += $this->magicDepartmentDomainService->getDepartmentByIdsInMagic(
+                    $missingDepartmentIds,
+                    true
+                );
+            }
+        }
+
+        return [$userMap, $memberDepartmentMap];
     }
 
     /**
@@ -1032,6 +1117,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
+        $skillDataIsolation->disabled();
         $skillVersions = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
         foreach ($skillCodes as $skillCode) {
             if (! isset($skillVersions[$skillCode])) {

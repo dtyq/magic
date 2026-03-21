@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\Agent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
@@ -566,5 +567,31 @@ class AgentVersionEntity extends AbstractEntity
     {
         $this->fileKey = $fileKey;
         return $this;
+    }
+
+    public function getI18nName(string $language): string
+    {
+        if (! empty($this->nameI18n[$language])) {
+            return $this->nameI18n[$language];
+        }
+
+        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->nameI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        return $this->name;
+    }
+
+    public function getI18nDescription(string $language): string
+    {
+        if (! empty($this->descriptionI18n[$language])) {
+            return $this->descriptionI18n[$language];
+        }
+
+        if (! empty($this->descriptionI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->descriptionI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        return $this->description;
     }
 }
