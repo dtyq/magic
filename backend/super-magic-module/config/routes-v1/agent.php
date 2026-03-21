@@ -22,7 +22,7 @@ Router::addGroup('/api/v1/super-magic', static function () {
         // 静态路由必须放在变量路由之前，否则会被 /{code} 遮蔽
         Router::get('/builtin-tools', [SuperMagicAgentOldApi::class, 'tools']);
         Router::get('/{code}', [SuperMagicAgentOldApi::class, 'show']);
-        Router::delete('/{code}', [SuperMagicAgentOldApi::class, 'destroy']);
+        Router::delete('/{code}', [SuperMagicAgentApi::class, 'destroy']);
         Router::put('/{code}/enable', [SuperMagicAgentOldApi::class, 'enable']);
         Router::put('/{code}/disable', [SuperMagicAgentOldApi::class, 'disable']);
     });
