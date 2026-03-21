@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\AdminSkillAppService;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
@@ -22,6 +23,19 @@ class AdminSkillApi extends AbstractApi
 {
     #[Inject]
     protected AdminSkillAppService $adminSkillAppService;
+
+    /**
+     * 查询技能版本列表.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::QUERY)]
+    public function queryVersions(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = QuerySkillVersionsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminSkillAppService->queryVersions($requestContext, $requestDTO)->toArray();
+    }
 
     /**
      * 审核技能版本.
