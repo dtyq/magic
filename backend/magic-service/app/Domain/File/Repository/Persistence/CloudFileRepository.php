@@ -254,6 +254,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         string $dir = '',
         int $expires = 7200,
         bool $autoBucket = true,
+        array $options = [],
     ): array {
         if ($dir) {
             if ($autoBucket) {
@@ -271,7 +272,11 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'dir' => $dir,
             'expires' => $expires,
         ]);
-        return $this->getFilesystem($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
+        $useInternalEndpoint = ($options['internal_endpoint'] ?? false) === true;
+        $credentialOptions = $useInternalEndpoint
+            ? $this->getInternalEndpointOptions($organizationCode, $options)
+            : $this->getOptions($organizationCode, $options);
+        return $this->getFilesystem($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $credentialOptions);
     }
 
     /**
