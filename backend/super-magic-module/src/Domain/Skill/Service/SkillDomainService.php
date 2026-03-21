@@ -191,20 +191,17 @@ class SkillDomainService
 
     /**
      * Import skill workspace archive from URL into sandbox workspace.
+     * Sandbox initialization must be completed by the application layer before calling.
      *
      * @return array{workspace_dir: string, extracted_files: int}
      */
     public function importSkillWorkspaceFromSandbox(
         SkillDataIsolation $dataIsolation,
-        int $projectId,
-        string $fullWorkdir,
+        string $sandboxId,
         string $fileUrl,
         string $targetDir = ''
     ): array {
-        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
-
         $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
 
         $request = new ImportWorkspaceRequest($fileUrl, $targetDir);
         $response = $this->workspaceImporter->import($sandboxId, $request);
