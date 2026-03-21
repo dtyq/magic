@@ -238,8 +238,14 @@ class FileAppService extends AbstractAppService
         return $data;
     }
 
-    public function getStsTemporaryCredentialV2(string $organizationCode, string $storage, string $dir = '', int $expires = 3600, bool $autoBucket = true): array
-    {
+    public function getStsTemporaryCredentialV2(
+        string $organizationCode,
+        string $storage,
+        string $dir = '',
+        int $expires = 3600,
+        bool $autoBucket = true,
+        array $options = []
+    ): array {
         // 调用文件服务获取STS Token
         $data = $this->fileDomainService->getStsTemporaryCredential(
             $organizationCode,
@@ -247,6 +253,7 @@ class FileAppService extends AbstractAppService
             $dir,
             $expires,
             $autoBucket,
+            $options,
         );
 
         // 如果是本地驱动，那么增加一个临时 key

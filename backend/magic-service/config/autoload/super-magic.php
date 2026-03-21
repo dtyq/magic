@@ -9,6 +9,9 @@ return [
     'task_number_limit' => 3,
     'user_task_limits' => [],
     'sandbox' => [
+        'magic_service_ws_host' => \Hyperf\Support\env('APP_WS_HOST', '') !== ''
+            ? \Hyperf\Support\env('APP_WS_HOST', '')
+            : \Hyperf\Support\env('APP_HOST', ''),
         'gateway' => \Hyperf\Support\env('SANDBOX_GATEWAY', ''),
         'token' => \Hyperf\Support\env('SANDBOX_TOKEN', ''),
         'enabled' => \Hyperf\Support\env('SANDBOX_ENABLE', true),

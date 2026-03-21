@@ -159,7 +159,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         ]);
 
         try {
-            $filesystem->uploadByChunks($chunkUploadFile, $credentialPolicy, $this->getOptions($organizationCode));
+            $filesystem->uploadByChunks($chunkUploadFile, $credentialPolicy, $this->getInternalEndpointOptions($organizationCode));
 
             $this->logger->info('chunk_upload_repository_success', [
                 'organization_code' => $organizationCode,
@@ -207,7 +207,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         ]);
 
         try {
-            $filesystem->downloadByChunks($filePath, $localPath, $config, $this->getOptions($organizationCode));
+            $filesystem->downloadByChunks($filePath, $localPath, $config, $this->getInternalEndpointOptions($organizationCode));
 
             $this->logger->info('chunk_download_repository_success', [
                 'organization_code' => $organizationCode,
@@ -254,6 +254,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         string $dir = '',
         int $expires = 7200,
         bool $autoBucket = true,
+        array $options = [],
     ): array {
         if ($dir) {
             if ($autoBucket) {
@@ -271,7 +272,11 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'dir' => $dir,
             'expires' => $expires,
         ]);
-        return $this->getFilesystem($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
+        $useInternalEndpoint = ($options['internal_endpoint'] ?? false) === true;
+        $credentialOptions = $useInternalEndpoint
+            ? $this->getInternalEndpointOptions($organizationCode, $options)
+            : $this->getOptions($organizationCode, $options);
+        return $this->getFilesystem($bucketType->value)->getUploadTemporaryCredential($credentialPolicy, $credentialOptions);
     }
 
     /**
@@ -365,7 +370,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
             $appId = config('kk_brd_service.app_id');
             $fullPrefix = "{$organizationCode}/{$appId}" . '/' . trim($prefix, '/') . '/';
-            $result = $filesystem->listObjectsByCredential($credentialPolicy, $fullPrefix, $this->getOptions($organizationCode, $options));
+            $result = $filesystem->listObjectsByCredential($credentialPolicy, $fullPrefix, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('list_objects_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -424,7 +429,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => 3600,
             ]);
 
-            $filesystem->deleteObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+            $filesystem->deleteObjectByCredential($credentialPolicy, $objectKey, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('delete_object_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -489,7 +494,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => 3600,
             ]);
 
-            $filesystem->copyObjectByCredential($credentialPolicy, $sourceKey, $destinationKey, $this->getOptions($organizationCode, $options));
+            $filesystem->copyObjectByCredential($credentialPolicy, $sourceKey, $destinationKey, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('copy_object_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -546,7 +551,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => 3600,
             ]);
 
-            $result = $filesystem->getHeadObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $options));
+            $result = $filesystem->getHeadObjectByCredential($credentialPolicy, $objectKey, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('get_head_object_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -604,7 +609,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => $options['expires'] ?? 3600,
             ]);
 
-            $filesystem->setHeadObjectByCredential($credentialPolicy, $objectKey, $metadata, $this->getOptions($organizationCode, $options));
+            $filesystem->setHeadObjectByCredential($credentialPolicy, $objectKey, $metadata, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('set_head_object_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -678,7 +683,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 $createOptions['content'] = '';
             }
 
-            $filesystem->createObjectByCredential($credentialPolicy, $objectKey, $this->getOptions($organizationCode, $createOptions));
+            $filesystem->createObjectByCredential($credentialPolicy, $objectKey, $this->getInternalEndpointOptions($organizationCode, $createOptions));
 
             $this->logger->info('create_object_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -874,7 +879,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
                 'expires' => $options['expires'] ?? 3600,
             ]);
 
-            $result = $filesystem->deleteObjectsByCredential($credentialPolicy, $objectKeys, $this->getOptions($organizationCode, $options));
+            $result = $filesystem->deleteObjectsByCredential($credentialPolicy, $objectKeys, $this->getInternalEndpointOptions($organizationCode, $options));
 
             $this->logger->info('delete_objects_by_credential_success', [
                 'organization_code' => $organizationCode,
@@ -1015,6 +1020,13 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         ];
 
         return array_merge($defaultOptions, $options);
+    }
+
+    protected function getInternalEndpointOptions(string $organizationCode, array $options = []): array
+    {
+        return $this->getOptions($organizationCode, array_merge([
+            'internal_endpoint' => true,
+        ], $options));
     }
 
     protected function isDefaultIconPath(string $path, string $appId = 'open'): bool

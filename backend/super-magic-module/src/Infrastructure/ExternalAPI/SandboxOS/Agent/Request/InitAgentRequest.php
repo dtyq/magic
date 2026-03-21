@@ -27,6 +27,7 @@ class InitAgentRequest
         private string $taskMode = 'plan',
         private string $agentMode = '',
         private string $magicServiceHost = '',
+        private string $magicServiceWsHost = '',
         private string $chatHistoryDir = '',
         private string $workDir = '',
         private ?string $memory = null,
@@ -53,6 +54,7 @@ class InitAgentRequest
             $data['task_mode'] ?? 'plan',
             $data['agent_mode'] ?? '',
             $data['magic_service_host'] ?? config('super-magic.sandbox.callback_host', ''),
+            $data['magic_service_ws_host'] ?? config('super-magic.sandbox.magic_service_ws_host', ''),
             $data['chat_history_dir'] ?? '',
             $data['work_dir'] ?? '',
             $data['memory'] ?? null,
@@ -87,6 +89,7 @@ class InitAgentRequest
         string $taskMode = 'plan',
         string $agentMode = '',
         string $magicServiceHost = '',
+        string $magicServiceWsHost = '',
         string $chatHistoryDir = '',
         string $workDir = '',
         ?string $memory = null,
@@ -106,6 +109,7 @@ class InitAgentRequest
             $taskMode,
             $agentMode,
             $magicServiceHost,
+            $magicServiceWsHost,
             $chatHistoryDir,
             $workDir,
             $memory,
@@ -274,6 +278,17 @@ class InitAgentRequest
         return $this->magicServiceHost;
     }
 
+    public function setMagicServiceWsHost(string $magicServiceWsHost): self
+    {
+        $this->magicServiceWsHost = $magicServiceWsHost;
+        return $this;
+    }
+
+    public function getMagicServiceWsHost(): string
+    {
+        return $this->magicServiceWsHost;
+    }
+
     /**
      * Set chat history directory.
      */
@@ -403,6 +418,7 @@ class InitAgentRequest
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
             'magic_service_host' => $this->magicServiceHost,
+            'magic_service_ws_host' => $this->magicServiceWsHost,
             'chat_history_dir' => $this->chatHistoryDir,
             'work_dir' => $this->workDir,
             'model_id' => $this->modelId,
