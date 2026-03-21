@@ -105,8 +105,10 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
         foreach ($entities as $entity) {
             $entity->setCreatedAt($now);
             $entity->setUpdatedAt($now);
-            $item = $this->getAttributes($entity);
+            $item = $entity->toArray();
             $item['id'] = IdGenerator::getSnowId();
+            $item['created_at'] = $now;
+            $item['updated_at'] = $now;
             $insertData[] = $item;
         }
 

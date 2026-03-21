@@ -39,7 +39,6 @@ class AgentSkillModel extends AbstractModel
         'skill_id',
         'skill_version_id',
         'organization_code',
-        'organization_code',
         'skill_code',
         'sort_order',
         'creator_id',
