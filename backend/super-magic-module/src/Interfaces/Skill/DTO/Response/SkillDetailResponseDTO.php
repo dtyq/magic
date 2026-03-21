@@ -50,6 +50,10 @@ class SkillDetailResponseDTO implements JsonSerializable
 
     private ?string $latestPublishedAt;
 
+    private ?string $publishType;
+
+    private array $allowedPublishTargetTypes;
+
     private string $createdAt;
 
     private string $updatedAt;
@@ -73,6 +77,8 @@ class SkillDetailResponseDTO implements JsonSerializable
         ?array $sourceMeta,
         ?int $projectId,
         ?string $latestPublishedAt,
+        ?string $publishType,
+        array $allowedPublishTargetTypes,
         string $createdAt,
         string $updatedAt
     ) {
@@ -94,6 +100,8 @@ class SkillDetailResponseDTO implements JsonSerializable
         $this->sourceMeta = $sourceMeta;
         $this->projectId = $projectId;
         $this->latestPublishedAt = $latestPublishedAt;
+        $this->publishType = $publishType;
+        $this->allowedPublishTargetTypes = $allowedPublishTargetTypes;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -139,6 +147,8 @@ class SkillDetailResponseDTO implements JsonSerializable
             'source_meta' => $this->sourceMeta,
             'project_id' => $this->projectId === null ? null : (string) $this->projectId,
             'latest_published_at' => $this->latestPublishedAt,
+            'publish_type' => $this->publishType,
+            'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

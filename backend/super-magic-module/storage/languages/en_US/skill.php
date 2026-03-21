@@ -64,6 +64,7 @@ return [
     'description_i18n_en_must_be_string' => 'Description i18n en_US field must be a string',
     'logo_must_be_string' => 'Logo must be a string',
     'store_skill_id_must_be_string' => 'Store skill ID must be a string',
+    'publish_type_invalid' => 'Invalid publish type',
     'publish_target_type_invalid' => 'Invalid publish target type',
     'publish_target_value_should_be_empty' => 'Publish target value must be empty',
     'publish_target_value_required' => 'At least one member or department must be selected for member publishing',

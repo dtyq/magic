@@ -11,6 +11,7 @@ use App\Infrastructure\Core\AbstractEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetValue;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
@@ -90,6 +91,16 @@ class SkillVersionEntity extends AbstractEntity
      * @var PublishTargetType Publish target type
      */
     protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
+
+    /**
+     * @var bool 发布目标类型是否由调用方显式设置，用于领域层校验缺失入参
+     */
+    protected bool $publishTargetTypeExplicitlySet = false;
+
+    /**
+     * @var null|PublishType 发布类型，仅用于发布入参的领域校验，不落库
+     */
+    protected ?PublishType $publishType = null;
 
     /**
      * @var null|PublishTargetValue 实际发布目标值，仅 MEMBER 发布时使用
@@ -376,11 +387,43 @@ class SkillVersionEntity extends AbstractEntity
 
     public function setPublishTargetType(PublishTargetType|string $publishTargetType): self
     {
+        $this->publishTargetTypeExplicitlySet = true;
         if ($publishTargetType instanceof PublishTargetType) {
             $this->publishTargetType = $publishTargetType;
         } else {
             $this->publishTargetType = PublishTargetType::from($publishTargetType);
         }
+        return $this;
+    }
+
+    public function hasExplicitPublishTargetType(): bool
+    {
+        return $this->publishTargetTypeExplicitlySet;
+    }
+
+    public function getPublishType(): ?PublishType
+    {
+        return $this->publishType;
+    }
+
+    public function resolvePublishType(): PublishType
+    {
+        return $this->publishType ?? PublishType::fromPublishTargetType($this->publishTargetType);
+    }
+
+    public function setPublishType(null|PublishType|string $publishType): self
+    {
+        if ($publishType === null) {
+            $this->publishType = null;
+            return $this;
+        }
+
+        if ($publishType instanceof PublishType) {
+            $this->publishType = $publishType;
+        } else {
+            $this->publishType = PublishType::from($publishType);
+        }
+
         return $this;
     }
 

@@ -115,6 +115,8 @@ class SkillAssembler
             $entity->getSourceMeta(),
             $entity->getProjectId(),
             $entity->getLatestPublishedAt(),
+            null,
+            [],
             $entity->getCreatedAt() ?? '',
             $entity->getUpdatedAt() ?? ''
         );

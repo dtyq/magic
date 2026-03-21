@@ -304,7 +304,6 @@ class SkillApi extends AbstractApi
      *
      * 切换规则：
      * - `PRIVATE / MEMBER / ORGANIZATION` 互相覆盖，后一次发布会替换当前组织内范围
-     * - 从市场重新切回组织内范围时，会回收非创建者的市场安装关系并下线市场记录
      */
     public function publishSkill(RequestContext $requestContext, string $code)
     {

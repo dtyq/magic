@@ -64,6 +64,7 @@ return [
     'description_i18n_en_must_be_string' => '多语言描述的 en_US 字段必须是字符串',
     'logo_must_be_string' => 'Logo 必须是字符串',
     'store_skill_id_must_be_string' => '商店技能ID必须是字符串',
+    'publish_type_invalid' => '发布类型无效',
     'publish_target_type_invalid' => '发布对象类型无效',
     'publish_target_value_should_be_empty' => '发布对象参数必须为空',
     'publish_target_value_required' => '成员发布时必须选择至少一个成员或部门',

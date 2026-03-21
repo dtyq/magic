@@ -19,6 +19,7 @@ use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
+use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -37,6 +38,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
@@ -581,9 +583,13 @@ class SkillAppService extends AbstractSkillAppService
         // 查询技能记录（校验权限）
         $dataIsolation->disabled();
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        $latestVersionEntity = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
 
         // 更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillLogoUrl($dataIsolation, [$skillEntity]);
+
+        $publishType = PublishType::fromPublishTargetType($latestVersionEntity?->getPublishTargetType());
+        $allowedPublishTargetTypes = $this->resolveAllowedPublishTargetTypes($dataIsolation, $publishType);
 
         return new SkillDetailResponseDTO(
             $skillEntity->getId(),
@@ -604,6 +610,8 @@ class SkillAppService extends AbstractSkillAppService
             $skillEntity->getSourceMeta(),
             $skillEntity->getProjectId(),
             $skillEntity->getLatestPublishedAt(),
+            $publishType?->value,
+            $allowedPublishTargetTypes,
             $skillEntity->getCreatedAt() ?? '',
             $skillEntity->getUpdatedAt() ?? ''
         );
@@ -651,7 +659,6 @@ class SkillAppService extends AbstractSkillAppService
      * 规则说明：
      * - `PRIVATE / MEMBER / ORGANIZATION` 属于组织内发布范围，新的发布会覆盖旧的组织内范围
      * - `MARKET` 只新增市场分发能力，不主动清理现有组织内可见范围
-     * - 一旦从市场重新切回组织内范围，需要回收非创建者的市场安装关系，并将市场状态下线
      */
     public function publishSkill(RequestContext $requestContext, string $code, PublishSkillRequestDTO $requestDTO): SkillVersionEntity
     {
@@ -667,7 +674,11 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity = new SkillVersionEntity();
         $versionEntity->setVersion($requestDTO->getVersion());
         $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
-        $versionEntity->setPublishTargetType(PublishTargetType::from($requestDTO->getPublishTargetType()));
+        $versionEntity->setPublishType($requestDTO->resolvePublishType());
+        $publishTargetType = $requestDTO->resolvePublishTargetType();
+        if ($publishTargetType !== null) {
+            $versionEntity->setPublishTargetType($publishTargetType);
+        }
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
         $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
@@ -934,6 +945,30 @@ class SkillAppService extends AbstractSkillAppService
         )) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
         }
+    }
+
+    /**
+     * @return string[]
+     */
+    private function resolveAllowedPublishTargetTypes(
+        SkillDataIsolation $dataIsolation,
+        ?PublishType $publishType
+    ): array {
+        if ($publishType === null) {
+            return [];
+        }
+
+        if ($publishType === PublishType::MARKET) {
+            return [];
+        }
+
+        $organizationType = $dataIsolation->getOrganizationInfoManager()->getOrganizationType();
+        var_dump($organizationType);
+        if ($organizationType === OrganizationType::Personal) {
+            return [PublishTargetType::PRIVATE->value];
+        }
+
+        return $publishType->getAllowedPublishTargetTypeValues();
     }
 
     /**
@@ -1476,7 +1511,7 @@ class SkillAppService extends AbstractSkillAppService
             $skillEntity->getCode(),
             $skillEntity->getCreatorId()
         );
-        // 从 MARKET 切回组织内发布范围时，市场分发能力需要收口，因此将历史市场记录统一下线。
+        // 组织内发布时，若历史上存在市场分发记录，则统一下线以保持范围收口。
         $this->skillMarketDomainService->updateAllPublishStatusBySkillCode(
             $skillEntity->getCode(),
             PublishStatus::OFFLINE->value

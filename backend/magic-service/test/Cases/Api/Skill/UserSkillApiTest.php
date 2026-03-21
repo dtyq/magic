@@ -832,6 +832,8 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertArrayHasKey('source_id', $data);
         $this->assertArrayHasKey('source_meta', $data);
         $this->assertArrayHasKey('latest_published_at', $data);
+        $this->assertArrayHasKey('publish_type', $data);
+        $this->assertArrayHasKey('allowed_publish_target_types', $data);
         $this->assertArrayHasKey('created_at', $data);
         $this->assertArrayHasKey('updated_at', $data);
 
@@ -843,6 +845,8 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertIsArray($data['name_i18n']);
         $this->assertIsArray($data['description_i18n']);
         $this->assertNull($data['latest_published_at']);
+        $this->assertNull($data['publish_type']);
+        $this->assertSame([], $data['allowed_publish_target_types']);
 
         // 测试不存在的技能
         $notFoundResponse = $this->get(
@@ -1083,6 +1087,8 @@ class UserSkillApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $detailResponse['code']);
         $this->assertEquals($version['published_at'], $detailResponse['data']['latest_published_at']);
+        $this->assertSame('INTERNAL', $detailResponse['data']['publish_type']);
+        $this->assertSame(['PRIVATE', 'MEMBER', 'ORGANIZATION'], $detailResponse['data']['allowed_publish_target_types']);
 
         $duplicateResponse = $this->publishSkillVersion($skillCode, '1.0.0', 'PRIVATE');
         $this->assertNotEquals(1000, $duplicateResponse['code'], '重复版本号应该返回错误');
@@ -1132,7 +1138,16 @@ class UserSkillApiTest extends AbstractApiTest
         sort($expectedMemberVisibilityUserIds);
         $this->assertSame($expectedMemberVisibilityUserIds, $memberVisibilityUserIds);
 
-        $marketResponse = $this->publishSkillVersion($skillCode, '1.0.3', 'MARKET');
+        $detailResponse = $this->get(
+            self::BASE_URI . '/' . $skillCode,
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $detailResponse['code']);
+        $this->assertSame('INTERNAL', $detailResponse['data']['publish_type']);
+        $this->assertSame(['PRIVATE', 'MEMBER', 'ORGANIZATION'], $detailResponse['data']['allowed_publish_target_types']);
+
+        $marketResponse = $this->publishSkillVersion($skillCode, '1.0.3', 'MARKET', null, null, 'MARKET');
         $this->assertEquals(1000, $marketResponse['code']);
         $marketVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
         $marketVisibilityUserIds = array_column($marketVisibility, 'principal_id');
@@ -1199,7 +1214,7 @@ class UserSkillApiTest extends AbstractApiTest
         $response = $this->publishSkillVersion($skillCode, '1.0.0', 'MEMBER', null, [
             'user_ids' => [],
             'department_ids' => [],
-        ]);
+        ], 'INTERNAL');
 
         $this->assertNotEquals(1000, $response['code'], '成员发布未选择成员/部门时应该返回错误');
     }
@@ -2211,19 +2226,26 @@ MD;
         string $version,
         string $publishTargetType,
         ?array $versionDescriptionI18n = null,
-        ?array $publishTargetValue = null
+        ?array $publishTargetValue = null,
+        ?string $publishType = null
     ): array {
+        $requestData = [
+            'version' => $version,
+            'version_description_i18n' => $versionDescriptionI18n ?? [
+                'zh_CN' => '测试版本说明',
+                'en_US' => 'Test version description',
+            ],
+            'publish_target_type' => $publishTargetType,
+            'publish_target_value' => $publishTargetValue,
+        ];
+
+        if ($publishType !== null) {
+            $requestData['publish_type'] = $publishType;
+        }
+
         return $this->post(
             self::BASE_URI . '/' . $skillCode . '/publish',
-            [
-                'version' => $version,
-                'version_description_i18n' => $versionDescriptionI18n ?? [
-                    'zh_CN' => '测试版本说明',
-                    'en_US' => 'Test version description',
-                ],
-                'publish_target_type' => $publishTargetType,
-                'publish_target_value' => $publishTargetValue,
-            ],
+            $requestData,
             $this->getCommonHeaders()
         );
     }

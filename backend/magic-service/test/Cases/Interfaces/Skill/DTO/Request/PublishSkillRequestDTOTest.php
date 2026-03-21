@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Interfaces\Skill\DTO\Request;
 
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetValue;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\PublishSkillRequestDTO;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
 use Hyperf\Context\ApplicationContext;
@@ -64,5 +66,23 @@ class PublishSkillRequestDTOTest extends TestCase
         $this->assertNull($dto->toPublishTargetValue());
         $this->assertSame([], $dto->getPublishTargetUserIds());
         $this->assertSame([], $dto->getPublishTargetDepartmentIds());
+    }
+
+    public function testResolvePublishTypeAndTargetTypeFromLegacyPayload(): void
+    {
+        $dto = new PublishSkillRequestDTO();
+        $dto->publishTargetType = 'MEMBER';
+
+        $this->assertSame(PublishType::INTERNAL, $dto->resolvePublishType());
+        $this->assertSame(PublishTargetType::MEMBER, $dto->resolvePublishTargetType());
+    }
+
+    public function testResolvePublishTypeAndTargetTypeForMarketPayload(): void
+    {
+        $dto = new PublishSkillRequestDTO();
+        $dto->publishType = 'MARKET';
+
+        $this->assertSame(PublishType::MARKET, $dto->resolvePublishType());
+        $this->assertSame(PublishTargetType::MARKET, $dto->resolvePublishTargetType());
     }
 }
