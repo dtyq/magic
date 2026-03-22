@@ -692,8 +692,11 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
         if ($requestDTO->getExportFileFromProject()) {
-            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
-            $skillEntity->setFileKey($fileMetadata['file_key']);
+            // 如果相等代表没有任何修改
+            if ($skillEntity->getCreatedAt() !== $skillEntity->getUpdatedAt()) {
+                $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+                $skillEntity->setFileKey($fileMetadata['file_key']);
+            }
         }
 
         if (empty($skillEntity->getFileKey())) {
