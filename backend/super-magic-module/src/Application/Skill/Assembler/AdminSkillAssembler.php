@@ -110,8 +110,7 @@ class AdminSkillAssembler
         SkillVersionEntity $entity,
         array $publisherUserMap,
         array $organizationMap
-    ): SkillVersionListItemAdminDTO
-    {
+    ): SkillVersionListItemAdminDTO {
         $publisher = PublisherInfoAdminDTO::empty();
         $publisherUserId = $entity->getPublisherUserId();
         if ($publisherUserId !== null && isset($publisherUserMap[$publisherUserId])) {

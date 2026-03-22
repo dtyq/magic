@@ -41,4 +41,40 @@ class DateFormatUtil
         // 格式化为 Y/m/d H:i:s（完整日期时间）
         return $dateTime->format('Y/m/d H:i:s');
     }
+
+    /**
+     * 管理后台列表时间范围：开始时间.
+     * 若为纯日期 Y-m-d 则补全为当日 00:00:00；已含时间则原样返回.
+     */
+    public static function normalizeQueryRangeStart(string $dateTime): string
+    {
+        $trimmed = trim($dateTime);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trimmed) === 1) {
+            return $trimmed . ' 00:00:00';
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * 管理后台列表时间范围：结束时间.
+     * 若为纯日期 Y-m-d 则补全为当日 23:59:59；已含时间则原样返回.
+     */
+    public static function normalizeQueryRangeEnd(string $dateTime): string
+    {
+        $trimmed = trim($dateTime);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trimmed) === 1) {
+            return $trimmed . ' 23:59:59';
+        }
+
+        return $trimmed;
+    }
 }

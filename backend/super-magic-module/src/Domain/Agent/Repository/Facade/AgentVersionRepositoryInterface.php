@@ -108,4 +108,21 @@ interface AgentVersionRepositoryInterface
         ?ReviewStatus $reviewStatus = null,
         Page $page = new Page()
     ): array;
+
+    /**
+     * 管理后台：跨组织分页查询 Agent 版本列表.
+     *
+     * @return array{list: AgentVersionEntity[], total: int}
+     */
+    public function queryVersions(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $version,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
 }

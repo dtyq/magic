@@ -12,6 +12,7 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
 use Hyperf\Di\Annotation\Inject;
@@ -21,6 +22,18 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
 {
     #[Inject]
     protected AdminSuperMagicAgentAppService $adminAgentAppService;
+
+    /**
+     * 管理后台：查询员工版本列表.
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::QUERY)]
+    public function queryVersions(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentVersionsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminAgentAppService->queryVersions($authorization, $requestDTO)->toArray();
+    }
 
     /**
      * 审核员工版本.
