@@ -13,8 +13,10 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\AdminSkillAppService;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillMarketSortOrderRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
 
@@ -38,6 +40,19 @@ class AdminSkillApi extends AbstractApi
     }
 
     /**
+     * 查询 Skill 市场列表.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::QUERY)]
+    public function queryMarkets(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = QuerySkillMarketsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminSkillAppService->queryMarkets($requestContext, $requestDTO)->toArray();
+    }
+
+    /**
      * 审核技能版本.
      */
     #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
@@ -50,6 +65,20 @@ class AdminSkillApi extends AbstractApi
         $requestDTO = ReviewSkillVersionRequestDTO::fromRequest($this->request);
 
         $this->adminSkillAppService->reviewSkillVersion($requestContext, $id, $requestDTO);
+        return [];
+    }
+
+    /**
+     * 更新 Skill 市场排序值.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    public function updateMarketSortOrder(RequestContext $requestContext, int $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = UpdateSkillMarketSortOrderRequestAdminDTO::fromRequest($this->request);
+        $this->adminSkillAppService->updateMarketSortOrder($requestContext, $id, $requestDTO->getSortOrder());
+
         return [];
     }
 }

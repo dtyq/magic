@@ -49,6 +49,35 @@ class SuperMagicAgentMarketDomainService
     }
 
     /**
+     * 管理后台查询员工市场列表.
+     *
+     * @return array{total: int, list: array<AgentMarketEntity>}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $agentCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        return $this->agentMarketRepository->queryAdminMarkets(
+            $publishStatus,
+            $organizationCode,
+            $name18n,
+            $publisherType,
+            $agentCode,
+            $startTime,
+            $endTime,
+            $orderBy,
+            $page
+        );
+    }
+
+    /**
      * Resolve the current user's installed agents by market agent codes.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
@@ -99,5 +128,13 @@ class SuperMagicAgentMarketDomainService
     public function getPlaybooksByAgentVersionIds(array $agentVersionIds): array
     {
         return $this->agentPlaybookRepository->getByAgentVersionIds($agentVersionIds);
+    }
+
+    /**
+     * 更新市场员工排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        return $this->agentMarketRepository->updateSortOrderById($id, $sortOrder);
     }
 }

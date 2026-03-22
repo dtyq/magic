@@ -30,7 +30,14 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
 
     public ?string $version = null;
 
-    public string $orderBy = 'asc';
+    /**
+     * 技能名称模糊检索（匹配 magic_skill_versions.name_i18n 各语言键）.
+     */
+    public ?string $skillName = null;
+
+    public ?string $organizationCode = null;
+
+    public string $orderBy = 'desc';
 
     public ?string $startTime = null;
 
@@ -81,6 +88,16 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
         return $this->version;
     }
 
+    public function getSkillName(): ?string
+    {
+        return $this->skillName;
+    }
+
+    public function getOrganizationCode(): ?string
+    {
+        return $this->organizationCode;
+    }
+
     public function getOrderBy(): string
     {
         return $this->orderBy;
@@ -106,6 +123,8 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_target_type' => 'nullable|string',
             'source_type' => 'nullable|string',
             'version' => 'nullable|string',
+            'skill_name' => 'nullable|string|max:255',
+            'organization_code' => 'nullable|string|max:128',
             'order_by' => 'nullable|string|in:asc,desc',
             'start_time' => 'nullable|string',
             'end_time' => 'nullable|string',
@@ -125,6 +144,10 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_target_type.string' => __('validation.string', ['attribute' => 'publish_target_type']),
             'source_type.string' => __('validation.string', ['attribute' => 'source_type']),
             'version.string' => __('validation.string', ['attribute' => 'version']),
+            'skill_name.string' => __('validation.string', ['attribute' => 'skill_name']),
+            'skill_name.max' => __('validation.max.string', ['attribute' => 'skill_name', 'max' => 255]),
+            'organization_code.string' => __('validation.string', ['attribute' => 'organization_code']),
+            'organization_code.max' => __('validation.max.string', ['attribute' => 'organization_code', 'max' => 128]),
             'order_by.string' => __('validation.string', ['attribute' => 'order_by']),
             'order_by.in' => __('validation.in', ['attribute' => 'order_by']),
             'start_time.string' => __('validation.string', ['attribute' => 'start_time']),

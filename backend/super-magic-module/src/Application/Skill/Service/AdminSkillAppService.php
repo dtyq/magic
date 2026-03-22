@@ -7,12 +7,17 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Skill\Service;
 
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Skill\Assembler\AdminSkillAssembler;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillVersionsResponseAdminDTO;
 
 /**
@@ -22,6 +27,7 @@ class AdminSkillAppService extends AbstractSkillAppService
 {
     public function __construct(
         protected SkillDomainService $skillDomainService,
+        protected SkillMarketDomainService $skillMarketDomainService,
         private readonly AdminSkillAssembler $adminSkillAssembler,
     ) {
     }
@@ -41,6 +47,8 @@ class AdminSkillAppService extends AbstractSkillAppService
             $requestDTO->getPublishTargetType(),
             $requestDTO->getSourceType(),
             $requestDTO->getVersion(),
+            $requestDTO->getSkillName(),
+            $requestDTO->getOrganizationCode(),
             $requestDTO->getStartTime(),
             $requestDTO->getEndTime(),
             $requestDTO->getOrderBy(),
@@ -52,6 +60,46 @@ class AdminSkillAppService extends AbstractSkillAppService
             $page,
             $result['total']
         );
+    }
+
+    public function queryMarkets(
+        RequestContext $requestContext,
+        QuerySkillMarketsRequestAdminDTO $requestDTO
+    ): QuerySkillMarketsResponseAdminDTO {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+        $dataIsolation->disabled();
+
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $result = $this->skillMarketDomainService->queryAdminMarkets(
+            $requestDTO->getPublishStatus(),
+            $requestDTO->getOrganizationCode(),
+            $requestDTO->getNameI18n(),
+            $requestDTO->getPublisherType(),
+            $requestDTO->getSkillCode(),
+            $requestDTO->getStartTime(),
+            $requestDTO->getEndTime(),
+            $requestDTO->getOrderBy(),
+            $page
+        );
+
+        return $this->adminSkillAssembler->createQueryMarketsResponseDTO(
+            $result['list'],
+            $page,
+            $result['total']
+        );
+    }
+
+    /**
+     * 更新 Skill 市场排序值.
+     */
+    public function updateMarketSortOrder(RequestContext $requestContext, int $id, int $sortOrder): void
+    {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+        $dataIsolation->disabled();
+
+        if (! $this->skillMarketDomainService->updateSortOrderById($id, $sortOrder)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
+        }
     }
 
     /**

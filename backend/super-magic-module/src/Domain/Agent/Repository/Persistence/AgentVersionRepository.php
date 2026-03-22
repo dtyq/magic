@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\Agent\Repository\Persistence;
 
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
@@ -367,6 +368,8 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         ?string $publishStatus,
         ?string $publishTargetType,
         ?string $version,
+        ?string $organizationCode,
+        ?string $nameI18n,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -389,6 +392,30 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
 
         if ($version !== null && $version !== '') {
             $builder->where('version', $version);
+        }
+
+        $organizationCode = trim((string) $organizationCode);
+        if ($organizationCode !== '') {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $nameI18n = trim((string) $nameI18n);
+        if ($nameI18n !== '') {
+            $like = '%' . $nameI18n . '%';
+            $localeKeys = LanguageEnum::getAllLanguageCodes();
+            $builder->where(function ($q) use ($like, $localeKeys) {
+                $first = true;
+                foreach ($localeKeys as $localeKey) {
+                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
+                    $bindings = [$localeKey, $like];
+                    if ($first) {
+                        $q->whereRaw($expression, $bindings);
+                        $first = false;
+                    } else {
+                        $q->orWhereRaw($expression, $bindings);
+                    }
+                }
+            });
         }
 
         if ($startTime !== null && $startTime !== '') {
