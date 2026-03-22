@@ -1,0 +1,144 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace Dtyq\SuperMagic\Interfaces\Agent\DTO\Request;
+
+use App\Infrastructure\Core\AbstractRequestDTO;
+
+use function Hyperf\Translation\__;
+
+/**
+ * 管理后台：查询 Agent 市场列表请求 DTO.
+ */
+class QueryAgentMarketsRequestAdminDTO extends AbstractRequestDTO
+{
+    public int $page = 1;
+
+    public int $pageSize = 20;
+
+    public ?string $publishStatus = null;
+
+    public ?string $organizationCode = null;
+
+    public ?string $name18n = null;
+
+    public ?string $publisherType = null;
+
+    public ?string $agentCode = null;
+
+    public string $orderBy = 'desc';
+
+    public ?string $startTime = null;
+
+    public ?string $endTime = null;
+
+    public function getPage(): int
+    {
+        return $this->page;
+    }
+
+    public function setPage(int|string $value): void
+    {
+        $this->page = (int) $value;
+    }
+
+    public function getPageSize(): int
+    {
+        return $this->pageSize;
+    }
+
+    public function setPageSize(int|string $value): void
+    {
+        $this->pageSize = (int) $value;
+    }
+
+    public function getPublishStatus(): ?string
+    {
+        return $this->publishStatus;
+    }
+
+    public function getOrganizationCode(): ?string
+    {
+        return $this->organizationCode;
+    }
+
+    public function getName18n(): ?string
+    {
+        return $this->name18n;
+    }
+
+    public function setName18n(?string $value): void
+    {
+        $this->name18n = $value;
+    }
+
+    public function getPublisherType(): ?string
+    {
+        return $this->publisherType;
+    }
+
+    public function getAgentCode(): ?string
+    {
+        return $this->agentCode;
+    }
+
+    public function getOrderBy(): string
+    {
+        return $this->orderBy;
+    }
+
+    public function getStartTime(): ?string
+    {
+        return $this->startTime;
+    }
+
+    public function getEndTime(): ?string
+    {
+        return $this->endTime;
+    }
+
+    protected static function getHyperfValidationRules(): array
+    {
+        return [
+            'page' => 'nullable|integer|min:1',
+            'page_size' => 'nullable|integer|min:1|max:100',
+            'publish_status' => 'nullable|string|max:64',
+            'organization_code' => 'nullable|string|max:128',
+            'name_18n' => 'nullable|string|max:255',
+            'publisher_type' => 'nullable|string|max:64',
+            'agent_code' => 'nullable|string|max:128',
+            'order_by' => 'nullable|string|in:asc,desc',
+            'start_time' => 'nullable|string',
+            'end_time' => 'nullable|string',
+        ];
+    }
+
+    protected static function getHyperfValidationMessage(): array
+    {
+        return [
+            'page.integer' => __('skill.page_must_be_integer'),
+            'page.min' => __('skill.page_must_be_greater_than_zero'),
+            'page_size.integer' => __('skill.page_size_must_be_integer'),
+            'page_size.min' => __('skill.page_size_must_be_greater_than_zero'),
+            'page_size.max' => __('skill.page_size_must_not_exceed_100'),
+            'publish_status.string' => __('validation.string', ['attribute' => 'publish_status']),
+            'publish_status.max' => __('validation.max.string', ['attribute' => 'publish_status', 'max' => 64]),
+            'organization_code.string' => __('validation.string', ['attribute' => 'organization_code']),
+            'organization_code.max' => __('validation.max.string', ['attribute' => 'organization_code', 'max' => 128]),
+            'name_18n.string' => __('validation.string', ['attribute' => 'name_18n']),
+            'name_18n.max' => __('validation.max.string', ['attribute' => 'name_18n', 'max' => 255]),
+            'publisher_type.string' => __('validation.string', ['attribute' => 'publisher_type']),
+            'publisher_type.max' => __('validation.max.string', ['attribute' => 'publisher_type', 'max' => 64]),
+            'agent_code.string' => __('validation.string', ['attribute' => 'agent_code']),
+            'agent_code.max' => __('validation.max.string', ['attribute' => 'agent_code', 'max' => 128]),
+            'order_by.string' => __('validation.string', ['attribute' => 'order_by']),
+            'order_by.in' => __('validation.in', ['attribute' => 'order_by']),
+            'start_time.string' => __('validation.string', ['attribute' => 'start_time']),
+            'end_time.string' => __('validation.string', ['attribute' => 'end_time']),
+        ];
+    }
+}

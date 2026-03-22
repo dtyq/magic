@@ -12,6 +12,7 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
@@ -33,6 +34,18 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
         $requestDTO = QueryAgentVersionsRequestAdminDTO::fromRequest($this->request);
 
         return $this->adminAgentAppService->queryVersions($authorization, $requestDTO)->toArray();
+    }
+
+    /**
+     * 管理后台：查询员工市场列表.
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::QUERY)]
+    public function queryMarkets(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentMarketsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminAgentAppService->queryMarkets($authorization, $requestDTO)->toArray();
     }
 
     /**

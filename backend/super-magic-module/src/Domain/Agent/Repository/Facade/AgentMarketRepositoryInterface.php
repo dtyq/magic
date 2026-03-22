@@ -70,6 +70,23 @@ interface AgentMarketRepositoryInterface
     public function queries(AgentMarketQuery $query, Page $page): array;
 
     /**
+     * 管理后台查询员工市场列表.
+     *
+     * @return array{total: int, list: array<AgentMarketEntity>}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $agentCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
+
+    /**
      * 根据 agent_code 查询市场员工（仅查询已发布的）.
      *
      * @param string $agentCode Agent code
