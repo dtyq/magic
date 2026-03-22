@@ -26,7 +26,7 @@ final class SkillMention extends AbstractMention
     /**
      * Build the mention payload sent to task mentions JSON.
      *
-     * @return array{}|array{
+     * @return array{
      *     type: string,
      *     id: ?string,
      *     code: ?string,
@@ -34,7 +34,7 @@ final class SkillMention extends AbstractMention
      *     icon: ?string,
      *     description: ?string,
      *     source: ?string
-     * }
+     * }|array{}
      */
     public function getMentionJsonStruct(): array
     {

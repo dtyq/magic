@@ -58,7 +58,7 @@ class MagicClawApi extends AbstractApi
             $result = $this->projectAppService->createAgentProject(
                 $requestContext,
                 $projectRequestDTO,
-                ProjectMode::CUSTOM_AGENT
+                ProjectMode::MAGICLAW
             );
 
             $projectId = (int) ($result['project']['id'] ?? 0);
