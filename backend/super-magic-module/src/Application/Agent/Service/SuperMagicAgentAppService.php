@@ -39,6 +39,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -334,7 +335,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
 
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $currentUserId);
-        $queryCodes = array_values(array_unique($accessibleAgentResult['codes']));
+        $queryCodes = $accessibleAgentResult['accessible'];
         if ($queryCodes === []) {
             return [
                 'agents' => [],
@@ -348,7 +349,25 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ];
         }
 
-        $currentVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $queryCodes);
+        $versionQuery = new AgentVersionQuery();
+        $versionQuery->setCodes($queryCodes);
+        $versionQuery->setKeyword(trim($requestDTO->getKeyword()));
+        $versionQuery->setLanguageCode($languageCode);
+
+        $versionPage = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $dataIsolation->disabled();
+        $versionQueryResult = $this->superMagicAgentVersionDomainService->queries(
+            $dataIsolation,
+            $versionQuery,
+            $versionPage
+        );
+        $versionList = $versionQueryResult['list'];
+        $total = $versionQueryResult['total'];
+
+        $currentVersionsMap = [];
+        foreach ($versionList as $entity) {
+            $currentVersionsMap[$entity->getCode()] = $entity;
+        }
         if ($currentVersionsMap === []) {
             return [
                 'agents' => [],
@@ -358,7 +377,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'latest_versions_map' => [],
                 'page' => $requestDTO->getPage(),
                 'page_size' => $requestDTO->getPageSize(),
-                'total' => 0,
+                'total' => $total,
             ];
         }
 
@@ -368,19 +387,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             array_keys($currentVersionsMap)
         );
         $agents = $this->markInstalledMarketAgents($agents, $userAgentOwnershipMap);
-        $agents = $this->filterAgentListByKeyword($agents, trim($requestDTO->getKeyword()), $languageCode);
-        usort($agents, static function (SuperMagicAgentEntity $left, SuperMagicAgentEntity $right): int {
-            return strcmp((string) ($right->getUpdatedAt() ?? ''), (string) ($left->getUpdatedAt() ?? ''));
-        });
-
-        $total = count($agents);
-        $offset = max(0, ($requestDTO->getPage() - 1) * $requestDTO->getPageSize());
-        $pagedAgents = array_slice($agents, $offset, $requestDTO->getPageSize());
 
         return $this->buildAgentListResult(
             dataIsolation: $dataIsolation,
             requestDTO: $requestDTO,
-            agents: $pagedAgents,
+            agents: $agents,
             total: $total
         );
     }
@@ -1489,35 +1500,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ResourceType::CustomAgent,
             $code
         );
-    }
-
-    /**
-     * @param array<SuperMagicAgentEntity> $agents
-     * @return array<SuperMagicAgentEntity>
-     */
-    private function filterAgentListByKeyword(array $agents, string $keyword, string $languageCode): array
-    {
-        $keyword = trim($keyword);
-        if ($keyword === '') {
-            return $agents;
-        }
-
-        return array_values(array_filter($agents, static function (SuperMagicAgentEntity $agent) use ($keyword, $languageCode): bool {
-            $haystacks = array_filter([
-                $agent->getNameI18n()[$languageCode] ?? null,
-                $agent->getName(),
-                $agent->getDescriptionI18n()[$languageCode] ?? null,
-                $agent->getDescription(),
-            ]);
-
-            foreach ($haystacks as $haystack) {
-                if (stripos((string) $haystack, $keyword) !== false) {
-                    return true;
-                }
-            }
-
-            return false;
-        }));
     }
 
     /**

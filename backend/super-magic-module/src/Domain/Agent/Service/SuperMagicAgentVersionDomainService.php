@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Service;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
@@ -67,6 +68,17 @@ class SuperMagicAgentVersionDomainService
     public function getCurrentOrLatestByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
     {
         return $this->agentVersionRepository->findCurrentOrLatestByCodes($dataIsolation, $codes);
+    }
+
+    /**
+     * @return array{total: int, list: AgentVersionEntity[]}
+     */
+    public function queries(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentVersionQuery $query,
+        Page $page
+    ): array {
+        return $this->agentVersionRepository->queries($dataIsolation, $query, $page);
     }
 
     /**

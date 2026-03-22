@@ -13,12 +13,14 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentVersionModel;
 use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
+use Hyperf\Database\Model\Builder;
 use RuntimeException;
 
 /**
@@ -121,6 +123,45 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         }
 
         return $result;
+    }
+
+    public function queries(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentVersionQuery $query,
+        Page $page
+    ): array {
+        $codes = array_values(array_unique(array_filter($query->getCodes() ?? [])));
+        if ($codes === []) {
+            return ['total' => 0, 'list' => []];
+        }
+
+        $keyword = trim((string) ($query->getKeyword() ?? ''));
+        $languageCode = $query->getLanguageCode() ?: 'en_US';
+        $isCurrentVersions = $query->getIsCurrentVersions() ?? true;
+
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        $builder->whereIn('code', $codes)->whereNull('deleted_at');
+        if ($isCurrentVersions) {
+            $builder->where('is_current_version', 1);
+        }
+
+        if ($keyword !== '') {
+            $this->applyVersionKeywordSearch($builder, $keyword, $languageCode);
+        }
+
+        $builder->orderBy('updated_at', 'desc')->orderBy('code');
+
+        $result = $this->getByPage($builder, $page);
+
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
     }
 
     public function existsByCodeAndVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $version): bool
@@ -368,6 +409,28 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $result['list'] = $list;
 
         return $result;
+    }
+
+    /**
+     * 在 name_i18n、role_i18n、description_i18n 的指定语言和 default 中搜索关键词.
+     */
+    protected function applyVersionKeywordSearch(Builder $builder, string $keyword, string $languageCode): void
+    {
+        $likePattern = '%' . $keyword . '%';
+        $conditions = [
+            ["JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(name_i18n, '$.default') LIKE ?", [$likePattern]],
+            ["JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(role_i18n, '$.default') LIKE ?", [$likePattern]],
+            ["JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(description_i18n, '$.default') LIKE ?", [$likePattern]],
+        ];
+
+        $builder->where(function ($q) use ($conditions): void {
+            foreach ($conditions as $i => [$sql, $bindings]) {
+                $i === 0 ? $q->whereRaw($sql, $bindings) : $q->orWhereRaw($sql, $bindings);
+            }
+        });
     }
 
     /**
