@@ -278,14 +278,14 @@ class SkillAppService extends AbstractSkillAppService
                 // 6. 删除 import_token 缓存（导入成功后不再需要）
                 $this->deleteImportToken($requestDTO->getImportToken());
 
-                try {
+                /*try {
                     event_dispatch(new SkillImportedEvent($userAuthorization, $result->getCode()));
                 } catch (Throwable $eventException) {
                     $this->logger->error('Dispatch SkillImportedEvent failed', [
                         'skill_code' => $result->getCode(),
                         'error' => $eventException->getMessage(),
                     ]);
-                }
+                }*/
 
                 return $result;
             } catch (Throwable $e) {
@@ -691,11 +691,15 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
+        // 如果相等代表没有任何修改
         if ($requestDTO->getExportFileFromProject()) {
-            // 如果相等代表没有任何修改
-            if ($skillEntity->getCreatedAt() !== $skillEntity->getUpdatedAt()) {
+            if ($skillEntity->getSourceType()->isAgentCreated()) {
+                $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
                 $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
                 $skillEntity->setFileKey($fileMetadata['file_key']);
+                $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
+            } else {
+                $this->logger->info('非agent_created创建跳过', ['id' => $skillEntity->getId(), 'code' => $code]);
             }
         }
 
