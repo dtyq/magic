@@ -694,14 +694,14 @@ class SkillAppService extends AbstractSkillAppService
 
         // 如果相等代表没有任何修改
         if ($requestDTO->getExportFileFromProject()) {
-            if ($skillEntity->getSourceType()->isDialogueCreation()) {
-                $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
-                $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
-                $skillEntity->setFileKey($fileMetadata['file_key']);
-                $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
-            } else {
-                $this->logger->info('非agent_created创建跳过', ['id' => $skillEntity->getId(), 'code' => $code]);
-            }
+            //            if ($skillEntity->getSourceType()->isDialogueCreation()) {
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
+            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+            $skillEntity->setFileKey($fileMetadata['file_key']);
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
+            //            } else {
+            //                $this->logger->info('非agent_created创建跳过', ['id' => $skillEntity->getId(), 'code' => $code]);
+            //            }
         }
 
         if (empty($skillEntity->getFileKey())) {
