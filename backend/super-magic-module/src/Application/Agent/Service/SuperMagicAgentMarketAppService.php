@@ -169,6 +169,8 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
         $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
 
+        $this->updateAgentMarketIcon($dataIsolation, $agentMarkets);
+
         return [
             'agent_markets' => $agentMarkets,
             'publisher_user_map' => $publisherUserMap,
@@ -183,26 +185,64 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
     /**
      * Resolve the market icon path into a public URL when possible.
+     *
+     * @param AgentMarketEntity|array<int, AgentMarketEntity> $agentMarket
      */
     private function updateAgentMarketIcon(
         SuperMagicAgentDataIsolation $dataIsolation,
-        AgentMarketEntity $agentMarket
+        AgentMarketEntity|array $agentMarket
     ): void {
-        $icon = $agentMarket->getIcon() ?? [];
-        $formattedPath = EasyFileTools::formatPath($icon['url'] ?? $icon['value'] ?? '');
-        if ($formattedPath === '') {
+        $agentMarkets = $agentMarket instanceof AgentMarketEntity ? [$agentMarket] : $agentMarket;
+        if ($agentMarkets === []) {
             return;
         }
 
-        $organizationCode = $agentMarket->getOrganizationCode() ?: $dataIsolation->getCurrentOrganizationCode();
-        $fileLink = $this->getIcons($organizationCode, [$formattedPath])[$formattedPath] ?? null;
-        if ($fileLink === null) {
+        $pathMapByOrganization = [];
+        foreach ($agentMarkets as $marketEntity) {
+            if (! $marketEntity instanceof AgentMarketEntity) {
+                continue;
+            }
+
+            $icon = $marketEntity->getIcon() ?? [];
+            $formattedPath = EasyFileTools::formatPath($icon['url'] ?? $icon['value'] ?? '');
+            if ($formattedPath === '') {
+                continue;
+            }
+
+            $organizationCode = $marketEntity->getOrganizationCode() ?: $dataIsolation->getCurrentOrganizationCode();
+            $pathMapByOrganization[$organizationCode][$formattedPath] = true;
+        }
+
+        if ($pathMapByOrganization === []) {
             return;
         }
 
-        $icon['url'] = $fileLink->getUrl();
-        $icon['value'] = $fileLink->getUrl();
-        $agentMarket->setIcon($icon);
+        $fileLinksByOrganization = [];
+        foreach ($pathMapByOrganization as $organizationCode => $pathMap) {
+            $fileLinksByOrganization[$organizationCode] = $this->getIcons($organizationCode, array_keys($pathMap));
+        }
+
+        foreach ($agentMarkets as $marketEntity) {
+            if (! $marketEntity instanceof AgentMarketEntity) {
+                continue;
+            }
+
+            $icon = $marketEntity->getIcon() ?? [];
+            $formattedPath = EasyFileTools::formatPath($icon['url'] ?? $icon['value'] ?? '');
+            if ($formattedPath === '') {
+                continue;
+            }
+
+            $organizationCode = $marketEntity->getOrganizationCode() ?: $dataIsolation->getCurrentOrganizationCode();
+            $fileLink = $fileLinksByOrganization[$organizationCode][$formattedPath] ?? null;
+            if ($fileLink === null) {
+                continue;
+            }
+
+            $icon['url'] = $fileLink->getUrl();
+            $icon['value'] = $fileLink->getUrl();
+            $marketEntity->setIcon($icon);
+        }
     }
 
     /**

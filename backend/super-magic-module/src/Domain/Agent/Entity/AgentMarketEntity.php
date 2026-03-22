@@ -49,6 +49,11 @@ class AgentMarketEntity extends AbstractEntity
     protected ?array $roleI18n = null;
 
     /**
+     * @var null|string 统一小写搜索字段
+     */
+    protected ?string $searchText = null;
+
+    /**
      * 图标.
      */
     protected ?array $icon = null;
@@ -119,6 +124,7 @@ class AgentMarketEntity extends AbstractEntity
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
             'role_i18n' => $this->roleI18n,
+            'search_text' => $this->searchText,
             'icon' => $this->icon,
             'icon_type' => $this->iconType->value,
             'publisher_id' => $this->publisherId,
@@ -213,6 +219,17 @@ class AgentMarketEntity extends AbstractEntity
             $roleI18n = Json::decode($roleI18n);
         }
         $this->roleI18n = $roleI18n;
+        return $this;
+    }
+
+    public function getSearchText(): ?string
+    {
+        return $this->searchText;
+    }
+
+    public function setSearchText(?string $searchText): self
+    {
+        $this->searchText = $searchText;
         return $this;
     }
 

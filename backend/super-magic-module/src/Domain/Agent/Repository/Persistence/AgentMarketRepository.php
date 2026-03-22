@@ -166,32 +166,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         $builder = $this->agentMarketModel::query()
             ->where('publish_status', PublishStatus::PUBLISHED->value);
 
-        // 关键词搜索：在 name_i18n、role_i18n 和 description_i18n JSON 字段中搜索，
-        // 各字段额外支持 default 兜底搜索
+        // 关键词搜索优先使用统一搜索字段；旧数据无该字段时回退到历史 JSON 搜索。
         if (! empty($query->getKeyword()) && ! empty($query->getLanguageCode())) {
-            $keyword = $query->getKeyword();
-            $languageCode = $query->getLanguageCode();
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(role_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                );
-            });
+            $keyword = mb_strtolower(trim($query->getKeyword()), 'UTF-8');
+            $builder->where('search_text', 'LIKE', '%' . $keyword . '%');
         }
 
         // 分类筛选

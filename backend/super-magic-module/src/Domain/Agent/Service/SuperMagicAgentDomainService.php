@@ -39,6 +39,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterf
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Market\Service\MarketSearchTextBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -572,6 +573,19 @@ readonly class SuperMagicAgentDomainService
             $storeAgentEntity->setNameI18n($versionEntity->getNameI18n());
             $storeAgentEntity->setDescriptionI18n($versionEntity->getDescriptionI18n());
             $storeAgentEntity->setRoleI18n($versionEntity->getRoleI18n());
+            $storeAgentEntity->setSearchText(MarketSearchTextBuilder::build(
+                [
+                    $versionEntity->getName(),
+                    $versionEntity->getDescription(),
+                    $versionEntity->getVersion(),
+                ],
+                [
+                    $versionEntity->getNameI18n() ?? [],
+                    $versionEntity->getRoleI18n() ?? [],
+                    $versionEntity->getDescriptionI18n() ?? [],
+                    $versionEntity->getVersionDescriptionI18n() ?? [],
+                ]
+            ));
             // icon 字段：从 versionEntity 的 icon 获取（已经是数组格式）
             $storeAgentEntity->setIcon($versionEntity->getIcon());
             $storeAgentEntity->setPublisherId($versionEntity->getCreator());
