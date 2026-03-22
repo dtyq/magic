@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
@@ -455,21 +454,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
         $keyword = trim((string) $keyword);
         if ($keyword !== '') {
-            $builder->where(function ($query) use ($keyword, $languageCode) {
-                $query->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                );
-            });
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($keyword, 'UTF-8') . '%');
         }
 
         $builder->orderBy('published_at', 'DESC')->orderBy('created_at', 'DESC');
@@ -528,21 +513,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
         $skillNameTrimmed = trim((string) $skillName);
         if ($skillNameTrimmed !== '') {
-            $like = '%' . $skillNameTrimmed . '%';
-            $localeKeys = LanguageEnum::getAllLanguageCodes();
-            $builder->where(function ($q) use ($like, $localeKeys) {
-                $first = true;
-                foreach ($localeKeys as $localeKey) {
-                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
-                    $bindings = [$localeKey, $like];
-                    if ($first) {
-                        $q->whereRaw($expression, $bindings);
-                        $first = false;
-                    } else {
-                        $q->orWhereRaw($expression, $bindings);
-                    }
-                }
-            });
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($skillNameTrimmed, 'UTF-8') . '%');
         }
 
         if ($startTime !== null && $startTime !== '') {
@@ -607,6 +578,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'version' => $data['version'] ?? '1.0.0',
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'file_key' => $data['file_key'] ?? '',
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
@@ -651,6 +623,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'version' => $entity->getVersion(),
             'name_i18n' => $entity->getNameI18n(),
             'description_i18n' => $entity->getDescriptionI18n(),
+            'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'file_key' => $entity->getFileKey(),
             'publish_status' => $entity->getPublishStatus()->value,

@@ -159,27 +159,11 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
 
         $builder->where('creator_id', $dataIsolation->getCurrentUserId());
 
-        $keyword = $query->getKeyword() ?? '';
-        $languageCode = $query->getLanguageCode() ?? 'en_US';
+        $keyword = trim((string) ($query->getKeyword() ?? ''));
         $sourceType = $query->getSourceType() ?? '';
 
-        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索
-        if (! empty($keyword)) {
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                );
-            });
+        if ($keyword !== '') {
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($keyword, 'UTF-8') . '%');
         }
 
         // 来源类型筛选
@@ -232,20 +216,11 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
         $builder->whereIn('code', $codes);
 
-        $keyword = $query->getKeyword() ?? '';
-        $languageCode = $query->getLanguageCode() ?? 'en_US';
+        $keyword = trim((string) ($query->getKeyword() ?? ''));
         $sourceType = $query->getSourceType() ?? '';
 
         if ($keyword !== '') {
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                );
-            });
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($keyword, 'UTF-8') . '%');
         }
 
         if ($sourceType !== '') {
@@ -289,20 +264,11 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         $builder->whereIn('code', $codes)
             ->where('creator_id', '!=', $dataIsolation->getCurrentUserId());
 
-        $keyword = $query->getKeyword() ?? '';
-        $languageCode = $query->getLanguageCode() ?? 'en_US';
+        $keyword = trim((string) ($query->getKeyword() ?? ''));
         $sourceType = $query->getSourceType() ?? '';
 
         if ($keyword !== '') {
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                );
-            });
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($keyword, 'UTF-8') . '%');
         }
 
         if ($sourceType !== '') {
@@ -340,17 +306,9 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
     ): int {
         $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
 
-        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索
-        if (! empty($keyword)) {
-            $builder->where(function ($query) use ($keyword, $languageCode) {
-                $query->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                );
-            });
+        $keyword = trim((string) $keyword);
+        if ($keyword !== '') {
+            $builder->where('search_text', 'LIKE', '%' . mb_strtolower($keyword, 'UTF-8') . '%');
         }
 
         // 来源类型筛选
@@ -443,7 +401,7 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         }
 
         $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
-        $models = $builder->whereIn('id', $skillIds)->where('creator_id', $dataIsolation->getCurrentUserId())->get();
+        $models = $builder->whereIn('id', $skillIds)->get();
 
         $result = [];
         foreach ($models as $model) {
@@ -485,6 +443,7 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'package_description' => $data['package_description'] ?? null,
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'file_key' => $data['file_key'] ?? '',
             'source_type' => ! empty($data['source_type']) ? SkillSourceType::from($data['source_type']) : SkillSourceType::LOCAL_UPLOAD,
@@ -515,6 +474,7 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'package_description' => $entity->getPackageDescription(),
             'name_i18n' => $entity->getNameI18n(),
             'description_i18n' => $entity->getDescriptionI18n(),
+            'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'file_key' => $entity->getFileKey(),
             'source_type' => $entity->getSourceType()->value,
