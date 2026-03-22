@@ -15,6 +15,7 @@ use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
@@ -40,7 +41,7 @@ class SkillMarketAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, creatorSkillCodes: array<string, bool>} 市场技能列表结果
+     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, creatorSkillCodes: array<string, bool>, skillVersionMap: array<int, SkillVersionEntity>} 市场技能列表结果
      */
     public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -70,6 +71,7 @@ class SkillMarketAppService extends AbstractSkillAppService
                 'userSkills' => [],
                 'publisherUserMap' => [],
                 'creatorSkillCodes' => [],
+                'skillVersionMap' => [],
             ];
         }
 
@@ -89,6 +91,8 @@ class SkillMarketAppService extends AbstractSkillAppService
                 $creatorSkillCodes[$storeSkillEntity->getSkillCode()] = $skillVersion->getCreatorId() === $dataIsolation->getCurrentUserId();
             }
         }
+
+        $this->updateSkillVersionAssetUrls($dataIsolation, array_values($skillVersionMap));
 
         // 批量更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillMarketLogoUrl($dataIsolation, $storeSkillEntities);
@@ -116,6 +120,7 @@ class SkillMarketAppService extends AbstractSkillAppService
             'userSkills' => $userSkillsMap,
             'publisherUserMap' => $publisherUserMap,
             'creatorSkillCodes' => $creatorSkillCodes,
+            'skillVersionMap' => $skillVersionMap,
         ];
     }
 }

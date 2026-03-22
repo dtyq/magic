@@ -130,14 +130,18 @@ class SkillAssembler
      * @param bool $isAdded 是否已添加
      * @param bool $needUpgrade 是否需要升级
      * @param array $publisher 发布者信息
-     * @return SkillMarketListItemDTO 市场技能列表项 DTO
+     * @param string $fileKey 版本文件 key
+     * @param null|string $fileUrl 版本文件下载 URL
+     * @return SkillMarketListItemDTO 响应含 `code`；`skill_code`/`user_skill_code` 为兼容字段（与 `code` 同值）
      */
     public static function createMarketListItemDTO(
         SkillMarketEntity $entity,
         bool $isAdded = false,
         bool $needUpgrade = false,
         bool $isCurrentUserCreator = false,
-        array $publisher = []
+        array $publisher = [],
+        string $fileKey = '',
+        ?string $fileUrl = null,
     ): SkillMarketListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -161,7 +165,9 @@ class SkillAssembler
             needUpgrade: $needUpgrade,
             isCreator: $isCurrentUserCreator,
             createdAt: $entity->getCreatedAt() ?? '',
-            updatedAt: $entity->getUpdatedAt() ?? ''
+            updatedAt: $entity->getUpdatedAt() ?? '',
+            fileKey: $fileKey,
+            fileUrl: $fileUrl,
         );
     }
 
@@ -324,6 +330,7 @@ class SkillAssembler
      *
      * @param array<string, SkillEntity> $userSkills 用户已添加的技能映射（key 为 skillCode）
      * @param array<string, MagicUserEntity> $publisherUserMap 发布者用户信息映射（key 为 publisherId）
+     * @param array<int, SkillVersionEntity> $skillVersionMap key 为 skill_version_id（已解析 file_url）
      * @param int $page 当前页码
      * @param int $pageSize 每页数量
      * @param int $total 总记录数
@@ -336,7 +343,8 @@ class SkillAssembler
         array $creatorSkillCodes,
         int $page,
         int $pageSize,
-        int $total
+        int $total,
+        array $skillVersionMap = []
     ): SkillMarketListResponseDTO {
         $listItems = [];
         foreach ($skillMarketEntities as $skillMarketEntity) {
@@ -363,12 +371,18 @@ class SkillAssembler
             $isCreator = $creatorSkillCodes[$skillCode] ?? false;
             $isAdded = $isCreator ?: $isAdded;
 
+            $version = $skillVersionMap[$skillMarketEntity->getSkillVersionId()] ?? null;
+            $fileKey = (string) ($version?->getFileKey() ?? '');
+            $fileUrl = $version?->getFileUrl();
+
             $listItems[] = self::createMarketListItemDTO(
                 $skillMarketEntity,
                 $isAdded,
                 $needUpgrade,
                 $isCreator,
-                $publisher
+                $publisher,
+                fileKey: $fileKey,
+                fileUrl: $fileUrl,
             );
         }
 

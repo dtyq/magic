@@ -11,6 +11,7 @@ use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v2/admin', static function () {
     Router::addGroup('/super-magic/agents', static function () {
+        Router::post('/versions/queries', [AdminSuperMagicAgentApi::class, 'queryVersions']);
         Router::get('/{code}', [AdminSuperMagicAgentApi::class, 'getDetailByCode']);
         Router::put('/versions/{id}/review', [AdminSuperMagicAgentApi::class, 'reviewAgentVersion']);
     });

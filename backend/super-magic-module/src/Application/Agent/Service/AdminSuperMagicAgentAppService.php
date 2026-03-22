@@ -7,9 +7,15 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
+use Dtyq\SuperMagic\Application\Agent\Assembler\AdminSuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseAdminDTO;
+use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
 /**
@@ -17,6 +23,42 @@ use Qbhy\HyperfAuth\Authenticatable;
  */
 class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
+    #[Inject]
+    protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
+    #[Inject]
+    protected AdminSuperMagicAgentAssembler $adminSuperMagicAgentAssembler;
+
+    /**
+     * 管理后台：分页查询员工（Agent）版本列表.
+     */
+    public function queryVersions(
+        Authenticatable $authorization,
+        QueryAgentVersionsRequestAdminDTO $requestDTO
+    ): QueryAgentVersionsResponseAdminDTO {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $dataIsolation->disabled();
+
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $result = $this->superMagicAgentVersionDomainService->queryVersions(
+            $dataIsolation,
+            $requestDTO->getReviewStatus(),
+            $requestDTO->getPublishStatus(),
+            $requestDTO->getPublishTargetType(),
+            $requestDTO->getVersion(),
+            $requestDTO->getStartTime(),
+            $requestDTO->getEndTime(),
+            $requestDTO->getOrderBy(),
+            $page
+        );
+
+        return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO(
+            $result['list'],
+            $page,
+            $result['total']
+        );
+    }
+
     /**
      * 审核员工版本.
      */

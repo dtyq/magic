@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentVersionModel;
+use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
 use RuntimeException;
 
@@ -291,6 +292,56 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         }
 
         $builder->orderBy('created_at', 'DESC');
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+        $result['list'] = $list;
+
+        return $result;
+    }
+
+    public function queryVersions(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $version,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
+            ->whereNull('deleted_at');
+
+        if ($reviewStatus !== null && $reviewStatus !== '') {
+            $builder->where('review_status', $reviewStatus);
+        }
+
+        if ($publishStatus !== null && $publishStatus !== '') {
+            $builder->where('publish_status', $publishStatus);
+        }
+
+        if ($publishTargetType !== null && $publishTargetType !== '') {
+            $builder->where('publish_target_type', $publishTargetType);
+        }
+
+        if ($version !== null && $version !== '') {
+            $builder->where('version', $version);
+        }
+
+        if ($startTime !== null && $startTime !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        }
+
+        if ($endTime !== null && $endTime !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        }
+
+        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
 
         $result = $this->getByPage($builder, $page);
         $list = [];

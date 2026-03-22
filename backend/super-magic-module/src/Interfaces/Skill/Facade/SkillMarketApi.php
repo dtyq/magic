@@ -49,7 +49,8 @@ class SkillMarketApi extends AbstractApi
             $result['creatorSkillCodes'],
             $page->getPage(),
             $page->getPageNum(),
-            $result['total']
+            $result['total'],
+            $result['skillVersionMap'] ?? []
         );
     }
 }

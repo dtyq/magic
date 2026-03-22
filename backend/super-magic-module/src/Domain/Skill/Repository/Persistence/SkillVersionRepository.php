@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
 use RuntimeException;
 
@@ -319,6 +320,23 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $entities;
     }
 
+    public function invalidateAwaitingReviewVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+
+        return (int) $builder
+            ->where('code', $code)
+            ->whereNull('deleted_at')
+            ->whereIn('review_status', [
+                ReviewStatus::PENDING->value,
+                ReviewStatus::UNDER_REVIEW->value,
+            ])
+            ->update([
+                'review_status' => ReviewStatus::INVALIDATED->value,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int
     {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
@@ -447,8 +465,6 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         string $orderBy,
         Page $page
     ): array {
-        $dataIsolation->disabled();
-
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->whereNull('deleted_at');
 
@@ -473,11 +489,11 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         }
 
         if ($startTime !== null && $startTime !== '') {
-            $builder->where('created_at', '>=', $this->normalizeStartTime($startTime));
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
         }
 
         if ($endTime !== null && $endTime !== '') {
-            $builder->where('created_at', '<=', $this->normalizeEndTime($endTime));
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
         $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
@@ -599,15 +615,5 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         }
 
         return $attributes;
-    }
-
-    private function normalizeStartTime(string $startTime): string
-    {
-        return strlen($startTime) === 10 ? $startTime . ' 00:00:00' : $startTime;
-    }
-
-    private function normalizeEndTime(string $endTime): string
-    {
-        return strlen($endTime) === 10 ? $endTime . ' 23:59:59' : $endTime;
     }
 }
