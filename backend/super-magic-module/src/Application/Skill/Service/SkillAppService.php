@@ -1222,9 +1222,8 @@ class SkillAppService extends AbstractSkillAppService
         string $packageName,
         string $packageDescription
     ): ParseFileImportResponseDTO {
-        // 更新场景：从 magic_skills 表获取多语言内容（文档要求）
-        $nameI18n = $skillEntity->getNameI18n();
-        $descriptionI18n = $skillEntity->getDescriptionI18n() ?? [];
+        // 新建场景：AI 生成多语言内容
+        [$nameI18n, $descriptionI18n] = $this->generateI18nContent($packageName, $packageDescription);
 
         // 更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillLogoUrl($dataIsolation, [$skillEntity]);

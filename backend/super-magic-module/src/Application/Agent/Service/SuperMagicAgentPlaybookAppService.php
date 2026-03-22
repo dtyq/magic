@@ -198,8 +198,6 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
         // 1. 查询 Playbook 详情
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
 
-        $this->ensureAgentAccessible($dataIsolation, $playbook->getAgentCode());
-
         // 2. 转换为 DTO
         return new PlaybookListItemDTO(
             $playbook->getId() ?? 0,
