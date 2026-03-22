@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
@@ -18,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterf
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillMarketModel;
+use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
 use RuntimeException;
 
@@ -185,6 +187,86 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return [
             'total' => $total,
             'list' => $entities,
+        ];
+    }
+
+    /**
+     * @return array{total: int, list: SkillMarketEntity[]}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $skillCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        $builder = $this->skillMarketModel::query()
+            ->whereNull('deleted_at');
+
+        $publishStatus = trim((string) $publishStatus);
+        if ($publishStatus !== '') {
+            $builder->where('publish_status', $publishStatus);
+        }
+
+        $organizationCode = trim((string) $organizationCode);
+        if ($organizationCode !== '') {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $publisherType = trim((string) $publisherType);
+        if ($publisherType !== '') {
+            $builder->where('publisher_type', $publisherType);
+        }
+
+        $skillCode = trim((string) $skillCode);
+        if ($skillCode !== '') {
+            $builder->where('skill_code', $skillCode);
+        }
+
+        $name18n = trim((string) $name18n);
+        if ($name18n !== '') {
+            $like = '%' . $name18n . '%';
+            $localeKeys = LanguageEnum::getAllLanguageCodes();
+            $builder->where(function ($q) use ($like, $localeKeys) {
+                $first = true;
+                foreach ($localeKeys as $localeKey) {
+                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
+                    $bindings = [$localeKey, $like];
+                    if ($first) {
+                        $q->whereRaw($expression, $bindings);
+                        $first = false;
+                    } else {
+                        $q->orWhereRaw($expression, $bindings);
+                    }
+                }
+            });
+        }
+
+        $startTime = trim((string) $startTime);
+        if ($startTime !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        }
+
+        $endTime = trim((string) $endTime);
+        if ($endTime !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        }
+
+        $builder->orderBy('created_at', strtolower($orderBy) === 'asc' ? 'asc' : 'desc');
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
         ];
     }
 

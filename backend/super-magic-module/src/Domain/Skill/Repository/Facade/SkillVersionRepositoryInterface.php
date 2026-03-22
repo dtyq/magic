@@ -156,6 +156,8 @@ interface SkillVersionRepositoryInterface
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,

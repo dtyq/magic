@@ -62,6 +62,23 @@ interface SkillMarketRepositoryInterface
     ): array;
 
     /**
+     * 管理后台查询市场技能列表.
+     *
+     * @return array{total: int, list: SkillMarketEntity[]}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $skillCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
+
+    /**
      * 根据 ID 查找市场技能（仅查询已发布的）.
      *
      * @param int $id 市场技能 ID

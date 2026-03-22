@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
@@ -460,6 +461,8 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -467,6 +470,11 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->whereNull('deleted_at');
+
+        $organizationCodeTrimmed = trim((string) $organizationCode);
+        if ($organizationCodeTrimmed !== '') {
+            $builder->where('organization_code', $organizationCodeTrimmed);
+        }
 
         if ($reviewStatus !== null && $reviewStatus !== '') {
             $builder->where('review_status', $reviewStatus);
@@ -486,6 +494,25 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
         if ($version !== null && $version !== '') {
             $builder->where('version', $version);
+        }
+
+        $skillNameTrimmed = trim((string) $skillName);
+        if ($skillNameTrimmed !== '') {
+            $like = '%' . $skillNameTrimmed . '%';
+            $localeKeys = LanguageEnum::getAllLanguageCodes();
+            $builder->where(function ($q) use ($like, $localeKeys) {
+                $first = true;
+                foreach ($localeKeys as $localeKey) {
+                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
+                    $bindings = [$localeKey, $like];
+                    if ($first) {
+                        $q->whereRaw($expression, $bindings);
+                        $first = false;
+                    } else {
+                        $q->orWhereRaw($expression, $bindings);
+                    }
+                }
+            });
         }
 
         if ($startTime !== null && $startTime !== '') {

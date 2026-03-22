@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\AdminSkillAppService;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
@@ -35,6 +36,19 @@ class AdminSkillApi extends AbstractApi
         $requestDTO = QuerySkillVersionsRequestAdminDTO::fromRequest($this->request);
 
         return $this->adminSkillAppService->queryVersions($requestContext, $requestDTO)->toArray();
+    }
+
+    /**
+     * 查询 Skill 市场列表.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::QUERY)]
+    public function queryMarkets(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = QuerySkillMarketsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminSkillAppService->queryMarkets($requestContext, $requestDTO)->toArray();
     }
 
     /**
