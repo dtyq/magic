@@ -11,6 +11,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 
@@ -41,10 +42,15 @@ interface AgentVersionRepositoryInterface
     public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
     /**
-     * @param array<string> $codes
-     * @return array<string, AgentVersionEntity>
+     * 在指定 code 集合内每 code 取一条版本（由 AgentVersionQuery.is_current_versions 等决定），支持关键词与分页.
+     *
+     * @return array{total: int, list: AgentVersionEntity[]}
      */
-    public function findCurrentOrLatestByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
+    public function queries(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentVersionQuery $query,
+        Page $page
+    ): array;
 
     /**
      * 保存 Agent 版本.
@@ -125,6 +131,8 @@ interface AgentVersionRepositoryInterface
         ?string $publishStatus,
         ?string $publishTargetType,
         ?string $version,
+        ?string $organizationCode,
+        ?string $nameI18n,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,

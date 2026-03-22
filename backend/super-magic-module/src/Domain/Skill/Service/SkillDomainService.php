@@ -143,6 +143,17 @@ class SkillDomainService
     }
 
     /**
+     * 根据 code 列表批量查询当前版本，忽略组织过滤.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findCurrentSkillVersionsByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentByCodesWithoutOrganizationFilter($codes);
+    }
+
+    /**
      * 根据 code 列表批量查询当前已发布版本.
      *
      * @param array $codes Skill code 列表
@@ -793,6 +804,8 @@ class SkillDomainService
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -805,6 +818,8 @@ class SkillDomainService
             $publishTargetType,
             $sourceType,
             $version,
+            $skillName,
+            $organizationCode,
             $startTime,
             $endTime,
             $orderBy,
@@ -1156,6 +1171,7 @@ class SkillDomainService
 
         // 2. 检查商店表中是否已存在该 skill_code 的记录
         $storeSkill = $this->skillMarketDomainService->findStoreSkillBySkillCode($skillVersion->getCode());
+        $searchText = SkillMarketSearchTextBuilder::buildFromSkillVersion($skillVersion);
 
         if ($storeSkill) {
             // 更新现有记录
@@ -1163,6 +1179,7 @@ class SkillDomainService
             $storeSkill->setSkillVersionId($skillVersion->getId());
             $storeSkill->setNameI18n($skillVersion->getNameI18n());
             $storeSkill->setDescriptionI18n($skillVersion->getDescriptionI18n());
+            $storeSkill->setSearchText($searchText);
             $storeSkill->setLogo($skillVersion->getLogo());
             $storeSkill->setPublisherType($publisherType);
             $storeSkill->setPublishStatus(PublishStatus::PUBLISHED);
@@ -1175,6 +1192,7 @@ class SkillDomainService
                 'skill_version_id' => $skillVersion->getId(),
                 'name_i18n' => $skillVersion->getNameI18n(),
                 'description_i18n' => $skillVersion->getDescriptionI18n(),
+                'search_text' => $searchText,
                 'logo' => $skillVersion->getLogo(),
                 'publisher_id' => $skillVersion->getCreatorId(),
                 'publisher_type' => $publisherType->value,

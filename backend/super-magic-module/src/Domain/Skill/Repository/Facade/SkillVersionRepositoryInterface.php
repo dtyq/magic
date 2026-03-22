@@ -47,6 +47,14 @@ interface SkillVersionRepositoryInterface
     public function findCurrentOrLatestByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
 
     /**
+     * 根据 code 列表批量查询当前版本，忽略组织过滤.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> key 为 skill code
+     */
+    public function findCurrentByCodesWithoutOrganizationFilter(array $codes): array;
+
+    /**
      * 根据 code 列表批量查询当前已发布版本.
      *
      * @param array $codes Skill code 列表
@@ -156,6 +164,8 @@ interface SkillVersionRepositoryInterface
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,

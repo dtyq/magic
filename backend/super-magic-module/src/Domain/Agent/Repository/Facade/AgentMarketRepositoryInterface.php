@@ -70,6 +70,23 @@ interface AgentMarketRepositoryInterface
     public function queries(AgentMarketQuery $query, Page $page): array;
 
     /**
+     * 管理后台查询员工市场列表.
+     *
+     * @return array{total: int, list: array<AgentMarketEntity>}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $agentCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
+
+    /**
      * 根据 agent_code 查询市场员工（仅查询已发布的）.
      *
      * @param string $agentCode Agent code
@@ -84,4 +101,13 @@ interface AgentMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function incrementInstallCount(int $agentMarketId): bool;
+
+    /**
+     * 更新市场员工排序值.
+     *
+     * @param int $id 市场员工 ID
+     * @param int $sortOrder 排序值
+     * @return bool 是否更新成功
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool;
 }

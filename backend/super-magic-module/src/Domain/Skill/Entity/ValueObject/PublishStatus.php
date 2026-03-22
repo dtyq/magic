@@ -23,6 +23,11 @@ enum PublishStatus: string
     case PUBLISHING = 'PUBLISHING';
 
     /**
+     * 审核中（仅市场表等场景会出现）.
+     */
+    case UNDER_REVIEW = 'UNDER_REVIEW';
+
+    /**
      * 已发布.
      */
     case PUBLISHED = 'PUBLISHED';
@@ -46,6 +51,14 @@ enum PublishStatus: string
     public function isPublishing(): bool
     {
         return $this === self::PUBLISHING;
+    }
+
+    /**
+     * 判断是否为审核中状态.
+     */
+    public function isUnderReview(): bool
+    {
+        return $this === self::UNDER_REVIEW;
     }
 
     /**

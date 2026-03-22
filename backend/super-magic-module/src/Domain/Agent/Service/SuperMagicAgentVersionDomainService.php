@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Service;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
@@ -70,6 +71,17 @@ class SuperMagicAgentVersionDomainService
     }
 
     /**
+     * @return array{total: int, list: AgentVersionEntity[]}
+     */
+    public function queries(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentVersionQuery $query,
+        Page $page
+    ): array {
+        return $this->agentVersionRepository->queries($dataIsolation, $query, $page);
+    }
+
+    /**
      * @param array<int> $ids
      * @return array<int, AgentVersionEntity>
      */
@@ -102,6 +114,8 @@ class SuperMagicAgentVersionDomainService
         ?string $publishStatus,
         ?string $publishTargetType,
         ?string $version,
+        ?string $organizationCode,
+        ?string $nameI18n,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -113,6 +127,8 @@ class SuperMagicAgentVersionDomainService
             $publishStatus,
             $publishTargetType,
             $version,
+            $organizationCode,
+            $nameI18n,
             $startTime,
             $endTime,
             $orderBy,

@@ -12,8 +12,10 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentMarketSortOrderRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
 use Hyperf\Di\Annotation\Inject;
 
@@ -36,6 +38,18 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     }
 
     /**
+     * 管理后台：查询员工市场列表.
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::QUERY)]
+    public function queryMarkets(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentMarketsRequestAdminDTO::fromRequest($this->request);
+
+        return $this->adminAgentAppService->queryMarkets($authorization, $requestDTO)->toArray();
+    }
+
+    /**
      * 审核员工版本.
      */
     #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
@@ -50,6 +64,19 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
         $this->adminAgentAppService->reviewAgentVersion($authorization, $id, $requestDTO);
 
         // 返回空数组
+        return [];
+    }
+
+    /**
+     * 管理后台：更新员工市场排序值.
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
+    public function updateMarketSortOrder(int $id): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = UpdateAgentMarketSortOrderRequestAdminDTO::fromRequest($this->request);
+
+        $this->adminAgentAppService->updateMarketSortOrder($authorization, $id, $requestDTO->getSortOrder());
         return [];
     }
 

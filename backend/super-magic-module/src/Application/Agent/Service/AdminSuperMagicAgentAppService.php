@@ -7,13 +7,18 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Application\Agent\Assembler\AdminSuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseAdminDTO;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -25,6 +30,9 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
     #[Inject]
     protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
+    #[Inject]
+    protected SuperMagicAgentMarketDomainService $superMagicAgentMarketDomainService;
 
     #[Inject]
     protected AdminSuperMagicAgentAssembler $adminSuperMagicAgentAssembler;
@@ -46,6 +54,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $requestDTO->getPublishStatus(),
             $requestDTO->getPublishTargetType(),
             $requestDTO->getVersion(),
+            $requestDTO->getOrganizationCode(),
+            $requestDTO->getNameI18n(),
             $requestDTO->getStartTime(),
             $requestDTO->getEndTime(),
             $requestDTO->getOrderBy(),
@@ -57,6 +67,49 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $page,
             $result['total']
         );
+    }
+
+    /**
+     * 管理后台：分页查询员工（Agent）市场列表.
+     */
+    public function queryMarkets(
+        Authenticatable $authorization,
+        QueryAgentMarketsRequestAdminDTO $requestDTO
+    ): QueryAgentMarketsResponseAdminDTO {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $dataIsolation->disabled();
+
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $result = $this->superMagicAgentMarketDomainService->queryAdminMarkets(
+            $requestDTO->getPublishStatus(),
+            $requestDTO->getOrganizationCode(),
+            $requestDTO->getNameI18n(),
+            $requestDTO->getPublisherType(),
+            $requestDTO->getAgentCode(),
+            $requestDTO->getStartTime(),
+            $requestDTO->getEndTime(),
+            $requestDTO->getOrderBy(),
+            $page
+        );
+
+        return $this->adminSuperMagicAgentAssembler->createQueryMarketsResponseDTO(
+            $result['list'],
+            $page,
+            $result['total']
+        );
+    }
+
+    /**
+     * 更新员工市场排序值.
+     */
+    public function updateMarketSortOrder(Authenticatable $authorization, int $id, int $sortOrder): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $dataIsolation->disabled();
+
+        if (! $this->superMagicAgentMarketDomainService->updateSortOrderById($id, $sortOrder)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
+        }
     }
 
     /**

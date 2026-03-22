@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation
 use Dtyq\SuperMagic\Domain\Agent\Factory\SuperMagicAgentFactory;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentModel;
+use Hyperf\Database\Model\Builder;
 
 class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements SuperMagicAgentRepositoryInterface
 {
@@ -57,57 +58,38 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
     {
         $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
 
-        if (! is_null($query->getCodes())) {
-            if (empty($query->getCodes())) {
+        $codes = $query->getCodes();
+        if ($codes !== null) {
+            $codes = array_values(array_unique(array_filter($codes)));
+            if ($codes === []) {
                 return ['total' => 0, 'list' => []];
             }
-            $builder->whereIn('code', $query->getCodes());
+            $builder->whereIn('code', $codes);
         }
 
         if ($query->getCreatorId() !== null) {
             $builder->where('creator', $query->getCreatorId());
         }
 
-        if ($query->getSourceTypes() !== null) {
-            if (empty($query->getSourceTypes())) {
+        $sourceTypes = $query->getSourceTypes();
+        if ($sourceTypes !== null) {
+            $sourceTypes = array_values(array_unique(array_filter($sourceTypes)));
+            if ($sourceTypes === []) {
                 return ['total' => 0, 'list' => []];
             }
-            $builder->whereIn('source_type', $query->getSourceTypes());
+            $builder->whereIn('source_type', $sourceTypes);
         }
 
         if ($query->getEnabled() !== null) {
             $builder->where('enabled', $query->getEnabled());
         }
 
-        // 关键词搜索：在 name_i18n、role_i18n 和 description_i18n JSON 字段中搜索
-        if (! empty($query->getKeyword()) && ! empty($query->getLanguageCode())) {
-            $keyword = $query->getKeyword();
-            $languageCode = $query->getLanguageCode();
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(role_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                );
-            });
+        $keyword = trim((string) ($query->getKeyword() ?? ''));
+        $languageCode = $query->getLanguageCode() ?? '';
+        if ($keyword !== '' && $languageCode !== '') {
+            $this->applyKeywordSearch($builder, $keyword, $languageCode);
         }
 
-        // 排序：pinned_at DESC, updated_at DESC
-        // 使用 orderByRaw 处理 NULL 值，将 NULL 排在最后
         $builder->orderByRaw('CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('pinned_at', 'DESC')
             ->orderBy('updated_at', 'DESC');
@@ -115,15 +97,14 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
         $result = $this->getByPage($builder, $page, $query);
 
         $list = [];
-
-        /** @var SuperMagicAgentModel $model */
         foreach ($result['list'] as $model) {
-            $entity = SuperMagicAgentFactory::createEntity($model);
-            $list[] = $entity;
+            $list[] = SuperMagicAgentFactory::createEntity($model);
         }
-        $result['list'] = $list;
 
-        return $result;
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
     }
 
     public function save(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $entity): SuperMagicAgentEntity
@@ -175,5 +156,27 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
             ]);
 
         return $updated > 0;
+    }
+
+    /**
+     * 在 name_i18n、role_i18n、description_i18n 的指定语言和 default 中搜索关键词.
+     */
+    protected function applyKeywordSearch(Builder $builder, string $keyword, string $languageCode): void
+    {
+        $likePattern = '%' . $keyword . '%';
+        $conditions = [
+            ["JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(name_i18n, '$.default') LIKE ?", [$likePattern]],
+            ["JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(role_i18n, '$.default') LIKE ?", [$likePattern]],
+            ["JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?", [$languageCode, $likePattern]],
+            ["JSON_EXTRACT(description_i18n, '$.default') LIKE ?", [$likePattern]],
+        ];
+
+        $builder->where(function ($q) use ($conditions): void {
+            foreach ($conditions as $i => [$sql, $bindings]) {
+                $i === 0 ? $q->whereRaw($sql, $bindings) : $q->orWhereRaw($sql, $bindings);
+            }
+        });
     }
 }

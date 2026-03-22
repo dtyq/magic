@@ -227,6 +227,137 @@ MD;
     }
 
     /**
+     * frontmatter 中 description: | 多行块 + 正文 # 标题（无 YAML name 冲突）.
+     */
+    public function testParseSkillMdFrontmatterDescriptionBlockScalar(): void
+    {
+        $skillDir = $this->tempBaseDir . '/travel-planner-pkg';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+---
+name: travel-planner
+description: |
+Comprehensive travel planning assistance including itinerary creation and budget planning.
+---
+
+# Travel Planner
+
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('travel-planner', $name);
+        $this->assertStringContainsString('Comprehensive travel planning assistance', $desc);
+        $this->assertStringNotContainsString('# Travel Planner', $desc);
+    }
+
+    /**
+     * frontmatter 中 description: 全角 ｜ 作为块标量起始（与 ASCII | 等价语义）.
+     */
+    public function testParseSkillMdFrontmatterDescriptionFullwidthPipe(): void
+    {
+        $skillDir = $this->tempBaseDir . '/fullwidth-pipe-skill';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = "---\nname: demo-skill\ndescription: \u{FF5C}\nFirst line of block.\nSecond line.\n---\n";
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('demo-skill', $name);
+        $this->assertSame("First line of block.\nSecond line.", $desc);
+    }
+
+    /**
+     * frontmatter 中 description: >- 折叠块 + 缩进续行（YAML folded scalar）.
+     */
+    public function testParseSkillMdFrontmatterDescriptionFoldedBlock(): void
+    {
+        $skillDir = $this->tempBaseDir . '/stock-market-pro-pkg';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+---
+name: stock-market-pro
+description: >-
+  Yahoo Finance (yfinance) powered stock analysis skill: quotes, fundamentals,
+  ASCII trends, high-resolution charts (RSI/MACD/BB/VWAP/ATR), plus optional
+  web add-ons (news + browser-first options/flow).
+---
+
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('stock-market-pro', $name);
+        $this->assertStringContainsString('Yahoo Finance (yfinance) powered stock analysis skill:', $desc);
+        $this->assertStringContainsString('web add-ons (news + browser-first options/flow).', $desc);
+        $this->assertStringNotContainsString("\n  ", $desc);
+    }
+
+    /**
+     * 无 YAML name 时从 Markdown 解析：简介 + ## 激活条件.
+     */
+    public function testParseSkillMdMarkdownChineseActivationSection(): void
+    {
+        $skillDir = $this->tempBaseDir . '/baidu-search-skill';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+# Baidu Search Skill
+
+百度搜索命令行工具，通过 Node.js 脚本爬取结果。
+
+## 激活条件
+
+当用户提到：
+- 百度搜索
+- baidu search
+
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('baidu-search-skill', $name);
+        $this->assertStringContainsString('百度搜索命令行工具', $desc);
+        $this->assertStringContainsString('## 激活条件', $desc);
+        $this->assertStringContainsString('百度搜索', $desc);
+    }
+
+    /**
+     * 无 YAML name 时从 Markdown 解析：英文 ## When to use 激活节.
+     */
+    public function testParseSkillMdMarkdownEnglishWhenToUseSection(): void
+    {
+        $skillDir = $this->tempBaseDir . '/when-to-use-skill';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+# Email Helper
+
+Formats and sends transactional email.
+
+## When to use
+
+- User asks to draft an email
+- User needs a subject line
+
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('email-helper', $name);
+        $this->assertStringContainsString('Formats and sends transactional email.', $desc);
+        $this->assertStringContainsString('## When to use', $desc);
+        $this->assertStringContainsString('draft an email', $desc);
+    }
+
+    /**
      * 完全空的 SKILL.md 使用目录名作为 name 和 description.
      */
     public function testParseSkillMdEmptyContentUsesDirectoryFallback(): void
