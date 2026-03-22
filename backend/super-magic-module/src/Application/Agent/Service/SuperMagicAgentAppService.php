@@ -632,7 +632,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-
+        $dataIsolation->disabled();
         $playbooksByAgentCode = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
 
         $playbookEntities = [];

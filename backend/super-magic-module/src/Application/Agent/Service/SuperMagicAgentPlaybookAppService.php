@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
@@ -191,12 +193,12 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        $dataIsolation->disabled();
+
         // 1. 查询 Playbook 详情
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
 
-        if ($playbook->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $playbookId]);
-        }
+        $this->ensureAgentAccessible($dataIsolation, $playbook->getAgentCode());
 
         // 2. 转换为 DTO
         return new PlaybookListItemDTO(
@@ -213,5 +215,21 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
             $playbook->getCreatedAt() ?? '',
             $playbook->getUpdatedAt() ?? ''
         );
+    }
+
+    private function ensureAgentAccessible(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    {
+        $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $this->createPermissionDataIsolation($dataIsolation),
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
+            [$code]
+        );
+
+        if (in_array($code, $accessibleCodes, true)) {
+            return;
+        }
+
+        ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
     }
 }
