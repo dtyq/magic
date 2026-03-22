@@ -7,19 +7,24 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Event\Subscribe;
 
+use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsAddedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -44,6 +49,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         private readonly SkillRepositoryInterface $skillRepository,
         private readonly FileDomainService $fileDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
@@ -152,9 +158,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillDataIsolation = SkillDataIsolation::create($organizationCode, $userId);
         $skillDataIsolation->disabled();
 
+        $allCreatedFiles = [];
+
         foreach ($skillCodes as $skillCode) {
             try {
-                $this->syncSingleSkill(
+                $createdFiles = $this->syncSingleSkill(
                     $skillDataIsolation,
                     $skillCode,
                     $projectId,
@@ -165,6 +173,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $projectOrgCode,
                     $projectEntity
                 );
+                $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
             } catch (Throwable $e) {
                 $this->logger->error('Failed to sync skill file', [
                     'skill_code' => $skillCode,
@@ -174,13 +183,28 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             }
         }
 
+        if (! empty($allCreatedFiles)) {
+            $this->pushFileChangeNotification(
+                $userId,
+                'add',
+                $allCreatedFiles,
+                (string) $projectId,
+                $workDir,
+                $organizationCode
+            );
+        }
+
         $this->logger->info('Agent skill file sync completed', [
             'agent_code' => $agentCode,
             'skill_codes' => $skillCodes,
             'project_id' => $projectId,
+            'files_created' => count($allCreatedFiles),
         ]);
     }
 
+    /**
+     * @return TaskFileEntity[]
+     */
     private function syncSingleSkill(
         SkillDataIsolation $skillDataIsolation,
         string $skillCode,
@@ -191,23 +215,23 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         string $organizationCode,
         string $projectOrgCode,
         mixed $projectEntity
-    ): void {
+    ): array {
         $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
         if ($skillEntity === null) {
             $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return;
+            return [];
         }
 
         $fileKey = $skillEntity->getFileKey();
         if (empty($fileKey)) {
             $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return;
+            return [];
         }
 
         $packageName = $skillEntity->getPackageName();
         if (empty($packageName)) {
             $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return;
+            return [];
         }
 
         $skillOrganizationCode = $skillEntity->getOrganizationCode();
@@ -228,7 +252,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             if (! file_exists($localZipPath)) {
                 $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return;
+                return [];
             }
 
             $extractDir = $tempDir . '/extracted';
@@ -248,6 +272,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
 
+            $createdFiles = [];
             $this->uploadExtractedFiles(
                 $dataIsolation,
                 $projectEntity,
@@ -258,8 +283,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $workDir,
                 $userId,
                 $organizationCode,
-                $projectOrgCode
+                $projectOrgCode,
+                $createdFiles
             );
+
+            return $createdFiles;
         } finally {
             ZipUtil::removeDirectory($tempDir);
         }
@@ -267,6 +295,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
     /**
      * Recursively upload extracted files and directories to the project.
+     *
+     * @param TaskFileEntity[] $createdFiles Collects created file entities for notification
      */
     private function uploadExtractedFiles(
         DataIsolation $dataIsolation,
@@ -278,7 +308,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         string $workDir,
         string $userId,
         string $organizationCode,
-        string $projectOrgCode
+        string $projectOrgCode,
+        array &$createdFiles
     ): void {
         $items = array_diff(scandir($localDir), ['.', '..']);
 
@@ -309,7 +340,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $workDir,
                     $userId,
                     $organizationCode,
-                    $projectOrgCode
+                    $projectOrgCode,
+                    $createdFiles
                 );
             } else {
                 $content = file_get_contents($localPath);
@@ -318,7 +350,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     continue;
                 }
 
-                $this->taskFileDomainService->createProjectFileWithContent(
+                $fileEntity = $this->taskFileDomainService->createProjectFileWithContent(
                     $dataIsolation,
                     $projectEntity,
                     $parentDirId,
@@ -326,7 +358,94 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $content,
                     TaskFileSource::SKILL
                 );
+
+                $createdFiles[] = $fileEntity;
             }
         }
+    }
+
+    /**
+     * Push file change notification to the user via WebSocket.
+     *
+     * @param TaskFileEntity[] $fileEntities
+     */
+    private function pushFileChangeNotification(
+        string $userId,
+        string $operation,
+        array $fileEntities,
+        string $projectId,
+        string $workDir,
+        string $organizationCode
+    ): void {
+        try {
+            $magicId = $this->getMagicIdByUserId($userId);
+            if (empty($magicId)) {
+                return;
+            }
+
+            $changes = [];
+            foreach ($fileEntities as $fileEntity) {
+                $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir);
+                $changes[] = [
+                    'operation' => $operation,
+                    'file_id' => (string) $fileEntity->getFileId(),
+                    'file' => $fileDto->toArray(),
+                ];
+            }
+
+            $pushData = [
+                'type' => 'seq',
+                'seq' => [
+                    'magic_id' => '',
+                    'seq_id' => '',
+                    'message_id' => '',
+                    'refer_message_id' => '',
+                    'sender_message_id' => '',
+                    'conversation_id' => '',
+                    'organization_code' => $organizationCode,
+                    'message' => [
+                        'type' => 'super_magic_file_change',
+                        'project_id' => $projectId,
+                        'workspace_id' => $workDir,
+                        'topic_id' => '',
+                        'changes' => $changes,
+                        'timestamp' => date('c'),
+                    ],
+                ],
+            ];
+
+            SocketIOUtil::sendIntermediate(
+                SocketEventType::Intermediate,
+                $magicId,
+                $pushData
+            );
+
+            $this->logger->info('Pushed skill file add notification', [
+                'magic_id' => $magicId,
+                'project_id' => $projectId,
+                'changes_count' => count($changes),
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to push skill file notification', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function getMagicIdByUserId(string $userId): string
+    {
+        try {
+            $userEntity = $this->magicUserRepository->getUserById($userId);
+            if ($userEntity) {
+                return (string) $userEntity->getMagicId();
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to get magicId', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        return '';
     }
 }

@@ -7,13 +7,17 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Event\Subscribe;
 
+use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsRemovedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -38,6 +42,8 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly SkillRepositoryInterface $skillRepository,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly TaskFileRepositoryInterface $taskFileRepository,
+        private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
@@ -130,6 +136,8 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         $skillDataIsolation = SkillDataIsolation::create($organizationCode, $userId);
         $skillDataIsolation->disabled();
 
+        $allDeletedFileIds = [];
+
         foreach ($skillCodes as $skillCode) {
             try {
                 $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
@@ -146,6 +154,10 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
 
                 $targetPath = $skillsDirFileKey . $packageName . '/';
 
+                $filesToDelete = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath);
+                $fileIds = array_map(fn ($entity) => $entity->getFileId(), $filesToDelete);
+                $allDeletedFileIds = array_merge($allDeletedFileIds, $fileIds);
+
                 $this->taskFileDomainService->deleteDirectoryFiles(
                     $contactDataIsolation,
                     $workDir,
@@ -158,6 +170,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                     'skill_code' => $skillCode,
                     'package_name' => $packageName,
                     'target_path' => $targetPath,
+                    'files_deleted' => count($fileIds),
                 ]);
             } catch (Throwable $e) {
                 $this->logger->error('Failed to remove skill files', [
@@ -168,10 +181,103 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             }
         }
 
+        if (! empty($allDeletedFileIds)) {
+            $this->pushFileChangeNotification(
+                $userId,
+                $allDeletedFileIds,
+                (string) $projectId,
+                $workDir,
+                $organizationCode
+            );
+        }
+
         $this->logger->info('Agent skill file removal completed', [
             'agent_code' => $agentCode,
             'skill_codes' => $skillCodes,
             'project_id' => $projectId,
+            'total_files_deleted' => count($allDeletedFileIds),
         ]);
+    }
+
+    /**
+     * Push file delete notification to the user via WebSocket.
+     *
+     * @param int[] $fileIds
+     */
+    private function pushFileChangeNotification(
+        string $userId,
+        array $fileIds,
+        string $projectId,
+        string $workDir,
+        string $organizationCode
+    ): void {
+        try {
+            $magicId = $this->getMagicIdByUserId($userId);
+            if (empty($magicId)) {
+                return;
+            }
+
+            $changes = [];
+            foreach ($fileIds as $fileId) {
+                $changes[] = [
+                    'operation' => 'delete',
+                    'file_id' => (string) $fileId,
+                ];
+            }
+
+            $pushData = [
+                'type' => 'seq',
+                'seq' => [
+                    'magic_id' => '',
+                    'seq_id' => '',
+                    'message_id' => '',
+                    'refer_message_id' => '',
+                    'sender_message_id' => '',
+                    'conversation_id' => '',
+                    'organization_code' => $organizationCode,
+                    'message' => [
+                        'type' => 'super_magic_file_change',
+                        'project_id' => $projectId,
+                        'workspace_id' => $workDir,
+                        'topic_id' => '',
+                        'changes' => $changes,
+                        'timestamp' => date('c'),
+                    ],
+                ],
+            ];
+
+            SocketIOUtil::sendIntermediate(
+                SocketEventType::Intermediate,
+                $magicId,
+                $pushData
+            );
+
+            $this->logger->info('Pushed skill file delete notification', [
+                'magic_id' => $magicId,
+                'project_id' => $projectId,
+                'changes_count' => count($changes),
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to push skill file notification', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function getMagicIdByUserId(string $userId): string
+    {
+        try {
+            $userEntity = $this->magicUserRepository->getUserById($userId);
+            if ($userEntity) {
+                return (string) $userEntity->getMagicId();
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to get magicId', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        return '';
     }
 }

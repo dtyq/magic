@@ -34,6 +34,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\ZipUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
@@ -278,14 +279,14 @@ class SkillAppService extends AbstractSkillAppService
                 // 6. 删除 import_token 缓存（导入成功后不再需要）
                 $this->deleteImportToken($requestDTO->getImportToken());
 
-                /*try {
-                    event_dispatch(new SkillImportedEvent($userAuthorization, $result->getCode()));
+                try {
+                    AsyncEventUtil::dispatch(new SkillImportedEvent($userAuthorization, $result->getCode()));
                 } catch (Throwable $eventException) {
                     $this->logger->error('Dispatch SkillImportedEvent failed', [
                         'skill_code' => $result->getCode(),
                         'error' => $eventException->getMessage(),
                     ]);
-                }*/
+                }
 
                 return $result;
             } catch (Throwable $e) {
