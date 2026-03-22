@@ -1394,9 +1394,8 @@ class SkillAppService extends AbstractSkillAppService
     private function uploadFileToPrivateStorage(string $organizationCode, string $localFilePath, string $skillCode): string
     {
         // 生成文件存储路径（包含组织代码前缀）
-        $fileDir = $organizationCode . '/skills/' . $skillCode;
+        $fileDir = 'skills/' . $skillCode;
         $fileName = basename($localFilePath);
-        $fileKey = $fileDir . '/' . $fileName;
 
         // 创建 UploadFile 对象并上传
         $uploadFile = new UploadFile($localFilePath, $fileDir, $fileName, false);
