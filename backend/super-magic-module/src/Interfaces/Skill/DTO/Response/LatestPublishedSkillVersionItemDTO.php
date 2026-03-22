@@ -14,6 +14,7 @@ class LatestPublishedSkillVersionItemDTO implements JsonSerializable
     public function __construct(
         private readonly string $id,
         private readonly string $code,
+        private readonly string $packageName,
         private readonly string $version,
         private readonly string $name,
         private readonly string $description,
@@ -38,6 +39,7 @@ class LatestPublishedSkillVersionItemDTO implements JsonSerializable
         return [
             'id' => $this->id,
             'code' => $this->code,
+            'package_name' => $this->packageName,
             'version' => $this->version,
             'name' => $this->name,
             'description' => $this->description,

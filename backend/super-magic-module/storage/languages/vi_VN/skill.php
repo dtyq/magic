@@ -57,4 +57,8 @@ return [
     'publish_target_value_required' => 'At least one member or department must be selected for member publishing',
     'non_official_organization_cannot_publish_to_market' => 'Only the official organization can publish skills to the market',
     'skill_creator_cannot_add_from_market' => 'The skill creator cannot add their own market skill',
+    'query_codes_must_be_array' => 'codes must be an array',
+    'query_codes_too_many' => 'codes must not contain more than 200 items',
+    'query_codes_item_must_be_string' => 'each item in codes must be a string',
+    'query_codes_item_too_long' => 'each code must not exceed 64 characters',
 ];

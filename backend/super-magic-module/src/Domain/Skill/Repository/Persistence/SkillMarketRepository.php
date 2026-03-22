@@ -136,6 +136,11 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         $keyword = $query->getKeyword() ?? '';
         $languageCode = $query->getLanguageCode() ?? 'en_US';
         $publisherType = $query->getPublisherType() ?? '';
+        $codes = $query->getCodes();
+
+        if (! empty($codes)) {
+            $builder->whereIn('skill_code', array_values(array_unique($codes)));
+        }
 
         // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索，
         // 各字段额外支持 default 兜底搜索

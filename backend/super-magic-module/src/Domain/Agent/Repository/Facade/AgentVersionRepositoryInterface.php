@@ -96,6 +96,11 @@ interface AgentVersionRepositoryInterface
 
     public function existsByCodeAndVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $version): bool;
 
+    /**
+     * 将同一 code 下仍处于待审队列（PENDING、UNDER_REVIEW）的版本批量标记为 INVALIDATED（用户再次发布时调用，非管理员拒绝）.
+     */
+    public function invalidateAwaitingReviewVersionsByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int;
+
     public function clearCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $code): int;
 
     /**

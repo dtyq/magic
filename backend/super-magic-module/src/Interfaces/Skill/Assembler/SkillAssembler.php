@@ -60,6 +60,7 @@ class SkillAssembler
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getLatestPublishedAt(),
             latestVersion: $latestVersion,
+            packageName: $entity->getPackageName(),
             creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
         );
     }
@@ -91,6 +92,7 @@ class SkillAssembler
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getPublishedAt(),
             latestVersion: $latestVersion ?? $entity->getVersion(),
+            packageName: $entity->getPackageName(),
             creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
         );
     }
@@ -142,6 +144,7 @@ class SkillAssembler
         array $publisher = [],
         string $fileKey = '',
         ?string $fileUrl = null,
+        string $packageName = '',
     ): SkillMarketListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -168,6 +171,7 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             fileKey: $fileKey,
             fileUrl: $fileUrl,
+            packageName: $packageName,
         );
     }
 
@@ -265,6 +269,7 @@ class SkillAssembler
             $list[] = new LatestPublishedSkillVersionItemDTO(
                 id: (string) $version->getId(),
                 code: $version->getCode(),
+                packageName: $version->getPackageName(),
                 version: $version->getVersion(),
                 name: $version->getNameI18n()[$language] ?? '',
                 description: $version->getDescriptionI18n()[$language] ?? '',
@@ -374,6 +379,7 @@ class SkillAssembler
             $version = $skillVersionMap[$skillMarketEntity->getSkillVersionId()] ?? null;
             $fileKey = (string) ($version?->getFileKey() ?? '');
             $fileUrl = $version?->getFileUrl();
+            $packageName = (string) ($version?->getPackageName() ?? '');
 
             $listItems[] = self::createMarketListItemDTO(
                 $skillMarketEntity,
@@ -383,6 +389,7 @@ class SkillAssembler
                 $publisher,
                 fileKey: $fileKey,
                 fileUrl: $fileUrl,
+                packageName: $packageName,
             );
         }
 

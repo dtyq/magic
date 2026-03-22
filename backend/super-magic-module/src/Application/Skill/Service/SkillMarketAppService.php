@@ -58,6 +58,12 @@ class SkillMarketAppService extends AbstractSkillAppService
             $query->setLanguageCode($languageCode);
         }
 
+        // 可选：按 skill_code 过滤（与 open-api skill-market /queries 同一入口）；显式传空数组则无匹配
+        if ($query->getCodes() !== null) {
+            $normalizedCodes = array_values(array_unique(array_filter($query->getCodes())));
+            $query->setCodes($normalizedCodes);
+        }
+
         // 查询市场技能列表（包含总数）
         $result = $this->skillMarketDomainService->queries($query, $page);
 

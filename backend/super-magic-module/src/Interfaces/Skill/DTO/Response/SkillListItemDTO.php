@@ -39,6 +39,8 @@ class SkillListItemDTO implements JsonSerializable
 
     private string $latestVersion;
 
+    private string $packageName;
+
     private string $name;
 
     private string $description;
@@ -60,6 +62,7 @@ class SkillListItemDTO implements JsonSerializable
         string $createdAt,
         ?string $latestPublishedAt,
         string $latestVersion = '',
+        string $packageName = '',
         ?OperatorDTO $creatorInfo = null
     ) {
         $this->id = $id;
@@ -76,6 +79,7 @@ class SkillListItemDTO implements JsonSerializable
         $this->createdAt = $createdAt;
         $this->latestPublishedAt = $latestPublishedAt;
         $this->latestVersion = $latestVersion;
+        $this->packageName = $packageName;
         $this->creatorInfo = $creatorInfo;
     }
 
@@ -94,6 +98,7 @@ class SkillListItemDTO implements JsonSerializable
             'pinned_at' => $this->pinnedAt,
             'latest_published_at' => $this->latestPublishedAt,
             'latest_version' => $this->latestVersion,
+            'package_name' => $this->packageName,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
             'creator_info' => $this->creatorInfo,

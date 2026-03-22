@@ -111,7 +111,7 @@ class AgentVersionEntity extends AbstractEntity
     protected PublishStatus $publishStatus = PublishStatus::UNPUBLISHED;
 
     /**
-     * @var ReviewStatus 审核状态：PENDING=待审核, UNDER_REVIEW=审核中, APPROVED=审核通过, REJECTED=审核拒绝
+     * @var ReviewStatus 审核状态：PENDING=待审核, UNDER_REVIEW=审核中, APPROVED=审核通过, REJECTED=审核拒绝, INVALIDATED=被新版本替代失效
      */
     protected ReviewStatus $reviewStatus = ReviewStatus::PENDING;
 

@@ -133,6 +133,23 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             ->exists();
     }
 
+    public function invalidateAwaitingReviewVersionsByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+
+        return (int) $builder
+            ->where('code', $code)
+            ->whereNull('deleted_at')
+            ->whereIn('review_status', [
+                ReviewStatus::PENDING->value,
+                ReviewStatus::UNDER_REVIEW->value,
+            ])
+            ->update([
+                'review_status' => ReviewStatus::INVALIDATED->value,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
     /**
      * 保存 Agent 版本.
      */

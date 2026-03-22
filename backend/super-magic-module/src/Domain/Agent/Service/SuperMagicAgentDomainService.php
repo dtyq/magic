@@ -393,6 +393,9 @@ readonly class SuperMagicAgentDomainService
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.version_already_exists');
         }
 
+        // 2. 同一 code 下仍处于 PENDING/UNDER_REVIEW 的旧版本批量标为 INVALIDATED（与 Skill 发布一致，非管理员 REJECTED）
+        $this->agentVersionRepository->invalidateAwaitingReviewVersionsByCode($dataIsolation, $agentEntity->getCode());
+
         // 3. 从 name_i18n 提取 name（英文）
         $nameI18n = $agentEntity->getNameI18n();
         $name = $nameI18n[LanguageEnum::EN_US->value] ?? ($nameI18n[LanguageEnum::ZH_CN->value] ?? '');

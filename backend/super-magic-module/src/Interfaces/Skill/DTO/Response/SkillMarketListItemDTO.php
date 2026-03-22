@@ -61,6 +61,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private ?string $fileUrl;
 
+    private string $packageName;
+
     public function __construct(
         int $id,
         string $skillCode,
@@ -80,6 +82,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         string $updatedAt,
         string $fileKey = '',
         ?string $fileUrl = null,
+        string $packageName = '',
     ) {
         $this->id = $id;
         $this->code = $skillCode;
@@ -100,6 +103,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->updatedAt = $updatedAt;
         $this->fileKey = $fileKey;
         $this->fileUrl = $fileUrl;
+        $this->packageName = $packageName;
     }
 
     public function jsonSerialize(): array
@@ -125,6 +129,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'updated_at' => $this->updatedAt,
             'file_key' => $this->fileKey,
             'file_url' => $this->fileUrl,
+            'package_name' => $this->packageName,
         ];
     }
 }
