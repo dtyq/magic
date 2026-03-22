@@ -350,7 +350,7 @@ class SkillAppService extends AbstractSkillAppService
                 '',
                 '',
                 $skillCode,
-                SkillSourceType::AGENT_CREATED,
+                SkillSourceType::DIALOGUE_CREATION,
                 [],
                 [],
                 null
@@ -693,7 +693,7 @@ class SkillAppService extends AbstractSkillAppService
 
         // 如果相等代表没有任何修改
         if ($requestDTO->getExportFileFromProject()) {
-            if ($skillEntity->getSourceType()->isAgentCreated()) {
+            if ($skillEntity->getSourceType()->isDialogueCreation()) {
                 $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
                 $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
                 $skillEntity->setFileKey($fileMetadata['file_key']);
