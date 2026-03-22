@@ -136,32 +136,17 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             ->where('publish_status', PublishStatus::PUBLISHED->value);
 
         $keyword = $query->getKeyword() ?? '';
-        $languageCode = $query->getLanguageCode() ?? 'en_US';
         $publisherType = $query->getPublisherType() ?? '';
         $codes = $query->getCodes();
+        $normalizedKeyword = $keyword !== '' ? mb_strtolower(trim($keyword), 'UTF-8') : '';
 
         if (! empty($codes)) {
             $builder->whereIn('skill_code', array_values(array_unique($codes)));
         }
 
-        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索，
-        // 各字段额外支持 default 兜底搜索
-        if (! empty($keyword)) {
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
-                    ['%' . $keyword . '%']
-                );
-            });
+        // 关键词搜索优先使用统一搜索字段；旧数据无该字段时回退到历史 JSON 搜索。
+        if ($normalizedKeyword !== '') {
+            $builder->where('search_text', 'LIKE', '%' . $normalizedKeyword . '%');
         }
 
         // 发布者类型筛选
@@ -353,6 +338,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'skill_version_id' => $entity->getSkillVersionId(),
             'name_i18n' => $entity->getNameI18n() ?? [],
             'description_i18n' => $entity->getDescriptionI18n() ?? [],
+            'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'publisher_id' => $entity->getPublisherId(),
             'publisher_type' => $entity->getPublisherType()->value,
@@ -387,6 +373,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'skill_version_id' => $data['skill_version_id'] ?? 0,
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'publisher_id' => $data['publisher_id'] ?? '',
             'publisher_type' => $data['publisher_type'] ?? PublisherType::USER->value,

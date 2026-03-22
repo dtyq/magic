@@ -48,6 +48,11 @@ class SkillMarketEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
+     * @var null|string 统一小写搜索字段
+     */
+    protected ?string $searchText = null;
+
+    /**
      * @var null|string Logo 图片 URL
      */
     protected ?string $logo = null;
@@ -114,6 +119,7 @@ class SkillMarketEntity extends AbstractEntity
             'skill_version_id' => $this->skillVersionId,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'search_text' => $this->searchText,
             'logo' => $this->logo,
             'publisher_id' => $this->publisherId,
             'publisher_type' => $this->publisherType->value,
@@ -198,6 +204,17 @@ class SkillMarketEntity extends AbstractEntity
     public function setDescriptionI18n(?array $descriptionI18n): self
     {
         $this->descriptionI18n = $descriptionI18n;
+        return $this;
+    }
+
+    public function getSearchText(): ?string
+    {
+        return $this->searchText;
+    }
+
+    public function setSearchText(?string $searchText): self
+    {
+        $this->searchText = $searchText;
         return $this;
     }
 
