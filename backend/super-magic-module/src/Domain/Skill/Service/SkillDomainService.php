@@ -143,6 +143,17 @@ class SkillDomainService
     }
 
     /**
+     * 根据 code 列表批量查询当前版本，忽略组织过滤.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findCurrentSkillVersionsByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentByCodesWithoutOrganizationFilter($codes);
+    }
+
+    /**
      * 根据 code 列表批量查询当前已发布版本.
      *
      * @param array $codes Skill code 列表

@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\MentionSkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\PublishAgentRequestDTO;
@@ -130,6 +131,19 @@ class SuperMagicAgentApi extends AbstractApi
     {
         $this->superMagicAgentAppService->touchUpdatedAt($this->getAuthorization(), $code);
         return [];
+    }
+
+    /**
+     * 获取聊天 @ 技能候选列表.
+     */
+    public function getMentionSkills(): array
+    {
+        $authorization = $this->getAuthorization();
+        $employeeCode = (string) $this->request->input('employee_code', '');
+
+        $items = $this->superMagicAgentAppService->getMentionSkills($authorization, $employeeCode);
+
+        return MentionSkillAssembler::createListDTO($items);
     }
 
     /**

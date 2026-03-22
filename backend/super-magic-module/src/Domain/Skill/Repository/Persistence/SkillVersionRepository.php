@@ -195,6 +195,36 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
     /**
      * @return array<string, SkillVersionEntity>
      */
+    public function findCurrentByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        $codes = array_values(array_unique(array_filter($codes)));
+        if ($codes === []) {
+            return [];
+        }
+
+        $models = $this->skillVersionModel::query()
+            ->whereIn('code', $codes)
+            ->where('is_current_version', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('created_at', 'DESC')
+            ->get();
+
+        $result = [];
+        /** @var SkillVersionModel $model */
+        foreach ($models as $model) {
+            $code = (string) $model->code;
+            if (isset($result[$code])) {
+                continue;
+            }
+            $result[$code] = $this->toEntity($model->toArray());
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, SkillVersionEntity>
+     */
     public function findCurrentPublishedByCodes(SkillDataIsolation $dataIsolation, array $codes): array
     {
         if ($codes === []) {
