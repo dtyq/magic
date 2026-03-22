@@ -405,7 +405,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'tools' => $entity->getTools(),
             'creator' => $entity->getCreator(),
             'modifier' => $entity->getModifier(),
-            'name_i18n' => $entity->getNameI18n(),
+            'name_i18n' => $entity->getNameI18n() ?? [],
             'role_i18n' => $entity->getRoleI18n(),
             'project_id' => $entity->getProjectId(),
             'description_i18n' => $entity->getDescriptionI18n(),

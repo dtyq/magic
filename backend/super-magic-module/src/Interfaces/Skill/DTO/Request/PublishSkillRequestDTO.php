@@ -23,6 +23,8 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
 
     public ?array $publishTargetValue = null;
 
+    public bool $exportFileFromProject = true;
+
     public function getVersion(): string
     {
         return $this->version;
@@ -41,6 +43,11 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
     public function getPublishTargetValue(): ?array
     {
         return $this->publishTargetValue;
+    }
+
+    public function getExportFileFromProject(): bool
+    {
+        return $this->exportFileFromProject;
     }
 
     public function toPublishTargetValue(): ?PublishTargetValue
@@ -77,6 +84,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'publish_target_value.user_ids.*' => 'string|max:64',
             'publish_target_value.department_ids' => 'nullable|array',
             'publish_target_value.department_ids.*' => 'string|max:64',
+            'export_file_from_project' => 'nullable|boolean',
         ];
     }
 
@@ -102,6 +110,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'publish_target_value.department_ids.array' => __('validation.array', ['attribute' => 'publish_target_value.department_ids']),
             'publish_target_value.department_ids.*.string' => __('validation.string', ['attribute' => 'publish_target_value.department_ids']),
             'publish_target_value.department_ids.*.max' => __('validation.max.string', ['attribute' => 'publish_target_value.department_ids', 'max' => 64]),
+            'export_file_from_project.boolean' => __('validation.boolean', ['attribute' => 'export_file_from_project']),
         ];
     }
 }

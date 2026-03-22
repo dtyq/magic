@@ -20,6 +20,7 @@ class SkillPublishPrefillResponseDTO extends AbstractDTO
         private readonly array $versionDescriptionI18n,
         private readonly ?string $publishTargetType,
         private readonly ?array $publishTargetValue,
+        private readonly bool $exportFileFromProject = true,
     ) {
     }
 
@@ -30,6 +31,7 @@ class SkillPublishPrefillResponseDTO extends AbstractDTO
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publish_target_type' => $this->publishTargetType,
             'publish_target_value' => $this->publishTargetValue,
+            'export_file_from_project' => $this->exportFileFromProject,
         ];
     }
 }

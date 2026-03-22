@@ -442,6 +442,9 @@ readonly class SuperMagicAgentDomainService
             $agentEntity->setModifier($dataIsolation->getCurrentUserId());
             $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
         } else {
+            $agentEntity->setLatestPublishedAt(date('Y-m-d H:i:s'));
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
+
             $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
             $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
             $versionEntity->setPublishedAt(null);

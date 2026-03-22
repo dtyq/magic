@@ -93,7 +93,7 @@ class AgentVersionEntity extends AbstractEntity
     /**
      * @var array Agent 名称（多语言），格式：{"zh":"市场分析师","en":"Marketing Analyst"}
      */
-    protected array $nameI18n;
+    protected ?array $nameI18n = null;
 
     /**
      * @var null|array 角色定位（多语言），格式：{"zh":["市场分析师","内容创作者"],"en":["Marketing Analyst","Content Creator"]}
@@ -377,12 +377,12 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getNameI18n(): array
+    public function getNameI18n(): ?array
     {
         return $this->nameI18n;
     }
 
-    public function setNameI18n(array $nameI18n): self
+    public function setNameI18n(?array $nameI18n): self
     {
         $this->nameI18n = $nameI18n;
         return $this;

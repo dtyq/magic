@@ -691,8 +691,14 @@ class SkillAppService extends AbstractSkillAppService
         $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
-        $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
-        $skillEntity->setFileKey($fileMetadata['file_key']);
+        if ($requestDTO->getExportFileFromProject()) {
+            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+            $skillEntity->setFileKey($fileMetadata['file_key']);
+        }
+
+        if (empty($skillEntity->getFileKey())) {
+            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
+        }
 
         Db::beginTransaction();
         try {
@@ -780,6 +786,7 @@ class SkillAppService extends AbstractSkillAppService
             versionDescriptionI18n: $versionDescriptionI18n,
             publishTargetType: $publishTargetType,
             publishTargetValue: $publishTargetValue,
+            exportFileFromProject: true,
         );
     }
 

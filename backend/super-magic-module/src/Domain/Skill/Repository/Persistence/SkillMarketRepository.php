@@ -137,15 +137,22 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         $languageCode = $query->getLanguageCode() ?? 'en_US';
         $publisherType = $query->getPublisherType() ?? '';
 
-        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索
+        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索，
+        // 各字段额外支持 default 兜底搜索
         if (! empty($keyword)) {
             $builder->where(function ($q) use ($keyword, $languageCode) {
                 $q->whereRaw(
                     "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
                 )->orWhereRaw(
+                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
+                )->orWhereRaw(
                     "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
                 );
             });
         }
