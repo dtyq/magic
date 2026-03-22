@@ -18,6 +18,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property null|array $name_i18n 多语言展示名称
  * @property null|array $description_i18n 多语言展示描述
  * @property null|array $role_i18n 角色定位（多语言）
+ * @property null|string $search_text 统一小写搜索字段
  * @property null|string $logo Logo 图片 URL
  * @property string $publisher_id 发布者用户 ID
  * @property string $publisher_type 发布者类型
@@ -42,6 +43,7 @@ class AgentMarketModel extends AbstractModel
         'name_i18n',
         'description_i18n',
         'role_i18n',
+        'search_text',
         'icon',
         'icon_type',
         'publisher_id',
@@ -60,6 +62,7 @@ class AgentMarketModel extends AbstractModel
         'name_i18n' => 'array',
         'description_i18n' => 'array',
         'role_i18n' => 'array',
+        'search_text' => 'string',
         'icon' => 'array',
         'icon_type' => 'integer',
         'publisher_id' => 'string',
