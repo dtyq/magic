@@ -139,7 +139,7 @@ class SuperMagicAgentApi extends AbstractApi
     public function getMentionSkills(): array
     {
         $authorization = $this->getAuthorization();
-        $employeeCode = (string) $this->request->input('employee_code', '');
+        $employeeCode = (string) $this->request->input('agent_code', '');
 
         $items = $this->superMagicAgentAppService->getMentionSkills($authorization, $employeeCode);
 

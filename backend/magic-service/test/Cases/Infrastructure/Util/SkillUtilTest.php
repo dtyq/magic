@@ -358,6 +358,40 @@ MD;
     }
 
     /**
+     * 支持 clawhub/clawdbot 格式：description: | 多行块 + compatibility + metadata 嵌套.
+     */
+    public function testParseSkillMdClawdbotYoutubeFormat(): void
+    {
+        $skillDir = $this->tempBaseDir . '/youtube';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+---
+name: youtube
+description: |
+  YouTube Data API integration with managed OAuth. Search videos, manage playlists, access channel data, and interact with comments. Use this skill when users want to interact with YouTube. For other third party apps, use the api-gateway skill (https://clawhub.ai/byungkyu/api-gateway).
+compatibility: Requires network access and valid Maton API key
+metadata:
+  author: maton
+  version: "1.0"
+  clawdbot:
+    emoji: 🧠
+    requires:
+      env:
+        - MATON_API_KEY
+---
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('youtube', $name);
+        $this->assertStringContainsString('YouTube Data API integration with managed OAuth', $desc);
+        $this->assertStringContainsString('Search videos, manage playlists, access channel data', $desc);
+        $this->assertStringContainsString('clawhub.ai/byungkyu/api-gateway', $desc);
+    }
+
+    /**
      * 完全空的 SKILL.md 使用目录名作为 name 和 description.
      */
     public function testParseSkillMdEmptyContentUsesDirectoryFallback(): void
