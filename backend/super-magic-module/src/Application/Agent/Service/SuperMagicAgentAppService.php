@@ -52,6 +52,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillMentionSource;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -70,12 +71,6 @@ use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
-    private const HOME_SKILL_SOURCE_SYSTEM = 'system';
-
-    private const HOME_SKILL_SOURCE_EMPLOYEE = 'employee';
-
-    private const HOME_SKILL_SOURCE_MINE = 'mine';
-
     #[Inject]
     protected SkillDomainService $skillDomainService;
 
@@ -642,7 +637,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     public function getMentionSkills(Authenticatable $authorization, string $employeeCode = ''): array
     {
@@ -1226,9 +1221,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}> $result
+     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $result
      * @param array<string, bool> $seenCodes
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}> $items
+     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $items
      */
     private function appendMentionSkills(array &$result, array &$seenCodes, array $items): void
     {
@@ -1244,7 +1239,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildSystemMentionSkills(): array
     {
@@ -1256,7 +1251,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'name' => $builtinSkill->getSkillName(),
                 'description' => $builtinSkill->getSkillDescription(),
                 'logo' => $builtinSkill->getSkillIcon() !== '' ? $builtinSkill->getSkillIcon() : null,
-                'source' => self::HOME_SKILL_SOURCE_SYSTEM,
+                'mention_source' => SkillMentionSource::SYSTEM->value,
             ];
         }
 
@@ -1264,7 +1259,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildEmployeeMentionSkills(
         SuperMagicAgentDataIsolation $dataIsolation,
@@ -1319,7 +1314,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'name' => $this->resolveSkillVersionName($skillVersion, $language),
                 'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
                 'logo' => $skillVersion->getLogo(),
-                'source' => self::HOME_SKILL_SOURCE_EMPLOYEE,
+                'mention_source' => SkillMentionSource::EMPLOYEE->value,
             ];
         }
 
@@ -1327,7 +1322,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
     {
@@ -1354,7 +1349,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'name' => $this->resolveSkillVersionName($skillVersion, $language),
                 'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
                 'logo' => $skillVersion->getLogo(),
-                'source' => self::HOME_SKILL_SOURCE_MINE,
+                'mention_source' => SkillMentionSource::MINE->value,
             ];
         }
 

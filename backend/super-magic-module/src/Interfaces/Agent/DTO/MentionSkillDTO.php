@@ -19,7 +19,7 @@ class MentionSkillDTO
 
     public ?string $logo = null;
 
-    public string $source = '';
+    public string $mentionSource = '';
 
     public function __construct(array $data = [])
     {
@@ -38,8 +38,8 @@ class MentionSkillDTO
         if (array_key_exists('logo', $data)) {
             $this->logo = $data['logo'] !== null ? (string) $data['logo'] : null;
         }
-        if (isset($data['source'])) {
-            $this->source = (string) $data['source'];
+        if (isset($data['mention_source'])) {
+            $this->mentionSource = (string) $data['mention_source'];
         }
     }
 }

@@ -12,7 +12,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\DTO\MentionSkillDTO;
 class MentionSkillAssembler
 {
     /**
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}> $items
+     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $items
      * @return array<MentionSkillDTO>
      */
     public static function createListDTO(array $items): array
