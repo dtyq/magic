@@ -983,6 +983,15 @@ class SkillAppService extends AbstractSkillAppService
 
             Db::commit();
 
+            try {
+                AsyncEventUtil::dispatch(new SkillImportedEvent($userAuthorization, $result->getCode()));
+            } catch (Throwable $eventException) {
+                $this->logger->error('Dispatch SkillImportedEvent failed', [
+                    'skill_code' => $result->getCode(),
+                    'error' => $eventException->getMessage(),
+                ]);
+            }
+
             return [
                 'id' => (string) $result->getId(),
                 'code' => $result->getCode(),
