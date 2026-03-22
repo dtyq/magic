@@ -199,7 +199,9 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             $builder->where('category_id', $query->getCategoryId());
         }
 
-        // 排序：按 created_at DESC
+        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
         $builder->orderBy('created_at', 'DESC');
 
         // 分页查询
@@ -282,7 +284,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'asc' ? 'asc' : 'desc');
+        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
+        $builder->orderBy('created_at', $createdAtOrder);
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -324,5 +329,23 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             ->increment('install_count');
 
         return $affected > 0;
+    }
+
+    /**
+     * 更新市场员工排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        /** @var null|AgentMarketModel $model */
+        $model = $this->agentMarketModel::query()
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return false;
+        }
+
+        $model->sort_order = $sortOrder;
+        return $model->save();
     }
 }

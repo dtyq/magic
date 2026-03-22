@@ -129,4 +129,12 @@ class SuperMagicAgentMarketDomainService
     {
         return $this->agentPlaybookRepository->getByAgentVersionIds($agentVersionIds);
     }
+
+    /**
+     * 更新市场员工排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        return $this->agentMarketRepository->updateSortOrderById($id, $sortOrder);
+    }
 }

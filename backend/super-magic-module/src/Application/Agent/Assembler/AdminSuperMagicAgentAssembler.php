@@ -15,8 +15,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentMarketListItemAdminDTO;
-use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentVersionListItemAdminDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\OrganizationInfoAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\PublisherInfoAdminDTO;
@@ -261,6 +261,7 @@ class AdminSuperMagicAgentAssembler
             categoryId: $entity->getCategoryId(),
             publishStatus: $entity->getPublishStatus()->value,
             installCount: $entity->getInstallCount(),
+            sortOrder: $entity->getSortOrder(),
             publisher: $publisher,
             createdAt: $entity->getCreatedAt(),
             updatedAt: $entity->getUpdatedAt()

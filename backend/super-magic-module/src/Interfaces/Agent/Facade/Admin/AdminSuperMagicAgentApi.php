@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentMarketSortOrderRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
 use Hyperf\Di\Annotation\Inject;
 
@@ -63,6 +64,19 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
         $this->adminAgentAppService->reviewAgentVersion($authorization, $id, $requestDTO);
 
         // 返回空数组
+        return [];
+    }
+
+    /**
+     * 管理后台：更新员工市场排序值.
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
+    public function updateMarketSortOrder(int $id): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = UpdateAgentMarketSortOrderRequestAdminDTO::fromRequest($this->request);
+
+        $this->adminAgentAppService->updateMarketSortOrder($authorization, $id, $requestDTO->getSortOrder());
         return [];
     }
 

@@ -100,4 +100,13 @@ interface SkillMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function incrementInstallCount(int $id): bool;
+
+    /**
+     * 更新市场技能排序值.
+     *
+     * @param int $id 市场技能 ID
+     * @param int $sortOrder 排序值
+     * @return bool 是否更新成功
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool;
 }

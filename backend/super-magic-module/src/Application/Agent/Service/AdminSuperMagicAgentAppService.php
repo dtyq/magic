@@ -7,11 +7,13 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Application\Agent\Assembler\AdminSuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
@@ -52,6 +54,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $requestDTO->getPublishStatus(),
             $requestDTO->getPublishTargetType(),
             $requestDTO->getVersion(),
+            $requestDTO->getOrganizationCode(),
+            $requestDTO->getNameI18n(),
             $requestDTO->getStartTime(),
             $requestDTO->getEndTime(),
             $requestDTO->getOrderBy(),
@@ -79,7 +83,7 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
         $result = $this->superMagicAgentMarketDomainService->queryAdminMarkets(
             $requestDTO->getPublishStatus(),
             $requestDTO->getOrganizationCode(),
-            $requestDTO->getName18n(),
+            $requestDTO->getNameI18n(),
             $requestDTO->getPublisherType(),
             $requestDTO->getAgentCode(),
             $requestDTO->getStartTime(),
@@ -93,6 +97,19 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $page,
             $result['total']
         );
+    }
+
+    /**
+     * 更新员工市场排序值.
+     */
+    public function updateMarketSortOrder(Authenticatable $authorization, int $id, int $sortOrder): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $dataIsolation->disabled();
+
+        if (! $this->superMagicAgentMarketDomainService->updateSortOrderById($id, $sortOrder)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
+        }
     }
 
     /**

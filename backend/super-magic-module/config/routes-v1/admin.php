@@ -13,6 +13,7 @@ Router::addGroup('/api/v2/admin', static function () {
     Router::addGroup('/super-magic/agents', static function () {
         Router::post('/versions/queries', [AdminSuperMagicAgentApi::class, 'queryVersions']);
         Router::post('/markets/queries', [AdminSuperMagicAgentApi::class, 'queryMarkets']);
+        Router::put('/markets/{id}/sort-order', [AdminSuperMagicAgentApi::class, 'updateMarketSortOrder']);
         Router::get('/{code}', [AdminSuperMagicAgentApi::class, 'getDetailByCode']);
         Router::put('/versions/{id}/review', [AdminSuperMagicAgentApi::class, 'reviewAgentVersion']);
     });
@@ -23,6 +24,7 @@ Router::addGroup('/api/v1/admin', static function () {
     Router::addGroup('/skills', static function () {
         Router::post('/versions/queries', [AdminSkillApi::class, 'queryVersions']);
         Router::post('/markets/queries', [AdminSkillApi::class, 'queryMarkets']);
+        Router::put('/markets/{id}/sort-order', [AdminSkillApi::class, 'updateMarketSortOrder']);
         Router::put('/versions/{id}/review', [AdminSkillApi::class, 'reviewSkillVersion']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

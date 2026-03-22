@@ -139,4 +139,12 @@ class SkillMarketDomainService
     {
         return $this->skillMarketRepository->incrementInstallCount($id);
     }
+
+    /**
+     * 更新市场 Skill 排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        return $this->skillMarketRepository->updateSortOrderById($id, $sortOrder);
+    }
 }

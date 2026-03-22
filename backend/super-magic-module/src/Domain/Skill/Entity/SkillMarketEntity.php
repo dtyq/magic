@@ -78,6 +78,11 @@ class SkillMarketEntity extends AbstractEntity
     protected int $installCount = 0;
 
     /**
+     * @var null|int 排序值，数值越大越靠前；NULL 表示按创建时间排序
+     */
+    protected ?int $sortOrder = null;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -115,6 +120,7 @@ class SkillMarketEntity extends AbstractEntity
             'category_id' => $this->categoryId,
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
+            'sort_order' => $this->sortOrder,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -270,6 +276,21 @@ class SkillMarketEntity extends AbstractEntity
     public function setInstallCount(int|string $installCount): self
     {
         $this->installCount = is_string($installCount) ? (int) $installCount : $installCount;
+        return $this;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(null|int|string $sortOrder): self
+    {
+        if ($sortOrder === null) {
+            $this->sortOrder = null;
+        } else {
+            $this->sortOrder = is_string($sortOrder) ? (int) $sortOrder : $sortOrder;
+        }
         return $this;
     }
 

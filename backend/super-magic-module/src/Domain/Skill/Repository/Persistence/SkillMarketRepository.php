@@ -172,7 +172,9 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         // 先查询总数
         $total = $builder->count();
 
-        // 排序：按 created_at DESC
+        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
         $builder->orderBy('created_at', 'DESC');
 
         // 分页
@@ -256,7 +258,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'asc' ? 'asc' : 'desc');
+        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
+        $builder->orderBy('created_at', $createdAtOrder);
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -320,6 +325,24 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
     }
 
     /**
+     * 更新市场技能排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return false;
+        }
+
+        $model->sort_order = $sortOrder;
+        return $model->save();
+    }
+
+    /**
      * 将实体转换为模型属性.
      */
     protected function entityToModelAttributes(SkillMarketEntity $entity): array
@@ -336,6 +359,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'category_id' => $entity->getCategoryId(),
             'publish_status' => $entity->getPublishStatus()->value,
             'install_count' => $entity->getInstallCount(),
+            'sort_order' => $entity->getSortOrder(),
         ];
     }
 
@@ -369,6 +393,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'category_id' => $data['category_id'] ?? null,
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'install_count' => $data['install_count'] ?? 0,
+            'sort_order' => $data['sort_order'] ?? null,
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,

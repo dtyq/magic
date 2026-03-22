@@ -28,6 +28,13 @@ class QueryAgentVersionsRequestAdminDTO extends AbstractRequestDTO
 
     public ?string $version = null;
 
+    public ?string $organizationCode = null;
+
+    /**
+     * 按多语言名称模糊筛选，匹配 name_i18n 各语言键.
+     */
+    public ?string $nameI18n = null;
+
     public string $orderBy = 'asc';
 
     public ?string $startTime = null;
@@ -74,6 +81,16 @@ class QueryAgentVersionsRequestAdminDTO extends AbstractRequestDTO
         return $this->version;
     }
 
+    public function getOrganizationCode(): ?string
+    {
+        return $this->organizationCode;
+    }
+
+    public function getNameI18n(): ?string
+    {
+        return $this->nameI18n;
+    }
+
     public function getOrderBy(): string
     {
         return $this->orderBy;
@@ -98,6 +115,8 @@ class QueryAgentVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_status' => 'nullable|string',
             'publish_target_type' => 'nullable|string',
             'version' => 'nullable|string',
+            'organization_code' => 'nullable|string|max:128',
+            'name_i18n' => 'nullable|string|max:255',
             'order_by' => 'nullable|string|in:asc,desc',
             'start_time' => 'nullable|string',
             'end_time' => 'nullable|string',
@@ -116,6 +135,10 @@ class QueryAgentVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_status.string' => __('validation.string', ['attribute' => 'publish_status']),
             'publish_target_type.string' => __('validation.string', ['attribute' => 'publish_target_type']),
             'version.string' => __('validation.string', ['attribute' => 'version']),
+            'organization_code.string' => __('validation.string', ['attribute' => 'organization_code']),
+            'organization_code.max' => __('validation.max.string', ['attribute' => 'organization_code', 'max' => 128]),
+            'name_i18n.string' => __('validation.string', ['attribute' => 'name_i18n']),
+            'name_i18n.max' => __('validation.max.string', ['attribute' => 'name_i18n', 'max' => 255]),
             'order_by.string' => __('validation.string', ['attribute' => 'order_by']),
             'order_by.in' => __('validation.in', ['attribute' => 'order_by']),
             'start_time.string' => __('validation.string', ['attribute' => 'start_time']),

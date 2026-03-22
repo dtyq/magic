@@ -125,6 +125,8 @@ interface AgentVersionRepositoryInterface
         ?string $publishStatus,
         ?string $publishTargetType,
         ?string $version,
+        ?string $organizationCode,
+        ?string $nameI18n,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,

@@ -259,6 +259,7 @@ class AdminSkillAssembler
             categoryId: $entity->getCategoryId(),
             publishStatus: $entity->getPublishStatus()->value,
             installCount: $entity->getInstallCount(),
+            sortOrder: $entity->getSortOrder(),
             publisher: $publisher,
             createdAt: $entity->getCreatedAt(),
             updatedAt: $entity->getUpdatedAt()

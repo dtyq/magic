@@ -101,4 +101,13 @@ interface AgentMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function incrementInstallCount(int $agentMarketId): bool;
+
+    /**
+     * 更新市场员工排序值.
+     *
+     * @param int $id 市场员工 ID
+     * @param int $sortOrder 排序值
+     * @return bool 是否更新成功
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool;
 }

@@ -24,7 +24,7 @@ class QueryAgentMarketsRequestAdminDTO extends AbstractRequestDTO
 
     public ?string $organizationCode = null;
 
-    public ?string $name18n = null;
+    public ?string $nameI18n = null;
 
     public ?string $publisherType = null;
 
@@ -66,14 +66,14 @@ class QueryAgentMarketsRequestAdminDTO extends AbstractRequestDTO
         return $this->organizationCode;
     }
 
-    public function getName18n(): ?string
+    public function getNameI18n(): ?string
     {
-        return $this->name18n;
+        return $this->nameI18n;
     }
 
-    public function setName18n(?string $value): void
+    public function setNameI18n(?string $value): void
     {
-        $this->name18n = $value;
+        $this->nameI18n = $value;
     }
 
     public function getPublisherType(): ?string
@@ -108,7 +108,7 @@ class QueryAgentMarketsRequestAdminDTO extends AbstractRequestDTO
             'page_size' => 'nullable|integer|min:1|max:100',
             'publish_status' => 'nullable|string|max:64',
             'organization_code' => 'nullable|string|max:128',
-            'name_18n' => 'nullable|string|max:255',
+            'name_i18n' => 'nullable|string|max:255',
             'publisher_type' => 'nullable|string|max:64',
             'agent_code' => 'nullable|string|max:128',
             'order_by' => 'nullable|string|in:asc,desc',
@@ -129,8 +129,8 @@ class QueryAgentMarketsRequestAdminDTO extends AbstractRequestDTO
             'publish_status.max' => __('validation.max.string', ['attribute' => 'publish_status', 'max' => 64]),
             'organization_code.string' => __('validation.string', ['attribute' => 'organization_code']),
             'organization_code.max' => __('validation.max.string', ['attribute' => 'organization_code', 'max' => 128]),
-            'name_18n.string' => __('validation.string', ['attribute' => 'name_18n']),
-            'name_18n.max' => __('validation.max.string', ['attribute' => 'name_18n', 'max' => 255]),
+            'name_i18n.string' => __('validation.string', ['attribute' => 'name_i18n']),
+            'name_i18n.max' => __('validation.max.string', ['attribute' => 'name_i18n', 'max' => 255]),
             'publisher_type.string' => __('validation.string', ['attribute' => 'publisher_type']),
             'publisher_type.max' => __('validation.max.string', ['attribute' => 'publisher_type', 'max' => 64]),
             'agent_code.string' => __('validation.string', ['attribute' => 'agent_code']),
