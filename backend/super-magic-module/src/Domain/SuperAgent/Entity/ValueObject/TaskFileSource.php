@@ -40,7 +40,7 @@ enum TaskFileSource: int
     /**
      * Skill.
      */
-    case SKILL = 7;
+    case SKILL = 8;
 
     /**
      * 获取来源名称.
@@ -75,7 +75,7 @@ enum TaskFileSource: int
             4 => self::COPY,
             5 => self::AI_IMAGE_GENERATION,
             6 => self::MOVE,
-            7 => self::SKILL,
+            8 => self::SKILL,
             default => self::DEFAULT,
         };
     }
