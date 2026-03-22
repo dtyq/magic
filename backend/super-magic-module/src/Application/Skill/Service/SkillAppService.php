@@ -351,7 +351,7 @@ class SkillAppService extends AbstractSkillAppService
                 '',
                 '',
                 $skillCode,
-                SkillSourceType::AGENT_CREATED,
+                SkillSourceType::DIALOGUE_CREATION,
                 [],
                 [],
                 null
@@ -694,7 +694,7 @@ class SkillAppService extends AbstractSkillAppService
 
         // 如果相等代表没有任何修改
         if ($requestDTO->getExportFileFromProject()) {
-            if ($skillEntity->getSourceType()->isAgentCreated()) {
+            if ($skillEntity->getSourceType()->isDialogueCreation()) {
                 $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
                 $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
                 $skillEntity->setFileKey($fileMetadata['file_key']);
@@ -1395,9 +1395,8 @@ class SkillAppService extends AbstractSkillAppService
     private function uploadFileToPrivateStorage(string $organizationCode, string $localFilePath, string $skillCode): string
     {
         // 生成文件存储路径（包含组织代码前缀）
-        $fileDir = $organizationCode . '/skills/' . $skillCode;
+        $fileDir = 'skills/' . $skillCode;
         $fileName = basename($localFilePath);
-        $fileKey = $fileDir . '/' . $fileName;
 
         // 创建 UploadFile 对象并上传
         $uploadFile = new UploadFile($localFilePath, $fileDir, $fileName, false);
