@@ -33,7 +33,7 @@ final class SkillMention extends AbstractMention
      *     name: ?string,
      *     icon: ?string,
      *     description: ?string,
-     *     source: ?string
+     *     mention_source: ?string
      * }|array{}
      */
     public function getMentionJsonStruct(): array
@@ -51,7 +51,7 @@ final class SkillMention extends AbstractMention
             'name' => $data->getName(),
             'icon' => $data->getIcon(),
             'description' => $data->getDescription(),
-            'source' => $data->getSourceType(),
+            'mention_source' => $data->getMentionSource(),
         ];
     }
 }

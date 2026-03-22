@@ -1266,6 +1266,9 @@ class ProjectAppService extends AbstractAppService
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
+                $dto->isHidden = false;
+            }
             $dto->isDirectory = $entity->getIsDirectory();
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
@@ -1337,6 +1340,9 @@ class ProjectAppService extends AbstractAppService
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
+                $dto->isHidden = false;
+            }
             $dto->isDirectory = $entity->getIsDirectory();
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
@@ -2006,6 +2012,27 @@ class ProjectAppService extends AbstractAppService
 
         // Delete core project
         $this->projectDomainService->deleteProject($projectId, $project->getUserId());
+    }
+
+    private function shouldForceMagicVisible(string $relativeFilePath, string $fileKey): bool
+    {
+        foreach ([$relativeFilePath, $fileKey] as $path) {
+            $normalizedPath = trim($path, '/');
+            if ($normalizedPath === '') {
+                continue;
+            }
+
+            if (
+                $normalizedPath === '.magic'
+                || str_starts_with($normalizedPath, '.magic/')
+                || str_contains($normalizedPath, '/.magic/')
+                || str_ends_with($normalizedPath, '/.magic')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
