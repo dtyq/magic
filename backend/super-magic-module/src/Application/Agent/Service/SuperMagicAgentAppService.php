@@ -37,6 +37,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
@@ -69,6 +70,12 @@ use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
+    private const HOME_SKILL_SOURCE_SYSTEM = 'system';
+
+    private const HOME_SKILL_SOURCE_EMPLOYEE = 'employee';
+
+    private const HOME_SKILL_SOURCE_MINE = 'mine';
+
     #[Inject]
     protected SkillDomainService $skillDomainService;
 
@@ -635,6 +642,28 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     */
+    public function getMentionSkills(Authenticatable $authorization, string $employeeCode = ''): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $language = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
+
+        $result = [];
+        $seenCodes = [];
+
+        $this->appendMentionSkills($result, $seenCodes, $this->buildSystemMentionSkills());
+        $this->appendMentionSkills(
+            $result,
+            $seenCodes,
+            $this->buildEmployeeMentionSkills($dataIsolation, $employeeCode, $language)
+        );
+        $this->appendMentionSkills($result, $seenCodes, $this->buildMineMentionSkills($dataIsolation, $language));
+
+        return $result;
+    }
+
+    /**
      * 根据 agentCodes 获取 playbooks，返回按 code 聚合的数组.
      *
      * @param Authenticatable $authorization 用户授权信息
@@ -1194,6 +1223,182 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $skillVersions;
+    }
+
+    /**
+     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}> $result
+     * @param array<string, bool> $seenCodes
+     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}> $items
+     */
+    private function appendMentionSkills(array &$result, array &$seenCodes, array $items): void
+    {
+        foreach ($items as $item) {
+            $code = $item['code'];
+            if ($code === '' || isset($seenCodes[$code])) {
+                continue;
+            }
+
+            $seenCodes[$code] = true;
+            $result[] = $item;
+        }
+    }
+
+    /**
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     */
+    private function buildSystemMentionSkills(): array
+    {
+        $items = [];
+        foreach (BuiltinSkill::getAllBuiltinSkills() as $builtinSkill) {
+            $items[] = [
+                'id' => $builtinSkill->value,
+                'code' => $builtinSkill->value,
+                'name' => $builtinSkill->getSkillName(),
+                'description' => $builtinSkill->getSkillDescription(),
+                'logo' => $builtinSkill->getSkillIcon() !== '' ? $builtinSkill->getSkillIcon() : null,
+                'source' => self::HOME_SKILL_SOURCE_SYSTEM,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     */
+    private function buildEmployeeMentionSkills(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $employeeCode,
+        string $language
+    ): array {
+        $employeeCode = trim($employeeCode);
+        if ($employeeCode === '') {
+            return [];
+        }
+
+        $agentVersion = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $employeeCode);
+        if ($agentVersion === null || $agentVersion->getId() === null) {
+            return [];
+        }
+
+        $agentSkills = $this->superMagicAgentSkillDomainService->getByAgentVersionId(
+            $dataIsolation,
+            (int) $agentVersion->getId()
+        );
+        if ($agentSkills === []) {
+            return [];
+        }
+
+        $skillVersionIds = [];
+        foreach ($agentSkills as $agentSkill) {
+            if ($agentSkill->getSkillVersionId() !== null) {
+                $skillVersionIds[] = (int) $agentSkill->getSkillVersionId();
+            }
+        }
+
+        if ($skillVersionIds === []) {
+            return [];
+        }
+
+        $skillVersionMap = $this->skillDomainService->findSkillVersionsByIdsWithoutOrganizationFilter(
+            array_values(array_unique($skillVersionIds))
+        );
+        $this->updateSkillLogoUrls($dataIsolation, array_values($skillVersionMap));
+
+        $items = [];
+        foreach ($agentSkills as $agentSkill) {
+            $skillVersionId = $agentSkill->getSkillVersionId();
+            if ($skillVersionId === null || ! isset($skillVersionMap[$skillVersionId])) {
+                continue;
+            }
+
+            $skillVersion = $skillVersionMap[$skillVersionId];
+            $items[] = [
+                'id' => (string) $skillVersion->getId(),
+                'code' => $skillVersion->getCode(),
+                'name' => $this->resolveSkillVersionName($skillVersion, $language),
+                'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
+                'logo' => $skillVersion->getLogo(),
+                'source' => self::HOME_SKILL_SOURCE_EMPLOYEE,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, source: string}>
+     */
+    private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
+    {
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $this->createPermissionDataIsolation($dataIsolation),
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL
+        );
+
+        if ($accessibleSkillCodes === []) {
+            return [];
+        }
+
+        $skillVersions = $this->skillDomainService->findCurrentSkillVersionsByCodesWithoutOrganizationFilter(
+            $accessibleSkillCodes
+        );
+        $this->updateSkillLogoUrls($dataIsolation, array_values($skillVersions));
+
+        $items = [];
+        foreach ($skillVersions as $skillVersion) {
+            $items[] = [
+                'id' => (string) $skillVersion->getId(),
+                'code' => $skillVersion->getCode(),
+                'name' => $this->resolveSkillVersionName($skillVersion, $language),
+                'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
+                'logo' => $skillVersion->getLogo(),
+                'source' => self::HOME_SKILL_SOURCE_MINE,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function resolveSkillVersionName(SkillVersionEntity $skillVersion, string $language): string
+    {
+        $nameI18n = $skillVersion->getNameI18n();
+        if (! empty($nameI18n[$language])) {
+            return (string) $nameI18n[$language];
+        }
+
+        if (! empty($nameI18n[LanguageEnum::DEFAULT->value])) {
+            return (string) $nameI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        foreach ($nameI18n as $value) {
+            if (! empty($value)) {
+                return (string) $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function resolveSkillVersionDescription(SkillVersionEntity $skillVersion, string $language): string
+    {
+        $descriptionI18n = $skillVersion->getDescriptionI18n() ?? [];
+        if (! empty($descriptionI18n[$language])) {
+            return (string) $descriptionI18n[$language];
+        }
+
+        if (! empty($descriptionI18n[LanguageEnum::DEFAULT->value])) {
+            return (string) $descriptionI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        foreach ($descriptionI18n as $value) {
+            if (! empty($value)) {
+                return (string) $value;
+            }
+        }
+
+        return '';
     }
 
     private function buildAgentDetailFromVersion(SuperMagicAgentEntity $baseAgent, AgentVersionEntity $versionEntity): SuperMagicAgentEntity
