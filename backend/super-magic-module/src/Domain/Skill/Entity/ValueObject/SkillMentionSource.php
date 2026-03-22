@@ -13,6 +13,6 @@ namespace Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject;
 enum SkillMentionSource: string
 {
     case SYSTEM = 'system';
-    case EMPLOYEE = 'employee';
+    case AGENT = 'agent';
     case MINE = 'mine';
 }

@@ -1314,7 +1314,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'name' => $this->resolveSkillVersionName($skillVersion, $language),
                 'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
                 'logo' => $skillVersion->getLogo(),
-                'mention_source' => SkillMentionSource::EMPLOYEE->value,
+                'mention_source' => SkillMentionSource::AGENT->value,
             ];
         }
 

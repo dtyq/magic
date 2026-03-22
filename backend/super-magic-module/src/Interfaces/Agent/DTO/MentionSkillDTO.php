@@ -7,19 +7,21 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\DTO;
 
-class MentionSkillDTO
+use App\Infrastructure\Core\AbstractDTO;
+
+class MentionSkillDTO extends AbstractDTO
 {
-    public string $id = '';
+    protected string $id = '';
 
-    public string $code = '';
+    protected string $code = '';
 
-    public string $name = '';
+    protected string $name = '';
 
-    public string $description = '';
+    protected string $description = '';
 
-    public ?string $logo = null;
+    protected ?string $logo = null;
 
-    public string $mentionSource = '';
+    protected string $mentionSource = '';
 
     public function __construct(array $data = [])
     {
@@ -41,5 +43,17 @@ class MentionSkillDTO
         if (isset($data['mention_source'])) {
             $this->mentionSource = (string) $data['mention_source'];
         }
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'code' => $this->code,
+            'name' => $this->name,
+            'description' => $this->description,
+            'logo' => $this->logo,
+            'mention_source' => $this->mentionSource,
+        ];
     }
 }
