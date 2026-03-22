@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Application\Agent\Service\Old\SuperMagicAgentOldAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAiOptimizeAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
+use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinSkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\BuiltinToolAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\BuiltinToolDTO;
@@ -142,6 +143,14 @@ class SuperMagicAgentOldApi extends AbstractSuperMagicApi
     public function tools()
     {
         return BuiltinToolAssembler::createToolCategoryListDTO();
+    }
+
+    /**
+     * 获取内置 skill 列表.
+     */
+    public function skills()
+    {
+        return BuiltinSkillAssembler::createSkillListDTO();
     }
 
     /**

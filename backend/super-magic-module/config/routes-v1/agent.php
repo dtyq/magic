@@ -21,6 +21,7 @@ Router::addGroup('/api/v1/super-magic', static function () {
         Router::post('/order', [SuperMagicAgentOldApi::class, 'saveOrder']);
         // Static routes must be declared before variable routes, otherwise /{code} will shadow them.
         Router::get('/builtin-tools', [SuperMagicAgentOldApi::class, 'tools']);
+        Router::get('/builtin-skills', [SuperMagicAgentOldApi::class, 'skills']);
         Router::get('/{code}', [SuperMagicAgentOldApi::class, 'show']);
         Router::delete('/{code}', [SuperMagicAgentApi::class, 'destroy']);
         Router::put('/{code}/enable', [SuperMagicAgentOldApi::class, 'enable']);

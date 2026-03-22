@@ -23,6 +23,19 @@ final class SkillMention extends AbstractMention
         return $data->getName() ?? '';
     }
 
+    /**
+     * Build the mention payload sent to task mentions JSON.
+     *
+     * @return array{}|array{
+     *     type: string,
+     *     id: ?string,
+     *     code: ?string,
+     *     name: ?string,
+     *     icon: ?string,
+     *     description: ?string,
+     *     source: ?string
+     * }
+     */
     public function getMentionJsonStruct(): array
     {
         /** @var SkillData $data */
@@ -34,8 +47,11 @@ final class SkillMention extends AbstractMention
         return [
             'type' => MentionType::SKILL->value,
             'id' => $data->getId(),
+            'code' => $data->getCode(),
             'name' => $data->getName(),
             'icon' => $data->getIcon(),
+            'description' => $data->getDescription(),
+            'source' => $data->getSourceType(),
         ];
     }
 }
