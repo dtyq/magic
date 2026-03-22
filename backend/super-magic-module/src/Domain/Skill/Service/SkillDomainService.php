@@ -116,7 +116,7 @@ class SkillDomainService
      */
     public function saveSkill(SkillDataIsolation $dataIsolation, SkillEntity $entity): SkillEntity
     {
-        $entity->setSearchText($this->buildSkillSearchText($entity));
+        $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkill($entity));
         return $this->skillRepository->save($dataIsolation, $entity);
     }
 
@@ -187,7 +187,7 @@ class SkillDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            $fullWorkdir
+            '/skill_export'
         );
 
         // Call sandbox workspace export API via proxy request
@@ -299,7 +299,7 @@ class SkillDomainService
      */
     public function saveSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $entity): SkillVersionEntity
     {
-        $entity->setSearchText($this->buildSkillVersionSearchText($entity));
+        $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkillVersion($entity));
         return $this->skillVersionRepository->save($dataIsolation, $entity);
     }
 
@@ -1173,7 +1173,7 @@ class SkillDomainService
 
         // 2. 检查商店表中是否已存在该 skill_code 的记录
         $storeSkill = $this->skillMarketDomainService->findStoreSkillBySkillCode($skillVersion->getCode());
-        $searchText = $this->buildSkillVersionSearchText($skillVersion);
+        $searchText = SkillMarketSearchTextBuilder::buildFromSkillVersion($skillVersion);
 
         if ($storeSkill) {
             // 更新现有记录
@@ -1204,37 +1204,6 @@ class SkillDomainService
             ]);
             $this->skillMarketDomainService->saveStoreSkill($newStoreSkill);
         }
-    }
-
-    private function buildSkillSearchText(SkillEntity $skillEntity): string
-    {
-        return SkillMarketSearchTextBuilder::build(
-            [
-                $skillEntity->getPackageName(),
-                $skillEntity->getPackageDescription(),
-                $skillEntity->getVersionCode(),
-            ],
-            [
-                $skillEntity->getNameI18n(),
-                $skillEntity->getDescriptionI18n() ?? [],
-            ]
-        );
-    }
-
-    private function buildSkillVersionSearchText(SkillVersionEntity $skillVersion): string
-    {
-        return SkillMarketSearchTextBuilder::build(
-            [
-                $skillVersion->getPackageName(),
-                $skillVersion->getPackageDescription(),
-                $skillVersion->getVersion(),
-            ],
-            [
-                $skillVersion->getNameI18n(),
-                $skillVersion->getDescriptionI18n() ?? [],
-                $skillVersion->getVersionDescriptionI18n() ?? [],
-            ]
-        );
     }
 
     /**

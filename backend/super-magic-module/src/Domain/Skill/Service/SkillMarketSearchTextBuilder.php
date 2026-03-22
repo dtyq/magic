@@ -7,10 +7,24 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Skill\Service;
 
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 
 final class SkillMarketSearchTextBuilder
 {
+    public static function buildFromSkill(SkillEntity $skillVersion): string
+    {
+        $values = [];
+        $seen = [];
+
+        self::appendText($values, $seen, $skillVersion->getPackageName());
+        self::appendText($values, $seen, $skillVersion->getPackageDescription());
+        self::appendI18nTexts($values, $seen, $skillVersion->getNameI18n());
+        self::appendI18nTexts($values, $seen, $skillVersion->getDescriptionI18n() ?? []);
+
+        return implode(' ', $values);
+    }
+
     public static function buildFromSkillVersion(SkillVersionEntity $skillVersion): string
     {
         $values = [];
@@ -18,10 +32,8 @@ final class SkillMarketSearchTextBuilder
 
         self::appendText($values, $seen, $skillVersion->getPackageName());
         self::appendText($values, $seen, $skillVersion->getPackageDescription());
-        self::appendText($values, $seen, $skillVersion->getVersion());
         self::appendI18nTexts($values, $seen, $skillVersion->getNameI18n());
         self::appendI18nTexts($values, $seen, $skillVersion->getDescriptionI18n() ?? []);
-        self::appendI18nTexts($values, $seen, $skillVersion->getVersionDescriptionI18n() ?? []);
 
         return implode(' ', $values);
     }
