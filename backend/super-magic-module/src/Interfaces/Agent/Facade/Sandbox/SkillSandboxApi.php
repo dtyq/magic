@@ -53,7 +53,8 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
             $result['creatorSkillCodes'],
             $page->getPage(),
             $page->getPageNum(),
-            $result['total']
+            $result['total'],
+            $result['skillVersionMap'] ?? []
         );
     }
 

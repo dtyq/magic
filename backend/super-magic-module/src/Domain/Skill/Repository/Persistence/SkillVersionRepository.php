@@ -320,6 +320,23 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $entities;
     }
 
+    public function invalidateAwaitingReviewVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+
+        return (int) $builder
+            ->where('code', $code)
+            ->whereNull('deleted_at')
+            ->whereIn('review_status', [
+                ReviewStatus::PENDING->value,
+                ReviewStatus::UNDER_REVIEW->value,
+            ])
+            ->update([
+                'review_status' => ReviewStatus::INVALIDATED->value,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int
     {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());

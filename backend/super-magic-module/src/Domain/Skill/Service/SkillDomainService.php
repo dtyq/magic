@@ -707,6 +707,9 @@ class SkillDomainService
             ExceptionBuilder::throw(SkillErrorCode::VERSION_ALREADY_EXISTS, 'skill.version_already_exists');
         }
 
+        // English: single SQL batch — review_status IN (PENDING, UNDER_REVIEW) -> INVALIDATED (not admin REJECTED).
+        $this->skillVersionRepository->invalidateAwaitingReviewVersionsByCode($dataIsolation, $skillEntity->getCode());
+
         // 2. 处理 Logo：如果 logo 是完整 URL，提取路径部分
         $logoPath = EasyFileTools::formatPath($skillEntity->getLogo() ?? '');
         $versionEntity->setCode($skillEntity->getCode());

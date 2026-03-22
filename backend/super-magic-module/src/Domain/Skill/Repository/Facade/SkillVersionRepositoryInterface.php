@@ -96,6 +96,13 @@ interface SkillVersionRepositoryInterface
     public function findByIdsWithoutOrganizationFilter(array $ids): array;
 
     /**
+     * Batch mark versions as INVALIDATED where review_status is PENDING or UNDER_REVIEW.
+     *
+     * @return int Number of rows updated
+     */
+    public function invalidateAwaitingReviewVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
      * 清空当前版本标记.
      */
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int;
