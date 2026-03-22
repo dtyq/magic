@@ -55,7 +55,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::get('/{code}/playbooks', [SuperMagicAgentPlaybookApi::class, 'getAgentPlaybooks']);
 
         // skills
-        Router::put('/{code}/skills', [SuperMagicAgentApi::class, 'updateAgentSkills']);
+        // Router::put('/{code}/skills', [SuperMagicAgentApi::class, 'updateAgentSkills']);
         Router::post('/{code}/skills', [SuperMagicAgentApi::class, 'addAgentSkills']);
         Router::delete('/{code}/skills', [SuperMagicAgentApi::class, 'removeAgentSkills']);
     });

@@ -30,6 +30,7 @@ use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentSkillEntity;
@@ -45,6 +46,8 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
+use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsAddedEvent;
+use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsRemovedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentSkillDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
@@ -489,6 +492,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 5. 增量添加技能
         $this->superMagicAgentSkillDomainService->addAgentSkills($dataIsolation, $agent->getCode(), $skillEntities);
+
+        // 6. Dispatch event to sync skill files to the agent's project
+        AsyncEventUtil::dispatch(new AgentSkillsAddedEvent(
+            $dataIsolation,
+            $code,
+            $skillCodes,
+            $dataIsolation->getCurrentOrganizationCode()
+        ));
     }
 
     /**
@@ -506,6 +517,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 4. 删除技能
         $this->superMagicAgentSkillDomainService->removeAgentSkills($dataIsolation, $agentCode, $skillCodes);
+
+        // 5. Dispatch event to remove skill files from the agent's project
+        AsyncEventUtil::dispatch(new AgentSkillsRemovedEvent(
+            $dataIsolation,
+            $agentCode,
+            $skillCodes,
+            $dataIsolation->getCurrentOrganizationCode()
+        ));
     }
 
     /**
