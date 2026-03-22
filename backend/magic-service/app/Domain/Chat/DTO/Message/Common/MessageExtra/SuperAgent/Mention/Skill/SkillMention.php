@@ -26,7 +26,7 @@ final class SkillMention extends AbstractMention
     /**
      * Build the mention payload sent to task mentions JSON.
      *
-     * @return array{
+     * @return array{}|array{
      *     type: string,
      *     id: ?string,
      *     code: ?string,
