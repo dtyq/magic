@@ -59,6 +59,10 @@ class AgentListItemDTO extends AbstractDTO
 
     private string $createdAt;
 
+    private string $publisherType;
+
+    private array $publisher;
+
     public function __construct(
         int $id,
         string $code,
@@ -76,7 +80,9 @@ class AgentListItemDTO extends AbstractDTO
         ?string $pinnedAt,
         ?string $latestPublishedAt,
         string $updatedAt,
-        string $createdAt
+        string $createdAt,
+        string $publisherType = '',
+        array $publisher = []
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -95,6 +101,8 @@ class AgentListItemDTO extends AbstractDTO
         $this->latestPublishedAt = $latestPublishedAt;
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
+        $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
     }
 
     /**
@@ -120,6 +128,8 @@ class AgentListItemDTO extends AbstractDTO
             'latest_published_at' => $this->latestPublishedAt,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
+            'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
         ];
     }
 }

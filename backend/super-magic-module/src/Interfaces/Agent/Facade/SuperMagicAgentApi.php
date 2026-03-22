@@ -173,7 +173,8 @@ class SuperMagicAgentApi extends AbstractApi
             $authorization->getId(),
             $result['page'],
             $result['page_size'],
-            $result['total']
+            $result['total'],
+            $result['publisher_user_map'] ?? []
         );
 
         return $responseDTO->toArray();

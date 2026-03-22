@@ -16,6 +16,7 @@ class SkillVersionListItemAdminDTO extends AbstractDTO
 {
     public function __construct(
         private readonly string $id,
+        private readonly OrganizationInfoAdminDTO $organization,
         private readonly string $code,
         private readonly string $packageName,
         private readonly array $nameI18n,
@@ -33,8 +34,12 @@ class SkillVersionListItemAdminDTO extends AbstractDTO
 
     public function toArray(): array
     {
+        $organization = $this->organization->toArray();
+
         return [
             'id' => $this->id,
+            'organization_code' => $organization['code'],
+            'organization' => $organization,
             'code' => $this->code,
             'package_name' => $this->packageName,
             'name_i18n' => $this->nameI18n,

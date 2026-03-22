@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
@@ -325,6 +326,7 @@ class SuperMagicAgentAssembler
      * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
      * @param array<string, AgentMarketEntity> $storeAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<string, MagicUserEntity> $publisherUserMap
      */
     public static function createExternalAgentsResponseDTO(
         array $agents,
@@ -335,7 +337,8 @@ class SuperMagicAgentAssembler
         string $currentUserId,
         int $page,
         int $pageSize,
-        int $total
+        int $total,
+        array $publisherUserMap = []
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
@@ -344,7 +347,8 @@ class SuperMagicAgentAssembler
                 $playbooksMap,
                 $storeAgentsMap,
                 $latestVersionsMap,
-                $userAgentsMap
+                $userAgentsMap,
+                $publisherUserMap
             );
         }
 
@@ -434,13 +438,15 @@ class SuperMagicAgentAssembler
      * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
      * @param array<string, AgentMarketEntity> $storeAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<string, MagicUserEntity> $publisherUserMap
      */
     private static function createAgentListItemDTO(
         SuperMagicAgentEntity $agent,
         array $playbooksMap,
         array $storeAgentsMap,
         array $latestVersionsMap,
-        array $userAgentsMap = []
+        array $userAgentsMap = [],
+        array $publisherUserMap = []
     ): AgentListItemDTO {
         $playbooks = $playbooksMap[$agent->getCode()] ?? [];
         $features = [];
@@ -475,6 +481,8 @@ class SuperMagicAgentAssembler
             ? $agent->getSourceType()->isMarket()
             : ($isAdded && $userAgent?->getSourceType()->isMarket() === true);
 
+        $publisher = self::buildAgentPublisher($agent->getCreator(), $publisherUserMap);
+
         return new AgentListItemDTO(
             id: $agent->getId(),
             code: $agent->getCode(),
@@ -493,6 +501,34 @@ class SuperMagicAgentAssembler
             latestPublishedAt: $agent->getLatestPublishedAt(),
             updatedAt: $agent->getUpdatedAt(),
             createdAt: $agent->getCreatedAt(),
+            publisherType: $publisher['type'],
+            publisher: $publisher['info'],
         );
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $publisherUserMap
+     * @return array{type: string, info: array{name: string, avatar: string}}
+     */
+    private static function buildAgentPublisher(string $creatorId, array $publisherUserMap): array
+    {
+        $userEntity = $publisherUserMap[$creatorId] ?? null;
+        if ($userEntity !== null) {
+            return [
+                'type' => PublisherType::USER->value,
+                'info' => [
+                    'name' => $userEntity->getNickname() ?: $creatorId,
+                    'avatar' => $userEntity->getAvatarUrl() ?? '',
+                ],
+            ];
+        }
+
+        return [
+            'type' => PublisherType::USER->value,
+            'info' => [
+                'name' => '',
+                'avatar' => '',
+            ],
+        ];
     }
 }

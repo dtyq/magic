@@ -75,10 +75,6 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
             $builder->whereIn('source_type', $query->getSourceTypes());
         }
 
-        if ($query->getName()) {
-            $builder->where('name', 'like', '%' . $query->getName() . '%');
-        }
-
         if ($query->getEnabled() !== null) {
             $builder->where('enabled', $query->getEnabled());
         }
@@ -92,11 +88,20 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
                     "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
                 )->orWhereRaw(
+                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
+                )->orWhereRaw(
                     "JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
                 )->orWhereRaw(
+                    "JSON_EXTRACT(role_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
+                )->orWhereRaw(
                     "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
                 );
             });
         }

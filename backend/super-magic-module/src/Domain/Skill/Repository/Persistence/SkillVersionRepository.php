@@ -411,8 +411,14 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
                     "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
                 )->orWhereRaw(
+                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
+                )->orWhereRaw(
                     "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
                 );
             });
         }

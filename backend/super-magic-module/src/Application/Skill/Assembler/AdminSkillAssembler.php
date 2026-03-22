@@ -9,8 +9,11 @@ namespace Dtyq\SuperMagic\Application\Skill\Assembler;
 
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Service\OrganizationDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\OrganizationInfoAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\PublisherInfoAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillVersionsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillVersionListItemAdminDTO;
@@ -24,6 +27,7 @@ class AdminSkillAssembler
 {
     public function __construct(
         private readonly MagicUserDomainService $magicUserDomainService,
+        private readonly OrganizationDomainService $organizationDomainService,
     ) {
     }
 
@@ -36,9 +40,10 @@ class AdminSkillAssembler
         int $total
     ): QuerySkillVersionsResponseAdminDTO {
         $publisherUserMap = $this->buildPublisherUserMap($versions);
+        $organizationMap = $this->buildOrganizationMap($versions);
 
         $list = array_map(
-            fn (SkillVersionEntity $entity) => $this->createListItemDTO($entity, $publisherUserMap),
+            fn (SkillVersionEntity $entity) => $this->createListItemDTO($entity, $publisherUserMap, $organizationMap),
             $versions
         );
 
@@ -80,9 +85,32 @@ class AdminSkillAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $publisherUserMap
+     * @param SkillVersionEntity[] $skillVersionEntities
+     * @return array<string, OrganizationEntity>
      */
-    private function createListItemDTO(SkillVersionEntity $entity, array $publisherUserMap): SkillVersionListItemAdminDTO
+    private function buildOrganizationMap(array $skillVersionEntities): array
+    {
+        $organizationCodes = array_values(array_unique(array_filter(array_map(
+            static fn (SkillVersionEntity $skillVersionEntity) => $skillVersionEntity->getOrganizationCode(),
+            $skillVersionEntities
+        ))));
+
+        if ($organizationCodes === []) {
+            return [];
+        }
+
+        return $this->organizationDomainService->getByCodes($organizationCodes);
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $publisherUserMap
+     * @param array<string, OrganizationEntity> $organizationMap
+     */
+    private function createListItemDTO(
+        SkillVersionEntity $entity,
+        array $publisherUserMap,
+        array $organizationMap
+    ): SkillVersionListItemAdminDTO
     {
         $publisher = PublisherInfoAdminDTO::empty();
         $publisherUserId = $entity->getPublisherUserId();
@@ -94,8 +122,16 @@ class AdminSkillAssembler
             );
         }
 
+        $organizationCode = $entity->getOrganizationCode();
+        $organizationEntity = $organizationMap[$organizationCode] ?? null;
+        $organization = new OrganizationInfoAdminDTO(
+            code: $organizationCode,
+            name: $organizationEntity !== null ? $organizationEntity->getName() : ''
+        );
+
         return new SkillVersionListItemAdminDTO(
             id: (string) ($entity->getId() ?? ''),
+            organization: $organization,
             code: $entity->getCode(),
             packageName: $entity->getPackageName(),
             nameI18n: $entity->getNameI18n(),

@@ -170,8 +170,14 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
                     "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
                 )->orWhereRaw(
+                    "JSON_EXTRACT(name_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
+                )->orWhereRaw(
                     "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
                     [$languageCode, '%' . $keyword . '%']
+                )->orWhereRaw(
+                    "JSON_EXTRACT(description_i18n, '$.default') LIKE ?",
+                    ['%' . $keyword . '%']
                 );
             });
         }

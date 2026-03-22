@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
+use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -93,6 +94,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected MagicDepartmentDomainService $magicDepartmentDomainService;
+
+    #[Inject]
+    protected MagicUserDomainService $magicUserDomainService;
 
     #[Transactional]
     public function save(Authenticatable $authorization, SuperMagicAgentEntity $entity, bool $checkPrompt = true): SuperMagicAgentEntity
@@ -1073,16 +1077,48 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             array_values(array_unique($latestVersionLookupCodes))
         );
 
+        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
+
         return [
             'agents' => $agents,
             'playbooks_map' => $playbooksMap,
             'store_agents_map' => $storeAgentsMap,
             'user_agents_map' => $userAgentsMap,
             'latest_versions_map' => $latestVersionsMap,
+            'publisher_user_map' => $publisherUserMap,
             'page' => $requestDTO->getPage(),
             'page_size' => $requestDTO->getPageSize(),
             'total' => $total,
         ];
+    }
+
+    /**
+     * 批量加载 Agent 创建者的用户信息，用于构建发布者数据.
+     *
+     * @param SuperMagicAgentEntity[] $agents
+     * @return array<string, MagicUserEntity>
+     */
+    private function loadAgentPublisherUserMap(array $agents): array
+    {
+        $creatorIds = [];
+        foreach ($agents as $agent) {
+            $creatorId = $agent->getCreator();
+            if (! empty($creatorId)) {
+                $creatorIds[] = $creatorId;
+            }
+        }
+
+        if ($creatorIds === []) {
+            return [];
+        }
+
+        $publisherUserMap = [];
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization(array_unique($creatorIds));
+        foreach ($userEntities as $userEntity) {
+            $publisherUserMap[$userEntity->getUserId()] = $userEntity;
+        }
+
+        return $publisherUserMap;
     }
 
     /**
