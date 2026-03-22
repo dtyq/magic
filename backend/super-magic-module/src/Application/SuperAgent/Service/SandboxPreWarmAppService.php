@@ -54,9 +54,10 @@ class SandboxPreWarmAppService
      *
      * @param RequestContext $requestContext 请求上下文
      * @param int $topicId 话题ID
+     * @param null|string $language 客户端语言（与 HTTP header language 一致，已规范为下划线格式）
      * @return array 返回沙箱信息
      */
-    public function preWarmInTopic(RequestContext $requestContext, int $topicId): array
+    public function preWarmInTopic(RequestContext $requestContext, int $topicId, ?string $language = null): array
     {
         $this->logger->info(sprintf('开始话题内沙箱预启动, topicId=%d', $topicId));
 
@@ -79,6 +80,9 @@ class SandboxPreWarmAppService
             $userAuthorization->getOrganizationCode(),
             $userId
         );
+        if ($language !== null && $language !== '') {
+            $dataIsolation->setLanguage($language);
+        }
 
         $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
 
@@ -130,9 +134,10 @@ class SandboxPreWarmAppService
      *
      * @param RequestContext $requestContext 请求上下文
      * @param int $workspaceId 工作区ID
+     * @param null|string $language 客户端语言（与 HTTP header language 一致，已规范为下划线格式）
      * @return array 返回沙箱信息
      */
-    public function preWarmOutsideTopic(RequestContext $requestContext, int $workspaceId): array
+    public function preWarmOutsideTopic(RequestContext $requestContext, int $workspaceId, ?string $language = null): array
     {
         $this->logger->info(sprintf('开始话题外沙箱预启动, workspaceId=%d', $workspaceId));
 
@@ -198,6 +203,9 @@ class SandboxPreWarmAppService
             $userAuthorization->getOrganizationCode(),
             $userId
         );
+        if ($language !== null && $language !== '') {
+            $dataIsolation->setLanguage($language);
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($hiddenTopic->getProjectId());
 
         // 初始化任务
