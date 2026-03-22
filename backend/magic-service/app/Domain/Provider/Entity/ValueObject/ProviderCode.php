@@ -37,6 +37,7 @@ enum ProviderCode: string
     case DashScope = 'DashScope';
     case OpenRouter = 'OpenRouter';
     case SuChuang = 'SuChuang';
+    case MiniMax = 'MiniMax';
 
     public function getImplementation(): string
     {
@@ -48,6 +49,7 @@ enum ProviderCode: string
             self::DeepSeek => DeepSeekModel::class,
             self::DashScope => DashScopeModel::class,
             self::OpenRouter => OpenAIModel::class,
+            self::MiniMax => OpenAIModel::class,
             default => OpenAIModel::class,
         };
     }
@@ -121,6 +123,7 @@ enum ProviderCode: string
             self::OpenRouter => 6,
             self::Volcengine, self::VolcengineArk => 7,
             self::DeepSeek => 8,
+            self::MiniMax => 9,
             default => 999, // 其他服务商排在最后
         };
     }
