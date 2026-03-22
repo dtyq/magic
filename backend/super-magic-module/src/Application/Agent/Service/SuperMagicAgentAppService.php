@@ -166,6 +166,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $skillCodes = array_map(fn ($agentSkill) => $agentSkill->getSkillCode(), $agentSkills);
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
+        $skillDataIsolation->disabled();
         $skillsMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
 
         // 4. 更新 Agent、Playbook 和 Skill 的 URL（将路径转换为完整URL）

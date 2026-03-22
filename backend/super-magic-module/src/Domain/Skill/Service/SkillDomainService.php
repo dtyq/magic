@@ -737,11 +737,13 @@ class SkillDomainService
             return $versionEntity;
         }
 
+        $skillEntity->setLatestPublishedAt(date('Y-m-d H:i:s'));
+        $this->saveSkill($dataIsolation, $skillEntity);
+
         $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
         $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
         $versionEntity->setPublishedAt(null);
         $versionEntity->setIsCurrentVersion(false);
-
         return $this->saveSkillVersion($dataIsolation, $versionEntity);
     }
 
