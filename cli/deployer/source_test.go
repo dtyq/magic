@@ -16,8 +16,8 @@ func TestResolveChartRefs_RewritesOCIRepoToHostEndpoint(t *testing.T) {
 				"magic": {Name: "magic", Version: "0.0.1"},
 			},
 			Registry: registry.Config{
-				Name: "magic-kind-registry",
-				Port: 5000,
+				Name:     "magic-kind-registry",
+				HostPort: 35000,
 			},
 		},
 		chartSpecs: map[string]ChartSpec{
@@ -41,8 +41,8 @@ func TestResolveChartRefs_KeepOCIRepoWhenHostNotRegistryContainerEndpoint(t *tes
 				"magic": {Name: "magic", Version: "0.0.1"},
 			},
 			Registry: registry.Config{
-				Name: "magic-kind-registry",
-				Port: 5000,
+				Name:     "magic-kind-registry",
+				HostPort: 35000,
 			},
 		},
 		chartSpecs: map[string]ChartSpec{

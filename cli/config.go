@@ -71,20 +71,20 @@ imageBuilder:
 
 deploy:
   chartRepo:
-    url: ""
+    url: "https://dtyq.github.io/artifacts"
     username: ""
     password: ""
     passCredentialsAll: false
   values: ""
   registry:
     name: magic-kind-registry
-    port: 5000
+    hostPort: 35000
     image: registry:2
     dataDir: ""
     useHostProxyEnv: false
     proxy:
-      enabled: false
-      url: ""
+      enabled: true
+      url: "https://ghcr.io"
       username: ""
       password: ""
     caFile: ""

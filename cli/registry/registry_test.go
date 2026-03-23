@@ -21,19 +21,20 @@ func TestNormalizeConfig_DefaultsAndExpandTilde(t *testing.T) {
 
 	out := NormalizeConfig(Config{})
 	assert.Equal(t, DefaultName, out.Name)
-	assert.Equal(t, DefaultPort, out.Port)
+	assert.Equal(t, DefaultHostPort, out.HostPort)
 	assert.Equal(t, DefaultImage, out.Image)
 	assert.Empty(t, out.DataDir)
 	assert.Empty(t, out.CAFile)
 
 	withTilde := NormalizeConfig(Config{
-		Name:    "r",
-		Port:    1,
-		Image:   "i",
-		DataDir: "~/regdata",
-		CAFile:  "~/ca.pem",
+		Name:     "r",
+		HostPort: 13500,
+		Image:    "i",
+		DataDir:  "~/regdata",
+		CAFile:   "~/ca.pem",
 	})
 	assert.Equal(t, "r", withTilde.Name)
+	assert.Equal(t, 13500, withTilde.HostPort)
 	assert.Equal(t, filepath.Join(home, "regdata"), withTilde.DataDir)
 	assert.Equal(t, filepath.Join(home, "ca.pem"), withTilde.CAFile)
 }
@@ -41,19 +42,15 @@ func TestNormalizeConfig_DefaultsAndExpandTilde(t *testing.T) {
 func TestContainerEndpoint(t *testing.T) {
 	cfg := Config{
 		Name: "magic-kind-registry",
-		Port: 5000,
 	}
 	assert.Equal(t, "magic-kind-registry:5000", ContainerEndpoint(cfg))
 }
 
 func TestHostEndpoint(t *testing.T) {
 	cfg := Config{
-		Name: "magic-kind-registry",
-		Port: 5000,
+		Name:     "magic-kind-registry",
+		HostPort: 35000,
 	}
-	oldHostPort := hostPort
-	hostPort = 35000
-	t.Cleanup(func() { hostPort = oldHostPort })
 	assert.Equal(t, "127.0.0.1:35000", HostEndpoint(cfg))
 }
 
@@ -73,10 +70,7 @@ func TestWaitForHostEndpoint_Ready(t *testing.T) {
 	defer srv.Close()
 
 	port := srv.Listener.Addr().(*net.TCPAddr).Port
-	cfg := Config{Name: "magic-kind-registry", Port: port}
-	oldHostPort := hostPort
-	hostPort = port
-	t.Cleanup(func() { hostPort = oldHostPort })
+	cfg := Config{Name: "magic-kind-registry", HostPort: port}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -95,10 +89,7 @@ func TestWaitForHostEndpoint_Timeout(t *testing.T) {
 	defer srv.Close()
 
 	port := srv.Listener.Addr().(*net.TCPAddr).Port
-	cfg := Config{Name: "magic-kind-registry", Port: port}
-	oldHostPort := hostPort
-	hostPort = port
-	t.Cleanup(func() { hostPort = oldHostPort })
+	cfg := Config{Name: "magic-kind-registry", HostPort: port}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -137,6 +128,46 @@ func TestWriteRegistryConfig_PersistentPathAndContent(t *testing.T) {
 	assert.Contains(t, content, "remoteurl: https://example.com/")
 	assert.True(t, strings.Contains(content, "username: u"))
 	assert.True(t, strings.Contains(content, "password: p"))
+}
+
+func TestWriteRegistryConfig_DirPermission(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := Config{
+		Name: "magic-kind-registry",
+		Proxy: ProxyConfig{
+			Enabled:  true,
+			URL:      "https://example.com",
+			Username: "u",
+			Password: "p",
+		},
+	}
+
+	path, err := writeRegistryConfig(cfg)
+	require.NoError(t, err)
+	info, err := os.Stat(filepath.Dir(path))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+}
+
+func TestWriteRegistryConfig_FilePermission(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := Config{
+		Name: "magic-kind-registry",
+		Proxy: ProxyConfig{
+			Enabled:  true,
+			URL:      "https://example.com",
+			Username: "u",
+			Password: "p",
+		},
+	}
+
+	path, err := writeRegistryConfig(cfg)
+	require.NoError(t, err)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 func TestShouldRecreateForConfigMount(t *testing.T) {

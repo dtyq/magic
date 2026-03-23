@@ -18,7 +18,7 @@ import (
 // Config mirrors cli.RegistryConfig to avoid an import cycle.
 type Config struct {
 	Name            string      `yaml:"name"`
-	Port            int         `yaml:"port"`
+	HostPort        int         `yaml:"hostPort"`
 	Image           string      `yaml:"image"`
 	DataDir         string      `yaml:"dataDir"`
 	UseHostProxyEnv bool        `yaml:"useHostProxyEnv"`
@@ -37,20 +37,20 @@ type ProxyConfig struct {
 
 // Defaults for local kind registry when deploy.registry is omitted or partial.
 const (
-	DefaultName  = "magic-kind-registry"
-	DefaultPort  = 5000
-	DefaultImage = "registry:2"
+	DefaultName     = "magic-kind-registry"
+	DefaultHostPort = 35000
+	DefaultImage    = "registry:2"
 )
 
-var hostPort = 35000
+const registryContainerPort = 5000
 
-// NormalizeConfig fills empty name/image and zero port with defaults, and expands ~ in DataDir and CAFile.
+// NormalizeConfig fills empty name/image and zero HostPort with defaults, and expands ~ in DataDir and CAFile.
 func NormalizeConfig(cfg Config) Config {
 	if cfg.Name == "" {
 		cfg.Name = DefaultName
 	}
-	if cfg.Port == 0 {
-		cfg.Port = DefaultPort
+	if cfg.HostPort == 0 {
+		cfg.HostPort = DefaultHostPort
 	}
 	if cfg.Image == "" {
 		cfg.Image = DefaultImage
@@ -65,13 +65,13 @@ const kindNetworkName = "kind"
 // ContainerEndpoint returns the address kind nodes use to reach the registry
 // over the Docker kind network, e.g. "kind-registry:5000".
 func ContainerEndpoint(cfg Config) string {
-	return fmt.Sprintf("%s:%d", cfg.Name, cfg.Port)
+	return fmt.Sprintf("%s:%d", cfg.Name, registryContainerPort)
 }
 
 // HostEndpoint returns the address the local host process uses to reach
 // the registry published on loopback, e.g. "127.0.0.1:5000".
 func HostEndpoint(cfg Config) string {
-	return fmt.Sprintf("127.0.0.1:%d", hostPort)
+	return fmt.Sprintf("127.0.0.1:%d", cfg.HostPort)
 }
 
 // WaitForHostEndpoint blocks until the local host endpoint serves registry v2 API.
@@ -199,7 +199,7 @@ func createContainer(ctx context.Context, cfg Config) error {
 	args := []string{
 		"run", "-d",
 		"--restart=unless-stopped",
-		"-p", fmt.Sprintf("127.0.0.1:%d:5000", hostPort),
+		"-p", fmt.Sprintf("127.0.0.1:%d:%d", cfg.HostPort, registryContainerPort),
 		"--network", "bridge",
 		"-v", fmt.Sprintf("%s:/var/lib/registry", cfg.DataDir),
 		"--name", cfg.Name,
@@ -303,10 +303,10 @@ proxy:
 `, proxyURL, cfg.Proxy.Username, cfg.Proxy.Password)
 
 	cfgFile := registryConfigHostPath(cfg)
-	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(cfgFile, []byte(content), 0o600); err != nil {
 		return "", err
 	}
 	return cfgFile, nil
