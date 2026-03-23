@@ -74,7 +74,7 @@ class ProjectDomainService
             $project->setId((int) $projectId);
         }
 
-        if (str_starts_with($projectMode, 'SMA-')) {
+        if ($projectMode !== null && str_starts_with($projectMode, 'SMA-')) {
             $projectMode = ProjectMode::CUSTOM_AGENT->value;
         }
 
