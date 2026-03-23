@@ -7,7 +7,7 @@
 
 <div align="center">
   <p align="center">
-    <a href="https://www.letsmagic.ai" target="_blank">
+    <a href="https://www.magicrew.ai" target="_blank">
       <img alt="Static Badge" src="https://img.shields.io/badge/Official Website-301AD2">
     </a>
     <a href="https://github.com/dtyq/magic/releases">
@@ -22,7 +22,7 @@
     <a href="https://github.com/dtyq/magic/discussions/" target="_blank">
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
-    <a href="https://www.letsmagic.ai" target="_blank">
+    <a href="https://www.magicrew.ai" target="_blank">
       <img alt="Static Badge" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
     </a>
   </p>
@@ -30,7 +30,7 @@
 
 <br/>
 
-![Super Magic](https://public-cdn.letsmagic.ai/static/img/3.0/super-magic-publish-head-v2.png)
+![Super Magic](https://public-cdn.magicrew.ai/static/img/3.0/super-magic-publish-head-v2.png)
 
 [🦞 OpenClaw](https://github.com/openclaw/openclaw) 是热门的个人 AI 助手——连接所有常用 IM，支持任何 LLM，7×24 小时自主运转。
 
@@ -73,16 +73,16 @@
 
 将碎片化的内部系统（ERP/CRM/数据库）与业务经验，深度封装为**可全员调用的数字员工**。打破系统孤岛，让零散的接口调用沉淀为企业可规模化复用的核心数字资产。
 
-![digital-employee-market](https://public-cdn.letsmagic.ai/static/img/3.0/digital-employee-market.png)
+![digital-employee-market](https://public-cdn.magicrew.ai/static/img/3.0/digital-employee-market.png)
 
 ### 2. 结果即交付
 
 不再停留在「Chat」交互。通过底层渲染框架，将 AI 结果直接转化为 **PPT、数据看板、录音总结、专业报告、Excel、无限画布（图片创作）**等「超级产物」，实现业务开箱即用，拒绝半成品。
 
-![openclaw-enterprise-research-report](https://public-cdn.letsmagic.ai/static/img/3.0/openclaw-enterprise-research-report.png)
-![solution-ppt-demo](https://public-cdn.letsmagic.ai/static/img/3.0/solution-ppt-demo.png)
-![earnings-call-analysis](https://public-cdn.letsmagic.ai/static/img/3.0/earnings-call-analysis.png)
-![canvas-poster-design](https://public-cdn.letsmagic.ai/static/img/3.0/canvas-poster-design.png)
+![openclaw-enterprise-research-report](https://public-cdn.magicrew.ai/static/img/3.0/openclaw-enterprise-research-report.png)
+![solution-ppt-demo](https://public-cdn.magicrew.ai/static/img/3.0/solution-ppt-demo.png)
+![earnings-call-analysis](https://public-cdn.magicrew.ai/static/img/3.0/earnings-call-analysis.png)
+![canvas-poster-design](https://public-cdn.magicrew.ai/static/img/3.0/canvas-poster-design.png)
 
 ### 3. 企业级安全合规
 
@@ -104,7 +104,7 @@
 
 完美兼容 **[Anthropic Skills](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview) 生态**与 **[OpenClaw Skills](https://github.com/openclaw/openclaw) 生态**，现有的工具与技能可直接复用，零迁移成本接入企业级平台。
 
-![skill-creator](https://public-cdn.letsmagic.ai/static/img/3.0/skill-creator.png)
+![skill-creator](https://public-cdn.magicrew.ai/static/img/3.0/skill-creator.png)
 
 ---
 
@@ -173,7 +173,7 @@
 不想自行部署？可直接使用云服务版本，注册即用、零配置：
 
 - **中国版**：[超级麦吉](https://www.letsmagic.cn)
-- **国际版**：[MagiCrew](https://www.letsmagic.ai)
+- **国际版**：[MagiCrew](https://www.magicrew.ai)
 
 ### 企业版
 

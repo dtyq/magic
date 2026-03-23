@@ -29,7 +29,7 @@ body:
         - Self-hosted (Docker)
         - Self-hosted (Source)
         - Chinese Site (https://www.letsmagic.cn)
-        - International Site (https://www.letsmagic.ai)
+        - International Site (https://www.magicrew.ai)
         - Other
     validations:
       required: true

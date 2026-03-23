@@ -1,0 +1,100 @@
+package code
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"go.yaml.in/yaml/v3"
+
+	"github.com/dtyq/magicrew-cli/util"
+)
+
+var subtreeKindCmd subtreeKind = "cmd"
+
+type subtreeSpliterCmdKind string
+
+var (
+	subtreeSpliterCmdKindGit         subtreeSpliterCmdKind = "git"
+	subtreeSpliterCmdKindSplitshLite subtreeSpliterCmdKind = "splitsh-lite"
+)
+
+type subtreeSpliterCmd struct {
+	Kind            subtreeKind           `yaml:"kind"`
+	Cmd             subtreeSpliterCmdKind `yaml:"cmd"`
+	SplitBranchName string                `yaml:"splitBranchName"`
+
+	// for splitsh-lite
+	SplitshLitePath string `yaml:"splitshLitePath"`
+	Scratch         bool   `yaml:"scratch"` // with no cache
+
+	splitMuxtex sync.Mutex
+}
+
+func newSubtreeCmd(node yaml.Node) (subtreeSpliter, error) {
+	s := subtreeSpliterCmd{}
+	err := node.Decode(&s)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode subtree spliter cmd config: %w", err)
+	}
+
+	if s.Cmd == "" {
+		if s.SplitshLitePath == "" {
+			s.Cmd = subtreeSpliterCmdKindGit
+		} else {
+			s.Cmd = subtreeSpliterCmdKindSplitshLite
+		}
+	}
+	if s.SplitshLitePath == "" {
+		s.SplitshLitePath = "splitsh-lite"
+	}
+
+	if s.SplitBranchName == "" {
+		s.SplitBranchName = "magicrew-split-" + time.Now().Format("20060102150405")
+	}
+
+	return &s, nil
+}
+
+func (s *subtreeSpliterCmd) Split(ctx context.Context, code *Code, subtreeSplit SubtreeSplit) error {
+	// solve dest path relative to code.BaseDir
+	destPath, err := filepath.Rel(code.BaseDir, subtreeSplit.DestPath)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path: %w", err)
+	}
+
+	s.splitMuxtex.Lock()
+	defer s.splitMuxtex.Unlock()
+
+	// split into a new branch
+	splitCommand := util.Command{
+		Dir:    code.BaseDir,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+	switch s.Cmd {
+	case subtreeSpliterCmdKindGit:
+		// use git subtree split
+		splitCommand.Args = []string{
+			"git", "subtree", "split", "--prefix", subtreeSplit.Prefix, "--branch", s.SplitBranchName,
+		}
+	case subtreeSpliterCmdKindSplitshLite:
+		splitCommand.Args = []string{
+			"splitsh-lite", "--prefix", subtreeSplit.Prefix, "--branch", s.SplitBranchName,
+		}
+		if s.Scratch {
+			splitCommand.Args = append(splitCommand.Args, "--scratch")
+		}
+	}
+	err := splitCommand.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to split subtree: %w", err)
+	}
+
+	// checkout in the dest worktree
+
+	return nil
+}

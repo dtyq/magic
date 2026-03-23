@@ -12,7 +12,7 @@ setup(
     name="agentlang",
     version="0.1.3",
     author="SuperMagic Team",
-    author_email="dev@letsmagic.ai",
+    author_email="dev@magicrew.ai",
     description="简单、高效的 AI 代理框架",
     long_description=long_description,
     long_description_content_type="text/markdown",

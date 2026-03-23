@@ -42,8 +42,8 @@ class S3Expand implements ExpandInterface
     public function getUploadCredential(CredentialPolicy $credentialPolicy, array $options = []): array
     {
         return $credentialPolicy->isSts()
-            ? $this->getUploadCredentialBySts($credentialPolicy)
-            : $this->getUploadCredentialBySimple($credentialPolicy);
+            ? $this->getUploadCredentialBySts($credentialPolicy, $options)
+            : $this->getUploadCredentialBySimple($credentialPolicy, $options);
     }
 
     public function getPreSignedUrls(array $fileNames, int $expires = 3600, array $options = []): array
@@ -149,7 +149,7 @@ class S3Expand implements ExpandInterface
         }
     }
 
-    private function getUploadCredentialBySimple(CredentialPolicy $credentialPolicy): array
+    private function getUploadCredentialBySimple(CredentialPolicy $credentialPolicy, array $options = []): array
     {
         $issuedAt = time();
         $expiresAt = $issuedAt + $credentialPolicy->getExpires();
@@ -159,6 +159,7 @@ class S3Expand implements ExpandInterface
         $bucket = $this->getBucket();
         $dir = $credentialPolicy->getDir();
         $accessKey = $this->config['accessKey'] ?? '';
+        $credentialEndpoint = $this->getCredentialEndpoint($options);
         $credentialScope = "{$shortDate}/{$region}/s3/aws4_request";
         $policy = [
             'expiration' => gmdate('Y-m-d\TH:i:s\Z', $expiresAt),
@@ -193,13 +194,13 @@ class S3Expand implements ExpandInterface
         return [
             'platform' => AdapterName::MINIO,
             'region' => $region,
-            'endpoint' => $this->getPublicEndpoint(),
+            'endpoint' => $credentialEndpoint,
             'bucket' => $bucket,
             'dir' => $dir,
             'version' => $this->config['version'] ?? 'latest',
             'use_path_style_endpoint' => $this->config['use_path_style_endpoint'] ?? true,
-            'host' => $this->buildUploadHost($bucket, $this->getPublicEndpoint()),
-            'url' => $this->buildUploadHost($bucket, $this->getPublicEndpoint()),
+            'host' => $this->buildUploadHost($bucket, $credentialEndpoint),
+            'url' => $this->buildUploadHost($bucket, $credentialEndpoint),
             'policy' => $encodedPolicy,
             'signature' => $signature,
             'access_key_id' => $accessKey,
@@ -217,7 +218,7 @@ class S3Expand implements ExpandInterface
      *
      * @see https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
      */
-    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy): array
+    private function getUploadCredentialBySts(CredentialPolicy $credentialPolicy, array $options = []): array
     {
         $roleSessionName = $credentialPolicy->getRoleSessionName() ?: uniqid('cloudfile_');
         $roleArn = $this->config['role_arn'] ?? '';
@@ -227,6 +228,7 @@ class S3Expand implements ExpandInterface
 
         // Expires between 900~43200 seconds for AssumeRole
         $expires = max(900, min(43200, $credentialPolicy->getExpires()));
+        $credentialEndpoint = $this->getCredentialEndpoint($options);
 
         // Create STS client
         $stsClient = new StsClient([
@@ -241,9 +243,24 @@ class S3Expand implements ExpandInterface
 
         // Build policy based on sts type
         $dir = $credentialPolicy->getDir();
-        $resource = "arn:aws:s3:::{$this->getBucket()}";
+        $bucketArn = "arn:aws:s3:::{$this->getBucket()}";
+
+        // Build object resource ARN(s) covering the target directory.
+        //
+        // When $dir is non-empty it always ends with '/' (enforced by CredentialPolicy::formatDirPath).
+        // MinIO STS evaluates '*' as "one or more characters" in some configurations, which means
+        // the pattern "dir/*" does NOT match the directory marker "dir/" itself (empty suffix).
+        // To ensure both the folder marker and all objects inside are covered, we emit two ARNs:
+        //   1. The exact directory marker:  "arn:...bucket/dir/"
+        //   2. All objects inside:          "arn:...bucket/dir/*"
         if (! empty($dir)) {
-            $resource = "{$resource}/{$dir}*";
+            $dirArn = "{$bucketArn}/{$dir}"; // e.g. "arn:aws:s3:::xxxxx/xxx/xxx/xx/workspace/"
+            $objectResource = [
+                $dirArn,        // directory marker: ".../workspace/"
+                $dirArn . '*',  // all objects inside: ".../workspace/*"
+            ];
+        } else {
+            $objectResource = "{$bucketArn}/*";
         }
 
         $stsPolicy = match ($credentialPolicy->getStsType()) {
@@ -256,7 +273,7 @@ class S3Expand implements ExpandInterface
                             's3:ListBucket',
                             's3:ListBucketVersions',
                         ],
-                        'Resource' => "arn:aws:s3:::{$this->getBucket()}",
+                        'Resource' => $bucketArn,
                         'Condition' => [
                             'StringLike' => [
                                 's3:prefix' => [
@@ -277,7 +294,7 @@ class S3Expand implements ExpandInterface
                             's3:DeleteObject',
                             's3:DeleteObjectVersion',
                         ],
-                        'Resource' => $resource,
+                        'Resource' => $objectResource,
                     ],
                 ],
             ],
@@ -293,7 +310,7 @@ class S3Expand implements ExpandInterface
                             's3:ListMultipartUploadParts',
                             's3:GetObjectVersion',
                         ],
-                        'Resource' => $resource,
+                        'Resource' => $objectResource,
                     ],
                 ],
             ],
@@ -315,7 +332,7 @@ class S3Expand implements ExpandInterface
         return [
             'platform' => AdapterName::MINIO,
             'region' => $this->config['region'] ?? 'us-east-1',
-            'endpoint' => $this->getPublicEndpoint(),
+            'endpoint' => $credentialEndpoint,
             'version' => $this->config['version'] ?? 'latest',
             'use_path_style_endpoint' => $this->config['use_path_style_endpoint'] ?? true,
             'credentials' => [
@@ -542,5 +559,14 @@ class S3Expand implements ExpandInterface
     private function getInternalEndpoint(): ?string
     {
         return $this->config['internal_endpoint'] ?? null;
+    }
+
+    private function getCredentialEndpoint(array $options = []): ?string
+    {
+        if ((bool) ($options['internal_endpoint'] ?? false)) {
+            return $this->getInternalEndpoint() ?? $this->getPublicEndpoint();
+        }
+
+        return $this->getPublicEndpoint();
     }
 }

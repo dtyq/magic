@@ -36,12 +36,12 @@ class S3SimpleUpload extends SimpleUpload
         $credential = $this->normalizeCredential($this->unwrapTemporaryCredential($credential));
 
         // Auto-detect credential type and choose upload method
-        if ($this->isStsCredential($credential)) {
-            // SDK mode: Use AWS SDK putObject
-            $this->uploadObjectBySdk($credential, $uploadFile);
-        } elseif ($this->isFormPostCredential($credential)) {
+        if ($this->isFormPostCredential($credential)) {
             // Form POST mode: Use CURL multipart form upload
             $this->uploadObjectByFormPost($credential, $uploadFile);
+        } elseif ($this->isStsCredential($credential)) {
+            // SDK mode: Use AWS SDK putObject
+            $this->uploadObjectBySdk($credential, $uploadFile);
         } else {
             throw new CloudFileException('S3 upload credential is invalid: missing required fields');
         }
@@ -380,17 +380,13 @@ class S3SimpleUpload extends SimpleUpload
     }
 
     /**
-     * Check if credential can be used with the S3 SDK.
-     * Supports both long-lived AK/SK and STS temporary credentials.
+     * Check if credential is an STS temporary credential.
      */
     private function isStsCredential(array $credential): bool
     {
-        return isset($credential['credentials']['access_key_id'])
-            && isset($credential['bucket'])
-            && (
-                isset($credential['credentials']['secret_access_key'])
-                || isset($credential['credentials']['access_key_secret'])
-            );
+        return ! empty($credential['sts_token'])
+            || ! empty($credential['session_token'])
+            || ! empty($credential['credentials']['session_token']);
     }
 
     /**
@@ -582,7 +578,14 @@ class S3SimpleUpload extends SimpleUpload
 
     private function normalizeCredential(array $credential): array
     {
-        if (! isset($credential['credentials']) && isset($credential['access_key_id'], $credential['bucket'])) {
+        if (
+            ! isset($credential['credentials'])
+            && isset($credential['access_key_id'], $credential['bucket'])
+            && (
+                isset($credential['access_key_secret'])
+                || isset($credential['secret_access_key'])
+            )
+        ) {
             $credential['credentials'] = [
                 'access_key_id' => $credential['access_key_id'],
                 'secret_access_key' => $credential['access_key_secret'] ?? $credential['secret_access_key'] ?? '',
