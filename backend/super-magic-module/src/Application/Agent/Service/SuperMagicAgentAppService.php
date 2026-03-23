@@ -147,7 +147,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->ensureAgentAccessible($dataIsolation, $code);
+        $this->ensureAgentAccessible($authorization, $code);
+
+        // 忽略组织
+        $dataIsolation->disabled();
 
         // 1. 查询 Agent 详情（包含技能列表和 Playbook 列表）
         $agent = $this->superMagicAgentDomainService->getDetail($dataIsolation, $code);
@@ -225,7 +228,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->ensureAgentAccessible($dataIsolation, $code);
+        $this->ensureAgentAccessible($authorization, $code);
 
         $dataIsolation->disabled();
         $versionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
@@ -1763,16 +1766,20 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $publishType->getAllowedPublishTargetTypeValues();
     }
 
-    private function ensureAgentAccessible(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    private function ensureAgentAccessible(Authenticatable $dataIsolation, string $code): void
     {
         $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getId(),
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
             [$code]
         );
 
         if (in_array($code, $accessibleCodes, true)) {
+            return;
+        }
+        $officialCodes = $this->getOfficialAgentCodes($dataIsolation);
+        if (in_array($code, $officialCodes)) {
             return;
         }
 
