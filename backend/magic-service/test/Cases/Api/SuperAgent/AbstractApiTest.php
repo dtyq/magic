@@ -16,14 +16,20 @@ class AbstractApiTest extends AbstractHttpTest
 {
     private string $authorization = '';
 
+    private string $userId = '';
+
     protected function switchUserTest1(): string
     {
-        return $this->authorization = env('TEST_TOKEN');
+        $this->userId = env('TEST1_USER_ID');
+        $this->authorization = env('TEST1_TOKEN');
+        return '';
     }
 
     protected function switchUserTest2(): string
     {
-        return $this->authorization = env('TEST2_TOKEN');
+        $this->userId = env('TEST2_USER_ID');
+        $this->authorization = env('TEST2_TOKEN');
+        return '';
     }
 
     protected function getCommonHeaders(): array
@@ -32,9 +38,9 @@ class AbstractApiTest extends AbstractHttpTest
             'organization-code' => env('TEST_ORGANIZATION_CODE'),
             // 换成自己的
             'Authorization' => $this->authorization,
+            'user-id' => $this->userId,
             'language' => 'en_US',
             'api-key' => env('TEST_API_KEY'),
-            'user-id' => env('TEST_USER_ID'),
         ];
     }
 }

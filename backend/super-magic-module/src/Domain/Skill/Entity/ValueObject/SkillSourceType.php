@@ -20,6 +20,11 @@ enum SkillSourceType: string
     case MARKET = 'MARKET';
 
     /**
+     * 对话创建.
+     */
+    case DIALOGUE_CREATION = 'DIALOGUE_CREATION';
+
+    /**
      * GitHub 导入.
      */
     case GITHUB = 'GITHUB';
@@ -50,6 +55,7 @@ enum SkillSourceType: string
             self::GITHUB => 'GitHub 导入',
             self::AGENT_CREATED => 'Agent 创建',
             self::AGENT_THIRD_PARTY_IMPORT => 'Agent 第三方导入',
+            self::DIALOGUE_CREATION => '对话创建',
             self::SYSTEM => '系统内置',
         };
     }
@@ -84,6 +90,11 @@ enum SkillSourceType: string
     public function isAgentCreated(): bool
     {
         return $this === self::AGENT_CREATED;
+    }
+
+    public function isDialogueCreation(): bool
+    {
+        return $this === self::DIALOGUE_CREATION;
     }
 
     /**

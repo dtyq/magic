@@ -86,7 +86,7 @@ class AgentSkillEntity extends AbstractEntity
      */
     public function toArray(): array
     {
-        $result = [
+        return [
             'id' => $this->id,
             'agent_id' => $this->agentId,
             'agent_version_id' => $this->agentVersionId,
@@ -101,10 +101,6 @@ class AgentSkillEntity extends AbstractEntity
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
         ];
-
-        return array_filter($result, function ($value) {
-            return $value !== null;
-        });
     }
 
     public function getId(): ?int
@@ -170,7 +166,7 @@ class AgentSkillEntity extends AbstractEntity
         return $this;
     }
 
-    public function getSkillVersionId(): int
+    public function getSkillVersionId(): ?int
     {
         return $this->skillVersionId;
     }

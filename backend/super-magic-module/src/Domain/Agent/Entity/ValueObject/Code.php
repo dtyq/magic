@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject;
 enum Code: string
 {
     case SuperMagicAgent = 'SMA';
+    case MagicClaw = 'MC';
 
     public function gen(): string
     {

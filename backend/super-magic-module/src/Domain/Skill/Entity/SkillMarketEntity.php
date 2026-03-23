@@ -48,6 +48,11 @@ class SkillMarketEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
+     * @var null|string 统一小写搜索字段
+     */
+    protected ?string $searchText = null;
+
+    /**
      * @var null|string Logo 图片 URL
      */
     protected ?string $logo = null;
@@ -76,6 +81,11 @@ class SkillMarketEntity extends AbstractEntity
      * @var int 安装次数
      */
     protected int $installCount = 0;
+
+    /**
+     * @var null|int 排序值，数值越大越靠前；NULL 表示按创建时间排序
+     */
+    protected ?int $sortOrder = null;
 
     /**
      * @var null|string 创建时间
@@ -109,12 +119,14 @@ class SkillMarketEntity extends AbstractEntity
             'skill_version_id' => $this->skillVersionId,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'search_text' => $this->searchText,
             'logo' => $this->logo,
             'publisher_id' => $this->publisherId,
             'publisher_type' => $this->publisherType->value,
             'category_id' => $this->categoryId,
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
+            'sort_order' => $this->sortOrder,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -195,6 +207,17 @@ class SkillMarketEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSearchText(): ?string
+    {
+        return $this->searchText;
+    }
+
+    public function setSearchText(?string $searchText): self
+    {
+        $this->searchText = $searchText;
+        return $this;
+    }
+
     public function getLogo(): ?string
     {
         return $this->logo;
@@ -270,6 +293,21 @@ class SkillMarketEntity extends AbstractEntity
     public function setInstallCount(int|string $installCount): self
     {
         $this->installCount = is_string($installCount) ? (int) $installCount : $installCount;
+        return $this;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(null|int|string $sortOrder): self
+    {
+        if ($sortOrder === null) {
+            $this->sortOrder = null;
+        } else {
+            $this->sortOrder = is_string($sortOrder) ? (int) $sortOrder : $sortOrder;
+        }
         return $this;
     }
 

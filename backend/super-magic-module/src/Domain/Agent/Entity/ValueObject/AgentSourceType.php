@@ -18,13 +18,6 @@ enum AgentSourceType: string
     case LOCAL_CREATE = 'LOCAL_CREATE';
 
     /**
-     * 废弃
-     * 商店添加（从商店添加的 Agent）.
-     * @deprecated
-     */
-    case STORE = 'STORE';
-
-    /**
      * 商店添加（从商店添加的 Agent）.
      */
     case MARKET = 'MARKET';
@@ -36,7 +29,6 @@ enum AgentSourceType: string
     {
         return match ($this) {
             self::LOCAL_CREATE => '本地创建',
-            self::STORE => '商店添加',
             self::MARKET => '商店添加',
         };
     }
@@ -52,17 +44,9 @@ enum AgentSourceType: string
     /**
      * 是否为商店添加.
      */
-    public function isStore(): bool
-    {
-        return $this === self::STORE || $this === self::MARKET;
-    }
-
-    /**
-     * 是否为商店添加.
-     */
     public function isMarket(): bool
     {
-        return $this === self::STORE || $this === self::MARKET;
+        return $this === self::MARKET;
     }
 
     /**

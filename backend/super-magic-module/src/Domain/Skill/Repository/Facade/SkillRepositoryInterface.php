@@ -75,6 +75,32 @@ interface SkillRepositoryInterface
     ): array;
 
     /**
+     * Query skills by visible skill codes.
+     *
+     * @param array<string> $codes Visible skill code list
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array;
+
+    /**
+     * Query shared skills by visible skill codes.
+     *
+     * @param array<string> $codes Visible skill code list
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesSharedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array;
+
+    /**
      * 查询用户技能总数（用于分页）.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象
@@ -100,11 +126,11 @@ interface SkillRepositoryInterface
     public function deleteByCode(SkillDataIsolation $dataIsolation, string $code): bool;
 
     /**
-     * 根据 version_code 列表查询用户已添加的技能（用于判断 is_added 和 need_upgrade）.
+     * 根据市场 skill_code 列表查询用户已添加的技能（用于判断 is_added 和 need_upgrade）.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param array $versionCodes version_code 列表
-     * @return array<string, SkillEntity> 技能实体数组，key 为 version_code
+     * @param array $versionCodes 市场 skill_code 列表
+     * @return array<string, SkillEntity> 技能实体数组，key 为 skill_code
      */
     public function findByVersionCodes(SkillDataIsolation $dataIsolation, array $versionCodes): array;
 

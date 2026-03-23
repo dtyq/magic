@@ -311,8 +311,10 @@ class MessageScheduleAppService extends AbstractAppService
         // Get existing message schedule
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        // Check project permission
-        $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        // Check project permission (only if project_id is set)
+        if ($messageSchedule->getProjectId() > 0) {
+            $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        }
 
         try {
             return Db::transaction(function () use ($id, $requestDTO, $dataIsolation, $messageSchedule) {
@@ -486,8 +488,10 @@ class MessageScheduleAppService extends AbstractAppService
         // Get message schedule
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        // Check project permission
-        $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        // Check project permission (only if project_id is set)
+        if ($messageSchedule->getProjectId() > 0) {
+            $this->getAccessibleProjectWithEditor($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        }
 
         return Db::transaction(function () use ($id, $dataIsolation, $messageSchedule) {
             // Delete task scheduler if exists
@@ -513,8 +517,10 @@ class MessageScheduleAppService extends AbstractAppService
 
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        // Check project permission
-        $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        // Check project permission (only if project_id is set)
+        if ($messageSchedule->getProjectId() > 0) {
+            $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        }
 
         return MessageScheduleItemDTO::fromEntity($messageSchedule)->toArray();
     }
@@ -533,12 +539,14 @@ class MessageScheduleAppService extends AbstractAppService
         // Validate ownership: check if the schedule belongs to current user
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
 
-        // Check project permission (must have editor access)
-        $this->getAccessibleProjectWithEditor(
-            $messageSchedule->getProjectId(),
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode()
-        );
+        // Check project permission (must have editor access, only if project_id is set)
+        if ($messageSchedule->getProjectId() > 0) {
+            $this->getAccessibleProjectWithEditor(
+                $messageSchedule->getProjectId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+        }
 
         // Execute the schedule
         return $this->executeMessageSchedule($id);
@@ -559,8 +567,10 @@ class MessageScheduleAppService extends AbstractAppService
         // Validate that the user owns this message schedule
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $messageScheduleId);
 
-        // Check project permission
-        $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        // Check project permission (only if project_id is set)
+        if ($messageSchedule->getProjectId() > 0) {
+            $this->getAccessibleProject($messageSchedule->getProjectId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        }
 
         // Get execution logs with pagination (using domain service with conditions)
         $conditions = [

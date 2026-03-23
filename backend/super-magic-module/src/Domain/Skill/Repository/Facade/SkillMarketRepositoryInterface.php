@@ -62,6 +62,23 @@ interface SkillMarketRepositoryInterface
     ): array;
 
     /**
+     * 管理后台查询市场技能列表.
+     *
+     * @return array{total: int, list: SkillMarketEntity[]}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $skillCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
+
+    /**
      * 根据 ID 查找市场技能（仅查询已发布的）.
      *
      * @param int $id 市场技能 ID
@@ -70,10 +87,26 @@ interface SkillMarketRepositoryInterface
     public function findPublishedById(int $id): ?SkillMarketEntity;
 
     /**
+     * Batch query market skills by IDs.
+     *
+     * @return array<int, SkillMarketEntity>
+     */
+    public function findByIds(array $ids): array;
+
+    /**
      * 增加市场技能的安装次数.
      *
      * @param int $id 市场技能 ID
      * @return bool 是否更新成功
      */
     public function incrementInstallCount(int $id): bool;
+
+    /**
+     * 更新市场技能排序值.
+     *
+     * @param int $id 市场技能 ID
+     * @param int $sortOrder 排序值
+     * @return bool 是否更新成功
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool;
 }

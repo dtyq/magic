@@ -87,6 +87,10 @@ return [
         'official_agent_cannot_delete' => '无法删除官方员工',
         'agent_version_not_found' => 'Agent 版本未找到',
         'can_only_review_pending_version' => '只能审核待审核的版本',
+        'version_already_exists' => '版本号已存在',
+        'publish_target_type_invalid' => '发布对象类型无效',
+        'publish_target_value_should_be_empty' => '当前发布对象不允许传 publish_target_value',
+        'publish_target_value_required' => '当前发布对象必须传 publish_target_value',
         'store_agent_not_found' => '商店员工未找到',
         'store_agent_already_added' => '该商店员工已添加，不允许重复添加',
         // 从 crew.php 迁移的键
@@ -127,6 +131,8 @@ return [
         'skill_name_must_be_string' => '技能名称必须是字符串',
         'skill_not_found' => '技能未找到',
         'skill_not_found_or_not_match' => '部分技能未找到或不属于当前版本',
+        'skill_access_denied' => '无权访问该技能',
+        'skill_version_not_found' => '技能版本未找到',
         'skill_not_belong_to_organization' => '技能不属于当前组织',
         'duplicate_skill_id' => '技能列表中存在重复的技能 ID',
         'duplicate_skill_code' => '技能列表中存在重复的技能编码',
@@ -144,6 +150,12 @@ return [
         'publisher_type_must_be_string' => '发布者类型必须是字符串',
         'publisher_type_invalid' => '发布者类型无效',
         'agent_not_found' => 'Agent 未找到',
+        'import' => [
+            'invalid_file_type' => '文件类型无效，仅支持 ZIP 格式',
+            'file_too_large' => '文件大小超过限制，最大支持 20MB',
+            'invalid_package' => '压缩包格式无效，缺少必要的 IDENTITY.md 文件',
+            'extract_failed' => '压缩包解压失败，请确认文件完整性后重试',
+        ],
     ],
     'task' => [
         'prompt_length_exceeded' => '输入文本过长，建议以文件形式上传后，在对话框中进行引用。',

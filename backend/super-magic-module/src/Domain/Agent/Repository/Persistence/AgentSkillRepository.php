@@ -45,6 +45,24 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
         return $entities;
     }
 
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentSkillModel::query());
+
+        $models = $builder
+            ->where('agent_version_id', $agentVersionId)
+            ->orderBy('sort_order', 'ASC')
+            ->orderBy('created_at', 'ASC')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new AgentSkillEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
     /**
      * 删除该 Agent 的所有现有绑定关系（软删除）.
      */
@@ -74,6 +92,7 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
 
     /**
      * 批量创建技能绑定关系.
+     * toArray() 会过滤 null，导致不同实体列不一致，需规范化确保每行列相同.
      */
     public function batchSave(SuperMagicAgentDataIsolation $dataIsolation, array $entities): array
     {
@@ -87,8 +106,10 @@ class AgentSkillRepository extends SuperMagicAbstractRepository implements Agent
         foreach ($entities as $entity) {
             $entity->setCreatedAt($now);
             $entity->setUpdatedAt($now);
-            $item = $this->getAttributes($entity);
+            $item = $entity->toArray();
             $item['id'] = IdGenerator::getSnowId();
+            $item['created_at'] = $now;
+            $item['updated_at'] = $now;
             $insertData[] = $item;
         }
 

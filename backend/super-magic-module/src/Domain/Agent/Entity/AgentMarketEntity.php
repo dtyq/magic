@@ -49,6 +49,11 @@ class AgentMarketEntity extends AbstractEntity
     protected ?array $roleI18n = null;
 
     /**
+     * @var null|string 统一小写搜索字段
+     */
+    protected ?string $searchText = null;
+
+    /**
      * 图标.
      */
     protected ?array $icon = null;
@@ -79,6 +84,11 @@ class AgentMarketEntity extends AbstractEntity
      * @var int 安装次数（统计有多少用户安装了该员工）
      */
     protected int $installCount = 0;
+
+    /**
+     * @var null|int 排序值，数值越大越靠前；NULL 表示按创建时间排序
+     */
+    protected ?int $sortOrder = null;
 
     /**
      * @var null|string 创建时间
@@ -114,6 +124,7 @@ class AgentMarketEntity extends AbstractEntity
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
             'role_i18n' => $this->roleI18n,
+            'search_text' => $this->searchText,
             'icon' => $this->icon,
             'icon_type' => $this->iconType->value,
             'publisher_id' => $this->publisherId,
@@ -121,6 +132,7 @@ class AgentMarketEntity extends AbstractEntity
             'category_id' => $this->categoryId,
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
+            'sort_order' => $this->sortOrder,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -210,6 +222,17 @@ class AgentMarketEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSearchText(): ?string
+    {
+        return $this->searchText;
+    }
+
+    public function setSearchText(?string $searchText): self
+    {
+        $this->searchText = $searchText;
+        return $this;
+    }
+
     public function getPublisherId(): string
     {
         return $this->publisherId;
@@ -274,6 +297,21 @@ class AgentMarketEntity extends AbstractEntity
     public function setInstallCount(int|string $installCount): self
     {
         $this->installCount = is_string($installCount) ? (int) $installCount : $installCount;
+        return $this;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(null|int|string $sortOrder): self
+    {
+        if ($sortOrder === null) {
+            $this->sortOrder = null;
+        } else {
+            $this->sortOrder = is_string($sortOrder) ? (int) $sortOrder : $sortOrder;
+        }
         return $this;
     }
 

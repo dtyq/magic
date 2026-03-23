@@ -16,6 +16,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use DirectoryIterator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
@@ -1289,6 +1290,9 @@ class ProjectAppService extends AbstractAppService
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
+                $dto->isHidden = false;
+            }
             $dto->isDirectory = $entity->getIsDirectory();
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
@@ -1360,6 +1364,9 @@ class ProjectAppService extends AbstractAppService
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
+                $dto->isHidden = false;
+            }
             $dto->isDirectory = $entity->getIsDirectory();
             $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             // 添加 project_id 字段
@@ -1482,8 +1489,11 @@ class ProjectAppService extends AbstractAppService
     // ========================================
     // Agent Project Methods
     // ========================================
-    public function createAgentProject(RequestContext $requestContext, CreateAgentProjectRequestDTO $requestDTO)
-    {
+    public function createAgentProject(
+        RequestContext $requestContext,
+        CreateAgentProjectRequestDTO $requestDTO,
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT
+    ) {
         $this->logger->info('Starting agent project creation');
 
         // Get user authorization and create data isolation
@@ -1492,8 +1502,8 @@ class ProjectAppService extends AbstractAppService
 
         Db::beginTransaction();
         try {
-            // 1. Create project entity (audio mode)
-            $this->logger->info('Creating core project for audio');
+            // 1. Create project entity
+            $this->logger->info(sprintf('Creating core project with mode=%s', $projectMode->value));
             $projectEntity = $this->projectDomainService->createProject(
                 0,
                 $requestDTO->getProjectName(),
@@ -1501,7 +1511,7 @@ class ProjectAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 '',
                 '',
-                ProjectMode::CUSTOM_AGENT->value,
+                $projectMode->value,
                 CreationSource::USER_CREATED->value,
                 true,
                 HiddenType::AGENT->value
@@ -1511,13 +1521,12 @@ class ProjectAppService extends AbstractAppService
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
             $topicEntity = $this->initializeProject($dataIsolation, null, $projectEntity);
 
-            // 7. Initialize project root directory (audio project only creates root)
-            $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                projectId: $projectEntity->getId(),
-                workDir: $projectEntity->getWorkDir(),
-                userId: $dataIsolation->getCurrentUserId(),
-                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+            // 2. Initialize root directory and optionally upload template files
+            $this->initCustomTemplateFiles(
+                $projectEntity,
+                $dataIsolation,
+                $projectMode,
+                $requestDTO->getInitTemplateFiles()
             );
 
             Db::commit();
@@ -1536,7 +1545,7 @@ class ProjectAppService extends AbstractAppService
             ];
         } catch (Throwable $e) {
             Db::rollBack();
-            $this->logger->error('Create Audio Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
+            $this->logger->error('Create Agent Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, trans('project.create_project_failed'));
         }
     }
@@ -2027,6 +2036,139 @@ class ProjectAppService extends AbstractAppService
 
         // Delete core project
         $this->projectDomainService->deleteProject($projectId, $project->getUserId());
+    }
+
+    private function shouldForceMagicVisible(string $relativeFilePath, string $fileKey): bool
+    {
+        foreach ([$relativeFilePath, $fileKey] as $path) {
+            $normalizedPath = trim($path, '/');
+            if ($normalizedPath === '') {
+                continue;
+            }
+
+            if (
+                $normalizedPath === '.magic'
+                || str_starts_with($normalizedPath, '.magic/')
+                || str_contains($normalizedPath, '/.magic/')
+                || str_ends_with($normalizedPath, '/.magic')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Initialize the project root directory and upload all template files from the
+     * custom_agent template directory into the project workspace.
+     *
+     * This method is called during agent project creation to pre-populate the project
+     * with the standard set of agent definition files (AGENTS.md, IDENTITY.md, etc.).
+     * It is always executed inside the outer database transaction of createAgentProject.
+     */
+    private function initCustomTemplateFiles(
+        ProjectEntity $projectEntity,
+        DataIsolation $dataIsolation,
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT,
+        bool $initTemplateFiles = true
+    ): void {
+        // Create (or locate) the project root directory
+        $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+            projectId: $projectEntity->getId(),
+            workDir: $projectEntity->getWorkDir(),
+            userId: $dataIsolation->getCurrentUserId(),
+            organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+            projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+        );
+
+        if (! $initTemplateFiles) {
+            $this->logger->info('Skip initializing template files for project', [
+                'project_id' => $projectEntity->getId(),
+                'project_mode' => $projectMode->value,
+            ]);
+            return;
+        }
+
+        $templateSubDir = match ($projectMode) {
+            ProjectMode::MAGICLAW => 'magiclaw',
+            default => 'custom_agent',
+        };
+
+        $templateRootDirId = $rootDirId;
+        if ($projectMode === ProjectMode::MAGICLAW) {
+            $templateRootDirId = $this->taskFileDomainService->createDirectory(
+                projectId: $projectEntity->getId(),
+                parentId: $rootDirId,
+                dirName: '.magic',
+                relativePath: '.magic',
+                workDir: $projectEntity->getWorkDir(),
+                userId: $dataIsolation->getCurrentUserId(),
+                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+            );
+        }
+
+        // @phpstan-ignore-next-line
+        $templateDir = SUPER_MAGIC_MODULE_PATH . '/storage/agent_template/' . $templateSubDir;
+
+        if (! is_dir($templateDir)) {
+            $this->logger->warning(sprintf('Agent template directory not found: %s', $templateDir));
+            return;
+        }
+
+        $this->processTemplateDirectory($dataIsolation, $projectEntity, $templateDir, $templateRootDirId);
+    }
+
+    /**
+     * Recursively upload all files (and subdirectories) found under $templateDir
+     * into the project workspace, rooted at the file entry identified by $parentId.
+     */
+    private function processTemplateDirectory(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        string $templateDir,
+        int $parentId
+    ): void {
+        $iterator = new DirectoryIterator($templateDir);
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDot()) {
+                continue;
+            }
+
+            $fileName = $fileInfo->getFilename();
+
+            if ($fileInfo->isDir()) {
+                $dirEntity = $this->taskFileDomainService->createProjectFile(
+                    $dataIsolation,
+                    $projectEntity,
+                    $parentId,
+                    $fileName,
+                    true
+                );
+                $this->processTemplateDirectory(
+                    $dataIsolation,
+                    $projectEntity,
+                    $fileInfo->getPathname(),
+                    $dirEntity->getFileId()
+                );
+                continue;
+            }
+
+            $content = file_get_contents($fileInfo->getPathname());
+            if ($content === false) {
+                $this->logger->warning(sprintf('Failed to read template file: %s', $fileInfo->getPathname()));
+                continue;
+            }
+
+            $this->taskFileDomainService->createProjectFileWithContent(
+                $dataIsolation,
+                $projectEntity,
+                $parentId,
+                $fileName,
+                $content
+            );
+        }
     }
 
     /**
