@@ -581,6 +581,11 @@ class ProjectDomainService
         return $this->projectRepository->batchEnableCollaboration($projectIds);
     }
 
+    public function getProjectByTopicId(int $topicId): ?ProjectEntity
+    {
+        return $this->projectRepository->getProjectByTopicId($topicId);
+    }
+
     /**
      * Create forked project from source project.
      */

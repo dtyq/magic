@@ -205,4 +205,6 @@ interface ProjectRepositoryInterface
      * @return int Number of updated projects
      */
     public function batchEnableCollaboration(array $projectIds): int;
+
+    public function getProjectByTopicId(int $topicId): ?ProjectEntity;
 }
