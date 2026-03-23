@@ -2,8 +2,8 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/dtyq/magicrew-cli/deployer"
 	"github.com/dtyq/magicrew-cli/util"
@@ -49,10 +49,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	chartsDir := deployChartsDir
 	if chartsDir == "" && chartRepoURL == "" {
-		// In local mode, default to "<cwd>/charts" when --charts-dir is not provided.
-		if cwd, err := getwd(); err == nil {
-			chartsDir = filepath.Join(cwd, "charts")
-		}
+		return fmt.Errorf("either --charts-dir or chart repository URL must be provided")
 	}
 
 	webBaseURL := deployWebURL
@@ -77,9 +74,6 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		Log:           lg,
 	}).Run(context.Background())
 }
-
-// getwd returns the current working directory and can be replaced in tests.
-var getwd = os.Getwd
 
 // resolveDeployValuesFile chooses the values file path for deploy, in order:
 // 1) CLI --values
