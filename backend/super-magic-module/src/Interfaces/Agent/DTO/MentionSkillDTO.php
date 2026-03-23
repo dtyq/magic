@@ -17,6 +17,8 @@ class MentionSkillDTO extends AbstractDTO
 
     protected string $name = '';
 
+    protected string $packageName = '';
+
     protected string $description = '';
 
     protected ?string $logo = null;
@@ -37,6 +39,9 @@ class MentionSkillDTO extends AbstractDTO
         if (isset($data['description'])) {
             $this->description = (string) $data['description'];
         }
+        if (isset($data['package_name'])) {
+            $this->packageName = (string) $data['package_name'];
+        }
         if (array_key_exists('logo', $data)) {
             $this->logo = $data['logo'] !== null ? (string) $data['logo'] : null;
         }
@@ -51,6 +56,7 @@ class MentionSkillDTO extends AbstractDTO
             'id' => $this->id,
             'code' => $this->code,
             'name' => $this->name,
+            'package_name' => $this->packageName,
             'description' => $this->description,
             'logo' => $this->logo,
             'mention_source' => $this->mentionSource,

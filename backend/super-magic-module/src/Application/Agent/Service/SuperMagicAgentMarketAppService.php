@@ -114,6 +114,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
+     *     official_agent_codes: array<string>,
      *     page: int,
      *     page_size: int,
      *     total: int
@@ -149,6 +150,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
                 'playbooks_map' => [],
+                'official_agent_codes' => [],
                 'page' => $requestDTO->getPage(),
                 'page_size' => $requestDTO->getPageSize(),
                 'total' => $total,
@@ -169,6 +171,8 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
         $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
 
+        $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
+
         $this->updateAgentMarketIcon($dataIsolation, $agentMarkets);
 
         return [
@@ -177,6 +181,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             'user_agents_map' => $userAgentsMap,
             'latest_versions_map' => $latestVersionsMap,
             'playbooks_map' => $playbooksMap,
+            'official_agent_codes' => $officialAgentCodes,
             'page' => $requestDTO->getPage(),
             'page_size' => $requestDTO->getPageSize(),
             'total' => $total,

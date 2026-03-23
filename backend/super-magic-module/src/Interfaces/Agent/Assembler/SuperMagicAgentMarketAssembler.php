@@ -28,6 +28,7 @@ class SuperMagicAgentMarketAssembler
      * @param array<string, UserAgentEntity> $userAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string> $officialAgentCodes
      */
     public static function createQueryAgentMarketsResponseDTO(
         array $agentMarkets,
@@ -35,6 +36,7 @@ class SuperMagicAgentMarketAssembler
         array $userAgentsMap,
         array $latestVersionsMap,
         array $playbooksMap,
+        array $officialAgentCodes,
         int $page,
         int $pageSize,
         int $total
@@ -46,7 +48,8 @@ class SuperMagicAgentMarketAssembler
                 $publisherUserMap,
                 $userAgentsMap,
                 $latestVersionsMap,
-                $playbooksMap
+                $playbooksMap,
+                $officialAgentCodes
             );
         }
 
@@ -113,7 +116,8 @@ class SuperMagicAgentMarketAssembler
         array $publisherUserMap,
         array $userAgentsMap,
         array $latestVersionsMap,
-        array $playbooksMap
+        array $playbooksMap,
+        array $officialAgentCodes = []
     ): AgentMarketListItemDTO {
         $agentCode = $agentMarket->getAgentCode();
         $userAgent = $userAgentsMap[$agentCode] ?? null;
@@ -131,6 +135,13 @@ class SuperMagicAgentMarketAssembler
 
         $isAdded = $userAgent !== null;
         $allowDelete = $isAdded && $userAgent?->getSourceType()->isMarket() === true;
+
+        // 如果是官方员工则不允许删除，不允许添加
+        if (in_array($agentCode, $officialAgentCodes)) {
+            $isAdded = true;
+            $allowDelete = false;
+        }
+
         $latestVersionCode = isset($latestVersionsMap[$agentCode]) ? $latestVersionsMap[$agentCode]->getVersion() : null;
         $publisher = self::buildPublisher(
             $agentMarket->getPublisherType(),
