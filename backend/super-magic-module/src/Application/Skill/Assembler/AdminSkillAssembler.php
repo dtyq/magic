@@ -211,7 +211,7 @@ class AdminSkillAssembler
             descriptionI18n: $entity->getDescriptionI18n() ?? [],
             version: $entity->getVersion(),
             publishStatus: $entity->getPublishStatus()->value,
-            reviewStatus: $entity->getReviewStatus()?->value ?? '',
+            reviewStatus: $entity->getReviewStatus()->value,
             publishTargetType: $entity->getPublishTargetType()->value,
             sourceType: $entity->getSourceType()->value,
             publisher: $publisher,
