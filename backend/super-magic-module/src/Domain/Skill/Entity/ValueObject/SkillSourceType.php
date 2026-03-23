@@ -61,6 +61,7 @@ enum SkillSourceType: string
             self::AGENT_CREATED => 'Agent 创建',
             self::AGENT_THIRD_PARTY_IMPORT => 'Agent 第三方导入',
             self::DIALOGUE_CREATION => '对话创建',
+            self::CREW_IMPORT => '员工入口导入',
             self::SYSTEM => '系统内置',
         };
     }
