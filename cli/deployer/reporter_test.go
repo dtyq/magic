@@ -1,11 +1,12 @@
 package deployer
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/dtyq/magicrew-cli/util"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -32,6 +33,18 @@ func spyLoggerGroup() (*spyLogger, util.LoggerGroup) {
 	return spy, util.LoggerGroup{spy}
 }
 
+func withWaitOutputForTest(t *testing.T, w *bytes.Buffer, tty bool) {
+	t.Helper()
+	oldOut := waitOutput
+	oldTTY := isWaitTTY
+	waitOutput = w
+	isWaitTTY = func() bool { return tty }
+	t.Cleanup(func() {
+		waitOutput = oldOut
+		isWaitTTY = oldTTY
+	})
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func podWithWaiting(reason string) corev1.Pod {
@@ -45,6 +58,12 @@ func podWithWaiting(reason string) corev1.Pod {
 			},
 		},
 	}
+}
+
+func podNamedWithWaiting(name, reason string) corev1.Pod {
+	p := podWithWaiting(reason)
+	p.Name = name
+	return p
 }
 
 func podWithInitWaiting(reason string) corev1.Pod {
@@ -79,6 +98,24 @@ func podWithReadyCondition(status corev1.ConditionStatus) corev1.Pod {
 	}
 }
 
+func podWithInitTerminatedReason(reason string, exitCode int32) corev1.Pod {
+	return corev1.Pod{
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			InitContainerStatuses: []corev1.ContainerStatus{
+				{
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							Reason:   reason,
+							ExitCode: exitCode,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 // ── podStatusSummary ─────────────────────────────────────────────────────────
 
 func TestPodStatusSummary_ContainerWaiting(t *testing.T) {
@@ -98,6 +135,21 @@ func TestPodStatusSummary_NoWaitingFallsBackToPhase(t *testing.T) {
 func TestPodStatusSummary_PendingPhase(t *testing.T) {
 	p := corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodPending}}
 	assert.Equal(t, "Pending", podStatusSummary(p))
+}
+
+func TestFirstFailureReason_WaitingReason(t *testing.T) {
+	pods := []corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")}
+	assert.Equal(t, "pod-a:ImagePullBackOff", firstFailureReason(pods))
+}
+
+func TestFirstFailureReason_NoFailureReason(t *testing.T) {
+	assert.Equal(t, "", firstFailureReason([]corev1.Pod{runningPod()}))
+}
+
+func TestFirstFailureReason_InitCompletedNotFailure(t *testing.T) {
+	p := podWithInitTerminatedReason("Completed", 0)
+	p.Name = "pod-a"
+	assert.Equal(t, "", firstFailureReason([]corev1.Pod{p}))
 }
 
 // ── isPodReady ────────────────────────────────────────────────────────────────
@@ -144,32 +196,86 @@ func TestPodReadyStatus_SucceededPod(t *testing.T) {
 
 func TestNewPodReporter_EmptyPodsOutputsNoPods(t *testing.T) {
 	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
 	reporter([]corev1.Pod{})
-	assert.True(t, spy.contains("(no pods yet)"), "expected '(no pods yet)' in output, got: %v", spy.lines)
+	assert.True(t, spy.contains("[waiting] myapp pods (0/0 ready)"), "expected compact waiting output, got: %v", spy.lines)
 }
 
 func TestNewPodReporter_MixedReadyHeaderCount(t *testing.T) {
 	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
 	pods := []corev1.Pod{
 		podWithReadyCondition(corev1.ConditionTrue),
 		podWithReadyCondition(corev1.ConditionFalse),
 	}
 	reporter(pods)
-	assert.True(t, spy.contains("1/2 ready"), "expected '1/2 ready' in output, got: %v", spy.lines)
+	assert.True(t, spy.contains("[waiting] myapp pods (1/2 ready)"), "expected compact waiting output, got: %v", spy.lines)
 }
 
 func TestNewPodReporter_WaitingReasonAppears(t *testing.T) {
 	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podWithWaiting("CrashLoopBackOff")})
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "CrashLoopBackOff")})
 	assert.True(t, spy.contains("CrashLoopBackOff"), "expected 'CrashLoopBackOff' in output, got: %v", spy.lines)
 }
 
 func TestNewPodReporter_SucceededPodCountedAsReady(t *testing.T) {
 	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
 	reporter([]corev1.Pod{succeededPod(), podWithReadyCondition(corev1.ConditionTrue)})
-	assert.True(t, spy.contains("2/2 ready"), "expected '2/2 ready' in output, got: %v", spy.lines)
+	assert.True(t, spy.contains("[ready] myapp pods (2/2 ready)"), "expected ready summary output, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_NonTTYNoDuplicateSummary(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "myapp")
+	pods := []corev1.Pod{podWithReadyCondition(corev1.ConditionFalse)}
+	reporter(pods)
+	reporter(pods)
+
+	count := 0
+	for _, line := range spy.lines {
+		if strings.Contains(line, "[waiting] myapp pods (0/1 ready)") {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "expected summary printed once for unchanged status, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_TTYSpinnerAndFailureReason(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	s := out.String()
+	assert.Contains(t, s, "\r")
+	assert.Contains(t, s, "\x1b[2K")
+	assert.Contains(t, s, "[waiting] myapp pods")
+	assert.Contains(t, s, "失败原因: pod-a:ImagePullBackOff")
+	assert.Contains(t, s, "pod-a")
+	assert.Empty(t, spy.lines, "tty spinner should not append debug summary each tick")
+}
+
+func TestNewPodReporter_TTYDoesNotShowCompletedAsFailure(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "infra")
+
+	p := podWithInitTerminatedReason("Completed", 0)
+	p.Name = "infra-minio"
+	reporter([]corev1.Pod{p})
+
+	s := out.String()
+	assert.Contains(t, s, "[waiting] infra pods")
+	assert.Contains(t, s, "infra-minio")
+	assert.NotContains(t, s, "失败原因")
+	assert.Empty(t, spy.lines)
 }

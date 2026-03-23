@@ -30,7 +30,7 @@ func (s *BootstrapRegistryStage) Exec(ctx context.Context) error {
 	}
 	cfg.DataDir = dataDir
 
-	s.d.log.Logi("deploy", "Ensuring registry %s is running on port %d...", cfg.Name, cfg.Port)
+	s.d.log.Logi("deploy", "Ensuring registry %s is running at %s...", cfg.Name, registry.HostEndpoint(cfg))
 	if err := registry.EnsureRunning(ctx, cfg); err != nil {
 		return fmt.Errorf("ensure registry running: %w", err)
 	}

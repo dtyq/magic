@@ -67,6 +67,7 @@ func (c *Client) GetService(ctx context.Context, namespace, name string) (*corev
 // Annotation marking the "standard" StorageClass as managed by magicrew-cli.
 // If present, RecreateStandardStorageClass skips delete+create to avoid repeating on every deploy.
 const standardStorageClassManagedAnnotation = "magicrew-cli/default-storageclass"
+const podWaitPollInterval = 1 * time.Second
 
 // RecreateStandardStorageClass ensures the default "standard" StorageClass is the magicrew-cli
 // version (rancher.io/local-path + pathPattern). If it already has our managed annotation, skip.
@@ -135,7 +136,7 @@ func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelec
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
+		case <-time.After(podWaitPollInterval):
 		}
 	}
 }
@@ -168,7 +169,7 @@ func (c *Client) WaitForPodsReady(ctx context.Context, namespace, labelSelector 
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
+		case <-time.After(podWaitPollInterval):
 		}
 	}
 }

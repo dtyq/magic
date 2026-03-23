@@ -30,7 +30,7 @@ func TestResolveChartRefs_RewritesOCIRepoToHostEndpoint(t *testing.T) {
 
 	ref, ok := d.chartRefs["magic"]
 	require.True(t, ok)
-	assert.Equal(t, "oci://127.0.0.1:5000/magic-charts-open", ref.RepoURL)
+	assert.Equal(t, "oci://"+registry.HostEndpoint(d.opts.Registry)+"/magic-charts-open", ref.RepoURL)
 }
 
 func TestResolveChartRefs_KeepOCIRepoWhenHostNotRegistryContainerEndpoint(t *testing.T) {

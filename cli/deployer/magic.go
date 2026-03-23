@@ -279,7 +279,7 @@ func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace s
 
 	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(maxWaitSec)*time.Second)
 	defer cancel()
-	s.d.log.Logi("deploy", "image pre-pull waiting policy=%s timeout=%ds selector=%s", policy, maxWaitSec, imagePrepullLabelSelector)
+	s.d.log.Logi("deploy", "image pre-pull waiting policy=%s timeout=%ds", policy, maxWaitSec)
 
 	var err error
 	switch policy {
