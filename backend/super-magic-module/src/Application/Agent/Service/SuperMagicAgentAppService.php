@@ -759,7 +759,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
         foreach ($agentEntities as $agentIndex => $agent) {
             if (in_array($agent->getCode(), $builtinAgentCodes)) {
-                unset($agent[$agentIndex]);
+                unset($agentEntities[$agentIndex]);
             }
         }
         $result['list'] = array_merge($builtinAgents, $agentEntities);
