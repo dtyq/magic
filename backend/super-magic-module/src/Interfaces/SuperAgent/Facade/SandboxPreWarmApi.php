@@ -64,6 +64,11 @@ class SandboxPreWarmApi extends AbstractApi
         // 获取请求参数
         $topicId = $this->request->input('topic_id');
         $workspaceId = $this->request->input('workspace_id');
+        $languageHeader = $this->request->getHeader('language')[0] ?? null;
+        $language = null;
+        if (! empty($languageHeader)) {
+            $language = str_replace('-', '_', $languageHeader);
+        }
 
         // 参数验证：两者必须有且只有一个
         if (empty($topicId) && empty($workspaceId)) {
@@ -77,6 +82,7 @@ class SandboxPreWarmApi extends AbstractApi
         $this->logger->info('收到沙箱预启动请求', [
             'topic_id' => $topicId,
             'workspace_id' => $workspaceId,
+            'language' => $language,
         ]);
 
         // 根据参数判断场景
@@ -84,13 +90,15 @@ class SandboxPreWarmApi extends AbstractApi
             // 话题内场景
             $result = $this->sandboxPreWarmAppService->preWarmInTopic(
                 $requestContext,
-                (int) $topicId
+                (int) $topicId,
+                $language
             );
         } else {
             // 话题外场景
             $result = $this->sandboxPreWarmAppService->preWarmOutsideTopic(
                 $requestContext,
-                (int) $workspaceId
+                (int) $workspaceId,
+                $language
             );
         }
 

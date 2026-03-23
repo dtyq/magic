@@ -58,9 +58,10 @@ class InternalShareAppService
             }
         }
 
-        // 3. Get resource type
+        // 3. Get resource type and resource name
         $resourceType = $shareEntity->getResourceType();
         $dto->resourceType = $resourceType;
+        $dto->resourceName = $shareEntity->getResourceName();
 
         // 4. Process based on resource type
         switch ($resourceType) {
