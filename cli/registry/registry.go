@@ -2,11 +2,13 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -109,7 +111,26 @@ func EnsureRunning(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	if cfg.Proxy.Enabled && cfg.Proxy.URL != "" {
+		if _, err := writeRegistryConfig(cfg); err != nil {
+			return fmt.Errorf("write registry config: %w", err)
+		}
+	}
 	if exists {
+		// If an old container still mounts a temp config path, recreate it so
+		// the mount source switches to ~/.config/magicrew.
+		if cfg.Proxy.Enabled && cfg.Proxy.URL != "" {
+			recreate, err := needsRecreateForConfigMount(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			if recreate {
+				if err := forceDeleteContainer(ctx, cfg.Name); err != nil {
+					return fmt.Errorf("remove stale registry container: %w", err)
+				}
+				return createContainer(ctx, cfg)
+			}
+		}
 		return restartContainer(ctx, cfg.Name)
 	}
 
@@ -150,6 +171,10 @@ func containerExists(ctx context.Context, name string) (bool, error) {
 
 func restartContainer(ctx context.Context, name string) error {
 	return run(ctx, "docker", "restart", name)
+}
+
+func forceDeleteContainer(ctx context.Context, name string) error {
+	return run(ctx, "docker", "rm", "-f", name)
 }
 
 func networkExists(ctx context.Context, network string) bool {
@@ -214,6 +239,38 @@ func createContainer(ctx context.Context, cfg Config) error {
 	return run(ctx, "docker", args...)
 }
 
+func needsRecreateForConfigMount(ctx context.Context, cfg Config) (bool, error) {
+	expected := registryConfigHostPath(cfg)
+	out, err := output(ctx, "docker", "inspect", "-f", "{{json .Mounts}}", cfg.Name)
+	if err != nil {
+		return false, fmt.Errorf("inspect container mounts: %w", err)
+	}
+	recreate, err := shouldRecreateForConfigMount(out, expected)
+	if err != nil {
+		return false, fmt.Errorf("decode container mounts: %w", err)
+	}
+	return recreate, nil
+}
+
+type dockerMount struct {
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+}
+
+func shouldRecreateForConfigMount(mountsJSON, expected string) (bool, error) {
+	var mounts []dockerMount
+	if err := json.Unmarshal([]byte(strings.TrimSpace(mountsJSON)), &mounts); err != nil {
+		return false, err
+	}
+	for _, m := range mounts {
+		if m.Destination == "/etc/docker/registry/config.yml" {
+			return filepath.Clean(m.Source) != filepath.Clean(expected), nil
+		}
+	}
+	// Proxy enabled but no config mount found: recreate to enforce expected behavior.
+	return true, nil
+}
+
 // writeRegistryConfig generates a temporary registry config.yml with proxy
 // settings and returns its path.
 func writeRegistryConfig(cfg Config) (string, error) {
@@ -243,16 +300,19 @@ proxy:
   password: %s
 `, proxyURL, cfg.Proxy.Username, cfg.Proxy.Password)
 
-	f, err := os.CreateTemp("", "magicrew-registry-config-*.yml")
-	if err != nil {
+	cfgFile := registryConfigHostPath(cfg)
+	if err := os.MkdirAll(filepath.Dir(cfgFile), 0o755); err != nil {
 		return "", err
 	}
-	defer f.Close()
-	if _, err := f.WriteString(content); err != nil {
-		os.Remove(f.Name())
+	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
 		return "", err
 	}
-	return f.Name(), nil
+	return cfgFile, nil
+}
+
+func registryConfigHostPath(cfg Config) string {
+	configDir := util.ExpandTilde("~/.config/magicrew")
+	return filepath.Join(configDir, fmt.Sprintf("registry-%s-config.yml", cfg.Name))
 }
 
 // run executes a docker command, discarding stdout/stderr.

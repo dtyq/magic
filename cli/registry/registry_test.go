@@ -5,7 +5,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,4 +96,66 @@ func TestWaitForHostEndpoint_Timeout(t *testing.T) {
 	err = WaitForHostEndpoint(ctx, cfg, 500*time.Millisecond)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "wait for registry host endpoint")
+}
+
+func TestRegistryConfigHostPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	p := registryConfigHostPath(Config{Name: "magic-kind-registry"})
+	assert.Equal(t, filepath.Join(home, ".config", "magicrew", "registry-magic-kind-registry-config.yml"), p)
+}
+
+func TestWriteRegistryConfig_PersistentPathAndContent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := Config{
+		Name: "magic-kind-registry",
+		Proxy: ProxyConfig{
+			Enabled:  true,
+			URL:      "https://example.com",
+			Username: "u",
+			Password: "p",
+		},
+	}
+
+	path, err := writeRegistryConfig(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, registryConfigHostPath(cfg), path)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	content := string(data)
+	assert.Contains(t, content, "remoteurl: https://example.com/")
+	assert.True(t, strings.Contains(content, "username: u"))
+	assert.True(t, strings.Contains(content, "password: p"))
+}
+
+func TestShouldRecreateForConfigMount(t *testing.T) {
+	expected := "/Users/test/.config/magicrew/registry-magic-kind-registry-config.yml"
+
+	t.Run("legacy temp mount should recreate", func(t *testing.T) {
+		mountsJSON := `[{"Source":"/var/folders/xx/T/magicrew-registry-config-123.yml","Destination":"/etc/docker/registry/config.yml"}]`
+		got, err := shouldRecreateForConfigMount(mountsJSON, expected)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+
+	t.Run("expected mount should not recreate", func(t *testing.T) {
+		mountsJSON := `[{"Source":"/Users/test/.config/magicrew/registry-magic-kind-registry-config.yml","Destination":"/etc/docker/registry/config.yml"}]`
+		got, err := shouldRecreateForConfigMount(mountsJSON, expected)
+		require.NoError(t, err)
+		assert.False(t, got)
+	})
+
+	t.Run("missing config mount should recreate", func(t *testing.T) {
+		mountsJSON := `[{"Source":"/tmp/data","Destination":"/var/lib/registry"}]`
+		got, err := shouldRecreateForConfigMount(mountsJSON, expected)
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
+
+	t.Run("invalid mounts json returns error", func(t *testing.T) {
+		_, err := shouldRecreateForConfigMount("{not-json}", expected)
+		require.Error(t, err)
+	})
 }
