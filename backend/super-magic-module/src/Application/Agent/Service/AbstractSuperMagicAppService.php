@@ -15,6 +15,7 @@ use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -23,6 +24,7 @@ use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
@@ -437,5 +439,17 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 
         $fileLink = $this->getPrivateFileLinks($agentEntity->getOrganizationCode(), [$fileKey])[$fileKey] ?? null;
         $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
+    }
+
+    protected function getOfficialAgentCodes(Authenticatable $authorization): array
+    {
+        $modeDataIsolation = $this->createModeDataIsolation($authorization);
+        $modeDataIsolation->disabled();
+
+        // 获取后台的所有模式，用于封装数据到 Agent 中
+        $query = new ModeQuery(status: true);
+        $modeEntities = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage())['list'];
+
+        return array_map(fn ($modeEntity) => $modeEntity->getIdentifier(), $modeEntities);
     }
 }

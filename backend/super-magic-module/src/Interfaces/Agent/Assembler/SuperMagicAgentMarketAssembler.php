@@ -46,7 +46,7 @@ class SuperMagicAgentMarketAssembler
                 $publisherUserMap,
                 $userAgentsMap,
                 $latestVersionsMap,
-                $playbooksMap
+                $playbooksMap,
             );
         }
 
@@ -113,7 +113,7 @@ class SuperMagicAgentMarketAssembler
         array $publisherUserMap,
         array $userAgentsMap,
         array $latestVersionsMap,
-        array $playbooksMap
+        array $playbooksMap,
     ): AgentMarketListItemDTO {
         $agentCode = $agentMarket->getAgentCode();
         $userAgent = $userAgentsMap[$agentCode] ?? null;
@@ -131,11 +131,18 @@ class SuperMagicAgentMarketAssembler
 
         $isAdded = $userAgent !== null;
         $allowDelete = $isAdded && $userAgent?->getSourceType()->isMarket() === true;
+
         $latestVersionCode = isset($latestVersionsMap[$agentCode]) ? $latestVersionsMap[$agentCode]->getVersion() : null;
         $publisher = self::buildPublisher(
             $agentMarket->getPublisherType(),
             $publisherUserMap[$agentMarket->getPublisherId()] ?? null
         );
+
+        // 如果是官方内置则不允许删除，不允许添加
+        if ($agentMarket->getPublisherType()->isOfficialBuiltin()) {
+            $isAdded = true;
+            $allowDelete = false;
+        }
 
         return new AgentMarketListItemDTO(
             id: $agentMarket->getId() ?? 0,
@@ -194,9 +201,9 @@ class SuperMagicAgentMarketAssembler
      */
     private static function buildPublisher(PublisherType $publisherType, ?MagicUserEntity $userEntity = null): array
     {
-        if ($publisherType === PublisherType::OFFICIAL) {
+        if ($publisherType->isOfficial() || $publisherType->isOfficialBuiltin()) {
             return [
-                'name' => PublisherType::OFFICIAL->value,
+                'name' => $publisherType->value,
                 'avatar' => '',
             ];
         }

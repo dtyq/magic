@@ -341,6 +341,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $currentUserId);
         $queryCodes = $accessibleAgentResult['accessible'];
+
+        // 官方员工，后续官方员工要放入到可见数据里
+        $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
+
+        $queryCodes = array_merge($queryCodes, $officialAgentCodes);
         if ($queryCodes === []) {
             return [
                 'agents' => [],
@@ -397,7 +402,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             dataIsolation: $dataIsolation,
             requestDTO: $requestDTO,
             agents: $agents,
-            total: $total
+            total: $total,
         );
     }
 
@@ -1268,6 +1273,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'id' => $builtinSkill->value,
                 'code' => $builtinSkill->value,
                 'name' => $builtinSkill->getSkillName(),
+                'package_name' => $builtinSkill->getSkillName(),
                 'description' => $builtinSkill->getSkillDescription(),
                 'logo' => $builtinSkill->getSkillIcon() !== '' ? $builtinSkill->getSkillIcon() : null,
                 'mention_source' => SkillMentionSource::SYSTEM->value,
@@ -1331,6 +1337,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'id' => (string) $skillVersion->getId(),
                 'code' => $skillVersion->getCode(),
                 'name' => $this->resolveSkillVersionName($skillVersion, $language),
+                'package_name' => $skillVersion->getPackageName(),
                 'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
                 'logo' => $skillVersion->getLogo(),
                 'mention_source' => SkillMentionSource::AGENT->value,
@@ -1366,6 +1373,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'id' => (string) $skillVersion->getId(),
                 'code' => $skillVersion->getCode(),
                 'name' => $this->resolveSkillVersionName($skillVersion, $language),
+                'package_name' => $skillVersion->getPackageName(),
                 'description' => $this->resolveSkillVersionDescription($skillVersion, $language),
                 'logo' => $skillVersion->getLogo(),
                 'mention_source' => SkillMentionSource::MINE->value,

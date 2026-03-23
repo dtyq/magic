@@ -149,6 +149,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
                 'playbooks_map' => [],
+                'official_agent_codes' => [],
                 'page' => $requestDTO->getPage(),
                 'page_size' => $requestDTO->getPageSize(),
                 'total' => $total,
@@ -168,6 +169,14 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         // Load playbooks in batch for the list cards.
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
         $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
+
+        // 官方内置员工
+        $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
+        foreach ($agentMarkets as $agentMarket) {
+            if (in_array($agentMarket->getAgentCode(), $officialAgentCodes)) {
+                $agentMarket->setPublisherType(PublisherType::OFFICIAL_BUILTIN);
+            }
+        }
 
         $this->updateAgentMarketIcon($dataIsolation, $agentMarkets);
 
