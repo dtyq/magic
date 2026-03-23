@@ -18,12 +18,14 @@ class OpenMessageScheduleAssembler
     {
         $entity = new OpenMessageScheduleEntity();
         $entity->setTaskName($dto->getTaskName());
+        $entity->setSpecifyTopic($dto->getSpecifyTopic());
         $entity->setTopicId((int) $dto->getTopicId());
         $entity->setTimeConfig($dto->getTimeConfig());
         $entity->setEnabled(1);
         $entity->setRemark($dto->getRemark());
         $entity->setModelId($dto->getModelId());
         $entity->setMessageContentText($dto->getMessageContentText());
+        $entity->setDeadline($dto->getDeadline());
 
         return $entity;
     }
@@ -52,13 +54,17 @@ class OpenMessageScheduleAssembler
             $entity->setModelId($dto->getModelId());
         }
 
+        if ($dto->hasDeadline()) {
+            $entity->setOpenDeadline($dto->getDeadline());
+        }
+
         return $entity;
     }
 
     public static function createQueryFromArray(array $data): OpenMessageScheduleQuery
     {
         $query = new OpenMessageScheduleQuery();
-        $query->setTopicId(self::toNullableString($data, 'topic_id'));
+        $query->setProjectId(self::toNullableString($data, 'project_id'));
         $query->setTaskName(self::toNullableString($data, 'task_name'));
         $query->setEnabled(self::toNullableInt($data, 'enabled'));
         $query->setCompleted(self::toNullableInt($data, 'completed'));

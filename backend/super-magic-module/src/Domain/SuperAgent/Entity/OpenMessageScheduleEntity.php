@@ -27,6 +27,22 @@ class OpenMessageScheduleEntity extends MessageScheduleEntity
 
     private bool $modelIdSpecified = false;
 
+    private bool $deadlineSpecified = false;
+
+    /** 是否指定话题：0=否，1=是 */
+    private int $specifyTopic = 0;
+
+    public function setSpecifyTopic(int $specifyTopic): self
+    {
+        $this->specifyTopic = $specifyTopic;
+        return $this;
+    }
+
+    public function getSpecifyTopic(): int
+    {
+        return $this->specifyTopic;
+    }
+
     public function setOpenTaskName(?string $taskName): self
     {
         $this->taskNameSpecified = true;
@@ -106,5 +122,18 @@ class OpenMessageScheduleEntity extends MessageScheduleEntity
     public function getModelId(): ?string
     {
         return $this->modelId;
+    }
+
+    public function setOpenDeadline(?string $deadline): self
+    {
+        $this->deadlineSpecified = true;
+        $this->setDeadline($deadline);
+
+        return $this;
+    }
+
+    public function hasDeadlineInput(): bool
+    {
+        return $this->deadlineSpecified;
     }
 }

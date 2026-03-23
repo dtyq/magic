@@ -9,12 +9,14 @@ namespace App\Infrastructure\Core\Traits;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use InvalidArgumentException;
 use Qbhy\HyperfAuth\Authenticatable;
 
 trait DataIsolationTrait
 {
-    protected function createDataIsolation(Authenticatable|MagicUserAuthorization $authorization): DataIsolation
+    /**
+     * @param MagicUserAuthorization $authorization
+     */
+    protected function createDataIsolation(Authenticatable $authorization): DataIsolation
     {
         $dataIsolation = new DataIsolation();
         /* @phpstan-ignore-next-line */
@@ -23,11 +25,8 @@ trait DataIsolationTrait
             $dataIsolation->setCurrentUserId(currentUserId: $userId);
             $dataIsolation->setCurrentMagicId(currentMagicId: $authorization->getMagicId());
             $dataIsolation->setUserType(userType: $authorization->getUserType());
-            $dataIsolation->setCurrentOrganizationCode(currentOrganizationCode: $authorization->getOrganizationCode());
-        } else {
-            throw new InvalidArgumentException(message: 'Unsupported authorization type for data isolation');
         }
-
+        $dataIsolation->setCurrentOrganizationCode(currentOrganizationCode: $authorization->getOrganizationCode());
         return $dataIsolation;
     }
 }

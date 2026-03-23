@@ -12,7 +12,7 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query;
  */
 class OpenMessageScheduleQuery
 {
-    private ?string $topicId = null;
+    private ?string $projectId = null;
 
     private ?string $taskName = null;
 
@@ -28,10 +28,15 @@ class OpenMessageScheduleQuery
 
     private string $orderDirection = 'desc';
 
-    public function setTopicId(?string $topicId): self
+    public function setProjectId(?string $projectId): self
     {
-        $this->topicId = $topicId;
+        $this->projectId = $projectId;
         return $this;
+    }
+
+    public function getProjectId(): ?string
+    {
+        return $this->projectId;
     }
 
     public function setTaskName(?string $taskName): self
@@ -91,8 +96,8 @@ class OpenMessageScheduleQuery
             'organization_code' => $organizationCode,
         ];
 
-        if ($this->topicId !== null && $this->topicId !== '') {
-            $conditions['topic_id'] = (int) $this->topicId;
+        if ($this->projectId !== null && $this->projectId !== '') {
+            $conditions['project_id'] = (int) $this->projectId;
         }
 
         if ($this->taskName !== null && $this->taskName !== '') {

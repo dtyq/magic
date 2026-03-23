@@ -18,12 +18,21 @@ class OpenMessageScheduleListItemDTO extends AbstractDTO
 
     public string $taskDescribe = '';
 
+    public int $enabled = 1;
+
+    public array $timeConfig = [];
+
+    public ?string $deadline = null;
+
     public static function fromEntity(MessageScheduleEntity $entity): self
     {
         $dto = new self();
         $dto->id = (string) $entity->getId();
         $dto->taskName = $entity->getTaskName();
         $dto->taskDescribe = self::extractTextFromMessageContent($entity->getMessageContent());
+        $dto->enabled = $entity->getEnabled();
+        $dto->timeConfig = $entity->getTimeConfig();
+        $dto->deadline = $entity->getDeadline();
         return $dto;
     }
 
@@ -33,6 +42,9 @@ class OpenMessageScheduleListItemDTO extends AbstractDTO
             'id' => $this->id,
             'task_name' => $this->taskName,
             'task_describe' => $this->taskDescribe,
+            'enabled' => $this->enabled,
+            'time_config' => array_intersect_key($this->timeConfig, array_flip(['day', 'time', 'type'])),
+            'deadline' => $this->deadline,
         ];
     }
 

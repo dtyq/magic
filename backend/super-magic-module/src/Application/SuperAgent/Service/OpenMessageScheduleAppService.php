@@ -15,6 +15,7 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Cron\CronExpression;
 use DateTime;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
@@ -35,7 +36,6 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -59,11 +59,11 @@ class OpenMessageScheduleAppService extends AbstractAppService
         $this->logger = $loggerFactory->get(self::class);
     }
 
-    public function create(Authenticatable $authorization, OpenMessageScheduleEntity $entity): array
+    public function create(MagicUserAuthorization $authorization, OpenMessageScheduleEntity $entity): array
     {
         $dataIsolation = $this->createDataIsolation($authorization);
 
-        // 补全llm端传来的不完整参数
+        // 补全llm端传来的不完整参数(topic_id是一定需要传递的)
         $topicEntity = $this->topicDomainService->validateTopicForMessageQueue($dataIsolation, $entity->getTopicId());
         $entity->setWorkspaceId((int) ($topicEntity->getWorkspaceId() ?? 0));
         $entity->setProjectId((int) $topicEntity->getProjectId());
@@ -78,6 +78,11 @@ class OpenMessageScheduleAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode()
         );
+
+        // 通过判断是否指定话题参数，变更topic_id的值(0就表示没有指定话题)
+        if ($entity->getSpecifyTopic() === 0) {
+            $entity->setTopicId(0);
+        }
 
         try {
             // 计划时间参数转换和业务校验
@@ -143,7 +148,7 @@ class OpenMessageScheduleAppService extends AbstractAppService
         }
     }
 
-    public function update(Authenticatable $authorization, int $id, OpenMessageScheduleEntity $entity): array
+    public function update(MagicUserAuthorization $authorization, int $id, OpenMessageScheduleEntity $entity): array
     {
         $dataIsolation = $this->createDataIsolation($authorization);
 
@@ -188,6 +193,16 @@ class OpenMessageScheduleAppService extends AbstractAppService
                     }
                 }
 
+                if ($entity->hasDeadlineInput()) {
+                    $newDeadline = $entity->getDeadline();
+                    $oldDeadline = $messageSchedule->getDeadline();
+                    $oldNormalized = $oldDeadline === '' ? null : $oldDeadline;
+                    if ($newDeadline !== $oldNormalized) {
+                        $messageSchedule->setDeadline($newDeadline);
+                        $needUpdateTaskScheduler = true;
+                    }
+                }
+
                 if ($needUpdateTaskScheduler) {
                     $this->updateTaskScheduler($messageSchedule);
                     $shouldComplete = $this->shouldMarkAsCompleted($messageSchedule);
@@ -228,15 +243,27 @@ class OpenMessageScheduleAppService extends AbstractAppService
         }
     }
 
-    public function queries(Authenticatable $authorization, OpenMessageScheduleQuery $query): array
+    public function queries(MagicUserAuthorization $authorization, OpenMessageScheduleQuery $query): array
     {
         $dataIsolation = $this->createDataIsolation($authorization);
 
+        // 这里只能查询当前项目下的全部定时任务，因此做一个业务校验
+        $projectId = $query->getProjectId();
+        $this->getAccessibleProjectWithEditor(
+            (int) $projectId,
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+
+        // 构建当前项目下专属于个人建立查询条件
+        $conditions = $query->toConditions(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        $conditions['project_id'] = (int) $projectId;
+
         $result = $this->messageScheduleDomainService->getMessageSchedulesByConditions(
-            $query->toConditions(
-                $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
-            ),
+            $conditions,
             $query->getPage(),
             $query->getPageSize(),
             $query->getOrderBy(),
@@ -254,14 +281,14 @@ class OpenMessageScheduleAppService extends AbstractAppService
         ];
     }
 
-    public function show(Authenticatable $authorization, int $id): array
+    public function show(MagicUserAuthorization $authorization, int $id): array
     {
         $dataIsolation = $this->createDataIsolation($authorization);
         $entity = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
         return OpenMessageScheduleDetailDTO::fromEntity($entity)->toArray();
     }
 
-    public function delete(Authenticatable $authorization, int $id): array
+    public function delete(MagicUserAuthorization $authorization, int $id): array
     {
         $dataIsolation = $this->createDataIsolation($authorization);
         $messageSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdWithValidation($dataIsolation, $id);
@@ -528,36 +555,38 @@ class OpenMessageScheduleAppService extends AbstractAppService
         }
 
         $messageContent = $messageSchedule->getMessageContent();
-        $resolvedModelId = $entity->hasModelIdInput()
-            ? (string) $entity->getModelId()
-            : $this->extractModelIdFromMessageContent($messageContent);
-        $model = $this->buildModelFromProviderModelId($resolvedModelId, $dataIsolation);
 
-        if ($entity->hasMessageContentTextInput()) {
-            $messageSchedule->setMessageContent(
-                $this->buildFullMessageContent((string) ($entity->getMessageContentText() ?? ''), $model)
+        if ($entity->hasModelIdInput()) {
+            // 传了 model_id，查 DB 获取并验证新 model
+            $model = $this->buildModelFromProviderModelId(
+                (string) $entity->getModelId(),
+                $dataIsolation
             );
 
+            if ($entity->hasMessageContentTextInput()) {
+                // 同时传了 message_content，用新 model 重建完整消息内容
+                $messageSchedule->setMessageContent(
+                    $this->buildFullMessageContent($entity->getMessageContentText() ?? '', $model)
+                );
+                return;
+            }
+
+            // 只传了 model_id，仅替换存量内容中的 model 字段
+            if (! isset($messageContent['extra']) || ! is_array($messageContent['extra'])) {
+                $messageContent['extra'] = [];
+            }
+            if (! isset($messageContent['extra']['super_agent']) || ! is_array($messageContent['extra']['super_agent'])) {
+                $messageContent['extra']['super_agent'] = [];
+            }
+            $messageContent['extra']['super_agent']['model'] = $model;
+            $messageSchedule->setMessageContent($messageContent);
             return;
         }
 
-        if (! isset($messageContent['extra']) || ! is_array($messageContent['extra'])) {
-            $messageContent['extra'] = [];
-        }
-        if (! isset($messageContent['extra']['super_agent']) || ! is_array($messageContent['extra']['super_agent'])) {
-            $messageContent['extra']['super_agent'] = [];
-        }
-
-        $messageContent['extra']['super_agent']['model'] = $model;
-        $messageSchedule->setMessageContent($messageContent);
-    }
-
-    private function extractModelIdFromMessageContent(array $messageContent): string
-    {
-        return (string) (
-            $messageContent['extra']['super_agent']['model']['provider_model_id']
-            ?? $messageContent['extra']['super_agent']['model']['model_id']
-            ?? ''
+        // 只传了 message_content，复用存量 model，不查 DB
+        $existingModel = $messageContent['extra']['super_agent']['model'] ?? [];
+        $messageSchedule->setMessageContent(
+            $this->buildFullMessageContent($entity->getMessageContentText() ?? '', $existingModel)
         );
     }
 }

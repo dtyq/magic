@@ -16,7 +16,7 @@ class OpenMessageScheduleDetailDTO extends AbstractDTO
 
     public string $taskName = '';
 
-    public string $messageContentText = '';
+    public string $messageContent = '';
 
     public string $topicId = '';
 
@@ -30,6 +30,8 @@ class OpenMessageScheduleDetailDTO extends AbstractDTO
 
     public ?string $updatedAt = null;
 
+    public ?string $deadline = null;
+
     public static function fromEntity(MessageScheduleEntity $entity): self
     {
         $dto = new self();
@@ -40,9 +42,10 @@ class OpenMessageScheduleDetailDTO extends AbstractDTO
         $dto->enabled = $entity->getEnabled();
         $dto->completed = $entity->getCompleted();
         $dto->updatedAt = $entity->getUpdatedAt();
+        $dto->deadline = $entity->getDeadline();
 
         $messageContent = $entity->getMessageContent();
-        $dto->messageContentText = self::extractTextFromMessageContent($messageContent);
+        $dto->messageContent = self::extractTextFromMessageContent($messageContent);
         $dto->modelId = self::extractModelIdFromMessageContent($messageContent);
 
         return $dto;
@@ -53,10 +56,11 @@ class OpenMessageScheduleDetailDTO extends AbstractDTO
         return [
             'id' => $this->id,
             'task_name' => $this->taskName,
-            'message_content_text' => $this->messageContentText,
+            'message_content' => $this->messageContent,
             'topic_id' => $this->topicId,
             'model_id' => $this->modelId,
             'time_config' => array_intersect_key($this->timeConfig, array_flip(['day', 'time', 'type'])),
+            'deadline' => $this->deadline,
             'enabled' => $this->enabled,
             'completed' => $this->completed,
             'updated_at' => $this->updatedAt,

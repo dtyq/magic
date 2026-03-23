@@ -33,9 +33,11 @@ class CreateOpenMessageScheduleFormRequest extends FormRequest
             ],
             'time_config.day' => 'nullable|string',
             'time_config.time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'specify_topic' => 'required|integer|in:0,1',
             'topic_id' => 'required',
             'model_id' => 'required|string',
             'remark' => 'nullable|string',
+            'deadline' => 'nullable|date_format:Y-m-d H:i:s',
         ];
     }
 
@@ -50,9 +52,12 @@ class CreateOpenMessageScheduleFormRequest extends FormRequest
             'time_config.array' => 'Time configuration must be an array',
             'time_config.type.required' => 'Time configuration type cannot be empty',
             'time_config.type.in' => 'Time configuration type must be one of: no_repeat, daily_repeat, weekly_repeat, monthly_repeat, annually_repeat, weekday_repeat, custom_repeat',
+            'specify_topic.required' => 'specify_topic is required',
+            'specify_topic.in' => 'specify_topic must be 0 or 1',
             'topic_id.required' => 'Topic ID is required',
             'model_id.required' => 'Model ID is required',
             'model_id.string' => 'Model ID must be a string',
+            'deadline.date_format' => 'Deadline must be in Y-m-d H:i:s format',
         ];
     }
 }

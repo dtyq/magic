@@ -21,6 +21,8 @@ class UpdateOpenMessageScheduleRequestDTO extends AbstractDTO
 
     public ?int $enabled = null;
 
+    public ?string $deadline = null;
+
     private bool $hasTaskName = false;
 
     private bool $hasMessageContentText = false;
@@ -31,6 +33,8 @@ class UpdateOpenMessageScheduleRequestDTO extends AbstractDTO
 
     private bool $hasEnabled = false;
 
+    private bool $hasDeadline = false;
+
     public static function fromArray(array $data): self
     {
         $dto = new self();
@@ -39,6 +43,7 @@ class UpdateOpenMessageScheduleRequestDTO extends AbstractDTO
         $dto->hasTimeConfig = array_key_exists('time_config', $data) && $data['time_config'] !== null;
         $dto->hasModelId = array_key_exists('model_id', $data) && $data['model_id'] !== null;
         $dto->hasEnabled = array_key_exists('enabled', $data) && $data['enabled'] !== null;
+        $dto->hasDeadline = array_key_exists('deadline', $data);
         if (array_key_exists('message_content', $data) && $data['message_content'] !== null) {
             $v = $data['message_content'];
             $dto->messageContentText = is_string($v) ? $v : json_encode($v, JSON_UNESCAPED_UNICODE);
@@ -95,5 +100,15 @@ class UpdateOpenMessageScheduleRequestDTO extends AbstractDTO
     public function hasEnabled(): bool
     {
         return $this->hasEnabled;
+    }
+
+    public function getDeadline(): ?string
+    {
+        return $this->deadline === '' ? null : $this->deadline;
+    }
+
+    public function hasDeadline(): bool
+    {
+        return $this->hasDeadline;
     }
 }

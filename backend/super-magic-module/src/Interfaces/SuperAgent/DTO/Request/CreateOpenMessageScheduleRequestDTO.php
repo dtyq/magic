@@ -21,11 +21,15 @@ class CreateOpenMessageScheduleRequestDTO extends AbstractDTO
 
     public array $timeConfig = [];
 
+    public int $specifyTopic = 0;
+
     public string $topicId = '';
 
     public string $modelId = '';
 
     public string $remark = '';
+
+    public ?string $deadline = null;
 
     public static function fromArray(array $data): CreateOpenMessageScheduleRequestDTO
     {
@@ -53,6 +57,11 @@ class CreateOpenMessageScheduleRequestDTO extends AbstractDTO
         return $this->timeConfig;
     }
 
+    public function getSpecifyTopic(): int
+    {
+        return $this->specifyTopic;
+    }
+
     public function getTopicId(): string
     {
         return $this->topicId;
@@ -66,5 +75,10 @@ class CreateOpenMessageScheduleRequestDTO extends AbstractDTO
     public function getRemark(): string
     {
         return $this->remark;
+    }
+
+    public function getDeadline(): ?string
+    {
+        return $this->deadline === '' ? null : $this->deadline;
     }
 }

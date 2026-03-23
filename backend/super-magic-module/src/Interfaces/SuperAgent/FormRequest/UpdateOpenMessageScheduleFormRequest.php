@@ -31,6 +31,7 @@ class UpdateOpenMessageScheduleFormRequest extends FormRequest
             'time_config.time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
             'model_id' => 'nullable|string',
             'enabled' => 'nullable|integer|in:0,1',
+            'deadline' => 'nullable|date_format:Y-m-d H:i:s',
         ];
     }
 
@@ -44,6 +45,7 @@ class UpdateOpenMessageScheduleFormRequest extends FormRequest
             'model_id.string' => 'Model ID must be a string',
             'enabled.integer' => 'Enabled must be an integer',
             'enabled.in' => 'Enabled must be 0 or 1',
+            'deadline.date_format' => 'Deadline must be in Y-m-d H:i:s format',
         ];
     }
 }
