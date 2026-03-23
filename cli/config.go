@@ -97,7 +97,7 @@ deploy:
       version: "0.0.1"
     magic-sandbox:
       name: magic-sandbox
-      version: "0.0.1"
+      version: "0.0.2"
   infraUseProxy: false
 `
 

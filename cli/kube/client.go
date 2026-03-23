@@ -107,6 +107,39 @@ func (c *Client) RecreateStandardStorageClass(ctx context.Context) error {
 	return nil
 }
 
+// WaitForPodsScheduled polls until all pods matching labelSelector in the given
+// namespace are scheduled, or until the timeout is exceeded.
+// This is useful for non-blocking warm-up checks where Ready may take a long time.
+func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelector string, timeout time.Duration, reporter func([]corev1.Pod)) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for pods scheduled in %s (selector: %s)", namespace, labelSelector)
+		}
+
+		pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if err != nil {
+			return fmt.Errorf("list pods: %w", err)
+		}
+
+		if reporter != nil {
+			reporter(pods.Items)
+		}
+
+		if len(pods.Items) > 0 && allScheduled(pods.Items) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
 // WaitForPodsReady polls until all pods matching labelSelector in the given
 // namespace are Ready, or until the context deadline is exceeded.
 // If reporter is non-nil, it is called after each poll with the current pod list.
@@ -149,6 +182,15 @@ func allReady(pods []corev1.Pod) bool {
 	return true
 }
 
+func allScheduled(pods []corev1.Pod) bool {
+	for _, pod := range pods {
+		if !isPodScheduled(pod) {
+			return false
+		}
+	}
+	return true
+}
+
 func isPodReadyOrCompleted(pod corev1.Pod) bool {
 	// Job pods usually end in Succeeded and will never report Ready=True.
 	// Treat them as completed so deploy stage waiting can continue.
@@ -160,6 +202,15 @@ func isPodReadyOrCompleted(pod corev1.Pod) bool {
 	}
 	for _, cond := range pod.Status.Conditions {
 		if cond.Type == corev1.PodReady {
+			return cond.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func isPodScheduled(pod corev1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodScheduled {
 			return cond.Status == corev1.ConditionTrue
 		}
 	}

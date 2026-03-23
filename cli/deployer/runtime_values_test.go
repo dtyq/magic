@@ -154,3 +154,72 @@ func TestInjectMagicGatewayAllowedTargetIP(t *testing.T) {
 		assert.Equal(t, "172.22.224.0/24", got)
 	})
 }
+
+func TestBoolFromMapDefault(t *testing.T) {
+	t.Run("missing key fallback", func(t *testing.T) {
+		got := boolFromMapDefault(map[string]interface{}{}, "enabled", true)
+		assert.True(t, got)
+	})
+
+	t.Run("bool value", func(t *testing.T) {
+		got := boolFromMapDefault(map[string]interface{}{"enabled": false}, "enabled", true)
+		assert.False(t, got)
+	})
+
+	t.Run("string bool value", func(t *testing.T) {
+		got := boolFromMapDefault(map[string]interface{}{"enabled": "true"}, "enabled", false)
+		assert.True(t, got)
+	})
+
+	t.Run("invalid type fallback", func(t *testing.T) {
+		got := boolFromMapDefault(map[string]interface{}{"enabled": 1}, "enabled", false)
+		assert.False(t, got)
+	})
+
+	t.Run("invalid string fallback", func(t *testing.T) {
+		got := boolFromMapDefault(map[string]interface{}{"enabled": "abc"}, "enabled", true)
+		assert.True(t, got)
+	})
+}
+
+func TestIntFromMapDefault(t *testing.T) {
+	t.Run("missing key fallback", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{}, "maxWaitSeconds", 300)
+		assert.Equal(t, 300, got)
+	})
+
+	t.Run("int value", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": 120}, "maxWaitSeconds", 300)
+		assert.Equal(t, 120, got)
+	})
+
+	t.Run("int32 value", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": int32(121)}, "maxWaitSeconds", 300)
+		assert.Equal(t, 121, got)
+	})
+
+	t.Run("int64 value", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": int64(122)}, "maxWaitSeconds", 300)
+		assert.Equal(t, 122, got)
+	})
+
+	t.Run("float64 value", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": float64(123)}, "maxWaitSeconds", 300)
+		assert.Equal(t, 123, got)
+	})
+
+	t.Run("string int value", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": "124"}, "maxWaitSeconds", 300)
+		assert.Equal(t, 124, got)
+	})
+
+	t.Run("invalid string fallback", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": "abc"}, "maxWaitSeconds", 300)
+		assert.Equal(t, 300, got)
+	})
+
+	t.Run("invalid type fallback", func(t *testing.T) {
+		got := intFromMapDefault(map[string]interface{}{"maxWaitSeconds": true}, "maxWaitSeconds", 300)
+		assert.Equal(t, 300, got)
+	})
+}

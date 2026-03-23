@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dtyq/magicrew-cli/chart"
@@ -185,6 +186,46 @@ func mapValue(v interface{}) map[string]interface{} {
 		return map[string]interface{}{}
 	}
 	return m
+}
+
+func boolFromMapDefault(m map[string]interface{}, key string, fallback bool) bool {
+	v, ok := m[key]
+	if !ok {
+		return fallback
+	}
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		b, err := strconv.ParseBool(strings.TrimSpace(t))
+		if err == nil {
+			return b
+		}
+	}
+	return fallback
+}
+
+func intFromMapDefault(m map[string]interface{}, key string, fallback int) int {
+	v, ok := m[key]
+	if !ok {
+		return fallback
+	}
+	switch t := v.(type) {
+	case int:
+		return t
+	case int32:
+		return int(t)
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(t))
+		if err == nil {
+			return i
+		}
+	}
+	return fallback
 }
 
 func deepMerge(dst, src map[string]interface{}) map[string]interface{} {

@@ -3,9 +3,19 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/dtyq/magicrew-cli/registry"
 	"go.yaml.in/yaml/v3"
+)
+
+const (
+	defaultImagePrepullEnabled    = true
+	defaultImagePrepullWaitPolicy = "ready"
+	defaultImagePrepullMaxWaitSec = 300
+	imagePrepullLabelSelector     = "app.kubernetes.io/component=image-prepull"
+	nonImagePrepullLabelSelector  = "app.kubernetes.io/component!=image-prepull"
 )
 
 // minioCredConfig mirrors values.yaml fileDriver.minio.{private,sandbox}.
@@ -236,7 +246,56 @@ func (s *MagicSandboxStage) Exec(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return installChart(ctx, s.d, releaseNameMagicSandbox, namespace, ref, merged)
+	// Exclude image-prepull pods from the default chart-level ready wait.
+	// Their readiness is governed by waitForImagePrepull with configurable policy.
+	if err := installChartWithWaitSelector(ctx, s.d, releaseNameMagicSandbox, namespace, ref, merged, nonImagePrepullLabelSelector); err != nil {
+		return err
+	}
+	s.waitForImagePrepull(ctx, namespace, merged)
+	return nil
+}
+
+func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace string, merged map[string]interface{}) {
+	cfg := mapValue(mapValue(merged[releaseNameMagicSandbox])["imagePrepull"])
+	if !boolFromMapDefault(cfg, "enabled", defaultImagePrepullEnabled) {
+		s.d.log.Logi("deploy", "image pre-pull disabled; skip warm-up wait")
+		return
+	}
+
+	policy := strings.ToLower(strings.TrimSpace(stringFromMap(cfg, "waitPolicy")))
+	if policy == "" {
+		policy = defaultImagePrepullWaitPolicy
+	}
+	if policy == "none" {
+		s.d.log.Logi("deploy", "image pre-pull wait policy is none; continue deploy without waiting")
+		return
+	}
+
+	maxWaitSec := intFromMapDefault(cfg, "maxWaitSeconds", defaultImagePrepullMaxWaitSec)
+	if maxWaitSec <= 0 {
+		s.d.log.Logi("deploy", "image pre-pull maxWaitSeconds <= 0; skip wait")
+		return
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(maxWaitSec)*time.Second)
+	defer cancel()
+	s.d.log.Logi("deploy", "image pre-pull waiting policy=%s timeout=%ds selector=%s", policy, maxWaitSec, imagePrepullLabelSelector)
+
+	var err error
+	switch policy {
+	case "scheduled":
+		err = s.d.kubeClient.WaitForPodsScheduled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, nil)
+	case "ready":
+		err = s.d.kubeClient.WaitForPodsReady(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, newPodReporter(s.d.log, "image-prepull"))
+	default:
+		s.d.log.Logw("deploy", "unknown image pre-pull wait policy %q; skip waiting", policy)
+		return
+	}
+	if err != nil {
+		s.d.log.Logw("deploy", "image pre-pull wait timed out or failed (%v); continue in background", err)
+		return
+	}
+	s.d.log.Logi("deploy", "image pre-pull wait condition satisfied (%s)", policy)
 }
 
 func roleArn(bucket string) string {

@@ -102,6 +102,10 @@ func (d *Deployer) Run(ctx context.Context) error {
 // installChart is a shared helper used by multiple stages to build dependencies,
 // ensure the namespace, install/upgrade, and wait for pods.
 func installChart(ctx context.Context, d *Deployer, name, namespace string, chartRef chart.ChartReference, merged map[string]interface{}) error {
+	return installChartWithWaitSelector(ctx, d, name, namespace, chartRef, merged, "")
+}
+
+func installChartWithWaitSelector(ctx context.Context, d *Deployer, name, namespace string, chartRef chart.ChartReference, merged map[string]interface{}, waitLabelSelector string) error {
 	if chartRef.Kind == chart.RefKindLocal {
 		d.log.Logi("deploy", "Building %s chart dependencies...", name)
 		if err := chart.DependencyBuild(chartRef); err != nil {
@@ -115,7 +119,7 @@ func installChart(ctx context.Context, d *Deployer, name, namespace string, char
 	if err := chart.UpgradeInstall(ctx, name, namespace, d.kubeClient.RESTConfig(), chartRef, values); err != nil {
 		return fmt.Errorf("helm install %s: %w", name, err)
 	}
-	if err := d.kubeClient.WaitForPodsReady(ctx, namespace, "", podReadyTimeout, newPodReporter(d.log, name)); err != nil {
+	if err := d.kubeClient.WaitForPodsReady(ctx, namespace, waitLabelSelector, podReadyTimeout, newPodReporter(d.log, name)); err != nil {
 		return fmt.Errorf("wait for %s pods: %w", name, err)
 	}
 	return nil
