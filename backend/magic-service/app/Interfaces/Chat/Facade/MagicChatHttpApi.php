@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Chat\Facade;
 
 use App\Application\Agent\Service\MagicAgentAppService;
+use App\Application\Chat\Service\FollowUpSuggestionAppService;
 use App\Application\Chat\Service\MagicChatGroupAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
@@ -51,6 +52,7 @@ class MagicChatHttpApi extends AbstractApi
         private readonly ValidatorFactoryInterface $validatorFactory,
         private readonly MagicChatMessageAppService $magicChatMessageAppService,
         private readonly MagicConversationAppService $magicConversationAppService,
+        private readonly FollowUpSuggestionAppService $followUpSuggestionAppService,
         private readonly MagicChatGroupAppService $chatGroupAppService,
         protected readonly MagicAgentAppService $magicAgentAppService,
         protected readonly MagicControlMessageAppService $magicControlMessageAppService,
@@ -431,6 +433,26 @@ class MagicChatHttpApi extends AbstractApi
             $fileDTOs[] = $fileQueryDTO;
         }
         return $this->magicChatMessageAppService->getFileDownUrl($fileDTOs, $authorization);
+    }
+
+    /**
+     * 根据锚点消息生成会话内追问建议（基于最近 rich_text 上下文）.
+     */
+    public function followUpSuggestions(RequestInterface $request): array
+    {
+        $params = $request->all();
+        $rules = [
+            'conversation_id' => 'required|string',
+            'magic_message_id' => 'required|string',
+        ];
+        $params = $this->checkParams($params, $rules);
+        $authorization = $this->getAuthorization();
+
+        return $this->followUpSuggestionAppService->generateFollowUpSuggestions(
+            $authorization,
+            $params['conversation_id'],
+            $params['magic_message_id'],
+        );
     }
 
     /**

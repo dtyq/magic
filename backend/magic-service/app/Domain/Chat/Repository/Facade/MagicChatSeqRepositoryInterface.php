@@ -136,4 +136,16 @@ interface MagicChatSeqRepositoryInterface
      * @return MagicSeqEntity[] 序列实体数组
      */
     public function getSequencesByConversationIdAndSeqIds(string $conversationId, array $seqIds): array;
+
+    /**
+     * 追问建议：锚点消息时间及之前，会话内最近 N 条 rich_text 的 magic_message_id（时间升序）.
+     *
+     * @return string[]
+     */
+    public function listRecentRichTextMagicMessageIdsUpToAnchor(string $conversationId, string $anchorMagicMessageId, int $limit): array;
+
+    /**
+     * 是否存在指定会话下的消息 seq（仅 magic_chat_sequences，一次查询）.
+     */
+    public function existsSeqForMagicMessageInConversation(string $conversationId, string $magicMessageId): bool;
 }

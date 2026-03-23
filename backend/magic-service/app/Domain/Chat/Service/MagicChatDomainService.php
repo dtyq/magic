@@ -392,6 +392,21 @@ class MagicChatDomainService extends AbstractDomainService
     }
 
     /**
+     * @return string[]
+     */
+    public function listRecentRichTextMagicMessageIdsUpToAnchor(
+        string $conversationId,
+        string $anchorMagicMessageId,
+        int $limit = 3,
+    ): array {
+        return $this->magicSeqRepository->listRecentRichTextMagicMessageIdsUpToAnchor(
+            $conversationId,
+            $anchorMagicMessageId,
+            $limit,
+        );
+    }
+
+    /**
      * @return ClientSequenceResponse[]
      * @deprecated
      */

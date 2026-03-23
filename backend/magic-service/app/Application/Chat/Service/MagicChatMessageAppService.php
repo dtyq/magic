@@ -942,6 +942,41 @@ class MagicChatMessageAppService extends MagicSeqAppService
         return array_values($userMessages);
     }
 
+    /**
+     * 为追问建议组装上下文（最近 3 个问题的发送时间 + 纯文本问题内容）.
+     */
+    public function buildFollowUpRichTextContextExcerpt(
+        string $conversationId,
+        string $anchorMagicMessageId,
+        int $limit = 3,
+    ): string {
+        $ids = $this->magicChatDomainService->listRecentRichTextMagicMessageIdsUpToAnchor(
+            $conversationId,
+            $anchorMagicMessageId,
+            $limit,
+        );
+        if ($ids === []) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($ids as $magicMessageId) {
+            $entity = $this->magicChatDomainService->getMessageByMagicMessageId($magicMessageId);
+            if ($entity === null) {
+                continue;
+            }
+            $message = $entity->getContent();
+            $plain = MessageAssembler::getPlainTextContent($message, $entity->getMessageType());
+            $plain = trim((string) preg_replace('/\s+/u', ' ', $plain));
+            if ($plain === '') {
+                continue;
+            }
+            $lines[] = sprintf('[%s] %s', $entity->getSendTime(), $plain);
+        }
+
+        return implode("\n", $lines);
+    }
+
     public function getMagicSeqEntity(string $magicMessageId, ConversationType $controlMessageType): ?MagicSeqEntity
     {
         $seqEntities = $this->magicSeqDomainService->getSeqEntitiesByMagicMessageId($magicMessageId);
@@ -1047,6 +1082,17 @@ class MagicChatMessageAppService extends MagicSeqAppService
         }
     }
 
+    protected function getMessageTextContent(MessageInterface $message): string
+    {
+        // 暂时只处理用户的输入，以及能获取纯文本的消息类型
+        if ($message instanceof TextContentInterface) {
+            $messageContent = $message->getTextContent();
+        } else {
+            $messageContent = '';
+        }
+        return $messageContent;
+    }
+
     /**
      * 为了保证收发双方的消息顺序一致性，如果是私聊，则同步生成 seq.
      * @throws Throwable
@@ -1105,17 +1151,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         }
 
         return $choiceContent;
-    }
-
-    private function getMessageTextContent(MessageInterface $message): string
-    {
-        // 暂时只处理用户的输入，以及能获取纯文本的消息类型
-        if ($message instanceof TextContentInterface) {
-            $messageContent = $message->getTextContent();
-        } else {
-            $messageContent = '';
-        }
-        return $messageContent;
     }
 
     /**
