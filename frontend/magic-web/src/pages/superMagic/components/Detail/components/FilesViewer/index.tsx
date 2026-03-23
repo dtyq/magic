@@ -313,8 +313,8 @@ const FilesViewer = memo(
 									isPlayback
 										? "replay"
 										: getAttachmentExtension(tab?.fileData?.metadata) ||
-										tab.fileData?.file_extension ||
-										""
+											tab.fileData?.file_extension ||
+											""
 								}
 								size={12}
 							/>
@@ -375,36 +375,36 @@ const FilesViewer = memo(
 					const isPlayback = isPlaybackTab(tab.id)
 					const playbackProps = isPlayback
 						? {
-							disPlayDetail: props.userSelectDetail || props.autoDetail,
-							setUserSelectDetail: props.setUserSelectDetail,
-							userSelectDetail: props.userSelectDetail,
-							attachments: props.attachments,
-							attachmentList: props.attachmentList,
-							topicId: props.topicId,
-							baseShareUrl: props.baseShareUrl,
-							currentTopicStatus: props.currentTopicStatus,
-							messages: props.messages,
-							autoDetail: props.autoDetail,
-							showPlaybackControl: props.showPlaybackControl,
-							allowEdit: props.allowEdit,
-							selectedTopic: props.selectedTopic,
-							selectedProject: props.selectedProject,
-							isFileShare: props.isFileShare,
-							activeFileId: props.activeFileId,
-							onActiveFileChange: props.onActiveFileChange,
-							openFileTab: props.openFileTab,
-							getFileViewMode: props.getFileViewMode,
-							handleViewModeChange: props.handleViewModeChange,
-							onDownload: props.onDownload,
-							isFullscreen: fullscreenFileId === tab.id,
-							onFullscreenChange: (fs: boolean) => {
-								if (fs) {
-									handleFileFullscreen(tab.id)
-								} else {
-									handleExitFullscreen()
-								}
-							},
-						}
+								disPlayDetail: props.userSelectDetail || props.autoDetail,
+								setUserSelectDetail: props.setUserSelectDetail,
+								userSelectDetail: props.userSelectDetail,
+								attachments: props.attachments,
+								attachmentList: props.attachmentList,
+								topicId: props.topicId,
+								baseShareUrl: props.baseShareUrl,
+								currentTopicStatus: props.currentTopicStatus,
+								messages: props.messages,
+								autoDetail: props.autoDetail,
+								showPlaybackControl: props.showPlaybackControl,
+								allowEdit: props.allowEdit,
+								selectedTopic: props.selectedTopic,
+								selectedProject: props.selectedProject,
+								isFileShare: props.isFileShare,
+								activeFileId: props.activeFileId,
+								onActiveFileChange: props.onActiveFileChange,
+								openFileTab: props.openFileTab,
+								getFileViewMode: props.getFileViewMode,
+								handleViewModeChange: props.handleViewModeChange,
+								onDownload: props.onDownload,
+								isFullscreen: fullscreenFileId === tab.id,
+								onFullscreenChange: (fs: boolean) => {
+									if (fs) {
+										handleFileFullscreen(tab.id)
+									} else {
+										handleExitFullscreen()
+									}
+								},
+							}
 						: undefined
 
 					return (
@@ -442,7 +442,7 @@ const FilesViewer = memo(
 					className={cn(
 						"flex h-full flex-col",
 						isFullscreen &&
-						"fixed inset-0 z-[1022] h-screen w-screen rounded-none bg-white",
+							"fixed inset-0 z-[1022] h-screen w-screen rounded-none bg-white",
 					)}
 				>
 					{/* Tab Bar */}
@@ -482,6 +482,20 @@ const FilesViewer = memo(
 									{tabs.map(renderExpandPanelItem)}
 								</DropdownMenuContent>
 							</DropdownMenu>
+
+							{/* 关闭所有 tab 按钮 */}
+							<Tooltip
+								title={t("shortcut.closeAllTabs")}
+								placement="bottom"
+								mouseEnterDelay={0.3}
+							>
+								<div
+									className="relative mr-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10"
+									onClick={handleClearAllTabs}
+								>
+									<MagicIcon component={IconX} size={16} />
+								</div>
+							</Tooltip>
 						</div>
 					)}
 

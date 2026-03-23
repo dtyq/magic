@@ -1,70 +1,78 @@
-import { MessageReceiveType } from "@/types/chat"
-import type { Friend } from "@/types/contact"
-import { createStyles } from "antd-style"
-import { lazy } from "react"
-import { useChatWithMember } from "@/hooks/chat/useChatWithMember"
-import userInfoStore from "@/stores/userInfo"
+import { lazy, type ChangeEvent, useState } from "react"
+import { useDebounce, useMemoizedFn } from "ahooks"
+import type { UserAvailableAgentInfo } from "@/apis/modules/chat/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useAiAssistantData } from "./hooks/useAiAssistantData"
 import { observer } from "mobx-react-lite"
 import MagicInfiniteList from "@/components/business/MagicInfiniteList"
-import { getUserName } from "@/utils/modules/chat"
-import { Flex } from "antd"
 import { MagicAvatar } from "@/components/base"
+import { useOpenAiAssistantChat } from "./hooks/useOpenAiAssistantChat"
+import { AiAssistantSearch } from "@/pages/contacts/components/AiAssistantSearch"
 
-const useStyles = createStyles(({ css, token, prefixCls }) => {
-	return {
-		itemWrapper: css`
-			--${prefixCls}-list-item-padding: 10px;
-			border-radius: 8px;
-			background-color: ${token.colorBgContainer};
-			margin: 10px;
-			border-block-end: none !important;
-			transition: background-color 0.1s ease;
+const itemWrapperClassName =
+	"[--magic-list-item-padding:0px] mt-2.5 box-border w-full rounded-md bg-background transition-colors [border-block-end:none!important]"
 
-			&:hover {
-				background-color: ${token.magicColorScales.grey[0]};
-				cursor: pointer;
-			}
-		`,
-		item: css`
-			width: 100%;
-		`,
-	}
-})
+const itemButtonClassName =
+	"hover:bg-fill p-2 active:bg-fill-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring inline-flex w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent p-0 text-left transition-colors disabled:pointer-events-none disabled:opacity-50"
 
-const Item = observer(({ item }: { item: Friend }) => {
-	const { styles } = useStyles()
-	const user = userInfoStore.get(item.friend_id)
-	const chatWith = useChatWithMember()
+const itemContentClassName = "min-w-0 flex-1"
+
+const itemNameClassName = "truncate text-sm font-medium leading-5 text-foreground"
+
+const itemDescriptionClassName = "truncate text-xs leading-[18px] text-muted-foreground"
+
+const Item = observer(({ item }: { item: UserAvailableAgentInfo }) => {
+	const openAiAssistantChat = useOpenAiAssistantChat()
 
 	const handleItemClick = () => {
-		chatWith(item.friend_id, MessageReceiveType.Ai, true)
+		void openAiAssistantChat(item)
 	}
+
 	return (
-		<Flex align="center" gap={10} onClick={handleItemClick} className={styles.item}>
-			<MagicAvatar src={user?.avatar_url} size={40}>
-				{getUserName(user)}
+		<button type="button" onClick={handleItemClick} className={itemButtonClassName}>
+			<MagicAvatar src={item.agent_avatar || item.robot_avatar} size={40}>
+				{item.agent_name || item.robot_name}
 			</MagicAvatar>
-			<div style={{ flex: 1 }}>{user?.real_name || item.friend_id}</div>
-		</Flex>
+			<div className={itemContentClassName}>
+				<div className={itemNameClassName}>{item.agent_name || item.robot_name}</div>
+				<div className={itemDescriptionClassName}>
+					{item.agent_description || item.robot_description}
+				</div>
+			</div>
+		</button>
 	)
 })
 
 const AiAssistant = observer(function AiAssistant() {
-	const { styles } = useStyles()
+	const [searchValue, setSearchValue] = useState("")
 
-	const { fetchAiAssistantData, initialData } = useAiAssistantData()
+	const debouncedSearchValue = useDebounce(searchValue, { wait: 500 })
+
+	const { fetchAiAssistantData, initialData } = useAiAssistantData({
+		keyword: debouncedSearchValue || "",
+	})
+
+	const handleSearchValueChange = useMemoizedFn((event: ChangeEvent<HTMLInputElement>) => {
+		setSearchValue(event.target.value)
+	})
 
 	return (
-		<MagicInfiniteList<Friend>
-			dataFetcher={fetchAiAssistantData}
-			initialData={initialData}
-			renderItem={(item: Friend) => <Item item={item} />}
-			getItemKey={(item: Friend) => item.friend_id}
-			useDefaultItemStyles={false}
-			itemClassName={styles.itemWrapper}
-		/>
+		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+			<div className="px-2.5 pb-0 pt-2.5">
+				<AiAssistantSearch value={searchValue} onChange={handleSearchValueChange} />
+			</div>
+			<div className="box-border min-h-0 flex-1 px-2.5 pb-2.5">
+				<MagicInfiniteList<UserAvailableAgentInfo>
+					key={debouncedSearchValue || "all"}
+					dataFetcher={fetchAiAssistantData}
+					initialData={initialData}
+					renderItem={(item: UserAvailableAgentInfo) => <Item item={item} />}
+					getItemKey={(item: UserAvailableAgentInfo) => item.id}
+					useDefaultItemStyles={false}
+					itemClassName={itemWrapperClassName}
+				/>
+			</div>
+		</div>
 	)
 })
 

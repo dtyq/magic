@@ -1,9 +1,4 @@
-import {
-	Drawer,
-	DrawerOverlay,
-	DrawerPortal,
-	DrawerTitle,
-} from "@/components/shadcn-ui/drawer"
+import { Drawer, DrawerOverlay, DrawerPortal, DrawerTitle } from "@/components/shadcn-ui/drawer"
 import { cn } from "@/lib/utils"
 import * as React from "react"
 import { memo, useEffect, useRef } from "react"
@@ -42,6 +37,8 @@ export type MagicPopupProps = React.ComponentProps<typeof Drawer> & {
 	maskClosable?: boolean
 	/** Whether the popup can be dismissed by dragging or clicking outside (default: true) */
 	dismissible?: boolean
+	/** Whether to apply bottom safe area padding on the content wrapper (default: true) */
+	withSafeBottom?: boolean
 }
 
 const MagicPopup = memo(
@@ -61,6 +58,7 @@ const MagicPopup = memo(
 		title,
 		destroyOnClose = true,
 		maskClosable = true,
+		withSafeBottom = true,
 		...props
 	}: MagicPopupProps) => {
 		const { open, onOpenChange, direction, ...restProps } = props
@@ -120,7 +118,8 @@ const MagicPopup = memo(
 							"data-[vaul-drawer-direction=bottom]::after:bg-background",
 							"overflow-hidden bg-background",
 							"z-popup",
-							"mt-safe-top pb-safe-bottom",
+							"mt-safe-top",
+							withSafeBottom && "pb-safe-bottom",
 							"max-h-[calc(100%_-_var(--safe-area-inset-top)_-_var(--safe-area-inset-bottom)-44px)]",
 							className,
 						)}

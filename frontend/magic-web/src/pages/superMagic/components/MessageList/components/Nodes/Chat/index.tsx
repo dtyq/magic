@@ -9,7 +9,7 @@ import { Attachment } from "@/pages/superMagic/components/MessageList/components
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { memo } from "react"
 import { observer } from "mobx-react-lite"
-import RichTextComponent from "../../Text/components/RichText"
+import { UserMessageCollapsibleRichText } from "../../UserMessageCollapsibleRichText"
 import AtItem from "@/pages/superMagic/components/MessageEditor/components/AtItem"
 import {
 	getMentionUniqueId,
@@ -86,9 +86,10 @@ function Chat(props: NodeProps) {
 						</div>
 					)}
 					{contentVisible && (
-						<RichTextComponent
-							/** 兼容后端乱七八糟的数据 */
-							content={node?.raw_content?.rich_text?.content || node?.content}
+						<UserMessageCollapsibleRichText
+							content={node?.raw_content?.rich_text?.content || node?.content || ""}
+							mentions={mentions}
+							onFileClick={onAtItemFileClick}
 						/>
 					)}
 				</div>

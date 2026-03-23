@@ -46,11 +46,11 @@
 	},
 	"superLobster": {
 		"card": {
-			"betaAccess": "限量 Beta 体验",
+			"betaAccess": "限量邀测中",
 			"description": "一键云部署，全天候在线",
 			"title": "创建你的 SuperClaw AI 助手"
 		},
-		"description": "你的 24/7 专属 AI 助手",
+		"description": "你的 7×24 专属 AI 助手",
 		"features": {
 			"connect": {
 				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让 SuperClaw 随时随地都在你身边。",
@@ -61,7 +61,7 @@
 				"title": "深度定制与长期记忆，让它真正鲜活起来"
 			},
 			"deployment": {
-				"description": "无需复杂配置，一键即可上线。24/7 全天候可用，毫秒级响应，让你的 AI 助手始终快人一步。",
+				"description": "无需复杂配置，一键即可上线。7×24 全天候可用，毫秒级响应，让你的 AI 助手始终快人一步。",
 				"title": "即时进化，一键完成云端部署"
 			}
 		},

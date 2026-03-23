@@ -1,10 +1,7 @@
-export {
-	initialApi,
-} from "./register"
+export { initialApi } from "./register"
 export {
 	generateInvalidOrgResInterceptor,
 	generateUnauthorizedResInterceptor,
 	generateSuccessResInterceptor,
 	generatePlatformUnauthorizedResInterceptor,
 } from "./interceptor"
-

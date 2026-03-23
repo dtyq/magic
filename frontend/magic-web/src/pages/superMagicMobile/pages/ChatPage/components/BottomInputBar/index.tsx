@@ -2,9 +2,7 @@ import { cn } from "@/lib/utils"
 import ModeSelector from "./ModeSelector"
 import { SceneEditorNodes } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { useTranslation } from "react-i18next"
-import { VoiceInputRef } from "@/components/business/VoiceInput/types"
-import { useEffect, useRef, useState } from "react"
-import SuperMagicVoiceInput from "@/pages/superMagic/components/MessageEditor/components/VoiceInput"
+import { useEffect, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import { Document } from "@tiptap/extension-document"
 import { Paragraph } from "@tiptap/extension-paragraph"
@@ -28,8 +26,6 @@ export default function BottomInputBar({
 }: BottomInputBarProps) {
 	const { t } = useTranslation("super/mainInput")
 
-	const voiceInputRef = useRef<VoiceInputRef>(null)
-
 	const [isEmpty, setIsEmpty] = useState(true)
 
 	const editor = useEditor({
@@ -47,7 +43,7 @@ export default function BottomInputBar({
 	}, [syncContent, editor])
 
 	return (
-		<div className={cn("flex w-full flex-col gap-2 px-2 pb-1.5", show ? "block" : "hidden")}>
+		<div className={cn("w-full flex-col gap-2 px-2 pb-1.5", show ? "flex" : "hidden")}>
 			{editorNodes?.taskDataNode}
 			{editorNodes?.messageQueueNode}
 			<div className="flex items-center gap-1 rounded-3xl border border-border bg-background p-1 shadow-xs">
@@ -55,12 +51,13 @@ export default function BottomInputBar({
 				<ModeSelector />
 
 				{/* TipTap 编辑器展示区 - 语音输入内容落点，点击只触发弹出输入框 */}
-				<div className="relative min-w-0 flex-1">
+				<div className="relative flex min-h-8 min-w-0 flex-1 items-center">
 					<EditorContent
 						editor={editor}
 						className={cn(
-							"pointer-events-none",
+							"pointer-events-none w-full",
 							"[&_.ProseMirror]:m-0 [&_.ProseMirror]:truncate [&_.ProseMirror]:font-['Geist'] [&_.ProseMirror]:text-sm [&_.ProseMirror]:text-foreground [&_.ProseMirror]:outline-none",
+							"[&_.ProseMirror]:min-h-5 [&_.ProseMirror]:leading-5",
 							"[&_p]:m-0 [&_p]:p-0",
 						)}
 					/>
@@ -72,7 +69,7 @@ export default function BottomInputBar({
 					)}
 					{/* 点击拦截层 - 阻止键盘唤起，统一转发至 onInputClick */}
 					<div
-						className="absolute inset-0 cursor-text"
+						className="absolute inset-0 z-10 cursor-text"
 						role="textbox"
 						aria-label={t("chatInput.mobilePlaceholder")}
 						tabIndex={0}

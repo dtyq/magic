@@ -1,4 +1,11 @@
-import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select"
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectLabel,
+	SelectTrigger,
+} from "../ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 import styles from "./index.module.css"
 import IconButton from "../ui/custom/IconButton"
@@ -30,6 +37,7 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 	const {
 		selectedModelId,
 		modelOptions,
+		modelOptionGroups,
 		selectedModelOption,
 		maxReferenceImages,
 		isReferenceImageLimitReached,
@@ -43,6 +51,7 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		isPopoverOpen,
 		handlers,
 	} = config
+	const shouldShowModelGroups = modelOptionGroups.length > 1
 
 	return (
 		<>
@@ -55,24 +64,76 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 									className={styles.modelOptionItemContent}
 									style={{ maxWidth: 160 }}
 								>
-									<div className={styles.icon}>{selectedModelOption.icon}</div>
+									{selectedModelOption.model.model_icon && (
+										<div className={styles.icon}>
+											<img
+												src={selectedModelOption.model.model_icon}
+												alt={selectedModelOption.label}
+											/>
+										</div>
+									)}
 									<div className={styles.label}>{selectedModelOption.label}</div>
 								</div>
 								<ChevronsUpDown size={16} />
 							</SelectTrigger>
 							<SelectContent className={styles.selectContent}>
-								{modelOptions.map((option) => (
-									<SelectItem
-										key={option.value}
-										value={option.value}
-										className={styles.selectOptionItem}
-									>
-										<div className={styles.modelOptionItemContent}>
-											<div className={styles.icon}>{option.icon}</div>
-											<div className={styles.label}>{option.label}</div>
-										</div>
-									</SelectItem>
-								))}
+								{shouldShowModelGroups
+									? modelOptionGroups.map((group) => (
+											<SelectGroup key={group.id}>
+												<SelectLabel className={styles.selectGroupLabel}>
+													<div className={styles.selectGroupLabelContent}>
+														{group.icon && (
+															<img
+																src={group.icon}
+																alt={group.label}
+																className={
+																	styles.selectGroupLabelIcon
+																}
+															/>
+														)}
+														<span>{group.label}</span>
+													</div>
+												</SelectLabel>
+												{group.options.map((option) => (
+													<SelectItem
+														key={option.value}
+														value={option.value}
+														className={`${styles.selectOptionItem} ${styles.selectOptionItemIndented}`}
+													>
+														<div
+															className={
+																styles.modelOptionItemContent
+															}
+														>
+															<div className={styles.label}>
+																{option.label}
+															</div>
+														</div>
+													</SelectItem>
+												))}
+											</SelectGroup>
+										))
+									: modelOptions.map((option) => (
+											<SelectItem
+												key={option.value}
+												value={option.value}
+												className={styles.selectOptionItem}
+											>
+												<div className={styles.modelOptionItemContent}>
+													{option.model.model_icon && (
+														<div className={styles.icon}>
+															<img
+																src={option.model.model_icon}
+																alt={option.label}
+															/>
+														</div>
+													)}
+													<div className={styles.label}>
+														{option.label}
+													</div>
+												</div>
+											</SelectItem>
+										))}
 							</SelectContent>
 						</Select>
 					)}

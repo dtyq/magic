@@ -1,8 +1,5 @@
 import type { GetFileInfoResponse } from "@/components/CanvasDesign/types.magic"
-import {
-	parseExpiresAt,
-	isOssExpired,
-} from "@/components/CanvasDesign/canvas/utils/ossExpiryUtils"
+import { parseExpiresAt, isOssExpired } from "@/components/CanvasDesign/canvas/utils/ossExpiryUtils"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import projectFilesStore from "@/stores/projectFiles"
@@ -18,13 +15,16 @@ const IMAGE_PROCESS_OPTIONS: { xMagicImageProcess?: ImageProcessOptions } = {
 }
 
 /**
- * 图片处理文件大小限制（20MB）
+ * 图片处理文件大小限制
  * 超过此大小的文件使用图片处理选项会导致服务端错误
  */
 // const IMAGE_PROCESS_SIZE_LIMIT = 20 * 1024 * 1024 // 20MB in bytes
-// 20971520
 // const IMAGE_PROCESS_SIZE_LIMIT = 20971520
-const IMAGE_PROCESS_SIZE_LIMIT = 20971420 // 20MB - 10KB
+// const IMAGE_PROCESS_SIZE_LIMIT = 20971420 // 20MB - 10KB
+
+// const IMAGE_PROCESS_SIZE_LIMIT = 50 * 1024 * 1024 // 50MB in bytes
+// const IMAGE_PROCESS_SIZE_LIMIT = 50971520 // 50MB in bytes
+const IMAGE_PROCESS_SIZE_LIMIT = 50971420 // 50MB - 10KB
 
 /**
  * 根据文件大小判断是否应该使用图片处理选项

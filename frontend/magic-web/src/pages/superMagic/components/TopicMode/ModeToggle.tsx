@@ -364,7 +364,7 @@ function ModeToggle({
 		return (
 			<div
 				className={cn(
-					"flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background shadow-xs outline-none hover:bg-sidebar/50 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-sidebar dark:hover:bg-muted",
+					"[WebkitTapHighlightColor:transparent] flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background shadow-xs outline-none hover:bg-sidebar/50 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-sidebar dark:hover:bg-muted",
 					TRIGGER_SIZE_MAP[size],
 				)}
 				data-testid="mode-toggle-button"

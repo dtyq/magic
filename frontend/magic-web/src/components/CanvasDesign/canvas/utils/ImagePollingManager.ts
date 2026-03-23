@@ -1,6 +1,7 @@
 import type { Canvas } from "../Canvas"
 import type { ImageElement as ImageElementData } from "../types"
 import type { GetImageGenerationResultParams } from "../../types.magic"
+import { GenerationStatus } from "../../types.magic"
 import { IMAGE_CONFIG } from "../element/elements/ImageElement.config"
 
 /**
@@ -163,7 +164,10 @@ export class ImagePollingManager {
 			})
 
 			// 根据状态决定是否继续轮询
-			if (result.status === "pending" || result.status === "processing") {
+			if (
+				result.status === GenerationStatus.Pending ||
+				result.status === GenerationStatus.Processing
+			) {
 				// 5 秒后继续轮询
 				this.pollingTimer = setTimeout(() => {
 					this.poll()

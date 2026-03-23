@@ -20,11 +20,7 @@ import { isEmpty } from "lodash-es"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MessageList from "../MessageList"
-import {
-	MessageStatus,
-	TaskStatus,
-	type TaskData,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { MessageStatus, TaskStatus, type TaskData } from "@/pages/superMagic/pages/Workspace/types"
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
 import { useDownloadAll } from "@/pages/superMagic/components/TopicFilesButton/useDownloadAll"
 import { getBaseUrl } from "@/pages/superMagicMobile/utils/mobile"
@@ -922,7 +918,7 @@ function Topic({
 							isEmpty(userDetail) &&
 							!showAllProjectFiles &&
 							!isFileShare) ||
-							isMobile ? null : (
+						isMobile ? null : (
 							<div className="my-2 flex-1 overflow-y-hidden rounded-lg border border-border bg-card transition-all duration-300 ease-in-out">
 								<Detail
 									ref={detailRef}
@@ -969,7 +965,7 @@ function Topic({
 										isEmpty(autoDetail) &&
 										isEmpty(userDetail)) ||
 										!hasStarted) &&
-									"w-full min-w-[420px] max-w-[840px] max-md:max-w-none",
+										"w-full min-w-[420px] max-w-[840px] max-md:max-w-none",
 									!(
 										(!showAllProjectFiles &&
 											isEmpty(autoDetail) &&
@@ -977,18 +973,18 @@ function Topic({
 										!hasStarted
 									) && "w-[420px] min-w-[420px]",
 									!hasStarted &&
-									"scale-[1.7] [transform:perspective(900px)_rotateX(30deg)_translateY(150px)] max-md:scale-110 max-md:[transform:perspective(550px)_rotateX(20deg)_translateY(-20px)]",
+										"scale-[1.7] [transform:perspective(900px)_rotateX(30deg)_translateY(150px)] max-md:scale-110 max-md:[transform:perspective(550px)_rotateX(20deg)_translateY(-20px)]",
 									(isMessagePanelDragging || isMessagePanelHovering) &&
-									"select-none !transition-none",
+										"select-none !transition-none",
 								)}
 								style={
 									showAllProjectFiles ||
-										!isEmpty(autoDetail) ||
-										!isEmpty(userDetail)
+									!isEmpty(autoDetail) ||
+									!isEmpty(userDetail)
 										? {
-											width: messagePanelWidth,
-											position: "relative",
-										}
+												width: messagePanelWidth,
+												position: "relative",
+											}
 										: undefined
 								}
 							>
@@ -1010,6 +1006,7 @@ function Topic({
 											currentTopicStatus={
 												isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 											}
+											stickyMessageClassName="-top-[10px] pt-[10px] [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 										/>
 										{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 											<LoadingMessage />
@@ -1141,7 +1138,7 @@ function Topic({
 										isEmpty(autoDetail) &&
 										isEmpty(userDetail)) ||
 										!hasStarted) &&
-									"w-full min-w-[420px] max-w-[840px] max-md:max-w-none",
+										"w-full min-w-[420px] max-w-[840px] max-md:max-w-none",
 								)}
 							>
 								<div className="h-full w-full overflow-y-auto overflow-x-hidden p-2.5">
@@ -1157,6 +1154,7 @@ function Topic({
 										currentTopicStatus={
 											isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 										}
+										stickyMessageClassName="top-0 z-1 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 									/>
 									{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 										<LoadingMessage />

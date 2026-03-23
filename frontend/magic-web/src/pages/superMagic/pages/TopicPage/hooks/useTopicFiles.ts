@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { DetailRef } from "../../../components/Detail"
@@ -92,21 +92,36 @@ export function useTopicFiles({
 	})
 
 	// Prepare all props needed for TopicFilesButton component
-	const topicFilesProps = {
-		attachments,
-		setUserSelectDetail,
-		onFileClick: handleFileClick,
-		projectId: selectedProject?.id,
-		activeFileId,
-		selectedTopic,
-		onAttachmentsChange: setAttachments,
-		allowEdit: !isReadOnly,
-		selectedWorkspace,
-		selectedProject,
-		projects,
-		workspaces,
-		isInProject: true,
-	}
+	const topicFilesProps = useMemo(
+		() => ({
+			attachments,
+			setUserSelectDetail,
+			onFileClick: handleFileClick,
+			projectId: selectedProject?.id,
+			activeFileId,
+			selectedTopic,
+			onAttachmentsChange: setAttachments,
+			allowEdit: !isReadOnly,
+			selectedWorkspace,
+			selectedProject,
+			projects,
+			workspaces,
+			isInProject: true,
+		}),
+		[
+			attachments,
+			setUserSelectDetail,
+			handleFileClick,
+			activeFileId,
+			selectedTopic,
+			setAttachments,
+			isReadOnly,
+			selectedWorkspace,
+			selectedProject,
+			projects,
+			workspaces,
+		],
+	)
 
 	return {
 		activeFileId,

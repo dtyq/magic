@@ -72,5 +72,7 @@ export const enum SuperMagicMessageType {
 export interface SuperMagicMessageItem {
 	type: SuperMagicMessageType
 	childMessages?: Array<SuperMagicMessageItem>
+	/** Message author; e.g. user vs assistant turns in MessageList */
+	role?: string
 	[key: string]: any
 }

@@ -19,8 +19,6 @@ import { workspaceStore, projectStore, topicStore } from "../../stores/core"
 import { Files } from "lucide-react"
 import ProjectCardContainer from "../../components/ProjectCardContainer"
 import TopicDesktopPanels from "../TopicPage/components/TopicDesktopPanels"
-import { useTopicDesktopLayout } from "../TopicPage/hooks/useTopicDesktopLayout"
-import { useTopicDesktopPanelMotion } from "../TopicPage/hooks/useTopicDesktopPanelMotion"
 
 // 项目页组件
 function ProjectPage() {
@@ -50,20 +48,6 @@ function ProjectPage() {
 	const isReadOnly = true
 	const shouldShowDetailPanel = true
 	const showProjectResizeHandle = true
-
-	const {
-		containerRef,
-		containerWidthPx,
-		projectSiderWidthPx,
-		messagePanelWidthPx,
-		collapsedMessagePanelWidthPx,
-		isConversationPanelCollapsed,
-		isDraggingProjectSider,
-		isDraggingMessagePanel,
-		startDragProjectSider,
-		startDragMessagePanel,
-		ensureExpandedWhenDetailVisible,
-	} = useTopicDesktopLayout({ isReadOnly, allowProjectSiderResize: showProjectResizeHandle })
 
 	// 使用详情模式缓存 hook
 	useDetailModeCache({
@@ -197,29 +181,6 @@ function ProjectPage() {
 		return userSelectDetail || autoDetail
 	}, [userSelectDetail, autoDetail])
 
-	const {
-		panelResizeTransition,
-		messageTransform,
-		messagePanelTransition,
-		detailContentTransform,
-		detailContentTransition,
-		targetMessagePanelWidth,
-		targetRightHandleWidth,
-		targetDetailPanelWidth,
-	} = useTopicDesktopPanelMotion({
-		isReadOnly,
-		shouldShowDetailPanel,
-		showProjectResizeHandle,
-		containerWidthPx,
-		projectSiderWidthPx,
-		messagePanelWidthPx,
-		collapsedMessagePanelWidthPx,
-		isConversationPanelCollapsed,
-		isDraggingProjectSider,
-		isDraggingMessagePanel,
-		ensureExpandedWhenDetailVisible,
-	})
-
 	useEffect(() => {
 		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback: any) => {
 			if (!selectedProject) return
@@ -249,9 +210,10 @@ function ProjectPage() {
 		}, 100)
 	})
 
+	const renderMessagePanel = useMemoizedFn(() => null)
+
 	return (
 		<TopicDesktopPanels
-			containerRef={containerRef}
 			containerClassName={styles.container}
 			detailPanelClassName={styles.detailPanel}
 			isDetailPanelFullscreen={false}
@@ -312,24 +274,10 @@ function ProjectPage() {
 					showFallbackWhenEmpty
 				/>
 			}
-			messagePanel={null}
 			isReadOnly={isReadOnly}
 			showProjectResizeHandle={showProjectResizeHandle}
 			shouldShowDetailPanel={shouldShowDetailPanel}
-			isConversationPanelCollapsed={isConversationPanelCollapsed}
-			isDraggingProjectSider={isDraggingProjectSider}
-			isDraggingMessagePanel={isDraggingMessagePanel}
-			projectSiderWidthPx={projectSiderWidthPx}
-			targetDetailPanelWidth={targetDetailPanelWidth}
-			targetRightHandleWidth={targetRightHandleWidth}
-			targetMessagePanelWidth={targetMessagePanelWidth}
-			panelResizeTransition={panelResizeTransition}
-			detailContentTransform={detailContentTransform}
-			detailContentTransition={detailContentTransition}
-			messageTransform={messageTransform}
-			messagePanelTransition={messagePanelTransition}
-			onProjectResizeStart={startDragProjectSider}
-			onMessageResizeStart={startDragMessagePanel}
+			renderMessagePanel={renderMessagePanel}
 		/>
 	)
 }

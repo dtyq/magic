@@ -25,6 +25,8 @@ const OrganizationSwitchPanelComponent = () => {
 		noNeedButtonText: tSuper("recordingSummary.cancelModal.noNeedWithContinue"),
 		summarizeButtonText: tSuper("recordingSummary.cancelModal.summarizeWithContinue"),
 		modalContent: tSuper("recordingSummary.cancelModal.messageWithContinue"),
+		aiRecordingModalContent: tSuper("recordingSummary.aiRecordingModal.switchContent"),
+		aiRecordingConfirmText: tSuper("recordingSummary.aiRecordingModal.switchConfirmText"),
 	})
 
 	const onSwitchBefore = useMemoizedFn(() => {

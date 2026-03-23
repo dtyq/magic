@@ -5,11 +5,7 @@ import useTopicModel from "../../hooks/useTopicModel"
 import { useMessageEditorStore } from "../../stores"
 import type { ModelSwitchProps } from "./types"
 import { ModelStatusEnum } from "./types"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import { useOptionalScenePanelVariant } from "../../../MainInputContainer/stores/context"
 import { ScenePanelVariant } from "../../../MainInputContainer/components/LazyScenePanel/types"
 import { AddModelStore } from "./components/AddModel/store"
@@ -96,7 +92,7 @@ function ModelSwitchContainer({
 					{...props}
 					showLabel={
 						variant &&
-							[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(variant)
+						[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(variant)
 							? false
 							: true
 					}

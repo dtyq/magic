@@ -392,8 +392,9 @@ function DesignViewer(props: DesignViewerProps) {
 		designProjectId,
 	])
 
-	// 获取 CommonHeaderV2 的 props
+	// 获取 CommonHeaderV2 的 props（定位到文件时定位到 magic.project.js）
 	const headerProps = useDesignHeaderProps({
+		locateFileId: magicProjectJsFileId ?? undefined,
 		currentFile,
 		attachments,
 		fileVersion,
@@ -511,9 +512,16 @@ function DesignViewer(props: DesignViewerProps) {
 		}
 	}, [allowEdit, isMobile, isNewestVersion, isPlaybackMode, isShareRoute, setIsReadOnlyState])
 
+	// 显示历史版本 banner 时预留顶部空间，避免遮挡画布（banner 高度约 44px）
+	const showVersionBanner = !isNewestVersion && !isMobile && !!fileVersionsList?.length
+
 	return (
 		<>
-			<div ref={containerRef} className={styles.designViewerContainer}>
+			<div
+				ref={containerRef}
+				className={styles.designViewerContainer}
+				style={showVersionBanner ? { paddingTop: 44 } : undefined}
+			>
 				{isInitialLoading ? (
 					<FlexBox justify="center" align="center" style={{ height: "100%" }}>
 						<MagicSpin spinning />

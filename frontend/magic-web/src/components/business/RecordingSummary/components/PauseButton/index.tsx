@@ -34,6 +34,7 @@ function PauseButton({
 	isPausing,
 	isContinuing,
 	disabled,
+	"data-testid": dataTestId,
 }: {
 	isPaused: boolean
 	onPause: () => void
@@ -41,6 +42,7 @@ function PauseButton({
 	isPausing: boolean
 	isContinuing: boolean
 	disabled?: boolean
+	"data-testid"?: string
 }) {
 	const { styles } = useStyles()
 	const { magicColorUsages } = useTheme()
@@ -54,7 +56,9 @@ function PauseButton({
 			}
 		>
 			<button
+				type="button"
 				className={styles.pauseButton}
+				data-testid={dataTestId}
 				onClick={isPaused ? onResume : onPause}
 				disabled={disabled}
 			>

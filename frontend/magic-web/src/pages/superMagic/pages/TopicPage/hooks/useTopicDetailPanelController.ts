@@ -81,7 +81,7 @@ export function useTopicDetailPanelController({
 
 	const handleFileClickWithPanel = useMemoizedFn((fileItem?: unknown) => {
 		// setActiveFileId(null)
-		setActiveDetailTabType("file")
+		// setActiveDetailTabType("file")
 		handleFileClick(fileItem)
 		scheduleFileOpenFallback()
 	})
@@ -97,7 +97,7 @@ export function useTopicDetailPanelController({
 	useEffect(() => {
 		const handleOpenFileTab = (data: { fileId: string }) => {
 			// setActiveFileId(null)
-			setActiveDetailTabType("file")
+			// setActiveDetailTabType("file")
 			window.setTimeout(() => {
 				detailRef.current?.openFileTab?.({ file_id: data.fileId })
 			}, DETAIL_OPEN_DELAY_MS)

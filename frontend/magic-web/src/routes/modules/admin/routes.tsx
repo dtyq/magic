@@ -24,8 +24,8 @@ const routes: Route[] = [
 		children: [
 			{
 				index: true,
-				name: RouteName.AdminPlatformPackage,
-				element: <Navigate name={RouteName.AdminPlatformPackage} replace />,
+				name: RouteName.AdminPlatformAIModel,
+				element: <Navigate name={RouteName.AdminPlatformAIModel} replace />,
 			},
 			PlatformPackageRoutes,
 			...otherRoutes,

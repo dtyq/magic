@@ -1,60 +1,85 @@
-import { type ReactNode, type RefObject } from "react"
+import { type ReactNode } from "react"
+import { observer } from "mobx-react-lite"
 import { cn } from "@/lib/tiptap-utils"
 import TopicResizeHandle from "./TopicResizeHandle"
+import { useTopicDesktopLayout } from "../hooks/useTopicDesktopLayout"
+import { useTopicDesktopPanelMotion } from "../hooks/useTopicDesktopPanelMotion"
 
 interface TopicDesktopPanelsProps {
-	containerRef: RefObject<HTMLDivElement>
 	containerClassName: string
 	detailPanelClassName: string
 	isDetailPanelFullscreen: boolean
 	sidebar: ReactNode
 	detailPanel: ReactNode
-	messagePanel: ReactNode
 	isReadOnly: boolean
 	showProjectResizeHandle?: boolean
 	shouldShowDetailPanel: boolean
-	isConversationPanelCollapsed: boolean
-	isDraggingProjectSider: boolean
-	isDraggingMessagePanel: boolean
-	projectSiderWidthPx: number
-	targetDetailPanelWidth: number
-	targetRightHandleWidth: number
-	targetMessagePanelWidth: number
-	panelResizeTransition: string
-	detailContentTransform: string
-	detailContentTransition: string
-	messageTransform: string
-	messagePanelTransition: string
-	onProjectResizeStart: (clientX: number) => void
-	onMessageResizeStart: (clientX: number) => void
+	renderMessagePanel: (params: {
+		isConversationPanelCollapsed: boolean
+		isDraggingPanel: boolean
+		onToggleConversationPanel: () => void
+		onExpandConversationPanel: () => void
+	}) => ReactNode
 }
 
 function TopicDesktopPanels({
-	containerRef,
 	containerClassName,
 	detailPanelClassName,
 	isDetailPanelFullscreen,
 	sidebar,
 	detailPanel,
-	messagePanel,
 	isReadOnly,
 	showProjectResizeHandle = !isReadOnly,
 	shouldShowDetailPanel,
-	isConversationPanelCollapsed,
-	isDraggingProjectSider,
-	isDraggingMessagePanel,
-	projectSiderWidthPx,
-	targetDetailPanelWidth,
-	targetRightHandleWidth,
-	targetMessagePanelWidth,
-	panelResizeTransition,
-	detailContentTransform,
-	detailContentTransition,
-	messageTransform,
-	messagePanelTransition,
-	onProjectResizeStart,
-	onMessageResizeStart,
+	renderMessagePanel,
 }: TopicDesktopPanelsProps) {
+	const {
+		containerRef,
+		containerWidthPx,
+		projectSiderWidthPx,
+		messagePanelWidthPx,
+		collapsedMessagePanelWidthPx,
+		isConversationPanelCollapsed,
+		isDraggingProjectSider,
+		isDraggingMessagePanel,
+		startDragProjectSider,
+		startDragMessagePanel,
+		toggleConversationPanel,
+		expandConversationPanel,
+		ensureExpandedWhenDetailVisible,
+	} = useTopicDesktopLayout({ isReadOnly, allowProjectSiderResize: showProjectResizeHandle })
+	const {
+		panelResizeTransition,
+		messageTransform,
+		messagePanelTransition,
+		detailContentTransform,
+		detailContentTransition,
+		targetMessagePanelWidth,
+		targetRightHandleWidth,
+		targetDetailPanelWidth,
+	} = useTopicDesktopPanelMotion({
+		isReadOnly,
+		showProjectResizeHandle,
+		shouldShowDetailPanel,
+		containerWidthPx,
+		projectSiderWidthPx,
+		messagePanelWidthPx,
+		collapsedMessagePanelWidthPx,
+		isConversationPanelCollapsed,
+		isDraggingProjectSider,
+		isDraggingMessagePanel,
+		ensureExpandedWhenDetailVisible,
+	})
+	const visibleConversationPanelCollapsed = shouldShowDetailPanel
+		? isConversationPanelCollapsed
+		: false
+	const messagePanel = renderMessagePanel({
+		isConversationPanelCollapsed: visibleConversationPanelCollapsed,
+		isDraggingPanel: isDraggingProjectSider || isDraggingMessagePanel,
+		onToggleConversationPanel: toggleConversationPanel,
+		onExpandConversationPanel: expandConversationPanel,
+	})
+
 	return (
 		<div
 			ref={containerRef}
@@ -69,7 +94,7 @@ function TopicDesktopPanels({
 				{showProjectResizeHandle && (
 					<TopicResizeHandle
 						onMouseDown={(event) => {
-							onProjectResizeStart(event.clientX)
+							startDragProjectSider(event.clientX)
 						}}
 						className={cn("shrink-0", isDraggingProjectSider && "before:opacity-100")}
 					/>
@@ -86,15 +111,15 @@ function TopicDesktopPanels({
 							isReadOnly
 								? undefined
 								: {
-									width: targetDetailPanelWidth,
-									minWidth: 0,
-									opacity: shouldShowDetailPanel ? 1 : 0,
-									// Remove willChange when fullscreen to avoid creating stacking context
-									willChange: isDetailPanelFullscreen
-										? "auto"
-										: "width, opacity",
-									transition: panelResizeTransition,
-								}
+										width: targetDetailPanelWidth,
+										minWidth: 0,
+										opacity: shouldShowDetailPanel ? 1 : 0,
+										// Remove willChange when fullscreen to avoid creating stacking context
+										willChange: isDetailPanelFullscreen
+											? "auto"
+											: "width, opacity",
+										transition: panelResizeTransition,
+									}
 						}
 					>
 						<div
@@ -129,13 +154,13 @@ function TopicDesktopPanels({
 							<TopicResizeHandle
 								disabled={isConversationPanelCollapsed || !shouldShowDetailPanel}
 								onMouseDown={(event) => {
-									onMessageResizeStart(event.clientX)
+									startDragMessagePanel(event.clientX)
 								}}
 								className={cn(
 									"h-full w-full shrink-0",
 									!isDraggingMessagePanel && "transition-opacity duration-150",
 									(isConversationPanelCollapsed || !shouldShowDetailPanel) &&
-									"pointer-events-none",
+										"pointer-events-none",
 									isDraggingMessagePanel && "before:opacity-100",
 								)}
 							/>
@@ -163,4 +188,4 @@ function TopicDesktopPanels({
 	)
 }
 
-export default TopicDesktopPanels
+export default observer(TopicDesktopPanels)

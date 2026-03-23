@@ -69,7 +69,7 @@ export function showImproveInformationModal(
 		modalContainer = document.createElement("div")
 		modalContainer.id = ImproveInformationModalContainerId
 		modalContainer.style.position = "relative"
-		modalContainer.style.zIndex = "1000"
+		modalContainer.style.zIndex = "1001"
 		document.body.appendChild(modalContainer)
 
 		modalRoot = createRoot(modalContainer)

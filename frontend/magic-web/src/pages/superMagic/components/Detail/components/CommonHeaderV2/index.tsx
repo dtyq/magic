@@ -64,6 +64,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		attachments,
 		actionConfig,
 		getPopupContainer,
+		onLocateFile,
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -78,10 +79,14 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	}, [])
 
 	const handleLocateFile = useCallback(() => {
+		if (onLocateFile) {
+			onLocateFile()
+			return
+		}
 		if (currentFile?.id) {
 			pubsub.publish(PubSubEvents.Locate_File_In_Tree, currentFile.id)
 		}
-	}, [currentFile?.id])
+	}, [currentFile?.id, onLocateFile])
 
 	const handleChangeFileVersion = useCallback(
 		(version: number, isNewestVersion: boolean) => {
@@ -253,15 +258,15 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 				versionChildren.length > 0
 					? versionChildren
 					: [
-						{
-							key: "noHistoryVersion",
-							label: (
-								<div className="px-2 py-1 text-xs text-muted-foreground">
-									{t("common.noHistoryVersionHint")}
-								</div>
-							),
-						},
-					],
+							{
+								key: "noHistoryVersion",
+								label: (
+									<div className="px-2 py-1 text-xs text-muted-foreground">
+										{t("common.noHistoryVersionHint")}
+									</div>
+								),
+							},
+						],
 		}
 
 		return [

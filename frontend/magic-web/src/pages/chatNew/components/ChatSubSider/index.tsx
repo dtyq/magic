@@ -29,14 +29,20 @@ const ChatSubSider = observer(() => {
 
 	const conversationCount = Object.keys(conversationStore.conversations).length
 
-	const { topGroupList, singleGroupList, groupGroupList, aiGroupList, firstAvailableGroup } =
-		useConversationGroups()
+	const {
+		topGroupList,
+		singleGroupList,
+		groupGroupList,
+		aiGroupList,
+		firstAvailableGroup,
+		defaultActiveKeys,
+	} = useConversationGroups()
 
 	const { activeSegmentedKey, aiHydrated, options, handleSegmentedChange, setAiHydrated } =
 		useSegmentedControl()
 
 	const { activeKeys, collapseAnimationDisabled, listsReady, handleTogglePanel } =
-		useCollapsePanels({ firstAvailableGroup })
+		useCollapsePanels({ firstAvailableGroup, defaultActiveKeys })
 
 	const { renderedLists } = useVirtualList({
 		topGroupList,

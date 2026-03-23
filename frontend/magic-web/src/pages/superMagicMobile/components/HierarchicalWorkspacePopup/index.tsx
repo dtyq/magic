@@ -9,10 +9,7 @@ import { useHierarchicalWorkspacePopup } from "./hooks"
 import { HierarchicalWorkspacePopupProps, HierarchicalWorkspacePopupRef } from "./types"
 import { useTheme } from "antd-style"
 import CreateWorkspaceModal from "@/pages/superMagic/components/CreateWorkspaceModal"
-import {
-	isCollaborationWorkspace,
-	SHARE_WORKSPACE_DATA,
-} from "@/pages/superMagic/constants"
+import { isCollaborationWorkspace, SHARE_WORKSPACE_DATA } from "@/pages/superMagic/constants"
 import { userStore } from "@/models/user"
 import { observer } from "mobx-react-lite"
 import MagicTabs from "@/components/base-mobile/MagicTabs"
@@ -154,8 +151,8 @@ function HierarchicalWorkspacePopup(
 					</div>
 				</div>
 
-				<Flex className="flex h-[calc(100%-var(--safe-area-inset-bottom)-60px)] flex-1 flex-col">
-					<div className="relative flex-1 flex-shrink overflow-hidden">
+				<Flex className="flex min-h-0 flex-1 flex-col">
+					<div className="relative flex min-h-0 flex-1 flex-shrink flex-col overflow-hidden">
 						{isCollaborationWorkspace(navState.currentWorkspace) && (
 							<MagicTabs
 								activeKey={collaborationTabKey}
@@ -175,7 +172,7 @@ function HierarchicalWorkspacePopup(
 						)}
 						<div
 							className={cn(
-								"h-full overflow-y-auto scroll-smooth [scrollbar-width:thin] [&::-webkit-scrollbar-thumb:hover]:bg-border [&::-webkit-scrollbar-thumb]:rounded-sm [&::-webkit-scrollbar-thumb]:bg-border/60 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1",
+								"flex-1 overflow-y-auto scroll-smooth pb-10 [scrollbar-width:thin] [&::-webkit-scrollbar-thumb:hover]:bg-border [&::-webkit-scrollbar-thumb]:rounded-sm [&::-webkit-scrollbar-thumb]:bg-border/60 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1",
 								"[&>div:first-child]:mt-1",
 								"[&>div:last-child]:mb-3",
 							)}
@@ -243,7 +240,7 @@ function HierarchicalWorkspacePopup(
 								primaryIcon={<Folder size={16} />}
 								// secondaryText={t("hierarchicalWorkspacePopup.allWorkspaces")}
 								onPrimaryClick={onAddProjectClick}
-							// onSecondaryClick={handleBackClick}
+								// onSecondaryClick={handleBackClick}
 							/>
 						)}
 				</Flex>

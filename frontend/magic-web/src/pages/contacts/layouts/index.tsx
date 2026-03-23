@@ -1,49 +1,12 @@
 import { Suspense } from "react"
 import { Outlet } from "react-router"
-import { Flex } from "antd"
 import MagicSpin from "@/components/base/MagicSpin"
 import ContactsSubSider from "../components/ContactsSubSider"
 import ContactPageDataProvider from "../components/ContactDataProvider"
-import { useStyles } from "./styles"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useTranslation } from "react-i18next"
-// import { ContactViewType } from "../constants"
-// import { useContactPageDataContext } from "../components/ContactDataProvider/hooks"
-
-// const TopBar = memo(() => {
-// 	const { t } = useTranslation("interface")
-// 	const { styles } = useStyles()
-//
-// 	const segmentedOptions = useMemo(() => {
-// 		return [
-// 			{
-// 				label: t("contacts.topBar.segmented.list"),
-// 				value: ContactViewType.LIST,
-// 			},
-// 			{
-// 				label: t("contacts.topBar.segmented.architecturalView"),
-// 				value: ContactViewType.TREE,
-// 			},
-// 		]
-// 	}, [t])
-//
-// 	const { viewType, setViewType } = useContactPageDataContext()
-//
-// 	return (
-// 		<Flex className={styles.topBar} align="center" justify="space-between">
-// 			<span className={styles.title}>{t("contacts.topBar.title")}</span>
-// 			<MagicSegmented
-// 				options={segmentedOptions}
-// 				className={styles.segmented}
-// 				value={viewType}
-// 				onChange={setViewType}
-// 			/>
-// 		</Flex>
-// 	)
-// })
 
 function ContactsLayout() {
-	const { styles } = useStyles()
 	const isMobile = useIsMobile()
 	const { t } = useTranslation("interface")
 
@@ -59,18 +22,19 @@ function ContactsLayout() {
 
 	return (
 		<ContactPageDataProvider>
-			<Flex vertical className={styles.container}>
-				<div className={styles.header}>{t("contacts.topBar.title")}</div>
-				{/* <TopBar /> */}
-				<div className={styles.content}>
+			<div className="flex h-full w-full flex-col overflow-hidden rounded-md border border-border">
+				<div className="h-[42px] shrink-0 border-b border-border bg-background px-5 py-[9px] text-[18px] font-semibold leading-6 text-foreground/80">
+					{t("contacts.topBar.title")}
+				</div>
+				<div className="flex h-[calc(100%-42px)] min-h-0 w-full flex-1">
 					<ContactsSubSider />
-					<Flex flex={1}>
+					<div className="flex min-w-0 flex-1">
 						<Suspense fallback={<MagicSpin />}>
 							<Outlet />
 						</Suspense>
-					</Flex>
+					</div>
 				</div>
-			</Flex>
+			</div>
 		</ContactPageDataProvider>
 	)
 }

@@ -1,6 +1,7 @@
 import { useCanvasUI } from "../../context/CanvasUIContext"
 import { useCanvas } from "../../context/CanvasContext"
 import { ElementTypeEnum } from "../../canvas/types"
+import { GenerationStatus } from "../../types.magic"
 import { useImageOssSrc } from "../../hooks/useImageOssSrc"
 import ImageMessageEditorRender from "./ImageMessageEditorRender"
 import SecondEdit from "./SecondEdit"
@@ -31,7 +32,8 @@ export default function ImageMessageEditor() {
 		imageElement && canvas ? canvas.elementManager.isTemporary(imageElement.id) : false
 
 	// 检查是否处于上传中状态（status 为 processing 且没有 generateImageRequest）
-	const isUploading = imageElement?.status === "processing" && !hasGenerateImageRequest
+	const isUploading =
+		imageElement?.status === GenerationStatus.Processing && !hasGenerateImageRequest
 
 	// 如果没有图片元素或正在选择元素或图片元素被锁定，则不显示图片编辑器
 	if (!imageElement || isSelecting || imageElement.locked) return null

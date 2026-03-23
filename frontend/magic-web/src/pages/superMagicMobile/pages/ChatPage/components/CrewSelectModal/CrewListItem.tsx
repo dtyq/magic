@@ -1,29 +1,10 @@
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CrewItem } from "@/pages/superMagic/pages/Workspace/types"
-import type { SceneItem } from "@/pages/superMagic/types/skill"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent/index"
-import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
-import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { useTranslation } from "react-i18next"
 
-const ICON_SIZE = 32
-const SCENE_ICON_SIZE = 12
-
-function SceneIcon({ scene }: { scene: SceneItem }) {
-	const isImage = scene.icon && (scene.icon.startsWith("http") || scene.icon.startsWith("/"))
-	if (isImage)
-		return (
-			<img
-				src={scene.icon}
-				alt={scene.name}
-				width={SCENE_ICON_SIZE}
-				height={SCENE_ICON_SIZE}
-				className="shrink-0 rounded"
-			/>
-		)
-	return <LucideLazyIcon icon={scene.icon} size={SCENE_ICON_SIZE} />
-}
+const ICON_SIZE = 25
 
 interface CrewListItemProps {
 	crew: CrewItem
@@ -33,22 +14,25 @@ interface CrewListItemProps {
 
 export default function CrewListItem({ crew, isActive, onClick }: CrewListItemProps) {
 	const { t } = useTranslation("crew/create")
-
-	const scenes = crew.mode.playbooks ?? []
-	// const isImage = crew.mode.icon_type === IconType.Image
+	const crewName = crew.mode.name || t("untitledCrew")
+	const crewDescription = crew.mode.description || t("noDescription")
+	const crewIdentifier = crew.mode.identifier || crew.mode.id || crewName
 
 	return (
-		<div
-			className="flex cursor-pointer items-start gap-2.5 overflow-hidden rounded-md border border-border bg-card p-2.5 active:opacity-70"
+		<button
+			type="button"
+			data-testid={`crew-select-modal-crew-item-${crewIdentifier}`}
+			aria-label={crewName}
+			aria-pressed={isActive}
+			className="flex w-full cursor-pointer items-start gap-2.5 overflow-hidden rounded-md border border-border bg-card p-2.5 text-left active:opacity-70"
 			onClick={() => onClick(crew)}
 		>
-			{/* 圆形头像容器 */}
-			<div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-sidebar">
-				<div className="flex size-[50px] items-center justify-center">
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar">
+				<div className="flex size-[30px] items-center justify-center">
 					{crew.mode.icon_url ? (
 						<img
 							src={crew.mode.icon_url}
-							alt="icon"
+							alt={crewName}
 							width={ICON_SIZE}
 							height={ICON_SIZE}
 							draggable={false}
@@ -63,24 +47,21 @@ export default function CrewListItem({ crew, isActive, onClick }: CrewListItemPr
 				</div>
 			</div>
 
-			{/* 右侧内容列 */}
-			<div className="flex min-w-0 flex-1 flex-col gap-2">
-				{/* 名称 + 描述 与 复选框并排 */}
+			<div className="flex min-w-0 flex-1 flex-col justify-center gap-2 leading-none">
 				<div className="flex items-start gap-2">
 					<div className="flex min-w-0 flex-1 flex-col gap-2">
 						<div className="text-sm font-semibold leading-none text-foreground">
-							{crew.mode.name || t("untitledCrew")}
+							{crewName}
 						</div>
 						<div className="line-clamp-2 text-xs leading-none text-muted-foreground">
-							{crew.mode.description || t("noDescription")}
+							{crewDescription}
 						</div>
 					</div>
 					<div
+						data-testid={`crew-select-modal-crew-checkmark-${crewIdentifier}`}
 						className={cn(
-							"flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs",
-							isActive
-								? "border-foreground bg-foreground"
-								: "border-input bg-background",
+							"flex size-4 shrink-0 items-center justify-center rounded-[4px]",
+							isActive && "border border-foreground bg-foreground shadow-xs",
 						)}
 					>
 						{isActive && (
@@ -88,26 +69,7 @@ export default function CrewListItem({ crew, isActive, onClick }: CrewListItemPr
 						)}
 					</div>
 				</div>
-
-				{/* scenes 独占右侧列完整宽度 */}
-				{scenes.length > 0 ? (
-					<div className="no-scrollbar flex gap-2 overflow-x-auto">
-						{scenes.map((scene) => (
-							<div
-								key={scene.id}
-								className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5"
-							>
-								<SceneIcon scene={scene} />
-								<span className="whitespace-nowrap text-xs font-semibold text-foreground">
-									{scene.name}
-								</span>
-							</div>
-						))}
-					</div>
-				) : (
-					<div className="text-xs text-muted-foreground">{t("noSkills")}</div>
-				)}
 			</div>
-		</div>
+		</button>
 	)
 }

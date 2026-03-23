@@ -62,7 +62,7 @@ export function EditableGridCard({
 				>
 					<Button
 						size="sm"
-						className="shadow-xs h-9 flex-1 gap-2"
+						className="h-9 flex-1 gap-2 shadow-xs"
 						onClick={onEdit}
 						data-testid={`editable-grid-card-edit-${item.value}`}
 					>
@@ -72,7 +72,7 @@ export function EditableGridCard({
 					<Button
 						variant="destructive"
 						size="icon"
-						className="shadow-xs size-9 shrink-0"
+						className="size-9 shrink-0 shadow-xs"
 						onClick={onDelete}
 						data-testid={`editable-grid-card-delete-${item.value}`}
 					>

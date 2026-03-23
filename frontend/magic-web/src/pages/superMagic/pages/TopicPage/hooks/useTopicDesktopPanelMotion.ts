@@ -86,8 +86,7 @@ export function useTopicDesktopPanelMotion({
 
 	const panelResizeTransition = useMemo(() => {
 		const isDragging = isDraggingProjectSider || isDraggingMessagePanel
-		// Only disable transition when opening and dragging
-		if (layoutMotionPhase === "opening" && isDragging) return "none"
+		if (isDragging) return "none"
 		return layoutMotionPhase === "opening"
 			? `width ${OPENING_DURATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), min-width ${OPENING_DURATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms ease`
 			: `width ${CLOSING_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${CLOSING_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity 220ms ease`

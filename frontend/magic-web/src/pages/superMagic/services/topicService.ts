@@ -1,6 +1,6 @@
 import { SuperMagicApi } from "@/apis"
 import { runInAction } from "mobx"
-import topicStore from "../stores/core/topic"
+import type { TopicStore } from "../stores/core/topic"
 import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/types"
 import { RequestConfig } from "@/apis/core/HttpClient"
 
@@ -23,46 +23,43 @@ export interface CreateTopicParams {
 
 interface TopicsApiResponse {
 	list: Topic[]
+	total: number
 }
 
 class TopicService {
-	// Request deduplication: store ongoing requests
+	private topicStore: TopicStore
 	private pendingRequests = new Map<string, Promise<TopicsApiResponse>>()
 
-	/**
-	 * Generate request key for deduplication
-	 */
 	private getRequestKey(apiName: string, ...params: (string | number)[]): string {
 		return `${apiName}:${JSON.stringify(params)}`
 	}
 
+	constructor({ store }: { store: TopicStore }) {
+		this.topicStore = store
+	}
+
 	/**
-	 * Wrapper for getTopicsByProjectId with deduplication
+	 * Fetch topics by project ID with request deduplication.
+	 * Pure data layer — no store side effects.
 	 */
-	private async getTopicsByProjectId(
+	async getTopicsByProjectId(
 		projectId: string,
 		page: number,
 		pageSize: number,
-	): Promise<{ list: Topic[] }> {
+	): Promise<TopicsApiResponse> {
 		const requestKey = this.getRequestKey("getTopicsByProjectId", projectId, page, pageSize)
 
-		// Check if request is already pending
 		const pendingRequest = this.pendingRequests.get(requestKey)
-		if (pendingRequest) {
-			return pendingRequest as Promise<TopicsApiResponse>
-		}
+		if (pendingRequest) return pendingRequest
 
-		// Create new request
 		const requestPromise = SuperMagicApi.getTopicsByProjectId({
 			id: projectId,
 			page,
 			page_size: pageSize,
 		}).finally(() => {
-			// Remove from pending requests
 			this.pendingRequests.delete(requestKey)
 		})
 
-		// Store pending request
 		this.pendingRequests.set(requestKey, requestPromise)
 
 		return requestPromise
@@ -78,23 +75,23 @@ class TopicService {
 			const updatedTopics = Array.isArray(res.list) ? res.list : []
 
 			runInAction(() => {
-				topicStore.setTopics(updatedTopics)
+				this.topicStore.setTopics(updatedTopics)
 			})
 
-			if (isAutoSelect && !isSelectLast && topicStore.selectedTopic) {
+			if (isAutoSelect && !isSelectLast && this.topicStore.selectedTopic) {
 				const _selectedTopic =
 					updatedTopics.find(
-						(topic: Topic) => topic.id === topicStore.selectedTopic?.id,
+						(topic: Topic) => topic.id === this.topicStore.selectedTopic?.id,
 					) ||
 					updatedTopics[0] ||
 					null
 				runInAction(() => {
-					topicStore.setSelectedTopic(_selectedTopic)
+					this.topicStore.setSelectedTopic(_selectedTopic)
 				})
 			} else if (isAutoSelect) {
 				const _selectedTopic = updatedTopics[0] || null
 				runInAction(() => {
-					topicStore.setSelectedTopic(_selectedTopic)
+					this.topicStore.setSelectedTopic(_selectedTopic)
 				})
 			}
 
@@ -130,10 +127,10 @@ class TopicService {
 			const updatedTopics = Array.isArray(topicsRes?.list) ? topicsRes?.list : []
 
 			runInAction(() => {
-				topicStore.setTopics(updatedTopics)
+				this.topicStore.setTopics(updatedTopics)
 				const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
 				if (targetTopic) {
-					topicStore.setSelectedTopic(targetTopic)
+					this.topicStore.setSelectedTopic(targetTopic)
 				}
 			})
 
@@ -146,14 +143,14 @@ class TopicService {
 
 	async updateTopicName(topicId: string, topicName: string): Promise<void> {
 		runInAction(() => {
-			topicStore.updateTopicName(topicId, topicName)
+			this.topicStore.updateTopicName(topicId, topicName)
 		})
 	}
 
 	async updateTopicStatus(topicId: string, status: TaskStatus): Promise<void> {
 		if (!topicId) return
 		runInAction(() => {
-			topicStore.updateTopicStatus(topicId, status)
+			this.topicStore.updateTopicStatus(topicId, status)
 		})
 	}
 
@@ -169,11 +166,11 @@ class TopicService {
 		})
 
 		// Update store after successful API call
-		const topics = topicStore.topics
+		const topics = this.topicStore.topics
 		const newTopicList = topics.filter((topic) => topic.id !== topicId)
 
 		runInAction(() => {
-			topicStore.removeTopic(topicId)
+			this.topicStore.removeTopic(topicId)
 		})
 
 		return newTopicList
@@ -188,7 +185,7 @@ class TopicService {
 			const updatedTopics = Array.isArray(res.list) ? res.list : []
 
 			runInAction(() => {
-				topicStore.setTopics(updatedTopics)
+				this.topicStore.setTopics(updatedTopics)
 			})
 
 			// 缓存优先：获取本地缓存的历史话题
@@ -203,7 +200,7 @@ class TopicService {
 				null
 
 			runInAction(() => {
-				topicStore.setSelectedTopic(_selectedTopic)
+				this.topicStore.setSelectedTopic(_selectedTopic)
 			})
 
 			return _selectedTopic

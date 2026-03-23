@@ -15,10 +15,7 @@ import {
 	convertFileItemToAttachmentItem,
 } from "../utils/utils"
 import { useTranslation } from "react-i18next"
-import {
-	addFileToCurrentChat,
-	addMultipleFilesToNewChat,
-} from "@/pages/superMagic/utils/topics"
+import { addFileToCurrentChat, addMultipleFilesToNewChat } from "@/pages/superMagic/utils/topics"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { UseDesignDownloadPolicyResult } from "./useDesignDownloadPolicy"
 

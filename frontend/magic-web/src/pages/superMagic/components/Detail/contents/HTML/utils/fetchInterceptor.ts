@@ -232,7 +232,7 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 					}));
 				}
 				url = cachedUrl;
-			}
+			} 
 			// 2. 检查是否有正在进行的请求
 			else if (pendingRequests.has(url)) {
 				try {
@@ -247,7 +247,7 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 						headers: { 'Content-Type': 'text/plain' }
 					}));
 				}
-			}
+			} 
 			// 3. 发起新的请求
 			else {
 				try {

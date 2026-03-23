@@ -28,6 +28,7 @@ function MagicPullToRefresh(props: MagicPullToRefreshProps) {
 		onRefresh,
 		children,
 		height,
+		containerId,
 		containerStyle,
 		containerClassName,
 		successText,
@@ -63,7 +64,11 @@ function MagicPullToRefresh(props: MagicPullToRefreshProps) {
 	}, [onRefresh, onRefreshSuccess, onRefreshError, showSuccessMessage, successText, t])
 
 	return (
-		<div className={cx(styles.container, containerClassName)} style={containerStyle}>
+		<div
+			id={containerId}
+			className={cx(styles.container, containerClassName)}
+			style={containerStyle}
+		>
 			<PullToRefresh
 				onRefresh={handleRefresh}
 				threshold={restProps.threshold ?? 90}

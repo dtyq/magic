@@ -16,9 +16,15 @@ export class SidebarStore {
 	readonly MAX_WIDTH_PERCENT = 50
 	readonly COLLAPSED_WIDTH = 48
 	readonly DEFAULT_WIDTH_PX = 256
+	readonly AUTO_COLLAPSE_MIN_VIEWPORT_WIDTH_PX = 1728
 
 	// Min main content width; collapse sidebar if viewport is too narrow
 	readonly MIN_MAIN_CONTENT_WIDTH_PX = 720
+
+	// Responsive: in 768–1024 viewport, scale down min main so sidebar isn't over-compressed
+	readonly NARROW_VIEWPORT_MIN = 768
+	readonly NARROW_VIEWPORT_MAX = 1024
+	readonly NARROW_VIEWPORT_MIN_MAIN_PX = 480
 
 	// Active menu item
 	activeWorkspace: string | null = null
@@ -100,10 +106,30 @@ export class SidebarStore {
 		}
 	}
 
+	/** Responsive min main content width: 720px on wide screens, scales down in 768–1024 range */
+	getMinMainContentWidthPx = (viewWidth: number): number => {
+		if (viewWidth >= this.NARROW_VIEWPORT_MAX) return this.MIN_MAIN_CONTENT_WIDTH_PX
+		if (viewWidth <= this.NARROW_VIEWPORT_MIN) return this.NARROW_VIEWPORT_MIN_MAIN_PX
+		const t =
+			(viewWidth - this.NARROW_VIEWPORT_MIN) /
+			(this.NARROW_VIEWPORT_MAX - this.NARROW_VIEWPORT_MIN)
+		return (
+			this.NARROW_VIEWPORT_MIN_MAIN_PX +
+			t * (this.MIN_MAIN_CONTENT_WIDTH_PX - this.NARROW_VIEWPORT_MIN_MAIN_PX)
+		)
+	}
+
+	getAutoCollapseThresholdPx = (viewWidth: number, sidebarWidthPx: number): number => {
+		const minMain = this.getMinMainContentWidthPx(viewWidth)
+		return Math.max(this.AUTO_COLLAPSE_MIN_VIEWPORT_WIDTH_PX, sidebarWidthPx + minMain)
+	}
+
 	// Collapse sidebar only if the viewport is too narrow to show both
 	collapseIfNarrow = () => {
-		const sidebarWidthPx = (this.width / 100) * window.innerWidth
-		if (window.innerWidth <= sidebarWidthPx + this.MIN_MAIN_CONTENT_WIDTH_PX) {
+		const viewWidth = window.innerWidth
+		const sidebarWidthPx = (this.width / 100) * viewWidth
+		const autoCollapseThreshold = this.getAutoCollapseThresholdPx(viewWidth, sidebarWidthPx)
+		if (viewWidth <= autoCollapseThreshold) {
 			this.setCollapsed(true)
 		}
 	}

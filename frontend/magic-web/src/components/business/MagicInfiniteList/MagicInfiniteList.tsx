@@ -13,10 +13,11 @@ import { useStyles } from "./styles"
 import { useInfiniteData } from "./hooks/useInfiniteData"
 
 // Components
-import MagicLoading from "@/components/other/MagicLoading"
 import MagicEmpty from "../../base/MagicEmpty"
 import MagicButton from "../../base/MagicButton"
 import { useTranslation } from "react-i18next"
+import { Spinner } from "../../shadcn-ui/spinner"
+import { ScrollArea } from "../../shadcn-ui/scroll-area"
 
 /**
  * MagicInfiniteList - Generic infinite scroll list component
@@ -24,7 +25,7 @@ import { useTranslation } from "react-i18next"
  * @param props - Component properties
  * @returns JSX.Element
  */
-function MagicInfiniteList<T = any, P = any>({
+function MagicInfiniteList<T = unknown, P = Record<string, unknown>>({
 	dataFetcher,
 	renderItem,
 	fetchParams,
@@ -44,6 +45,7 @@ function MagicInfiniteList<T = any, P = any>({
 	const { styles } = useStyles()
 	const scrollId = useRef<string>(scrollableTarget || nanoid())
 	const { t } = useTranslation("interface")
+	const hasExternalScrollTarget = Boolean(scrollableTarget)
 
 	// Use infinite data hook
 	const { data, isLoading, error, fetchData, refresh } = useInfiniteData(dataFetcher, {
@@ -68,7 +70,7 @@ function MagicInfiniteList<T = any, P = any>({
 		return (
 			<Flex justify="center" align="center" className={styles.loadingContainer}>
 				<div className={styles.loadingSpinner}>
-					<MagicLoading />
+					<Spinner className="animate-spin" size={20} />
 				</div>
 			</Flex>
 		)
@@ -107,53 +109,68 @@ function MagicInfiniteList<T = any, P = any>({
 		return emptyComponent || defaultEmptyComponent
 	}
 
+	const listContent = (
+		<InfiniteScroll
+			dataLength={data?.items?.length || 0}
+			next={handleLoadMore}
+			hasMore={data?.has_more || false}
+			style={{ width: "100%", overflow: "visible" }}
+			loader={
+				data && data?.items.length > 0 && isLoading
+					? loadingComponent || defaultLoadingComponent
+					: null
+			}
+			endMessage={null}
+			scrollableTarget={scrollId.current}
+		>
+			<List
+				dataSource={data?.items}
+				renderItem={(item, index) => {
+					// Combine default styles with custom styles
+					let combinedClassName = ""
+
+					if (useDefaultItemStyles) {
+						combinedClassName = itemClassName
+							? `${styles.defaultItem} ${itemClassName}`
+							: styles.defaultItem
+					} else {
+						combinedClassName = itemClassName || ""
+					}
+
+					return (
+						<List.Item
+							key={getItemKey ? getItemKey(item, index) : index}
+							className={combinedClassName}
+							style={itemStyle}
+						>
+							{renderItem(item, index)}
+						</List.Item>
+					)
+				}}
+			/>
+		</InfiniteScroll>
+	)
+
+	if (hasExternalScrollTarget) {
+		return (
+			<div className={`${styles.externalContainer} ${className || ""}`} style={style}>
+				<div className={styles.externalList}>{listContent}</div>
+			</div>
+		)
+	}
+
 	return (
 		<div className={`${styles.container} ${className || ""}`} style={style}>
-			<div id={scrollId.current} className={styles.list}>
-				<InfiniteScroll
-					dataLength={data?.items?.length || 0}
-					next={handleLoadMore}
-					hasMore={data?.has_more || false}
-					loader={
-						data && data?.items.length > 0 && isLoading
-							? loadingComponent || defaultLoadingComponent
-							: null
-					}
-					endMessage={null}
-					scrollableTarget={scrollId.current}
-				>
-					<List
-						dataSource={data?.items}
-						renderItem={(item, index) => {
-							// Combine default styles with custom styles
-							let combinedClassName = ""
-
-							if (useDefaultItemStyles) {
-								combinedClassName = itemClassName
-									? `${styles.defaultItem} ${itemClassName}`
-									: styles.defaultItem
-							} else {
-								combinedClassName = itemClassName || ""
-							}
-
-							return (
-								<List.Item
-									key={getItemKey ? getItemKey(item, index) : index}
-									className={combinedClassName}
-									style={itemStyle}
-								>
-									{renderItem(item, index)}
-								</List.Item>
-							)
-						}}
-					/>
-				</InfiniteScroll>
-			</div>
+			<ScrollArea className={styles.list} viewportId={scrollId.current}>
+				{listContent}
+			</ScrollArea>
 		</div>
 	)
 }
 
-const MagicInfiniteListMemo = memo(MagicInfiniteList) as any
+const MagicInfiniteListMemo = memo(MagicInfiniteList) as typeof MagicInfiniteList & {
+	displayName?: string
+}
 
 MagicInfiniteListMemo.displayName = "MagicInfiniteList"
 

@@ -17,10 +17,13 @@ import {
 	getZipFileNameFromFiles,
 } from "../../utils/utils"
 import magicToast from "@/components/base/MagicToaster/utils"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import ActionButton from "@/pages/superMagic/components/Detail/components/CommonHeader/components/ActionButton"
 import { IconShare3 } from "@tabler/icons-react"
 
 interface UseDesignHeaderPropsOptions {
+	/** 定位到文件时使用的文件 ID，Design 场景下传 magic.project.js 的 fileId */
+	locateFileId?: string
 	currentFile?: {
 		id: string
 		name: string
@@ -42,6 +45,7 @@ interface UseDesignHeaderPropsOptions {
 
 export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): CommonHeaderV2Props {
 	const {
+		locateFileId,
 		currentFile,
 		attachments,
 		fileVersion,
@@ -168,11 +172,11 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 	// 转换 currentFile 类型以匹配 CommonHeaderV2 的要求
 	const currentFileForHeader = currentFile
 		? {
-			id: currentFile.id,
-			name: currentFile.name,
-			type: currentFile.type || "design",
-			url: currentFile.url,
-		}
+				id: currentFile.id,
+				name: currentFile.name,
+				type: currentFile.type || "design",
+				url: currentFile.url,
+			}
 		: undefined
 
 	// 转换 attachments 类型（FileItem -> AttachmentItem）
@@ -189,16 +193,16 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 			parent_id: item.parent_id ? String(item.parent_id) : null,
 			children: item.children
 				? item.children.map((child) => ({
-					file_id: child.file_id,
-					file_name: child.file_name,
-					filename: child.filename || child.file_name,
-					file_extension: child.file_extension,
-					is_directory: child.is_directory,
-					name: child.file_name,
-					path: child.relative_file_path,
-					parent_id: child.parent_id ? String(child.parent_id) : null,
-					source: child.source || AttachmentSource.DEFAULT,
-				}))
+						file_id: child.file_id,
+						file_name: child.file_name,
+						filename: child.filename || child.file_name,
+						file_extension: child.file_extension,
+						is_directory: child.is_directory,
+						name: child.file_name,
+						path: child.relative_file_path,
+						parent_id: child.parent_id ? String(child.parent_id) : null,
+						source: child.source || AttachmentSource.DEFAULT,
+					}))
 				: undefined,
 			display_filename: item.display_filename || item.file_name,
 			source: item.source || AttachmentSource.DEFAULT,
@@ -305,6 +309,12 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 		[iconStyle, t],
 	)
 
+	const onLocateFile = useCallback(() => {
+		if (locateFileId) {
+			pubsub.publish(PubSubEvents.Locate_File_In_Tree, locateFileId)
+		}
+	}, [locateFileId])
+
 	return {
 		type: DetailType.Design,
 		currentFile: currentFileForHeader,
@@ -314,6 +324,7 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 		fileVersionsList,
 		changeFileVersion: handleChangeFileVersionForHeader,
 		handleVersionRollback,
+		onLocateFile: locateFileId ? onLocateFile : undefined,
 		allowEdit,
 		showDownload: allowDownload,
 		showRefreshButton: true,

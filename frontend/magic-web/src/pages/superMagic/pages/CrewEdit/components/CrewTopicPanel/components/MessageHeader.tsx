@@ -1,11 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import {
-	type Topic,
-	TaskStatus,
-	MessageStatus,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { type Topic, TaskStatus, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useMemoizedFn, useMount } from "ahooks"
 import MagicModal from "@/components/base/MagicModal"
@@ -40,6 +35,8 @@ import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/S
 import TopicHistoryDropdown from "@/pages/superMagic/components/MessageHeader/components/TopicHistoryDropdown"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { smartRenameTopic } from "@/pages/superMagic/services/topicRename"
+import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
+import TopicService from "@/pages/superMagic/services/topicService"
 
 interface MessageHeaderProps {
 	isConversationPanelCollapsed?: boolean
@@ -64,9 +61,18 @@ function MessageHeader({
 }: MessageHeaderProps) {
 	const { t } = useTranslation("super")
 
-	// Get data from stores
-	const topics = topicStore.topics
 	const selectedTopic = topicStore.selectedTopic
+
+	const {
+		displayTopics: topics,
+		reload: reloadTopics,
+		reset: resetTopics,
+	} = usePaginatedTopics({
+		projectId: selectedProject?.id || "",
+		selectedTopicId: selectedTopic?.id,
+		storeTopics: topicStore.topics,
+		topicService: new TopicService({ store: topicStore }),
+	})
 
 	const messages = useMemo(
 		() =>
@@ -285,21 +291,12 @@ function MessageHeader({
 
 	const handleTopicHistoryDropdownOpenChange = useMemoizedFn((open: boolean) => {
 		setTopicHistoryOpen(open)
-		if (open && selectedProject) {
-			SuperMagicApi.getTopicsByProjectId({
-				id: selectedProject?.id || "",
-				page: 1,
-				page_size: 999,
-			}).then((res) => {
-				topicStore.setTopics(res.list)
-				if (res.list.length > 0 && !selectedTopic) {
-					topicStore.setSelectedTopic(res.list[0])
-				}
-			})
+		if (open && selectedProject?.id) {
+			reloadTopics()
 		}
-		// 关闭时重置悬浮状态
 		if (!open) {
 			setTopicHistoryOpen(false)
+			resetTopics()
 		}
 	})
 
@@ -367,6 +364,7 @@ function MessageHeader({
 
 						<TopicHistoryDropdown
 							topics={topics}
+							projectId={selectedProject?.id || ""}
 							selectedTopicId={selectedTopic?.id}
 							editingTopicId={editingTopicId}
 							editingValue={editingValue}
@@ -491,6 +489,7 @@ function MessageHeader({
 
 								<TopicHistoryDropdown
 									topics={topics}
+									projectId={selectedProject?.id || ""}
 									selectedTopicId={selectedTopic?.id}
 									editingTopicId={editingTopicId}
 									editingValue={editingValue}
@@ -572,7 +571,7 @@ function MessageHeader({
 											handleDeleteTopic(
 												selectedTopic.id,
 												selectedTopic.topic_name ||
-												t("messageHeader.untitledTopic"),
+													t("messageHeader.untitledTopic"),
 											)
 										}
 									>

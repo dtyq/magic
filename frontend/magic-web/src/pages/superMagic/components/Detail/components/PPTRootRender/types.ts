@@ -38,4 +38,5 @@ export interface PPTRootRenderProps {
 	onActiveFileChange?: (fileId: string | null) => void
 	isTabActive?: boolean
 	allowDownload?: boolean
+	projectId?: string
 }

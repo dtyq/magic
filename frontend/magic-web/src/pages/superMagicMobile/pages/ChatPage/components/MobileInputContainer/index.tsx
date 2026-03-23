@@ -8,6 +8,10 @@ import {
 	SceneEditorNodes,
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import type { JSONContent } from "@tiptap/core"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+
+/** 弹窗打开时不触发编辑器自动聚焦和虚拟键盘唤起的 TopicMode 集合 */
+const MODES_WITHOUT_AUTO_FOCUS = new Set<TopicMode>([TopicMode.RecordSummary])
 
 export interface MobileInputContainerRef {
 	closeRealInput: () => void
@@ -21,6 +25,7 @@ interface MobileInputContainerProps {
 const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputContainerProps>(
 	function MobileInputContainer({ editorContext, editorNodes }, ref) {
 		const [showRealInput, setShowRealInput] = useState(false)
+		const [isRealInputFocused, setIsRealInputFocused] = useState(false)
 		const [pendingContent, setPendingContent] = useState<JSONContent | null>(null)
 		/** 弹窗编辑器的实时内容，弹窗关闭后同步回底部输入栏 */
 		const [sharedContent, setSharedContent] = useState<JSONContent | null>(null)
@@ -33,8 +38,10 @@ const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputCont
 		 */
 		const proxyInputRef = useRef<HTMLInputElement>(null)
 
+		const shouldAutoFocus = !MODES_WITHOUT_AUTO_FOCUS.has(editorContext.topicMode)
+
 		const handleOpenRealInput = useMemoizedFn((content: JSONContent | null) => {
-			proxyInputRef.current?.focus()
+			if (shouldAutoFocus) proxyInputRef.current?.focus()
 			setPendingContent(content)
 			setShowRealInput(true)
 		})
@@ -50,8 +57,17 @@ const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputCont
 			editorContext.onSendSuccess?.(params)
 		})
 
+		const handleEditorFocus = useMemoizedFn(() => {
+			setIsRealInputFocused(true)
+		})
+
+		const handleEditorBlur = useMemoizedFn(() => {
+			setIsRealInputFocused(false)
+		})
+
 		const closeRealInput = useMemoizedFn(() => {
 			setShowRealInput(false)
+			setIsRealInputFocused(false)
 			setPendingContent(null)
 		})
 
@@ -61,9 +77,12 @@ const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputCont
 		const mobileEditorContext = useMemo<SceneEditorContext>(
 			() => ({
 				...editorContext,
-				autoFocus: true,
+				autoFocus: shouldAutoFocus,
+				size: "mobile",
 				initialContent: pendingContent ?? undefined,
 				onContentChange: handleContentChange,
+				onEditorFocus: handleEditorFocus,
+				onEditorBlur: handleEditorBlur,
 				onSendSuccess: handleSendSuccess,
 			}),
 			// pendingContent 每次打开弹窗时只需初始化一次，editorContext 变化时同步更新
@@ -96,6 +115,7 @@ const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputCont
 					visible={showRealInput}
 					onClose={closeRealInput}
 					handlerClassName="!hidden"
+					withSafeBottom={!isRealInputFocused}
 				>
 					<MobileInputLayout editorContext={mobileEditorContext} />
 				</MagicPopup>

@@ -78,13 +78,9 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 
 	useEffect(() => {
 		if (!editorContext?.initialContent) return
-		// autoFocus 已在 100ms 后触发聚焦，此处稍晚写入内容，确保编辑器已就绪并获焦，
-		// 写入后将光标移动到末尾，使用户可直接继续编辑
-		const timer = setTimeout(() => {
-			tiptapEditorRef.current?.setContent?.(editorContext.initialContent)
-			tiptapEditorRef.current?.editor?.commands.focus("end")
-		}, 150)
-		return () => clearTimeout(timer)
+		// useEffect 运行时子组件 useImperativeHandle 已完成，tiptapEditorRef.current 可用，
+		// 直接写入内容以消除弹窗打开时的 placeholder 闪烁（不再需要 setTimeout）
+		tiptapEditorRef.current?.setContent?.(editorContext.initialContent)
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
@@ -253,12 +249,12 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 		() =>
 			editorContext
 				? {
-					className: editorContext.className,
-					containerClassName: cn(
-						editorContext.containerClassName,
-						"border border-border",
-					),
-				}
+						className: editorContext.className,
+						containerClassName: cn(
+							editorContext.containerClassName,
+							"border border-border",
+						),
+					}
 				: {},
 		[editorContext],
 	)

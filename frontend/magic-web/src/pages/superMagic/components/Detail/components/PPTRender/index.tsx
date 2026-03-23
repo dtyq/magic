@@ -50,6 +50,7 @@ interface PPTRenderProps {
 	mainFileName?: string
 	filePathMapping: Map<string, string>
 	selectedProject?: any
+	projectId?: string
 	metadata?: any
 	allowDownload?: boolean
 
@@ -97,15 +98,18 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 		mainFileName,
 		metadata,
 		selectedProject,
+		projectId,
 		allowDownload,
 	} = props
 
 	const { organizationCode } = useOrganization()
+	const resolvedProjectId = selectedProject?.id || projectId
 
 	const storeConfig = useMemo(
 		() => ({
 			attachments,
 			attachmentList,
+			projectId: resolvedProjectId,
 			mainFileId,
 			mainFileName,
 			metadata,
@@ -117,6 +121,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 		[
 			attachments,
 			attachmentList,
+			resolvedProjectId,
 			mainFileId,
 			mainFileName,
 			metadata,
@@ -141,6 +146,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	slidePaths,
 	attachments,
 	attachmentList,
+	projectId,
 	mainFileId,
 	mainFileName,
 	filePathMapping,
@@ -239,7 +245,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	const effectiveAllowEdit = allowEdit && !isMobile
 
 	// 获取用于创建新幻灯片的项目 ID 和父级 ID
-	const projectId = selectedProject?.id
+	const resolvedProjectId = selectedProject?.id || projectId
 	const parentId = useMemo(() => {
 		if (!attachmentList?.length || !store.slidePaths.length) return undefined
 
@@ -267,7 +273,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 		attachmentList,
 		mainFileId,
 		mainFileName,
-		projectId,
+		projectId: resolvedProjectId,
 		parentId,
 		setActiveIndex: async (index) => {
 			const canNavigate = await checkBeforeNavigate("jump", index)
@@ -554,6 +560,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 											isPlaybackMode={isPlaybackMode}
 											saveEditContent={saveEditContent}
 											fileId={slideFileId}
+											projectId={resolvedProjectId}
 											filePathMapping={filePathMapping}
 											openNewTab={
 												openNewTab ||

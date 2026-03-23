@@ -4,23 +4,33 @@ import type { MessageGroupKey } from "../types"
 
 interface UseCollapsePanelsParams {
 	firstAvailableGroup?: MessageGroupKey
+	defaultActiveKeys?: MessageGroupKey[]
 }
 
 /**
  * Hook for managing collapse panels state and animation
  */
-export function useCollapsePanels({ firstAvailableGroup }: UseCollapsePanelsParams) {
+export function useCollapsePanels({
+	firstAvailableGroup,
+	defaultActiveKeys = [],
+}: UseCollapsePanelsParams) {
 	const [activeKeys, setActiveKeys] = useState<string[]>([])
 	const [collapseAnimationDisabled, setCollapseAnimationDisabled] = useState(true)
 	const [listsReady, setListsReady] = useState(false)
 
-	// Expand first available group after render to reduce initial load
+	// Expand default groups after render to reduce initial load
 	useEffect(() => {
-		if (!firstAvailableGroup || listsReady) return
+		if (listsReady) return
 		if (!activeKeys.length) {
 			const hydrate = () => {
+				const nextActiveKeys = defaultActiveKeys.length
+					? defaultActiveKeys
+					: firstAvailableGroup
+						? [firstAvailableGroup]
+						: []
+
 				setListsReady(true)
-				setActiveKeys([firstAvailableGroup])
+				setActiveKeys(nextActiveKeys)
 			}
 			if (typeof requestIdleCallback !== "undefined") {
 				requestIdleCallback(hydrate)
@@ -28,7 +38,7 @@ export function useCollapsePanels({ firstAvailableGroup }: UseCollapsePanelsPara
 				requestAnimationFrame(hydrate)
 			}
 		}
-	}, [activeKeys.length, firstAvailableGroup, listsReady])
+	}, [activeKeys.length, defaultActiveKeys, firstAvailableGroup, listsReady])
 
 	// Disable collapse animation on initial render, enable after idle
 	useEffect(() => {

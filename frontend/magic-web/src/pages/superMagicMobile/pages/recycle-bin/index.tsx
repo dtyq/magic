@@ -1,25 +1,29 @@
 import { memo, useState, useCallback } from "react"
+import { useSearchParams } from "react-router-dom"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 
 import RecycleBinHeader from "./components/RecycleBinHeader"
 import RecycleBinTabs, { type RecycleBinTabValue } from "./components/RecycleBinTabs"
 import RecycleBinContent from "./components/RecycleBinContent"
+import { useRecycleBinTabSearchParamsSync } from "../../../recycleBin/hooks/useRecycleBinTabSearchParamsSync"
+import {
+	createRecycleBinTabCounts,
+	getRecycleBinTabIdFromSearchParams,
+	setRecycleBinTabQuery,
+} from "@/pages/recycleBin/tab-config"
 
-const INITIAL_TAB_COUNTS: Record<string, number> = {
-	all: 0,
-	workspaces: 0,
-	projects: 0,
-	topics: 0,
-	files: 0,
-}
+const INITIAL_TAB_COUNTS = createRecycleBinTabCounts()
 
 function MobileRecycleBinPage() {
 	const navigate = useNavigate({
 		fallbackRoute: { name: RouteName.MobileTabs },
 	})
+	const [searchParams] = useSearchParams()
 
-	const [activeTab, setActiveTab] = useState<RecycleBinTabValue>("all")
+	const [activeTab, setActiveTab] = useState<RecycleBinTabValue>(() => {
+		return getRecycleBinTabIdFromSearchParams(searchParams) ?? "all"
+	})
 	const [isSearchOpen, setIsSearchOpen] = useState(false)
 	const [searchValue, setSearchValue] = useState("")
 	const [tabCounts, setTabCounts] = useState<Record<string, number>>(INITIAL_TAB_COUNTS)
@@ -52,7 +56,12 @@ function MobileRecycleBinPage() {
 
 	function handleTabChange(value: RecycleBinTabValue) {
 		setActiveTab(value)
+		setRecycleBinTabQuery(value)
 	}
+
+	useRecycleBinTabSearchParamsSync({
+		onTabIdChange: setActiveTab,
+	})
 
 	return (
 		<div

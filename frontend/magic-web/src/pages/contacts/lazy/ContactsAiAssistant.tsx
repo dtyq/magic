@@ -16,7 +16,7 @@ function ContactsAiAssistant() {
 	}
 
 	// Desktop version not implemented yet
-	return null
+	return <ContactsAiAssistantMobile />
 }
 
 export default ContactsAiAssistant

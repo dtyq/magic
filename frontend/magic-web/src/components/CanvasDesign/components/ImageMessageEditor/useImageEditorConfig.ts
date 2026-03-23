@@ -18,6 +18,21 @@ interface UseImageEditorConfigOptions {
 	editorFocusRef?: React.RefObject<{ focus: () => void } | null>
 }
 
+interface ImageModelOption {
+	label: string
+	value: string
+	model: ImageModelItem
+}
+
+interface ImageModelOptionGroup {
+	id: string
+	label: string
+	icon?: string
+	sort: number
+	source: "official" | "custom"
+	options: ImageModelOption[]
+}
+
 export interface ImageEditorConfig {
 	selectedModelId: string
 	prompt: string
@@ -28,20 +43,9 @@ export interface ImageEditorConfig {
 	currentReferenceImages: string[]
 	referenceImageInfos: Array<{ src: string; fileName: string; path: string }>
 	matchableItems: Array<{ name: string; path?: string; disabled?: boolean }>
-	modelOptions: Array<{
-		icon: React.ReactElement
-		label: string
-		value: string
-		model: ImageModelItem
-	}>
-	selectedModelOption:
-		| {
-				icon: React.ReactElement
-				label: string
-				value: string
-				model: ImageModelItem
-		  }
-		| undefined
+	modelOptions: ImageModelOption[]
+	modelOptionGroups: ImageModelOptionGroup[]
+	selectedModelOption: ImageModelOption | undefined
 	maxReferenceImages: number | undefined
 	isReferenceImageLimitReached: boolean
 	isUploading: boolean
@@ -198,17 +202,50 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	)
 
 	// 将模型列表转换为 Select 组件需要的格式
-	const modelOptions = useMemo(() => {
+	const modelOptions = useMemo<ImageModelOption[]>(() => {
 		return imageModelList.map((model) => ({
-			icon: React.createElement("img", {
-				src: model.model_icon,
-				alt: model.model_name,
-			}),
 			label: model.model_name,
 			value: model.model_id,
 			model,
 		}))
 	}, [imageModelList])
+
+	const modelOptionGroups = useMemo<ImageModelOptionGroup[]>(() => {
+		const groupMap = new Map<string, ImageModelOptionGroup>()
+
+		modelOptions.forEach((option) => {
+			const groupId =
+				option.model.model_group?.id || option.model.group_id || option.model.model_id
+			const groupLabel = option.model.model_group?.name || t("imageEditor.model", "模型")
+			const groupSource =
+				option.model.model_group?.source || option.model.model_source || "official"
+
+			if (!groupMap.has(groupId)) {
+				groupMap.set(groupId, {
+					id: groupId,
+					label: groupLabel,
+					icon: option.model.model_group?.icon,
+					sort: option.model.model_group?.sort ?? Number.MAX_SAFE_INTEGER,
+					source: groupSource,
+					options: [],
+				})
+			}
+
+			groupMap.get(groupId)?.options.push(option)
+		})
+
+		return Array.from(groupMap.values()).sort((groupA, groupB) => {
+			if (groupA.source !== groupB.source) {
+				return groupA.source === "custom" ? -1 : 1
+			}
+
+			if (groupA.sort !== groupB.sort) {
+				return groupA.sort - groupB.sort
+			}
+
+			return groupA.label.localeCompare(groupB.label)
+		})
+	}, [modelOptions, t])
 
 	// 当前选中的模型选项
 	const selectedModelOption = useMemo(() => {
@@ -942,6 +979,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		referenceImageInfos,
 		matchableItems,
 		modelOptions,
+		modelOptionGroups,
 		selectedModelOption,
 		maxReferenceImages,
 		isReferenceImageLimitReached,

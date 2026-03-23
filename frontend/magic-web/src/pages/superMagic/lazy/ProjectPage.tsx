@@ -11,12 +11,8 @@ import { isOwner, isReadOnlyProject } from "../utils/permission"
 import superMagicService from "../services"
 import { useUpdateEffect } from "ahooks"
 
-const ProjectPageDesktop = lazy(
-	() => import("@/pages/superMagic/pages/ProjectPage/index.desktop"),
-)
-const ProjectPageMobile = lazy(
-	() => import("@/pages/superMagicMobile/pages/ProjectPage"),
-)
+const ProjectPageDesktop = lazy(() => import("@/pages/superMagic/pages/ProjectPage/index.desktop"))
+const ProjectPageMobile = lazy(() => import("@/pages/superMagicMobile/pages/ProjectPage"))
 
 const ProjectPage = observer(() => {
 	const isMobile = useIsMobile()

@@ -12,7 +12,8 @@ import projectFilesStore from "@/stores/projectFiles"
 import { filterClickableMessageWithoutRevoked } from "../../utils/handleMessage"
 import { useDetailModeCache } from "../../hooks/useDetailModeCache"
 import { useAttachmentsPolling } from "../../hooks/useAttachmentsPolling"
-import { useAutoOpenFileOnTaskComplete } from "../../hooks/useAutoOpenFileOnTaskComplete"
+import { useAutoOpenFile } from "../../hooks/useAutoOpenFile"
+import { useDeferUntilFileTabsCacheLoaded } from "../../hooks/useDeferUntilFileTabsCacheLoaded"
 import { useRefreshTopicDetailOnTaskComplete } from "../../hooks/useRefreshTopicDetailOnTaskComplete"
 import { AttachmentDataProcessor } from "../../utils/attachmentDataProcessor"
 import { isCollaborationWorkspace } from "../../constants"
@@ -33,9 +34,7 @@ import { useTopicFiles } from "./hooks/useTopicFiles"
 import TopicSidebar from "./components/TopicSidebar"
 import TopicMessagePanel from "./components/TopicMessagePanel"
 import TopicDesktopPanels from "./components/TopicDesktopPanels"
-import { useTopicDesktopLayout } from "./hooks/useTopicDesktopLayout"
 import { useTopicDetailPanelController } from "./hooks/useTopicDetailPanelController"
-import { useTopicDesktopPanelMotion } from "./hooks/useTopicDesktopPanelMotion"
 import type { AttachmentItem } from "../../components/TopicFilesButton/hooks"
 import { messageSendService } from "../../services/messageSendFlowService"
 import { isReadOnlyProject } from "../../utils/permission"
@@ -127,6 +126,13 @@ function TopicPage() {
 		topicFilesProps,
 	})
 
+	const activeFileIdRef = useRef<string | null>(activeFileId)
+	activeFileIdRef.current = activeFileId
+
+	const { onFileTabsCacheLoaded, scheduleWhenTabsCacheReady } = useDeferUntilFileTabsCacheLoaded(
+		selectedProject?.id,
+	)
+
 	// 使用详情模式缓存 hook
 	useDetailModeCache({
 		selectedProjectId: selectedProject?.id,
@@ -136,8 +142,11 @@ function TopicPage() {
 		setUserDetail: setUserSelectDetail,
 	})
 
-	// 使用自动打开文件 hook
-	const { checkAndOpenFile, reset: resetAutoOpenFile } = useAutoOpenFileOnTaskComplete()
+	const {
+		checkAndOpenFileByMessages,
+		checkAndOpenFileByTopicChanged,
+		reset: resetAutoOpenFile,
+	} = useAutoOpenFile()
 
 	useRefreshTopicDetailOnTaskComplete({
 		selectedTopic,
@@ -233,13 +242,14 @@ function TopicPage() {
 					tool: lastDetailMessageNode?.tool,
 				})
 
-				// 使用 hook 检查并打开文件
-				checkAndOpenFile({
-					currentTopicStatus,
-					lastMessageNode,
-					lastDetailMessageNode,
-					hasStatusChanged,
-					activeFileId,
+				scheduleWhenTabsCacheReady(() => {
+					checkAndOpenFileByMessages({
+						lastMessageNode,
+						lastDetailMessageNode,
+						hasStatusChanged,
+						activeFileId,
+						getActiveFileId: () => activeFileIdRef.current,
+					})
 				})
 			}
 		} else if (topicMessages?.length === 1) {
@@ -274,7 +284,7 @@ function TopicPage() {
 		clearActiveDetailTabType()
 	}, [selectedTopic?.id, selectedTopic?.chat_topic_id])
 
-	// 集成轮询hook
+	// 集成轮询hook（需在 useTopicMessages 之前，以注入 checkNowDebounced）
 	const { checkNowDebounced } = useAttachmentsPolling({
 		projectId: selectedProject?.id,
 		onAttachmentsChange: useCallback(({ tree, list }: { tree: any[]; list: never[] }) => {
@@ -291,11 +301,22 @@ function TopicPage() {
 		}),
 	})
 
-	// Use unified topic messages hook
-	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
-		selectedTopic,
-		checkNowDebounced,
-	})
+	const { handlePullMoreMessage, isMessagesInitialLoading, isSelectedTopicMessagesReady } =
+		useTopicMessages({
+			selectedTopic,
+			checkNowDebounced,
+		})
+
+	useUpdateEffect(() => {
+		if (!isSelectedTopicMessagesReady) return
+		scheduleWhenTabsCacheReady(() => {
+			checkAndOpenFileByTopicChanged({
+				activeFileId,
+				getActiveFileId: () => activeFileIdRef.current,
+			})
+		})
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在话题 id / 消息首轮就绪变化时调度；回调内通过 ref 取最新 activeFileId
+	}, [selectedTopic?.id, isSelectedTopicMessagesReady])
 
 	const updateAttachments = useDebounceFn(
 		(selectedProject: any, callback?: () => void) => {
@@ -394,47 +415,47 @@ function TopicPage() {
 		},
 	)
 
-	const {
-		containerRef,
-		containerWidthPx,
-		projectSiderWidthPx,
-		messagePanelWidthPx,
-		collapsedMessagePanelWidthPx,
-		isConversationPanelCollapsed,
-		isDraggingProjectSider,
-		isDraggingMessagePanel,
-		startDragProjectSider,
-		startDragMessagePanel,
-		toggleConversationPanel,
-		expandConversationPanel,
-		ensureExpandedWhenDetailVisible,
-	} = useTopicDesktopLayout({ isReadOnly })
-
-	const {
-		panelResizeTransition,
-		messageTransform,
-		messagePanelTransition,
-		detailContentTransform,
-		detailContentTransition,
-		targetMessagePanelWidth,
-		targetRightHandleWidth,
-		targetDetailPanelWidth,
-	} = useTopicDesktopPanelMotion({
-		isReadOnly,
-		shouldShowDetailPanel,
-		containerWidthPx,
-		projectSiderWidthPx,
-		messagePanelWidthPx,
-		collapsedMessagePanelWidthPx,
-		isConversationPanelCollapsed,
-		isDraggingProjectSider,
-		isDraggingMessagePanel,
-		ensureExpandedWhenDetailVisible,
+	const handleSelectedTopicChange = useMemoizedFn((topic: any) => {
+		topicStore.setSelectedTopic(topic)
 	})
+
+	const renderMessagePanel = useMemoizedFn(
+		({
+			isConversationPanelCollapsed,
+			isDraggingPanel,
+			onToggleConversationPanel,
+			onExpandConversationPanel,
+		}: {
+			isConversationPanelCollapsed: boolean
+			isDraggingPanel: boolean
+			onToggleConversationPanel: () => void
+			onExpandConversationPanel: () => void
+		}) => (
+			<TopicMessagePanel
+				selectedProject={selectedProject}
+				selectedTopic={selectedTopic}
+				messages={messages as any}
+				showLoading={showLoading}
+				isShowLoadingInit={isShowLoadingInit}
+				currentTopicStatus={currentTopicStatus}
+				attachments={attachments}
+				handleSendMsg={handleSendMsg}
+				handlePullMoreMessage={handlePullMoreMessage}
+				isMessagesLoading={isMessagesInitialLoading}
+				handleFileClick={handleFileClickWithPanel}
+				setUserSelectDetail={setUserSelectDetail}
+				setSelectedTopic={handleSelectedTopicChange}
+				isConversationPanelCollapsed={isConversationPanelCollapsed}
+				isDraggingPanel={isDraggingPanel}
+				onToggleConversationPanel={onToggleConversationPanel}
+				onExpandConversationPanel={onExpandConversationPanel}
+				detailPanelVisible={shouldShowDetailPanel}
+			/>
+		),
+	)
 
 	return (
 		<TopicDesktopPanels
-			containerRef={containerRef}
 			containerClassName={styles.container}
 			detailPanelClassName={styles.detailPanel}
 			isDetailPanelFullscreen={isDetailPanelFullscreen}
@@ -467,47 +488,12 @@ function TopicPage() {
 					onActiveFileChange={setActiveFileId}
 					onActiveTabChange={handleActiveDetailTabChange}
 					onFullscreenChange={setIsDetailPanelFullscreen}
-				/>
-			}
-			messagePanel={
-				<TopicMessagePanel
-					selectedProject={selectedProject}
-					selectedTopic={selectedTopic}
-					messages={messages as any}
-					showLoading={showLoading}
-					isShowLoadingInit={isShowLoadingInit}
-					currentTopicStatus={currentTopicStatus}
-					attachments={attachments}
-					handleSendMsg={handleSendMsg}
-					handlePullMoreMessage={handlePullMoreMessage}
-					isMessagesLoading={isMessagesInitialLoading}
-					handleFileClick={handleFileClickWithPanel}
-					setUserSelectDetail={setUserSelectDetail}
-					setSelectedTopic={(topic) => topicStore.setSelectedTopic(topic)}
-					isConversationPanelCollapsed={
-						shouldShowDetailPanel ? isConversationPanelCollapsed : false
-					}
-					onToggleConversationPanel={toggleConversationPanel}
-					onExpandConversationPanel={expandConversationPanel}
-					detailPanelVisible={shouldShowDetailPanel}
+					onFileTabsCacheLoaded={onFileTabsCacheLoaded}
 				/>
 			}
 			isReadOnly={isReadOnly}
 			shouldShowDetailPanel={shouldShowDetailPanel}
-			isConversationPanelCollapsed={isConversationPanelCollapsed}
-			isDraggingProjectSider={isDraggingProjectSider}
-			isDraggingMessagePanel={isDraggingMessagePanel}
-			projectSiderWidthPx={projectSiderWidthPx}
-			targetDetailPanelWidth={targetDetailPanelWidth}
-			targetRightHandleWidth={targetRightHandleWidth}
-			targetMessagePanelWidth={targetMessagePanelWidth}
-			panelResizeTransition={panelResizeTransition}
-			detailContentTransform={detailContentTransform}
-			detailContentTransition={detailContentTransition}
-			messageTransform={messageTransform}
-			messagePanelTransition={messagePanelTransition}
-			onProjectResizeStart={startDragProjectSider}
-			onMessageResizeStart={startDragMessagePanel}
+			renderMessagePanel={renderMessagePanel}
 		/>
 	)
 }

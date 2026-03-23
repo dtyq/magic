@@ -176,7 +176,6 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 	private readonly memorizedEvents: Set<keyof CanvasEventMap> = new Set([
 		"canvas:ready",
 		"selection:position",
-		"resource:image:loaded",
 	])
 
 	/**

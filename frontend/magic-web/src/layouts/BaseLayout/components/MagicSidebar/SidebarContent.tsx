@@ -107,7 +107,10 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 									}
 									onClick={(event) => {
 										event.preventDefault()
-										if (!selectedWorkspace) return
+										if (!selectedWorkspace) {
+											navigate({ name: RouteName.SuperWorkspace })
+											return
+										}
 										SuperMagicService.switchWorkspace(selectedWorkspace)
 									}}
 									className="text-current no-underline"

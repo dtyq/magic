@@ -27,11 +27,13 @@ import {
 } from "@/services/superMagic/topicModel"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { SuperMagicApi } from "@/apis"
+import type { TopicStore } from "../stores/core/topic"
 
 class SuperMagicService {
 	workspace: WorkspaceService
 	project: ProjectService
 	topic: TopicService
+	topicStore: TopicStore
 	route: typeof routeManageService
 
 	shouldShowErrorMessagePrompt = false
@@ -39,7 +41,10 @@ class SuperMagicService {
 	constructor() {
 		this.workspace = new WorkspaceService()
 		this.project = new ProjectService()
-		this.topic = new TopicService()
+		this.topic = new TopicService({
+			store: topicStore,
+		})
+		this.topicStore = topicStore
 		this.route = routeManageService
 	}
 
@@ -67,8 +72,8 @@ class SuperMagicService {
 
 		const workspace = workspaceId
 			? await this.workspace
-				.getWorkspaceDetail(workspaceId, { enableErrorMessagePrompt: false })
-				.catch(() => null)
+					.getWorkspaceDetail(workspaceId, { enableErrorMessagePrompt: false })
+					.catch(() => null)
 			: null
 		// 获取工作区详情成功
 		if (workspace) {
@@ -94,7 +99,7 @@ class SuperMagicService {
 				.catch(() => [])
 			const fallbackWorkspace = fallbackWorkspaceId
 				? workspaceStore.workspaces.find((ws) => ws.id === fallbackWorkspaceId) ||
-				workspaceStore.firstWorkspace
+					workspaceStore.firstWorkspace
 				: workspaceStore.firstWorkspace
 			workspaceStore.setSelectedWorkspace(fallbackWorkspace)
 			return fallbackWorkspace
@@ -116,7 +121,7 @@ class SuperMagicService {
 	 */
 	switchWorkspace(workspace: Workspace) {
 		projectStore.setSelectedProject(null)
-		topicStore.setSelectedTopic(null)
+		this.topicStore.setSelectedTopic(null)
 		runInAction(() => {
 			projectStore.setFetchingProjects(true)
 		})
@@ -189,8 +194,8 @@ class SuperMagicService {
 		// Only handle navigation and cleanup if deleting selected project
 		if (isDeletingSelectedProject) {
 			// Reset topic state (clear selected topic and topics list)
-			topicStore.setSelectedTopic(null)
-			topicStore.setTopics([])
+			this.topicStore.setSelectedTopic(null)
+			this.topicStore.setTopics([])
 
 			// Use local state to select next project immediately (optimistic update)
 			const remainingProjects = projectStore.projects
@@ -318,7 +323,7 @@ class SuperMagicService {
 
 		if (optimisticTopicId && navigationWorkspaceId) {
 			// Navigate to topic optimistically
-			topicStore.setSelectedTopic(null) // Clear first, wait for background data
+			this.topicStore.setSelectedTopic(null) // Clear first, wait for background data
 			this.route.navigateToTopic({
 				workspaceId: navigationWorkspaceId,
 				projectId: project.id,
@@ -327,7 +332,7 @@ class SuperMagicService {
 			navigatedToTopic = true
 		} else {
 			// Navigate to project optimistically
-			topicStore.setSelectedTopic(null)
+			this.topicStore.setSelectedTopic(null)
 			if (isOtherCollaborationProject(project)) {
 				this.route.navigateToCollaborationProject(project)
 			} else {
@@ -355,12 +360,12 @@ class SuperMagicService {
 					.catch(() => null)
 
 				if (actualTopic) {
-					topicStore.setSelectedTopic(actualTopic)
+					this.topicStore.setSelectedTopic(actualTopic)
 
 					// Verify the topic belongs to the project
 					if (actualTopic.project_id !== project.id) {
 						// Topic doesn't belong to this project, navigate back to project
-						topicStore.setSelectedTopic(null)
+						this.topicStore.setSelectedTopic(null)
 						if (isOtherCollaborationProject(project)) {
 							this.route.navigateToCollaborationProject(project, true)
 						} else {
@@ -378,7 +383,7 @@ class SuperMagicService {
 					})
 				} else {
 					// Topic not found, navigate back to project
-					topicStore.setSelectedTopic(null)
+					this.topicStore.setSelectedTopic(null)
 					if (isOtherCollaborationProject(project)) {
 						this.route.navigateToCollaborationProject(project, true)
 					} else {
@@ -387,14 +392,14 @@ class SuperMagicService {
 				}
 			} else {
 				runInAction(() => {
-					topicStore.setFetchList(true)
+					this.topicStore.setFetchList(true)
 				})
 				// Normal project switch without topic, fetch topic list
 				this.topic
 					.fetchTopics({ projectId: project.id, isAutoSelect: false, page: 1 })
 					.finally(() => {
 						runInAction(() => {
-							topicStore.setFetchList(false)
+							this.topicStore.setFetchList(false)
 						})
 					})
 			}
@@ -450,7 +455,7 @@ class SuperMagicService {
 
 		if (optimisticTopicId && navigationWorkspaceId) {
 			// 乐观导航到话题
-			topicStore.setSelectedTopic(null) // 先清空，等待后台数据
+			this.topicStore.setSelectedTopic(null) // 先清空，等待后台数据
 			this.route.navigateToTopic({
 				workspaceId: navigationWorkspaceId,
 				projectId: project.id,
@@ -459,7 +464,7 @@ class SuperMagicService {
 			navigatedToTopic = true
 		} else {
 			// 乐观导航到项目
-			topicStore.setSelectedTopic(null)
+			this.topicStore.setSelectedTopic(null)
 			if (isOtherCollaborationProject(project)) {
 				this.route.navigateToCollaborationProject(project)
 			} else {
@@ -484,7 +489,7 @@ class SuperMagicService {
 
 			// 5. 路由修正
 			if (actualTopic) {
-				topicStore.setSelectedTopic(actualTopic)
+				this.topicStore.setSelectedTopic(actualTopic)
 				const finalWorkspaceId =
 					workspaceStore.selectedWorkspace?.id || optimisticWorkspaceId || ""
 
@@ -519,7 +524,7 @@ class SuperMagicService {
 				// 没有有效话题，确保导航到项目路由
 				if (navigatedToTopic) {
 					// 之前导航到话题，但实际没有话题，修正到项目路由（使用 replace 替换乐观导航）
-					topicStore.setSelectedTopic(null)
+					this.topicStore.setSelectedTopic(null)
 					if (isOtherCollaborationProject(project)) {
 						this.route.navigateToCollaborationProject(project, true)
 					} else {
@@ -603,7 +608,7 @@ class SuperMagicService {
 	 */
 	async navigateToHome(lastUsedWorkspaceId?: string | null) {
 		projectStore.setSelectedProject(null)
-		topicStore.setSelectedTopic(null)
+		this.topicStore.setSelectedTopic(null)
 
 		// 移动端返回首页使用 replace，避免 ProjectPage 残留在历史栈中导致左滑可回退
 		const shouldReplace = interfaceStore.isMobile
@@ -614,9 +619,9 @@ class SuperMagicService {
 				workspaceStore.workspaces.length > 0
 					? workspaceStore.workspaces
 					: await this.workspace.fetchWorkspaces({
-						isAutoSelect: false,
-						page: 1,
-					})
+							isAutoSelect: false,
+							page: 1,
+						})
 
 			// 如果传入了最后一个使用的工作区ID，则使用最后一个使用的工作区ID
 			const targetWorkspace =
@@ -654,7 +659,7 @@ class SuperMagicService {
 
 	resetState = (navigateToHome: boolean = true) => {
 		projectStore.reset()
-		topicStore.reset()
+		this.topicStore.reset()
 		workspaceStore.reset()
 		if (routeManageService.isSuperRoute() && navigateToHome) {
 			routeManageService.resetToSuper()
@@ -685,10 +690,10 @@ class SuperMagicService {
 		const project = !projectId
 			? null
 			: await this.project
-				.getProjectDetail(projectId, {
-					enableErrorMessagePrompt: false,
-				})
-				.catch(() => null)
+					.getProjectDetail(projectId, {
+						enableErrorMessagePrompt: false,
+					})
+					.catch(() => null)
 
 		const onlyCollWorkspaceId = workspaceId && workspaceId === SHARE_WORKSPACE_ID && !project
 
@@ -741,7 +746,7 @@ class SuperMagicService {
 				// PC端，如果没有传话题ID，也进行话题初始化
 				const selectedTopic = await this.getTopicDataByProject(project, topicId)
 				if (selectedTopic) {
-					topicStore.setSelectedTopic(selectedTopic)
+					this.topicStore.setSelectedTopic(selectedTopic)
 				}
 
 				// 加载话题列表
@@ -924,16 +929,16 @@ class SuperMagicService {
 					// Find the full ModelItem objects
 					const languageModel = globalModelCache.languageModelId
 						? await superMagicModeService.resolveLanguageModelByMode(
-							projectMode,
-							globalModelCache.languageModelId,
-						)
+								projectMode,
+								globalModelCache.languageModelId,
+							)
 						: null
 
 					const imageModel = globalModelCache.imageModelId
 						? await superMagicModeService.resolveImageModelByMode(
-							projectMode,
-							globalModelCache.imageModelId,
-						)
+								projectMode,
+								globalModelCache.imageModelId,
+							)
 						: null
 
 					// Save to the new topic
@@ -1070,7 +1075,7 @@ class SuperMagicService {
 	 * 返回项目页面 - 移动端
 	 */
 	backToProjectPageInMobile() {
-		topicStore.setSelectedTopic(null)
+		this.topicStore.setSelectedTopic(null)
 		if (!projectStore.selectedProject) return
 		this.backProjectInMobile(projectStore.selectedProject)
 	}
@@ -1091,7 +1096,7 @@ class SuperMagicService {
 		if (topicId === selectedTopic?.id) {
 			if (newTopicList && newTopicList.length > 0) {
 				runInAction(() => {
-					topicStore.setSelectedTopic(newTopicList[0])
+					this.topicStore.setSelectedTopic(newTopicList[0])
 				})
 				this.route.navigateToState({
 					topicId: newTopicList[0]?.id || null,
@@ -1099,7 +1104,7 @@ class SuperMagicService {
 			} else {
 				// When workspace has no remaining topics, set selected topic to null
 				runInAction(() => {
-					topicStore.setSelectedTopic(null)
+					this.topicStore.setSelectedTopic(null)
 				})
 				this.route.navigateToState({
 					topicId: null,
@@ -1124,7 +1129,7 @@ class SuperMagicService {
 			if (result) {
 				// Update store state
 				projectStore.setSelectedProject(result.project)
-				topicStore.setSelectedTopic(null)
+				this.topicStore.setSelectedTopic(null)
 
 				// Refresh global project list asynchronously
 				this.project.fetchProjects({
@@ -1160,7 +1165,7 @@ class SuperMagicService {
 	 * @param topic Topic to switch to
 	 */
 	switchTopic(topic: Topic) {
-		topicStore.setSelectedTopic(topic)
+		this.topicStore.setSelectedTopic(topic)
 		this.route.navigateToTopic({
 			workspaceId: topic.workspace_id || "",
 			projectId: topic.project_id,

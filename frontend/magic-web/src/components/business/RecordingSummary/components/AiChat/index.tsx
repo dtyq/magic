@@ -1,6 +1,4 @@
-import MessageList, {
-	MessageListProvider,
-} from "@/pages/superMagic/components/MessageList"
+import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
 import { observer } from "mobx-react-lite"
 import recordingSummaryStore from "@/stores/recordingSummary"
 import { useMemoizedFn } from "ahooks"
@@ -208,6 +206,7 @@ export function AiChat(props: AiChatProps) {
 						handleSendMsg={handleSendMsg}
 						className={styles.messageList}
 						onFileClick={onFileClick}
+						stickyMessageClassName="top-0 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 					/>
 				)}
 			</MessageListProvider>

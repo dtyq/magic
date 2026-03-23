@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react"
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { reaction } from "mobx"
 import type { ImperativePanelHandle } from "react-resizable-panels"
 import { sidebarStore } from "@/stores/layout"
@@ -8,8 +8,36 @@ function convertPercentToPx(sizePercent: number): number {
 }
 
 function convertPxToPercent(sizePx: number): number {
-	if (!window.innerWidth) return sidebarStore.MIN_WIDTH_PERCENT
-	return (sizePx / window.innerWidth) * 100
+	return convertPxToPercentByViewWidth(sizePx, window.innerWidth)
+}
+
+function convertPxToPercentByViewWidth(sizePx: number, viewWidth: number): number {
+	if (!viewWidth) return sidebarStore.MIN_WIDTH_PERCENT
+	return (sizePx / viewWidth) * 100
+}
+
+function getNarrowViewportMinSidebarWidthPx(viewWidth: number): number {
+	const narrowMax = 1000
+	const narrowMin = 768
+	const minWidthAtNarrowMax = 220
+	const minWidthAtNarrowMin = 196
+
+	// Keep continuity at 1000px to avoid flicker/jump.
+	// Above 1000px we still enforce a 220px floor and let percentage
+	// naturally decrease as viewport grows.
+	if (viewWidth >= narrowMax) return minWidthAtNarrowMax
+	if (viewWidth <= narrowMin) return minWidthAtNarrowMin
+
+	const ratio = (viewWidth - narrowMin) / (narrowMax - narrowMin)
+	return minWidthAtNarrowMin + ratio * (minWidthAtNarrowMax - minWidthAtNarrowMin)
+}
+
+function getMinSidebarSizePercent(viewWidth: number): number {
+	const narrowViewportMinSidebarPercent = convertPxToPercentByViewWidth(
+		getNarrowViewportMinSidebarWidthPx(viewWidth),
+		viewWidth,
+	)
+	return Math.max(sidebarStore.MIN_WIDTH_PERCENT, narrowViewportMinSidebarPercent)
 }
 
 interface UseSidebarResponsiveParams {
@@ -22,27 +50,39 @@ function useSidebarResponsive({ sidebarPanelRef, initialWidth }: UseSidebarRespo
 	const dragEndTimerRef = useRef<number>()
 	const expandedSidebarWidthPxRef = useRef(convertPercentToPx(initialWidth))
 	const prevWindowWidthRef = useRef(window.innerWidth)
+	const [minSidebarSizePercent, setMinSidebarSizePercent] = useState(() =>
+		getMinSidebarSizePercent(window.innerWidth),
+	)
 
-	const getExpandedSidebarSizePercent = useCallback(() => {
-		const sizePercent = convertPxToPercent(expandedSidebarWidthPxRef.current)
-		return Math.max(
+	const getExpandedSidebarSizePercent = useCallback((viewWidth: number) => {
+		const minMainPx = sidebarStore.getMinMainContentWidthPx(viewWidth)
+		const maxSidebarPercent = Math.max(
 			sidebarStore.MIN_WIDTH_PERCENT,
-			Math.min(sidebarStore.MAX_WIDTH_PERCENT, sizePercent),
+			100 - (minMainPx / viewWidth) * 100,
+		)
+		const minSidebarPercent = getMinSidebarSizePercent(viewWidth)
+		const desiredPercent = convertPxToPercent(expandedSidebarWidthPxRef.current)
+		return Math.max(
+			minSidebarPercent,
+			Math.min(maxSidebarPercent, sidebarStore.MAX_WIDTH_PERCENT, desiredPercent),
 		)
 	}, [])
 
 	const syncSidebarByViewport = useCallback(
 		(isShrinking: boolean) => {
-			const minRequiredWidth =
-				expandedSidebarWidthPxRef.current + sidebarStore.MIN_MAIN_CONTENT_WIDTH_PX
-			if (window.innerWidth <= minRequiredWidth) {
+			const viewWidth = window.innerWidth
+			const autoCollapseThreshold = sidebarStore.getAutoCollapseThresholdPx(
+				viewWidth,
+				expandedSidebarWidthPxRef.current,
+			)
+			if (viewWidth <= autoCollapseThreshold) {
 				// Only auto-collapse when the window is shrinking, not when expanding
 				if (isShrinking && !sidebarStore.collapsed) sidebarStore.setCollapsed(true)
 				return
 			}
 			if (sidebarStore.collapsed || !sidebarPanelRef.current) return
 
-			const nextSizePercent = getExpandedSidebarSizePercent()
+			const nextSizePercent = getExpandedSidebarSizePercent(viewWidth)
 			sidebarPanelRef.current.resize(nextSizePercent)
 			sidebarStore.setWidth(nextSizePercent)
 		},
@@ -54,11 +94,12 @@ function useSidebarResponsive({ sidebarPanelRef, initialWidth }: UseSidebarRespo
 			const currentWidth = window.innerWidth
 			const isShrinking = currentWidth < prevWindowWidthRef.current
 			prevWindowWidthRef.current = currentWidth
+			setMinSidebarSizePercent(getMinSidebarSizePercent(currentWidth))
 			syncSidebarByViewport(isShrinking)
 		}
 
-		// Initial check: treat as shrinking to apply collapse if viewport is already too narrow
-		syncSidebarByViewport(true)
+		// Initial load: keep persisted expanded/collapsed; shrink-triggered collapse runs in handleResize.
+		syncSidebarByViewport(false)
 		window.addEventListener("resize", handleResize)
 		// When user explicitly expands the sidebar, only resize the panel
 		// to the correct size - never force re-collapse here (that would
@@ -67,7 +108,7 @@ function useSidebarResponsive({ sidebarPanelRef, initialWidth }: UseSidebarRespo
 			() => sidebarStore.collapsed,
 			(collapsed) => {
 				if (collapsed || !sidebarPanelRef.current) return
-				const nextSizePercent = getExpandedSidebarSizePercent()
+				const nextSizePercent = getExpandedSidebarSizePercent(window.innerWidth)
 				sidebarPanelRef.current.resize(nextSizePercent)
 				sidebarStore.setWidth(nextSizePercent)
 			},
@@ -116,6 +157,7 @@ function useSidebarResponsive({ sidebarPanelRef, initialWidth }: UseSidebarRespo
 
 	return {
 		handleSidebarResize,
+		minSidebarSizePercent,
 	}
 }
 

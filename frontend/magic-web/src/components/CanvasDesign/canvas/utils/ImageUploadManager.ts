@@ -1,5 +1,5 @@
 import type { Canvas } from "../Canvas"
-import type { UploadImageResponse, UploadFile } from "../../types.magic"
+import { GenerationStatus, type UploadImageResponse, type UploadFile } from "../../types.magic"
 import type { ImageElement as ImageElementData } from "../types"
 import { ElementTypeEnum } from "../types"
 import {
@@ -366,7 +366,7 @@ export class ImageUploadManager {
 				y: targetY,
 				width: dimensions.width,
 				height: dimensions.height,
-				status: "processing", // 上传中状态
+				status: GenerationStatus.Processing, // 上传中状态
 				name: uniqueName,
 				zIndex: maxZIndex + 1,
 				// 合并可选的元素初始数据
@@ -440,7 +440,7 @@ export class ImageUploadManager {
 			elementId,
 			{
 				src: uploadResult.path,
-				status: "completed",
+				status: GenerationStatus.Completed,
 			},
 			{ silent: true },
 		)
@@ -478,7 +478,7 @@ export class ImageUploadManager {
 		this.canvas.elementManager.update(
 			elementId,
 			{
-				status: "failed",
+				status: GenerationStatus.Failed,
 				errorMessage,
 			},
 			{ silent: true },

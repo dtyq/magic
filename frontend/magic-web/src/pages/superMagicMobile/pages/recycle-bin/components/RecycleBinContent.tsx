@@ -1,4 +1,5 @@
 import { memo, useState, useMemo, useCallback, useEffect } from "react"
+import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import { CheckLine } from "lucide-react"
 import { useRequest } from "ahooks"
@@ -14,10 +15,7 @@ import MoveProjectModal from "@/pages/superMagic/components/EmptyWorkspacePanel/
 import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
-import type {
-	ProjectListItem,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import RecycleBinItem, { type RecycleBinItemData } from "./RecycleBinItem"
 import BulkActions from "./BulkActions"
 import emptyStateIcon from "../assets/svg/empty-state-icon.svg"
@@ -103,7 +101,22 @@ const TAB_KEY_TO_TYPE: Record<string, RecycleBinItemData["type"]> = {
 	files: "file",
 }
 
-function mapListItemToItemData(item: RecycleBin.ListItem): RecycleBinItemData {
+function getRecycleBinItemTitle(props: {
+	resourceName?: string
+	resourceType?: ResourceType
+	t: TFunction
+}) {
+	const { resourceName, resourceType, t } = props
+	const trimmedName = resourceName?.trim() ?? ""
+	if (trimmedName) return trimmedName
+	if (resourceType === RESOURCE_TYPE.WORKSPACE) return t("common.unNamedWorkspace")
+	if (resourceType === RESOURCE_TYPE.PROJECT) return t("common.untitledProject")
+	if (resourceType === RESOURCE_TYPE.TOPIC) return t("common.untitledTopic")
+	if (resourceType === RESOURCE_TYPE.FILE) return t("common.untitledFile")
+	return trimmedName
+}
+
+function mapListItemToItemData(item: RecycleBin.ListItem, t: TFunction): RecycleBinItemData {
 	const resourceType = item.resource_type as ResourceType
 	const tabKey = RESOURCE_TYPE_TO_TAB[resourceType] ?? "files"
 	const type = TAB_KEY_TO_TYPE[tabKey] ?? "file"
@@ -115,7 +128,11 @@ function mapListItemToItemData(item: RecycleBin.ListItem): RecycleBinItemData {
 	return {
 		id: item.id,
 		type,
-		title: item.resource_name,
+		title: getRecycleBinItemTitle({
+			resourceName: item.resource_name,
+			resourceType,
+			t,
+		}),
 		deletedBy,
 		deletedByUser,
 		validDays: item.remaining_days ?? 0,
@@ -188,7 +205,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 		manual: true,
 		onBefore: () => setHasError(false),
 		onSuccess: (data) => {
-			const nextItems = data.list.map(mapListItemToItemData)
+			const nextItems = data.list.map((item) => mapListItemToItemData(item, t))
 			setItems(nextItems)
 			setSelectedIds((prev) => prev.filter((id) => nextItems.some((item) => item.id === id)))
 			updateTabCounts(nextItems, onTabCountChange)
@@ -628,8 +645,8 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	const selectPathSelectedProject: ProjectListItem | undefined =
 		selectPathWorkspaceId && selectPathProjectId
 			? projectStore
-				.getProjectsByWorkspace(selectPathWorkspaceId)
-				.find((p) => p.id === selectPathProjectId)
+					.getProjectsByWorkspace(selectPathWorkspaceId)
+					.find((p) => p.id === selectPathProjectId)
 			: undefined
 
 	// 加载中
@@ -691,9 +708,12 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	}
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-recycle-bin-content">
+		<div
+			className="flex min-h-0 flex-1 flex-col bg-muted/60"
+			data-testid="mobile-recycle-bin-content"
+		>
 			<div className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-0 pt-2">
-				<div className="flex min-h-0 flex-1 flex-col gap-2 rounded-[10px] bg-background">
+				<div className="flex min-h-0 flex-1 flex-col gap-2 rounded-[10px]">
 					{filteredItems.map((item, index) => (
 						<div key={item.id}>
 							<RecycleBinItem

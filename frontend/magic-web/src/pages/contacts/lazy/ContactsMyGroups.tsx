@@ -16,7 +16,7 @@ function ContactsMyGroups() {
 	}
 
 	// Desktop version not implemented yet
-	return null
+	return <ContactsMyGroupsMobile />
 }
 
 export default ContactsMyGroups

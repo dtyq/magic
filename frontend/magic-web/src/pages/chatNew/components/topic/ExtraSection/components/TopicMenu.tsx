@@ -1,4 +1,5 @@
 import MagicDropdown from "@/components/base/MagicDropdown"
+import type { MagicDropdownProps } from "@/components/base/MagicDropdown"
 import MagicModal from "@/components/base/MagicModal"
 import type { ConversationTopic } from "@/types/chat/topic"
 import { useBoolean, useMemoizedFn } from "ahooks"
@@ -13,6 +14,11 @@ import magicToast from "@/components/base/MagicToaster/utils"
 interface TopicMenuProps {
 	children: React.ReactNode | ((loading?: boolean) => React.ReactNode)
 	topic: ConversationTopic
+	trigger?: MagicDropdownProps["trigger"]
+	placement?: MagicDropdownProps["placement"]
+	open?: MagicDropdownProps["open"]
+	onOpenChange?: MagicDropdownProps["onOpenChange"]
+	getPopupContainer?: MagicDropdownProps["getPopupContainer"]
 }
 
 const enum TopicMenuKey {
@@ -24,7 +30,15 @@ const enum TopicMenuKey {
 /** 话题名称最大字数限制，数值由后端定 */
 const MAX_NAME_LENGTH = 50
 
-const TopicMenu = function TopicMenu({ children, topic }: TopicMenuProps) {
+const TopicMenu = function TopicMenu({
+	children,
+	topic,
+	trigger,
+	placement,
+	open,
+	onOpenChange,
+	getPopupContainer,
+}: TopicMenuProps) {
 	const { t } = useTranslation("interface")
 
 	const menuItems = useMemo(() => {
@@ -112,23 +126,30 @@ const TopicMenu = function TopicMenu({ children, topic }: TopicMenuProps) {
 	return (
 		<>
 			<MagicDropdown
-				trigger={["click"]}
+				trigger={trigger ?? ["click"]}
+				placement={placement}
+				open={open}
+				onOpenChange={onOpenChange}
 				menu={{
 					items: menuItems,
 					onClick: handleClick,
 				}}
-				getPopupContainer={() => {
-					// TODO: 后续需要改成根据路由名来判断
-					if (location.pathname.includes("super")) {
-						return (
-							document.getElementById(ChatDomId.SuperMagicChatContainer) ||
-							document.body
-						)
-					} else if (location.pathname.includes("chat")) {
-						return document.getElementById(ChatDomId.ChatContainer) || document.body
-					}
-					return document.body
-				}}
+				getPopupContainer={
+					getPopupContainer ??
+					(() => {
+						// TODO: 后续需要改成根据路由名来判断
+						if (location.pathname.includes("super")) {
+							return (
+								document.getElementById(ChatDomId.SuperMagicChatContainer) ||
+								document.body
+							)
+						}
+						if (location.pathname.includes("chat")) {
+							return document.getElementById(ChatDomId.ChatContainer) || document.body
+						}
+						return document.body
+					})
+				}
 			>
 				{Children}
 			</MagicDropdown>

@@ -58,6 +58,7 @@ interface AudioSourceSelectorProps {
 	onChange: (value: AudioSourceType) => void
 	disabled?: boolean
 	size?: MessageEditorSize
+	"data-testid"?: string
 }
 
 /**
@@ -69,6 +70,7 @@ function AudioSourceSelector({
 	onChange,
 	disabled = false,
 	size = "default",
+	"data-testid": dataTestId,
 }: AudioSourceSelectorProps) {
 	const { t } = useTranslation("super")
 
@@ -177,7 +179,9 @@ function AudioSourceSelector({
 		>
 			<span>
 				<button
+					type="button"
 					className={triggerButtonVariants({ size })}
+					data-testid={dataTestId}
 					disabled={disabled}
 					aria-label={t("recordingSummary.audioSource.label")}
 				>

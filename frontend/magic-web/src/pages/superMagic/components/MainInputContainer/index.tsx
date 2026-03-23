@@ -28,9 +28,10 @@ const Container = observer(function Container() {
 			className={cn(
 				"h-full w-full max-w-full px-4",
 				"[&_[data-slot='scroll-area-viewport']>div]:!flex [&_[data-slot='scroll-area-viewport']>div]:!flex-col [&_[data-slot='scroll-area-viewport']>div]:!items-center [&_[data-slot='scroll-area-viewport']>div]:!justify-center",
+				"[&_[data-slot='scroll-area-viewport']]:!flex",
 			)}
 		>
-			<div className="flex w-full max-w-4xl flex-col items-center gap-8 pb-10 pt-32">
+			<div className="flex w-full max-w-4xl flex-col items-center gap-8 pb-10 pt-10">
 				<MainInputHeaderSlot />
 
 				{/* Welcome Message */}

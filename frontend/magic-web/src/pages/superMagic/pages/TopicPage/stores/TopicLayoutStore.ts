@@ -23,7 +23,6 @@ export class TopicLayoutStore {
 	lastExpandedMessagePanelWidthPx: number | null = null
 	isDraggingProjectSider = false
 	isDraggingMessagePanel = false
-	dragPointerX: number | null = null
 	containerWidthPx = 0
 
 	readonly COLLAPSED_MESSAGE_PANEL_WIDTH = 40
@@ -83,7 +82,6 @@ export class TopicLayoutStore {
 
 	updateDrag(clientX: number) {
 		if (!Number.isFinite(clientX)) return
-		this.dragPointerX = clientX
 
 		if (this.activeDrag === "project") {
 			const deltaX = clientX - this.dragStartX
@@ -274,7 +272,6 @@ export class TopicLayoutStore {
 		this.activeDrag = null
 		this.isDraggingProjectSider = false
 		this.isDraggingMessagePanel = false
-		this.dragPointerX = null
 		this.minSizeReachedPointerX = null
 		this.minSizeReachedPanelWidthPx = null
 	}

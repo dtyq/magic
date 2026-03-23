@@ -36,6 +36,9 @@ export class CrewIdentityStore {
 	crewSaveError: string | null = null
 
 	private _suppressAutoSave = false
+	// Hydrate guard: pending reactions flush when outer action ends (inBatch
+	// drops to 0). Depth stays >0 for that sync flush; microtask then clears.
+	private _hydrateReactionBlockDepth = 0
 	private _pendingSave = false
 	private _debouncedSave: ReturnType<typeof debounce>
 	private readonly _getCrewCode: CrewCodeController["getCrewCode"]
@@ -46,12 +49,19 @@ export class CrewIdentityStore {
 		this._getCrewCode = getCrewCode
 		this._setCrewCode = setCrewCode
 		this._debouncedSave = debounce(() => {
-			if (this._getCrewCode() && !this._suppressAutoSave) void this.saveIdentity()
+			// Skip flush if hydrate guard still active (edge timing vs. reaction).
+			if (
+				this._getCrewCode() &&
+				!this._suppressAutoSave &&
+				this._hydrateReactionBlockDepth === 0
+			)
+				void this.saveIdentity()
 		}, 1500)
 
 		makeAutoObservable<
 			this,
 			| "_suppressAutoSave"
+			| "_hydrateReactionBlockDepth"
 			| "_pendingSave"
 			| "_debouncedSave"
 			| "_getCrewCode"
@@ -61,6 +71,7 @@ export class CrewIdentityStore {
 			this,
 			{
 				_suppressAutoSave: false,
+				_hydrateReactionBlockDepth: false,
 				_pendingSave: false,
 				_debouncedSave: false,
 				_getCrewCode: false,
@@ -73,7 +84,9 @@ export class CrewIdentityStore {
 		this._saveDisposer = reaction(
 			() => this.memberInfoSnapshot,
 			() => {
-				if (!this._suppressAutoSave) this._debouncedSave()
+				// Ignore server/applied hydrate; only user edits should debounce-save.
+				if (this._suppressAutoSave || this._hydrateReactionBlockDepth > 0) return
+				this._debouncedSave()
 			},
 		)
 	}
@@ -88,14 +101,22 @@ export class CrewIdentityStore {
 	}
 
 	hydrate(data: CrewIdentityHydration) {
-		this.runWithoutAutoSave(() => {
+		// _suppressAutoSave cannot cover this: hydrate() returns before batch ends.
+		this._hydrateReactionBlockDepth++
+		try {
 			this.name_i18n = data.name_i18n ?? { default: "" }
 			this.role_i18n = data.role_i18n ?? {}
 			this.description_i18n = data.description_i18n ?? { default: "" }
 			this.icon = data.icon ?? null
 			this.prompt = resolveCrewAgentPromptText(data.prompt ?? null)
 			this.crewSaveError = null
-		})
+		} finally {
+			this._debouncedSave.cancel()
+			queueMicrotask(() => {
+				// After sync reaction run; user edits must autosave again.
+				this._hydrateReactionBlockDepth--
+			})
+		}
 	}
 
 	setName(name: string) {
@@ -262,6 +283,8 @@ export class CrewIdentityStore {
 
 	reset() {
 		this._debouncedSave.cancel()
+		// Clear hydrate guard so a new store session cannot leak depth.
+		this._hydrateReactionBlockDepth = 0
 		this.name_i18n = { default: "" }
 		this.role_i18n = {}
 		this.description_i18n = { default: "" }
@@ -275,13 +298,8 @@ export class CrewIdentityStore {
 
 	dispose() {
 		this._debouncedSave.cancel()
+		// Avoid stale microtasks touching depth after teardown.
+		this._hydrateReactionBlockDepth = 0
 		this._saveDisposer()
-	}
-
-	private runWithoutAutoSave(task: () => void) {
-		this._suppressAutoSave = true
-		task()
-		this._debouncedSave.cancel()
-		this._suppressAutoSave = false
 	}
 }

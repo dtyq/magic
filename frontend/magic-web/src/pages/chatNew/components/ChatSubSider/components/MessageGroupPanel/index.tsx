@@ -7,6 +7,7 @@ import type Conversation from "@/models/chat/conversation"
 import ConversationItem from "../ConversationItem"
 import useStyles from "../../style"
 import { MessageGroupKey, RenderedLists } from "../../types"
+import { SegmentedKey } from "../../constants"
 
 interface MessageGroupPanelProps {
 	topGroupList: string[]
@@ -47,7 +48,11 @@ function MessageGroupPanel({
 			<div className={styles.virtualList} style={{ height: "auto" }}>
 				{items.map((item) => (
 					<div key={item} className={styles.virtualItem}>
-						<ConversationItem conversationId={item} onClick={onConversationClick} />
+						<ConversationItem
+							conversationId={item}
+							onClick={onConversationClick}
+							domIdPrefix={SegmentedKey.Message}
+						/>
 					</div>
 				))}
 			</div>

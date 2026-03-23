@@ -30,6 +30,7 @@ import { Switch } from "@/components/shadcn-ui/switch"
 import { Separator } from "@/components/shadcn-ui/separator"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { projectStore } from "@/pages/superMagic/stores/core"
+import { userStore } from "@/models/user"
 
 interface FileShareModalProps {
 	attachments?: any[] // 可选，如果没有 resourceId 时使用（文件树）
@@ -79,6 +80,9 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 	const responsive = useResponsive()
 	const isMobile = responsive.md === false
 
+	// Check if user is personal organization
+	const { isPersonalOrganization } = userStore.user
+
 	// State: saving status
 	const [isSaving, setIsSaving] = useState(false)
 
@@ -95,15 +99,18 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 	const [shareTargets, setShareTargets] = useState<ShareTarget[]>([])
 
 	// State: share type and settings
-	const [shareType, setShareType] = useState<ShareType>(types[0] || ShareType.Public)
+	const [shareType, setShareType] = useState<ShareType>(
+		isPersonalOrganization ? ShareType.Public : ShareType.PasswordProtected,
+	)
 	const [shareProject, setShareProject] = useState<boolean>(shareMode === ShareMode.Project) // 根据 shareMode 初始化
 	const [extraData, setExtraData] = useState<ShareExtraData>({
-		passwordEnabled: true,
+		passwordEnabled: isPersonalOrganization ? false : true,
 		password: shareType === ShareType.PasswordProtected ? generateSharePassword() : "",
 		allowCopy: true,
 		showFileList: true,
 		hideCreatorInfo: false,
 		allowDownloadProjectFile: true,
+		showOriginalInfo: true,
 	})
 
 	// State: resource ID (use external if provided, otherwise fetch and cache)
@@ -535,9 +542,9 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 				target_ids:
 					shareType === ShareType.Organization && shareRange === "designated"
 						? shareTargets.map((t) => ({
-							target_type: t.target_type,
-							target_id: t.target_id,
-						}))
+								target_type: t.target_type,
+								target_id: t.target_id,
+							}))
 						: undefined,
 				password: extraData.passwordEnabled ? extraData.password : undefined,
 				file_ids: selectedFileIds,
@@ -670,7 +677,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 					<div className={styles.mobileShareOptions}>
 						<div className="flex flex-col gap-3">
 							{/* File Selection Card - 单文件模式下不显示 */}
-							<div className="shadow-xs flex flex-col gap-3 self-stretch rounded-[10px] border border-border p-5">
+							<div className="flex flex-col gap-3 self-stretch rounded-[10px] border border-border p-5 shadow-xs">
 								{/* Card Header */}
 								<div className="flex flex-col gap-0.5 self-stretch">
 									<div className="text-lg font-medium leading-normal text-foreground">
@@ -683,7 +690,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 
 								{/* Select Button */}
 								<button
-									className="shadow-xs flex items-center justify-center gap-2 self-stretch rounded-lg bg-primary px-4 py-2 text-sm font-medium leading-normal text-primary-foreground"
+									className="flex items-center justify-center gap-2 self-stretch rounded-lg bg-primary px-4 py-2 text-sm font-medium leading-normal text-primary-foreground shadow-xs"
 									onClick={() => setFileSelectorPopupVisible(true)}
 								>
 									{t("share.selectFileWithCount", {

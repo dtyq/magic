@@ -1,10 +1,10 @@
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
+import { RECYCLE_BIN_TABS_CONFIG, type RecycleBinTabId } from "@/pages/recycleBin/tab-config"
 
 import tabsActiveIndicator from "../assets/svg/tabs-active-indicator.svg"
-
-type RecycleBinTabValue = "all" | "workspaces" | "projects" | "topics" | "files"
+type RecycleBinTabValue = RecycleBinTabId
 
 interface RecycleBinTabsProps {
 	activeTab: RecycleBinTabValue
@@ -18,7 +18,7 @@ function RecycleBinTabs(props: RecycleBinTabsProps) {
 
 	return (
 		<div
-			className="w-full shrink-0 rounded-b-[14px] bg-background p-2 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+			className="w-full shrink-0 rounded-b-2xl bg-background p-2 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
 			data-testid="mobile-recycle-bin-filter"
 		>
 			<Tabs
@@ -31,32 +31,13 @@ function RecycleBinTabs(props: RecycleBinTabsProps) {
 					className="no-scrollbar h-auto w-full justify-start gap-2 overflow-x-auto bg-background p-1"
 					data-testid="mobile-recycle-bin-tabs-list"
 				>
-					<RecycleBinTabTrigger
-						value="all"
-						label={t("mobile.recycleBin.tabs.all", { count: tabCounts.all ?? 0 })}
-					/>
-					<RecycleBinTabTrigger
-						value="workspaces"
-						label={t("mobile.recycleBin.tabs.workspaces", {
-							count: tabCounts.workspaces ?? 0,
-						})}
-					/>
-					<RecycleBinTabTrigger
-						value="projects"
-						label={t("mobile.recycleBin.tabs.projects", {
-							count: tabCounts.projects ?? 0,
-						})}
-					/>
-					<RecycleBinTabTrigger
-						value="topics"
-						label={t("mobile.recycleBin.tabs.topics", {
-							count: tabCounts.topics ?? 0,
-						})}
-					/>
-					{/* <RecycleBinTabTrigger
-						value="files"
-						label={t("mobile.recycleBin.tabs.files", { count: tabCounts.files ?? 0 })}
-					/> */}
+					{RECYCLE_BIN_TABS_CONFIG.map((tab) => (
+						<RecycleBinTabTrigger
+							key={tab.id}
+							value={tab.id}
+							label={t(tab.labelKey.mobile, { count: tabCounts[tab.id] ?? 0 })}
+						/>
+					))}
 				</TabsList>
 			</Tabs>
 		</div>

@@ -42,6 +42,8 @@ interface DetailProps {
 	allowDownload?: boolean
 	// 是否显示空内容
 	showFallbackWhenEmpty?: boolean
+	/** 当前项目文件 tabs 缓存一轮加载结束 */
+	onFileTabsCacheLoaded?: (projectId: string) => void
 }
 
 // Forward ref type for Detail component
@@ -79,6 +81,7 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 		projectId,
 		allowDownload,
 		showFallbackWhenEmpty,
+		onFileTabsCacheLoaded,
 	} = props
 
 	const filesViewerRef = useRef<FilesViewerRef>(null)
@@ -169,6 +172,7 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 				projectId={projectId}
 				allowDownload={allowDownload}
 				showFallbackWhenEmpty={showFallbackWhenEmpty}
+				onFileTabsCacheLoaded={onFileTabsCacheLoaded}
 			/>
 		</div>
 	)

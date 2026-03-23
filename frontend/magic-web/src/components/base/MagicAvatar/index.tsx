@@ -52,13 +52,23 @@ const MagicAvatar = forwardRef<HTMLSpanElement, MagicAvatarProps>(
 		)
 
 		useEffect(() => {
-			setInnerSrc(
-				typeof src === "string" && src
-					? typeof size === "number"
-						? getAvatarUrl(src, size)
-						: src
-					: getTextAvatar(children, style?.backgroundColor, style?.color),
-			)
+			if (src && typeof src === "string") {
+				if (typeof size === "number") {
+					const processedUrl = getAvatarUrl(src, size)
+					const img = new Image()
+					img.src = processedUrl
+					img.onload = () => {
+						setInnerSrc(processedUrl)
+					}
+					img.onerror = () => {
+						setInnerSrc(src)
+					}
+				} else {
+					setInnerSrc(src)
+				}
+			} else {
+				setInnerSrc(getTextAvatar(children, style?.backgroundColor, style?.color))
+			}
 		}, [src, children, style?.backgroundColor, style?.color, size])
 
 		const mergedStyle = useMemo(

@@ -32,6 +32,11 @@ export interface MagicPullToRefreshProps extends Omit<AntdPullToRefreshProps, "c
 	containerClassName?: string
 
 	/**
+	 * Outer container id
+	 */
+	containerId?: string
+
+	/**
 	 * 刷新成功提示文案
 	 */
 	successText?: string

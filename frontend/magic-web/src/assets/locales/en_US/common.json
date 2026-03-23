@@ -72,7 +72,7 @@
 	"meta": {
 		"description": "",
 		"keywords": "",
-		"title": "Super Magic - Lighthouse Engine Next-Gen Enterprise AI Application Engine"
+		"title": "Super Magic - First Open-Source Enterprise AI Agent Platform"
 	},
 	"platform": {
 		"name": ""
@@ -93,7 +93,7 @@
 		"contactsMy": "Contacts/My Groups",
 		"contactsMyFriends": "Contacts/My Friends",
 		"contactsOrganization": "Contacts/Organization",
-		"default": "Super Magic - Lighthouse Engine Next-Gen Enterprise AI Application Engine",
+		"default": "Super Magic - First Open-Source Enterprise AI Agent Platform",
 		"explore": "AI Assistant",
 		"global": "Super Magic",
 		"invite": "Invitation Code",

@@ -10,9 +10,11 @@ import { useTranslation } from "react-i18next"
 function RetryButton({
 	isRetrying,
 	onRetryVoiceService,
+	"data-testid": dataTestId,
 }: {
 	isRetrying: boolean
 	onRetryVoiceService: () => Promise<void>
+	"data-testid"?: string
 }) {
 	const [status, setStatus] = useState<"init" | "loading" | "success" | "error">("init")
 	const { t } = useTranslation("super")
@@ -62,6 +64,7 @@ function RetryButton({
 		<MagicButton
 			type="link"
 			size="small"
+			data-testid={dataTestId}
 			tip={t("recordingSummary.actions.retryTip")}
 			onClick={handleRetry}
 			loading={isRetrying}

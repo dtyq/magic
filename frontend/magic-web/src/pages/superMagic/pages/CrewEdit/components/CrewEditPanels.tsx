@@ -272,7 +272,7 @@ function CrewEditPanels({
 							className={cn(
 								"h-full w-full shrink-0 transition-opacity duration-150",
 								(isConversationPanelCollapsed || !showDetailPanel) &&
-								"pointer-events-none",
+									"pointer-events-none",
 								isDraggingDetail && "before:opacity-100",
 							)}
 						/>
@@ -284,8 +284,8 @@ function CrewEditPanels({
 						"h-full min-w-0 overflow-hidden",
 						!showDetailPanel && "flex-1",
 						showDetailPanel &&
-						!hideMessagePanel &&
-						(isConversationPanelCollapsed ? "shrink-0" : "flex-1"),
+							!hideMessagePanel &&
+							(isConversationPanelCollapsed ? "shrink-0" : "flex-1"),
 					)}
 					style={{
 						width: targetMessagePanelWidth,

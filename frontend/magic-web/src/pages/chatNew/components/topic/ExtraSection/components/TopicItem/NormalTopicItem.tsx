@@ -3,7 +3,7 @@ import { IconMessageTopic } from "@/enhance/tabler/icons-react"
 import { IconDots } from "@tabler/icons-react"
 import { Badge, Flex } from "antd"
 import { useTranslation } from "react-i18next"
-import { useBoolean, useMemoizedFn } from "ahooks"
+import { useMemoizedFn } from "ahooks"
 import chatTopicService from "@/services/chat/topic"
 import type { ConversationTopic } from "@/types/chat/topic"
 import { observer } from "mobx-react-lite"
@@ -20,20 +20,12 @@ const NormalTopicItemComponent = observer((props: NormalTopicItemProps) => {
 	const { styles, cx } = useTopicItemStyles()
 	const { t } = useTranslation("interface")
 
-	const [menuOpen, { toggle }] = useBoolean(false)
-
 	const onClick = useMemoizedFn(() => {
 		chatTopicService.setCurrentConversationTopic(topic.id)
 	})
 
 	return (
-		<TopicMenu
-			open={menuOpen}
-			onOpenChange={toggle}
-			topic={topic}
-			trigger={["contextMenu"]}
-			placement="bottomRight"
-		>
+		<TopicMenu topic={topic} trigger={["contextMenu"]} placement="bottomRight">
 			<Flex
 				align="center"
 				justify="space-between"
@@ -51,7 +43,11 @@ const NormalTopicItemComponent = observer((props: NormalTopicItemProps) => {
 				</Badge>
 				<span className={styles.topicTitle}>{topic.name || t("chat.topic.newTopic")}</span>
 				<div className={styles.menu} onClick={(e) => e.stopPropagation()}>
-					<MagicIcon component={IconDots} size={20} onClick={toggle} />
+					<TopicMenu topic={topic} trigger={["click"]} placement="bottomRight">
+						<button className={styles.menuButton} type="button">
+							<MagicIcon component={IconDots} size={20} />
+						</button>
+					</TopicMenu>
 				</div>
 			</Flex>
 		</TopicMenu>

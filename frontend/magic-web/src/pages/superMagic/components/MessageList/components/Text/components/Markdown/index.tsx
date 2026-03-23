@@ -1,30 +1,166 @@
 import { preprocessMarkdown } from "@/pages/superMagic/utils/handleMarkDown"
 import Markdown from "markdown-to-jsx"
-import { useState, useMemo, memo } from "react"
-import { useTranslation } from "react-i18next"
-import MagicModal from "@/components/base/MagicModal"
-import { useStyles } from "./styles"
+import { memo, useMemo, useRef } from "react"
+import { cn } from "@/lib/utils"
+import type { MarkdownComponentProps, MarkdownHtmlPreviewContentProps } from "./types"
 import { FilePath } from "./parser/FilePath"
 import { Image } from "./parser/Image"
 import { Cursor } from "./parser/Cursor"
+import { MarkdownLink } from "./parser/MarkdownLink"
+import type { HtmlCodeBlockPreviewStreamingScrollState } from "./components/HtmlCodeBlockPreview/types"
+import {
+	extractHtmlFencedCodeBlocksFromMarkdown,
+	normalizeMarkdownWrappedHtmlFencedCodeBlocks,
+} from "./components/HtmlCodeBlockPreview/utils"
+import { useMarkdownHtmlCodeBlockPreRenderer } from "./hooks/useMarkdownHtmlCodeBlockPreRenderer"
 
-interface MarkdownComponentProps {
-	content: string
-	className?: string
-	maxLength?: number
+// 以下是“超长内容截断 + 查看全文按钮/弹窗”的旧实现说明，当前按需求先保留为注释，不恢复行为：
+// 1. 旧逻辑会在内容超过 maxLength 时截断渲染结果
+// 2. 截断后在消息下方显示“查看全文”按钮
+// 3. 点击后通过 LongContentModal 展示完整长文本
+// 本次 HTML 预览增强主链不继续启用这套逻辑，但为了保留历史实现和后续恢复参考，先注释留档在此。
+//
+// function LongContentModal({
+// 	open,
+// 	content,
+// 	onClose,
+// }: {
+// 	open: boolean
+// 	content: string
+// 	onClose: () => void
+// }) {
+// 	const { t } = useTranslation("interface")
+//
+// 	return (
+// 		<MagicModal
+// 			title={t("chat.markdown.viewFullText")}
+// 			open={open}
+// 			onCancel={onClose}
+// 			width="80%"
+// 			footer={null}
+// 			styles={{ body: { maxHeight: "70vh", overflow: "auto" } }}
+// 			centered
+// 		>
+// 			<div
+// 				style={{
+// 					marginBottom: "6px",
+// 					fontSize: "12px",
+// 					color: "#666",
+// 					textAlign: "right",
+// 				}}
+// 			>
+// 				{t("chat.markdown.totalLength")}: {content?.length?.toLocaleString() || 0}{" "}
+// 				{t("chat.markdown.characters")}
+// 			</div>
+// 			<div
+// 				style={{
+// 					fontFamily: "monospace",
+// 					fontSize: "13px",
+// 					lineHeight: "1.6",
+// 					whiteSpace: "pre-wrap",
+// 					padding: "12px",
+// 					backgroundColor: "#f5f5f5",
+// 					borderRadius: "4px",
+// 					border: "1px solid #d9d9d9",
+// 				}}
+// 			>
+// 				{content}
+// 			</div>
+// 		</MagicModal>
+// 	)
+// }
+//
+// 旧的 MarkdownComponent 长内容处理逻辑如下：
+// const [showModal, setShowModal] = useState(false)
+// const maxLength = 20000
+// const {
+// 	content: markdownContent,
+// 	length: contentLength,
+// 	shouldRenderAsPlainText,
+// } = useMemo(() => {
+// 	const shouldRenderAsPlainText = false
+//
+// 	if (content?.length > maxLength) {
+// 		const markdownContent = shouldRenderAsPlainText
+// 			? content.slice(0, maxLength)
+// 			: preprocessMarkdown(content.slice(0, maxLength))
+// 		return {
+// 			content: markdownContent + "...",
+// 			length: content.length || 0,
+// 			shouldRenderAsPlainText,
+// 		}
+// 	}
+//
+// 	const markdownContent = shouldRenderAsPlainText ? content : preprocessMarkdown(content)
+// 	return {
+// 		content: markdownContent,
+// 		length: markdownContent?.length || 0,
+// 		shouldRenderAsPlainText,
+// 	}
+// }, [content, maxLength])
+//
+// if (contentLength > maxLength) {
+// 	return (
+// 		<div className={className}>
+// 			{shouldRenderAsPlainText ? (
+// 				<pre
+// 					style={{
+// 						whiteSpace: "pre-wrap",
+// 						wordBreak: "break-word",
+// 						fontFamily: "monospace",
+// 						fontSize: "13px",
+// 						lineHeight: "1.6",
+// 						margin: 0,
+// 						padding: 0,
+// 					}}
+// 				>
+// 					{markdownContent}
+// 				</pre>
+// 			) : (
+// 				<MarkdownContent className={className} content={markdownContent} />
+// 			)}
+// 			<button className={styles.viewMore} onClick={() => setShowModal(true)}>
+// 				{t("chat.markdown.viewFullText")}
+// 			</button>
+// 			<LongContentModal
+// 				open={showModal}
+// 				content={markdownContent}
+// 				onClose={() => setShowModal(false)}
+// 			/>
+// 		</div>
+// 	)
+// }
+
+function stripStreamingCursorPlaceholder(content: string) {
+	return content.replace(/<cursor\/>\s*$/i, "")
 }
 
-function MarkdownContent({ content, className }: { content: string; className?: string }) {
+function MarkdownContent({
+	content,
+	className,
+	sourceContent,
+	isStreaming = false,
+}: MarkdownHtmlPreviewContentProps) {
+	const htmlCodeBlocks = useMemo(
+		() => extractHtmlFencedCodeBlocksFromMarkdown(sourceContent),
+		[sourceContent],
+	)
+	const htmlCodeBlockStreamingScrollStateRef = useRef<HtmlCodeBlockPreviewStreamingScrollState>({
+		hasUserInteracted: false,
+	})
+	const MarkdownHtmlCodeBlockPreRenderer = useMarkdownHtmlCodeBlockPreRenderer({
+		htmlCodeBlocks,
+		isStreaming,
+		streamingScrollStateRef: htmlCodeBlockStreamingScrollStateRef,
+	})
+
 	return (
 		<Markdown
 			className={className}
 			options={{
 				overrides: {
 					a: {
-						props: {
-							target: "_blank",
-							rel: "noopener noreferrer",
-						},
+						component: MarkdownLink,
 					},
 					cursor: {
 						component: Cursor,
@@ -35,6 +171,9 @@ function MarkdownContent({ content, className }: { content: string; className?: 
 					img: {
 						component: Image,
 					},
+					pre: {
+						component: MarkdownHtmlCodeBlockPreRenderer,
+					},
 				},
 			}}
 		>
@@ -43,150 +182,48 @@ function MarkdownContent({ content, className }: { content: string; className?: 
 	)
 }
 
-function MarkdownComponent({ content, className, maxLength = 20000 }: MarkdownComponentProps) {
-	const { styles } = useStyles()
-	const { t } = useTranslation("interface")
-	const [showModal, setShowModal] = useState(false)
+function MarkdownComponent({ content, className, isStreaming = false }: MarkdownComponentProps) {
+	const normalizedContent = useMemo(
+		() =>
+			normalizeMarkdownWrappedHtmlFencedCodeBlocks(stripStreamingCursorPlaceholder(content)),
+		[content],
+	)
 
-	const {
-		content: markdownContent,
-		length: contentLength,
-		shouldRenderAsPlainText,
-	} = useMemo(() => {
-		// // 检测是否为 XML 或包含大量标签的内容
-		// // 计算标签密度：标签数量 / 总字符数
-		// // 注意：排除 cursor 标签，因为它是流式加载时的光标指示器，不应影响内容类型判断
-		// const tagMatches = content?.match(/<[^>]+>/g) || []
-		// const tagCount = tagMatches.filter((tag) => !tag.match(/<\/?cursor\s*\/?>/i)).length
-		// const tagDensity = content?.length > 0 ? tagCount / content.length : 0
-
-		// 如果标签密度 > 0.01 (即每100个字符有1个标签) 或标签数量 > 50，视为 XML/HTML 内容
-		// const shouldRenderAsPlainText = tagDensity > 0.01 || tagCount > 50
+	const { content: markdownContent, shouldRenderAsPlainText } = useMemo(() => {
 		const shouldRenderAsPlainText = false
+		const shouldUseNormalizedStreamingContent = isStreaming && normalizedContent.includes("```")
+		const renderContent =
+			shouldUseNormalizedStreamingContent || !isStreaming ? normalizedContent : content
+		const nextMarkdownContent = shouldRenderAsPlainText
+			? renderContent
+			: preprocessMarkdown(renderContent)
 
-		if (content?.length > maxLength) {
-			// 如果是纯文本模式，不进行预处理
-			const markdownContent = shouldRenderAsPlainText
-				? content.slice(0, maxLength)
-				: preprocessMarkdown(content.slice(0, maxLength))
-			return {
-				content: markdownContent + "...",
-				length: content.length || 0,
-				shouldRenderAsPlainText,
-			}
-		}
-
-		const markdownContent = shouldRenderAsPlainText ? content : preprocessMarkdown(content)
 		return {
-			content: markdownContent,
-			length: markdownContent?.length || 0,
+			content: nextMarkdownContent,
 			shouldRenderAsPlainText,
 		}
-	}, [content, maxLength])
+	}, [content, isStreaming, normalizedContent])
 
-	if (contentLength > maxLength) {
-		return (
-			<div className={className}>
-				{shouldRenderAsPlainText ? (
-					<pre
-						style={{
-							whiteSpace: "pre-wrap",
-							wordBreak: "break-word",
-							fontFamily: "monospace",
-							fontSize: "13px",
-							lineHeight: "1.6",
-							margin: 0,
-							padding: 0,
-						}}
-					>
-						{markdownContent}
-					</pre>
-				) : (
-					<MarkdownContent className={className} content={markdownContent} />
-				)}
-				<button className={styles.viewMore} onClick={() => setShowModal(true)}>
-					{t("chat.markdown.viewFullText")}
-				</button>
-				<LongContentModal
-					open={showModal}
-					content={markdownContent}
-					onClose={() => setShowModal(false)}
-				/>
-			</div>
-		)
-	}
-
-	// Normal content - render as plain text or markdown based on content type
 	if (shouldRenderAsPlainText) {
 		return (
 			<pre
-				className={className}
-				style={{
-					whiteSpace: "pre-wrap",
-					wordBreak: "break-word",
-					fontFamily: "monospace",
-					fontSize: "13px",
-					lineHeight: "1.6",
-					margin: 0,
-					padding: 0,
-				}}
+				className={cn(
+					"m-0 whitespace-pre-wrap break-words p-0 font-mono text-[13px] leading-[1.6]",
+					className,
+				)}
 			>
 				{markdownContent}
 			</pre>
 		)
 	}
 
-	return <MarkdownContent className={className} content={markdownContent} />
-}
-
-// Modal component for displaying long content as plain text
-function LongContentModal({
-	open,
-	content,
-	onClose,
-}: {
-	open: boolean
-	content: string
-	onClose: () => void
-}) {
-	const { t } = useTranslation("interface")
-
 	return (
-		<MagicModal
-			title={t("chat.markdown.viewFullText")}
-			open={open}
-			onCancel={onClose}
-			width="80%"
-			footer={null}
-			styles={{ body: { maxHeight: "70vh", overflow: "auto" } }}
-			centered
-		>
-			<div
-				style={{
-					marginBottom: "6px",
-					fontSize: "12px",
-					color: "#666",
-					textAlign: "right",
-				}}
-			>
-				{t("chat.markdown.totalLength")}: {content?.length?.toLocaleString() || 0}{" "}
-				{t("chat.markdown.characters")}
-			</div>
-			<div
-				style={{
-					fontFamily: "monospace",
-					fontSize: "13px",
-					lineHeight: "1.6",
-					whiteSpace: "pre-wrap",
-					padding: "12px",
-					backgroundColor: "#f5f5f5",
-					borderRadius: "4px",
-					border: "1px solid #d9d9d9",
-				}}
-			>
-				{content}
-			</div>
-		</MagicModal>
+		<MarkdownContent
+			className={className}
+			content={markdownContent}
+			sourceContent={normalizedContent}
+			isStreaming={isStreaming}
+		/>
 	)
 }
 

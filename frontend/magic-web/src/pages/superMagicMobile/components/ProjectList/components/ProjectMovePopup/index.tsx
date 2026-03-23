@@ -12,6 +12,7 @@ import { observer } from "mobx-react-lite"
 import { workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { Box } from "lucide-react"
 interface MoveProjectPopupProps {
 	open: boolean
 	onClose: () => void
@@ -118,28 +119,39 @@ function MoveProjectPopup({ open, onClose, onConfirm }: MoveProjectPopupProps) {
 				</div>
 			</div>
 			<div className={styles.content}>
-				{filteredWorkspaces.map((workspace) => (
-					<div
-						key={workspace.id}
-						className={cx(
-							styles.contentItem,
-							selectedWorkspaceId === workspace.id && styles.contentItemSelected,
-						)}
-						onClick={() => setSelectedWorkspaceId(workspace.id)}
-					>
-						<div className={styles.contentItemName}>
-							<div className={styles.contentItemIcon}>
-								<IconWorkspace />
+				{filteredWorkspaces.length > 0 ? (
+					filteredWorkspaces.map((workspace) => (
+						<div
+							key={workspace.id}
+							className={cx(
+								styles.contentItem,
+								selectedWorkspaceId === workspace.id && styles.contentItemSelected,
+							)}
+							onClick={() => setSelectedWorkspaceId(workspace.id)}
+						>
+							<div className={styles.contentItemName}>
+								<div className={styles.contentItemIcon}>
+									<IconWorkspace />
+								</div>
+								<div className={styles.contentItemNameText}>
+									{workspace.name || t("workspace.unnamedWorkspace")}
+								</div>
 							</div>
-							<div className={styles.contentItemNameText}>
-								{workspace.name || t("workspace.unnamedWorkspace")}
-							</div>
+							{selectedWorkspaceId === workspace.id && (
+								<IconCheck className={styles.contentItemCheck} size={20} />
+							)}
 						</div>
-						{selectedWorkspaceId === workspace.id && (
-							<IconCheck className={styles.contentItemCheck} size={20} />
-						)}
+					))
+				) : (
+					<div className="flex flex-col items-center justify-center gap-2 py-10">
+						<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground">
+							<Box className="size-6 text-background" />
+						</div>
+						<div className="text-xs text-muted-foreground">
+							{t("workspace.noOtherWorkspace")}
+						</div>
 					</div>
-				))}
+				)}
 			</div>
 			<div className={styles.footer}>
 				<Button className={styles.footerCreateButton} onClick={handleCreateWorkspace}>

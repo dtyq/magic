@@ -46,7 +46,11 @@ const MentionPanelMobile = observer(
 			...restProps
 		} = props
 
-		const { styles, cx } = useMobileStyles()
+		const { styles } = useMobileStyles()
+		void triggerRef
+		void className
+		void style
+		void lastHistoryIndex
 
 		// Internationalization
 		const t = useI18nStatic(language)
@@ -117,12 +121,14 @@ const MentionPanelMobile = observer(
 				event?.stopPropagation()
 				actions.selectItem(index)
 
-				const isRightArrow = (event?.target as HTMLElement)?.getAttribute(
-					"data-right-arrow",
-				)
+				const eventTarget = event?.target
+				const isRightArrow =
+					eventTarget instanceof HTMLElement
+						? Boolean(eventTarget.closest("[data-right-arrow]"))
+						: false
 
 				setTimeout(() => {
-					actions.confirmSelection({ enterFolder: isRightArrow ? true : false })
+					actions.confirmSelection({ enterFolder: isRightArrow })
 				}, 100)
 			},
 			[actions, state.items],
@@ -137,11 +143,6 @@ const MentionPanelMobile = observer(
 
 		// Handle close
 		const handleClose = useMemoizedFn(() => {
-			onClose?.()
-		})
-
-		// Handle mask click (only close when clicking outside the content)
-		const handleMaskClick = useMemoizedFn(() => {
 			onClose?.()
 		})
 
@@ -267,9 +268,8 @@ const MentionPanelMobile = observer(
 			<MagicPopup
 				visible={visible}
 				onClose={handleClose}
-				onMaskClick={handleMaskClick}
 				bodyClassName={styles.popupBody}
-				maskClassName={styles.mask}
+				overlayClassName={styles.mask}
 				position="bottom"
 				{...restProps}
 			>

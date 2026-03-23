@@ -27,6 +27,8 @@ export type CommonProps = {
 	onCancel?: () => void
 	/** 是否过滤AI助理 */
 	filterAgent?: boolean
+	/** z-index */
+	zIndex?: number
 }
 
 export type MemberDepartmentSelectorProps = Omit<
@@ -59,6 +61,7 @@ const MemberDepartmentSelector = ({
 	onCancel,
 	filterAgent = true,
 	style,
+	zIndex,
 	...props
 }: MemberDepartmentSelectorProps) => {
 	const { prefersColorScheme: theme } = useTheme()
@@ -109,7 +112,7 @@ const MemberDepartmentSelector = ({
 					onSearchChange={onSearchChange}
 					selectedPath={selectedPath}
 					bodyClassName="max-h-[85vh]"
-					style={style}
+					style={{ zIndex, ...style }}
 					{...omit(props, ["title", "getContainer", "centered"])}
 				/>
 			</AppearanceProvider>
@@ -133,7 +136,7 @@ const MemberDepartmentSelector = ({
 				onBreadcrumbClick={onBreadcrumbClick}
 				onSearchChange={onSearchChange}
 				selectedPath={selectedPath}
-				style={style}
+				style={{ zIndex, ...style }}
 				{...props}
 			/>
 		</AppearanceProvider>

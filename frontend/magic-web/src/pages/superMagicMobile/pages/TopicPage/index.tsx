@@ -3,9 +3,7 @@ import { throttle, isObject } from "lodash-es"
 import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import { observer } from "mobx-react-lite"
 import { reaction } from "mobx"
-import MessageList, {
-	MessageListProvider,
-} from "@/pages/superMagic/components/MessageList"
+import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
 import { useStyles } from "./styles"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { userStore } from "@/models/user"
@@ -389,6 +387,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 						showLoading={showLoading}
 						onFileClick={onFileClick}
 						isMessagesLoading={isMessagesInitialLoading}
+						stickyMessageClassName="-top-[1px] pt-2 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 					/>
 				</MessageListProvider>
 			</div>

@@ -95,11 +95,11 @@ export function convertSearchParams(params: URLSearchParams): Record<string, str
 /** 根据当前 pathname 获取路由元数据 */
 export function routesMatch(pathname: string):
 	| {
-		params: Params<string>
-		pathname: string
-		pathnameBase: string
-		route: RouteObject
-	}
+			params: Params<string>
+			pathname: string
+			pathnameBase: string
+			route: RouteObject
+	  }
 	| undefined {
 	const matches = matchRoutes(routes, pathname, "/")
 	if (matches?.[matches.length - 1]?.route?.index) {
@@ -120,7 +120,7 @@ export function routesPathMatch(
 	includeChildRoutes?: boolean,
 ): boolean {
 	const info = routesMap?.[routeName]
-	if (info.path) {
+	if (info?.path) {
 		if (includeChildRoutes && info.children && !matchPath(info.path, pathname)) {
 			return info.children.some(
 				(o) => o.name && routesPathMatch(o.name as RouteName, pathname, includeChildRoutes),

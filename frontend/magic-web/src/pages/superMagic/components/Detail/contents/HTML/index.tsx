@@ -13,16 +13,13 @@ import { useStyles } from "./styles"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
 import { processHtmlContent } from "./htmlProcessor"
 import { flattenAttachments, resolveRelativePath } from "./utils"
-import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
+import { useDeepCompareEffect, useMemoizedFn, useUpdateEffect } from "ahooks"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
 import { Flex, Tour } from "antd"
 import { shadow } from "@/utils/shadow"
 import CodeEditor from "@/components/base/CodeEditor"
 import { parseAnchorLink, scrollToAnchor } from "@/utils/slug"
-import {
-	HTMLGuideTourElementId,
-	useHTMLGuideTour,
-} from "@/pages/superMagic/hooks/useHTMLGuideTour"
+import { HTMLGuideTourElementId, useHTMLGuideTour } from "@/pages/superMagic/hooks/useHTMLGuideTour"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MagicSpin from "@/components/base/MagicSpin"
 import DashboardIsolatedHTMLRenderer from "./dashboard/DashboardIsolatedHTMLRenderer"
@@ -82,6 +79,7 @@ interface HTMLProps {
 	exportFile?: (fileId: string, fileVersion?: number) => void
 	exportPdf?: (fileId: string) => void
 	exportPpt?: (fileId: string) => void
+	exportPptx?: (fileId: string) => void
 	isExporting?: boolean
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
@@ -101,6 +99,7 @@ interface HtmlExportActionProps {
 	handleExportSource: () => void
 	handleExportPDF: () => void
 	handleExportPPT: () => void
+	handleExportPptx: () => void
 	isExporting?: boolean
 	supportPPT: boolean
 	showButtonText: boolean
@@ -110,6 +109,7 @@ const HtmlExportAction = memo(function HtmlExportAction({
 	handleExportSource,
 	handleExportPDF,
 	handleExportPPT,
+	handleExportPptx,
 	isExporting,
 	supportPPT,
 	showButtonText,
@@ -118,6 +118,7 @@ const HtmlExportAction = memo(function HtmlExportAction({
 		handleExportSource,
 		handleExportPDF,
 		handleExportPPT,
+		handleExportPptx,
 		isExporting,
 		showButtonText,
 		supportPPT,
@@ -153,6 +154,7 @@ export default memo(function HTML(props: HTMLProps) {
 		exportFile,
 		exportPdf,
 		exportPpt,
+		exportPptx,
 		isExporting,
 		selectedProject,
 		selectedTopic,
@@ -232,7 +234,7 @@ export default memo(function HTML(props: HTMLProps) {
 	}, [htmlFileData])
 
 	/** 处理代码预览模式 */
-	useEffect(() => {
+	useUpdateEffect(() => {
 		if (viewMode === "code") {
 			const newData = {
 				...displayData,
@@ -242,7 +244,7 @@ export default memo(function HTML(props: HTMLProps) {
 		} else {
 			updateDataContent(htmlFileData)
 		}
-	}, [viewMode, htmlFileData, displayData, updateDataContent])
+	}, [viewMode])
 
 	// IsolatedHTMLRenderer 的 ref，用于获取拦截回调函数
 	const htmlRendererRef = useRef<IsolatedHTMLRendererRef>(null)
@@ -488,6 +490,10 @@ export default memo(function HTML(props: HTMLProps) {
 		exportPpt?.(displayData?.file_id)
 	})
 
+	const handleExportPptx = useMemoizedFn(() => {
+		exportPptx?.(displayData?.file_id)
+	})
+
 	const relative_file_path = useMemo(() => {
 		const path = attachmentList?.find(
 			(item: any) => item.file_id === displayData?.file_id,
@@ -606,6 +612,7 @@ export default memo(function HTML(props: HTMLProps) {
 							handleExportSource={handleExportSource}
 							handleExportPDF={handleExportPDF}
 							handleExportPPT={handleExportPPT}
+							handleExportPptx={handleExportPptx}
 							isExporting={isExporting}
 							supportPPT={isInPPTMode}
 							showButtonText={context.showButtonText}

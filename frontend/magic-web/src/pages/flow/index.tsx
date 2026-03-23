@@ -63,6 +63,7 @@ import { RouteName } from "@/routes/constants"
 import FlowProvider from "@/providers/FlowProvider"
 import { botStore } from "@/stores/bot"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { FlowApi } from "@/apis"
 
 export type BaseFlowProps = {
 	extraData?: {
@@ -199,7 +200,8 @@ function BaseFlow({
 		setIsTesting(true)
 		const shadowedFlow = shadowFlow(flow)
 		try {
-			const res = await service.get<FlowService>("flowService").testFlow({
+			// @ts-ignore
+			const res = await FlowApi.testFlow({
 				...shadowedFlow,
 				trigger_config: triggerConfig,
 			})
@@ -420,9 +422,9 @@ function BaseFlow({
 			defaultImage: DefaultImage,
 			editEvent: isAgent
 				? () => {
-					// TODO2 Agent 处理剩余编辑基础信息的相关接口调用和回显处理
-					openAddAgentModal()
-				}
+						// TODO2 Agent 处理剩余编辑基础信息的相关接口调用和回显处理
+						openAddAgentModal()
+					}
 				: null,
 			customTags,
 		}

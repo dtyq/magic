@@ -4,10 +4,7 @@ import { Box, ChevronRight, MoreHorizontal, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import projectStore from "@/pages/superMagic/stores/core/project"
-import type {
-	ProjectListItem,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import ProjectItemMobile from "./ProjectItemMobile"
 
 interface WorkspaceItemMobileProps {

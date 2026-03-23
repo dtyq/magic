@@ -32,14 +32,15 @@ import type { StepComponentProps, Step2FormData } from "../types"
 import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
-	provider_code: z.string().min(1, "请选择服务商"),
+	provider_code: z.string().optional(),
 	model_version: z.string().optional(),
 	service_provider_config: z
 		.object({
-			url: z.string().min(1, "请输入API URL").url("请输入正确的URL"),
-			api_key: z.string().min(1, "请输入API Key"),
+			url: z.string().optional(),
+			api_key: z.string().optional(),
 		})
-		.catchall(z.string()),
+		.catchall(z.string().optional())
+		.optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -50,6 +51,7 @@ interface Provider {
 }
 
 const PROVIDERS: Provider[] = [
+	{ value: "OpenAI", icon: <Settings className="h-5 w-5" /> },
 	{ value: "MicrosoftAzure", icon: <Cloud className="h-5 w-5" /> },
 	{ value: "Gemini", icon: <Sparkles className="h-5 w-5" /> },
 	{ value: "AWSBedrock", icon: <Boxes className="h-5 w-5" /> },
@@ -57,8 +59,9 @@ const PROVIDERS: Provider[] = [
 	{ value: "DashScope", icon: <CloudCog className="h-5 w-5" /> },
 	{ value: "Volcengine", icon: <Flame className="h-5 w-5" /> },
 	{ value: "DeepSeek", icon: <Search className="h-5 w-5" /> },
-	{ value: "OpenAI", icon: <Settings className="h-5 w-5" /> },
 ]
+
+const DEFAULT_PROVIDER = "OpenAI"
 
 export default function Step2Provider({
 	initialData,
@@ -75,7 +78,7 @@ export default function Step2Provider({
 	const form = useForm<FormValues>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			provider_code: initialData?.provider_code || "MicrosoftAzure",
+			provider_code: initialData?.provider_code || DEFAULT_PROVIDER,
 			model_version: initialData?.model_version || "",
 			service_provider_config: {
 				url: initialData?.service_provider_config?.url || "",
@@ -143,10 +146,7 @@ export default function Step2Provider({
 						name="provider_code"
 						render={({ field }) => (
 							<FormItem>
-								<FormLabel>
-									{t("step2.provider")}{" "}
-									<span className="text-destructive">*</span>
-								</FormLabel>
+								<FormLabel>{t("step2.provider")}</FormLabel>
 								<FormControl>
 									<div className="grid grid-cols-4 gap-3">
 										{PROVIDERS.map((provider) => (
@@ -183,9 +183,7 @@ export default function Step2Provider({
 							name="service_provider_config.url"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										API URL <span className="text-destructive">*</span>
-									</FormLabel>
+									<FormLabel>API URL</FormLabel>
 									<FormControl>
 										<Input
 											placeholder="https://api.example.com/v1"
@@ -204,9 +202,7 @@ export default function Step2Provider({
 							name="service_provider_config.api_key"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>
-										API Key <span className="text-destructive">*</span>
-									</FormLabel>
+									<FormLabel>API Key</FormLabel>
 									<FormControl>
 										<div className="relative">
 											<Input
@@ -233,7 +229,7 @@ export default function Step2Provider({
 							)}
 						/>
 
-						{/* Deployment Name (optional) */}
+						{/* Deployment Name */}
 						<FormField
 							control={form.control}
 							name="model_version"
@@ -261,10 +257,7 @@ export default function Step2Provider({
 								name="service_provider_config.api_version"
 								render={({ field }) => (
 									<FormItem>
-										<FormLabel>
-											{t("step2.azureApiVersion")}{" "}
-											<span className="text-destructive">*</span>
-										</FormLabel>
+										<FormLabel>{t("step2.azureApiVersion")}</FormLabel>
 										<FormControl>
 											<Input
 												placeholder={t("step2.azureApiVersionPlaceholder")}
@@ -288,10 +281,7 @@ export default function Step2Provider({
 									name="service_provider_config.ak"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>
-												{t("step2.awsAccessKey")}{" "}
-												<span className="text-destructive">*</span>
-											</FormLabel>
+											<FormLabel>{t("step2.awsAccessKey")}</FormLabel>
 											<FormControl>
 												<div className="relative">
 													<Input
@@ -323,10 +313,7 @@ export default function Step2Provider({
 									name="service_provider_config.sk"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>
-												{t("step2.awsSecretKey")}{" "}
-												<span className="text-destructive">*</span>
-											</FormLabel>
+											<FormLabel>{t("step2.awsSecretKey")}</FormLabel>
 											<FormControl>
 												<div className="relative">
 													<Input
@@ -358,10 +345,7 @@ export default function Step2Provider({
 									name="service_provider_config.region"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>
-												{t("step2.awsRegion")}{" "}
-												<span className="text-destructive">*</span>
-											</FormLabel>
+											<FormLabel>{t("step2.awsRegion")}</FormLabel>
 											<FormControl>
 												<Input
 													placeholder={t("step2.awsRegionPlaceholder")}

@@ -69,7 +69,7 @@
 	"meta": {
 		"description": "",
 		"keywords": "",
-		"title": "超级麦吉 - 灯塔引擎新一代企业级 AI 应用创新引擎"
+		"title": "超级麦吉 - 首个开源企业级 AI Agent 平台"
 	},
 	"platform": {
 		"name": ""
@@ -90,7 +90,7 @@
 		"contactsMyFriends": "通讯录/我的朋友",
 		"contactsMyGroups": "通讯录/我的群组",
 		"contactsOrganization": "通讯录/组织架构",
-		"default": "超级麦吉 - 灯塔引擎新一代企业级 AI 应用创新引擎",
+		"default": "超级麦吉 - 首个开源企业级 AI Agent 平台",
 		"explore": "AI助理",
 		"global": "超级麦吉",
 		"invite": "邀请码填写",

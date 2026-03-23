@@ -174,7 +174,7 @@ const MenuItem = memo((props: MenuItemProps) => {
 			(item.hasChildren || item.type === MentionItemType.FOLDER)
 		) {
 			return (
-				<Button variant="ghost" size="icon" className="size-4">
+				<Button variant="ghost" size="icon" className="size-4" data-right-arrow>
 					<ChevronRight />
 				</Button>
 			)
@@ -239,10 +239,10 @@ const MenuItem = memo((props: MenuItemProps) => {
 				...style,
 				...(item.unSelectable
 					? {
-						opacity: 0.5,
-						cursor: "not-allowed",
-						pointerEvents: "none" as const,
-					}
+							opacity: 0.5,
+							cursor: "not-allowed",
+							pointerEvents: "none" as const,
+						}
 					: {}),
 			}}
 			onClick={handleClick}

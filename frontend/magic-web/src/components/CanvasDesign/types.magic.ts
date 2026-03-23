@@ -18,9 +18,41 @@ export const ImageModelStatus = {
 } as const
 
 /**
+ * 图片/视频生成状态枚举
+ */
+export type GenerationStatus = "pending" | "processing" | "completed" | "failed"
+
+/**
+ * 图片/视频生成状态枚举值
+ */
+export const GenerationStatus = {
+	/** 待处理 */
+	Pending: "pending",
+	/** 处理中 */
+	Processing: "processing",
+	/** 已完成 */
+	Completed: "completed",
+	/** 失败 */
+	Failed: "failed",
+} as const
+
+/**
  * 生图模型项
  * CanvasDesign 内部定义的类型，用于完全隔离外部依赖
  */
+export interface ImageModelGroupInfo {
+	/** 分组ID */
+	id: string
+	/** 分组名称 */
+	name: string
+	/** 分组图标 */
+	icon?: string
+	/** 分组排序 */
+	sort?: number
+	/** 分组来源 */
+	source?: "official" | "custom"
+}
+
 export interface ImageModelItem {
 	/** 模型ID */
 	id: string
@@ -40,6 +72,10 @@ export interface ImageModelItem {
 	model_status: ImageModelStatus
 	/** 排序 */
 	sort: number
+	/** 模型来源 */
+	model_source?: "official" | "custom"
+	/** 模型分组信息 */
+	model_group?: ImageModelGroupInfo
 	/** 图片尺寸配置 */
 	image_size_config?: {
 		/** 最大参考图数量 */
@@ -98,7 +134,7 @@ export interface GenerateImageResponse {
 	/** 参考图 */
 	reference_images: string[]
 	/** 状态 */
-	status: string
+	status: GenerationStatus
 	/** 错误信息 */
 	error_message: string | null
 	/** 创建时间 */
@@ -131,6 +167,24 @@ export interface GenerateHightImageRequest {
  * 发起高清图片生成响应数据
  */
 export interface GenerateHightImageResponse extends GenerateImageResponse {}
+
+/**
+ * 发起视频生成请求参数
+ */
+export interface GenerateVideoRequest {
+	/** 项目 id */
+	project_id?: string
+	/** 视频 id */
+	video_id?: string
+}
+
+/**
+ * 发起视频生成响应数据
+ */
+export interface GenerateVideoResponse {
+	/** 状态 */
+	status: GenerationStatus
+}
 
 /**
  * 获取高清图片生成配置响应数据
@@ -181,8 +235,8 @@ export interface ImageGenerationResultResponse {
 	file_name: string
 	/** 参考图 */
 	reference_images: string[]
-	/** 状态：pending 待处理，processing 处理中，completed 已完成，failed 失败 */
-	status: "pending" | "processing" | "completed" | "failed"
+	/** 状态 */
+	status: GenerationStatus
 	/** 错误信息 */
 	error_message: string | null
 	/** 创建时间 */

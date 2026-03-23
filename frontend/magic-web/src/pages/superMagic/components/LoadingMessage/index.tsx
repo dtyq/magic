@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react"
-import LoadingSvg from "@/assets/resources/stream-loading-2.png"
-import { useStyles } from "./style"
 import { IconHourglassEmpty } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { messageFilter } from "../../utils/handleMessage"
@@ -16,9 +14,17 @@ import topicModelStore from "@/stores/superMagic/topicModelStore"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { SendMessageOptions } from "../MessagePanel/types"
 import { Spinner } from "@/components/shadcn-ui/spinner"
+import { cn } from "@/lib/utils"
 
 const TIMEOUT_THRESHOLD = 60 * 5 // 5分钟
 const MAX_TIMEOUT_THRESHOLD = 60 * 60 // 60分钟
+
+const loadingMessageTextClass = cn(
+	"relative bg-[length:200%_100%] bg-clip-text text-sm font-normal leading-5 tracking-[0.25px] text-transparent",
+	"animate-[skeleton-loading_1.2s_linear_infinite]",
+	"bg-[linear-gradient(90deg,#B5B5B5_35%,#060607_50%,#B5B5B5_65%)]",
+	"dark:bg-[linear-gradient(90deg,rgba(181,181,181,0.7)_35%,rgba(255,255,255,0.95)_50%,rgba(181,181,181,0.7)_65%)]",
+)
 
 interface LoadingMessageProps {
 	messages?: Array<any>
@@ -34,7 +40,6 @@ export default function LoadingMessage({
 	style,
 	selectedTopic,
 }: LoadingMessageProps) {
-	const { styles } = useStyles()
 	const [elapsedTime, setElapsedTime] = useState(0)
 	const [hasTriggeredScroll, setHasTriggeredScroll] = useState(false)
 	const [lastMessageKey, setLastMessageKey] = useState<string>("")
@@ -218,11 +223,10 @@ export default function LoadingMessage({
 
 	return (
 		<>
-			<span className={styles.loadingMessage} style={style}>
-				{/* <img src={LoadingSvg} alt="" className={styles.loadingMessageIcon} /> */}
+			<span className="ml-1 mt-5 inline-flex items-center gap-1" style={style}>
 				<Spinner className="animate-spin" size={16} />
-				<span className={styles.loadingMessageText}>{t("ui.thinking")}</span>
-				<span className={styles.timer}>
+				<span className={loadingMessageTextClass}>{t("ui.thinking")}</span>
+				<span className="ml-1 flex h-12 items-center gap-px text-xs font-normal leading-5 tracking-[0.25px] text-foreground/35">
 					<IconHourglassEmpty size={16} />
 					{formatTime(elapsedTime)}
 				</span>

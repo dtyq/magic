@@ -58,7 +58,7 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 
 	const handleDropdownOpenChange = useCallback(
 		(open: boolean) => {
-			if (open && (isInMessageList || !actualMarkerData)) {
+			if (open && (loading || isInMessageList || !actualMarkerData)) {
 				return
 			}
 
@@ -67,7 +67,7 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 				setPreviewOpen(false)
 			}
 		},
-		[actualMarkerData, isInMessageList],
+		[actualMarkerData, isInMessageList, loading],
 	)
 
 	const handleClickCapture = useCallback(
@@ -75,7 +75,7 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 			const isRemoveClick = !!(event.target as HTMLElement).closest(
 				'[data-marker-remove="true"]',
 			)
-			if (isInMessageList || !actualMarkerData) {
+			if (loading || isInMessageList || !actualMarkerData) {
 				return
 			}
 
@@ -86,17 +86,17 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 			setDropdownOpen(true)
 			setPreviewOpen(false)
 		},
-		[actualMarkerData, isInMessageList],
+		[actualMarkerData, isInMessageList, loading],
 	)
 
 	const handleClick = useCallback(() => {
-		if (isInMessageList || !actualMarkerData) {
+		if (loading || isInMessageList || !actualMarkerData) {
 			return
 		}
 
 		setDropdownOpen(true)
 		setPreviewOpen(false)
-	}, [actualMarkerData, isInMessageList])
+	}, [actualMarkerData, isInMessageList, loading])
 
 	const handleCustomLabelChange = useCallback(
 		(label: string) => {
@@ -240,6 +240,13 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 		}
 	}, [parentPopoverOpen])
 
+	useUpdateEffect(() => {
+		if (!loading) return
+
+		setPreviewOpen(false)
+		setDropdownOpen(false)
+	}, [loading])
+
 	useEffect(() => {
 		if (!dropdownOpen || !triggerRef.current || !dropdownAnchorRef.current) {
 			return
@@ -309,23 +316,23 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 			<Popover open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
 				{typeof document !== "undefined"
 					? createPortal(
-						<PopoverAnchor asChild>
-							<div
-								ref={dropdownAnchorRef}
-								style={{
-									position: "fixed",
-									top: 0,
-									left: 0,
-									width: 0,
-									height: 0,
-									pointerEvents: "none",
-								}}
-							/>
-						</PopoverAnchor>,
-						document.body,
-					)
+							<PopoverAnchor asChild>
+								<div
+									ref={dropdownAnchorRef}
+									style={{
+										position: "fixed",
+										top: 0,
+										left: 0,
+										width: 0,
+										height: 0,
+										pointerEvents: "none",
+									}}
+								/>
+							</PopoverAnchor>,
+							document.body,
+						)
 					: null}
-				{!isInMessageList && !!actualMarkerData && (
+				{!loading && !isInMessageList && !!actualMarkerData && (
 					<MarkerDropdown
 						markerData={actualMarkerData}
 						onSelect={handleSuggestionSelect}

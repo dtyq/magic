@@ -20,6 +20,11 @@ import { SuperMagicApi } from "@/apis"
 import { useDuplicateFileHandler } from "./useDuplicateFileHandler"
 import { useMemoizedFn } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { exportPPTX } from "../../../../../../packages/html2pptx/src"
+import {
+	prepareExportSlides,
+	prepareSingleSlideExport,
+} from "@/pages/superMagic/services/pptService"
 
 // 工具函数：从attachments中递归删除指定ID的文件/文件夹
 const removeItemFromAttachments = (
@@ -886,6 +891,100 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		[projectId, t, onPptExportStart, onPptExportProgress, onPptExportEnd],
 	)
 
+	// 导出可编辑PPTX（前端 html2pptx，通过 prepareExportSlides 服务准备数据）
+	const handleDownloadPptx = useCallback(
+		async (item: AttachmentItem, folderChildren?: AttachmentItem[]) => {
+			if (!item.file_id) return
+
+			const toastId = crypto.randomUUID()
+			const metadata = item.metadata as
+				| { name?: string; slides?: string[]; [key: string]: unknown }
+				| undefined
+			const slidePaths: string[] = metadata?.slides ?? []
+			const isSingleFile = !slidePaths.length
+
+			let exportHandle: ReturnType<typeof exportPPTX> | null = null
+			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
+
+			try {
+				magicToast.loading({
+					key: toastId,
+					content: t("topicFiles.exporting"),
+					duration: 0,
+				})
+
+				const result = isSingleFile
+					? await prepareSingleSlideExport({
+							fileId: item.file_id,
+							fileName: item.file_name,
+							attachmentList: attachments ?? [],
+						})
+					: await prepareExportSlides({
+							slidePaths,
+							attachmentList: folderChildren?.length
+								? folderChildren
+								: (attachments ?? []),
+							mainFileId: item.file_id,
+							mainFileName: item.file_name,
+							metadata,
+						})
+
+				if (!result.htmlSlides.some(Boolean)) {
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
+					return
+				}
+
+				exportHandle = exportPPTX(result.htmlSlides, {
+					fileName: result.fileName,
+					skipFailedPages: true,
+					onSlideProgress: ({ index, total }) => {
+						const progress = total > 1 ? ` (${index + 1}/${total})` : ""
+						magicToast.loading({
+							key: toastId,
+							content: `${t("topicFiles.exporting")}${progress}`,
+							duration: 0,
+						})
+					},
+				})
+
+				await exportHandle.promise
+
+				magicToast.success({
+					key: toastId,
+					content: t("topicFiles.exportSuccess"),
+					duration: 1000,
+				})
+			} catch (error: unknown) {
+				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+				if (isAbort) {
+					magicToast.info({
+						key: toastId,
+						content: t("topicFiles.exportCancel"),
+						duration: 1000,
+					})
+				} else {
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
+					console.error("Export editable PPT failed:", error)
+				}
+			} finally {
+				setExportingFiles((prev) => {
+					const newSet = new Set(prev)
+					newSet.delete(item.file_id || "")
+					return newSet
+				})
+			}
+		},
+		[t, attachments],
+	)
+
 	// 文件下载功能 - 支持单个文件或多个文件
 	const handleDownloadFile = useMemoizedFn(
 		async (
@@ -1121,6 +1220,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		handleDownloadOriginal,
 		handleDownloadPdf,
 		handleDownloadPpt,
+		handleDownloadPptx,
 		handleDownloadFile,
 		handleOpenFile,
 		handleMoveFile,

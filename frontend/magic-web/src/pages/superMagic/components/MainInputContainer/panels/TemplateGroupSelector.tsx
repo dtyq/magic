@@ -44,8 +44,8 @@ const TemplateGroupSelector = observer(
 					const iconNode = renderGroupIcon
 						? renderGroupIcon(group)
 						: group.group_icon && (
-							<GroupIcon icon={group.group_icon} className="size-4 shrink-0" />
-						)
+								<GroupIcon icon={group.group_icon} className="size-4 shrink-0" />
+							)
 
 					// if the group has no children, don't render the button
 					if (group.children?.length === 0) {
@@ -58,7 +58,7 @@ const TemplateGroupSelector = observer(
 							variant={isSelected ? "outline" : "secondary"}
 							size="default"
 							className={cn(
-								"shadow-xs h-9 shrink-0 gap-2 rounded-full border-2 border-transparent px-4 py-2 font-normal",
+								"h-9 shrink-0 gap-2 rounded-full border-2 border-transparent px-4 py-2 font-normal shadow-xs",
 								isSelected && "border-primary bg-background text-primary",
 							)}
 							data-testid={`${dataTestId}-option-${group.group_key}`}

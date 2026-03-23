@@ -21,11 +21,8 @@ const formSchema = z
 	.object({
 		name: z.string().min(1, "请输入Agent名称"),
 		description: z.string().optional(),
-		phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入正确的手机号"),
-		password: z
-			.string()
-			.min(8, "密码至少需要8位")
-			.regex(/(?=.*[A-Za-z])(?=.*\d)/, "密码必须包含字母和数字"),
+		phone: z.string().min(1, "请输入手机号"),
+		password: z.string().min(1, "请输入密码"),
 		confirm_password: z.string(),
 	})
 	.refine((data) => data.password === data.confirm_password, {
