@@ -212,12 +212,6 @@
 			"optional": true
 		}
 	},
-	"pnpm": {
-		"overrides": {
-			"stylelint-config-recommended-less": "^2.0.0",
-			"stylelint-less": "^2.0.0"
-		}
-	},
 	"packageManager": "pnpm@9.0.0",
 	"engines": {
 		"node": ">=20.0.0",
@@ -225,5 +219,11 @@
 	},
 	"publishConfig": {
 		"access": "public"
+	},
+	"pnpm": {
+		"overrides": {
+			"stylelint-config-recommended-less": "^2.0.0",
+			"stylelint-less": "^2.0.0"
+		}
 	}
 }

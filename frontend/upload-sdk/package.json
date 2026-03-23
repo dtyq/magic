@@ -1,17 +1,25 @@
 {
 	"name": "@dtyq/upload-sdk",
 	"version": "0.0.6",
-	"description": "",
-	"keywords": [],
+	"description": "Browser upload SDK for multipart file uploads across cloud object storage providers.",
+	"keywords": [
+		"upload",
+		"sdk",
+		"multipart-upload",
+		"object-storage",
+		"browser"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/upload-sdk#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/dtyq/upload-sdk"
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/upload-sdk"
 	},
-	"license": "Apache License 2.0",
+	"license": "Apache-2.0",
 	"type": "module",
-	"main": "dist/lib/index.js",
-	"module": "dist/es/index.js",
-	"typings": "dist/es/index.d.ts",
 	"exports": {
 		".": {
 			"import": {
@@ -24,6 +32,9 @@
 			}
 		}
 	},
+	"main": "dist/lib/index.js",
+	"module": "dist/es/index.js",
+	"typings": "dist/es/index.d.ts",
 	"files": [
 		"dist",
 		"README.md",
@@ -36,8 +47,8 @@
 		"lint": "eslint ./src --ext ts,tsx",
 		"lint:fix": "eslint ./src --ext ts,tsx --fix && prettier --write ./src/**/*.ts",
 		"test": "vitest run",
-		"test:watch": "vitest",
-		"test:ui": "vitest --ui"
+		"test:ui": "vitest --ui",
+		"test:watch": "vitest"
 	},
 	"lint-staged": {
 		"./src/**/*.{ts,tsx}": [
@@ -46,6 +57,11 @@
 			"git add"
 		]
 	},
+	"browserslist": [
+		"defaults",
+		"not IE 11",
+		"maintained node versions"
+	],
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.911.0",
 		"@babel/runtime": "^7.22.10",
@@ -105,11 +121,6 @@
 	"engines": {
 		"node": ">=18.0.0"
 	},
-	"browserslist": [
-		"defaults",
-		"not IE 11",
-		"maintained node versions"
-	],
 	"publishConfig": {
 		"access": "public"
 	}

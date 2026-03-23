@@ -2,6 +2,27 @@
 	"name": "magic-web",
 	"version": "3.0.0",
 	"private": true,
+	"description": "Main Magic web application built with React and Vite for enterprise and open-source editions.",
+	"keywords": [
+		"react",
+		"vite",
+		"web-application",
+		"enterprise",
+		"typescript",
+		"ai",
+		"agent",
+		"super-magic"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/magic-web#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/magic-web"
+	},
+	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
 		"build": "pnpm build:enterprise",

@@ -1,12 +1,24 @@
 {
 	"name": "@dtyq/magic-flow",
 	"version": "0.0.11",
-	"description": "An expression component that allows you to set user-defined content, block content, and function blocks",
+	"description": "React flow builder component library for expression editing and function block orchestration.",
+	"keywords": [
+		"react",
+		"flow-builder",
+		"expression-editor",
+		"workflow",
+		"component-library"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/magic-flow#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/dtyq/magic-flow"
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/magic-flow"
 	},
-	"license": "Apache License 2.0",
+	"license": "Apache-2.0",
 	"type": "module",
 	"module": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -54,6 +66,7 @@
 		"@tabler/icons-react": "^3.2.0",
 		"ahooks": "^3.7.8",
 		"antd": "^5.24.4",
+		"antd-style": "^3.6.2",
 		"axios": "^1.7.9",
 		"clsx": "^2.1.1",
 		"dagre": "^0.8.5",
@@ -63,8 +76,8 @@
 		"i18next-resources-to-backend": "^1.2.1",
 		"immer": "^10.1.1",
 		"lodash": "^4.17.21",
-        "mobx": "^6.8.0",
-        "mobx-react": "^7.6.0",
+		"mobx": "^6.8.0",
+		"mobx-react": "^7.6.0",
 		"nanoid": "^5.1.5",
 		"react": "^17.0.2",
 		"react-dom": "^17.0.2",
@@ -78,8 +91,7 @@
 		"snowflake-id": "^1.1.0",
 		"styled-components": "^5.3.11",
 		"swr": "^2.2.5",
-		"zustand": "^4.5.2",
-		"antd-style": "^3.6.2"
+		"zustand": "^4.5.2"
 	},
 	"devDependencies": {
 		"@dtyq/eslint-config": "~0.0.10",

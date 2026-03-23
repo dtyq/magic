@@ -1,20 +1,25 @@
 {
 	"name": "@dtyq/eslint-config",
 	"version": "0.0.10",
-	"description": "ESLint 配置包，内置所有依赖",
+	"description": "Shared ESLint and formatting configuration package with built-in dependencies.",
 	"keywords": [
 		"eslint",
-		"eslintconfig",
+		"eslint-config",
 		"prettier",
 		"typescript",
 		"react",
 		"vue"
 	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/eslint-config#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/dtyq/eslint-config"
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/eslint-config"
 	},
-	"license": "Apache License 2.0",
+	"license": "Apache-2.0",
 	"exports": {
 		".": {
 			"import": "./dist/es/base/index.mjs",
@@ -119,8 +124,8 @@
 		"vue-eslint-parser": "^9.0.3"
 	},
 	"devDependencies": {
-		"tsup": "^8.4.0",
 		"@types/node": "^22.14.0",
+		"tsup": "^8.4.0",
 		"typescript": "^5.4.5"
 	},
 	"peerDependencies": {
