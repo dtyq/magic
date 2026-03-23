@@ -7,7 +7,7 @@
 
 <div align="center">
   <p align="center">
-    <a href="https://www.letsmagic.ai" target="_blank">
+    <a href="https://www.magicrew.ai" target="_blank">
       <img alt="Static Badge" src="https://img.shields.io/badge/Official Website-301AD2">
     </a>
     <a href="https://github.com/dtyq/magic/releases">
@@ -22,7 +22,7 @@
     <a href="https://github.com/dtyq/magic/discussions/" target="_blank">
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
-    <a href="https://www.letsmagic.ai" target="_blank">
+    <a href="https://www.magicrew.ai" target="_blank">
       <img alt="Static Badge" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
     </a>
   </p>
@@ -30,7 +30,7 @@
 
 <br/>
 
-![MagiCrew](https://public-cdn.letsmagic.ai/static/img/3.0/magicrew-publish-head.png)
+![MagiCrew](https://public-cdn.magicrew.ai/static/img/3.0/magicrew-publish-head.png)
 
 [🦞 OpenClaw](https://github.com/openclaw/openclaw) is a great personal AI assistant — connecting all major IMs as conversation channels, supporting any LLM, running autonomously 24/7.
 
@@ -73,16 +73,16 @@ Centralized platform to manage AI across the entire org, eliminating data leakag
 
 Deeply encapsulate fragmented internal systems (ERP / CRM / databases) and domain expertise into **digital employees accessible to everyone**. Break down silos and turn scattered API calls into reusable core digital assets at scale.
 
-![digital-employee-market](https://public-cdn.letsmagic.ai/static/img/3.0/digital-employee-market.png)
+![digital-employee-market](https://public-cdn.magicrew.ai/static/img/3.0/digital-employee-market.png)
 
 ### 2. Results as Deliverables
 
 No more stopping at "Chat." The built-in rendering framework transforms AI output directly into finished artifacts — **PPTs, data dashboards, meeting summaries, professional reports, Excel files, infinite canvases (image creation)** — ready to use, no post-processing required.
 
-![openclaw-enterprise-research-report](https://public-cdn.letsmagic.ai/static/img/3.0/openclaw-enterprise-research-report.png)
-![solution-ppt-demo](https://public-cdn.letsmagic.ai/static/img/3.0/solution-ppt-demo.png)
-![earnings-call-analysis](https://public-cdn.letsmagic.ai/static/img/3.0/earnings-call-analysis.png)
-![canvas-poster-design](https://public-cdn.letsmagic.ai/static/img/3.0/canvas-poster-design.png)
+![openclaw-enterprise-research-report](https://public-cdn.magicrew.ai/static/img/3.0/openclaw-enterprise-research-report.png)
+![solution-ppt-demo](https://public-cdn.magicrew.ai/static/img/3.0/solution-ppt-demo.png)
+![earnings-call-analysis](https://public-cdn.magicrew.ai/static/img/3.0/earnings-call-analysis.png)
+![canvas-poster-design](https://public-cdn.magicrew.ai/static/img/3.0/canvas-poster-design.png)
 
 ### 3. Enterprise Security & Compliance
 
@@ -104,7 +104,7 @@ Multiple people share a single project, each owning different modules, advancing
 
 Fully compatible with the **[Anthropic Skills](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview) ecosystem** and the **[OpenClaw Skills](https://github.com/openclaw/openclaw) ecosystem**. Existing tools and skills plug right in — zero migration cost to enterprise-grade.
 
-![skill-creator](https://public-cdn.letsmagic.ai/static/img/3.0/skill-creator.png)
+![skill-creator](https://public-cdn.magicrew.ai/static/img/3.0/skill-creator.png)
 
 ---
 
@@ -173,7 +173,7 @@ The deployment toolchain is being finalized and will be open-sourced shortly. St
 Prefer not to self-host? Use the cloud version — sign up and go, zero configuration:
 
 - **China**: [Magic](https://www.letsmagic.cn)
-- **International**: [MagiCrew](https://www.letsmagic.ai)
+- **International**: [MagiCrew](https://www.magicrew.ai)
 
 ### Enterprise Edition
 
