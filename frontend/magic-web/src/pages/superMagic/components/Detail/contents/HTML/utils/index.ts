@@ -368,6 +368,9 @@ export function getContentTypeFromExtension(filePath: string): string {
 }
 
 export const handleHtCdnUrl = (content: string) => {
+	if (!env("MAGIC_CDNHOST")) {
+		return content
+	}
 	/** 替换的静态资源包映射 */
 	const packages = {
 		tailwindcss: {

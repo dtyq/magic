@@ -6,11 +6,9 @@ import { env } from "@/utils/env"
 /** Configure Monaco loader to load from CDN for better performance */
 loader.config({
 	paths: {
-		vs: `${env("MAGIC_CDNHOST")}/monaco-editor/0.52.2/min/vs`,
-		// vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs",
-		// vs: iSOverseas()
-		// 	? "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs"
-		// 	: "https://cdn.bootcdn.net/ajax/libs/monaco-editor/0.52.2/min/vs",
+		vs: env("MAGIC_CDNHOST")
+			? `${env("MAGIC_CDNHOST")}/monaco-editor/0.52.2/min/vs`
+			: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs",
 	},
 })
 

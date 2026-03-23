@@ -93,6 +93,7 @@ export function useScheduleTask({ options, isScroll = false, siderTaskRef }: Use
 	const onTaskDelete = useMemoizedFn(async (task: ScheduledTask.Task) => {
 		const { default: DeleteDangerModal } =
 			await import("@/components/business/DeleteDangerModal")
+
 		openModal(DeleteDangerModal, {
 			content: task.task_name,
 			onSubmit: () => {

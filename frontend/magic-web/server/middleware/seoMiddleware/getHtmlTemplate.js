@@ -4,7 +4,9 @@ const path = require("node:path")
 const { rootPath, CDNUrl, behaviorAnalysis } = require("../../config")
 const { userBehaviorAnalysisParser } = require("../../helper")
 
-const hasLoginPopupTemplate = fs.existsSync(path.join(rootPath, "../dist/login-popup-callback.html"))
+const hasLoginPopupTemplate = fs.existsSync(
+	path.join(rootPath, "../dist/login-popup-callback.html"),
+)
 
 /** @type {Map<string, string>} key → 已注入 CDN 的 HTML 字符串 */
 const templateCache = new Map()
@@ -17,9 +19,14 @@ const templateCache = new Map()
  * @returns {string}
  */
 function buildCdnScriptTags({ includeRegisterSW = true } = {}) {
-	let tags = `<script src="${CDNUrl}/react/18.3.1/react.production.min.js" crossorigin="anonymous"></script>
+	let tags = CDNUrl
+		? `<script src="${CDNUrl}/react/18.3.1/react.production.min.js" crossorigin="anonymous"></script>
 	<script src="${CDNUrl}/react-dom/18.3.1/react-dom.production.min.js" crossorigin="anonymous"></script>
 	<script src="${CDNUrl}/lodash/4.17.21/lodash.min.js" crossorigin="anonymous"></script>`
+		: `<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js" crossorigin="anonymous"></script>
+	`
 
 	if (Array.isArray(behaviorAnalysis)) {
 		behaviorAnalysis.forEach((o) => {

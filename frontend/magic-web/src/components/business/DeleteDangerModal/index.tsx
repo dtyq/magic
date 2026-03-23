@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 import { useBoolean, useMemoizedFn } from "ahooks"
 import type { OpenableProps } from "@/utils/react"
 import { AlertTriangle } from "lucide-react"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import {
 	Dialog,
@@ -54,15 +54,10 @@ function DeleteDangerModal({
 	okText,
 	onSubmit,
 	onClose,
-	rootDom,
 	className,
 }: OpenableProps<DeleteDangerModalProps>) {
 	const { t } = useTranslation("interface")
 	const isMobile = useIsMobile()
-	const instanceIdRef = useRef(`ddm_${Math.random().toString(36).slice(2, 8)}`)
-	const renderCountRef = useRef(0)
-	const contentRef = useRef<HTMLDivElement | null>(null)
-	const shouldAnimateOnOpenRef = useRef(rootDom?.dataset.deleteDangerModalAnimated !== "1")
 
 	const [open, { setFalse }] = useBoolean(true)
 	const [focus, { setTrue: openFocus, setFalse: closeFocus }] = useBoolean(false)
@@ -97,148 +92,6 @@ function DeleteDangerModal({
 
 	// 按钮变体
 	const buttonVariant = dangerLevel === DangerLevel.Danger ? "destructive" : "default"
-	const shouldAnimateOnOpen = shouldAnimateOnOpenRef.current
-	const suppressedOpenAnimationStyle = shouldAnimateOnOpen
-		? undefined
-		: ({
-				animation: "none",
-				transition: "none",
-			} as React.CSSProperties)
-
-	renderCountRef.current += 1
-
-	useLayoutEffect(() => {
-		if (!rootDom) return
-		rootDom.dataset.deleteDangerModalAnimated = "1"
-	}, [rootDom])
-
-	useEffect(() => {
-		// #region agent log
-		fetch("http://127.0.0.1:7736/ingest/dc6ac4c1-752d-4001-85df-29a79169fbf3", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "584cae",
-			},
-			body: JSON.stringify({
-				sessionId: "584cae",
-				runId: "pre-fix",
-				hypothesisId: "H2",
-				location: "src/components/business/DeleteDangerModal/index.tsx:99",
-				message: "DeleteDangerModal mounted",
-				data: {
-					instanceId: instanceIdRef.current,
-					needConfirm,
-					showDeleteText,
-					dangerLevel,
-					titleProvided: !!title,
-					shouldAnimateOnOpen,
-					rootAnimatedMarker: rootDom?.dataset.deleteDangerModalAnimated ?? null,
-				},
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {})
-		// #endregion
-
-		return () => {
-			// #region agent log
-			fetch("http://127.0.0.1:7736/ingest/dc6ac4c1-752d-4001-85df-29a79169fbf3", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"X-Debug-Session-Id": "584cae",
-				},
-				body: JSON.stringify({
-					sessionId: "584cae",
-					runId: "pre-fix",
-					hypothesisId: "H2",
-					location: "src/components/business/DeleteDangerModal/index.tsx:120",
-					message: "DeleteDangerModal unmounted",
-					data: {
-						instanceId: instanceIdRef.current,
-						renderCount: renderCountRef.current,
-					},
-					timestamp: Date.now(),
-				}),
-			}).catch(() => {})
-			// #endregion
-		}
-	}, [dangerLevel, needConfirm, showDeleteText, title])
-
-	useEffect(() => {
-		const element = contentRef.current
-
-		// #region agent log
-		fetch("http://127.0.0.1:7736/ingest/dc6ac4c1-752d-4001-85df-29a79169fbf3", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "584cae",
-			},
-			body: JSON.stringify({
-				sessionId: "584cae",
-				runId: "pre-fix",
-				hypothesisId: "H1,H4",
-				location: "src/components/business/DeleteDangerModal/index.tsx:143",
-				message: "DeleteDangerModal committed state",
-				data: {
-					instanceId: instanceIdRef.current,
-					renderCount: renderCountRef.current,
-					open,
-					isMobile,
-					effectiveSize,
-					widthClass,
-					focus,
-					loading,
-					shouldAnimateOnOpen,
-					rootAnimatedMarker: rootDom?.dataset.deleteDangerModalAnimated ?? null,
-					contentWidth: element?.offsetWidth ?? null,
-					contentClassName: element?.className ?? null,
-				},
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {})
-		// #endregion
-	}, [effectiveSize, focus, isMobile, loading, open, widthClass])
-
-	const handleAnimationStart = useMemoizedFn((event: React.AnimationEvent<HTMLDivElement>) => {
-		if (event.target !== event.currentTarget) return
-
-		// #region agent log
-		fetch("http://127.0.0.1:7736/ingest/dc6ac4c1-752d-4001-85df-29a79169fbf3", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "584cae",
-			},
-			body: JSON.stringify({
-				sessionId: "584cae",
-				runId: "pre-fix",
-				hypothesisId: "H3,H4",
-				location: "src/components/business/DeleteDangerModal/index.tsx:169",
-				message: "DeleteDangerModal content animationstart",
-				data: {
-					instanceId: instanceIdRef.current,
-					renderCount: renderCountRef.current,
-					animationName: event.animationName,
-					open,
-					isMobile,
-					effectiveSize,
-					widthClass,
-					shouldAnimateOnOpen,
-					rootAnimatedMarker: rootDom?.dataset.deleteDangerModalAnimated ?? null,
-					contentWidth: event.currentTarget.offsetWidth,
-					contentClassName: event.currentTarget.className,
-					computedAnimationName: window.getComputedStyle(event.currentTarget).animationName,
-					computedAnimationDuration:
-						window.getComputedStyle(event.currentTarget).animationDuration,
-					suppressionMode: shouldAnimateOnOpen ? "normal" : "inline-style",
-				},
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {})
-		// #endregion
-	})
 
 	// Icon 容器（使用 JSX 变量避免内部函数组件导致的重渲染卸载问题）
 	const iconContainer = (
@@ -342,11 +195,7 @@ function DeleteDangerModal({
 	return (
 		<Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
 			<DialogContent
-				ref={contentRef}
 				className={cn("z-dialog gap-0 p-0", widthClass, className)}
-				style={suppressedOpenAnimationStyle}
-				overlayStyle={suppressedOpenAnimationStyle}
-				onAnimationStart={handleAnimationStart}
 				data-testid="delete-danger-modal"
 			>
 				{/* Header Section */}

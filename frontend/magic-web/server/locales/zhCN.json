@@ -27,5 +27,64 @@
 		"docs": "云文档",
 		"pivotTable": "多维表格",
 		"document": "文档"
+	},
+	"admin": {
+		"routes": {
+			"admin": "管理后台",
+			"home": "管理后台"
+		},
+		"noAuth": {
+			"title": "未授权访问"
+		},
+		"capability": {
+			"approvalDesign": "审批设计"
+		},
+		"nav": {
+			"ai": "AI 管理",
+			"application": "应用管理",
+			"capability": "功能管理",
+			"enterprise": "企业管理",
+			"platform": "平台管理",
+			"security": "安全管控",
+			"aiSubMenu": {
+				"controlStrategy": "管控策略",
+				"intelligentDrawing": "智能绘图管理",
+				"modelManagement": "大模型管理",
+				"powerManagement": "能力管理"
+			},
+			"capabilitySubMenu": {
+				"oaApproval": "OA 审批",
+				"oaApprovalDataView": "数据查看",
+				"oaApprovalLimitedTime": "限时审批",
+				"oaApprovalManagement": "审批管理",
+				"oaApprovalTemplateHandover": "审批模板交接",
+				"oaApprovalWorkflowHandover": "流程交接"
+			},
+			"enterpriseSubMenu": {
+				"memberAndDepartment": "成员与部门",
+				"organization": "组织架构",
+				"userGroup": "用户组"
+			},
+			"platformSubMenu": {
+				"audit": "AI 内容审查",
+				"infoManagement": "维护信息管理",
+				"modeManagement": "模式管理",
+				"orderManagement": "订单管理",
+				"organizationList": "组织列表",
+				"organizationManagement": "组织管理",
+				"organizationPoints": "组织积分",
+				"packageDetail": "套餐详情",
+				"packageManagement": "套餐管理",
+				"paidPackage": "付费套餐",
+				"platformInfo": "平台信息",
+				"proxyServer": "代理服务器",
+				"system": "系统设置"
+			},
+			"securitySubMenu": {
+				"adminAuthority": "管理员权限",
+				"adminLog": "管理员操作日志",
+				"authorityControl": "权限管控"
+			}
+		}
 	}
 }

@@ -6,7 +6,7 @@ const path = require("node:path")
 module.exports.baseUrl = "http://magic-service:9501"
 
 /** teamshare service(official service) */
-module.exports.teamshareUrl = "http://teamshare-service:9501"
+module.exports.teamshareUrl = "http://teamshare-service.teamshare:9501"
 
 /** keewood service(official service) */
 module.exports.keewoodUrl = "http://keewood-v2-service.teamshare:9501"

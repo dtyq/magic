@@ -94,6 +94,11 @@ export interface FetchInterceptorConfig {
  */
 export function generateFetchInterceptorScript(config: FetchInterceptorConfig = {}): string {
 	const { fileId = "" } = config
+
+	if (!env("MAGIC_CDNHOST")) {
+		return ""
+	}
+
 	const cdnHost = env("MAGIC_CDNHOST")
 
 	// 将 handleHtCdnUrl 函数转换为字符串
@@ -507,7 +512,7 @@ export function createParentMessageHandler(
 					}
 
 					// 发送成功响应，包含 expires_at
-					; (event.source as Window)?.postMessage(
+					;(event.source as Window)?.postMessage(
 						{
 							type: FETCH_MESSAGE_TYPES.RESPONSE,
 							requestId,
@@ -522,7 +527,7 @@ export function createParentMessageHandler(
 			}
 
 			// 发送失败响应
-			; (event.source as Window)?.postMessage(
+			;(event.source as Window)?.postMessage(
 				{
 					type: FETCH_MESSAGE_TYPES.RESPONSE,
 					requestId,
@@ -533,7 +538,7 @@ export function createParentMessageHandler(
 			)
 		} catch (error) {
 			// 发送错误响应
-			; (event.source as Window)?.postMessage(
+			;(event.source as Window)?.postMessage(
 				{
 					type: FETCH_MESSAGE_TYPES.RESPONSE,
 					requestId,
