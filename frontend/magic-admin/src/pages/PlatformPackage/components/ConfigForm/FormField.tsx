@@ -19,6 +19,8 @@ interface FieldConfig {
 	inputType?: "text" | "password" | "textarea"
 	/* 验证规则 */
 	rules?: Rule[]
+	/* 提交前规范化（如 trim） */
+	normalize?: (value: unknown) => unknown
 }
 
 interface FormFieldProps extends FieldConfig {
@@ -34,6 +36,7 @@ function FormField({
 	required = false,
 	inputType = "text",
 	rules = [],
+	normalize,
 	isLeftDesc,
 }: FormFieldProps) {
 	const { t } = useTranslation("admin/ai/model")
@@ -45,15 +48,15 @@ function FormField({
 					required: true,
 					message: isLeftDesc ? `${t("apiKeyPlaceholder")} ${label}` : "",
 				},
-			]
+		  ]
 		: []
 
 	const InputComponent =
 		inputType === "password"
 			? Input.Password
 			: inputType === "textarea"
-				? Input.TextArea
-				: Input
+			? Input.TextArea
+			: Input
 
 	return (
 		<Flex
@@ -70,6 +73,7 @@ function FormField({
 					className={inputType === "textarea" ? styles.textareaFormItem : styles.formItem}
 					name={name}
 					rules={[...defaultRules, ...rules]}
+					normalize={normalize}
 				>
 					<InputComponent placeholder={placeholder} />
 				</Form.Item>

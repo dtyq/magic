@@ -2,26 +2,19 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
 	IconInfoCircle,
-	IconBrandMyOppo,
-	IconListDetails,
-	IconUsers,
-	IconMoneybag,
 	IconTool,
-	IconMessageCheck,
 	IconRobot,
-	IconServerSpark,
 	IconSettingsAi,
 	IconPhotoAi,
 	IconSubtitlesAi,
 	IconMenu2,
+	IconUsers,
 } from "@tabler/icons-react"
 import { useAdminStore } from "@/stores/admin"
 
 import {
-	PLATFORM_PACKAGE_MANAGEMENT,
 	PERMISSION_KEY_MAP,
 	PLATFORM_SYSTEM_SETTING,
-	PLATFORM_ORIENTATION_MANAGEMENT,
 	PLATFORM_MODEL_MANAGEMENT,
 	PLATFORM_AGENT_MANAGEMENT,
 } from "../../const/common"
@@ -34,44 +27,6 @@ function PlatformPackageLayout() {
 	const items = useMemo(() => {
 		if (!isOfficialOrg) return []
 		return [
-			{
-				key: RoutePath.PlatformPaidPackage,
-				label: t("nav.platformSubMenu.platformPackage"),
-				validate: (permissions: string[], isSuperAdmin?: boolean) => {
-					return (
-						isSuperAdmin ||
-						PLATFORM_PACKAGE_MANAGEMENT.some((permission) =>
-							permissions.includes(permission),
-						)
-					)
-				},
-				children: [
-					{
-						key: RoutePath.PlatformPaidPackageManage,
-						label: t("nav.platformSubMenu.packageManagement"),
-						icon: <IconBrandMyOppo size={20} />,
-						validate: (permissions: string[], isSuperAdmin?: boolean) => {
-							return (
-								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_QUERY) ||
-								permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_EDIT)
-							)
-						},
-					},
-					{
-						key: RoutePath.PlatformPaidPackageOrder,
-						label: t("nav.platformSubMenu.orderManagement"),
-						icon: <IconListDetails size={20} />,
-						validate: (permissions: string[], isSuperAdmin?: boolean) => {
-							return (
-								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.ORDER_MANAGEMENT_QUERY) ||
-								permissions.includes(PERMISSION_KEY_MAP.ORDER_MANAGEMENT_EDIT)
-							)
-						},
-					},
-				],
-			},
 			{
 				key: RoutePath.PlatformModel,
 				label: t("nav.platformSubMenu.platformModel"),
@@ -156,46 +111,51 @@ function PlatformPackageLayout() {
 							)
 						},
 					},
-				],
-			},
-			{
-				key: RoutePath.PlatformTenant,
-				label: t("nav.platformSubMenu.platformTenant"),
-				validate: (permissions: string[], isSuperAdmin?: boolean) => {
-					return (
-						isSuperAdmin ||
-						PLATFORM_ORIENTATION_MANAGEMENT.some((permission) =>
-							permissions.includes(permission),
-						)
-					)
-				},
-				children: [
 					{
-						key: RoutePath.PlatformTenantList,
-						label: t("nav.platformSubMenu.tenantList"),
-						icon: <IconUsers size={20} />,
+						key: RoutePath.PlatformAgentSkill,
+						label: t("nav.platformSubMenu.systemSkill"),
+						icon: <IconSettingsAi size={20} />,
 						validate: (permissions: string[], isSuperAdmin?: boolean) => {
 							return (
 								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_LIST_QUERY) ||
-								permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_LIST_EDIT)
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
 							)
 						},
 					},
 					{
-						key: RoutePath.PlatformTenantPoints,
-						label: t("nav.platformSubMenu.tenantPoints"),
-						icon: <IconMoneybag size={20} />,
+						key: RoutePath.PlatformAgentSkillMarket,
+						label: t("nav.platformSubMenu.skillMarket"),
+						icon: <IconSettingsAi size={20} />,
 						validate: (permissions: string[], isSuperAdmin?: boolean) => {
 							return (
 								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_POINTS_LIST) ||
-								permissions.includes(
-									PERMISSION_KEY_MAP.ORIENTATION_POINTS_DETAIL,
-								) ||
-								permissions.includes(
-									PERMISSION_KEY_MAP.ORIENTATION_POINTS_ADD_POINTS,
-								)
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							)
+						},
+					},
+					{
+						key: RoutePath.PlatformAgentEmployeeReview,
+						label: t("nav.platformSubMenu.employeeReview"),
+						icon: <IconUsers size={20} />,
+						validate: (permissions: string[], isSuperAdmin?: boolean) => {
+							return (
+								isSuperAdmin ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							)
+						},
+					},
+					{
+						key: RoutePath.PlatformAgentEmployeeMarket,
+						label: t("nav.platformSubMenu.employeeMarket"),
+						icon: <IconUsers size={20} />,
+						validate: (permissions: string[], isSuperAdmin?: boolean) => {
+							return (
+								isSuperAdmin ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+								permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
 							)
 						},
 					},
@@ -229,40 +189,15 @@ function PlatformPackageLayout() {
 							)
 						},
 					},
-				{
-					key: RoutePath.PlatformAppMenu,
-					label: t("nav.platformSubMenu.applicationMenu"),
-					icon: <IconMenu2 size={20} />,
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_EDIT)
-						)
-					},
-				},
-				{
-					key: RoutePath.PlatformProxyServer,
-						label: t("nav.platformSubMenu.proxyServer"),
-						icon: <IconServerSpark size={20} />,
-						validate: (permissions: string[], isSuperAdmin?: boolean) => {
-							return (
-								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.PROXY_SERVER_QUERY) ||
-								permissions.includes(PERMISSION_KEY_MAP.PROXY_SERVER_EDIT)
-							)
-						},
-					},
 					{
-						key: RoutePath.PlatformAIAudit,
-						label: t("nav.platformSubMenu.audit"),
-						icon: <IconMessageCheck size={20} />,
+						key: RoutePath.PlatformAppMenu,
+						label: t("nav.platformSubMenu.applicationMenu"),
+						icon: <IconMenu2 size={20} />,
 						validate: (permissions: string[], isSuperAdmin?: boolean) => {
 							return (
 								isSuperAdmin ||
-								permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_QUERY) ||
-								permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_DETAIL) ||
-								permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_MARK_RISK)
+								permissions.includes(PERMISSION_KEY_MAP.APP_MENU_QUERY) ||
+								permissions.includes(PERMISSION_KEY_MAP.APP_MENU_EDIT)
 							)
 						},
 					},

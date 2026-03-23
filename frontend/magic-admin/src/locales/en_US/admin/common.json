@@ -130,6 +130,10 @@
 			"intelligentDrawing": "AI Drawing Management",
 			"agentEnhancement": "Official Agent Management",
 			"systemAgent": "System Agent",
+			"systemSkill": "Skill Management",
+			"employeeReview": "Employee Review",
+			"skillMarket": "Skill Market",
+			"employeeMarket": "Employee Market",
 			"systemCapability": "System Capability"
 		},
 		"aiSubMenu": {

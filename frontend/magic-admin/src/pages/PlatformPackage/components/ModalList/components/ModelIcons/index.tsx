@@ -42,7 +42,7 @@ export const ModelIcons = memo(
 		/* 上传的列表 */
 		const uploadList = useRef<string[]>([])
 
-		const { upload, uploading } = useUpload<Upload.FileData>({
+		const { uploadAndGetFileUrl, uploading } = useUpload<Upload.FileData>({
 			storageType: "public",
 		})
 
@@ -91,24 +91,19 @@ export const ModelIcons = memo(
 			const isValid = await beforeUpload(newFiles)
 			if (!isValid) return
 
-			const { fullfilled } = await upload(newFiles)
+			const { fullfilled } = await uploadAndGetFileUrl(newFiles)
 
-			if (fullfilled.length === newFiles.length) {
-				/* 上传到业务测 */
-				const url = await AIManageApi.uploadFileToBusiness({
-					file_key: fullfilled[0].value.key,
-					business_type: businessType,
-				})
-				// console.log(url)
+			if (fullfilled.length) {
+				const { path, url } = fullfilled[0].value
 				const newIcon = {
-					key: fullfilled[0].value.key,
+					key: path,
 					url,
 					type: AiModel.FileType.NonOfficial,
 				}
 				setIcons((prev) => {
 					return [...prev, newIcon]
 				})
-				uploadList.current.push(fullfilled[0].value.key)
+				uploadList.current.push(path)
 			}
 		})
 

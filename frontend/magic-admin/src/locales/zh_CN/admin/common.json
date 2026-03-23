@@ -129,7 +129,11 @@
 			"intelligentDrawing": "生图大模型",
 			"agentEnhancement": "智能体增强",
 			"systemAgent": "官方员工管理",
-			"systemCapability": "系统技能"
+			"systemSkill": "Skill审核",
+			"employeeReview": "员工审核",
+			"skillMarket": "Skill市场",
+			"employeeMarket": "员工市场",
+			"systemCapability": "能力管理"
 		},
 		"aiSubMenu": {
 			"customModel": "自定义大模型"

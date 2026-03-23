@@ -25,6 +25,8 @@ interface FieldConfig {
 	inputType?: "text" | "password" | "textarea"
 	/* 验证规则 */
 	rules?: Rule[]
+	/* 提交前规范化（如 trim），可避免尾随空格导致校验报错 */
+	normalize?: (value: unknown) => unknown
 	/* 显示条件 */
 	shouldShow?: boolean
 }
@@ -313,6 +315,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 						message: isLeftDesc ? t("apiAgentPlaceholder") : "",
 					},
 				],
+				normalize: (v) => (typeof v === "string" ? v.trim() : v),
 				shouldShow: true,
 			})
 		}

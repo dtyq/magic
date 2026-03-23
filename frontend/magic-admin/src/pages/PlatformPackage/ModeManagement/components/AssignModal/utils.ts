@@ -6,7 +6,7 @@ import { AiModel } from "@/const/aiModel"
 import type { GroupItem as GroupItemType } from "./types"
 
 const defaultIcon =
-	"https://example.com/TGosRaFhvb/588417216353927169/4c9184f37cff01bcdc32dc486ec36961/Nfpd3JKafpKVlBVPyrzAY.png"
+	"https://teamshareos-app-public-test.tos-cn-beijing.volces.com/TGosRaFhvb/588417216353927169/4c9184f37cff01bcdc32dc486ec36961/Nfpd3JKafpKVlBVPyrzAY.png"
 
 // 数组转 Map
 export const listToMap = (
