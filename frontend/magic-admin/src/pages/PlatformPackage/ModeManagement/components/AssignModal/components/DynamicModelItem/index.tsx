@@ -286,18 +286,23 @@ function DynamicModelItem({ handle, data, dragOverlay, style }: DynamicModelItem
 						defaultValue={data.model_category}
 						className={styles.select}
 						onChange={changeModelCategory}
+						disabled={!handle}
 					/>
-					<MagicButton
-						icon={<IconEdit size={18} />}
-						type="text"
-						onClick={() => editModel(data)}
-					/>
-					<MagicButton
-						icon={<IconTrash size={18} />}
-						danger
-						type="text"
-						onClick={() => deleteModel(group_id, id)}
-					/>
+					{handle && (
+						<>
+							<MagicButton
+								icon={<IconEdit size={18} />}
+								type="text"
+								onClick={() => editModel(data)}
+							/>
+							<MagicButton
+								icon={<IconTrash size={18} />}
+								danger
+								type="text"
+								onClick={() => deleteModel(group_id, id)}
+							/>
+						</>
+					)}
 				</Flex>
 			</Flex>
 
@@ -333,6 +338,7 @@ function DynamicModelItem({ handle, data, dragOverlay, style }: DynamicModelItem
 						options={downgradeOptions}
 						defaultValue={data.aggregate_config.strategy_config?.order}
 						style={{ width: 240 }}
+						disabled={!handle}
 						onChange={(value) => {
 							changeModel(data, {
 								aggregate_config: {
