@@ -26,7 +26,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-const defaultTimeout = 10 * time.Minute
+const defaultTimeout = 30 * time.Minute
+const managedFieldsManager = "magicrew-cli"
 
 type RefKind string
 
@@ -336,6 +337,8 @@ func UpgradeInstall(ctx context.Context, releaseName, namespace string, config *
 
 func newActionConfig(namespace string, config *rest.Config) (*action.Configuration, error) {
 	getter := &restConfigGetter{config: config, namespace: namespace}
+	// Keep SSA manager stable across platform-specific binaries.
+	kube.ManagedFieldsManager = managedFieldsManager
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secret"); err != nil {
 		return nil, fmt.Errorf("init helm action config: %w", err)

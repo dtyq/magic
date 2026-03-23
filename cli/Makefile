@@ -15,8 +15,8 @@ DIST_DIR := $(CURDIR)/dist
 OUTPUT ?= $(DIST_DIR)/$(BINARY_NAME)-$(shell $(GO) env GOOS)-$(shell $(GO) env GOARCH)
 CMD_PACKAGE ?= ./cmd
 
-# 多平台构建：darwin/linux × amd64/arm64
-PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
+# Multi-platform build: darwin/linux/windows x amd64/arm64
+PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
 # 默认 charts 目录：以 Make 当前目录为基准的 ../charts（MODULE_DIR 为空时避免变成 /charts）
 CHARTS_DIR ?= $(abspath $(CURDIR)/../charts)
@@ -52,14 +52,24 @@ check-go: ## Check Go is installed
 check-runtime-tools: ## Check runtime tools required by deploy/teardown
 	$(call require_tool,docker)
 
-build: check-go deps ## Build all platforms (darwin/linux × amd64/arm64) into dist
+build: check-go deps ## Build all platforms (darwin/linux/windows x amd64/arm64) into dist
 	@mkdir -p "$(DIST_DIR)"
 	@for platform in $(PLATFORMS); do \
 		GOOS=$${platform%/*}; GOARCH=$${platform#*/}; \
+		EXT=""; \
+		if [ "$$GOOS" = "windows" ]; then EXT=".exe"; fi; \
+		OUT="$(DIST_DIR)/$(BINARY_NAME)-$$GOOS-$$GOARCH$$EXT"; \
+		FILE_NAME="$${OUT##*/}"; \
 		echo "Building $$GOOS/$$GOARCH..."; \
-		GOOS=$$GOOS GOARCH=$$GOARCH $(GO) build $(GOFLAGS) -trimpath -ldflags "$(GO_LDFLAGS)" -o "$(DIST_DIR)/$(BINARY_NAME)-$$GOOS-$$GOARCH" "$(CMD_PACKAGE)"; \
+		GOOS=$$GOOS GOARCH=$$GOARCH $(GO) build $(GOFLAGS) -trimpath -ldflags "$(GO_LDFLAGS)" -o "$$OUT" "$(CMD_PACKAGE)"; \
+		if command -v sha256sum >/dev/null 2>&1; then \
+			HASH="$$(sha256sum "$$OUT" | awk '{print $$1}')"; \
+		else \
+			HASH="$$(shasum -a 256 "$$OUT" | awk '{print $$1}')"; \
+		fi; \
+		printf "%s  %s\n" "$$HASH" "$$FILE_NAME" > "$$OUT.sha256"; \
 	done
-	@echo "Built all platforms in $(DIST_DIR)"
+	@echo "Built all platforms and sha256 files in $(DIST_DIR)"
 
 build-local: check-go deps ## Build current platform only into dist
 	@mkdir -p "$(DIST_DIR)"

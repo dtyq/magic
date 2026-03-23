@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	podReadyTimeout = 10 * time.Minute
+	podReadyTimeout = 30 * time.Minute
 
 	releaseNameInfra        = "infra"
 	releaseNameMagic        = "magic"
