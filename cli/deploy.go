@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/dtyq/magicrew-cli/deployer"
+	"github.com/dtyq/magicrew-cli/util"
 	"github.com/spf13/cobra"
 )
 
@@ -44,14 +45,11 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if deployPlainHTTP {
 		plainHTTP = true
 	}
-	valuesFile := cfg.Deploy.Values
-	if deployValuesFile != "" {
-		valuesFile = deployValuesFile
-	}
+	valuesFile := resolveDeployValuesFile(deployValuesFile, cfg.Deploy.Values)
 
 	chartsDir := deployChartsDir
 	if chartsDir == "" && chartRepoURL == "" {
-		// local 模式且未传 --charts-dir 时，默认用当前目录下的 charts
+		// In local mode, default to "<cwd>/charts" when --charts-dir is not provided.
 		if cwd, err := getwd(); err == nil {
 			chartsDir = filepath.Join(cwd, "charts")
 		}
@@ -80,8 +78,27 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	}).Run(context.Background())
 }
 
-// getwd 返回当前工作目录，便于测试替换。
+// getwd returns the current working directory and can be replaced in tests.
 var getwd = os.Getwd
+
+// resolveDeployValuesFile chooses the values file path for deploy, in order:
+// 1) CLI --values
+// 2) deploy.values in config.yml
+// 3) ~/.config/magicrew/values.yaml (only when the file exists)
+// Returns an empty string when none of the above is available.
+func resolveDeployValuesFile(cliValuesFile, configValuesFile string) string {
+	if cliValuesFile != "" {
+		return cliValuesFile
+	}
+	if configValuesFile != "" {
+		return configValuesFile
+	}
+	defaultValuesFile := util.ExpandTilde("~/.config/magicrew/values.yaml")
+	if _, err := os.Stat(defaultValuesFile); err == nil {
+		return defaultValuesFile
+	}
+	return ""
+}
 
 func buildChartSpecsFromConfig() map[string]deployer.ChartSpec {
 	if cfg.Deploy.Charts == nil {
