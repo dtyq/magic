@@ -77,6 +77,104 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }, $result);
     }
 
+    public function findLatestQuestionMessagesByTopicId(int $topicId, int $limit = 3): array
+    {
+        $records = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('sender_type', 'user')
+            ->whereNull('status')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+
+        $messages = [];
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages;
+    }
+
+    public function findRecentAfterAgentReplyMessagesByTopicId(int $topicId, int $limit = 3): array
+    {
+        $records = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('sender_type', 'assistant')
+            ->where('event', 'after_agent_reply')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+
+        $messages = [];
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages;
+    }
+
+    public function existsByTopicId(int $topicId): bool
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->limit(1)
+            ->exists();
+    }
+
+    public function findFollowUpContextRowsByTopicId(int $topicId, int $roundLimit = 3): array
+    {
+        $topicId = (int) $topicId;
+        $roundLimit = max(1, (int) $roundLimit);
+
+        $sql = sprintf(<<<'SQL'
+SELECT source_id, sort_ts, msg_role, display_time, content
+FROM (
+    SELECT *
+    FROM (
+        SELECT
+            sam.id AS source_id,
+            sam.send_timestamp AS sort_ts,
+            'question' AS msg_role,
+            FROM_UNIXTIME(sam.send_timestamp) AS display_time,
+            sam.content AS content
+        FROM magic_super_agent_message sam
+        WHERE sam.deleted_at IS NULL
+          AND sam.topic_id = %d
+          AND sam.status IS NULL
+          AND sam.sender_type = 'user'
+        ORDER BY sam.id DESC
+        LIMIT %d
+    ) q
+
+    UNION ALL
+
+    SELECT *
+    FROM (
+        SELECT
+            sam.id AS source_id,
+            COALESCE(UNIX_TIMESTAMP(cm.send_time), sam.send_timestamp) AS sort_ts,
+            'answer' AS msg_role,
+            COALESCE(cm.send_time, FROM_UNIXTIME(sam.send_timestamp)) AS display_time,
+            JSON_UNQUOTE(JSON_EXTRACT(cm.content, '$.content')) AS content
+        FROM magic_super_agent_message sam
+        INNER JOIN magic_chat_messages cm
+            ON cm.app_message_id COLLATE utf8mb4_unicode_ci
+                = CAST(sam.id AS CHAR) COLLATE utf8mb4_unicode_ci
+            AND cm.deleted_at IS NULL
+        WHERE sam.deleted_at IS NULL
+          AND sam.topic_id = %d
+          AND sam.event = 'after_agent_reply'
+          AND sam.sender_type = 'assistant'
+        ORDER BY sam.id DESC
+        LIMIT %d
+    ) a
+) follow_up_rows
+ORDER BY sort_ts ASC, source_id ASC
+SQL, $topicId, $roundLimit, $topicId, $roundLimit);
+
+        return array_map(static fn ($record) => (array) $record, Db::select($sql));
+    }
+
     /**
      * 根据话题ID获取消息列表，支持分页.
      *

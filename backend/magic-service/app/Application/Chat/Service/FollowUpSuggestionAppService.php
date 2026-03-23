@@ -8,9 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service;
 
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
-use App\Domain\Chat\Service\MagicSeqDomainService;
-use App\ErrorCode\ChatErrorCode;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Domain\Chat\Service\FollowUpContextDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -21,8 +19,7 @@ class FollowUpSuggestionAppService extends AbstractAppService
 {
     public function __construct(
         protected LoggerInterface $logger,
-        protected readonly MagicSeqDomainService $magicSeqDomainService,
-        protected readonly MagicChatMessageAppService $magicChatMessageAppService,
+        protected readonly FollowUpContextDomainService $followUpContextDomainService,
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(static::class);
@@ -35,8 +32,7 @@ class FollowUpSuggestionAppService extends AbstractAppService
      */
     public function generateFollowUpSuggestions(
         MagicUserAuthorization $authorization,
-        string $conversationId,
-        string $anchorMagicMessageId,
+        int $topicId,
     ): array {
         // 模型不可用的话直接返回
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolation($authorization);
@@ -45,25 +41,17 @@ class FollowUpSuggestionAppService extends AbstractAppService
             return ['suggestions' => []];
         }
 
-        // 校验消息是否在当前这个会话中
-        if (! $this->magicSeqDomainService->existsSeqForMagicMessageInConversation($conversationId, $anchorMagicMessageId)) {
-            ExceptionBuilder::throw(ChatErrorCode::MESSAGE_NOT_FOUND);
-        }
+        // 查询数据库得到上下文（当前 topic 下最近三轮，共 6 条问答消息）
+        $historyContext = $this->followUpContextDomainService->buildFollowUpContextExcerptByTopicId($topicId, 3);
 
-        // 查询数据库得到上下文（3 个问题的发送时间 + 纯文本问题内容）
-        $historyContext = $this->magicChatMessageAppService->buildFollowUpRichTextContextExcerpt(
-            $conversationId,
-            $anchorMagicMessageId,
-            3,
-        );
-        $historyForTemplate = $historyContext === '' ? '当前没有可用的上文摘录。' : $historyContext;
+        // 构建用户上下文信息
         $currentTime = date('Y-m-d H:i:s');
         $userPrompt = <<<PROMPT
 请基于以下用户问题摘录，生成3个最自然的后续追问。
 
 ## 最近用户问题摘录
 <HISTORY_START>
-{$historyForTemplate}
+{$historyContext}
 <HISTORY_END>
 
 当前时间：{$currentTime}
@@ -80,7 +68,7 @@ PROMPT;
                 businessParams: [
                     'organization_id' => $authorization->getOrganizationCode(),
                     'user_id' => $authorization->getId(),
-                    'business_id' => $conversationId,
+                    'business_id' => (string) $topicId,
                     'source_id' => 'follow_up_suggestions',
                     'task_type' => 'text_completion',
                 ],

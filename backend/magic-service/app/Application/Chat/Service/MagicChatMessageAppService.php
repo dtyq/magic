@@ -62,7 +62,6 @@ use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Carbon\Carbon;
-use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
@@ -940,41 +939,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         // 根据 seq_id 升序排列
         ksort($userMessages);
         return array_values($userMessages);
-    }
-
-    /**
-     * 为追问建议组装上下文（最近 3 个问题的发送时间 + 纯文本问题内容）.
-     */
-    public function buildFollowUpRichTextContextExcerpt(
-        string $conversationId,
-        string $anchorMagicMessageId,
-        int $limit = 3,
-    ): string {
-        $ids = $this->magicChatDomainService->listRecentRichTextMagicMessageIdsUpToAnchor(
-            $conversationId,
-            $anchorMagicMessageId,
-            $limit,
-        );
-        if ($ids === []) {
-            return '';
-        }
-
-        $lines = [];
-        foreach ($ids as $magicMessageId) {
-            $entity = $this->magicChatDomainService->getMessageByMagicMessageId($magicMessageId);
-            if ($entity === null) {
-                continue;
-            }
-            $message = $entity->getContent();
-            $plain = MessageAssembler::getPlainTextContent($message, $entity->getMessageType());
-            $plain = trim((string) preg_replace('/\s+/u', ' ', $plain));
-            if ($plain === '') {
-                continue;
-            }
-            $lines[] = sprintf('[%s] %s', $entity->getSendTime(), $plain);
-        }
-
-        return implode("\n", $lines);
     }
 
     public function getMagicSeqEntity(string $magicMessageId, ConversationType $controlMessageType): ?MagicSeqEntity

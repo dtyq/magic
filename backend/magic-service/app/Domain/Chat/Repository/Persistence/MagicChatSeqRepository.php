@@ -193,41 +193,6 @@ class MagicChatSeqRepository implements MagicChatSeqRepositoryInterface
         return $this->getMessagesBySeqList($seqList, $order);
     }
 
-    public function listRecentRichTextMagicMessageIdsUpToAnchor(string $conversationId, string $anchorMagicMessageId, int $limit): array
-    {
-        $limit = max(1, min(50, $limit));
-        $anchorRows = Db::select(
-            'SELECT send_time FROM magic_chat_messages WHERE magic_message_id = ? AND deleted_at IS NULL LIMIT 1',
-            [$anchorMagicMessageId]
-        );
-        $anchorRow = $anchorRows[0] ?? null;
-        if ($anchorRow === null) {
-            return [];
-        }
-        $anchorSendTime = is_object($anchorRow) ? $anchorRow->send_time : $anchorRow['send_time'];
-        if ($anchorSendTime === null || $anchorSendTime === '') {
-            return [];
-        }
-        $sql = 'SELECT m.magic_message_id, MAX(m.send_time) AS st
-            FROM magic_chat_messages m
-            INNER JOIN magic_chat_sequences s ON s.magic_message_id = m.magic_message_id
-                AND s.conversation_id = ?
-                AND s.deleted_at IS NULL
-            WHERE m.deleted_at IS NULL
-                AND m.message_type = ?
-                AND m.send_time <= ?
-            GROUP BY m.magic_message_id
-            ORDER BY st DESC
-            LIMIT ' . $limit;
-        $rows = Db::select($sql, [$conversationId, ChatMessageType::RichText->value, $anchorSendTime]);
-        $ids = [];
-        foreach ($rows as $row) {
-            $ids[] = is_object($row) ? $row->magic_message_id : $row['magic_message_id'];
-        }
-
-        return array_reverse($ids);
-    }
-
     public function existsSeqForMagicMessageInConversation(string $conversationId, string $magicMessageId): bool
     {
         if ($conversationId === '' || $magicMessageId === '') {

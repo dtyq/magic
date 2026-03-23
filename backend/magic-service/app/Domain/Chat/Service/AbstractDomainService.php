@@ -132,6 +132,11 @@ abstract class AbstractDomainService
         return $this->magicMessageRepository->getMessageByMagicMessageId($magicMessageId);
     }
 
+    public function getMessageByAppMessageId(string $appMessageId): ?MagicMessageEntity
+    {
+        return $this->magicMessageRepository->getMessageByAppMessageId($appMessageId);
+    }
+
     public function getSeqContent(MagicMessageEntity $messageEntity): array
     {
         // 节约存储空间,聊天消息在seq表不存具体内容,只存消息id
