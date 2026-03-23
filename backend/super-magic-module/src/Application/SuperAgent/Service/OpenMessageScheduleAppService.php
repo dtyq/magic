@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -15,6 +14,7 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Cron\CronExpression;
 use DateTime;
 use Dtyq\SuperMagic\Application\SuperAgent\Assembler\TaskConfigAssembler;
@@ -337,49 +337,6 @@ class OpenMessageScheduleAppService extends AbstractAppService
         ];
     }
 
-    private function applyOpenMessageContentUpdates(
-        MessageScheduleEntity $messageSchedule,
-        OpenMessageScheduleEntity $entity,
-        DataIsolation $dataIsolation
-    ): void {
-        if (! $entity->hasMessageContentTextInput() && ! $entity->hasModelIdInput()) {
-            return;
-        }
-
-        $messageContent = $messageSchedule->getMessageContent();
-        $resolvedModelId = $entity->hasModelIdInput()
-            ? (string) $entity->getModelId()
-            : $this->extractModelIdFromMessageContent($messageContent);
-        $model = $this->buildModelFromProviderModelId($resolvedModelId, $dataIsolation);
-
-        if ($entity->hasMessageContentTextInput()) {
-            $messageSchedule->setMessageContent(
-                $this->buildFullMessageContent((string) ($entity->getMessageContentText() ?? ''), $model)
-            );
-
-            return;
-        }
-
-        if (! isset($messageContent['extra']) || ! is_array($messageContent['extra'])) {
-            $messageContent['extra'] = [];
-        }
-        if (! isset($messageContent['extra']['super_agent']) || ! is_array($messageContent['extra']['super_agent'])) {
-            $messageContent['extra']['super_agent'] = [];
-        }
-
-        $messageContent['extra']['super_agent']['model'] = $model;
-        $messageSchedule->setMessageContent($messageContent);
-    }
-
-    private function extractModelIdFromMessageContent(array $messageContent): string
-    {
-        return (string) (
-            $messageContent['extra']['super_agent']['model']['provider_model_id']
-            ?? $messageContent['extra']['super_agent']['model']['model_id']
-            ?? ''
-        );
-    }
-
     protected function createTimeConfigDTO(array $timeConfig): TimeConfigDTO
     {
         $timeConfigDTO = new TimeConfigDTO();
@@ -559,5 +516,48 @@ class OpenMessageScheduleAppService extends AbstractAppService
         }
 
         return false;
+    }
+
+    private function applyOpenMessageContentUpdates(
+        MessageScheduleEntity $messageSchedule,
+        OpenMessageScheduleEntity $entity,
+        DataIsolation $dataIsolation
+    ): void {
+        if (! $entity->hasMessageContentTextInput() && ! $entity->hasModelIdInput()) {
+            return;
+        }
+
+        $messageContent = $messageSchedule->getMessageContent();
+        $resolvedModelId = $entity->hasModelIdInput()
+            ? (string) $entity->getModelId()
+            : $this->extractModelIdFromMessageContent($messageContent);
+        $model = $this->buildModelFromProviderModelId($resolvedModelId, $dataIsolation);
+
+        if ($entity->hasMessageContentTextInput()) {
+            $messageSchedule->setMessageContent(
+                $this->buildFullMessageContent((string) ($entity->getMessageContentText() ?? ''), $model)
+            );
+
+            return;
+        }
+
+        if (! isset($messageContent['extra']) || ! is_array($messageContent['extra'])) {
+            $messageContent['extra'] = [];
+        }
+        if (! isset($messageContent['extra']['super_agent']) || ! is_array($messageContent['extra']['super_agent'])) {
+            $messageContent['extra']['super_agent'] = [];
+        }
+
+        $messageContent['extra']['super_agent']['model'] = $model;
+        $messageSchedule->setMessageContent($messageContent);
+    }
+
+    private function extractModelIdFromMessageContent(array $messageContent): string
+    {
+        return (string) (
+            $messageContent['extra']['super_agent']['model']['provider_model_id']
+            ?? $messageContent['extra']['super_agent']['model']['model_id']
+            ?? ''
+        );
     }
 }

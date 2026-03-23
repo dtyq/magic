@@ -67,5 +67,4 @@ class CreateOpenMessageScheduleRequestDTO extends AbstractDTO
     {
         return $this->remark;
     }
-
 }
