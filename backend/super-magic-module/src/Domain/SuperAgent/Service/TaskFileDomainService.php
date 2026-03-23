@@ -687,6 +687,96 @@ class TaskFileDomainService
         }
     }
 
+    /**
+     * Create a project file with content and upload it to cloud storage.
+     *
+     * Unlike createProjectFile (which creates empty files), this method uploads actual
+     * file content to the cloud storage backend. Suitable for initializing template files
+     * at project creation time. If a file with the same key already exists, it is returned
+     * as-is for idempotency (no exception is thrown). This method does not open its own
+     * database transaction and must be called within an existing transaction.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param ProjectEntity $projectEntity Project entity
+     * @param int $parentId Parent file ID (0 for project root)
+     * @param string $fileName File name
+     * @param string $content Raw file content to upload
+     * @param TaskFileSource $source File source tag
+     * @return TaskFileEntity Created (or pre-existing) file entity
+     */
+    public function createProjectFileWithContent(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        int $parentId,
+        string $fileName,
+        string $content,
+        TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY
+    ): TaskFileEntity {
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        $workDir = $projectEntity->getWorkDir();
+
+        if (empty($workDir)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
+        }
+
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
+        if (! empty($parentId)) {
+            $parentFileEntity = $this->taskFileRepository->getById($parentId);
+            if ($parentFileEntity === null || $parentFileEntity->getProjectId() != $projectEntity->getId()) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+            }
+            $fileKey = rtrim($parentFileEntity->getFileKey(), '/') . '/' . $fileName;
+        } else {
+            $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $fileName);
+        }
+
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileKey)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+        }
+
+        // Return existing file for idempotency instead of throwing
+        $existingFile = $this->taskFileRepository->getByFileKey($fileKey);
+        if ($existingFile !== null) {
+            return $existingFile;
+        }
+
+        // Upload content to cloud storage
+        $this->cloudFileRepository->createFileByCredential(
+            WorkDirectoryUtil::getPrefix($workDir),
+            $projectOrganizationCode,
+            $fileKey,
+            $content,
+            StorageBucketType::SandBox
+        );
+
+        $taskFileEntity = new TaskFileEntity();
+        $taskFileEntity->setFileId(IdGenerator::getSnowId());
+        $taskFileEntity->setProjectId($projectEntity->getId());
+        $taskFileEntity->setFileKey($fileKey);
+        $taskFileEntity->setFileName($fileName);
+        $taskFileEntity->setFileSize(strlen($content));
+        $taskFileEntity->setFileType(FileType::USER_UPLOAD->value);
+        $taskFileEntity->setIsDirectory(false);
+        $taskFileEntity->setParentId($parentId === 0 ? null : $parentId);
+        $taskFileEntity->setSource($source);
+        $taskFileEntity->setStorageType(StorageType::WORKSPACE);
+        $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
+        $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setSort(0);
+
+        if (! empty($fileName)) {
+            $taskFileEntity->setFileExtension(pathinfo($fileName, PATHINFO_EXTENSION));
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $taskFileEntity->setCreatedAt($now);
+        $taskFileEntity->setUpdatedAt($now);
+
+        return $this->insertOrUpdate($taskFileEntity);
+    }
+
     public function deleteProjectFiles(string $projectOrganizationCode, TaskFileEntity $fileEntity, string $workDir): bool
     {
         $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
@@ -2516,6 +2606,58 @@ class TaskFileDomainService
     }
 
     /**
+     * Create a new directory entity.
+     * Returns existing directory id when the same parent/name already exists.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory ID
+     * @param string $dirName Directory name
+     * @param string $relativePath Relative path from project root
+     * @param string $workDir Project work directory
+     * @return int Created directory file_id
+     */
+    public function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    {
+        $existingDir = $this->findDirectoryByParentIdAndName($parentId, $dirName, $projectId);
+        if ($existingDir !== null) {
+            return $existingDir->getFileId();
+        }
+
+        $dirEntity = new TaskFileEntity();
+        $dirEntity->setFileId(IdGenerator::getSnowId());
+        $dirEntity->setProjectId($projectId);
+        $dirEntity->setUserId($userId);
+        $dirEntity->setOrganizationCode($organizationCode);
+        $dirEntity->setFileName($dirName);
+
+        // Build complete file_key: workDir + relativePath + trailing slash
+        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
+        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
+        $fileKey = ltrim($fileKey, '/') . '/';
+        $dirEntity->setFileKey($fileKey);
+        $dirEntity->setFileSize(0);
+        $dirEntity->setFileType(FileType::DIRECTORY->value);
+        $dirEntity->setIsDirectory(true);
+        $dirEntity->setParentId($parentId);
+        $dirEntity->setSource($source);
+        if (WorkFileUtil::isSnapshotFile($fileKey)) {
+            $dirEntity->setStorageType(StorageType::SNAPSHOT);
+        } else {
+            $dirEntity->setStorageType(StorageType::WORKSPACE);
+        }
+        $dirEntity->setIsHidden(false);
+        $dirEntity->setSort(0);
+
+        $now = date('Y-m-d H:i:s');
+        $dirEntity->setCreatedAt($now);
+        $dirEntity->setUpdatedAt($now);
+
+        $this->insertOrUpdate($dirEntity);
+
+        return $dirEntity->getFileId();
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *
@@ -2855,52 +2997,6 @@ class TaskFileDomainService
         }
 
         return null;
-    }
-
-    /**
-     * Create a new directory entity.
-     *
-     * @param int $projectId Project ID
-     * @param int $parentId Parent directory ID
-     * @param string $dirName Directory name
-     * @param string $relativePath Relative path from project root
-     * @param string $workDir Project work directory
-     * @return int Created directory file_id
-     */
-    private function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
-    {
-        $dirEntity = new TaskFileEntity();
-        $dirEntity->setFileId(IdGenerator::getSnowId());
-        $dirEntity->setProjectId($projectId);
-        $dirEntity->setUserId($userId);
-        $dirEntity->setOrganizationCode($organizationCode);
-        $dirEntity->setFileName($dirName);
-
-        // Build complete file_key: workDir + relativePath + trailing slash
-        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
-        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
-        $fileKey = ltrim($fileKey, '/') . '/';
-        $dirEntity->setFileKey($fileKey);
-        $dirEntity->setFileSize(0);
-        $dirEntity->setFileType(FileType::DIRECTORY->value);
-        $dirEntity->setIsDirectory(true);
-        $dirEntity->setParentId($parentId);
-        $dirEntity->setSource($source);
-        if (WorkFileUtil::isSnapshotFile($fileKey)) {
-            $dirEntity->setStorageType(StorageType::SNAPSHOT);
-        } else {
-            $dirEntity->setStorageType(StorageType::WORKSPACE);
-        }
-        $dirEntity->setIsHidden(false);
-        $dirEntity->setSort(0);
-
-        $now = date('Y-m-d H:i:s');
-        $dirEntity->setCreatedAt($now);
-        $dirEntity->setUpdatedAt($now);
-
-        $this->insertOrUpdate($dirEntity);
-
-        return $dirEntity->getFileId();
     }
 
     /**

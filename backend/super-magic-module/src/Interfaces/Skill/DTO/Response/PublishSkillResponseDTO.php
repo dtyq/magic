@@ -7,68 +7,34 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
-use JsonSerializable;
+use App\Infrastructure\Core\AbstractDTO;
 
 /**
- * 发布技能到商店响应 DTO.
+ * Publish skill version response DTO.
  */
-class PublishSkillResponseDTO implements JsonSerializable
+class PublishSkillResponseDTO extends AbstractDTO
 {
-    /**
-     * Skill 版本 ID.
-     */
-    private int $skillVersionId;
-
-    /**
-     * Skill 唯一标识码.
-     */
-    private string $skillCode;
-
-    /**
-     * 版本号.
-     */
-    private string $version;
-
-    /**
-     * 发布状态.
-     */
-    private string $publishStatus;
-
-    /**
-     * 审核状态.
-     */
-    private string $reviewStatus;
-
-    /**
-     * 创建时间（ISO 8601）.
-     */
-    private string $createdAt;
-
     public function __construct(
-        int $skillVersionId,
-        string $skillCode,
-        string $version,
-        string $publishStatus,
-        string $reviewStatus,
-        string $createdAt
+        private readonly string $versionId,
+        private readonly string $version,
+        private readonly string $publishStatus,
+        private readonly string $reviewStatus,
+        private readonly string $publishTargetType,
+        private readonly bool $isCurrentVersion,
+        private readonly ?string $publishedAt,
     ) {
-        $this->skillVersionId = $skillVersionId;
-        $this->skillCode = $skillCode;
-        $this->version = $version;
-        $this->publishStatus = $publishStatus;
-        $this->reviewStatus = $reviewStatus;
-        $this->createdAt = $createdAt;
     }
 
-    public function jsonSerialize(): array
+    public function toArray(): array
     {
         return [
-            'skill_version_id' => $this->skillVersionId,
-            'skill_code' => $this->skillCode,
+            'version_id' => $this->versionId,
             'version' => $this->version,
             'publish_status' => $this->publishStatus,
             'review_status' => $this->reviewStatus,
-            'created_at' => $this->createdAt,
+            'publish_target_type' => $this->publishTargetType,
+            'is_current_version' => $this->isCurrentVersion,
+            'published_at' => $this->publishedAt,
         ];
     }
 }

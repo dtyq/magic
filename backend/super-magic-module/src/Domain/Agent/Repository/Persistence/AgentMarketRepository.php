@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
@@ -16,6 +17,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentMarketModel;
+use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 
 /**
  * 市场 Agent 仓储实现.
@@ -63,6 +65,28 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         foreach ($models as $model) {
             $entity = new AgentMarketEntity($model->toArray());
             $result[$entity->getAgentCode()] = $entity;
+        }
+
+        return $result;
+    }
+
+    public function findByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->agentMarketModel::query()
+            ->whereIn('id', $ids)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = new AgentMarketEntity($model->toArray());
+            if ($entity->getId() !== null) {
+                $result[$entity->getId()] = $entity;
+            }
         }
 
         return $result;
@@ -142,22 +166,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         $builder = $this->agentMarketModel::query()
             ->where('publish_status', PublishStatus::PUBLISHED->value);
 
-        // 关键词搜索：在 name_i18n、role_i18n 和 description_i18n JSON 字段中搜索
+        // 关键词搜索优先使用统一搜索字段；旧数据无该字段时回退到历史 JSON 搜索。
         if (! empty($query->getKeyword()) && ! empty($query->getLanguageCode())) {
-            $keyword = $query->getKeyword();
-            $languageCode = $query->getLanguageCode();
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(role_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                );
-            });
+            $keyword = mb_strtolower(trim($query->getKeyword()), 'UTF-8');
+            $builder->where('search_text', 'LIKE', '%' . $keyword . '%');
         }
 
         // 分类筛选
@@ -165,7 +177,9 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             $builder->where('category_id', $query->getCategoryId());
         }
 
-        // 排序：按 created_at DESC
+        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
         $builder->orderBy('created_at', 'DESC');
 
         // 分页查询
@@ -180,6 +194,89 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         $result['list'] = $list;
 
         return $result;
+    }
+
+    /**
+     * @return array{total: int, list: AgentMarketEntity[]}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $agentCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        $builder = $this->agentMarketModel::query()
+            ->whereNull('deleted_at');
+
+        $publishStatus = trim((string) $publishStatus);
+        if ($publishStatus !== '') {
+            $builder->where('publish_status', $publishStatus);
+        }
+
+        $organizationCode = trim((string) $organizationCode);
+        if ($organizationCode !== '') {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $publisherType = trim((string) $publisherType);
+        if ($publisherType !== '') {
+            $builder->where('publisher_type', $publisherType);
+        }
+
+        $agentCode = trim((string) $agentCode);
+        if ($agentCode !== '') {
+            $builder->where('agent_code', $agentCode);
+        }
+
+        $name18n = trim((string) $name18n);
+        if ($name18n !== '') {
+            $like = '%' . $name18n . '%';
+            $localeKeys = LanguageEnum::getAllLanguageCodes();
+            $builder->where(function ($q) use ($like, $localeKeys) {
+                $first = true;
+                foreach ($localeKeys as $localeKey) {
+                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
+                    $bindings = [$localeKey, $like];
+                    if ($first) {
+                        $q->whereRaw($expression, $bindings);
+                        $first = false;
+                    } else {
+                        $q->orWhereRaw($expression, $bindings);
+                    }
+                }
+            });
+        }
+
+        $startTime = trim((string) $startTime);
+        if ($startTime !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        }
+
+        $endTime = trim((string) $endTime);
+        if ($endTime !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        }
+
+        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
+        $builder->orderBy('created_at', $createdAtOrder);
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = new AgentMarketEntity($model->toArray());
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
     }
 
     /**
@@ -210,5 +307,23 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             ->increment('install_count');
 
         return $affected > 0;
+    }
+
+    /**
+     * 更新市场员工排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        /** @var null|AgentMarketModel $model */
+        $model = $this->agentMarketModel::query()
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return false;
+        }
+
+        $model->sort_order = $sortOrder;
+        return $model->save();
     }
 }

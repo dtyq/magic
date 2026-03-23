@@ -17,7 +17,7 @@ use function Hyperf\Translation\__;
 class UpdateSkillInfoRequestDTO extends AbstractRequestDTO
 {
     /**
-     * 多语言名称.
+     * 多语言名称（必须包含 default）.
      */
     public array $nameI18n = [];
 
@@ -61,10 +61,9 @@ class UpdateSkillInfoRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'name_i18n' => 'nullable|array',
-            'name_i18n.en_US' => 'required_with:name_i18n|string',
+            'name_i18n' => 'required|array',
+            'name_i18n.default' => 'required|string',
             'description_i18n' => 'nullable|array',
-            'description_i18n.en_US' => 'required_with:description_i18n|string',
             'logo' => 'nullable|string',
         ];
     }
@@ -75,12 +74,11 @@ class UpdateSkillInfoRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
+            'name_i18n.required' => __('skill.name_i18n_required'),
             'name_i18n.array' => __('skill.name_i18n_must_be_array'),
-            'name_i18n.en_US.required_with' => __('skill.name_i18n_en_required'),
-            'name_i18n.en_US.string' => __('skill.name_i18n_en_must_be_string'),
+            'name_i18n.default.required' => __('skill.name_i18n_en_required'),
+            'name_i18n.default.string' => __('skill.name_i18n_en_must_be_string'),
             'description_i18n.array' => __('skill.description_i18n_must_be_array'),
-            'description_i18n.en_US.required_with' => __('skill.description_i18n_en_required'),
-            'description_i18n.en_US.string' => __('skill.description_i18n_en_must_be_string'),
             'logo.string' => __('skill.logo_must_be_string'),
         ];
     }

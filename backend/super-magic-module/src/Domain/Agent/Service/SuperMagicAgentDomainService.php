@@ -7,8 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Agent\Service;
 
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
@@ -17,9 +20,13 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentSkillEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinAgent;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -32,7 +39,13 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterf
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Market\Service\MarketSearchTextBuilder;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\DbConnection\Annotation\Transactional;
 
 readonly class SuperMagicAgentDomainService
@@ -42,7 +55,12 @@ readonly class SuperMagicAgentDomainService
         protected AgentSkillRepositoryInterface $agentSkillRepository,
         protected AgentPlaybookRepositoryInterface $agentPlaybookRepository,
         protected AgentMarketRepositoryInterface $storeAgentRepository,
-        protected AgentVersionRepositoryInterface $agentVersionRepository
+        protected AgentVersionRepositoryInterface $agentVersionRepository,
+        protected UserAgentDomainService $userAgentDomainService,
+        protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected SandboxGatewayInterface $sandboxGateway,
+        protected WorkspaceExporterInterface $workspaceExporter,
+        protected AgentMarketRepositoryInterface $agentMarketRepository,
     ) {
     }
 
@@ -89,7 +107,12 @@ readonly class SuperMagicAgentDomainService
 
             $savingEntity->prepareForModification($entity, $checkPrompt);
         }
+
         $savedEntity = $this->superMagicAgentRepository->save($dataIsolation, $entity);
+
+        if ($isCreate) {
+            $this->saveUserAgentOwnership($dataIsolation, $savedEntity->getCode(), $savedEntity->getSourceType(), null, null);
+        }
 
         AsyncEventUtil::dispatch(new SuperMagicAgentSavedEvent($savedEntity, $isCreate));
 
@@ -120,11 +143,13 @@ readonly class SuperMagicAgentDomainService
 
         // 根据 source_type 决定删除策略
         if ($entity->getSourceType()->isMarket()) {
-            // STORE 类型：仅软删除 Crew 记录
+            // MARKET 类型：仅删除当前用户安装出来的本地 Agent，以及它对应的用户安装关系。
             $result = $this->superMagicAgentRepository->delete($dataIsolation, $code);
+            $this->userAgentDomainService->deleteUserAgentOwnership($dataIsolation, $code);
         } else {
-            // LOCAL_CREATE 类型：删除所有相关数据
+            // LOCAL_CREATE 类型：这是资源 owner 删除，需要同时清理资源本体、版本/技能/剧本和所有用户关系。
             $result = $this->superMagicAgentRepository->delete($dataIsolation, $code);
+            $this->userAgentDomainService->deleteAllUserAgentOwnershipsByCode($dataIsolation, $code);
             $this->agentSkillRepository->deleteByAgentCode($dataIsolation, $entity->getCode());
             $this->agentPlaybookRepository->deleteByAgentCode($dataIsolation, $entity->getCode());
             $this->agentVersionRepository->deleteByAgentCode($dataIsolation, $code);
@@ -169,6 +194,11 @@ readonly class SuperMagicAgentDomainService
         AsyncEventUtil::dispatch(new SuperMagicAgentDisabledEvent($savedEntity));
 
         return $savedEntity;
+    }
+
+    public function findByNameAndOrgCode(string $name, string $organizationCode): ?SuperMagicAgentEntity
+    {
+        return $this->superMagicAgentRepository->findByName($name, $organizationCode);
     }
 
     public function updateProject(SuperMagicAgentDataIsolation $dataIsolation, string $code, ?int $projectId): SuperMagicAgentEntity
@@ -243,16 +273,19 @@ readonly class SuperMagicAgentDomainService
         return $code;
     }
 
-    /**
-     * 根据 agent_code 查询商店状态（仅查询已发布的）.
-     *
-     * @param string $agentCode Agent code
-     * @return null|bool 商店状态：true=已下架, false=未下架, null=非商店来源或不存在
-     */
-    public function getStoreAgentStatus(string $agentCode): ?bool
+    public function getStoreAgentStatusBySourceId(?int $sourceId): ?bool
     {
-        $storeAgent = $this->storeAgentRepository->findByAgentCode($agentCode);
-        return $storeAgent === null ? true : false;
+        if ($sourceId === null) {
+            return null;
+        }
+
+        $storeAgents = $this->storeAgentRepository->findByIds([$sourceId]);
+        $storeAgent = $storeAgents[$sourceId] ?? null;
+        if ($storeAgent === null) {
+            return null;
+        }
+
+        return $storeAgent->getPublishStatus() !== PublishStatus::PUBLISHED;
     }
 
     /**
@@ -291,6 +324,15 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * @param int[] $ids
+     * @return array<int, AgentMarketEntity>
+     */
+    public function getStoreAgentsByIds(array $ids): array
+    {
+        return $this->storeAgentRepository->findByIds($ids);
+    }
+
+    /**
      * 获取 Agent 详情并校验是否属于当前用户.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
@@ -310,47 +352,71 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
-     * 发布员工到商店（创建待审核版本）.
+     * Publish an agent version snapshot.
      *
-     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SuperMagicAgentEntity $agentEntity Agent 实体
-     * @param array $icon Icon 图标
-     * @param int $iconType Icon 类型
-     * @return AgentVersionEntity 创建的版本实体
+     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
+     * @param SuperMagicAgentEntity $agentEntity Source agent entity
+     * @param AgentVersionEntity $versionEntity Version draft from request
+     * @return AgentVersionEntity Created version entity
      */
-    public function publishAgent(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentEntity $agentEntity, array $icon = [], int $iconType = 1): AgentVersionEntity
-    {
+    public function publishAgent(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        SuperMagicAgentEntity $agentEntity,
+        AgentVersionEntity $versionEntity
+    ): AgentVersionEntity {
         // 1. 校验来源类型：仅允许发布非商店来源的员工
         if ($agentEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::StoreAgentCannotPublish, 'super_magic.agent.store_agent_cannot_publish');
         }
 
-        // 2. 查询该员工的最新版本号（用于版本号递增）
-        $latestVersion = $this->agentVersionRepository->findLatestByCode($dataIsolation, $agentEntity->getCode());
+        $publishTargetType = $versionEntity->getPublishTargetType();
+        $publishType = PublishType::fromPublishTargetType($publishTargetType);
 
-        // 3. 自动递增版本号（从1开始递增：1, 2, 3, 4...）
-        $newVersion = '1';
-        if ($latestVersion) {
-            $latestVersionNumber = (int) $latestVersion->getVersion();
-            $newVersion = (string) ($latestVersionNumber + 1);
+        // 个人组织没有成员/组织范围，内部发布只能退化为 PRIVATE。
+        if (
+            $dataIsolation->getOrganizationInfoManager()->getOrganizationType() === OrganizationType::Personal
+            && $publishType === PublishType::INTERNAL
+            && $publishTargetType !== PublishTargetType::PRIVATE
+        ) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_type_invalid');
         }
 
-        // 4. 从 name_i18n 提取 name（英文）
+        if (! in_array($publishTargetType, [PublishTargetType::PRIVATE, PublishTargetType::MEMBER, PublishTargetType::ORGANIZATION, PublishTargetType::MARKET], true)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_type_invalid');
+        }
+
+        $publishTargetValue = $versionEntity->getPublishTargetValue();
+        if ($publishTargetType->requiresTargetValue()) {
+            if ($publishTargetValue === null || ! $publishTargetValue->hasTargets()) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_value_required');
+            }
+        } elseif ($publishTargetValue !== null) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.publish_target_value_should_be_empty');
+        }
+
+        $version = $versionEntity->getVersion();
+        if ($this->agentVersionRepository->existsByCodeAndVersion($dataIsolation, $agentEntity->getCode(), $version)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'super_magic.agent.version_already_exists');
+        }
+
+        // 2. 同一 code 下仍处于 PENDING/UNDER_REVIEW 的旧版本批量标为 INVALIDATED（与 Skill 发布一致，非管理员 REJECTED）
+        $this->agentVersionRepository->invalidateAwaitingReviewVersionsByCode($dataIsolation, $agentEntity->getCode());
+
+        // 3. 从 name_i18n 提取 name（英文）
         $nameI18n = $agentEntity->getNameI18n();
         $name = $nameI18n[LanguageEnum::EN_US->value] ?? ($nameI18n[LanguageEnum::ZH_CN->value] ?? '');
 
-        // 5. 从 description_i18n 提取 description（英文）
+        // 4. 从 description_i18n 提取 description（英文）
         $descriptionI18n = $agentEntity->getDescriptionI18n();
         $description = '';
         if ($descriptionI18n) {
             $description = $descriptionI18n[LanguageEnum::EN_US->value] ?? ($descriptionI18n[LanguageEnum::ZH_CN->value] ?? '');
         }
 
-        // 6. 创建 Agent 版本记录（待发布、审核中状态）
-        $versionEntity = new AgentVersionEntity();
+        // 5. Create the version snapshot for publish.
         $versionEntity->setCode($agentEntity->getCode());
         $versionEntity->setOrganizationCode($agentEntity->getOrganizationCode());
-        $versionEntity->setVersion($newVersion);
+        $versionEntity->setVersion($version);
         $versionEntity->setName($name);
         $versionEntity->setDescription($description);
         $versionEntity->setIcon($agentEntity->getIcon());
@@ -364,12 +430,36 @@ readonly class SuperMagicAgentDomainService
         $versionEntity->setNameI18n($agentEntity->getNameI18n());
         $versionEntity->setRoleI18n($agentEntity->getRoleI18n());
         $versionEntity->setDescriptionI18n($agentEntity->getDescriptionI18n());
+        $versionEntity->setPublishTargetType($publishTargetType);
+        $versionEntity->setPublishTargetValue($publishTargetValue);
+        $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
         $versionEntity->setProjectId($agentEntity->getProjectId());
-        $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
-        $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+        $versionEntity->setFileKey($agentEntity->getFileKey());
+        if ($publishTargetType !== PublishTargetType::MARKET) {
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setIsCurrentVersion(true);
 
-        // 7. 保存版本记录
-        $versionEntity = $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+            // 6. 切换当前版本标记
+            $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $agentEntity->getCode());
+
+            // 7. 保存版本记录
+            $versionEntity = $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+
+            $agentEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+            $agentEntity->setModifier($dataIsolation->getCurrentUserId());
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
+        } else {
+            $agentEntity->setLatestPublishedAt(date('Y-m-d H:i:s'));
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
+
+            $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
+            $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+            $versionEntity->setPublishedAt(null);
+            $versionEntity->setIsCurrentVersion(false);
+            $versionEntity = $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+        }
 
         // 8. 查询当前 Agent 绑定的 Skill 列表
         $agentSkills = $this->agentSkillRepository->getByAgentCodeForCurrentVersion($dataIsolation, $agentEntity->getCode());
@@ -400,6 +490,14 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * 从组织内发布范围重新收口时，下线市场分发记录。
+     */
+    public function offlineMarketPublishings(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    {
+        $this->storeAgentRepository->offlineByAgentCode($dataIsolation, $code);
+    }
+
+    /**
      * 审核员工版本.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
@@ -408,6 +506,7 @@ readonly class SuperMagicAgentDomainService
      * @param string $modifier 修改者
      * @param null|string $publisherType 发布者类型（仅在 action=APPROVED 时有效）
      */
+    #[Transactional]
     public function reviewAgentVersion(
         SuperMagicAgentDataIsolation $dataIsolation,
         int $versionId,
@@ -415,6 +514,8 @@ readonly class SuperMagicAgentDomainService
         string $modifier,
         ?string $publisherType = null
     ): void {
+        $dataIsolation->disabled();
+
         // 1. 查询待审核的版本
         $versionEntity = $this->agentVersionRepository->findPendingReviewById($dataIsolation, $versionId);
         if (! $versionEntity) {
@@ -442,6 +543,25 @@ readonly class SuperMagicAgentDomainService
                 ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.operation_failed');
             }
 
+            $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $versionEntity->getCode());
+            $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
+            $versionEntity->setIsCurrentVersion(true);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setPublisherUserId($versionEntity->getCreator());
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setModifier($modifier);
+            $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+
+            // Persist the latest published timestamp on the live agent record.
+            $agentEntity = $this->superMagicAgentRepository->getByCode($dataIsolation, $versionEntity->getCode());
+            if (! $agentEntity) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $versionEntity->getCode()]);
+            }
+            $agentEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+            $agentEntity->setModifier($modifier);
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
+
             // 处理 publisher_type：如果用户传入了，使用用户传入的值，否则使用默认值 USER
             $publisherTypeEnum = PublisherType::USER;
             if ($publisherType) {
@@ -458,6 +578,19 @@ readonly class SuperMagicAgentDomainService
             $storeAgentEntity->setNameI18n($versionEntity->getNameI18n());
             $storeAgentEntity->setDescriptionI18n($versionEntity->getDescriptionI18n());
             $storeAgentEntity->setRoleI18n($versionEntity->getRoleI18n());
+            $storeAgentEntity->setSearchText(MarketSearchTextBuilder::build(
+                [
+                    $versionEntity->getName(),
+                    $versionEntity->getDescription(),
+                    $versionEntity->getVersion(),
+                ],
+                [
+                    $versionEntity->getNameI18n() ?? [],
+                    $versionEntity->getRoleI18n() ?? [],
+                    $versionEntity->getDescriptionI18n() ?? [],
+                    $versionEntity->getVersionDescriptionI18n() ?? [],
+                ]
+            ));
             // icon 字段：从 versionEntity 的 icon 获取（已经是数组格式）
             $storeAgentEntity->setIcon($versionEntity->getIcon());
             $storeAgentEntity->setPublisherId($versionEntity->getCreator());
@@ -486,6 +619,123 @@ readonly class SuperMagicAgentDomainService
                 ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.operation_failed');
             }
         }
+    }
+
+    /**
+     * Export agent workspace from sandbox to object storage.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
+     * @param string $code Agent code, e.g. "SMA-xxx"
+     * @param int $projectId Associated project ID
+     * @param string $fullWorkdir Full working directory path on object storage
+     * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
+     */
+    public function exportAgentFromSandbox(SuperMagicAgentDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
+    {
+        // Build sandbox ID (same strategy as file converter)
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+
+        // Ensure sandbox is running
+        $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
+
+        // Build upload_config: STS credentials for private bucket, matches sandbox API contract
+        $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
+            $dataIsolation->getCurrentOrganizationCode(),
+            StorageBucketType::Private,
+            '/agent_export'
+        );
+
+        // Call sandbox workspace export API via proxy request
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $response = $this->workspaceExporter->export($sandboxId, $request);
+
+        if (! $response->isSuccess()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+        }
+
+        return $response->toArray();
+    }
+
+    /**
+     * 雇用市场员工（从市场添加到用户员工列表）.
+     *
+     * 这里与 Skill 的市场安装语义保持一致：
+     * - 不复制一份新的本地 Agent 主表数据
+     * - 市场 code 就是用户后续访问/删除时使用的 Agent code
+     * - 仅新增一条用户安装关系，主资源仍然指向原始 Agent
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
+     * @param string $agentMarketCode 市场员工 code
+     * @return SuperMagicAgentEntity 被安装的原始 Agent 实体
+     */
+    public function hireAgent(SuperMagicAgentDataIsolation $dataIsolation, string $agentMarketCode): SuperMagicAgentEntity
+    {
+        // 1. 查询市场员工信息（仅查询已发布的）
+        $agentMarket = $this->agentMarketRepository->findByAgentCodeForHire($agentMarketCode);
+        if (! $agentMarket) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.store_agent_not_found');
+        }
+        if ($agentMarket->getPublisherId() === $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.store_agent_already_added');
+        }
+
+        // 2. 查询 Agent 版本信息
+        $agentVersion = $this->agentVersionRepository->findById($agentMarket->getAgentVersionId());
+        if (! $agentVersion) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::AgentVersionNotFound, 'super_magic.agent.agent_version_not_found');
+        }
+
+        // 3. 通过用户关系表判断当前用户是否已安装过这个市场 Agent，而不是再依赖本地 Agent 主表反查。
+        $existingUserAgents = $this->userAgentDomainService->findUserAgentOwnershipsByVersionIds($dataIsolation, [$agentMarket->getAgentVersionId()]);
+        $existingAgent = $existingUserAgents[$agentMarket->getAgentVersionId()] ?? null;
+        if ($existingAgent !== null) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.store_agent_already_added');
+        }
+
+        // 4. 市场安装不再复制本地 Agent 主表记录。
+        //    返回值仅用于应用层补可见范围，因此直接基于市场快照和版本快照组装一个资源视图即可。
+        $sourceAgent = new SuperMagicAgentEntity();
+        $sourceAgent->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $sourceAgent->setCode($agentMarket->getAgentCode());
+        $sourceAgent->setName($agentVersion->getName());
+        $sourceAgent->setDescription($agentVersion->getDescription());
+        $sourceAgent->setIcon($agentMarket->getIcon());
+        $sourceAgent->setIconType($agentVersion->getIconType());
+        $sourceAgent->setType($agentVersion->getType());
+        $sourceAgent->setEnabled($agentVersion->getEnabled());
+        $sourceAgent->setPrompt($agentVersion->getPrompt() ?? []);
+        $sourceAgent->setTools($agentVersion->getTools() ?? []);
+        $sourceAgent->setCreator($agentVersion->getCreator());
+        $sourceAgent->setModifier($agentVersion->getModifier());
+        $sourceAgent->setNameI18n($agentMarket->getNameI18n() ?? $agentVersion->getNameI18n());
+        $sourceAgent->setRoleI18n($agentMarket->getRoleI18n() ?? $agentVersion->getRoleI18n());
+        $sourceAgent->setDescriptionI18n($agentMarket->getDescriptionI18n() ?? $agentVersion->getDescriptionI18n());
+        $sourceAgent->setSourceType(AgentSourceType::MARKET);
+        $sourceAgent->setSourceId($agentMarket->getId());
+        $sourceAgent->setVersionId(null);
+        $sourceAgent->setVersionCode(null);
+        $sourceAgent->setFileKey($agentVersion->getFileKey());
+        $sourceAgent->setLatestPublishedAt($agentVersion->getPublishedAt());
+        $sourceAgent->setProjectId($agentVersion->getProjectId());
+        $sourceAgent->setCreatedAt($agentVersion->getCreatedAt());
+        $sourceAgent->setUpdatedAt($agentVersion->getUpdatedAt());
+
+        // 安装完成后，额外记录一条“用户安装关系”，供市场列表、去重和删除链路统一判断。
+        $userAgentEntity = new UserAgentEntity([
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'agent_code' => $agentMarket->getAgentCode(),
+            'agent_version_id' => $agentMarket->getAgentVersionId(),
+            'source_type' => AgentSourceType::MARKET->value,
+            'source_id' => $agentMarket->getId(),
+        ]);
+        $this->userAgentDomainService->saveUserAgentOwnership($dataIsolation, $userAgentEntity);
+
+        // 8. 更新市场员工的安装次数
+        $this->agentMarketRepository->incrementInstallCount($agentMarket->getId());
+
+        return $sourceAgent;
     }
 
     /**
@@ -522,5 +772,24 @@ readonly class SuperMagicAgentDomainService
         if ($builtinAgent) {
             ExceptionBuilder::throw(SuperMagicErrorCode::BuiltinAgentNotAllowed, 'super_magic.agent.builtin_not_allowed');
         }
+    }
+
+    private function saveUserAgentOwnership(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $agentCode,
+        AgentSourceType $sourceType,
+        ?int $sourceId = null,
+        ?int $agentVersionId = null
+    ): void {
+        $entity = new UserAgentEntity([
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'agent_code' => $agentCode,
+            'agent_version_id' => $agentVersionId,
+            'source_type' => $sourceType->value,
+            'source_id' => $sourceId,
+        ]);
+
+        $this->userAgentDomainService->saveUserAgentOwnership($dataIsolation, $entity);
     }
 }

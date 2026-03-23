@@ -27,13 +27,17 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterfac
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\UserAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentCategoryRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentMarketRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentPlaybookRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentSkillRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\AgentVersionRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\MagicClawRepository;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\SuperMagicAgentRepository;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\UserAgentRepository;
 use Dtyq\SuperMagic\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessage;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionItemRepositoryInterface;
 use Dtyq\SuperMagic\Domain\FileCollection\Repository\Facade\FileCollectionRepositoryInterface;
@@ -53,10 +57,12 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterf
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\UserSkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillCategoryRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillMarketRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillVersionRepository;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\UserSkillRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
@@ -111,6 +117,10 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConve
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterService;
 use Dtyq\SuperMagic\Listener\AddRouteListener;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -168,6 +178,8 @@ class ConfigProvider
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
+                WorkspaceExporterInterface::class => WorkspaceExporterService::class,
+                WorkspaceImporterInterface::class => WorkspaceImporterService::class,
                 AsrRecorderInterface::class => AsrRecorderService::class,
                 AgentAppService::class => AgentAppService::class,
                 // 添加FileProcessAppService的依赖注入
@@ -200,6 +212,7 @@ class ConfigProvider
                 FileCollectionItemRepositoryInterface::class => FileCollectionItemRepository::class,
 
                 // agent 管理
+                MagicClawRepositoryInterface::class => MagicClawRepository::class,
                 SuperMagicAgentRepositoryInterface::class => SuperMagicAgentRepository::class,
                 TaskFileVersionDomainService::class => TaskFileVersionDomainService::class,
                 MessageScheduleDomainService::class => MessageScheduleDomainService::class,
@@ -208,6 +221,7 @@ class ConfigProvider
                 AgentVersionRepositoryInterface::class => AgentVersionRepository::class,
                 AgentCategoryRepositoryInterface::class => AgentCategoryRepository::class,
                 AgentSkillRepositoryInterface::class => AgentSkillRepository::class,
+                UserAgentRepositoryInterface::class => UserAgentRepository::class,
 
                 // transfer 转让
                 TransferLogRepositoryInterface::class => TransferLogRepository::class,
@@ -221,6 +235,7 @@ class ConfigProvider
                 SkillVersionRepositoryInterface::class => SkillVersionRepository::class,
                 SkillMarketRepositoryInterface::class => SkillMarketRepository::class,
                 SkillCategoryRepositoryInterface::class => SkillCategoryRepository::class,
+                UserSkillRepositoryInterface::class => UserSkillRepository::class,
 
                 // recycle bin 回收站
                 RecycleBinRepositoryInterface::class => RecycleBinRepository::class,

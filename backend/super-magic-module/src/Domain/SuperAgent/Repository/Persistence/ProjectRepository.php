@@ -517,6 +517,18 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             ]);
     }
 
+    public function getProjectByTopicId(int $topicId): ?ProjectEntity
+    {
+        $model = ProjectModel::query()
+            ->where('current_topic_id', $topicId)
+            ->whereNull('deleted_at')
+            ->first();
+        if ($model === null) {
+            return null;
+        }
+        return $this->toEntity($model->toArray());
+    }
+
     /**
      * 查询项目（包含软删除）.
      *

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
+use App\Interfaces\Kernel\DTO\OperatorDTO;
 use JsonSerializable;
 
 /**
@@ -14,7 +15,7 @@ use JsonSerializable;
  */
 class SkillListItemDTO implements JsonSerializable
 {
-    private int $id;
+    private string $id;
 
     private string $code;
 
@@ -30,18 +31,24 @@ class SkillListItemDTO implements JsonSerializable
 
     private ?string $pinnedAt;
 
-    private bool $needUpgrade;
-
     private string $updatedAt;
 
     private string $createdAt;
+
+    private ?string $latestPublishedAt;
+
+    private string $latestVersion;
+
+    private string $packageName;
 
     private string $name;
 
     private string $description;
 
+    private ?OperatorDTO $creatorInfo;
+
     public function __construct(
-        int $id,
+        string $id,
         string $code,
         string $name,
         string $description,
@@ -51,9 +58,12 @@ class SkillListItemDTO implements JsonSerializable
         string $sourceType,
         int $isEnabled,
         ?string $pinnedAt,
-        bool $needUpgrade,
         string $updatedAt,
-        string $createdAt
+        string $createdAt,
+        ?string $latestPublishedAt,
+        string $latestVersion = '',
+        string $packageName = '',
+        ?OperatorDTO $creatorInfo = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -65,9 +75,12 @@ class SkillListItemDTO implements JsonSerializable
         $this->sourceType = $sourceType;
         $this->isEnabled = $isEnabled;
         $this->pinnedAt = $pinnedAt;
-        $this->needUpgrade = $needUpgrade;
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
+        $this->latestPublishedAt = $latestPublishedAt;
+        $this->latestVersion = $latestVersion;
+        $this->packageName = $packageName;
+        $this->creatorInfo = $creatorInfo;
     }
 
     public function jsonSerialize(): array
@@ -83,9 +96,12 @@ class SkillListItemDTO implements JsonSerializable
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,
             'pinned_at' => $this->pinnedAt,
-            'need_upgrade' => $this->needUpgrade,
+            'latest_published_at' => $this->latestPublishedAt,
+            'latest_version' => $this->latestVersion,
+            'package_name' => $this->packageName,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
+            'creator_info' => $this->creatorInfo,
         ];
     }
 }

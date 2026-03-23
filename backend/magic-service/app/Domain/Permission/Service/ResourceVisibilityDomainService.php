@@ -84,17 +84,91 @@ readonly class ResourceVisibilityDomainService
     }
 
     /**
+     * 按资源和主体类型精准删除可见性记录，避免“全量查出再重建”的高成本操作。
+     *
+     * @param array<string> $principalIds
+     */
+    public function deleteResourceVisibilityByPrincipals(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): int {
+        return $this->resourceVisibilityRepository->deleteByResourceAndPrincipals(
+            $dataIsolation,
+            $resourceType,
+            $resourceCode,
+            $principalType,
+            $principalIds
+        );
+    }
+
+    /**
+     * 按主体精准追加可见性记录。
+     *
+     * 这里使用“批量查询已有 + 批量 insertOrIgnore 缺失”的方式：
+     * - 不会读取整份资源可见范围
+     * - 不会重建其它记录
+     * - 可以兼顾批量性能和并发幂等
+     *
+     * @param array<string> $principalIds
+     */
+    public function addResourceVisibilityByPrincipalsIfMissing(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): void {
+        $principalIds = array_values(array_unique(array_filter($principalIds)));
+        if ($principalIds === []) {
+            return;
+        }
+
+        $existingPrincipalIds = $this->resourceVisibilityRepository->listExistingPrincipalIdsByResourceAndType(
+            $dataIsolation,
+            $resourceType,
+            $resourceCode,
+            $principalType,
+            $principalIds
+        );
+        $missingPrincipalIds = array_values(array_diff($principalIds, $existingPrincipalIds));
+
+        if ($missingPrincipalIds === []) {
+            return;
+        }
+
+        $entities = [];
+        foreach ($missingPrincipalIds as $principalId) {
+            $entity = new ResourceVisibilityEntity();
+            $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $entity->setPrincipalType($principalType);
+            $entity->setPrincipalId($principalId);
+            $entity->setResourceType($resourceType);
+            $entity->setResourceCode($resourceCode);
+            $entity->setCreator($dataIsolation->getCurrentUserId());
+            $entity->setModifier($dataIsolation->getCurrentUserId());
+            $entities[] = $entity;
+        }
+
+        $this->resourceVisibilityRepository->batchInsertOrIgnore($dataIsolation, $entities);
+    }
+
+    /**
      * 获取用户可访问的资源编码列表.
      *
      * @param PermissionDataIsolation $dataIsolation 数据隔离对象
      * @param string $userId 用户ID
      * @param ResourceType $resourceType 资源类型
+     * @param null|array $resourceIds 资源编码过滤列表，null 表示返回全部可访问资源
      * @return array resource_code 数组
      */
     public function getUserAccessibleResourceCodes(
         PermissionDataIsolation $dataIsolation,
         string $userId,
-        ResourceType $resourceType
+        ResourceType $resourceType,
+        ?array $resourceIds = null
     ): array {
         $contactDataIsolation = ContactDataIsolation::simpleMake(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -123,16 +197,17 @@ readonly class ResourceVisibilityDomainService
         $entities = $this->resourceVisibilityRepository->listByPrincipalIds(
             $dataIsolation,
             $principalIds,
-            $resourceType
+            $resourceType,
+            $resourceIds
         );
 
         // 从实体列表中提取资源编码并去重
-        $resourceCodes = [];
+        $codes = [];
         foreach ($entities as $entity) {
-            $resourceCodes[] = $entity->getResourceCode();
+            $codes[] = $entity->getResourceCode();
         }
 
-        return array_values(array_unique($resourceCodes));
+        return array_values(array_unique($codes));
     }
 
     /**

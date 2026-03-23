@@ -9,6 +9,7 @@ namespace App\Domain\Permission\Repository\Persistence;
 
 use App\Domain\Permission\Entity\ResourceVisibilityEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
 use App\Domain\Permission\Factory\ResourceVisibilityFactory;
 use App\Domain\Permission\Repository\Facade\ResourceVisibilityRepositoryInterface;
@@ -92,13 +93,86 @@ class ResourceVisibilityRepository extends MagicAbstractRepository implements Re
     }
 
     /**
+     * @param array<string> $principalIds
+     */
+    public function deleteByResourceAndPrincipals(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): int {
+        if ($principalIds === []) {
+            return 0;
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ResourceVisibilityModel::query());
+
+        return $builder
+            ->where('resource_type', $resourceType->value)
+            ->where('resource_code', $resourceCode)
+            ->where('principal_type', $principalType->value)
+            ->whereIn('principal_id', array_values(array_unique($principalIds)))
+            ->delete();
+    }
+
+    /**
+     * @param array<string> $principalIds
+     * @return array<string>
+     */
+    public function listExistingPrincipalIdsByResourceAndType(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        PrincipalType $principalType,
+        array $principalIds
+    ): array {
+        if ($principalIds === []) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ResourceVisibilityModel::query());
+
+        return $builder
+            ->where('resource_type', $resourceType->value)
+            ->where('resource_code', $resourceCode)
+            ->where('principal_type', $principalType->value)
+            ->whereIn('principal_id', array_values(array_unique($principalIds)))
+            ->pluck('principal_id')
+            ->map(static fn (mixed $principalId): string => (string) $principalId)
+            ->toArray();
+    }
+
+    /**
+     * @param array<ResourceVisibilityEntity> $entities
+     */
+    public function batchInsertOrIgnore(PermissionDataIsolation $dataIsolation, array $entities): int
+    {
+        if ($entities === []) {
+            return 0;
+        }
+
+        $insertData = [];
+        foreach ($entities as $entity) {
+            $entity->prepareForCreation();
+            $insertData[] = $this->getAttributes($entity);
+        }
+
+        return ResourceVisibilityModel::query()->insertOrIgnore($insertData);
+    }
+
+    /**
      * 根据主体ID列表查询可见性实体列表.
      *
      * @return array<ResourceVisibilityEntity>
      */
-    public function listByPrincipalIds(PermissionDataIsolation $dataIsolation, array $principalIds, ResourceType $resourceType): array
-    {
-        if (empty($principalIds)) {
+    public function listByPrincipalIds(
+        PermissionDataIsolation $dataIsolation,
+        array $principalIds,
+        ResourceType $resourceType,
+        ?array $resourceIds = null
+    ): array {
+        if (empty($principalIds) || $resourceIds === []) {
             return [];
         }
 
@@ -106,6 +180,9 @@ class ResourceVisibilityRepository extends MagicAbstractRepository implements Re
 
         $builder->where('resource_type', $resourceType->value);
         $builder->whereIn('principal_id', $principalIds);
+        if ($resourceIds !== null) {
+            $builder->whereIn('resource_code', $resourceIds);
+        }
 
         $list = [];
         /** @var ResourceVisibilityModel $model */

@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\Assembler\SkillAssembler;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\FormRequest\SkillQueryFormRequest;
 use Hyperf\Di\Annotation\Inject;
@@ -49,9 +50,11 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
             $result['list'],
             $result['userSkills'],
             $result['publisherUserMap'],
+            $result['creatorSkillCodes'],
             $page->getPage(),
             $page->getPageNum(),
-            $result['total']
+            $result['total'],
+            $result['skillVersionMap'] ?? []
         );
     }
 
@@ -73,10 +76,28 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
 
         return SkillAssembler::createListResponseDTO(
             $result['list'],
-            $result['storeSkills'],
             $page->getPage(),
             $page->getPageNum(),
             $result['total']
+        );
+    }
+
+    /**
+     * Batch query latest published current skill versions by codes.
+     */
+    public function queryLatestPublishedVersions(RequestContext $requestContext)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetLatestPublishedSkillVersionsRequestDTO::fromRequest($this->request);
+        $result = $this->userSkillAppService->getLatestPublishedVersionsByCodes($requestContext, $requestDTO);
+
+        return SkillAssembler::createLatestPublishedVersionsResponseDTO(
+            $result['list'],
+            $result['page'],
+            $result['page_size'],
+            $result['total'],
+            true
         );
     }
 

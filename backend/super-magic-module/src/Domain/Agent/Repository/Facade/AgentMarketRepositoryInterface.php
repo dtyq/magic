@@ -34,6 +34,14 @@ interface AgentMarketRepositoryInterface
     public function findByAgentCodes(array $agentCodes): array;
 
     /**
+     * 批量根据市场记录 ID 列表查询市场记录（不限制发布状态）.
+     *
+     * @param int[] $ids 市场记录 ID 列表
+     * @return array<int, AgentMarketEntity> 市场 Agent 实体数组，key 为 id
+     */
+    public function findByIds(array $ids): array;
+
+    /**
      * 根据 agent_code 查询市场记录（不限制发布状态）.
      *
      * @param string $agentCode Agent code
@@ -62,6 +70,23 @@ interface AgentMarketRepositoryInterface
     public function queries(AgentMarketQuery $query, Page $page): array;
 
     /**
+     * 管理后台查询员工市场列表.
+     *
+     * @return array{total: int, list: array<AgentMarketEntity>}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $agentCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
+
+    /**
      * 根据 agent_code 查询市场员工（仅查询已发布的）.
      *
      * @param string $agentCode Agent code
@@ -76,4 +101,13 @@ interface AgentMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function incrementInstallCount(int $agentMarketId): bool;
+
+    /**
+     * 更新市场员工排序值.
+     *
+     * @param int $id 市场员工 ID
+     * @param int $sortOrder 排序值
+     * @return bool 是否更新成功
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool;
 }

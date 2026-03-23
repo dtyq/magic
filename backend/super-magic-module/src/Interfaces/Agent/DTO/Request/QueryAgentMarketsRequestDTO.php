@@ -55,14 +55,14 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
     public static function getHyperfValidationMessage(): array
     {
         return [
-            'page.integer' => __('crew.page_must_be_integer'),
-            'page.min' => __('crew.page_must_be_greater_than_zero'),
-            'page_size.integer' => __('crew.page_size_must_be_integer'),
-            'page_size.min' => __('crew.page_size_must_be_greater_than_zero'),
-            'page_size.max' => __('crew.page_size_must_not_exceed_100'),
-            'keyword.string' => __('crew.keyword_must_be_string'),
-            'keyword.max' => __('crew.keyword_must_not_exceed_255'),
-            'category_id.string' => __('crew.category_id_must_be_integer'),
+            'page.integer' => __('super_magic.agent.page_must_be_integer'),
+            'page.min' => __('super_magic.agent.page_must_be_greater_than_zero'),
+            'page_size.integer' => __('super_magic.agent.page_size_must_be_integer'),
+            'page_size.min' => __('super_magic.agent.page_size_must_be_greater_than_zero'),
+            'page_size.max' => __('super_magic.agent.page_size_must_not_exceed_100'),
+            'keyword.string' => __('super_magic.agent.keyword_must_be_string'),
+            'keyword.max' => __('super_magic.agent.keyword_must_not_exceed_255'),
+            'category_id.string' => __('super_magic.agent.category_id_must_be_integer'),
         ];
     }
 

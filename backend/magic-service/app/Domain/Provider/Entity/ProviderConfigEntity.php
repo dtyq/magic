@@ -213,7 +213,7 @@ class ProviderConfigEntity extends AbstractEntity
         } elseif ($providerCode instanceof ProviderCode) {
             $this->providerCode = $providerCode;
         } else {
-            $this->providerCode = ProviderCode::from((string) $providerCode);
+            $this->providerCode = ProviderCode::tryFrom((string) $providerCode);
         }
     }
 

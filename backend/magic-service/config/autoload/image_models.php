@@ -143,7 +143,7 @@ return [
                     ['label' => '16:9', 'value' => '2560x1440', 'scale' => '2K'],
                     ['label' => '16:9', 'value' => '4096x2304', 'scale' => '4K'],
                     // 21:9
-                    ['label' => '21:9', 'value' => '2048x2048', 'scale' => '2K'],
+                    ['label' => '21:9', 'value' => '2048x878', 'scale' => '2K'],
                     ['label' => '21:9', 'value' => '4096x1755', 'scale' => '4K'],
                 ],
                 'max_reference_images' => 14,

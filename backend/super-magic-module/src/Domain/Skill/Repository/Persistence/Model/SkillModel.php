@@ -20,6 +20,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property null|string $package_description Skill 包描述
  * @property array $name_i18n 多语言展示名
  * @property null|array $description_i18n 多语言展示描述
+ * @property null|string $search_text 统一小写搜索字段
  * @property null|string $logo Logo 图片 URL
  * @property string $file_key 压缩包在对象存储中的 key
  * @property string $source_type 来源类型
@@ -30,6 +31,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property bool $is_enabled 是否启用
  * @property null|Carbon $pinned_at 置顶时间
  * @property null|int $project_id 项目ID
+ * @property null|Carbon $latest_published_at Latest published timestamp
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 更新时间
  * @property null|Carbon $deleted_at 软删除时间
@@ -49,6 +51,7 @@ class SkillModel extends AbstractModel
         'package_description',
         'name_i18n',
         'description_i18n',
+        'search_text',
         'logo',
         'file_key',
         'source_type',
@@ -59,6 +62,7 @@ class SkillModel extends AbstractModel
         'is_enabled',
         'pinned_at',
         'project_id',
+        'latest_published_at',
     ];
 
     protected array $casts = [
@@ -70,6 +74,7 @@ class SkillModel extends AbstractModel
         'package_description' => 'string',
         'name_i18n' => 'array',
         'description_i18n' => 'array',
+        'search_text' => 'string',
         'logo' => 'string',
         'file_key' => 'string',
         'source_type' => 'string',
@@ -80,6 +85,7 @@ class SkillModel extends AbstractModel
         'is_enabled' => 'boolean',
         'pinned_at' => 'datetime',
         'project_id' => 'integer',
+        'latest_published_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

@@ -563,10 +563,8 @@ class ResourceShareRepository extends AbstractRepository implements ResourceShar
         return Db::transaction(function () use ($shareEntities) {
             foreach ($shareEntities as $entity) {
                 $data = $this->entityToArray($entity);
-                // 使用 withTrashed 确保可以更新软删除的记录
-                /* @phpstan-ignore-next-line - ResourceShareModel uses SoftDeletes trait which provides withTrashed() */
-                $this->model->query()
-                    ->withTrashed()
+                // Include soft-deleted records when updating existing rows.
+                $this->model::withTrashed()
                     ->where('id', $entity->getId())
                     ->update($data);
             }

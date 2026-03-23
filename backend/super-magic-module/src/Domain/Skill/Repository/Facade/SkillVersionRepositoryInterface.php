@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Skill\Repository\Facade;
 
+use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 
 /**
@@ -17,70 +20,155 @@ interface SkillVersionRepositoryInterface
 {
     /**
      * 根据 ID 查找 Skill 版本.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param int $id 版本 ID
      */
     public function findById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity;
 
     /**
      * 保存 Skill 版本.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillVersionEntity $entity Skill 版本实体
      */
     public function save(SkillDataIsolation $dataIsolation, SkillVersionEntity $entity): SkillVersionEntity;
 
     /**
      * 根据 code 查找最新版本的 Skill 版本.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return null|SkillVersionEntity 不存在返回 null
      */
     public function findLatestByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity;
 
     /**
-     * 根据 code 查找最新已发布版本的 Skill 版本（publish_status = PUBLISHED 且 review_status = APPROVED）.
+     * 根据 code 查询当前版本或最新版本.
+     */
+    public function findCurrentOrLatestByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity;
+
+    /**
+     * 根据 code 列表批量查询当前版本或最新版本.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return null|SkillVersionEntity 不存在返回 null
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> key 为 skill code
+     */
+    public function findCurrentOrLatestByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 根据 code 列表批量查询当前版本，忽略组织过滤.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> key 为 skill code
+     */
+    public function findCurrentByCodesWithoutOrganizationFilter(array $codes): array;
+
+    /**
+     * 根据 code 列表批量查询当前已发布版本.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> key 为 skill code
+     */
+    public function findCurrentPublishedByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 检查同一个 Skill 下版本号是否已存在.
+     */
+    public function existsByCodeAndVersion(SkillDataIsolation $dataIsolation, string $code, string $version): bool;
+
+    /**
+     * 根据 code 查找最新已发布版本的 Skill 版本.
      */
     public function findLatestPublishedByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity;
 
     /**
-     * 根据 ID 查找待审核的技能版本（publish_status = UNPUBLISHED）.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param int $id 版本 ID
-     * @return null|SkillVersionEntity 不存在返回 null
+     * 根据 ID 查找待审核的技能版本.
      */
-    public function findPendingReviewById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity;
+    public function findPendingReviewById(int $id): ?SkillVersionEntity;
 
     /**
-     * 根据 code 查找所有已发布版本的 Skill 版本（publish_status = PUBLISHED 且 review_status = APPROVED）.
+     * 根据 code 查找所有已发布版本的 Skill 版本.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return SkillVersionEntity[] 已发布的版本列表
+     * @return SkillVersionEntity[]
      */
     public function findAllPublishedByCode(SkillDataIsolation $dataIsolation, string $code): array;
 
     /**
-     * 根据 code 查找所有版本的 Skill 版本（不限制状态）.
+     * 根据 code 查找所有版本的 Skill 版本.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return SkillVersionEntity[] 所有版本列表
+     * @return SkillVersionEntity[]
      */
     public function findAllByCode(SkillDataIsolation $dataIsolation, string $code): array;
 
     /**
      * 根据 ID 查找 Skill 版本（不进行组织过滤，用于查询公开的商店技能版本）.
-     *
-     * @param int $id 版本 ID
-     * @return null|SkillVersionEntity 不存在返回 null
      */
     public function findByIdWithoutOrganizationFilter(int $id): ?SkillVersionEntity;
+
+    /**
+     * Batch query skill versions without organization filter.
+     *
+     * @return array<int, SkillVersionEntity>
+     */
+    public function findByIdsWithoutOrganizationFilter(array $ids): array;
+
+    /**
+     * Batch mark versions as INVALIDATED where review_status is PENDING or UNDER_REVIEW.
+     *
+     * @return int Number of rows updated
+     */
+    public function invalidateAwaitingReviewVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * 清空当前版本标记.
+     */
+    public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * 根据 code 软删除所有版本.
+     */
+    public function deleteByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * 统计某 Skill 下版本记录总数（未软删，与组织隔离一致）.
+     */
+    public function countByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
+     * 查询版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queriesByCode(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        ?PublishTargetType $publishTargetType = null,
+        ?ReviewStatus $reviewStatus = null,
+        Page $page = new Page()
+    ): array;
+
+    /**
+     * Query current published versions by skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queriesCurrentPublishedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        ?string $keyword,
+        string $languageCode,
+        Page $page
+    ): array;
+
+    /**
+     * 查询管理后台版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryVersions(
+        SkillDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $sourceType,
+        ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array;
 }

@@ -38,6 +38,11 @@ enum TaskFileSource: int
     case MOVE = 6;
 
     /**
+     * Skill.
+     */
+    case SKILL = 8;
+
+    /**
      * 获取来源名称.
      */
     public function getName(): string
@@ -50,7 +55,7 @@ enum TaskFileSource: int
             self::COPY => '复制',
             self::AI_IMAGE_GENERATION => 'AI图片生成',
             self::MOVE => '移动',
-            self::AI_IMAGE_GENERATION => 'AI图片生成',
+            self::SKILL => 'Skill',
         };
     }
 
@@ -70,6 +75,7 @@ enum TaskFileSource: int
             4 => self::COPY,
             5 => self::AI_IMAGE_GENERATION,
             6 => self::MOVE,
+            8 => self::SKILL,
             default => self::DEFAULT,
         };
     }

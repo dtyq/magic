@@ -42,15 +42,26 @@ class AgentListItemDTO extends AbstractDTO
 
     private bool $enabled;
 
+    /**
+     * 历史字段名沿用 `store`，实际语义表示“市场来源的 Agent 是否已从市场下架”.
+     */
     private ?bool $isStoreOffline;
 
-    private bool $needUpgrade;
+    private ?string $latestVersionCode;
+
+    private bool $allowDelete;
 
     private ?string $pinnedAt;
+
+    private ?string $latestPublishedAt;
 
     private string $updatedAt;
 
     private string $createdAt;
+
+    private string $publisherType;
+
+    private array $publisher;
 
     public function __construct(
         int $id,
@@ -64,10 +75,14 @@ class AgentListItemDTO extends AbstractDTO
         string $sourceType,
         bool $enabled,
         ?bool $isStoreOffline,
-        bool $needUpgrade,
+        ?string $latestVersionCode,
+        bool $allowDelete,
         ?string $pinnedAt,
+        ?string $latestPublishedAt,
         string $updatedAt,
-        string $createdAt
+        string $createdAt,
+        string $publisherType = '',
+        array $publisher = []
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -80,10 +95,14 @@ class AgentListItemDTO extends AbstractDTO
         $this->sourceType = $sourceType;
         $this->enabled = $enabled;
         $this->isStoreOffline = $isStoreOffline;
-        $this->needUpgrade = $needUpgrade;
+        $this->latestVersionCode = $latestVersionCode;
+        $this->allowDelete = $allowDelete;
         $this->pinnedAt = $pinnedAt;
+        $this->latestPublishedAt = $latestPublishedAt;
         $this->updatedAt = $updatedAt;
         $this->createdAt = $createdAt;
+        $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
     }
 
     /**
@@ -103,10 +122,14 @@ class AgentListItemDTO extends AbstractDTO
             'source_type' => $this->sourceType,
             'enabled' => $this->enabled,
             'is_store_offline' => $this->isStoreOffline,
-            'need_upgrade' => $this->needUpgrade,
+            'latest_version_code' => $this->latestVersionCode,
+            'allow_delete' => $this->allowDelete,
             'pinned_at' => $this->pinnedAt,
+            'latest_published_at' => $this->latestPublishedAt,
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
+            'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
         ];
     }
 }

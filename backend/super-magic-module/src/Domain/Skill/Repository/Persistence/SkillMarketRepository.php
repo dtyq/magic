@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
@@ -18,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterf
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillMarketModel;
+use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
 use RuntimeException;
 
@@ -134,20 +136,17 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             ->where('publish_status', PublishStatus::PUBLISHED->value);
 
         $keyword = $query->getKeyword() ?? '';
-        $languageCode = $query->getLanguageCode() ?? 'en_US';
         $publisherType = $query->getPublisherType() ?? '';
+        $codes = $query->getCodes();
+        $normalizedKeyword = $keyword !== '' ? mb_strtolower(trim($keyword), 'UTF-8') : '';
 
-        // 关键词搜索：在 name_i18n 和 description_i18n JSON 字段中搜索
-        if (! empty($keyword)) {
-            $builder->where(function ($q) use ($keyword, $languageCode) {
-                $q->whereRaw(
-                    "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                )->orWhereRaw(
-                    "JSON_EXTRACT(description_i18n, CONCAT('$.', ?)) LIKE ?",
-                    [$languageCode, '%' . $keyword . '%']
-                );
-            });
+        if (! empty($codes)) {
+            $builder->whereIn('skill_code', array_values(array_unique($codes)));
+        }
+
+        // 关键词搜索优先使用统一搜索字段；旧数据无该字段时回退到历史 JSON 搜索。
+        if ($normalizedKeyword !== '') {
+            $builder->where('search_text', 'LIKE', '%' . $normalizedKeyword . '%');
         }
 
         // 发布者类型筛选
@@ -158,7 +157,9 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         // 先查询总数
         $total = $builder->count();
 
-        // 排序：按 created_at DESC
+        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
         $builder->orderBy('created_at', 'DESC');
 
         // 分页
@@ -173,6 +174,89 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return [
             'total' => $total,
             'list' => $entities,
+        ];
+    }
+
+    /**
+     * @return array{total: int, list: SkillMarketEntity[]}
+     */
+    public function queryAdminMarkets(
+        ?string $publishStatus,
+        ?string $organizationCode,
+        ?string $name18n,
+        ?string $publisherType,
+        ?string $skillCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        $builder = $this->skillMarketModel::query()
+            ->whereNull('deleted_at');
+
+        $publishStatus = trim((string) $publishStatus);
+        if ($publishStatus !== '') {
+            $builder->where('publish_status', $publishStatus);
+        }
+
+        $organizationCode = trim((string) $organizationCode);
+        if ($organizationCode !== '') {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $publisherType = trim((string) $publisherType);
+        if ($publisherType !== '') {
+            $builder->where('publisher_type', $publisherType);
+        }
+
+        $skillCode = trim((string) $skillCode);
+        if ($skillCode !== '') {
+            $builder->where('skill_code', $skillCode);
+        }
+
+        $name18n = trim((string) $name18n);
+        if ($name18n !== '') {
+            $like = '%' . $name18n . '%';
+            $localeKeys = LanguageEnum::getAllLanguageCodes();
+            $builder->where(function ($q) use ($like, $localeKeys) {
+                $first = true;
+                foreach ($localeKeys as $localeKey) {
+                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
+                    $bindings = [$localeKey, $like];
+                    if ($first) {
+                        $q->whereRaw($expression, $bindings);
+                        $first = false;
+                    } else {
+                        $q->orWhereRaw($expression, $bindings);
+                    }
+                }
+            });
+        }
+
+        $startTime = trim((string) $startTime);
+        if ($startTime !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        }
+
+        $endTime = trim((string) $endTime);
+        if ($endTime !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        }
+
+        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderByRaw('sort_order IS NULL ASC');
+        $builder->orderBy('sort_order', 'DESC');
+        $builder->orderBy('created_at', $createdAtOrder);
+
+        $result = $this->getByPage($builder, $page);
+        $list = [];
+        foreach ($result['list'] as $model) {
+            $list[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
         ];
     }
 
@@ -194,6 +278,25 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return $this->toEntity($model->toArray());
     }
 
+    public function findByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->skillMarketModel::query()
+            ->whereIn('id', $ids)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = $this->toEntity($model->toArray());
+            $result[$entity->getId()] = $entity;
+        }
+
+        return $result;
+    }
+
     /**
      * 增加商店技能的安装次数.
      */
@@ -207,6 +310,24 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
     }
 
     /**
+     * 更新市场技能排序值.
+     */
+    public function updateSortOrderById(int $id, int $sortOrder): bool
+    {
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return false;
+        }
+
+        $model->sort_order = $sortOrder;
+        return $model->save();
+    }
+
+    /**
      * 将实体转换为模型属性.
      */
     protected function entityToModelAttributes(SkillMarketEntity $entity): array
@@ -217,12 +338,14 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'skill_version_id' => $entity->getSkillVersionId(),
             'name_i18n' => $entity->getNameI18n() ?? [],
             'description_i18n' => $entity->getDescriptionI18n() ?? [],
+            'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'publisher_id' => $entity->getPublisherId(),
             'publisher_type' => $entity->getPublisherType()->value,
             'category_id' => $entity->getCategoryId(),
             'publish_status' => $entity->getPublishStatus()->value,
             'install_count' => $entity->getInstallCount(),
+            'sort_order' => $entity->getSortOrder(),
         ];
     }
 
@@ -250,12 +373,14 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'skill_version_id' => $data['skill_version_id'] ?? 0,
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'publisher_id' => $data['publisher_id'] ?? '',
             'publisher_type' => $data['publisher_type'] ?? PublisherType::USER->value,
             'category_id' => $data['category_id'] ?? null,
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'install_count' => $data['install_count'] ?? 0,
+            'sort_order' => $data['sort_order'] ?? null,
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,

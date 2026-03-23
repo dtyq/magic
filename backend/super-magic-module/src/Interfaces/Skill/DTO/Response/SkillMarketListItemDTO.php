@@ -11,13 +11,24 @@ use JsonSerializable;
 
 /**
  * 市场技能列表项 DTO.
+ *
+ * JSON 输出说明：
+ * - `code`：技能唯一编码，请新接入方优先使用。
+ * - `skill_code`、`user_skill_code`：与 `code` 相同，仅为兼容旧版客户端保留，后续可能移除，请勿在新逻辑中依赖。
  */
 class SkillMarketListItemDTO implements JsonSerializable
 {
     private int $id;
 
+    /**
+     * 技能编码（与 JSON `code` 一致；`skill_code` / `user_skill_code` 为兼容字段，已废弃语义）.
+     */
+    private string $code;
+
+    /** @deprecated 仅序列化为 `skill_code`，请改用 `code` */
     private string $skillCode;
 
+    /** @deprecated 仅序列化为 `user_skill_code`，请改用 `code` */
     private string $userSkillCode;
 
     private array $nameI18n;
@@ -36,6 +47,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private bool $needUpgrade;
 
+    private bool $isCreator;
+
     private string $createdAt;
 
     private string $updatedAt;
@@ -43,6 +56,12 @@ class SkillMarketListItemDTO implements JsonSerializable
     private string $name;
 
     private string $description;
+
+    private string $fileKey;
+
+    private ?string $fileUrl;
+
+    private string $packageName;
 
     public function __construct(
         int $id,
@@ -58,10 +77,15 @@ class SkillMarketListItemDTO implements JsonSerializable
         string $publishStatus,
         bool $isAdded,
         bool $needUpgrade,
+        bool $isCreator,
         string $createdAt,
-        string $updatedAt
+        string $updatedAt,
+        string $fileKey = '',
+        ?string $fileUrl = null,
+        string $packageName = '',
     ) {
         $this->id = $id;
+        $this->code = $skillCode;
         $this->skillCode = $skillCode;
         $this->userSkillCode = $userSkillCode;
         $this->name = $name;
@@ -74,14 +98,20 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->publishStatus = $publishStatus;
         $this->isAdded = $isAdded;
         $this->needUpgrade = $needUpgrade;
+        $this->isCreator = $isCreator;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->fileKey = $fileKey;
+        $this->fileUrl = $fileUrl;
+        $this->packageName = $packageName;
     }
 
     public function jsonSerialize(): array
     {
         return [
             'id' => (string) $this->id,
+            'code' => $this->code,
+            // Deprecated: same as `code`, kept for backward compatibility only.
             'skill_code' => $this->skillCode,
             'user_skill_code' => $this->userSkillCode,
             'name' => $this->name,
@@ -94,8 +124,12 @@ class SkillMarketListItemDTO implements JsonSerializable
             'publish_status' => $this->publishStatus,
             'is_added' => $this->isAdded,
             'need_upgrade' => $this->needUpgrade,
+            'is_creator' => $this->isCreator,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'file_key' => $this->fileKey,
+            'file_url' => $this->fileUrl,
+            'package_name' => $this->packageName,
         ];
     }
 }

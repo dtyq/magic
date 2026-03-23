@@ -97,10 +97,6 @@ readonly class SupperMagicAgentSkill implements SupperMagicAgentSkillInterface
                 ];
             }
 
-            $dynamicConfig = $taskContext->getDynamicConfig();
-            $dynamicConfig['skills'] = $skills;
-            $taskContext->setDynamicConfig($dynamicConfig);
-
             $this->logger->debug('AppendSkillDynamicConfig', [
                 'agent_code' => $agentCode,
                 'skill_count' => count($skills),

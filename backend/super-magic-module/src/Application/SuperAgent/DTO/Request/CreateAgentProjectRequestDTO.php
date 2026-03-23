@@ -19,6 +19,11 @@ class CreateAgentProjectRequestDTO extends AbstractRequestDTO
      */
     public string $projectName = '';
 
+    /**
+     * Whether to initialize template files after creating project root directory.
+     */
+    public bool $initTemplateFiles = true;
+
     public function getProjectName(): string
     {
         return $this->projectName;
@@ -27,6 +32,16 @@ class CreateAgentProjectRequestDTO extends AbstractRequestDTO
     public function setProjectName(string $projectName): void
     {
         $this->projectName = $projectName;
+    }
+
+    public function getInitTemplateFiles(): bool
+    {
+        return $this->initTemplateFiles;
+    }
+
+    public function setInitTemplateFiles(bool $initTemplateFiles): void
+    {
+        $this->initTemplateFiles = $initTemplateFiles;
     }
 
     /**
@@ -44,6 +59,7 @@ class CreateAgentProjectRequestDTO extends AbstractRequestDTO
     {
         return [
             'project_name' => 'required|string|max:255',
+            'init_template_files' => 'nullable|boolean',
         ];
     }
 
@@ -56,6 +72,7 @@ class CreateAgentProjectRequestDTO extends AbstractRequestDTO
             'project_name.required' => 'Project name cannot be empty',
             'project_name.string' => 'Project name must be a string',
             'project_name.max' => 'Project name cannot exceed 255 characters',
+            'init_template_files.boolean' => 'Init template files must be a boolean value',
         ];
     }
 }

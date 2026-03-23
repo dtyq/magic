@@ -53,6 +53,11 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
     public ?string $promptShadow = null;
 
     /**
+     * Agent 文件key.
+     */
+    public ?string $fileKey = null;
+
+    /**
      * @phpstan-ignore-next-line property.unusedType
      */
     private ?array $visibilityConfig = null;
@@ -104,6 +109,11 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
         return $this->prompt;
     }
 
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
     public function setPrompt(array $prompt): void
     {
         $this->prompt = $prompt;
@@ -129,6 +139,7 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
             'icon.color' => 'nullable|string',
             'icon_type' => 'nullable|integer|in:1,2',
             'prompt_shadow' => 'nullable|string',
+            'file_key' => 'nullable|string|max:500',
             'visibilityConfig' => 'nullable|array',
         ];
     }
@@ -139,16 +150,18 @@ class CreateAgentRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'name_i18n.required' => __('crew.name_i18n_required'),
-            'name_i18n.array' => __('crew.name_i18n_must_be_array'),
-            'name_i18n.en_US.required' => __('crew.name_i18n_en_required'),
-            'name_i18n.en_US.string' => __('crew.name_i18n_en_must_be_string'),
-            'role_i18n.array' => __('crew.role_i18n_must_be_array'),
-            'description_i18n.array' => __('crew.description_i18n_must_be_array'),
-            'icon.array' => __('crew.icon_must_be_array'),
-            'icon_type.integer' => __('crew.icon_type_must_be_integer'),
-            'icon_type.in' => __('crew.icon_type_invalid'),
-            'prompt_shadow.string' => __('crew.prompt_shadow_must_be_string'),
+            'name_i18n.required' => __('super_magic.agent.name_i18n_required'),
+            'name_i18n.array' => __('super_magic.agent.name_i18n_must_be_array'),
+            'name_i18n.en_US.required' => __('super_magic.agent.name_i18n_en_required'),
+            'name_i18n.en_US.string' => __('super_magic.agent.name_i18n_en_must_be_string'),
+            'role_i18n.array' => __('super_magic.agent.role_i18n_must_be_array'),
+            'description_i18n.array' => __('super_magic.agent.description_i18n_must_be_array'),
+            'icon.array' => __('super_magic.agent.icon_must_be_array'),
+            'icon_type.integer' => __('super_magic.agent.icon_type_must_be_integer'),
+            'icon_type.in' => __('super_magic.agent.icon_type_invalid'),
+            'prompt_shadow.string' => __('super_magic.agent.prompt_shadow_must_be_string'),
+            'file_key.string' => __('validation.string', ['attribute' => 'file_key']),
+            'file_key.max' => __('validation.max.string', ['attribute' => 'file_key', 'max' => 500]),
         ];
     }
 }
