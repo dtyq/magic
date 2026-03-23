@@ -212,6 +212,7 @@ class SkillAppService extends AbstractSkillAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
+        $sourceType = $requestDTO->getSourceType();
 
         // 1. 校验并解析 import_token
         $tokenData = $this->validateAndParseImportToken($requestDTO->getImportToken());
@@ -267,11 +268,15 @@ class SkillAppService extends AbstractSkillAppService
                         $packageDescription,
                         $fileKey,
                         $skillCode,
-                        SkillSourceType::LOCAL_UPLOAD,
+                        $sourceType,
                         $requestDTO->getNameI18n(),
                         $requestDTO->getDescriptionI18n(),
                         $requestDTO->getLogo()
                     );
+                }
+
+                if ($sourceType === SkillSourceType::CREW_IMPORT) {
+                    $this->publishImportedCrewSkill($requestContext, $dataIsolation, $result);
                 }
 
                 Db::commit();
@@ -686,32 +691,9 @@ class SkillAppService extends AbstractSkillAppService
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
-        $versionEntity = new SkillVersionEntity();
-        $versionEntity->setVersion($requestDTO->getVersion());
-        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
-        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
-        $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
-
-        // 如果相等代表没有任何修改
-        if ($requestDTO->getExportFileFromProject()) {
-            //            if ($skillEntity->getSourceType()->isDialogueCreation()) {
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
-            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
-            $skillEntity->setFileKey($fileMetadata['file_key']);
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
-            //            } else {
-            //                $this->logger->info('非agent_created创建跳过', ['id' => $skillEntity->getId(), 'code' => $code]);
-            //            }
-        }
-
-        if (empty($skillEntity->getFileKey())) {
-            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
-        }
-
         Db::beginTransaction();
         try {
-            $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
-            $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+            $versionEntity = $this->executePublishSkill($authorization, $dataIsolation, $skillEntity, $code, $requestDTO);
             Db::commit();
             return $versionEntity;
         } catch (Throwable $throwable) {
@@ -1565,6 +1547,60 @@ class SkillAppService extends AbstractSkillAppService
             $code,
             $visibilityConfig
         );
+    }
+
+    private function publishImportedCrewSkill(
+        RequestContext $requestContext,
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity
+    ): void {
+        $publishRequestDTO = new PublishSkillRequestDTO();
+        $publishRequestDTO->setVersion(sprintf(
+            '%d.0.0',
+            $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $skillEntity->getCode()) + 1
+        ));
+        $publishRequestDTO->setVersionDescriptionI18n($skillEntity->getDescriptionI18n() ?? []);
+        $publishRequestDTO->setPublishTargetType(PublishTargetType::PRIVATE->value);
+        $publishRequestDTO->setPublishTargetValue(null);
+        $publishRequestDTO->setExportFileFromProject(false);
+
+        $this->executePublishSkill(
+            $requestContext->getUserAuthorization(),
+            $dataIsolation,
+            $skillEntity,
+            $skillEntity->getCode(),
+            $publishRequestDTO
+        );
+    }
+
+    private function executePublishSkill(
+        MagicUserAuthorization $authorization,
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity,
+        string $code,
+        PublishSkillRequestDTO $requestDTO
+    ): SkillVersionEntity {
+        $versionEntity = new SkillVersionEntity();
+        $versionEntity->setVersion($requestDTO->getVersion());
+        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
+        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
+        $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
+
+        if ($requestDTO->getExportFileFromProject()) {
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
+            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+            $skillEntity->setFileKey($fileMetadata['file_key']);
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
+        }
+
+        if (empty($skillEntity->getFileKey())) {
+            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
+        }
+
+        $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
+        $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+
+        return $versionEntity;
     }
 
     /**

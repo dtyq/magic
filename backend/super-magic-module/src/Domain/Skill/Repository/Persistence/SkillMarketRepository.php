@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\Skill\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
@@ -186,6 +185,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         ?string $name18n,
         ?string $publisherType,
         ?string $skillCode,
+        ?string $packageName,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -216,21 +216,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
 
         $name18n = trim((string) $name18n);
         if ($name18n !== '') {
-            $like = '%' . $name18n . '%';
-            $localeKeys = LanguageEnum::getAllLanguageCodes();
-            $builder->where(function ($q) use ($like, $localeKeys) {
-                $first = true;
-                foreach ($localeKeys as $localeKey) {
-                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
-                    $bindings = [$localeKey, $like];
-                    if ($first) {
-                        $q->whereRaw($expression, $bindings);
-                        $first = false;
-                    } else {
-                        $q->orWhereRaw($expression, $bindings);
-                    }
-                }
-            });
+            $builder->where('search_txt', '%' . $name18n . '%');
         }
 
         $startTime = trim((string) $startTime);
