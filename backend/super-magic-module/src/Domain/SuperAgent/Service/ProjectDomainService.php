@@ -73,6 +73,11 @@ class ProjectDomainService
         if (! empty($projectId)) {
             $project->setId((int) $projectId);
         }
+
+        if (str_starts_with($projectMode, 'SMA-')) {
+            $projectMode = ProjectMode::CUSTOM_AGENT->value;
+        }
+
         $project->setUserId($userId)
             ->setUserOrganizationCode($userOrganizationCode)
             ->setWorkspaceId($workspaceId)
