@@ -444,6 +444,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
     protected function getOfficialAgentCodes(Authenticatable $authorization): array
     {
         $modeDataIsolation = $this->createModeDataIsolation($authorization);
+        $modeDataIsolation->disabled();
 
         // 获取后台的所有模式，用于封装数据到 Agent 中
         $query = new ModeQuery(status: true);
