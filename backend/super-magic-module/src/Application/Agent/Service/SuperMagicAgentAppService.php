@@ -560,19 +560,31 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
         $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
 
-        $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
-        $agentEntity->setFileKey($fileMetadata['file_key']);
+        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, true);
+    }
 
-        Db::beginTransaction();
-        try {
-            $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
-            $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
-            Db::commit();
-        } catch (Throwable $throwable) {
-            Db::rollBack();
-            throw $throwable;
-        }
-        return $versionEntity;
+    /**
+     * 命令补发场景：不导出项目文件，直接以空 file_key 发布到私人范围.
+     */
+    public function publishAgentPrivatelyWithoutExport(Authenticatable $authorization, string $code): AgentVersionEntity
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        $this->checkPermission($dataIsolation, $code);
+
+        $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+
+        $versionEntity = new AgentVersionEntity();
+        $versionEntity->setCode($code);
+        $versionEntity->setVersion(sprintf(
+            '%d.0.0',
+            $this->superMagicAgentVersionDomainService->countVersionsByCode($dataIsolation, $code) + 1
+        ));
+        $versionEntity->setVersionDescriptionI18n($agentEntity->getDescriptionI18n() ?? []);
+        $versionEntity->setPublishTargetType(PublishTargetType::PRIVATE);
+        $versionEntity->setPublishTargetValue(null);
+
+        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, false);
     }
 
     /**
@@ -1640,6 +1652,34 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             VisibilityType::SPECIFIC,
             [$agentEntity->getCreator()]
         );
+    }
+
+    private function publishPreparedAgentVersion(
+        Authenticatable $authorization,
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        SuperMagicAgentEntity $agentEntity,
+        AgentVersionEntity $versionEntity,
+        bool $shouldExportFile
+    ): AgentVersionEntity {
+        if ($shouldExportFile) {
+            $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
+            $agentEntity->setFileKey($fileMetadata['file_key']);
+        } else {
+            $agentEntity->setFileKey('');
+        }
+
+        Db::beginTransaction();
+        try {
+            $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
+            $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
+            Db::commit();
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
+
+        return $versionEntity;
     }
 
     private function saveUserAgentOwnership(
