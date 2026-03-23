@@ -315,6 +315,17 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         }
 
         $models = $this->agentPlaybookModel::query()
+            ->select(['id',
+                'organization_code',
+                'agent_id',
+                'agent_version_id',
+                'agent_code',
+                'name_i18n',
+                'description_i18n',
+                'icon',
+                'theme_color',
+                'is_enabled',
+                'sort_order', ])
             ->whereIn('agent_version_id', $agentVersionIds)
             ->where('is_enabled', 1)
             ->whereNull('deleted_at')

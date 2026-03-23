@@ -208,9 +208,10 @@ class ModeAppService extends AbstractModeAppService
 
         // 获取目前的所有可用的 agent
         $superMagicAgentV2AppService = di(SuperMagicAgentAppService::class);
-        $agentQuery = new SuperMagicAgentQuery();
-        $agentQuery->setEnabled(true);
-        $agentData = $superMagicAgentV2AppService->getFeaturedAgent($authorization, $agentQuery, Page::createNoPage());
+        $agentData = $superMagicAgentV2AppService->getFeaturedAgent($authorization);
+
+        // 获取预设场景
+        $playbooksByCode = $agentData['playbooks'] ?? [];
 
         // 合并常用和全部 agent 列表，常用在前
         /** @var array<SuperMagicAgentEntity> $allAgents */
@@ -218,10 +219,6 @@ class ModeAppService extends AbstractModeAppService
         if (empty($allAgents)) {
             return [];
         }
-
-        // 获取agent的playbook
-        $agentCodes = array_map(fn ($agentEntity) => $agentEntity->getCode(), $allAgents);
-        $playbooksByCode = $superMagicAgentV2AppService->getAgentPlaybooksByAgentCodesForCurrentVersion($authorization, $agentCodes);
 
         // 获取后台的所有模式，用于封装数据到 Agent 中
         $query = new ModeQuery(status: true);
@@ -266,7 +263,7 @@ class ModeAppService extends AbstractModeAppService
                     'id' => $agent->getCode(),
                     'name' => $agent->getName(),
                     'description' => $agent->getDescription(),
-                    'placeholder' => $agent->getDescription(),
+                    'placeholder' => $modeAggregateDTO->getMode()->getPlaceholder(),
                     'identifier' => $agent->getCode(),
                     'icon_type' => $agent->getIconType(),
                     'icon_url' => $agent->getIcon()['url'] ?? '',

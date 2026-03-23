@@ -679,26 +679,19 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     /**
      * 根据 agentCodes 获取 playbooks，返回按 code 聚合的数组.
-     *
-     * @param Authenticatable $authorization 用户授权信息
-     * @param array<string> $agentCodes Agent 编码列表
      */
-    public function getAgentPlaybooksByAgentCodesForCurrentVersion(Authenticatable $authorization, array $agentCodes): array
+    public function getAgentPlaybooksByAgentVersionIds(array $agentVersionIds): array
     {
-        if (empty($agentCodes)) {
-            return [];
+        $playbookEntities = $this->superMagicAgentPlaybookDomainService->getByAgentVersionIds($agentVersionIds);
+
+        $agentCodeMapPlaybookEntities = [];
+        foreach ($playbookEntities as $agentVersionId => $agentVersionIdMapPlaybookEntities) {
+            foreach ($agentVersionIdMapPlaybookEntities as $playbookEntity) {
+                $agentCodeMapPlaybookEntities[$playbookEntity->getAgentCode()][] = $playbookEntity;
+            }
         }
 
-        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $dataIsolation->disabled();
-        $playbooksByAgentCode = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
-
-        $playbookEntities = [];
-        foreach ($playbooksByAgentCode as $playbooks) {
-            $playbookEntities = array_merge($playbookEntities, $playbooks);
-        }
-
-        return $playbooksByAgentCode;
+        return $agentCodeMapPlaybookEntities;
     }
 
     /**
@@ -731,7 +724,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * @return array{frequent: array<SuperMagicAgentEntity>, all: array<SuperMagicAgentEntity>, total: int}
      */
-    public function getFeaturedAgent(Authenticatable $authorization, SuperMagicAgentQuery $query, Page $page): array
+    public function getFeaturedAgent(Authenticatable $authorization): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $userId = $authorization->getId();
@@ -739,37 +732,38 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 获取用户可访问的智能体编码列表
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $userId);
         $accessibleAgentCodes = $accessibleAgentResult['codes'];
-        $page->disable();
 
-        $query->setCodes($accessibleAgentCodes);
-        $query->setSelect(['id', 'code', 'name', 'description', 'icon', 'icon_type', 'name_i18n', 'description_i18n', 'organization_code']); // Only select necessary fields for list
+        $versionEntities = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $accessibleAgentCodes);
+        $agentEntities = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $versionEntities);
 
-        $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
-
-        foreach ($result['list'] as $agent) {
+        foreach ($agentEntities as $agentEntity) {
             // 设置是否为公开的智能体
-            if (in_array($agent->getCode(), $accessibleAgentResult['accessible'])) {
-                $agent->setType(SuperMagicAgentType::Public);
+            if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
+                $agentEntity->setType(SuperMagicAgentType::Public->value);
             }
         }
 
         // 合并内置模型
         $builtinAgents = $this->getBuiltinAgent($dataIsolation);
-        if (! $page->isEnabled()) {
-            $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
-            foreach ($result['list'] as $agentIndex => $agent) {
-                if (in_array($agent->getCode(), $builtinAgentCodes)) {
-                    unset($result['list'][$agentIndex]);
-                }
+        $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
+        foreach ($agentEntities as $agentIndex => $agent) {
+            if (in_array($agent->getCode(), $builtinAgentCodes)) {
+                unset($agent[$agentIndex]);
             }
-            $result['list'] = array_merge($builtinAgents, $result['list']);
-            $result['total'] += count($builtinAgents);
         }
+        $result['list'] = array_merge($builtinAgents, $agentEntities);
+        $result['total'] = count($result['list']);
 
         // 更新icon为真实链接
         $result['list'] = $this->updateAgentEntitiesIcon($result['list']);
 
-        return $this->categorizeAgents($result['list'], $result['total'], null);
+        // 获取agent的playbook
+        $agentVersionIds = array_map(fn ($agentEntity) => $agentEntity->getId(), $versionEntities);
+        $agentCodeMapPlaybookEntities = $this->getAgentPlaybooksByAgentVersionIds($agentVersionIds);
+
+        $featuredAgentResult = $this->categorizeAgents($result['list'], $result['total'], null);
+        $featuredAgentResult['playbooks'] = $agentCodeMapPlaybookEntities;
+        return $featuredAgentResult;
     }
 
     /**
@@ -1515,26 +1509,18 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 continue;
             }
 
-            $entity = new SuperMagicAgentEntity();
-
-            // 设置基本信息
-            $entity->setOrganizationCode($officialAgentEntity->getOrganizationCode());
-            $entity->setCode($officialAgentEntity->getCode());
-            $entity->setName($officialAgentEntity->getI18nName($superMagicAgentDataIsolation->getLanguage()));
-            $entity->setDescription($modeEntity->getPlaceholder());
-            $entity->setIcon($officialAgentEntity->getIcon());
-            $entity->setIconType($officialAgentEntity->getIconType());
-            $entity->setType(SuperMagicAgentType::Built_In);
-            $entity->setEnabled(true);
-            $entity->setPrompt([]);
-            $entity->setTools([]);
+            $officialAgentEntity->setType(SuperMagicAgentType::Built_In->value);
+            $officialAgentEntity->setEnabled(true);
+            $officialAgentEntity->setPrompt([]);
+            $officialAgentEntity->setTools([]);
 
             // 设置系统创建信息
-            $entity->setCreator('system');
-            $entity->setCreatedAt(new DateTime());
-            $entity->setModifier('system');
-            $entity->setUpdatedAt(new DateTime());
-            $list[] = $entity;
+            $officialAgentEntity->setCreator('system');
+            $officialAgentEntity->setCreatedAt(date('Y-m-d H:i:s'));
+            $officialAgentEntity->setModifier('system');
+            $officialAgentEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+
+            $list[] = $officialAgentEntity;
         }
         return $list;
     }
