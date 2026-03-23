@@ -82,10 +82,10 @@ export default defineConfig({
 		!isDev && copyLocalesPlugin(),
 		// 用于本地生成HTTPS证书
 		isDev &&
-			mkcert({
-				// 本地配置该地址的 host, 满足文件私有桶上传
-				hosts: ["magic.com"],
-			}),
+		mkcert({
+			// 本地配置该地址的 host, 满足文件私有桶上传
+			hosts: ["magic.com"],
+		}),
 	],
 	define: {
 		global: "globalThis",
@@ -97,6 +97,7 @@ export default defineConfig({
 			entry: {
 				index: "src/index.ts",
 				"components/index": "components/index.ts",
+				"src/provider/AdminProvider/index": "src/provider/AdminProvider/index.tsx",
 			},
 			formats: ["es"],
 		},

@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/magic-admin",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "React admin module package with views, routes, and provider for host app integration.",
 	"keywords": [
 		"react",
@@ -29,8 +29,7 @@
 	"exports": {
 		".": {
 			"types": "./dist/types/src/index.d.ts",
-			"import": "./dist/index.js",
-			"require": "./dist/index.js"
+			"import": "./dist/index.js"
 		},
 		"./components": {
 			"types": "./dist/types/components/index.d.ts",

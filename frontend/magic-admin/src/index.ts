@@ -1,5 +1,14 @@
 /* magic-admin 包导出 */
 
+// 1. 导出 Provider 能力
+export {
+	AdminProvider,
+	AdminProviderContext,
+	AppEnv,
+	useAdmin,
+} from "@/provider/AdminProvider"
+export type { AdminProviderProps } from "@/provider/AdminProvider"
+
 // 2. 导出路由配置
 export { default as PlatformPackageRoutes } from "@/pages/PlatformPackage/routes"
 export { otherRoutes } from "@/routes"

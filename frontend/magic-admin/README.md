@@ -353,7 +353,6 @@ import { memo } from "react"
 import { MagicAdminProvider } from "./index"
 
 const BaseLayout = memo(() => {
-	useRegister()
 	const isMobile = useIsMobile()
 
 	return isMobile ? <BaseLayoutMobile /> : <BaseLayoutPcObserver />
@@ -404,13 +403,10 @@ export default BaseLayoutWithProvider
 ### Hooks
 
 ```tsx
-import { useAdmin, useRegister } from "@dtyq/magic-admin"
+import { useAdmin } from "@dtyq/magic-admin"
 
 // 获取全局配置
 const { language, theme, user, organization, env } = useAdmin()
-
-// 注册逻辑
-useRegister()
 ```
 
 ### 工具函数
