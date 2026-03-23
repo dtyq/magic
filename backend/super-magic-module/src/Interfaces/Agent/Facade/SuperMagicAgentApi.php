@@ -12,10 +12,12 @@ use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use Dtyq\SuperMagic\Application\Agent\Service\ImportAgentAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\MentionSkillAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\SuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
@@ -38,6 +40,9 @@ class SuperMagicAgentApi extends AbstractApi
     protected SuperMagicAgentAppService $superMagicAgentAppService;
 
     #[Inject]
+    protected ImportAgentAppService $importAgentAppService;
+
+    #[Inject]
     protected ModeAppService $modeAppService;
 
     public function __construct(
@@ -50,6 +55,58 @@ class SuperMagicAgentApi extends AbstractApi
     public function getFeatured(): array
     {
         return $this->modeAppService->getFeaturedAgent($this->getAuthorization());
+    }
+
+    /**
+     * Import an agent from a ZIP package uploaded by the client.
+     *
+     * Accepts multipart/form-data with a field named 'file'.
+     * Maximum size: 20 MB. Only ZIP files are accepted.
+     */
+    public function import(RequestContext $requestContext)
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $uploadedFile = $this->request->file('file');
+        if ($uploadedFile === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::IMPORT_INVALID_FILE_TYPE, 'super_magic.agent.import.invalid_file_type');
+        }
+
+        $extension = strtolower((string) $uploadedFile->getExtension());
+        if ($extension !== 'zip') {
+            ExceptionBuilder::throw(SuperAgentErrorCode::IMPORT_INVALID_FILE_TYPE, 'super_magic.agent.import.invalid_file_type');
+        }
+
+        if ($uploadedFile->getSize() > 20 * 1024 * 1024) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::IMPORT_FILE_TOO_LARGE, 'super_magic.agent.import.file_too_large');
+        }
+
+        // Save the uploaded file to a temp location so the application layer can read it
+        $tempDir = sys_get_temp_dir() . '/agent_upload_' . uniqid('', true);
+        mkdir($tempDir, 0755, true);
+        $tempZipPath = $tempDir . '/' . $uploadedFile->getClientFilename();
+
+        try {
+            $uploadedFile->moveTo($tempZipPath);
+
+            $entity = $this->importAgentAppService->import(
+                $authorization,
+                $requestContext,
+                $tempZipPath,
+                $uploadedFile->getClientFilename()
+            );
+
+            return SuperMagicAgentAssembler::createDTO($entity);
+        } finally {
+            // Always clean up the temp upload directory regardless of success or failure
+            if (file_exists($tempZipPath)) {
+                @unlink($tempZipPath);
+            }
+            if (is_dir($tempDir)) {
+                @rmdir($tempDir);
+            }
+        }
     }
 
     /**

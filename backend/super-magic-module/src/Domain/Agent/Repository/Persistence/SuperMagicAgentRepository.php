@@ -158,6 +158,22 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
         return $updated > 0;
     }
 
+    public function findByName(string $name, string $organizationCode): ?SuperMagicAgentEntity
+    {
+        /** @var null|SuperMagicAgentModel $model */
+        $model = SuperMagicAgentModel::query()
+            ->where('name', $name)
+            ->where('organization_code', $organizationCode)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return SuperMagicAgentFactory::createEntity($model);
+    }
+
     /**
      * 在 name_i18n、role_i18n、description_i18n 的指定语言和 default 中搜索关键词.
      */
