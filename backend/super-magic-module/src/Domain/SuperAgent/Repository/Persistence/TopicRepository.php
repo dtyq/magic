@@ -81,6 +81,15 @@ class TopicRepository implements TopicRepositoryInterface
         return null;
     }
 
+    public function getTopicByTopicIdAndUserId(int $topicId, string $userId): ?TopicEntity
+    {
+        $model = $this->model::query()->whereNull('deleted_at')->where('id', $topicId)->where('user_id', $userId)->first();
+        if (! $model) {
+            return null;
+        }
+        return new TopicEntity($model->toArray());
+    }
+
     public function getTopicsByIds(array $ids): array
     {
         if (empty($ids)) {

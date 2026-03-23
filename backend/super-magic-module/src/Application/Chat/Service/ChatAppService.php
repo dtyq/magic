@@ -83,6 +83,31 @@ class ChatAppService extends AbstractAppService
     }
 
     /**
+     * Get the AI agent's conversation ID for sending messages TO the human user.
+     *
+     * aiSendMessage() requires the conversation owned by the AI (user_id = AI, receive_id = human).
+     * The conversation stored on the topic entity is the human's conversation (user_id = human),
+     * which would cause aiSendMessage to throw USER_NOT_EXIST because the owner is not an AI user.
+     *
+     * @param DataIsolation $dataIsolation data isolation context
+     * @return string the AI agent's conversation ID (AI → human direction)
+     * @throws Throwable if the agent user or conversation is not found
+     */
+    public function getSuperMagicAgentConversationId(DataIsolation $dataIsolation): string
+    {
+        $aiUserId = $this->getSuperMagicAgentUserId($dataIsolation);
+        $humanUserId = $dataIsolation->getCurrentUserId();
+
+        $agentConversation = $this->magicConversationDomainService->getOrCreateConversation(
+            $aiUserId,             // AI is the owner/sender
+            $humanUserId,          // human is the receiver
+            ConversationType::User // human side receive type
+        );
+
+        return $agentConversation->getId();
+    }
+
+    /**
      * Get or create the Super Magic AI user entity.
      * This is a private method to avoid code duplication between different public methods.
      *

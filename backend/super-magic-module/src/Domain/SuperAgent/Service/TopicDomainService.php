@@ -810,6 +810,22 @@ class TopicDomainService
     }
 
     /**
+     * Get chat conversation ID by SuperAgent topic ID.
+     *
+     * @param int $topicId SuperAgent topic ID (magic_super_agent_topics.id)
+     * @param string $userId User ID for authorization
+     * @return null|array [conversation_id, topic_id] or null if topic not found
+     */
+    public function getChatConversationIdByTopicId(int $topicId, string $userId): ?array
+    {
+        $topicEntity = $this->topicRepository->getTopicByTopicIdAndUserId($topicId, $userId);
+        if ($topicEntity === null) {
+            return null;
+        }
+        return [$topicEntity->getChatConversationId(), $topicEntity->getChatTopicId()];
+    }
+
+    /**
      * Duplicate topic skeleton - create topic entity and IM conversation only.
      * This method only creates the topic entity and IM conversation,
      * without copying messages. Use copyTopicMessageFromOthers to copy messages.
