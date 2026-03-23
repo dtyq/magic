@@ -59,9 +59,9 @@ class AgentListItemDTO extends AbstractDTO
 
     private string $createdAt;
 
-    private string $publisherType;
+    private ?string $publisherType = null;
 
-    private array $publisher;
+    private ?array $publisher = null;
 
     public function __construct(
         int $id,
@@ -81,8 +81,8 @@ class AgentListItemDTO extends AbstractDTO
         ?string $latestPublishedAt,
         string $updatedAt,
         string $createdAt,
-        string $publisherType = '',
-        array $publisher = []
+        ?string $publisherType = null,
+        ?array $publisher = null
     ) {
         $this->id = $id;
         $this->code = $code;

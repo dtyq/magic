@@ -31,7 +31,7 @@ class SuperMagicAgentPlaybookDomainService
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
      * @param array<string> $agentCodes Agent Code 列表
-     * @return array<int, AgentPlaybookEntity[]> 按 agent_code 分组的 Playbook 实体数组，key 为 agent_id
+     * @return array<string, array<int, AgentPlaybookEntity>> 按 agent_code 分组的 Playbook 实体数组
      */
     public function getByAgentCodesForCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $agentCodes, ?bool $isEnabled = null): array
     {

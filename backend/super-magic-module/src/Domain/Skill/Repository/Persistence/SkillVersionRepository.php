@@ -367,6 +367,20 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             ]);
     }
 
+    public function offlinePublishedVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+
+        return (int) $builder
+            ->where('code', $code)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('review_status', ReviewStatus::APPROVED->value)
+            ->whereNull('deleted_at')
+            ->update([
+                'publish_status' => PublishStatus::OFFLINE->value,
+            ]);
+    }
+
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int
     {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
@@ -476,6 +490,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $packageName,
         ?string $skillName,
         ?string $organizationCode,
         ?string $startTime,

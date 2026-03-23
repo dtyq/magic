@@ -30,6 +30,8 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
 
     public ?string $skillCode = null;
 
+    public ?string $packageName = null;
+
     public string $orderBy = 'desc';
 
     public ?string $startTime = null;
@@ -86,6 +88,11 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
         return $this->skillCode;
     }
 
+    public function getPackageName(): ?string
+    {
+        return $this->packageName;
+    }
+
     public function getOrderBy(): string
     {
         return $this->orderBy;
@@ -111,6 +118,7 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
             'name_i18n' => 'nullable|string|max:255',
             'publisher_type' => 'nullable|string|max:64',
             'skill_code' => 'nullable|string|max:128',
+            'package_name' => 'nullable|string|max:255',
             'order_by' => 'nullable|string|in:asc,desc',
             'start_time' => 'nullable|string',
             'end_time' => 'nullable|string',
@@ -135,6 +143,8 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
             'publisher_type.max' => __('validation.max.string', ['attribute' => 'publisher_type', 'max' => 64]),
             'skill_code.string' => __('validation.string', ['attribute' => 'skill_code']),
             'skill_code.max' => __('validation.max.string', ['attribute' => 'skill_code', 'max' => 128]),
+            'package_name.string' => __('validation.string', ['attribute' => 'package_name']),
+            'package_name.max' => __('validation.max.string', ['attribute' => 'package_name', 'max' => 255]),
             'order_by.string' => __('validation.string', ['attribute' => 'order_by']),
             'order_by.in' => __('validation.in', ['attribute' => 'order_by']),
             'start_time.string' => __('validation.string', ['attribute' => 'start_time']),

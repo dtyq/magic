@@ -17,6 +17,11 @@ enum SkillSourceType: string
      */
     case LOCAL_UPLOAD = 'LOCAL_UPLOAD';
 
+    /**
+     * 员工入口导入.
+     */
+    case CREW_IMPORT = 'CREW_IMPORT';
+
     case MARKET = 'MARKET';
 
     /**

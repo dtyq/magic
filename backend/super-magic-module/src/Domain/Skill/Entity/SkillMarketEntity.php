@@ -38,6 +38,11 @@ class SkillMarketEntity extends AbstractEntity
     protected int $skillVersionId;
 
     /**
+     * @var string 关联 Skill 版本的包名
+     */
+    protected string $packageName = '';
+
+    /**
      * @var null|array 多语言展示名称
      */
     protected ?array $nameI18n = null;
@@ -117,6 +122,7 @@ class SkillMarketEntity extends AbstractEntity
             'organization_code' => $this->organizationCode,
             'skill_code' => $this->skillCode,
             'skill_version_id' => $this->skillVersionId,
+            'package_name' => $this->packageName,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
             'search_text' => $this->searchText,
@@ -182,6 +188,17 @@ class SkillMarketEntity extends AbstractEntity
     public function setSkillVersionId(int|string $skillVersionId): self
     {
         $this->skillVersionId = is_string($skillVersionId) ? (int) $skillVersionId : $skillVersionId;
+        return $this;
+    }
+
+    public function getPackageName(): string
+    {
+        return $this->packageName;
+    }
+
+    public function setPackageName(string $packageName): self
+    {
+        $this->packageName = $packageName;
         return $this;
     }
 
@@ -282,6 +299,12 @@ class SkillMarketEntity extends AbstractEntity
         } else {
             $this->publishStatus = PublishStatus::from($publishStatus);
         }
+        return $this;
+    }
+
+    public function offline(): self
+    {
+        $this->publishStatus = PublishStatus::OFFLINE;
         return $this;
     }
 

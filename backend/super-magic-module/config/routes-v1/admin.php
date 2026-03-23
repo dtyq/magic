@@ -25,6 +25,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/versions/queries', [AdminSkillApi::class, 'queryVersions']);
         Router::post('/markets/queries', [AdminSkillApi::class, 'queryMarkets']);
         Router::put('/markets/{id}/sort-order', [AdminSkillApi::class, 'updateMarketSortOrder']);
+        Router::put('/markets/{id}/offline', [AdminSkillApi::class, 'offlineMarket']);
         Router::put('/versions/{id}/review', [AdminSkillApi::class, 'reviewSkillVersion']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

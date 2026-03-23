@@ -261,6 +261,23 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
     }
 
     /**
+     * 根据 ID 查找市场技能.
+     */
+    public function findById(int $id): ?SkillMarketEntity
+    {
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->where('id', $id)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->toEntity($model->toArray());
+    }
+
+    /**
      * 根据 ID 查找市场技能（仅查询已发布的）.
      */
     public function findPublishedById(int $id): ?SkillMarketEntity
@@ -371,6 +388,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'organization_code' => $data['organization_code'] ?? '',
             'skill_code' => $data['skill_code'] ?? '',
             'skill_version_id' => $data['skill_version_id'] ?? 0,
+            'package_name' => $data['package_name'] ?? '',
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
             'search_text' => $data['search_text'] ?? null,

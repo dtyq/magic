@@ -81,4 +81,17 @@ class AdminSkillApi extends AbstractApi
 
         return [];
     }
+
+    /**
+     * 下架 Skill 市场条目.
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    public function offlineMarket(RequestContext $requestContext, int $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $this->adminSkillAppService->offlineMarket($requestContext, $id);
+
+        return [];
+    }
 }

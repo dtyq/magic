@@ -251,6 +251,7 @@ class AdminSkillAssembler
             organization: $organization,
             skillCode: $entity->getSkillCode(),
             skillVersionId: (string) $entity->getSkillVersionId(),
+            packageName: $entity->getPackageName(),
             nameI18n: $entity->getNameI18n() ?? [],
             descriptionI18n: $entity->getDescriptionI18n() ?? [],
             logo: $entity->getLogo(),

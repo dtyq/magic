@@ -72,11 +72,20 @@ interface SkillMarketRepositoryInterface
         ?string $name18n,
         ?string $publisherType,
         ?string $skillCode,
+        ?string $packageName,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
         Page $page
     ): array;
+
+    /**
+     * 根据 ID 查找市场技能.
+     *
+     * @param int $id 市场技能 ID
+     * @return null|SkillMarketEntity 不存在返回 null
+     */
+    public function findById(int $id): ?SkillMarketEntity;
 
     /**
      * 根据 ID 查找市场技能（仅查询已发布的）.

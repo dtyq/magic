@@ -81,7 +81,7 @@ class SkillDomainService
         return $skillEntity;
     }
 
-    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): SkillEntity
     {
         $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
         if (! $skillEntity) {
@@ -806,6 +806,7 @@ class SkillDomainService
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $packageName,
         ?string $skillName,
         ?string $organizationCode,
         ?string $startTime,
@@ -820,6 +821,7 @@ class SkillDomainService
             $publishTargetType,
             $sourceType,
             $version,
+            $packageName,
             $skillName,
             $organizationCode,
             $startTime,
