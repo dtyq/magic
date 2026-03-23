@@ -24,6 +24,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
@@ -59,6 +60,9 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected ProjectDomainService $projectDomainService;
+
+    #[Inject]
+    protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
 
     #[Inject]
     protected ContainerInterface $container;
@@ -118,7 +122,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
             $versionEntity = new AgentVersionEntity();
-            $versionEntity->setVersion(sprintf('1.%s', date('YmdHis')));
+            $versionEntity->setVersion($this->resolveNextVersion($dataIsolation, $agentCode));
             $versionEntity->setPublishTargetType(PublishTargetType::ORGANIZATION);
             $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
@@ -334,5 +338,26 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
                 );
             }
         }
+    }
+
+    /**
+     * Determine the next publish version for the agent.
+     * Queries the latest published version and increments the patch segment.
+     * Falls back to "1.0.0" when no prior version exists.
+     */
+    private function resolveNextVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): string
+    {
+        $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
+        if ($latestVersion === null) {
+            return '1.0.0';
+        }
+
+        $parts = explode('.', $latestVersion->getVersion());
+        if (count($parts) !== 3) {
+            return '1.0.0';
+        }
+
+        $patch = (int) $parts[2] + 1;
+        return sprintf('%s.%s.%d', $parts[0], $parts[1], $patch);
     }
 }
