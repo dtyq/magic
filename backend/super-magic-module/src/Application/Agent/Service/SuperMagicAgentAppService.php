@@ -641,7 +641,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         /** @var AgentVersionEntity[] $versions */
         $versions = $result['list'];
         [$userMap, $memberDepartmentMap] = $this->batchLoadVersionRelatedEntities(
-            $authorization->getOrganizationCode(),
+            $dataIsolation->getCurrentOrganizationCode(),
             $versions
         );
 

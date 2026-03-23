@@ -42,6 +42,12 @@ interface AgentVersionRepositoryInterface
     public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
     /**
+     * @param array<string> $codes
+     * @return array<string, AgentVersionEntity>
+     */
+    public function findCurrentOrLatestByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
+
+    /**
      * 在指定 code 集合内每 code 取一条版本（由 AgentVersionQuery.is_current_versions 等决定），支持关键词与分页.
      *
      * @return array{total: int, list: AgentVersionEntity[]}
