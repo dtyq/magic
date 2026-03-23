@@ -212,12 +212,12 @@ class SuperMagicAgentAssembler
 
         $skillMap = [];
         foreach ($skills as $skill) {
-            $skillMap[$skill->getId()] = $skill;
+            $skillMap[$skill->getCode()] = $skill;
         }
 
         $skillItems = [];
         foreach ($agent->getSkills() as $agentSkill) {
-            $skill = $skillMap[$agentSkill->getSkillId()] ?? null;
+            $skill = $skillMap[$agentSkill->getSkillCode()] ?? null;
             if (! $skill) {
                 continue;
             }

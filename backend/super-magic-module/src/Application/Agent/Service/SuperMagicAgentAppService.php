@@ -227,8 +227,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
         $this->ensureAgentAccessible($dataIsolation, $code);
 
-        $baseAgent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
-
+        $dataIsolation->disabled();
         $versionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
         if ($versionEntity === null) {
             return [
@@ -240,7 +239,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ];
         }
 
-        $agent = $this->buildAgentDetailFromVersion($baseAgent, $versionEntity);
+        $agent = $this->buildAgentDetailFromVersion($versionEntity);
 
         if ($withToolSchema) {
             $remoteToolCodes = [];
@@ -264,10 +263,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $this->superMagicAgentPlaybookDomainService->getByAgentVersionId($dataIsolation, (int) $versionEntity->getId())
         );
 
-        $skillIds = array_map(fn ($agentSkill) => $agentSkill->getSkillId(), $versionSkills);
+        $skillCodes = array_map(fn ($agentSkill) => $agentSkill->getSkillCode(), $versionSkills);
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
-        $skillsMap = $this->skillDomainService->findSkillsByIds($skillDataIsolation, $skillIds);
+        $skillDataIsolation->disabled();
+        $skillsMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
 
         $this->updateAgentEntityIcon($agent);
         $this->updateSkillLogoUrls($dataIsolation, $skillsMap);
@@ -1423,9 +1423,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return '';
     }
 
-    private function buildAgentDetailFromVersion(SuperMagicAgentEntity $baseAgent, AgentVersionEntity $versionEntity): SuperMagicAgentEntity
+    private function buildAgentDetailFromVersion(AgentVersionEntity $versionEntity): SuperMagicAgentEntity
     {
-        $agent = clone $baseAgent;
+        $agent = new SuperMagicAgentEntity();
+        $agent->setCode($versionEntity->getCode());
         $agent->setName($versionEntity->getName());
         $agent->setDescription($versionEntity->getDescription());
         $agent->setIcon($versionEntity->getIcon());
@@ -1442,8 +1443,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $agent->setVersionCode(null);
         $agent->setProjectId($versionEntity->getProjectId());
         $agent->setFileKey($versionEntity->getFileKey());
-        $agent->setCreatedAt($versionEntity->getCreatedAt() ?? $baseAgent->getCreatedAt());
-        $agent->setUpdatedAt($versionEntity->getUpdatedAt() ?? $baseAgent->getUpdatedAt());
+        $agent->setOrganizationCode($versionEntity->getOrganizationCode());
+        $agent->setCreatedAt($versionEntity->getCreatedAt());
+        $agent->setUpdatedAt($versionEntity->getUpdatedAt());
 
         return $agent;
     }
