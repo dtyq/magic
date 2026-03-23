@@ -402,7 +402,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             dataIsolation: $dataIsolation,
             requestDTO: $requestDTO,
             agents: $agents,
-            total: $total
+            total: $total,
         );
     }
 

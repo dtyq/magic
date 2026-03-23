@@ -28,7 +28,6 @@ class SuperMagicAgentMarketAssembler
      * @param array<string, UserAgentEntity> $userAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<int, array<int, AgentPlaybookEntity>> $playbooksMap
-     * @param array<string> $officialAgentCodes
      */
     public static function createQueryAgentMarketsResponseDTO(
         array $agentMarkets,
@@ -36,7 +35,6 @@ class SuperMagicAgentMarketAssembler
         array $userAgentsMap,
         array $latestVersionsMap,
         array $playbooksMap,
-        array $officialAgentCodes,
         int $page,
         int $pageSize,
         int $total
@@ -49,7 +47,6 @@ class SuperMagicAgentMarketAssembler
                 $userAgentsMap,
                 $latestVersionsMap,
                 $playbooksMap,
-                $officialAgentCodes
             );
         }
 
@@ -117,7 +114,6 @@ class SuperMagicAgentMarketAssembler
         array $userAgentsMap,
         array $latestVersionsMap,
         array $playbooksMap,
-        array $officialAgentCodes = []
     ): AgentMarketListItemDTO {
         $agentCode = $agentMarket->getAgentCode();
         $userAgent = $userAgentsMap[$agentCode] ?? null;
@@ -136,17 +132,17 @@ class SuperMagicAgentMarketAssembler
         $isAdded = $userAgent !== null;
         $allowDelete = $isAdded && $userAgent?->getSourceType()->isMarket() === true;
 
-        // 如果是官方员工则不允许删除，不允许添加
-        if (in_array($agentCode, $officialAgentCodes)) {
-            $isAdded = true;
-            $allowDelete = false;
-        }
-
         $latestVersionCode = isset($latestVersionsMap[$agentCode]) ? $latestVersionsMap[$agentCode]->getVersion() : null;
         $publisher = self::buildPublisher(
             $agentMarket->getPublisherType(),
             $publisherUserMap[$agentMarket->getPublisherId()] ?? null
         );
+
+        // 如果是官方内置则不允许删除，不允许添加
+        if ($agentMarket->getPublisherType()->isOfficialBuiltin()) {
+            $isAdded = true;
+            $allowDelete = false;
+        }
 
         return new AgentMarketListItemDTO(
             id: $agentMarket->getId() ?? 0,
@@ -205,9 +201,9 @@ class SuperMagicAgentMarketAssembler
      */
     private static function buildPublisher(PublisherType $publisherType, ?MagicUserEntity $userEntity = null): array
     {
-        if ($publisherType === PublisherType::OFFICIAL) {
+        if ($publisherType->isOfficial() || $publisherType->isOfficialBuiltin()) {
             return [
-                'name' => PublisherType::OFFICIAL->value,
+                'name' => $publisherType->value,
                 'avatar' => '',
             ];
         }
