@@ -33,6 +33,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
     Router::addGroup('/agents', static function () {
         Router::post('/queries', [SuperMagicAgentApi::class, 'queries']);
         Router::post('/external/queries', [SuperMagicAgentApi::class, 'externalQueries']);
+        Router::post('/import', [SuperMagicAgentApi::class, 'import']);
         Router::post('', [SuperMagicAgentApi::class, 'create']);
         Router::put('/{code}', [SuperMagicAgentApi::class, 'update']);
         Router::put('/{code}/updated-at', [SuperMagicAgentApi::class, 'touchUpdatedAt']);

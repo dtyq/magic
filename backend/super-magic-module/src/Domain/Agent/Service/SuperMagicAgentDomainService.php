@@ -196,6 +196,11 @@ readonly class SuperMagicAgentDomainService
         return $savedEntity;
     }
 
+    public function findByNameAndOrgCode(string $name, string $organizationCode): ?SuperMagicAgentEntity
+    {
+        return $this->superMagicAgentRepository->findByName($name, $organizationCode);
+    }
+
     public function updateProject(SuperMagicAgentDataIsolation $dataIsolation, string $code, ?int $projectId): SuperMagicAgentEntity
     {
         $this->checkBuiltinAgentOperation($code, $dataIsolation->getCurrentOrganizationCode());

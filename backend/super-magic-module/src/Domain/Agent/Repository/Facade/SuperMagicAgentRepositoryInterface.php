@@ -62,4 +62,9 @@ interface SuperMagicAgentRepositoryInterface
      * @return bool 是否更新成功
      */
     public function updateUpdatedAtByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code, string $modifier): bool;
+
+    /**
+     * 根据 name 和 organizationCode 查找 Agent（用于导入时幂等判断）.
+     */
+    public function findByName(string $name, string $organizationCode): ?SuperMagicAgentEntity;
 }

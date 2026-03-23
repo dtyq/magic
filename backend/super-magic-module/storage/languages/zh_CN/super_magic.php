@@ -150,6 +150,12 @@ return [
         'publisher_type_must_be_string' => '发布者类型必须是字符串',
         'publisher_type_invalid' => '发布者类型无效',
         'agent_not_found' => 'Agent 未找到',
+        'import' => [
+            'invalid_file_type' => '文件类型无效，仅支持 ZIP 格式',
+            'file_too_large' => '文件大小超过限制，最大支持 20MB',
+            'invalid_package' => '压缩包格式无效，缺少必要的 IDENTITY.md 文件',
+            'extract_failed' => '压缩包解压失败，请确认文件完整性后重试',
+        ],
     ],
     'task' => [
         'prompt_length_exceeded' => '输入文本过长，建议以文件形式上传后，在对话框中进行引用。',
