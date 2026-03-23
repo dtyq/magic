@@ -733,6 +733,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $userId);
         $accessibleAgentCodes = $accessibleAgentResult['codes'];
 
+        $dataIsolation->disabled();
         $versionEntities = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $accessibleAgentCodes);
         $agentEntities = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $versionEntities);
 
@@ -1446,10 +1447,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         foreach ($currentVersionsMap as $code => $versionEntity) {
             $agent = new SuperMagicAgentEntity();
             $agent->setId($versionEntity->getId());
-            $agent->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $agent->setOrganizationCode($versionEntity->getOrganizationCode());
             $agent->setCode($code);
-            $agent->setName($versionEntity->getName());
-            $agent->setDescription($versionEntity->getDescription());
+            $agent->setName($versionEntity->getI18nName($dataIsolation->getLanguage()));
+            $agent->setDescription($versionEntity->getI18nDescription($dataIsolation->getLanguage()));
             $agent->setIcon($versionEntity->getIcon());
             $agent->setIconType($versionEntity->getIconType());
             $agent->setType($versionEntity->getType());
