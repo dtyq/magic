@@ -535,7 +535,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      * - `MARKET` 只新增市场分发能力，不主动清理现有组织内可见范围
      * - 一旦从市场重新切回组织内范围，需要将市场状态下线，并重建当前 Agent 的可见范围
      */
-    #[Transactional]
     public function publishAgent(Authenticatable $authorization, string $code, PublishAgentRequestDTO $requestDTO): AgentVersionEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
@@ -556,9 +555,15 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
         $agentEntity->setFileKey($fileMetadata['file_key']);
 
-        $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
-        $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
-
+        Db::beginTransaction();
+        try {
+            $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
+            $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
+            Db::commit();
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
         return $versionEntity;
     }
 
