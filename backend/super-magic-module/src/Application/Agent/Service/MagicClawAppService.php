@@ -10,16 +10,21 @@ namespace Dtyq\SuperMagic\Application\Agent\Service;
 use App\Infrastructure\Util\File\EasyFileTools;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\SuperMagic\Domain\Agent\Entity\MagicClawEntity;
+use Dtyq\SuperMagic\Domain\Agent\Event\BeforeCreateClawEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\MagicClawDomainService;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateMagicClawRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateMagicClawRequestDTO;
 use Hyperf\Di\Annotation\Inject;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class MagicClawAppService extends AbstractSuperMagicAppService
 {
     #[Inject]
     protected MagicClawDomainService $magicClawDomainService;
+
+    #[Inject]
+    protected EventDispatcherInterface $eventDispatcher;
 
     /**
      * Create a new magic claw record (does not bind project; that is done at the API layer).
@@ -29,6 +34,14 @@ class MagicClawAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $userId = $dataIsolation->getCurrentUserId();
         $orgCode = $dataIsolation->getCurrentOrganizationCode();
+
+        $this->eventDispatcher->dispatch(new BeforeCreateClawEvent(
+            $orgCode,
+            $userId,
+            $dto->getName(),
+            $dto->getDescription(),
+            $dto->getIcon()
+        ));
 
         $entity = new MagicClawEntity();
         $entity->setName($dto->getName());
