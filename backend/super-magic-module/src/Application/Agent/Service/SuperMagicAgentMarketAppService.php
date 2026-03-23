@@ -114,7 +114,6 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
-     *     official_agent_codes: array<string>,
      *     page: int,
      *     page_size: int,
      *     total: int
