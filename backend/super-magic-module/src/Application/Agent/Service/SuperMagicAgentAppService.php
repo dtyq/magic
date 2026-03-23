@@ -573,6 +573,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $this->checkPermission($dataIsolation, $code);
 
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
+        $this->hydrateAgentI18nForPublish($agentEntity);
 
         $versionEntity = new AgentVersionEntity();
         $versionEntity->setCode($code);
@@ -1680,6 +1681,56 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $versionEntity;
+    }
+
+    private function hydrateAgentI18nForPublish(SuperMagicAgentEntity $agentEntity): void
+    {
+        $resolvedName = $this->resolvePublishTextFallback($agentEntity->getName(), $agentEntity->getNameI18n());
+        if ($resolvedName !== '') {
+            $agentEntity->setName($resolvedName);
+            $agentEntity->setNameI18n($this->fillPublishI18nValues($agentEntity->getNameI18n(), $resolvedName));
+        }
+
+        $resolvedDescription = $this->resolvePublishTextFallback($agentEntity->getDescription(), $agentEntity->getDescriptionI18n());
+        if ($resolvedDescription !== '') {
+            $agentEntity->setDescription($resolvedDescription);
+            $agentEntity->setDescriptionI18n($this->fillPublishI18nValues($agentEntity->getDescriptionI18n(), $resolvedDescription));
+        }
+    }
+
+    private function resolvePublishTextFallback(string $text, ?array $i18n): string
+    {
+        $text = trim($text);
+        if ($text !== '') {
+            return $text;
+        }
+
+        $i18n = is_array($i18n) ? $i18n : [];
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            $value = trim((string) ($i18n[$languageCode] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function fillPublishI18nValues(?array $i18n, string $fallback): array
+    {
+        $i18n = is_array($i18n) ? $i18n : [];
+        $fallback = trim($fallback);
+        if ($fallback === '') {
+            return $i18n;
+        }
+
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            if (trim((string) ($i18n[$languageCode] ?? '')) === '') {
+                $i18n[$languageCode] = $fallback;
+            }
+        }
+
+        return $i18n;
     }
 
     private function saveUserAgentOwnership(
