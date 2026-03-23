@@ -203,4 +203,13 @@ class SuperMagicAgentPlaybookDomainService
 
         return $updatedCount;
     }
+
+    /**
+     * @param mixed $agentVersionIds
+     * @return array<int, array<AgentPlaybookEntity>>
+     */
+    public function getByAgentVersionIds($agentVersionIds): array
+    {
+        return $this->agentPlaybookRepository->getByAgentVersionIds($agentVersionIds);
+    }
 }

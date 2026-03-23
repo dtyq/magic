@@ -248,6 +248,7 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         $builder = $this->createBuilder($dataIsolation, $this->agentPlaybookModel::query());
         $models = $builder
             ->where('agent_id', $agentId)
+            ->whereNull('agent_version_id')
             ->whereNull('deleted_at')
             ->orderBy('sort_order', 'DESC')
             ->get();
@@ -315,6 +316,17 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         }
 
         $models = $this->agentPlaybookModel::query()
+            ->select(['id',
+                'organization_code',
+                'agent_id',
+                'agent_version_id',
+                'agent_code',
+                'name_i18n',
+                'description_i18n',
+                'icon',
+                'theme_color',
+                'is_enabled',
+                'sort_order', ])
             ->whereIn('agent_version_id', $agentVersionIds)
             ->where('is_enabled', 1)
             ->whereNull('deleted_at')
