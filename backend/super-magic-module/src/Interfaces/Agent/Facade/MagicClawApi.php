@@ -143,8 +143,8 @@ class MagicClawApi extends AbstractApi
         $result = $this->magicClawAppService->queries($authorization, $dto->getPage(), $dto->getPageSize());
 
         $list = [];
-        foreach ($result['list'] as $entity) {
-            $list[] = MagicClawAssembler::toListItem($entity);
+        foreach ($result['list'] as $item) {
+            $list[] = MagicClawAssembler::toListItem($item['entity'], $item['status']);
         }
 
         return [

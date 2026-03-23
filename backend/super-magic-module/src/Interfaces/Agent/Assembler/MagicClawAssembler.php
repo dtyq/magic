@@ -38,10 +38,12 @@ class MagicClawAssembler
     /**
      * Assemble a list item (used in queries response).
      * Does not include extra field.
+     * Status is resolved externally via sandbox gateway and passed in — not stored on the entity.
      *
+     * @param null|string $status Sandbox running status (e.g. Running, Exited, Pending) or null if unknown
      * @return array<string,mixed>
      */
-    public static function toListItem(MagicClawEntity $entity): array
+    public static function toListItem(MagicClawEntity $entity, ?string $status = null): array
     {
         return [
             'id' => (string) $entity->getId(),
@@ -51,6 +53,7 @@ class MagicClawAssembler
             'description' => $entity->getDescription(),
             'template_code' => $entity->getTemplateCode(),
             'project_id' => (string) ($entity->getProjectId() ?? ''),
+            'status' => $status,
         ];
     }
 }
