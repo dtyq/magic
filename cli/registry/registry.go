@@ -42,6 +42,8 @@ const (
 	DefaultImage = "registry:2"
 )
 
+var hostPort = 35000
+
 // NormalizeConfig fills empty name/image and zero port with defaults, and expands ~ in DataDir and CAFile.
 func NormalizeConfig(cfg Config) Config {
 	if cfg.Name == "" {
@@ -69,7 +71,7 @@ func ContainerEndpoint(cfg Config) string {
 // HostEndpoint returns the address the local host process uses to reach
 // the registry published on loopback, e.g. "127.0.0.1:5000".
 func HostEndpoint(cfg Config) string {
-	return fmt.Sprintf("127.0.0.1:%d", cfg.Port)
+	return fmt.Sprintf("127.0.0.1:%d", hostPort)
 }
 
 // WaitForHostEndpoint blocks until the local host endpoint serves registry v2 API.
@@ -197,7 +199,7 @@ func createContainer(ctx context.Context, cfg Config) error {
 	args := []string{
 		"run", "-d",
 		"--restart=unless-stopped",
-		"-p", fmt.Sprintf("127.0.0.1:%d:5000", cfg.Port),
+		"-p", fmt.Sprintf("127.0.0.1:%d:5000", hostPort),
 		"--network", "bridge",
 		"-v", fmt.Sprintf("%s:/var/lib/registry", cfg.DataDir),
 		"--name", cfg.Name,

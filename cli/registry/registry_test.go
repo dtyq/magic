@@ -51,7 +51,10 @@ func TestHostEndpoint(t *testing.T) {
 		Name: "magic-kind-registry",
 		Port: 5000,
 	}
-	assert.Equal(t, "127.0.0.1:5000", HostEndpoint(cfg))
+	oldHostPort := hostPort
+	hostPort = 35000
+	t.Cleanup(func() { hostPort = oldHostPort })
+	assert.Equal(t, "127.0.0.1:35000", HostEndpoint(cfg))
 }
 
 func TestWaitForHostEndpoint_Ready(t *testing.T) {
@@ -71,6 +74,9 @@ func TestWaitForHostEndpoint_Ready(t *testing.T) {
 
 	port := srv.Listener.Addr().(*net.TCPAddr).Port
 	cfg := Config{Name: "magic-kind-registry", Port: port}
+	oldHostPort := hostPort
+	hostPort = port
+	t.Cleanup(func() { hostPort = oldHostPort })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -90,6 +96,9 @@ func TestWaitForHostEndpoint_Timeout(t *testing.T) {
 
 	port := srv.Listener.Addr().(*net.TCPAddr).Port
 	cfg := Config{Name: "magic-kind-registry", Port: port}
+	oldHostPort := hostPort
+	hostPort = port
+	t.Cleanup(func() { hostPort = oldHostPort })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
