@@ -45,6 +45,7 @@ enum MagicResourceEnum: string
     case SAFE_ADMIN = 'admin.safe.admin';  # 安全管控-组织管理员
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 组织管理后台-安全管控-子管理员
     case SAFE_OPERATION_LOG = 'admin.safe.operation_log';  # 安全管控-操作日志
+    case SAFE_MODEL_AUDIT_LOG = 'admin.safe.model_audit_log';  # 安全管控-模型调用审计
     case PLATFORM_ADMIN_AI_AGENT = 'platform.ai.agent_management'; # AI管理-员工管理
     case PLATFORM_ADMIN_AI_SKILL = 'platform.ai.skill_management'; # AI管理-技能管理
     case PLATFORM_SETTING_PLATFORM_INFO = 'platform.setting.platform_info'; # 平台管理 - 系统设置 - 平台信息
@@ -74,6 +75,7 @@ enum MagicResourceEnum: string
             self::PLATFORM_ADMIN_AI_SKILL => 'permission.resource.ai_skill',
             self::SAFE_SUB_ADMIN => 'permission.resource.safe_sub_admin', # 子管理员
             self::SAFE_OPERATION_LOG => 'permission.resource.safe_operation_log',
+            self::SAFE_MODEL_AUDIT_LOG => 'permission.resource.safe_model_audit_log',
             self::PLATFORM => 'permission.resource.platform',
             self::PLATFORM_AI => 'permission.resource.platform_ai',
             self::WORKSPACE_AI => 'permission.resource.workspace_ai',
@@ -114,7 +116,8 @@ enum MagicResourceEnum: string
             self::ADMIN_AI_ABILITY,
             self::SAFE_ADMIN,
             self::SAFE_SUB_ADMIN,
-            self::SAFE_OPERATION_LOG => self::ADMIN_SAFE,
+            self::SAFE_OPERATION_LOG,
+            self::SAFE_MODEL_AUDIT_LOG => self::ADMIN_SAFE,
             self::PLATFORM_ADMIN_AI_AGENT,
             self::PLATFORM_ADMIN_AI_SKILL,
             self::PLATFORM_SETTING_PLATFORM_INFO => self::PLATFORM_SETTING,

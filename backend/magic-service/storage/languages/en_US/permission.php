@@ -12,6 +12,7 @@ return [
         'safe_admin' => 'Organization Admin',
         'safe_sub_admin' => 'Sub Admin',
         'safe_operation_log' => 'Admin Log',
+        'safe_model_audit_log' => 'Model Audit Log',
         'ai_model' => 'AI Model',
         'ai_image' => 'AI Image',
         'admin_ai_model' => 'AI Model',

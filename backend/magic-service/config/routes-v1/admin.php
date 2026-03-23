@@ -104,6 +104,11 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('/{id:\d+}', [AdminOperationLogApi::class, 'show']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
+    // 模型调用审计相关
+    Router::addGroup('/model-audit-logs', static function () {
+        Router::post('/list', [AdminOperationLogApi::class, 'listModelAudit']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
     // 组织列表
     Router::addGroup('/organizations', static function () {
         Router::get('', [OrganizationApi::class, 'queries']);

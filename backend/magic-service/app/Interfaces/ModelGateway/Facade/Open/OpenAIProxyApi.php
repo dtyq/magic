@@ -19,6 +19,7 @@ use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Context\RequestCoContext;
 use App\Infrastructure\Util\RequestUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -251,7 +252,8 @@ class OpenAIProxyApi extends AbstractOpenApi
             $setLang,
             $safeSearch,
             $freshness,
-            $businessParams
+            $businessParams,
+            $this->getClientIps()
         );
     }
 
@@ -333,6 +335,10 @@ class OpenAIProxyApi extends AbstractOpenApi
     private function getBusinessParamsFromContext(): array
     {
         $businessParams = [];
+        $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+        if ($requestId !== '') {
+            $businessParams['request_id'] = $requestId;
+        }
 
         $magicUserAuthorization = RequestCoContext::getUserAuthorization();
         if (! $magicUserAuthorization instanceof MagicUserAuthorization) {

@@ -12,6 +12,7 @@ return [
         'safe_admin' => '组织管理员',
         'safe_sub_admin' => '子管理员',
         'safe_operation_log' => '管理员日志',
+        'safe_model_audit_log' => '模型调用审计',
         'ai_model' => '大模型',
         'ai_image' => '智能绘图',
         'admin_ai_model' => '大模型',

@@ -7,10 +7,13 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\Audit\ModelCall\Service\AuditService;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Kernel\EnvManager;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
@@ -28,6 +31,7 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
+use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -35,6 +39,8 @@ use Throwable;
 
 abstract class AbstractLLMAppService extends AbstractKernelAppService
 {
+    private const string AUDIT_DISPATCHED_KEYS = 'model_gateway.audit.dispatched_keys';
+
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -54,7 +60,8 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ImageWatermarkProcessor $imageWatermarkProcessor,
         protected PackageFilterInterface $packageFilter,
         protected ProviderModelDomainService $providerModelDomainService,
-        protected AggregateModelResolverService $aggregateModelResolverService
+        protected AggregateModelResolverService $aggregateModelResolverService,
+        protected readonly AuditService $auditService
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
@@ -114,6 +121,84 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         }
 
         return $dataIsolation;
+    }
+
+    protected function dispatchAuditEventOnce(
+        array $userInfo,
+        string $ip,
+        AuditType $type,
+        string $productCode,
+        string $accessToken,
+        float $startTime,
+        int $latencyMs,
+        AuditStatus $status,
+        array $usage = [],
+        ?array $detailInfo = null,
+        array $businessParams = [],
+        string $sourceMarker = ''
+    ): void {
+        $dispatchBusinessParams = $businessParams;
+        if ($sourceMarker !== '') {
+            $dispatchBusinessParams['audit_source_marker'] = $sourceMarker;
+        }
+
+        $dispatchKey = $this->buildAuditDispatchKey($type, $dispatchBusinessParams);
+        if ($dispatchKey === '') {
+            $this->auditService->dispatchAuditEvent(
+                userInfo: $userInfo,
+                ip: $ip,
+                type: $type,
+                productCode: $productCode,
+                accessToken: $accessToken,
+                startTime: $startTime,
+                latencyMs: $latencyMs,
+                status: $status,
+                usage: $usage,
+                detailInfo: $detailInfo,
+                businessParams: $dispatchBusinessParams
+            );
+            return;
+        }
+
+        $dispatchedKeys = Context::get(self::AUDIT_DISPATCHED_KEYS, []);
+        if (! is_array($dispatchedKeys)) {
+            $dispatchedKeys = [];
+        }
+
+        if (in_array($dispatchKey, $dispatchedKeys, true)) {
+            return;
+        }
+
+        $dispatchedKeys[] = $dispatchKey;
+        Context::set(self::AUDIT_DISPATCHED_KEYS, $dispatchedKeys);
+
+        $this->auditService->dispatchAuditEvent(
+            userInfo: $userInfo,
+            ip: $ip,
+            type: $type,
+            productCode: $productCode,
+            accessToken: $accessToken,
+            startTime: $startTime,
+            latencyMs: $latencyMs,
+            status: $status,
+            usage: $usage,
+            detailInfo: $detailInfo,
+            businessParams: $dispatchBusinessParams
+        );
+    }
+
+    protected function buildAuditDispatchKey(AuditType $type, array $businessParams = []): string
+    {
+        $requestId = (string) ($businessParams['audit_request_id'] ?? $businessParams['request_id'] ?? '');
+        if ($requestId === '') {
+            return '';
+        }
+
+        return implode('|', [
+            $requestId,
+            $type->value,
+            (string) ($businessParams['audit_source_marker'] ?? ''),
+        ]);
     }
 
     private function getApplicationOrganizationCode(array $businessParams = []): string

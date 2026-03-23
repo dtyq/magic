@@ -11,6 +11,8 @@ return [
         'admin_safe' => 'Keselamatan & Kebenaran',
         'safe_admin' => 'Pentadbir organisasi',
         'safe_sub_admin' => 'Sub pentadbir',
+        'safe_operation_log' => 'Log pentadbir',
+        'safe_model_audit_log' => 'Log audit model',
         'ai_model' => 'Model besar',
         'ai_image' => 'Lukisan pintar',
         'admin_ai_model' => 'Model besar',
