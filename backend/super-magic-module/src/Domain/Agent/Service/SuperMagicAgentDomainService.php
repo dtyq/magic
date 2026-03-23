@@ -297,7 +297,11 @@ readonly class SuperMagicAgentDomainService
      */
     public function getDetail(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): SuperMagicAgentEntity
     {
-        $agent = $this->getByCodeWithException($dataIsolation, $agentCode);
+        $agent = $this->superMagicAgentRepository->getByCode($dataIsolation, $agentCode);
+        if (! $agent) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $agentCode]);
+        }
+
         $agent->setName($agent->getI18nName($dataIsolation->getLanguage()));
         $agent->setDescription($agent->getI18nDescription($dataIsolation->getLanguage()));
 
