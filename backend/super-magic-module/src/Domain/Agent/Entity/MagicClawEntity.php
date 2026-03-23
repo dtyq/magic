@@ -37,6 +37,11 @@ class MagicClawEntity extends AbstractEntity
     protected string $icon = '';
 
     /**
+     * Template code: openclaw or magicshock.
+     */
+    protected string $templateCode = '';
+
+    /**
      * Icon file URL (transient, resolved at runtime).
      */
     protected string $iconFileUrl = '';
@@ -124,6 +129,16 @@ class MagicClawEntity extends AbstractEntity
     public function setIcon(string $icon): void
     {
         $this->icon = $icon;
+    }
+
+    public function getTemplateCode(): string
+    {
+        return $this->templateCode;
+    }
+
+    public function setTemplateCode(string $templateCode): void
+    {
+        $this->templateCode = $templateCode;
     }
 
     public function getIconFileUrl(): string

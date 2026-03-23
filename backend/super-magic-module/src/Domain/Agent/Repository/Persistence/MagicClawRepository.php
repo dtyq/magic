@@ -107,6 +107,7 @@ class MagicClawRepository extends SuperMagicAbstractRepository implements MagicC
         $entity->setName((string) $model->name);
         $entity->setDescription((string) ($model->description ?? ''));
         $entity->setIcon((string) ($model->icon ?? ''));
+        $entity->setTemplateCode((string) ($model->template_code ?? ''));
         $entity->setOrganizationCode((string) $model->organization_code);
         $entity->setUserId((string) $model->user_id);
         $entity->setProjectId($model->project_id !== null ? (int) $model->project_id : null);
@@ -123,6 +124,7 @@ class MagicClawRepository extends SuperMagicAbstractRepository implements MagicC
         $model->name = $entity->getName();
         $model->description = $entity->getDescription();
         $model->icon = $entity->getIcon();
+        $model->template_code = $entity->getTemplateCode();
         $model->organization_code = $entity->getOrganizationCode();
         $model->user_id = $entity->getUserId();
         $model->project_id = $entity->getProjectId();

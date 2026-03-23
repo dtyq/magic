@@ -26,6 +26,7 @@ class MagicClawAssembler
             'icon_file_url' => $entity->getIconFileUrl(),
             'name' => $entity->getName(),
             'description' => $entity->getDescription(),
+            'template_code' => $entity->getTemplateCode(),
             'project_id' => (string) ($entity->getProjectId() ?? ''),
             'extra' => [
                 'project' => $extra['project'] ?? [],
@@ -48,6 +49,7 @@ class MagicClawAssembler
             'icon_file_url' => $entity->getIconFileUrl(),
             'name' => $entity->getName(),
             'description' => $entity->getDescription(),
+            'template_code' => $entity->getTemplateCode(),
             'project_id' => (string) ($entity->getProjectId() ?? ''),
         ];
     }

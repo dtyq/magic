@@ -40,13 +40,15 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             $userId,
             $dto->getName(),
             $dto->getDescription(),
-            $dto->getIcon()
+            $dto->getIcon(),
+            $dto->getTemplateCode()
         ));
 
         $entity = new MagicClawEntity();
         $entity->setName($dto->getName());
         $entity->setDescription($dto->getDescription());
         $entity->setIcon($dto->getIcon());
+        $entity->setTemplateCode($dto->getTemplateCode());
         $entity->setOrganizationCode($orgCode);
         $entity->setUserId($userId);
         $entity->setCreatedUid($userId);

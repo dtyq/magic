@@ -14,7 +14,8 @@ class BeforeCreateClawEvent
         private readonly string $userId,
         private readonly string $name,
         private readonly string $description,
-        private readonly string $icon
+        private readonly string $icon,
+        private readonly string $templateCode = ''
     ) {
     }
 
@@ -41,5 +42,10 @@ class BeforeCreateClawEvent
     public function getIcon(): string
     {
         return $this->icon;
+    }
+
+    public function getTemplateCode(): string
+    {
+        return $this->templateCode;
     }
 }

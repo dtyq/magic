@@ -31,6 +31,7 @@ class MagicClawModel extends AbstractModel
         'name',
         'description',
         'icon',
+        'template_code',
         'organization_code',
         'user_id',
         'project_id',
