@@ -44,6 +44,7 @@ type Options struct {
 	Registry      registry.Config
 	Kind          cluster.KindClusterConfig
 	InfraUseProxy bool // route infra image pulls through the local registry proxy
+	AutoRecoverRelease bool // auto recover pending helm release without TTY confirmation
 	Log           util.LoggerGroup
 }
 
@@ -115,6 +116,9 @@ func installChartWithWaitSelector(ctx context.Context, d *Deployer, name, namesp
 	}
 	if err := d.kubeClient.EnsureNamespace(ctx, namespace); err != nil {
 		return fmt.Errorf("ensure namespace %s: %w", namespace, err)
+	}
+	if err := ensureReleaseReadyForInstall(ctx, d, name, namespace); err != nil {
+		return err
 	}
 	values := chart.ExtractChartValues(merged, name)
 	if err := chart.UpgradeInstall(ctx, name, namespace, d.kubeClient.RESTConfig(), chartRef, values); err != nil {
