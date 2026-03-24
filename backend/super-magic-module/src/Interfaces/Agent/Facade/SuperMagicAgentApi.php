@@ -218,11 +218,11 @@ class SuperMagicAgentApi extends AbstractApi
         $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
             $result['agents'],
             $result['playbooks_map'],
-            $result['store_agents_map'],
+            $result['agent_market_map'],
             $result['latest_versions_map'],
             $result['user_agents_map'] ?? [],
-            $result['page'],
-            $result['page_size'],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
             $result['total']
         );
 
@@ -238,12 +238,12 @@ class SuperMagicAgentApi extends AbstractApi
         $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
             $result['agents'],
             $result['playbooks_map'],
-            $result['store_agents_map'],
+            $result['agent_market_map'],
             $result['latest_versions_map'],
             $result['user_agents_map'] ?? [],
             $authorization->getId(),
-            $result['page'],
-            $result['page_size'],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
             $result['total'],
             $result['publisher_user_map'] ?? []
         );

@@ -39,6 +39,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
@@ -292,17 +293,23 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 查询员工列表.
-     */
-    /**
+     * 查询“我创建的员工”列表。
+     *
+     * 作用：
+     * - 供“我的员工 / 我创建的员工”列表接口使用
+     * - 只查询当前用户自己创建的 Agent
+     * - 一次性补齐列表渲染需要的关联数据，避免接口层再散落查询
+     *
+     * 与 externalQueries 的区别：
+     * - queries 面向“当前用户创建的数据”
+     * - externalQueries 面向“当前用户可见但不一定由自己创建的数据”
+     *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     agent_market_map: array<string, AgentMarketEntity>,
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
      *     total: int
      * }
      */
@@ -315,24 +322,71 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $query->setLanguageCode($languageCode);
         $query->setCreatorId($dataIsolation->getCurrentUserId());
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+
         $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
-        return $this->buildAgentListResult(
-            dataIsolation: $dataIsolation,
-            requestDTO: $requestDTO,
-            agents: $result['list'],
-            total: $result['total']
-        );
+        $agents = $result['list'];
+        $total = $result['total'];
+
+        // Normalize icons before building the list payload.
+        $this->updateAgentEntitiesIcon($agents);
+        if ($agents === []) {
+            return [
+                'agents' => [],
+                'playbooks_map' => [],
+                'agent_market_map' => [],
+                'user_agents_map' => [],
+                'latest_versions_map' => [],
+                'total' => $total,
+            ];
+        }
+
+        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
+
+        // Batch load playbooks once for all list items used by the API assembler.
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+
+        // Agent codes are already available above; repository returns map keyed by agent_code.
+        $agentMarketMap = $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes($agentCodes);
+
+        // Batch load user agent ownership once for all list items used by the API assembler.
+        $userAgentsMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, $agentCodes);
+
+        // Batch load versions once for all list items used by the API assembler.
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
+
+        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
+
+        return [
+            'agents' => $agents,
+            'playbooks_map' => $playbooksMap,
+            'agent_market_map' => $agentMarketMap,
+            'user_agents_map' => $userAgentsMap,
+            'latest_versions_map' => $latestVersionsMap,
+            'publisher_user_map' => $publisherUserMap,
+            'total' => $total,
+        ];
     }
 
     /**
+     * 查询“当前用户可见的外部员工”列表。
+     *
+     * 作用：
+     * - 供“可见员工 / 外部员工 / 可安装员工”列表接口使用
+     * - 查询当前用户有访问权限的 Agent，以及官方内置 Agent
+     * - 先按版本视角筛出可见数据，再转换成列表页需要的 Agent 结构
+     *
+     * 与 queries 的区别：
+     * - externalQueries 不要求 Agent 由当前用户创建
+     * - externalQueries 需要结合可见范围、安装关系、官方内置员工一起计算
+     *
+     * 实现上会复用前面已经查出的版本和用户归属数据，只补查缺失部分，避免重复查询。
+     *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     agent_market_map: array<string, AgentMarketEntity>,
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
      *     total: int
      * }
      */
@@ -345,19 +399,18 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $currentUserId);
         $queryCodes = $accessibleAgentResult['accessible'];
 
-        // 官方员工，后续官方员工要放入到可见数据里
+        // Get official agent codes.
         $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
 
+        // Merge official agent codes into query codes.
         $queryCodes = array_merge($queryCodes, $officialAgentCodes);
         if ($queryCodes === []) {
             return [
                 'agents' => [],
                 'playbooks_map' => [],
-                'store_agents_map' => [],
+                'agent_market_map' => [],
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
                 'total' => 0,
             ];
         }
@@ -369,11 +422,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $versionPage = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
         $dataIsolation->disabled();
-        $versionQueryResult = $this->superMagicAgentVersionDomainService->queries(
-            $dataIsolation,
-            $versionQuery,
-            $versionPage
-        );
+        $versionQueryResult = $this->superMagicAgentVersionDomainService->queries($dataIsolation, $versionQuery, $versionPage);
+
         $versionList = $versionQueryResult['list'];
         $total = $versionQueryResult['total'];
 
@@ -385,28 +435,51 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return [
                 'agents' => [],
                 'playbooks_map' => [],
-                'store_agents_map' => [],
+                'agent_market_map' => [],
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
                 'total' => $total,
             ];
         }
 
+        // Build external visible agents from versions.
         $agents = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $currentVersionsMap);
-        $userAgentOwnershipMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes(
-            $dataIsolation,
-            array_keys($currentVersionsMap)
-        );
+
+        // Batch load user agent ownership once for all list items used by the API assembler.
+        $userAgentOwnershipMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, array_keys($currentVersionsMap));
+
+        // Convert visible versions to list agents, then mark market-installed ones in place.
         $agents = $this->markInstalledMarketAgents($agents, $userAgentOwnershipMap);
 
-        return $this->buildAgentListResult(
-            dataIsolation: $dataIsolation,
-            requestDTO: $requestDTO,
-            agents: $agents,
-            total: $total,
-        );
+        // Normalize icons before building the list payload.
+        $this->updateAgentEntitiesIcon($agents);
+
+        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
+
+        // Batch load playbooks once for all list items used by the API assembler.
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+
+        // Keep logic consistent with queries(): lookup market map and latest versions by agent codes directly.
+        $agentMarketMap = $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes($agentCodes);
+
+        // Batch load publisher user map once for all list items used by the API assembler.
+        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
+
+        foreach ($agentMarketMap as $agentCode => $agentMarket) {
+            if (in_array($agentCode, $officialAgentCodes)) {
+                $agentMarket->setPublisherType(PublisherType::OFFICIAL_BUILTIN);
+            }
+        }
+
+        return [
+            'agents' => $agents,
+            'playbooks_map' => $playbooksMap,
+            'agent_market_map' => $agentMarketMap,
+            'user_agents_map' => $userAgentOwnershipMap,
+            'latest_versions_map' => $currentVersionsMap,
+            'publisher_user_map' => $publisherUserMap,
+            'total' => $total,
+        ];
     }
 
     /**
@@ -1070,101 +1143,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return [$userMap, $memberDepartmentMap];
-    }
-
-    /**
-     * @param array<SuperMagicAgentEntity> $agents
-     * @return array{
-     *     agents: array<int, SuperMagicAgentEntity>,
-     *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
-     *     user_agents_map: array<string, UserAgentEntity>,
-     *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
-     *     total: int
-     * }
-     */
-    private function buildAgentListResult(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        QueryAgentsRequestDTO $requestDTO,
-        array $agents,
-        int $total
-    ): array {
-        $this->updateAgentEntitiesIcon($agents);
-        if ($agents === []) {
-            return [
-                'agents' => [],
-                'playbooks_map' => [],
-                'store_agents_map' => [],
-                'user_agents_map' => [],
-                'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
-                'total' => $total,
-            ];
-        }
-
-        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
-        $rawPlaybooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
-        $playbooksMap = [];
-        foreach ($rawPlaybooksMap as $agentCode => $playbooks) {
-            $playbooksMap[(string) $agentCode] = array_values($playbooks);
-        }
-
-        $storeSourceCodesByAgentCode = [];
-        $marketSourceIds = [];
-        $latestVersionLookupCodes = [];
-        foreach ($agents as $agent) {
-            $versionLookupCode = $agent->getCode();
-            if ($agent->getSourceType()->isMarket()) {
-                if ($agent->getSourceId() !== null) {
-                    $marketSourceIds[$agent->getCode()] = $agent->getSourceId();
-                }
-            }
-            $latestVersionLookupCodes[] = $versionLookupCode;
-        }
-
-        $marketSourceRecords = [];
-        if ($marketSourceIds !== []) {
-            $marketSourceRecords = $this->superMagicAgentDomainService->getStoreAgentsByIds(array_values($marketSourceIds));
-            foreach ($marketSourceIds as $agentCode => $sourceId) {
-                $marketSourceRecord = $marketSourceRecords[$sourceId] ?? null;
-                if ($marketSourceRecord === null) {
-                    continue;
-                }
-
-                $storeSourceCodesByAgentCode[$agentCode] = $marketSourceRecord->getAgentCode();
-                $latestVersionLookupCodes[] = $marketSourceRecord->getAgentCode();
-            }
-        }
-
-        $storeAgentsMap = [];
-        foreach ($marketSourceIds as $agentCode => $sourceId) {
-            $storeAgent = $marketSourceRecords[$sourceId] ?? null;
-            if ($storeAgent !== null) {
-                $storeAgentsMap[$agentCode] = $storeAgent;
-            }
-        }
-        $userAgentsMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, $agentCodes);
-        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes(
-            $dataIsolation,
-            array_values(array_unique($latestVersionLookupCodes))
-        );
-
-        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
-
-        return [
-            'agents' => $agents,
-            'playbooks_map' => $playbooksMap,
-            'store_agents_map' => $storeAgentsMap,
-            'user_agents_map' => $userAgentsMap,
-            'latest_versions_map' => $latestVersionsMap,
-            'publisher_user_map' => $publisherUserMap,
-            'page' => $requestDTO->getPage(),
-            'page_size' => $requestDTO->getPageSize(),
-            'total' => $total,
-        ];
     }
 
     /**
