@@ -56,6 +56,14 @@ interface SandboxGatewayInterface
     public function upgradeSandbox(string $sandboxId, string $projectId, string $workDir): GatewayResult;
 
     /**
+     * 删除（停止）沙箱.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return GatewayResult 删除结果
+     */
+    public function deleteSandbox(string $sandboxId): GatewayResult;
+
+    /**
      * Get single sandbox status.
      *
      * @param string $sandboxId Sandbox ID

@@ -304,10 +304,6 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
-            // 升级沙箱到最新 Agent 镜像
-            Router::put('/upgrade', [SandboxApi::class, 'upgradeSandbox']);
-            // 检查沙箱镜像版本（当前版本 vs 最新版本）
-            Router::get('/version-check', [SandboxApi::class, 'checkSandboxVersion']);
             // 预启动沙箱
             Router::post('/pre-warm', [SandboxPreWarmApi::class, 'preWarmSandbox']);
         });

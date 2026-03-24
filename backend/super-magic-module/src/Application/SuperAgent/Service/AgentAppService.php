@@ -67,6 +67,17 @@ readonly class AgentAppService
     }
 
     /**
+     * 删除（停止）沙箱.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return GatewayResult 删除结果
+     */
+    public function stopSandbox(string $sandboxId): GatewayResult
+    {
+        return $this->agentDomainService->stopSandbox($sandboxId);
+    }
+
+    /**
      * 检查话题沙箱的镜像版本，返回当前版本和最新版本.
      *
      * @param int $topicId 话题ID

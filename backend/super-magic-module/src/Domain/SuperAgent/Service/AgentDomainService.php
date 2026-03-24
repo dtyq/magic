@@ -408,6 +408,32 @@ class AgentDomainService
     }
 
     /**
+     * 删除（停止）沙箱.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return GatewayResult 删除结果
+     */
+    public function stopSandbox(string $sandboxId): GatewayResult
+    {
+        $this->logger->debug('[Sandbox][Domain] Stopping sandbox', ['sandbox_id' => $sandboxId]);
+
+        $result = $this->gateway->deleteSandbox($sandboxId);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to stop sandbox', [
+                'sandbox_id' => $sandboxId,
+                'code' => $result->getCode(),
+                'message' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Stop sandbox', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->info('[Sandbox][Domain] Sandbox stopped successfully', ['sandbox_id' => $sandboxId]);
+
+        return $result;
+    }
+
+    /**
      * 获取沙箱状态
      *
      * @param string $sandboxId 沙箱ID

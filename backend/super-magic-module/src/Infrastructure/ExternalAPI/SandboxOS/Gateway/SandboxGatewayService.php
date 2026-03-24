@@ -244,6 +244,72 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
+     * 删除（停止）沙箱.
+     */
+    public function deleteSandbox(string $sandboxId): GatewayResult
+    {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping sandbox deletion', [
+                'sandbox_id' => $sandboxId,
+            ]);
+            return GatewayResult::success(['sandbox_id' => $sandboxId], 'Sandbox deletion skipped (local debugging mode)');
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Deleting sandbox', ['sandbox_id' => $sandboxId]);
+
+        try {
+            return retry(3, function () use ($sandboxId) {
+                try {
+                    $response = $this->getClient()->delete(
+                        $this->buildApiPath(sprintf('api/v1/sandboxes/%s', $sandboxId)),
+                        ['headers' => $this->getCommonHeaders(), 'timeout' => 60]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Sandbox deleted successfully', ['sandbox_id' => $sandboxId]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to delete sandbox', [
+                            'sandbox_id' => $sandboxId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when deleting sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+                    if (! $isRetryableError) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when deleting sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 3000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for deleting sandbox', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * 获取单个沙箱状态
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult

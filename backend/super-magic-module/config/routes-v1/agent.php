@@ -75,6 +75,17 @@ Router::addGroup('/api/v1/magic-claw', static function () {
     Router::get('/{code}', [MagicClawApi::class, 'show']);
     Router::put('/{code}', [MagicClawApi::class, 'update']);
     Router::delete('/{code}', [MagicClawApi::class, 'destroy']);
+
+    Router::addGroup('/sandbox', static function () {
+        // 获取龙虾沙箱状态
+        Router::get('/status', [MagicClawApi::class, 'getSandboxStatus']);
+        // 停止龙虾沙箱
+        Router::delete('', [MagicClawApi::class, 'stopSandbox']);
+        // 升级沙箱到最新 Agent 镜像
+        Router::put('/upgrade', [MagicClawApi::class, 'upgradeSandbox']);
+        // 检查沙箱镜像版本（当前版本 vs 最新版本）
+        Router::get('/version-check', [MagicClawApi::class, 'checkSandboxVersion']);
+    });
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);
 
 Router::addGroup('/api/v1/super-agents', static function () {
