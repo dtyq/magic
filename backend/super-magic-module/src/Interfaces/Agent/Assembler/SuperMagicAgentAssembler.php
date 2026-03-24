@@ -469,7 +469,7 @@ class SuperMagicAgentAssembler
 
         $allowDelete = false;
         if ($userAgent && $userAgent->getSourceType()->isMarket()) {
-            $allowDelete = ! $isAdded;
+            $allowDelete = $isAdded;
         }
 
         if ($agentMarketEntity) {
