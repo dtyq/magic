@@ -783,6 +783,43 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
+    /**
+     * 获取沙箱网关当前部署的最新 Agent 镜像.
+     */
+    public function getLatestAgentImage(): string
+    {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestAgentImage');
+            return '';
+        }
+
+        try {
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_AGENT_IMAGE), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest agent image', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return '';
+            }
+
+            $image = (string) ($result->getDataValue('image') ?? '');
+            $this->logger->info('[Sandbox][Gateway] Latest agent image retrieved', ['image' => $image]);
+            return $image;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest agent image', ['error' => $e->getMessage()]);
+            return '';
+        }
+    }
+
     protected function getCommonHeaders(): array
     {
         return [

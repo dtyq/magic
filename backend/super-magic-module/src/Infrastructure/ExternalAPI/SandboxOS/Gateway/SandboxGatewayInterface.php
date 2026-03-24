@@ -108,4 +108,11 @@ interface SandboxGatewayInterface
      * @return GatewayResult 复制结果
      */
     public function copyFiles(array $files): GatewayResult;
+
+    /**
+     * 获取沙箱网关当前部署的最新 Agent 镜像.
+     *
+     * @return string 最新 Agent 镜像全名（如 registry.example.com/agent:v1.2.3），失败时返回空字符串
+     */
+    public function getLatestAgentImage(): string;
 }

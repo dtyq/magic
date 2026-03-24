@@ -73,6 +73,22 @@ class SandboxApi extends AbstractApi
     }
 
     #[ApiResponse('low_code')]
+    public function checkSandboxVersion(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $topicId = $this->request->input('topic_id', '');
+
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        return $this->agentAppService->checkSandboxVersion((int) $topicId);
+    }
+
+    #[ApiResponse('low_code')]
     public function upgradeSandbox(RequestContext $requestContext): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());

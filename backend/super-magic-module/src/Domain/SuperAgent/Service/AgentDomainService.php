@@ -79,7 +79,8 @@ class AgentDomainService
         private readonly CloudFileRepositoryInterface $cloudFileRepository,
         private readonly DynamicConfigManager $dynamicConfigManager,
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
-        private readonly LockerInterface $locker
+        private readonly LockerInterface $locker,
+        private readonly TopicDomainService $topicDomainService,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -344,13 +345,22 @@ class AgentDomainService
             throw new SandboxOperationException('Create sandbox', $result->getMessage(), $result->getCode());
         }
 
+        $returnedSandboxId = $result->getDataValue('sandbox_id');
+        $agentImage = (string) ($result->getDataValue('agent_image') ?? '');
+
         $this->logger->info('[Sandbox][App] Create sandbox success', [
             'project_id' => $projectId,
             'input_sandbox_id' => $sandboxID,
-            'returned_sandbox_id' => $result->getDataValue('sandbox_id'),
+            'returned_sandbox_id' => $returnedSandboxId,
+            'agent_image' => $agentImage,
         ]);
 
-        return $result->getDataValue('sandbox_id');
+        // sandbox_id 即 topic_id，创建成功后立即持久化 agent 镜像版本
+        if (! empty($agentImage) && ! empty($returnedSandboxId)) {
+            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $returnedSandboxId, $agentImage);
+        }
+
+        return $returnedSandboxId;
     }
 
     /**
@@ -382,10 +392,17 @@ class AgentDomainService
             throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
         }
 
+        $agentImage = (string) ($result->getDataValue('agent_image') ?? '');
+
         $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
             'sandbox_id' => $sandboxId,
-            'agent_image' => $result->getDataValue('agent_image'),
+            'agent_image' => $agentImage,
         ]);
+
+        // sandbox_id 即 topic_id，升级成功后立即持久化最新 agent 镜像版本
+        if (! empty($agentImage) && ! empty($sandboxId)) {
+            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $sandboxId, $agentImage);
+        }
 
         return $result;
     }
@@ -419,6 +436,14 @@ class AgentDomainService
         ]);
 
         return $result;
+    }
+
+    /**
+     * 获取沙箱网关当前部署的最新 Agent 镜像.
+     */
+    public function getLatestAgentImage(): string
+    {
+        return $this->gateway->getLatestAgentImage();
     }
 
     /**

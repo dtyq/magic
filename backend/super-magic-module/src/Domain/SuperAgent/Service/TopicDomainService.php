@@ -494,6 +494,19 @@ class TopicDomainService
         return $this->topicRepository->updateTopicByCondition($conditions, $data);
     }
 
+    public function updateTopicAgentImage(DataIsolation $dataIsolation, int $id, string $agentImage): bool
+    {
+        $conditions = [
+            'id' => $id,
+        ];
+        $data = [
+            'agent_image' => $agentImage,
+            'updated_uid' => $dataIsolation->getCurrentUserId(),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        return $this->topicRepository->updateTopicByCondition($conditions, $data);
+    }
+
     /**
      * Validate topic for message queue operations.
      * Checks both ownership and running status.
