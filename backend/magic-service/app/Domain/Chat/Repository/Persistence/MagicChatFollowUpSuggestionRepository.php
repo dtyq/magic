@@ -77,13 +77,17 @@ class MagicChatFollowUpSuggestionRepository
      */
     public function markDone(string $taskId, array $suggestions): void
     {
-        $this->model::query()
+        $record = $this->model::query()
             ->where('task_id', $taskId)
-            ->update([
-                'suggestions' => array_values($suggestions),
-                'status' => self::STATUS_DONE,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ->first();
+        if ($record === null) {
+            return;
+        }
+
+        $record->suggestions = array_values($suggestions);
+        $record->status = self::STATUS_DONE;
+        $record->updated_at = date('Y-m-d H:i:s');
+        $record->save();
     }
 
     public function markFailed(string $taskId): void
