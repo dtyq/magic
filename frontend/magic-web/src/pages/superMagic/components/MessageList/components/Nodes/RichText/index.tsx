@@ -14,6 +14,7 @@ import { MessageStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { Button } from "antd"
 import { IconEdit } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 
 const formatTimestamp = (timestamp: string) => {
 	const date = new Date(+`${timestamp}000`)
@@ -35,15 +36,7 @@ function RichText(props: NodeProps) {
 
 	const onFileClick = useMemoizedFn((item?: TiptapMentionAttributes["data"]) => {
 		const result = handleProjectFileMention(item as ProjectFileMentionData, t)
-		pubsub.publish("super_magic_switch_detail_mode", "files")
-
-		const fileId = result?.data?.file_id || result?.currentFileId
-		if (result && fileId) {
-			pubsub.publish("super_magic_open_file_tab", {
-				fileId,
-				fileData: result,
-			})
-		}
+		openMessageFile(result)
 
 		if (isMobile) {
 			onSelectDetail?.(result)

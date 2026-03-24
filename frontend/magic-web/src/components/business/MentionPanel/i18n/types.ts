@@ -39,6 +39,11 @@ export interface I18nTexts {
 	// Hints
 	mcpHint: string
 	skillHint: string
+	skillSources: {
+		system: string
+		agent: string
+		mine: string
+	}
 
 	// Panel titles
 	panelTitles: {

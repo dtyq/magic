@@ -64,16 +64,18 @@ const WarningCard = memo(
 						{cancelText || t("ui.cancel")}
 					</Button>
 
-					<Button
-						type="primary"
-						size="small"
-						className={styles.primaryButton}
-						onClick={onConfirm}
-						disabled={confirmDisabled}
-						loading={confirmLoading}
-					>
-						{confirmText || t("ui.confirm")}
-					</Button>
+					{onConfirm && (
+						<Button
+							type="primary"
+							size="small"
+							className={styles.primaryButton}
+							onClick={onConfirm}
+							disabled={confirmDisabled}
+							loading={confirmLoading}
+						>
+							{confirmText || t("ui.confirm")}
+						</Button>
+					)}
 				</div>
 			</div>
 		)

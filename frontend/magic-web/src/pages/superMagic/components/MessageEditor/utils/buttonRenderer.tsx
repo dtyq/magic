@@ -71,7 +71,7 @@ export interface ButtonRendererContext {
 	handleRemoveUploadedFile: (file: FileData) => void
 	handleSend: () => void
 	handleInterrupt: () => void
-	handleCompressContext?: () => void
+	handleCompressContext: () => void
 
 	// Props passthrough
 	modelSwitch?: React.ReactNode

@@ -149,7 +149,12 @@ export function createI18nNext(defaultLang?: string) {
 				// (tip move them in a JSON file and import them,
 				// or even better, manage them via a UI: https://react.i18next.com/guides/multiple-translation-files#manage-your-translations-with-a-management-gui)
 				lng: defaultLang, // if you're using a language detector, do not define the lng option
-				fallbackLng: DEFAULT_LOCALE,
+				fallbackLng: (code) => {
+					const normalized = normalizeLocale(code)
+					if (normalized === "en_US") return ["en_US"]
+					if (normalized === "zh_CN") return ["zh_CN"]
+					return [DEFAULT_LOCALE]
+				},
 				interpolation: {
 					escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
 				},

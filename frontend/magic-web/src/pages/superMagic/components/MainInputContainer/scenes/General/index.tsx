@@ -38,7 +38,11 @@ function GeneralInputContainer({ scenes, editorContext, editorNodes }: GeneralIn
 			)
 		}
 
-		return <SceneSwitcher scenes={scenes} onSceneClick={sceneStateStore.setCurrentScene} />
+		return (
+			<div className="flex min-h-9 w-full items-center justify-center">
+				<SceneSwitcher scenes={scenes} onSceneClick={sceneStateStore.setCurrentScene} />
+			</div>
+		)
 	}
 
 	return (

@@ -98,15 +98,6 @@ export function useDataSource(props: UseDataSourceProps): UseDataSourceReturn {
 		}
 	})
 
-	// 注册刷新回调（CanvasDesignMentionDataService：上传成功后触发面板更新）
-	useEffect(() => {
-		const service = dataService as { setRefreshHandler?: (h: (() => void) | undefined) => void }
-		if (service?.setRefreshHandler) {
-			service.setRefreshHandler(() => loadDefaultItems())
-			return () => service.setRefreshHandler?.(undefined)
-		}
-	}, [dataService, loadDefaultItems])
-
 	// Search items with debouncing
 	const searchItems = useMemoizedFn(async (query: string) => {
 		// Don't auto-transition to default here - let the parent handle state transitions
@@ -172,7 +163,7 @@ export function useDataSource(props: UseDataSourceProps): UseDataSourceReturn {
 		setCurrentState(PanelState.SKILLS)
 
 		if (dataService?.getSkills) {
-			await loadData(dataService.getSkills, [])
+			await loadData(() => dataService.refreshSkills?.() ?? dataService.getSkills(), [])
 		} else {
 			await loadData(() => Promise.resolve([]))
 		}
@@ -228,6 +219,50 @@ export function useDataSource(props: UseDataSourceProps): UseDataSourceReturn {
 				break
 		}
 	})
+
+	const refreshCurrentStateSilently = useMemoizedFn(async () => {
+		if (!dataService) return
+
+		switch (currentState) {
+			case PanelState.DEFAULT:
+				setItems(await Promise.resolve(dataService.getDefaultItems(t)))
+				return
+			case PanelState.MCP:
+				setItems(await Promise.resolve(dataService.getMcpExtensions()))
+				return
+			case PanelState.AGENT:
+				setItems(await Promise.resolve(dataService.getAgents()))
+				return
+			case PanelState.SKILLS:
+				setItems(await Promise.resolve(dataService.getSkills()))
+				return
+			case PanelState.TOOLS:
+				setItems(await Promise.resolve(dataService.getToolItems("tools")))
+				return
+			case PanelState.UPLOAD_FILES:
+				setItems(await Promise.resolve(dataService.getUploadFiles()))
+				return
+			case PanelState.HISTORIES:
+				setItems(await Promise.resolve(dataService.getAllHistory()))
+				return
+			case PanelState.TABS:
+				setItems(await Promise.resolve(dataService.getCurrentTabs()))
+				return
+			default:
+				return
+		}
+	})
+
+	// 注册刷新回调（后台增量更新后静默刷新当前列表）
+	useEffect(() => {
+		if (!dataService?.setRefreshHandler) return
+
+		dataService.setRefreshHandler(() => {
+			void refreshCurrentStateSilently()
+		})
+
+		return () => dataService.setRefreshHandler?.(undefined)
+	}, [dataService, refreshCurrentStateSilently])
 
 	return {
 		items,

@@ -2,6 +2,10 @@ import { makeAutoObservable, runInAction, toJS } from "mobx"
 import pubsub from "@/utils/pubsub"
 import { unionBy, omit, cloneDeep } from "lodash-es"
 import dayjs from "@/lib/dayjs"
+import type { SeqRecord } from "@/apis/modules/chat/types"
+import type { ConversationQueryMessage, SuperMagicNode } from "@/types/chat/conversation_message"
+import type { RawMessage } from "@/types/chat/intermediate_message"
+import type { SeqResponse } from "@/types/request"
 import {
 	createDomainEventRegistry,
 	type CrewDomainEventPayload as InternalCrewDomainEventPayload,
@@ -41,12 +45,37 @@ function resolveDomainEvents(payload: TopicMessageListenerPayload): DomainEventP
 	)
 }
 
-function persistMessageToStorage(topicId: string, value: any) {
+export type RawSuperMagicMessageNode = SuperMagicNode
+type RawSuperMagicIMMessage = ConversationQueryMessage
+type RawSuperMagicMessageSequence = SeqResponse<ConversationQueryMessage>
+export type RawSuperMagicMessageEnvelope = SeqRecord<ConversationQueryMessage>
+
+interface SharedMessageItem {
+	message_id?: string
+	type?: string
+	raw_content?: {
+		rich_text?: Record<string, unknown>
+	}
+	[key: string]: unknown
+}
+
+function getRawMessageNode(message?: RawSuperMagicIMMessage): RawSuperMagicMessageNode {
+	if (!message?.type) return {}
+
+	return ((message as Record<string, unknown>)[message.type] as RawSuperMagicMessageNode) || {}
+}
+
+function persistMessageToStorage(
+	_topicId: string,
+	_value: RawMessage | RawSuperMagicMessageSequence,
+) {
 	try {
-		// const storageName = `MAGIC_STREAM_${topicId}`
+		void _topicId
+		void _value
+		// const storageName = `MAGIC_STREAM_${_topicId}`
 		// const cache = JSON.parse(sessionStorage.getItem(storageName) || "[]")
-		// cache.push(value)
-		// db.addToTable(topicId, value?.seq_id || `${performance.now()}`, value)
+		// cache.push(_value)
+		// db.addToTable(_topicId, _value?.seq_id || `${performance.now()}`, _value)
 	} catch (error) {
 		console.log(error)
 	}
@@ -80,48 +109,50 @@ function shouldNotifyMessageUpdate({
 }: {
 	previousMessage?: MessageItem
 	nextMessage: MessageItem
-	previousMessageNode?: any
-	nextMessageNode?: any
+	previousMessageNode?: unknown
+	nextMessageNode?: unknown
 }) {
 	if (!previousMessage) return true
+	const previousNode = previousMessageNode as CrewToolMessageNode | undefined
+	const nextNode = nextMessageNode as CrewToolMessageNode | undefined
 
 	return (
 		previousMessage.seq_id !== nextMessage.seq_id ||
 		previousMessage.status !== nextMessage.status ||
 		previousMessage.event !== nextMessage.event ||
 		previousMessage.role !== nextMessage.role ||
-		previousMessageNode?.status !== nextMessageNode?.status ||
-		previousMessageNode?.event !== nextMessageNode?.event ||
-		previousMessageNode?.tool?.name !== nextMessageNode?.tool?.name ||
-		previousMessageNode?.tool?.status !== nextMessageNode?.tool?.status
+		previousNode?.status !== nextNode?.status ||
+		previousNode?.event !== nextNode?.event ||
+		previousNode?.tool?.name !== nextNode?.tool?.name ||
+		previousNode?.tool?.status !== nextNode?.tool?.status
 	)
 }
 
-function transformRawMessage(message: any): MessageItem {
+function transformRawMessage(message: RawSuperMagicMessageSequence): MessageItem {
 	// IM 消息体
 	const imMessage = message?.message || {}
 	// 超麦消息体
-	const msg = imMessage?.[imMessage?.type] || {}
+	const msg = getRawMessageNode(imMessage)
 	return {
 		// 获取 IM 消息体中除 type 外的其他字段
 		...omit(imMessage, [imMessage?.type]),
 		// 调试专用
 		debug: msg,
 		// 同步 IM 消息体
-		topic_id: imMessage?.topic_id,
-		type: imMessage?.type,
-		app_message_id: imMessage?.app_message_id,
-		magic_message_id: imMessage?.magic_message_id,
-		send_time: imMessage?.send_time,
-		status: imMessage?.status,
+		topic_id: imMessage?.topic_id as string,
+		type: imMessage?.type as string,
+		app_message_id: imMessage?.app_message_id as string,
+		magic_message_id: imMessage?.magic_message_id as string,
+		send_time: imMessage?.send_time as number,
+		status: imMessage?.status as string,
 		// 同步超麦消息体
-		event: msg?.event,
+		event: msg?.event as string,
 		parent_correlation_id: msg?.parent_correlation_id || "",
-		correlation_id: msg?.correlation_id || msg?.tool?.id,
-		role: msg?.role || "user",
-		seq_id: message?.seq_id,
-		refer_message_id: message?.refer_message_id,
-	}
+		correlation_id: (msg?.correlation_id || msg?.tool?.id) as string,
+		role: (msg?.role || "user") as MessageItem["role"],
+		seq_id: message?.seq_id as string,
+		refer_message_id: message?.refer_message_id as string,
+	} as MessageItem
 }
 
 export interface MessageItem {
@@ -130,7 +161,7 @@ export interface MessageItem {
 	correlation_id: string
 	/** 父消息相关联Id */
 	parent_correlation_id: string
-	debug: any
+	debug: RawSuperMagicMessageNode
 	/** 事件 */
 	event: string
 	magic_message_id: string
@@ -149,7 +180,7 @@ export interface MessageItem {
 	/** 消息类型() */
 	type: string
 
-	[key: string]: any
+	[key: string]: unknown
 }
 
 interface TopicMeta {
@@ -186,7 +217,7 @@ export class SuperMagicStore {
 	// 消息缓冲区
 	buffer: Map<SuperMagicStoreTopicId, MessageItem[]> = new Map()
 	// 消息内容（卡片形式）
-	messageMap: Map<string, any> = new Map()
+	messageMap: Map<string, unknown> = new Map()
 	/** 话题消息元数据 */
 	topicMeta: Map<SuperMagicStoreTopicId, TopicMeta> = new Map()
 	/** 话题Id映射( < IM话题Id, 超麦话题Id > ) */
@@ -206,7 +237,7 @@ export class SuperMagicStore {
 	}
 
 	// messages 为desc排序，确保与 this.messages 中时间排序保持一致（从大到小）
-	initializeMessages(topicId: string, messages: Array<any>) {
+	initializeMessages(topicId: string, messages: RawSuperMagicMessageEnvelope[]) {
 		const msgCache = this.messages.get(topicId) || []
 		const msgBufferCache = this.buffer.get(topicId) || []
 		console.log("API 拉取的消息列表", messages)
@@ -217,12 +248,15 @@ export class SuperMagicStore {
 		runInAction(() => {
 			messages?.reverse()?.forEach((m) => {
 				const msg = m?.seq?.message
-				const appMessageId = msg?.app_message_id
+				const messageNode = getRawMessageNode(msg)
+				const appMessageId = msg?.app_message_id as string
 				if (
 					!bufferCacheIds.has(appMessageId) &&
-					msg?.[msg?.type]?.event !== "before_llm_request"
+					messageNode?.event !== "before_llm_request"
 				) {
-					const newCard: MessageItem = transformRawMessage(m?.seq)
+					const newCard: MessageItem = transformRawMessage(
+						m?.seq as RawSuperMagicMessageSequence,
+					)
 					// 当且存在已处理过的消息时需要更新消息内容，否则直接插入已处理消息
 					if (msgCacheIds.has(appMessageId)) {
 						const index = msgCache.findIndex((o) => o?.app_message_id === appMessageId)
@@ -234,14 +268,14 @@ export class SuperMagicStore {
 					}
 				}
 
-				this.messageMap.set(appMessageId, m?.seq?.message?.[m?.seq?.message?.type])
+				this.messageMap.set(appMessageId, messageNode)
 			})
 			this.messages.set(topicId, unionBy(sortMessages(msgCache), "app_message_id"))
 		})
 	}
 
 	// 加载分享的消息列表
-	loadSharedMessages(messages: Array<any>) {
+	loadSharedMessages(messages: SharedMessageItem[]) {
 		runInAction(() => {
 			messages?.forEach((o) => {
 				if (o?.type === "rich_text") {
@@ -257,8 +291,8 @@ export class SuperMagicStore {
 	}
 
 	// 设置话题的消息列表中的消息卡片
-	enqueueMessage(topicId: string, baseMessage: any) {
-		const message = baseMessage?.seq
+	enqueueMessage(topicId: string, baseMessage: RawSuperMagicMessageEnvelope) {
+		const message = baseMessage?.seq as RawSuperMagicMessageSequence
 		const nextMessage = transformRawMessage(message)
 		// 流式状态下的就先写入缓冲区，非流式状态下直接写入。
 		const msgCache = this.messages.get(topicId) || []
@@ -267,28 +301,32 @@ export class SuperMagicStore {
 		const msgIdSet = new Set(msgCache.map((o) => o?.app_message_id))
 		const msgBufferIdSet = new Set(msgBufferCache.map((o) => o?.app_message_id))
 
+		const messageNode = getRawMessageNode(message?.message)
+
 		/** [Polyfill]: 过滤已处理的app_message_id（兜底 web 中的 MessageService 事件分发导致事件重复问题） */
+		const appMessageId = message?.message?.app_message_id as string
+
 		if (
-			msgBufferIdSet.has(message?.message?.app_message_id) ||
+			msgBufferIdSet.has(appMessageId) ||
 			/** [Polyfill]: 兼容处理 before_llm_request 无效信息过滤 */
-			message?.message?.[message?.message?.type]?.event === "before_llm_request"
+			messageNode?.event === "before_llm_request"
 		) {
 			return
 		}
-		if (msgIdSet.has(message?.message?.app_message_id)) {
+		if (msgIdSet.has(appMessageId)) {
 			// 针对已经过滤的消息，为确保消息状态最新需要更新消息元数据
-			const previousMessage = msgCache.find(
-				(o) => o?.app_message_id === message?.message?.app_message_id,
-			)
-			const previousMessageNode = this.getMessageNode(message?.message?.app_message_id)
+			const previousMessage = msgCache.find((o) => o?.app_message_id === appMessageId)
+			const previousMessageNode = this.getMessageNode(appMessageId)
 			runInAction(() => {
 				const msg = message?.message
-				const messageMapCache = this.messageMap.get(msg?.app_message_id)
+				const messageMapCache = this.messageMap.get(appMessageId) as
+					| Record<string, unknown>
+					| undefined
 				if (messageMapCache) {
-					this.messageMap.set(msg?.app_message_id, {
+					this.messageMap.set(appMessageId, {
 						...messageMapCache,
 						/** 针对流式文本禁止替换，否则破坏流式设计 */
-						...omit(msg?.[msg?.type], ["content"]),
+						...omit(messageNode, ["content"]),
 					})
 				}
 
@@ -321,21 +359,19 @@ export class SuperMagicStore {
 			return
 		}
 		// console.log("setMessage ---------->", topicId, message)
-		this.topicMap.set(
-			message?.message?.topic_id,
-			message?.message?.[message?.message?.type]?.topic_id,
-		)
-		persistMessageToStorage(message?.message?.[message?.message?.type]?.topic_id, message)
+		this.topicMap.set(message?.message?.topic_id as string, messageNode?.topic_id as string)
+		persistMessageToStorage(messageNode?.topic_id as string, message)
 		// 需要判断当前是否正在流式交互
 		runInAction(() => {
-			const msg = message?.message
-			this.messageMap.set(msg?.app_message_id, msg?.[msg?.type])
+			this.messageMap.set(appMessageId, messageNode)
 			msgBufferCache.push(nextMessage)
 
-			if (["before_agent_reply", "after_agent_reply"].includes(msg?.[msg?.type]?.event)) {
+			if (
+				["before_agent_reply", "after_agent_reply"].includes(messageNode?.event as string)
+			) {
 				const topicMeta = this.getTopicMetadata(topicId)
 				// 消息关联 id
-				const messageCorrelationId = msg?.[msg?.type]?.correlation_id
+				const messageCorrelationId = messageNode?.correlation_id as string
 
 				topicMeta.isStream = true
 				if (!topicMeta.content[messageCorrelationId]) {
@@ -354,12 +390,12 @@ export class SuperMagicStore {
 				// }
 
 				/** 兼容流式（因流式基于 intermediate 类型推送不稳定，所以兜底下根据 after_agent_reply 结束流式） */
-				if (msg?.[msg?.type]?.event === "after_agent_reply") {
+				if (messageNode?.event === "after_agent_reply") {
 					topicMeta.content[messageCorrelationId] = {
 						index: 0,
 						status: 2,
 						content: (topicMeta.content[messageCorrelationId].content =
-							msg?.[msg?.type]?.content || ""), // 这里直接设置文本会导致流式内容部分重复，text 前面部分内容已被消费，需要优雅处理
+							messageNode?.content || ""), // 这里直接设置文本会导致流式内容部分重复，text 前面部分内容已被消费，需要优雅处理
 					}
 					topicMeta.isStream = false
 				}
@@ -480,7 +516,7 @@ export class SuperMagicStore {
 				this.topicMeta.set(topicId, cloneDeep(defaultTopicMeta))
 			})
 		}
-		return this.topicMeta.get(topicId)!
+		return this.topicMeta.get(topicId) || cloneDeep(defaultTopicMeta)
 	}
 
 	/** 获取指定话题下对应消息节点的流式状态 */
@@ -516,7 +552,7 @@ export class SuperMagicStore {
 		}
 		const { content, index, status } = this.getStreamMetadata(topicId, correlationId)
 		const appMessageId = this.findMessageIdByCorrelation(topicId, correlationId)
-		const cache = this.messageMap.get(appMessageId || "")
+		const cache = this.messageMap.get(appMessageId || "") as RawSuperMagicMessageNode
 
 		// 当且仅当存在存在流式缓冲以及对应消息卡片时才触发流式
 		if (appMessageId) {
@@ -555,7 +591,7 @@ export class SuperMagicStore {
 		/** (流式结束判断): 流式内容为空 */
 		const isStreamContentEmpty = content.length === 0
 		/** [Polyfill]: (流式结束判断): 流式内容与实际返回结果不一致（agent重试兜底）*/
-		const isStreamContentDiff = content.indexOf(cache?.content) < 0
+		const isStreamContentDiff = cache?.content && content.indexOf(cache.content) < 0
 		/** (流式结束判断): 流式文本一致 */
 		const isStreamContentSame = content && cache?.content === content
 		if (status === 2 && (isStreamContentSame || isStreamContentEmpty || isStreamContentDiff)) {
@@ -606,7 +642,7 @@ export class SuperMagicStore {
 	}
 
 	// 流式数据插入(文本内容)
-	handleStreamMessage(message: any) {
+	handleStreamMessage(message: RawMessage) {
 		const topicId = message?.topic_id
 		const correlationId = message?.raw?.raw_data?.correlation_id
 		const msg = message?.raw?.raw_data
@@ -680,7 +716,6 @@ export class SuperMagicStore {
 }
 
 export const superMagicStore = new SuperMagicStore()
-// @ts-ignore
 window.base = () => {
 	console.log(/** keep-console */ "messages      ", toJS(superMagicStore.messages))
 	console.log(/** keep-console */ "messageMap    ", toJS(superMagicStore.messageMap))
@@ -690,11 +725,12 @@ window.base = () => {
 
 declare global {
 	interface Window {
+		base: () => void
 		superMagicStore: SuperMagicStore
 	}
 }
 
 window.superMagicStore = superMagicStore
-pubsub.subscribe("super_magic_stream_message", (message: any) => {
+pubsub.subscribe("super_magic_stream_message", (message: RawMessage) => {
 	superMagicStore.handleStreamMessage(message)
 })

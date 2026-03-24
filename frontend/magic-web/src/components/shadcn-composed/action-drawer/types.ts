@@ -27,6 +27,7 @@ export interface ActionItemProps {
 	disabled?: boolean
 	variant?: "default" | "destructive"
 	className?: string
+	"data-testid"?: string
 }
 
 export namespace ActionDrawer {

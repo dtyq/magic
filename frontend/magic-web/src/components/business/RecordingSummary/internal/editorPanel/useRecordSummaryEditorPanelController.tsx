@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useMemoizedFn } from "ahooks"
+import { useMemoizedFn, useDebounceFn } from "ahooks"
 import ModelSwitchContainer from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/ModelSwitchContainer"
 import { useMessageEditorStore } from "@/pages/superMagic/components/MessageEditor/stores"
 import superMagicTopicModelService from "@/services/superMagic/topicModel/SuperMagicTopicModelService"
@@ -24,6 +24,11 @@ import { TopicMode, type Workspace } from "@/pages/superMagic/pages/Workspace/ty
 import { getEditorPanelMode } from "./getEditorPanelMode"
 import { useRecordingEditorRuntime } from "../editorRuntime"
 import type { RecordSummaryEditorPanelProps, RecordSummaryEditorPanelRef } from "./types"
+import {
+	sendSuperMagicInterruptMessage,
+	SUPER_MAGIC_INTERRUPT_DEBOUNCE_MS,
+} from "@/pages/superMagic/services/sendSuperMagicInterruptMessage"
+import { userStore } from "@/models/user"
 
 type SaveSuperMagicTopicModel = RecordSummaryEditorPanelRef["saveSuperMagicTopicModel"]
 
@@ -34,7 +39,6 @@ export function useRecordSummaryEditorPanelController({
 	size,
 	topicMode,
 	isTaskRunning = false,
-	onInterrupt,
 	editorModeSwitch,
 	attachments,
 }: RecordSummaryEditorPanelProps) {
@@ -65,6 +69,19 @@ export function useRecordSummaryEditorPanelController({
 			)
 		},
 	)
+
+	const sendBuiltinInterrupt = useMemoizedFn(() => {
+		void sendSuperMagicInterruptMessage({
+			selectedTopic,
+			userId: userStore.user.userInfo?.user_id,
+		})
+	})
+
+	const { run: debouncedInterrupt } = useDebounceFn(sendBuiltinInterrupt, {
+		wait: SUPER_MAGIC_INTERRUPT_DEBOUNCE_MS,
+		leading: true,
+		trailing: false,
+	})
 
 	const selectedModel = store.topicModelStore.selectedLanguageModel
 	const [uploadFileId, setUploadFileId] = useState<string | null>(null)
@@ -306,7 +323,7 @@ export function useRecordSummaryEditorPanelController({
 		/>
 	) : null
 
-	const isSmall = size === "small" || size === "mobile"
+	const isSmall = size === "small"
 	const panelMode = getEditorPanelMode({
 		isRecording: runtime.state.isRecording,
 		isPaused: runtime.state.isPaused,
@@ -334,11 +351,12 @@ export function useRecordSummaryEditorPanelController({
 		isPaused: runtime.state.isPaused,
 		isRecording: runtime.state.isRecording,
 		isSmall,
+		isMobile,
 		isStartingRecord: runtime.state.isStartingRecord,
 		isTaskRunning,
 		isWaitingSummarize: recordSummaryStore.isWaitingSummarize,
 		leftToolbar,
-		onInterrupt,
+		onInterrupt: debouncedInterrupt,
 		panelMode,
 		saveSuperMagicTopicModel,
 		selectedProjectId: selectedProject?.id,

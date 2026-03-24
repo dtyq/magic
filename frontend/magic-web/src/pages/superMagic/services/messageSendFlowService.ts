@@ -1,4 +1,4 @@
-import { cloneDeep, isObject } from "lodash-es"
+import { isObject } from "lodash-es"
 import { JSONContent } from "@tiptap/core"
 import { ChatApi, SuperMagicApi } from "@/apis"
 import { EventType } from "@/types/chat"
@@ -12,10 +12,7 @@ import GlobalMentionPanelStore, {
 	type MentionPanelStore,
 } from "@/components/business/MentionPanel/store"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import { ProjectStorage } from "@/components/Agent/MCP/service/MCPStorageService"
 import { userStore } from "@/models/user"
-import { mentionItemsProcessor } from "../components/MessageEditor/services/MentionItemsProcessor"
-import { superMagicUploadTokenService } from "../components/MessageEditor/services/UploadTokenService"
 import {
 	DEFAULT_KEY,
 	internetSearchManager,
@@ -27,13 +24,12 @@ import type { ModelItem } from "../components/MessageEditor/types"
 import type { SendMessageOptions } from "../components/MessagePanel/types"
 import {
 	MessageStatus,
+	type Workspace,
 	type ProjectListItem,
 	type Topic,
 	type TopicMode,
 } from "../pages/Workspace/types"
-import SuperMagicService from "../services"
 import { superMagicStore } from "../stores"
-import { projectStore, topicStore, workspaceStore } from "../stores/core"
 import { smartRenameTopicIfUnnamed } from "./topicRename"
 
 const logger = Logger.createLogger("messageSendService")
@@ -53,6 +49,7 @@ export interface SendContentParams {
 	content: JSONContent | string
 	options?: SendMessageOptions
 	showLoading?: boolean
+	context?: SendRuntimeContext
 }
 
 export interface DispatchMessageParams {
@@ -62,10 +59,14 @@ export interface DispatchMessageParams {
 	showLoading: boolean
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
+	context?: SendRuntimeContext
 }
 
 export interface PanelSendInput {
 	params: HandleSendParams
+	context?: SendRuntimeContext
+	currentProject: ProjectListItem | null
+	currentTopic: Topic | null
 	isSending: boolean
 	setIsSending: (isSending: boolean) => void
 	showLoading: boolean
@@ -74,16 +75,25 @@ export interface PanelSendInput {
 	tabPattern: TopicMode
 	editorRef?: MessageEditorRef | null
 	setFocused: (isFocused: boolean) => void
-	selectedProject?: ProjectListItem | null
-	selectedTopic?: Topic | null
-	messagesLength?: number
-	setSelectedProject?: (project: ProjectListItem | null) => void
-	setSelectedTopic?: (topic: Topic | null) => void
+	messagesLength: number
 }
 
 export interface SendPanelMessageResult {
 	currentProject: ProjectListItem | null
 	currentTopic: Topic | null
+}
+
+export interface SendRuntimeContext {
+	selectedProject?: ProjectListItem | null
+	selectedTopic?: Topic | null
+	selectedWorkspace?: Workspace | null
+	workspaceId?: string
+	updateTopicName?: (topicId: string, topicName: string) => void | Promise<void>
+	renameProject?: (
+		projectId: string,
+		projectName: string,
+		workspaceId: string,
+	) => void | Promise<void>
 }
 
 interface MessageSendServiceDeps {
@@ -93,10 +103,6 @@ interface MessageSendServiceDeps {
 	mentionPanelStore: MentionPanelStore
 	userStore: typeof userStore
 	superMagicStore: typeof superMagicStore
-	projectStore: typeof projectStore
-	topicStore: typeof topicStore
-	workspaceStore: typeof workspaceStore
-	superMagicService: typeof SuperMagicService
 	logger: ReturnType<typeof Logger.createLogger>
 }
 
@@ -108,10 +114,6 @@ class MessageSendService {
 		mentionPanelStore: GlobalMentionPanelStore,
 		userStore,
 		superMagicStore,
-		projectStore,
-		topicStore,
-		workspaceStore,
-		superMagicService: SuperMagicService,
 		logger,
 	}
 
@@ -122,13 +124,14 @@ class MessageSendService {
 		}
 	}
 
-	sendContent({ content, options, showLoading = false }: SendContentParams) {
+	sendContent({ content, options, showLoading = false, context }: SendContentParams) {
 		// 发送前统一处理内容格式
 		if (typeof content === "string") {
 			this.dispatchMessage({
 				content,
 				showLoading,
 				options,
+				context,
 			})
 			return
 		}
@@ -138,6 +141,7 @@ class MessageSendService {
 				jsonContent: content,
 				showLoading,
 				options,
+				context,
 			})
 		}
 	}
@@ -149,12 +153,12 @@ class MessageSendService {
 		options,
 		selectedProject,
 		selectedTopic,
+		context,
 	}: DispatchMessageParams) {
 		// 发送前必须有有效话题
 		const currentProject =
-			selectedProject ?? this.deps.projectStore.selectedProject ?? options?._tempProject
-		const currentTopic =
-			selectedTopic ?? this.deps.topicStore.selectedTopic ?? options?._tempTopic
+			selectedProject ?? context?.selectedProject ?? options?._tempProject ?? null
+		const currentTopic = selectedTopic ?? context?.selectedTopic ?? options?._tempTopic ?? null
 
 		if (!currentTopic?.id) {
 			this.deps.logger.error("发送消息 - 未找到选中的话题")
@@ -176,7 +180,7 @@ class MessageSendService {
 			void smartRenameTopicIfUnnamed({
 				topic: currentTopic,
 				userQuestion,
-				updateTopicName: this.deps.topicStore.updateTopicName,
+				updateTopicName: context?.updateTopicName,
 			})
 				.then((topicName) => {
 					if (!topicName) return
@@ -184,6 +188,7 @@ class MessageSendService {
 					this.handleSmartProjectRename({
 						project: currentProject,
 						topicName,
+						context,
 					})
 				})
 				.catch((error) => {
@@ -249,18 +254,11 @@ class MessageSendService {
 		sendMessage()
 	}
 
-	createTopic({
-		selectedProject,
-	}: {
-		selectedProject?: ProjectListItem | null
-	} = {}) {
-		return this.deps.superMagicService.handleCreateTopic({
-			selectedProject: selectedProject ?? this.deps.projectStore.selectedProject,
-		})
-	}
-
 	async sendPanelMessage({
 		params,
+		context,
+		currentProject,
+		currentTopic,
 		isSending,
 		setIsSending,
 		showLoading,
@@ -269,60 +267,25 @@ class MessageSendService {
 		tabPattern,
 		editorRef,
 		setFocused,
-		selectedProject,
-		selectedTopic,
-		messagesLength = 0,
-		setSelectedProject,
-		setSelectedTopic,
+		messagesLength,
 	}: PanelSendInput): Promise<SendPanelMessageResult | undefined> {
 		if (!params.value || isSending) {
 			return
 		}
 
 		setIsSending(true)
-
-		const fallbackProject = this.deps.projectStore.selectedProject
-		const fallbackTopic = this.deps.topicStore.selectedTopic
-		let currentProject: ProjectListItem | null = selectedProject ?? fallbackProject ?? null
-		let currentTopic: Topic | null = selectedTopic ?? fallbackTopic ?? null
-		let mentionItems = cloneDeep(params.mentionItems)
-		let content = cloneDeep(params.value)
+		void tabPattern
 
 		try {
-			// 发送前准备项目、话题与提及信息
-			const sendPreparation = currentProject?.id
-				? await this.prepareSendWithProject({
-					params,
-					currentProject,
-					currentTopic,
-					mentionItems,
-					content,
-					tabPattern,
-					editorRef,
-					messagesLength,
-					setSelectedTopic,
-				})
-				: await this.prepareSendWithoutProject({
-					mentionItems,
-					content,
-					tabPattern,
-					setSelectedProject,
-					setSelectedTopic,
-				})
-
-			if (!sendPreparation) {
+			if (!currentProject?.id || !currentTopic?.id) {
+				this.deps.logger.error("handleSend error: missing project/topic context")
 				setIsSending(false)
 				return
 			}
 
-			currentProject = sendPreparation.currentProject
-			currentTopic = sendPreparation.currentTopic
-			mentionItems = sendPreparation.mentionItems
-			content = sendPreparation.content
-
 			const data = this.buildSendOptions({
 				params,
-				mentionItems,
+				mentionItems: params.mentionItems,
 				currentProject,
 				currentTopic,
 				isEmptyStatus,
@@ -330,11 +293,12 @@ class MessageSendService {
 
 			const followUp = showLoading && messagesLength > 1
 			this.dispatchMessage({
-				jsonContent: content,
+				jsonContent: params.value,
 				showLoading: followUp,
 				options: data,
 				selectedProject: currentProject,
 				selectedTopic: currentTopic,
+				context,
 			})
 
 			if (!params.isFromQueue) {
@@ -381,14 +345,14 @@ class MessageSendService {
 	}): SendMessageOptions {
 		const model = params.selectedModel
 			? {
-				model_id: params.selectedModel.model_id,
-			}
+					model_id: params.selectedModel.model_id,
+				}
 			: undefined
 
 		const imageModel = params.selectedImageModel?.model_id
 			? {
-				model_id: params.selectedImageModel.model_id,
-			}
+					model_id: params.selectedImageModel.model_id,
+				}
 			: undefined
 
 		// 根据话题读取联网搜索开关
@@ -420,164 +384,6 @@ class MessageSendService {
 		}
 	}
 
-	private async prepareSendWithoutProject({
-		mentionItems,
-		content,
-		tabPattern,
-		setSelectedProject,
-		setSelectedTopic,
-	}: {
-		mentionItems: MentionListItem[]
-		content: JSONContent
-		tabPattern: TopicMode
-		setSelectedProject?: (project: ProjectListItem | null) => void
-		setSelectedTopic?: (topic: Topic | null) => void
-	}) {
-		let currentProject = this.deps.projectStore.selectedProject
-		let currentTopic = this.deps.topicStore.selectedTopic
-
-		// 未选中项目时自动创建项目与话题
-		const lastWorkDir = superMagicUploadTokenService.getLastWorkDir()
-		const res = await this.deps.superMagicService.handleCreateProject({
-			projectMode: tabPattern,
-			isAutoSelect: false,
-			isEditProject: false,
-			workdir: lastWorkDir,
-		})
-
-		if (res?.project) {
-			currentProject = res.project
-		}
-		if (res?.topic) {
-			currentTopic = res.topic
-			currentTopic.topic_mode = tabPattern
-		} else {
-			return null
-		}
-
-		// 将缓存的 MCP 配置迁移到新项目
-		const mcpCacheStorage = new ProjectStorage()
-		const MCPCache = await mcpCacheStorage.getMCP()
-		const storageStrategy = new ProjectStorage(currentProject?.id)
-
-		if (MCPCache?.length > 0) {
-			await storageStrategy.saveMCP(MCPCache)
-			await mcpCacheStorage.saveMCP([])
-		}
-
-		let nextMentionItems = mentionItems
-
-		// 按新项目/话题规范化提及信息
-		if (currentProject && currentTopic) {
-			const result = await mentionItemsProcessor.processMentionItems(
-				content,
-				mentionItems,
-				currentProject.id,
-				currentTopic.id,
-			)
-			nextMentionItems = result.mentionItems
-			Object.assign(content, result.content)
-		}
-
-		this.setSelectedTopic(currentTopic, setSelectedTopic)
-		this.setSelectedProject(currentProject, setSelectedProject)
-
-		return {
-			currentProject: currentProject ?? null,
-			currentTopic: currentTopic ?? null,
-			mentionItems: nextMentionItems,
-			content,
-		}
-	}
-
-	private async prepareSendWithProject({
-		params,
-		currentProject,
-		currentTopic,
-		mentionItems,
-		content,
-		tabPattern,
-		editorRef,
-		messagesLength,
-		setSelectedTopic,
-	}: {
-		params: HandleSendParams
-		currentProject: ProjectListItem | null | undefined
-		currentTopic: Topic | null | undefined
-		mentionItems: MentionListItem[]
-		content: JSONContent
-		tabPattern: TopicMode
-		editorRef?: MessageEditorRef | null
-		messagesLength: number
-		setSelectedTopic?: (topic: Topic | null) => void
-	}) {
-		let nextTopic = currentTopic
-
-		// 话题缺失时创建并设置话题模式
-		if (!nextTopic?.id) {
-			const newTopic = await this.deps.superMagicService.handleCreateTopic({
-				selectedProject: currentProject ?? this.deps.projectStore.selectedProject,
-			})
-			if (newTopic) {
-				const topicMode = params.topicMode ?? tabPattern
-				const newTopicWithMode = {
-					...newTopic,
-					topic_mode: topicMode,
-				}
-				this.setSelectedTopic(newTopicWithMode, setSelectedTopic)
-				nextTopic = newTopicWithMode
-
-				if (params.selectedModel && params.selectedModel.model_id) {
-					editorRef?.saveSuperMagicTopicModel({
-						selectedTopic: newTopicWithMode,
-						model: params.selectedModel,
-						imageModel: params.selectedImageModel || null,
-					})
-				}
-			}
-		} else {
-			const newTopicWithMode = {
-				...nextTopic,
-				topic_mode: params.topicMode ?? tabPattern,
-			}
-			this.setSelectedTopic(newTopicWithMode, setSelectedTopic)
-			nextTopic = newTopicWithMode
-
-			if (messagesLength === 0) {
-				if (params.selectedModel && params.selectedModel.model_id) {
-					editorRef?.saveSuperMagicTopicModel({
-						selectedTopic: newTopicWithMode,
-						model: params.selectedModel,
-						imageModel: params.selectedImageModel || null,
-					})
-				}
-			}
-		}
-
-		return {
-			currentProject: currentProject ?? null,
-			currentTopic: nextTopic ?? null,
-			mentionItems,
-			content,
-		}
-	}
-
-	private setSelectedProject(
-		project: ProjectListItem | null | undefined,
-		setSelectedProject?: (project: ProjectListItem | null) => void,
-	) {
-		this.deps.projectStore.setSelectedProject(project ?? null)
-		setSelectedProject?.(project ?? null)
-	}
-
-	private setSelectedTopic(
-		topic: Topic | null | undefined,
-		setSelectedTopic?: (topic: Topic | null) => void,
-	) {
-		this.deps.topicStore.setSelectedTopic(topic ?? null)
-		setSelectedTopic?.(topic ?? null)
-	}
-
 	private getMessageList(topic: Topic) {
 		return this.deps.superMagicStore.messages?.get(topic?.chat_topic_id || "") || []
 	}
@@ -585,19 +391,18 @@ class MessageSendService {
 	private handleSmartProjectRename({
 		project,
 		topicName,
+		context,
 	}: {
 		project: ProjectListItem
 		topicName: string
+		context?: SendRuntimeContext
 	}) {
 		if (topicName && project && !project.project_name) {
 			const workspaceId =
-				project.workspace_id || this.deps.workspaceStore.selectedWorkspace?.id || ""
+				(context?.workspaceId ?? context?.selectedWorkspace?.id ?? project.workspace_id) ||
+				""
 			if (workspaceId) {
-				void this.deps.superMagicService.project.renameProject(
-					project.id,
-					topicName,
-					workspaceId,
-				)
+				void context?.renameProject?.(project.id, topicName, workspaceId)
 			}
 		}
 	}

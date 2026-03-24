@@ -5,6 +5,12 @@
 			"limit": "Character limit: {{current}} / {{max}}",
 			"remaining": "Characters remaining: {{count}}"
 		},
+		"frontmatter": {
+			"empty": "No metadata fields",
+			"invalid": "Unable to parse metadata",
+			"rawLabel": "Metadata",
+			"title": "Metadata"
+		},
 		"mathEditor": {
 			"error": {
 				"empty": "LaTeX code cannot be empty",

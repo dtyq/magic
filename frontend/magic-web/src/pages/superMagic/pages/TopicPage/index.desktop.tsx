@@ -1,6 +1,6 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useDeepCompareEffect, useDebounceFn, useUpdateEffect, useMemoizedFn } from "ahooks"
-import { isEmpty, isObject } from "lodash-es"
+import { isEmpty } from "lodash-es"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMessageChanges } from "../../hooks/useMessageChanges"
 import Detail, { type DetailRef } from "../../components/Detail"
@@ -19,7 +19,6 @@ import { AttachmentDataProcessor } from "../../utils/attachmentDataProcessor"
 import { isCollaborationWorkspace } from "../../constants"
 import { useNoPermissionCollaborationProject } from "../../hooks/useNoPermissionCollaborationProject"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import { LongMemoryApi, SuperMagicApi } from "@/apis"
 import { workspaceStore, projectStore, topicStore } from "../../stores/core"
@@ -27,7 +26,7 @@ import SuperMagicService from "../../services"
 import { userStore } from "@/models/user"
 import { LongMemory } from "@/types/longMemory"
 import { useInterruptAndUndoMessage } from "../../hooks/useInterruptAndUndoMessage"
-import { SuperMagicMessageItem } from "../../components/MessageList/type"
+import { useTopicConversationLoading } from "../../hooks/useTopicConversationLoading"
 import { useTopicMessages } from "../../hooks/useTopicMessages"
 import { useCreateTopicListener } from "../../components/TopicMode/useCreateTopicListener"
 import { useTopicFiles } from "./hooks/useTopicFiles"
@@ -36,6 +35,7 @@ import TopicMessagePanel from "./components/TopicMessagePanel"
 import TopicDesktopPanels from "./components/TopicDesktopPanels"
 import { useTopicDetailPanelController } from "./hooks/useTopicDetailPanelController"
 import type { AttachmentItem } from "../../components/TopicFilesButton/hooks"
+import { resolveMessageSendContext } from "../../services/messageSendPreparation"
 import { messageSendService } from "../../services/messageSendFlowService"
 import { isReadOnlyProject } from "../../utils/permission"
 
@@ -45,37 +45,10 @@ function TopicPage() {
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 	const selectedProject = projectStore.selectedProject
 	const selectedTopic = topicStore.selectedTopic
-	const messages = superMagicStore.messages?.get(selectedTopic?.chat_topic_id || "") || []
 	const attachments = projectFilesStore.workspaceFileTree
 	const attachmentList = projectFilesStore.workspaceFilesList
 	const setAttachments = useMemoizedFn((nextAttachments: AttachmentItem[]) => {
 		projectFilesStore.setWorkspaceFileTree(nextAttachments)
-	})
-
-	const { hasMemoryUpdateMessage } = useMessageChanges(messages)
-
-	useEffect(() => {
-		if (!hasMemoryUpdateMessage) return
-		// 更新长期记忆
-		try {
-			LongMemoryApi.getMemories({
-				status: [LongMemory.MemoryStatus.Pending, LongMemory.MemoryStatus.PENDING_REVISION],
-				page_size: 99,
-			}).then((res) => {
-				if (res?.success) {
-					userStore.user.setPendingMemoryList(res.data || [])
-				}
-			})
-		} catch (error) {
-			console.error(error)
-		}
-	}, [hasMemoryUpdateMessage])
-
-	// Handle interrupt and undo message functionality
-	useInterruptAndUndoMessage({
-		selectedTopic,
-		messages,
-		userInfo: userStore.user.userInfo,
 	})
 
 	/** ======================== Hooks ======================== */
@@ -88,12 +61,8 @@ function TopicPage() {
 	/** ======================== States ======================== */
 	const [autoDetail, setAutoDetail] = useState<any>()
 	const [userSelectDetail, setUserSelectDetail] = useState<any>()
-	const [showLoading, setShowLoading] = useState(false)
 	const [isShowLoadingInit, setIsShowLoadingInit] = useState(false)
 	const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false)
-
-	// Get current topic status from historyItems (which has the latest status)
-	const currentTopicStatus = selectedTopic?.task_status
 	// Calculate read-only status based on user role
 	const isReadOnly = isReadOnlyProject(selectedProject?.user_role)
 
@@ -188,23 +157,16 @@ function TopicPage() {
 		},
 	)
 
-	const handleTopicMessagesChange = useMemoizedFn((topicMessages: SuperMagicMessageItem[]) => {
-		if (topicMessages.length > 1) {
-			const lastMessageWithRole = topicMessages.findLast((m) => m.role === "assistant")
-			const lastMessage = topicMessages?.[topicMessages.length - 1]
-			const lastMessageNode = superMagicStore.getMessageNode(
-				lastMessageWithRole?.app_message_id,
-			)
-
-			// 因新版本结构，所有消息都有 seq_id，所以从 !lastMessage?.seq_id 更改为 lastMessage.type === "rich_text"
-			const isLoading =
-				lastMessageNode?.status === "running" ||
-				lastMessage.type === "rich_text" ||
-				isObject(lastMessageNode?.content) ||
-				Boolean(lastMessageNode?.rich_text?.content) ||
-				Boolean(lastMessageNode?.text?.content)
-
-			setShowLoading(isLoading)
+	const currentTopicStatus = selectedTopic?.task_status
+	const { messages, showLoading } = useTopicConversationLoading({
+		selectedTopic,
+		hideLoadingWhenBufferHasContent: true,
+		onTopicMessagesChange: ({
+			isLoading,
+			lastMessageNode,
+			selectedTopic: currentTopic,
+			topicMessages,
+		}) => {
 			setIsShowLoadingInit(true)
 
 			// 记录任务状态是否发生变化（用于判断是否为新消息导致的任务完成）
@@ -218,23 +180,22 @@ function TopicPage() {
 				if (selectedProject?.id) {
 					void SuperMagicService.project.updateProjectStatus(selectedProject.id)
 				}
-				if (selectedTopic?.id) {
+				if (currentTopic?.id) {
 					void SuperMagicService.topic.updateTopicStatus(
-						selectedTopic.id,
+						currentTopic.id,
 						lastMessageNode?.status,
 					)
 				}
 			}
 
-			const lastDetailMessage = topicMessages.findLast((m) => {
-				const node = superMagicStore.getMessageNode(m?.app_message_id)
+			const lastDetailMessage = topicMessages.findLast((message) => {
+				const node = superMagicStore.getMessageNode(message?.app_message_id)
 				return filterClickableMessageWithoutRevoked(node)
 			})
 
 			const lastDetailMessageNode = superMagicStore.getMessageNode(
 				lastDetailMessage?.app_message_id,
 			)
-			// 当且仅当为结束任务时才会调用
 			if (filterClickableMessageWithoutRevoked(lastDetailMessageNode)) {
 				updateDetail({
 					latestMessageDetail: lastDetailMessageNode?.tool?.detail,
@@ -252,34 +213,36 @@ function TopicPage() {
 					})
 				})
 			}
-		} else if (topicMessages?.length === 1) {
-			setShowLoading(true)
-		}
+		},
 	})
 
-	useEffect(() => {
-		return reaction(
-			() => superMagicStore.messages?.get(selectedTopic?.chat_topic_id || "") || [],
-			(topicMessages) => {
-				handleTopicMessagesChange(topicMessages as SuperMagicMessageItem[])
-			},
-		)
-	}, [handleTopicMessagesChange, selectedTopic?.chat_topic_id])
+	const { hasMemoryUpdateMessage } = useMessageChanges(messages)
 
 	useEffect(() => {
-		// 订阅缓冲区是否存在内容（当存在消息没有被消费时取消loading状态）
-		return reaction(
-			() => superMagicStore.buffer.get(selectedTopic?.chat_topic_id || ""),
-			(next) => {
-				if (next && next?.length > 0) {
-					setShowLoading(false)
+		if (!hasMemoryUpdateMessage) return
+		// 更新长期记忆
+		try {
+			LongMemoryApi.getMemories({
+				status: [LongMemory.MemoryStatus.Pending, LongMemory.MemoryStatus.PENDING_REVISION],
+				page_size: 99,
+			}).then((res) => {
+				if (res?.success) {
+					userStore.user.setPendingMemoryList(res.data || [])
 				}
-			},
-		)
-	}, [selectedTopic?.chat_topic_id])
+			})
+		} catch (error) {
+			console.error(error)
+		}
+	}, [hasMemoryUpdateMessage])
+
+	// Handle interrupt and undo message functionality
+	useInterruptAndUndoMessage({
+		selectedTopic,
+		messages,
+		userInfo: userStore.user.userInfo,
+	})
 
 	useDeepCompareEffect(() => {
-		setShowLoading(false)
 		setUserSelectDetail(null)
 		clearActiveDetailTabType()
 	}, [selectedTopic?.id, selectedTopic?.chat_topic_id])
@@ -408,6 +371,12 @@ function TopicPage() {
 				content,
 				options,
 				showLoading: messages?.length > 1 && showLoading,
+				context: resolveMessageSendContext({
+					selectedProject,
+					selectedTopic,
+					selectedWorkspace,
+					setSelectedTopic: topicStore.setSelectedTopic,
+				}),
 			})
 
 			// 延迟200ms通知MessageList组件滚动到底部

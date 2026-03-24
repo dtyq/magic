@@ -3,8 +3,19 @@ import {
 	MentionItem,
 	MentionItemType,
 	ProjectFileMentionData,
+	SkillMentionData,
+	SkillMentionSource,
 } from "../types"
 import type { I18nTexts } from "../i18n/types"
+
+export function getSkillMentionSourceLabel(item: MentionItem, t: I18nTexts) {
+	if (item.type !== MentionItemType.SKILL) return ""
+
+	const mentionSource = (item.data as SkillMentionData | undefined)?.mention_source
+	if (!mentionSource) return ""
+
+	return t.skillSources[mentionSource as SkillMentionSource] || ""
+}
 
 export const getItemTypeDescription = (item: MentionItem, t: I18nTexts) => {
 	switch (item.type) {
@@ -31,7 +42,7 @@ export const getItemTypeDescription = (item: MentionItem, t: I18nTexts) => {
 		case MentionItemType.AGENT:
 			return t.defaultItems.agents
 		case MentionItemType.SKILL:
-			return t.defaultItems.skills
+			return getSkillMentionSourceLabel(item, t) || t.defaultItems.skills
 		case MentionItemType.TOOL:
 			return t.defaultItems.tools
 		default:

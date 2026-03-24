@@ -10,7 +10,7 @@
 		"more": "更多"
 	},
 	"crewMarket": {
-		"title": "我的员工"
+		"title": "数字员工"
 	},
 	"footer": {
 		"defaultUser": "用户",
@@ -44,16 +44,45 @@
 		"enterName": "输入新项目名称",
 		"loading": "加载中..."
 	},
+	"skillsLibrary": {
+		"title": "技能库"
+	},
 	"superLobster": {
 		"card": {
 			"betaAccess": "限量邀测中",
 			"description": "一键云部署，全天候在线",
-			"title": "创建你的 SuperClaw AI 助手"
+			"title": "创建你的 {{clawBrand}} AI 助手"
+		},
+		"createDialog": {
+			"avatarLabel": "头像",
+			"nameLabel": "名称",
+			"namePlaceholder": "输入 {{clawBrand}} 名称",
+			"removeUploadedAvatar": "删除已上传头像",
+			"submitting": "创建中…",
+			"subtitle": "一键云部署，全天候在线",
+			"title": "创建",
+			"uploadAvatarFailed": "头像上传失败，请重试"
+		},
+		"created": {
+			"chat": "对话",
+			"create": "创建",
+			"createFailed": "创建失败，请稍后重试",
+			"delete": "删除",
+			"deleteConfirmDescription": "删除后不可恢复，请谨慎操作。",
+			"deleteConfirmTitle": "确认删除「{{name}}」？",
+			"deleteFailed": "删除失败，请稍后重试",
+			"deleteSuccess": "删除成功",
+			"listEmpty": "暂无已创建的 {{clawBrand}}，点击右上角开始创建",
+			"listLoadFailed": "列表加载失败，请稍后重试",
+			"listLoading": "加载中…",
+			"listRetry": "重试",
+			"title": "已创建的 超级龙虾",
+			"userGuide": "使用指南"
 		},
 		"description": "你的 7×24 专属 AI 助手",
 		"features": {
 			"connect": {
-				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让 SuperClaw 随时随地都在你身边。",
+				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让超级龙虾随时随地都在你身边。",
 				"title": "连接到任意平台，随时随地开聊"
 			},
 			"customization": {
@@ -66,8 +95,24 @@
 			}
 		},
 		"getStarted": "开始使用",
+		"heroLead": "超级",
+		"mobile": {
+			"moreActions": "更多操作",
+			"mySuperClaw": "我的 {{clawBrand}}"
+		},
 		"title": "超级龙虾",
-		"titleAccent": "Claw"
+		"titleAccent": "龙虾",
+		"workspace": {
+			"back": "返回",
+			"emptyHeroAccent": "龙虾",
+			"emptyHeroLead": "超级",
+			"emptyHeroSubtitle": "描述你的想法，我会帮你把它变成现实",
+			"emptySubtitle": "上传文件或直接开始对话，继续完善你的 {{clawBrand}}。",
+			"emptyTitle": "开始构建吧",
+			"loadFailed": "{{clawBrand}} 工作区加载失败。",
+			"skillInstallPromptPrefix": "帮我安装这个 skill ",
+			"untitledProject": "未命名 {{clawBrand}}"
+		}
 	},
 	"workspace": {
 		"add": "新建工作区",

@@ -1,4 +1,5 @@
-import { Menu, Trash } from "lucide-react"
+import { Menu, Trash, Bot } from "lucide-react"
+import { Skills } from "@/enhance/lucide-react"
 import { useTranslation } from "react-i18next"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { SupportLocales } from "@/constants/locale"
@@ -13,6 +14,14 @@ export default function ChatPageHeader({ onMenuClick }: ChatPageHeaderProps) {
 	const { i18n, t } = useTranslation("sidebar")
 	const globalConfig = globalConfigStore.globalConfig
 	const navigate = useNavigate()
+
+	function handleSkillsLibraryClick() {
+		navigate({ name: RouteName.CrewMarketSkills })
+	}
+
+	function handleCrewMarketClick() {
+		navigate({ name: RouteName.CrewMarket })
+	}
 
 	function handleRecycleBinClick() {
 		navigate({ name: RouteName.RecycleBin })
@@ -38,6 +47,24 @@ export default function ChatPageHeader({ onMenuClick }: ChatPageHeaderProps) {
 
 				{/* 右侧按钮组 */}
 				<div className="flex shrink-0 items-center gap-1">
+					<button
+						type="button"
+						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
+						onClick={handleCrewMarketClick}
+						aria-label={t("crewMarket.title")}
+						data-testid="chat-page-header-crew-market-button"
+					>
+						<Bot size={20} />
+					</button>
+					<button
+						type="button"
+						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
+						onClick={handleSkillsLibraryClick}
+						aria-label={t("skillsLibrary.title")}
+						data-testid="chat-page-header-skills-library-button"
+					>
+						<Skills size={20} />
+					</button>
 					<button
 						type="button"
 						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"

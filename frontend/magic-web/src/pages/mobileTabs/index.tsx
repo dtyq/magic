@@ -17,6 +17,7 @@ import { notifyAppTabChange } from "@/layouts/BaseLayoutMobile/components/Mobile
 // Lazy load tab pages (只加载一次)
 const WorkspacePage = lazy(() => import("@/pages/superMagicMobile/pages/ChatPage"))
 const ChatPage = lazy(() => import("@/pages/chatNew"))
+const MagiClawPage = lazy(() => import("@/pages/superMagic/pages/MagiClawPageOld"))
 const ContactsPage = lazy(() => import("@/pages/contacts/lazy/Contacts"))
 const ProfilePage = lazy(() => import("@/pages/user/pages/my/lazy/Profile"))
 
@@ -125,6 +126,20 @@ function MobileTabs() {
 				{loadedTabs.has(MobileTabBarKey.Chat) && (
 					<Suspense fallback={<ChatMobileSkeleton />}>
 						<ChatPage />
+					</Suspense>
+				)}
+			</div>
+
+			{/* MagiClaw Tab - 常驻 */}
+			<div
+				className={cx(styles.tabContent, {
+					[styles.activeTab]: activeTab === MobileTabBarKey.MagiClaw,
+					[styles.inactiveTab]: activeTab !== MobileTabBarKey.MagiClaw,
+				})}
+			>
+				{loadedTabs.has(MobileTabBarKey.MagiClaw) && (
+					<Suspense fallback={null}>
+						<MagiClawPage />
 					</Suspense>
 				)}
 			</div>

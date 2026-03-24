@@ -18,7 +18,7 @@ import MentionExtension, {
 import { useTranslation } from "react-i18next"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
-import { Topic } from "../../../pages/Workspace/types"
+import { Topic, type TopicMode } from "../../../pages/Workspace/types"
 import { ChatApi } from "@/apis"
 import { isEmptyJSONContent } from "../utils"
 import { UndoRedo } from "@tiptap/extensions"
@@ -50,6 +50,7 @@ interface UseMessageEditorProps {
 	onFocus?: () => void
 	onBlur?: () => void
 	size?: "default" | "small" | "mobile"
+	topicMode?: TopicMode
 	mentionPanelStore?: MentionPanelStore
 	/** 恢复内容期间返回 true 时，appendTransaction 跳过 onInsertItems，避免与 restoreMentionItems 冲突 */
 	shouldSkipInsertSync?: () => boolean
@@ -117,6 +118,7 @@ export const useMessageEditor = ({
 	onFocus,
 	onBlur,
 	size,
+	topicMode,
 	mentionPanelStore = GlobalMentionPanelStore,
 	shouldSkipInsertSync,
 	shouldSkipRemoveSync,
@@ -162,6 +164,10 @@ export const useMessageEditor = ({
 			return Promise.resolve("")
 		}
 	})
+
+	useEffect(() => {
+		mentionPanelStore.setSkillQueryContext(topicMode)
+	}, [mentionPanelStore, topicMode])
 
 	// Update AI completion state based on focus position
 	const updateAiCompletionState = useMemoizedFn((editor: ReturnType<typeof useEditor>) => {
@@ -277,37 +283,37 @@ export const useMessageEditor = ({
 			}),
 			...(shouldEnableMention
 				? [
-					MentionExtension.configure({
-						language: i18n.language as Language,
-						getParentContainer: () => document.body,
-						disableKeyboardShortcuts: isOAuthInProgress,
-						onInsert: (item) => {
-							onMentionsInsert?.({
-								type: item.type,
-								data: item.data,
-							})
-						},
-						onInsertItems: (items) => {
-							onMentionInsertItems?.(
-								items.map((mention) => ({
-									type: mention.type,
-									data: mention.data,
-								})),
-							)
-						},
-						onRemoveItems: onMentionRemoveItems,
-						// 保持 onRemove 兼容性
-						onRemove: onMentionRemove,
-						isAllowedMention,
-						dataService: mentionPanelStore,
-						nodeViewRenderers: {
-							[MentionItemType.DESIGN_MARKER]: MarkerMentionNodeView,
-						},
-						shouldSkipInsertSync,
-						shouldSkipRemoveSync,
-						shouldRestoreRemovedMention,
-					}),
-				]
+						MentionExtension.configure({
+							language: i18n.language as Language,
+							getParentContainer: () => document.body,
+							disableKeyboardShortcuts: isOAuthInProgress,
+							onInsert: (item) => {
+								onMentionsInsert?.({
+									type: item.type,
+									data: item.data,
+								})
+							},
+							onInsertItems: (items) => {
+								onMentionInsertItems?.(
+									items.map((mention) => ({
+										type: mention.type,
+										data: mention.data,
+									})),
+								)
+							},
+							onRemoveItems: onMentionRemoveItems,
+							// 保持 onRemove 兼容性
+							onRemove: onMentionRemove,
+							isAllowedMention,
+							dataService: mentionPanelStore,
+							nodeViewRenderers: {
+								[MentionItemType.DESIGN_MARKER]: MarkerMentionNodeView,
+							},
+							shouldSkipInsertSync,
+							shouldSkipRemoveSync,
+							shouldRestoreRemovedMention,
+						}),
+					]
 				: []),
 			AiCompletionService.getExtension({
 				fetchSuggestion,

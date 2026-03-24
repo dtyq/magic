@@ -10,6 +10,7 @@ import type {
 	ConversationMessageSend,
 	ChatFileUrlData,
 	ConversationMessage,
+	ConversationQueryMessage,
 } from "@/types/chat/conversation_message"
 import type { RevokeMessage, GroupCreateMessage } from "@/types/chat/control_message"
 import { type CMessage, type MessageReceiveType, EventType } from "@/types/chat"
@@ -23,11 +24,7 @@ import type {
 } from "@/types/request"
 import { encodeSocketIoMessage } from "@/utils/socketio"
 import { genAppMessageId, genRequestId } from "@/utils/random"
-import type {
-	DeleteTopicMessage,
-	ConversationTopic,
-	CreateTopicMessage,
-} from "@/types/chat/topic"
+import type { DeleteTopicMessage, ConversationTopic, CreateTopicMessage } from "@/types/chat/topic"
 import type { CreateGroupConversationParams } from "@/types/chat/seen_message"
 import type {
 	SeqRecord,
@@ -38,13 +35,8 @@ import type {
 	UserAvailableAgentInfo,
 } from "@/apis/modules/chat/types"
 import { isString } from "lodash-es"
-import type { Bot, QuickInstructionList, WithPage } from "@/types/bot"
-import type {
-	TaskListParams,
-	UserTask,
-	CreateTaskParams,
-	ListData,
-} from "@/types/chat/task"
+import type { Bot, WithPage } from "@/types/bot"
+import type { TaskListParams, UserTask, CreateTaskParams, ListData } from "@/types/chat/task"
 import type { HttpClient } from "../../core/HttpClient"
 import type { ChatWebSocket } from "../../clients/chatWebSocket"
 import { fetchPaddingData } from "@/utils/request"
@@ -605,7 +597,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @param data
 	 */
 	getConversationMessages(conversationId: string, data: GetConversationMessagesParams) {
-		return fetch.post<PaginationResponse<SeqRecord<ConversationMessage>>>(
+		return fetch.post<PaginationResponse<SeqRecord<ConversationQueryMessage>>>(
 			genRequestUrl("/api/v1/im/conversations/${conversationId}/messages/queries", {
 				conversationId,
 			}),

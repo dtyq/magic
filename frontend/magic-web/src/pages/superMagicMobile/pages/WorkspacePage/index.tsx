@@ -17,7 +17,9 @@ import { useEmptyStateHandlers } from "@/pages/superMagic/hooks/useEmptyStateHan
 import { resetDocumentScrollPosition } from "@/utils/scroll"
 import EditionActivityBanner from "@/components/business/EditionActivity/Banner"
 
-const MessagePanel = lazy(() => import("@/pages/superMagic/components/MessagePanel"))
+const ProjectPageInputContainer = lazy(
+	() => import("@/pages/superMagic/components/ProjectPageInputContainer"),
+)
 
 const WorkspacePageContent = observer(function WorkspacePageContent() {
 	const { t } = useTranslation("super")
@@ -45,7 +47,7 @@ const WorkspacePageContent = observer(function WorkspacePageContent() {
 				<Slogan />
 				{/* 没有项目时显示消息面板 */}
 				<Suspense fallback={<MessagePanelSkeleton isMobile />}>
-					<MessagePanel
+					<ProjectPageInputContainer
 						classNames={{
 							editorWrapper: "pl-2 pr-2",
 							editor: "rounded-2xl p-2 border-[0.5px] !border-muted-foreground shadow-[0px_0px_1px_0px_rgba(0,0,0,0.3),0px_0px_30px_0px_rgba(0,0,0,0.06)]",

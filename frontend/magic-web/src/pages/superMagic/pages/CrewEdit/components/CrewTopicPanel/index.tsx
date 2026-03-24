@@ -1,33 +1,31 @@
-import { cn } from "@/lib/tiptap-utils"
-import MessageList, {
-	MessageListProvider,
-} from "@/pages/superMagic/components/MessageList"
+import ConversationPanelScaffold from "@/pages/superMagic/components/ConversationPanelScaffold"
 import { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
-import {
-	TopicMode,
-	type ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode, type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { JSONContent } from "@tiptap/react"
-import { superMagicStore } from "@/pages/superMagic/stores"
 import { observer } from "mobx-react-lite"
 import EmptyState from "./components/EmptyState"
+import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicConversationLoading"
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
-import { reaction } from "mobx"
+import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
-import { isObject, merge } from "lodash-es"
+import { merge } from "lodash-es"
 import { SendMessageOptions } from "@/pages/superMagic/components/MessagePanel/types"
 import { messageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/DefaultMessageEditorContainer"
-import { ToolbarButton } from "@/pages/superMagic/components/MessageEditor/types"
 import MessageHeader from "./components/MessageHeader"
+import AnimatedEmptyHint from "./components/AnimatedEmptyHint"
 import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
 import { useInterruptAndUndoMessage } from "@/pages/superMagic/hooks/useInterruptAndUndoMessage"
 import { userStore } from "@/models/user"
+import { useTranslation } from "react-i18next"
 import { useCrewEditStore } from "../../context"
+import { DEFAULT_LAYOUT_CONFIG } from "@/pages/superMagic/components/MessageEditor/constants/constant"
+import { MentionPanelStore } from "@/components/business/MentionPanel"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 interface CrewTopicPanelProps {
 	selectedProject: ProjectListItem | null
@@ -37,20 +35,8 @@ interface CrewTopicPanelProps {
 	detailPanelVisible?: boolean
 	topicStore: TopicStore
 	crewId: string
-}
-
-const editorLayoutConfig = {
-	topBarLeft: [],
-	topBarRight: [],
-	bottomLeft: [],
-	outsideBottom: [],
-	outsideTop: [],
-	bottomRight: [
-		ToolbarButton.INTERNET_SEARCH,
-		ToolbarButton.VOICE_INPUT,
-		ToolbarButton.DIVIDER,
-		ToolbarButton.SEND_BUTTON,
-	],
+	mentionPanelStore: MentionPanelStore
+	projectFilesStore: ProjectFilesStore
 }
 
 function CrewTopicPanel({
@@ -61,60 +47,21 @@ function CrewTopicPanel({
 	detailPanelVisible = true,
 	crewId,
 	topicStore,
+	mentionPanelStore,
+	projectFilesStore,
 }: CrewTopicPanelProps) {
+	const { t } = useTranslation("crew/create")
 	const { conversation } = useCrewEditStore()
-	const [showLoading, setShowLoading] = useState(false)
 	const selectedTopic = topicStore.selectedTopic
-
-	const messages = superMagicStore.messages?.get(selectedTopic?.chat_topic_id || "") || []
-
-	const handleTopicMessagesChange = useMemoizedFn((topicMessages: SuperMagicMessageItem[]) => {
-		if (topicMessages.length > 1) {
-			const lastMessageWithRole = topicMessages.findLast((m) => m.role === "assistant")
-			const lastMessage = topicMessages?.[topicMessages.length - 1]
-			const lastMessageNode = superMagicStore.getMessageNode(
-				lastMessageWithRole?.app_message_id,
-			)
-
-			// 因新版本结构，所有消息都有 seq_id，所以从 !lastMessage?.seq_id 更改为 lastMessage.type === "rich_text"
-			const isLoading =
-				lastMessageNode?.status === "running" ||
-				lastMessage.type === "rich_text" ||
-				isObject(lastMessageNode?.content) ||
-				Boolean(lastMessageNode?.rich_text?.content) ||
-				Boolean(lastMessageNode?.text?.content)
-
-			setShowLoading(isLoading)
-			// 接收到任务消息并监测到状态变化后，需重新拉取工作区、项目、话题，更新其工作状态
-			if (selectedTopic?.id) {
-				void topicStore.updateTopicStatus(selectedTopic.id, lastMessageNode?.status)
+	const { messages, showLoading } = useTopicConversationLoading({
+		selectedTopic,
+		onConversationGeneratingChange: conversation.setConversationGenerating,
+		onTopicMessagesChange: ({ lastMessageNode, selectedTopic: currentTopic }) => {
+			if (currentTopic?.id) {
+				void topicStore.updateTopicStatus(currentTopic.id, lastMessageNode?.status)
 			}
-		} else if (topicMessages?.length === 1) {
-			setShowLoading(true)
-		}
+		},
 	})
-
-	useEffect(() => {
-		return reaction(
-			() => superMagicStore.messages?.get(selectedTopic?.chat_topic_id || "") || [],
-			(topicMessages) => {
-				handleTopicMessagesChange(topicMessages as SuperMagicMessageItem[])
-			},
-		)
-	}, [handleTopicMessagesChange, selectedTopic?.chat_topic_id])
-
-	useEffect(() => {
-		setShowLoading(false)
-		conversation.setConversationGenerating(false)
-	}, [conversation, selectedTopic?.chat_topic_id])
-
-	useEffect(() => {
-		conversation.setConversationGenerating(showLoading)
-
-		return () => {
-			conversation.setConversationGenerating(false)
-		}
-	}, [conversation, showLoading])
 
 	// Use unified topic messages hook
 	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
@@ -128,6 +75,12 @@ function CrewTopicPanel({
 				content,
 				options,
 				showLoading: messages?.length > 1 && showLoading,
+				context: resolveMessageSendContext({
+					selectedProject,
+					selectedTopic,
+					topicStore,
+					setSelectedTopic: topicStore.setSelectedTopic,
+				}),
 			})
 
 			// 延迟200ms通知MessageList组件滚动到底部
@@ -149,28 +102,30 @@ function CrewTopicPanel({
 			}),
 			selectedTopic,
 			selectedProject,
-			topicMode: TopicMode.General,
+			topicMode: TopicMode.Default,
 			topicStore,
 			setSelectedTopic: topicStore.setSelectedTopic,
-			layoutConfig: editorLayoutConfig,
+			mentionPanelStore,
+			projectFilesStore,
+			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
 			mergeSendParams: ({ defaultParams }) => {
 				const mergedParams = merge(defaultParams, {
-					topicMode: TopicMode.AgentManager,
+					topicMode: TopicMode.CrewCreator,
 					extra: { agent_code: crewId },
 				})
 				return mergedParams
 			},
-			modules: {
-				mention: {
-					enabled: false,
-				},
-				upload: {
-					enabled: false,
-				},
-			},
 		}
-	}, [selectedProject, selectedTopic, topicStore, crewId, showLoading])
+	}, [
+		selectedProject,
+		selectedTopic,
+		topicStore,
+		mentionPanelStore,
+		projectFilesStore,
+		showLoading,
+		crewId,
+	])
 
 	const messageListProviderValue = useMemo(() => {
 		return {
@@ -178,46 +133,46 @@ function CrewTopicPanel({
 			allowUserMessageCopy: true,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
-			allowConversationCopy: true,
+			allowConversationCopy: false,
 			onTopicSwitch: topicStore.setSelectedTopic,
 		}
 	}, [topicStore.setSelectedTopic])
 
 	return (
-		<div
-			className={cn(
-				"relative z-10 flex h-full flex-col items-center overflow-hidden transition-all duration-300",
-				!isConversationPanelCollapsed && "rounded-lg",
-				isConversationPanelCollapsed ? "px-0 pb-0 pl-2" : "pb-2",
-			)}
-		>
-			<MessageHeader
-				isConversationPanelCollapsed={isConversationPanelCollapsed}
-				onToggleConversationPanel={onToggleConversationPanel}
-				onExpandConversationPanel={onExpandConversationPanel}
-				detailPanelVisible={detailPanelVisible}
-				selectedProject={selectedProject}
-				topicStore={topicStore}
-			/>
-			<MessageListProvider value={messageListProviderValue}>
-				<MessageList
-					data={messages as SuperMagicMessageItem[]}
-					selectedTopic={selectedTopic}
-					handlePullMoreMessage={handlePullMoreMessage}
-					showLoading={showLoading}
-					currentTopicStatus={selectedTopic?.task_status}
-					handleSendMsg={handleSendMsg}
-					isMessagesLoading={isMessagesInitialLoading}
-					fallbackRender={
-						<EmptyState className={cn(isConversationPanelCollapsed && "hidden")} />
-					}
-					className={cn(isConversationPanelCollapsed && "hidden")}
+		<ConversationPanelScaffold
+			scope="crew-topic-panel"
+			isConversationPanelCollapsed={isConversationPanelCollapsed}
+			detailPanelVisible={detailPanelVisible}
+			header={
+				<MessageHeader
+					isConversationPanelCollapsed={isConversationPanelCollapsed}
+					onToggleConversationPanel={onToggleConversationPanel}
+					onExpandConversationPanel={onExpandConversationPanel}
+					detailPanelVisible={detailPanelVisible}
+					selectedProject={selectedProject}
+					topicStore={topicStore}
+					hideTopicListModeIcon
 				/>
-			</MessageListProvider>
-			<div className="w-full max-w-3xl pl-2">
-				<DefaultMessageEditorContainer editorContext={editorContext} />
-			</div>
-		</div>
+			}
+			emptyHero={<EmptyState variant="hero" className="w-full" />}
+			emptyCompact={<EmptyState variant="compact" />}
+			emptyHint={
+				<AnimatedEmptyHint
+					primaryText={t("topic.helpText")}
+					secondaryText={t("topic.helpAction")}
+					className="-translate-x-[10px]"
+				/>
+			}
+			editor={<DefaultMessageEditorContainer editorContext={editorContext} />}
+			messageListProviderValue={messageListProviderValue}
+			messages={messages as SuperMagicMessageItem[]}
+			selectedTopic={selectedTopic}
+			handlePullMoreMessage={handlePullMoreMessage}
+			showLoading={showLoading}
+			currentTopicStatus={selectedTopic?.task_status}
+			handleSendMsg={handleSendMsg}
+			isMessagesLoading={isMessagesInitialLoading}
+		/>
 	)
 }
 

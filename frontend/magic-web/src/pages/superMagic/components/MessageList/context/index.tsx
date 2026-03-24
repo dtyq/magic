@@ -1,7 +1,7 @@
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { createContext, PropsWithChildren, useContext } from "react"
 
-interface MessageListContextState {
+export interface MessageListContextState {
 	/** 是否允许撤回 */
 	allowRevoke?: boolean
 	/** 是否允许用户消息复制 */
@@ -12,6 +12,8 @@ interface MessageListContextState {
 	allowMessageTooltip?: boolean
 	/** 是否允许话题会话记录复制至新话题 */
 	allowConversationCopy?: boolean
+	/** 是否允许创建新话题 */
+	allowCreateNewTopic?: boolean
 	/** 切换当前话题 */
 	onTopicSwitch?: (topic: Topic) => void
 }
@@ -22,6 +24,7 @@ const MessageListContext = createContext<MessageListContextState>({
 	allowScheduleTaskCreate: false,
 	allowMessageTooltip: false,
 	allowConversationCopy: false,
+	allowCreateNewTopic: true,
 	onTopicSwitch: undefined,
 })
 

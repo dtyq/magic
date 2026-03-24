@@ -1,11 +1,7 @@
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 
-import {
-	ActionDrawer,
-	ActionGroup,
-	ActionItem,
-} from "@/components/shadcn-composed/action-drawer"
+import { ActionDrawer, ActionGroup, ActionItem } from "@/components/shadcn-composed/action-drawer"
 
 import type { ActionsPopup } from "./types"
 
@@ -50,6 +46,7 @@ function ActionsPopupComponent(props: ActionsPopup.Props) {
 						onClick={action.onClick}
 						variant={action.variant === "danger" ? "destructive" : "default"}
 						disabled={action.disabled}
+						data-testid={action["data-testid"]}
 					/>
 				))}
 			</ActionGroup>

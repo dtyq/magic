@@ -8,6 +8,7 @@ import { Document } from "@tiptap/extension-document"
 import { Paragraph } from "@tiptap/extension-paragraph"
 import { Text } from "@tiptap/extension-text"
 import type { JSONContent } from "@tiptap/core"
+import InterruptButton from "@/pages/superMagic/components/MessageEditor/components/InterruptButton"
 
 interface BottomInputBarProps {
 	show: boolean
@@ -16,6 +17,10 @@ interface BottomInputBarProps {
 	/** 弹窗编辑器的实时内容，变化时将同步到底部栏本地编辑器 */
 	syncContent?: JSONContent | null
 	editorNodes?: SceneEditorNodes
+	showModeSelector?: boolean
+	isTaskRunning?: boolean
+	stopEventLoading?: boolean
+	onInterrupt?: () => void
 }
 
 export default function BottomInputBar({
@@ -23,6 +28,10 @@ export default function BottomInputBar({
 	onInputClick,
 	syncContent,
 	editorNodes,
+	showModeSelector = true,
+	isTaskRunning = false,
+	stopEventLoading = false,
+	onInterrupt,
 }: BottomInputBarProps) {
 	const { t } = useTranslation("super/mainInput")
 
@@ -46,9 +55,15 @@ export default function BottomInputBar({
 		<div className={cn("w-full flex-col gap-2 px-2 pb-1.5", show ? "flex" : "hidden")}>
 			{editorNodes?.taskDataNode}
 			{editorNodes?.messageQueueNode}
-			<div className="flex items-center gap-1 rounded-3xl border border-border bg-background p-1 shadow-xs">
+			<div
+				className={cn(
+					"flex items-center gap-1 rounded-3xl border border-border bg-background p-1 shadow-xs",
+					!showModeSelector && "h-[40px] pl-4",
+					isTaskRunning && "pr-2",
+				)}
+			>
 				{/* 角色选择器 */}
-				<ModeSelector />
+				{showModeSelector && <ModeSelector iconSize={28} />}
 
 				{/* TipTap 编辑器展示区 - 语音输入内容落点，点击只触发弹出输入框 */}
 				<div className="relative flex min-h-8 min-w-0 flex-1 items-center">
@@ -85,6 +100,14 @@ export default function BottomInputBar({
 					iconSize={20}
 					className="flex size-10 items-center justify-center gap-2 rounded-full bg-secondary"
 				/> */}
+
+				<InterruptButton
+					classNames="rounded-full overflow-hidden"
+					visible={isTaskRunning}
+					iconSize={32}
+					onInterrupt={onInterrupt}
+					loading={stopEventLoading}
+				/>
 			</div>
 		</div>
 	)

@@ -76,6 +76,7 @@ import { userStore } from "@/models/user"
 import { MagicDropdown } from "@/components/base"
 import { detectContentTypeRender } from "../Detail/components/FilesViewer/utils/preview"
 import type { FileItem } from "../Detail/components/FilesViewer/types"
+import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
 
 interface TopicFilesCoreProps {
 	className?: string
@@ -120,6 +121,7 @@ interface TopicFilesCoreProps {
 	filterBatchDownloadLayerMenuItems?: (menuItems: any[]) => any[]
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
+	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
 }
 
 // 定义 ref 暴露的方法接口
@@ -167,6 +169,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		filterMenuItems,
 		filterBatchDownloadLayerMenuItems,
 		allowDownload,
+		resolveTopicFileRowDecoration,
 	},
 	ref,
 ) {
@@ -756,6 +759,16 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		const isLocating = locatingFileId === item.file_id
 
 		const indentWidth = node.level * 10
+		const decoration =
+			resolveTopicFileRowDecoration?.({
+				item,
+				node,
+				isVirtual: !!node.isVirtual,
+			}) || undefined
+		const renderDecorationTag = () => {
+			if (!decoration?.tag) return null
+			return <div className={styles.rowTagSlot}>{decoration.tag}</div>
+		}
 
 		// 渲染展开/折叠图标
 		const renderExpandIcon = () => {
@@ -815,7 +828,9 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						<div className={styles.iconWrapper}>{renderExpandIcon()}</div>
 
 						<div className={styles.iconWrapper}>
-							{isVirtualDesignProject ? (
+							{decoration?.icon ? (
+								decoration.icon
+							) : isVirtualDesignProject ? (
 								<MagicFileIcon type="design" size={16} />
 							) : isVirtualNormalFolder ? (
 								<img
@@ -830,63 +845,66 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						</div>
 
 						{/* 虚拟项目名输入框 */}
-						<InputWithError
-							ref={
-								isVirtualDesignProject
-									? virtualDesignProjectInputRef
-									: isVirtualNormalFolder
-										? virtualFolderInputRef
-										: virtualFileInputRef
-							}
-							value={
-								isVirtualDesignProject
-									? virtualDesignProjectName
-									: isVirtualNormalFolder
-										? virtualFolderName
-										: virtualFileName
-							}
-							onChange={(e: any) => {
-								if (isVirtualDesignProject) {
-									setVirtualDesignProjectName(e.target.value)
-								} else if (isVirtualNormalFolder) {
-									setVirtualFolderName(e.target.value)
-								} else {
-									setVirtualFileName(e.target.value)
+						<div className={styles.rowTitleText}>
+							<InputWithError
+								ref={
+									isVirtualDesignProject
+										? virtualDesignProjectInputRef
+										: isVirtualNormalFolder
+											? virtualFolderInputRef
+											: virtualFileInputRef
 								}
-							}}
-							onFocus={(e) => {
-								e.target.scrollIntoView({ behavior: "smooth", block: "center" })
-							}}
-							onBlur={
-								isVirtualDesignProject
-									? confirmVirtualDesignProject
-									: isVirtualNormalFolder
-										? confirmVirtualFolder
-										: confirmVirtualFile
-							}
-							onKeyDown={
-								isVirtualDesignProject
-									? handleVirtualDesignProjectKeyDown
-									: isVirtualNormalFolder
-										? handleVirtualFolderKeyDown
-										: handleVirtualFileKeyDown
-							}
-							onClick={(e: any) => e.stopPropagation()}
-							errorMessage={
-								isVirtualDesignProject
-									? designProjectErrorMessage
-									: isVirtualNormalFolder
-										? folderErrorMessage
-										: fileErrorMessage
-							}
-							showError={
-								isVirtualDesignProject
-									? !!designProjectErrorMessage
-									: isVirtualNormalFolder
-										? !!folderErrorMessage
-										: !!fileErrorMessage
-							}
-						/>
+								value={
+									isVirtualDesignProject
+										? virtualDesignProjectName
+										: isVirtualNormalFolder
+											? virtualFolderName
+											: virtualFileName
+								}
+								onChange={(e: any) => {
+									if (isVirtualDesignProject) {
+										setVirtualDesignProjectName(e.target.value)
+									} else if (isVirtualNormalFolder) {
+										setVirtualFolderName(e.target.value)
+									} else {
+										setVirtualFileName(e.target.value)
+									}
+								}}
+								onFocus={(e) => {
+									e.target.scrollIntoView({ behavior: "smooth", block: "center" })
+								}}
+								onBlur={
+									isVirtualDesignProject
+										? confirmVirtualDesignProject
+										: isVirtualNormalFolder
+											? confirmVirtualFolder
+											: confirmVirtualFile
+								}
+								onKeyDown={
+									isVirtualDesignProject
+										? handleVirtualDesignProjectKeyDown
+										: isVirtualNormalFolder
+											? handleVirtualFolderKeyDown
+											: handleVirtualFileKeyDown
+								}
+								onClick={(e: any) => e.stopPropagation()}
+								errorMessage={
+									isVirtualDesignProject
+										? designProjectErrorMessage
+										: isVirtualNormalFolder
+											? folderErrorMessage
+											: fileErrorMessage
+								}
+								showError={
+									isVirtualDesignProject
+										? !!designProjectErrorMessage
+										: isVirtualNormalFolder
+											? !!folderErrorMessage
+											: !!fileErrorMessage
+								}
+							/>
+						</div>
+						{renderDecorationTag()}
 
 						{showCheckbox && (
 							<div className={styles.iconWrapper}>
@@ -926,6 +944,10 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					isFileInFolder(item, activeFileId)) ||
 				// 情况2：文件夹本身是 activeFileId
 				(activeFileId === item?.file_id && !!metadata?.type)
+			const isFolderBusy =
+				isFileRenaming(item) ||
+				movingFiles.has(item?.file_id || "") ||
+				isFolderDownloading(item)
 
 			// 使用 createFileDragHandlers 获取拖拽事件处理器
 			const folderDragHandlers = createFileDragHandlers({
@@ -1055,6 +1077,8 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 								<Loader2 className="mr-1 animate-spin" size={16} />
 							) : isFolderDownloading(item) ? (
 								<Loader2 className="mr-1 animate-spin" size={16} />
+							) : decoration?.icon && !isFolderBusy ? (
+								decoration.icon
 							) : metadata?.type ? (
 								<MagicFileIcon
 									type={getAttachmentType(item?.metadata) || item?.file_extension}
@@ -1071,31 +1095,34 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						</div>
 
 						{/* 文件夹名称或重命名输入框 */}
-						{renamingItemId === itemId ? (
-							<InputWithError
-								ref={renameInputRef}
-								value={renameValue}
-								onChange={(e: any) => setRenameValue(e.target.value)}
-								onBlur={handleRenameConfirm}
-								onKeyDown={handleRenameKeyDown}
-								className={styles.renameInput}
-								onClick={(e: any) => e.stopPropagation()}
-								errorMessage={renameErrorMessage}
-								showError={!!renameErrorMessage}
-								style={{ flex: 1, marginLeft: "4px" }}
-							/>
-						) : (
-							<SmartTooltip
-								placement="right"
-								className={cx(
-									styles.ellipsis,
-									shouldHighlightFolder && styles.activeFileItem,
-								)}
-								sideOffset={20}
-							>
-								{item?.name}
-							</SmartTooltip>
-						)}
+						<div className={styles.rowTitleText}>
+							{renamingItemId === itemId ? (
+								<InputWithError
+									ref={renameInputRef}
+									value={renameValue}
+									onChange={(e: any) => setRenameValue(e.target.value)}
+									onBlur={handleRenameConfirm}
+									onKeyDown={handleRenameKeyDown}
+									className={styles.renameInput}
+									onClick={(e: any) => e.stopPropagation()}
+									errorMessage={renameErrorMessage}
+									showError={!!renameErrorMessage}
+									style={{ flex: 1, marginLeft: "4px" }}
+								/>
+							) : (
+								<SmartTooltip
+									placement="right"
+									className={cx(
+										styles.ellipsis,
+										shouldHighlightFolder && styles.activeFileItem,
+									)}
+									sideOffset={20}
+								>
+									{item?.name}
+								</SmartTooltip>
+							)}
+						</div>
+						{renderDecorationTag()}
 					</div>
 
 					{/* 更多按钮 */}
@@ -1151,6 +1178,10 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 			findFileInTree,
 			setExpandedKeys,
 		})
+		const isFileBusy =
+			exportingFiles.has(item?.file_id || "") ||
+			isFileRenaming(item) ||
+			movingFiles.has(item?.file_id || "")
 
 		return (
 			<div
@@ -1239,41 +1270,48 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						) : movingFiles.has(item?.file_id || "") ? (
 							<Loader2 className="mr-1 flex-shrink-0 animate-spin" size={16} />
 						) : null}
-						<MagicFileIcon
-							type={getAttachmentType(item?.metadata) || item?.file_extension}
-							size={16}
-						/>
+						{decoration?.icon && !isFileBusy ? (
+							decoration.icon
+						) : (
+							<MagicFileIcon
+								type={getAttachmentType(item?.metadata) || item?.file_extension}
+								size={16}
+							/>
+						)}
 					</div>
 
 					{/* 文件名称或重命名输入框 */}
-					{renamingItemId === itemId ? (
-						<InputWithError
-							ref={renameInputRef}
-							value={renameValue}
-							onChange={(e: any) => setRenameValue(e.target.value)}
-							onBlur={handleRenameConfirm}
-							onKeyDown={handleRenameKeyDown}
-							onClick={(e: any) => e.stopPropagation()}
-							errorMessage={renameErrorMessage}
-							showError={!!renameErrorMessage}
-							style={{
-								flex: 1,
-								marginLeft: "4px",
-							}}
-						/>
-					) : (
-						<SmartTooltip
-							placement="right"
-							className={cx(
-								styles.ellipsis,
-								isActiveFile && "font-medium",
-								// isFileOpened && styles.openedFileItem
-							)}
-							sideOffset={20}
-						>
-							{item?.file_name}
-						</SmartTooltip>
-					)}
+					<div className={styles.rowTitleText}>
+						{renamingItemId === itemId ? (
+							<InputWithError
+								ref={renameInputRef}
+								value={renameValue}
+								onChange={(e: any) => setRenameValue(e.target.value)}
+								onBlur={handleRenameConfirm}
+								onKeyDown={handleRenameKeyDown}
+								onClick={(e: any) => e.stopPropagation()}
+								errorMessage={renameErrorMessage}
+								showError={!!renameErrorMessage}
+								style={{
+									flex: 1,
+									marginLeft: "4px",
+								}}
+							/>
+						) : (
+							<SmartTooltip
+								placement="right"
+								className={cx(
+									styles.ellipsis,
+									isActiveFile && "font-medium",
+									// isFileOpened && styles.openedFileItem
+								)}
+								sideOffset={20}
+							>
+								{item?.file_name}
+							</SmartTooltip>
+						)}
+					</div>
+					{renderDecorationTag()}
 				</div>
 
 				{/* 更多按钮 */}

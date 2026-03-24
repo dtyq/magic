@@ -2,7 +2,12 @@ import { makeAutoObservable } from "mobx"
 import type { AgentSkillItem, CrewI18nText } from "@/apis/modules/crew"
 import { crewService } from "@/services/crew/CrewService"
 import { CREW_EDIT_ERROR } from "../constants/errors"
-import { type CrewCodeController, getCrewCodeRequiredMessage, resolveCrewEditError } from "./shared"
+import {
+	type CrewCodeController,
+	getCrewCodeRequiredMessage,
+	mapAgentSkillItem,
+	resolveCrewEditError,
+} from "./shared"
 
 interface AddSkillParams {
 	skill_code: string
@@ -15,11 +20,17 @@ export class CrewSkillsStore {
 	skills: AgentSkillItem[] = []
 
 	private readonly _getCrewCode: CrewCodeController["getCrewCode"]
+	private readonly _markCrewUpdated?: CrewCodeController["markCrewUpdated"]
 
-	constructor({ getCrewCode }: CrewCodeController) {
+	constructor({ getCrewCode, markCrewUpdated }: CrewCodeController) {
 		this._getCrewCode = getCrewCode
+		this._markCrewUpdated = markCrewUpdated
 
-		makeAutoObservable(this, { _getCrewCode: false }, { autoBind: true })
+		makeAutoObservable<this, "_getCrewCode" | "_markCrewUpdated">(
+			this,
+			{ _getCrewCode: false, _markCrewUpdated: false },
+			{ autoBind: true },
+		)
 	}
 
 	hydrate(skills: AgentSkillItem[]) {
@@ -50,6 +61,7 @@ export class CrewSkillsStore {
 			await crewService.updateAgentSkills(crewCode, {
 				skill_codes: this.skills.map((skill) => skill.skill_code),
 			})
+			this._markCrewUpdated?.()
 		} catch (error) {
 			const { message } = resolveCrewEditError({
 				error,
@@ -65,10 +77,27 @@ export class CrewSkillsStore {
 
 		try {
 			await crewService.addAgentSkills(crewCode, { skill_codes: [skillCode] })
+			this._markCrewUpdated?.()
 		} catch (error) {
 			const { message } = resolveCrewEditError({
 				error,
 				fallbackKey: CREW_EDIT_ERROR.saveSkillsFailed,
+			})
+			throw new Error(message)
+		}
+	}
+
+	async refreshSkills(): Promise<void> {
+		const crewCode = this._getCrewCode()
+		if (!crewCode) throw new Error(getCrewCodeRequiredMessage())
+
+		try {
+			const agentDetail = await crewService.getAgentDetailRaw(crewCode)
+			this.hydrate(agentDetail.skills.map((skill) => mapAgentSkillItem(skill)))
+		} catch (error) {
+			const { message } = resolveCrewEditError({
+				error,
+				fallbackKey: CREW_EDIT_ERROR.loadAgentFailed,
 			})
 			throw new Error(message)
 		}
@@ -80,6 +109,7 @@ export class CrewSkillsStore {
 
 		try {
 			await crewService.deleteAgentSkills(crewCode, { skill_codes: [skillCode] })
+			this._markCrewUpdated?.()
 		} catch (error) {
 			const { message } = resolveCrewEditError({
 				error,

@@ -14,8 +14,32 @@
 		"techDev": "技术开发"
 	},
 	"createCrew": "创建员工",
+	"detailDialog": {
+		"emptyName": "未命名员工",
+		"emptyPlaybook": "暂无场景预设",
+		"emptyRole": "数字员工成员",
+		"loadFailed": "加载员工详情失败，请稍后重试。",
+		"retry": "重试"
+	},
 	"details": "详情",
 	"dismiss": "解雇",
+	"editCrew": {
+		"actions": {
+			"upload": "上传"
+		},
+		"buttons": {
+			"cancel": "取消",
+			"confirm": "保存"
+		},
+		"done": "员工更新成功！",
+		"errors": {
+			"saveFailed": "保存员工失败，请稍后重试。"
+		},
+		"fields": {
+			"avatar": "头像"
+		},
+		"title": "编辑员工"
+	},
 	"editSkill": {
 		"buttons": {
 			"cancel": "取消",
@@ -26,7 +50,21 @@
 			"fetchFailed": "加载技能详情失败，请稍后重试。",
 			"saveFailed": "保存技能失败，请稍后重试。"
 		},
+		"placeholders": {
+			"description": "请输入技能描述",
+			"name": "请输入技能名称"
+		},
 		"title": "编辑技能"
+	},
+	"employeeCard": {
+		"createdByYouNoHiringNeeded": "你创建的，无需雇用",
+		"hired": "已雇用",
+		"officialBuiltin": "官方内置",
+		"publisherDefault": "发布方",
+		"publisherOfficial": "MagiCrew",
+		"publisherPartner": "合作伙伴",
+		"publisherUser": "社区",
+		"publisherVerified": "认证创作者"
 	},
 	"hire": "雇用",
 	"importSkill": {
@@ -48,7 +86,7 @@
 			"browseEntry": "浏览文件/文件夹",
 			"browseFiles": "浏览文件",
 			"browseFolder": "浏览文件夹",
-			"browseHint": "或点击浏览文件/文件夹（一次最多导入 1 项）",
+			"browseHint": "或点击浏览文件/文件夹（一次最多导入 1 项，文件仅支持 .zip 或 .skill 格式）",
 			"dragDrop": "拖拽文件或文件夹到此处"
 		},
 		"identity": {
@@ -58,6 +96,12 @@
 			"upload": "上传"
 		},
 		"processing": "正在分析技能文件...",
+		"publishPrompt": {
+			"cancel": "暂不发布",
+			"confirm": "去发布",
+			"description": "创建或更新 Skill 后，需要先发布才能使用。是否现在前往发布？",
+			"title": "现在去发布 Skill 吗？"
+		},
 		"steps": {
 			"completeInfo": "完善信息",
 			"skillFile": "选择文件"
@@ -79,25 +123,89 @@
 		"title": "本地化：身份信息",
 		"usingDefault": "使用默认"
 	},
+	"mobile": {
+		"runSearch": "搜索",
+		"searchSheetTitle": "搜索员工"
+	},
 	"myCrew": "我的员工",
 	"myCrewPage": {
+		"badgeUpdated": "待更新",
+		"crewType": {
+			"ariaLabel": "员工类型",
+			"createdByMe": "我创建的",
+			"hiredByMe": "我雇佣的"
+		},
+		"delete": "删除",
+		"deleteConfirm": {
+			"confirm": "删除",
+			"description": "删除后将无法恢复该数字员工，请谨慎操作。",
+			"title": "删除「{{name}}」"
+		},
+		"disable": "禁用",
+		"disableConfirm": {
+			"confirm": "禁用",
+			"description": "禁用后，该数字员工将在当前团队内停止使用。后续可在发布管理中重新调整。",
+			"title": "禁用「{{name}}」"
+		},
 		"dismissConfirm": {
-			"confirm": "确认解雇",
-			"description": "解雇后该员工将从您的员工列表中移除，相关数据将无法恢复。确定要解雇「{{name}}」吗？",
-			"title": "确认解雇"
+			"confirm": "解雇",
+			"description": "确定要解雇该数字员工吗？之后仍可重新雇佣。",
+			"title": "解雇「{{name}}」"
 		},
 		"edit": "编辑",
 		"empty": "暂无员工，快来创建你的第一个员工吧。",
+		"footerPoweredByBrand": "MagiCrew",
+		"footerPoweredByLead": "由 ",
+		"footerPoweredByTail": " 提供",
+		"footerPublisherHandle": "@MagiCrew",
+		"moreActionsAria": "更多操作",
+		"openConversation": "对话",
+		"openPublish": "发布",
+		"pcOnlyNotice": {
+			"confirm": "确认",
+			"description": "请使用桌面端编辑你的数字员工",
+			"message": "请到 PC 端操作",
+			"title": "移动端暂不支持编辑"
+		},
+		"sharedByTeamAction": "团队共享的",
+		"sourceCustom": "自建",
+		"sourceStore": "商店",
 		"subtitle": "管理您的专属数字员工。",
-		"title": "我的员工"
+		"title": "我的员工",
+		"upgradeAvailable": "有新版本可用，点击更新。"
 	},
 	"mySkills": {
+		"badges": {
+			"unpublished": "未发布"
+		},
+		"creatorUnknown": "@未知用户",
 		"delete": "删除",
+		"deleteConfirm": {
+			"confirm": "删除",
+			"description": "删除后该技能将无法恢复，请谨慎操作。",
+			"title": "删除「{{name}}」"
+		},
 		"edit": "编辑",
+		"moreActionsAria": "更多操作",
+		"noDescription": "暂无描述",
+		"pcOnlyNotice": {
+			"confirm": "确认",
+			"description": "请使用桌面端编辑你的技能",
+			"title": "移动端暂不支持编辑"
+		},
+		"poweredBy": "由 {{name}} 提供",
+		"remove": "移除",
 		"subscribe": "订阅",
 		"subtitle": "您的专属专业技能集合。",
+		"tabs": {
+			"createdByMe": "我创建的",
+			"fromSkillsLibrary": "来自技能库",
+			"sharedByTeam": "团队共享"
+		},
 		"title": "我的技能",
 		"topUp": "购买套餐",
+		"unknownUpdatedAt": "更新时间未知",
+		"untitledSkill": "未命名技能",
 		"update": "更新",
 		"updatedAt": "更新于 {{date}}"
 	},
@@ -127,17 +235,153 @@
 			"assetsFolder": "assets",
 			"projectName": "heartwarming-content-creator",
 			"referencesFolder": "references",
+			"skillDescription": "为品牌和创作者生成更有温度、也更有转化力的内容创意。",
 			"skillFileName": "Skill.md",
 			"skillName": "暖心内容创作助手",
 			"topicTitle": "未命名话题 1"
-		}
+		},
+		"publishNameDialog": {
+			"confirm": "确认并继续发布",
+			"description": "",
+			"placeholder": "请输入技能名称",
+			"required": "请输入技能名称",
+			"title": "发布前请命名技能"
+		},
+		"publishPanel": {
+			"actions": {
+				"cancel": "取消",
+				"publish": "发布"
+			},
+			"create": {
+				"fields": {
+					"details": {
+						"label": "版本详情",
+						"optional": "可选",
+						"placeholder": "输入版本详情"
+					},
+					"permissionSettings": {
+						"label": "权限设置"
+					},
+					"publishingProcess": {
+						"label": "发布流程"
+					},
+					"target": {
+						"helper": "选择后不可更改发布范围",
+						"label": "发布到",
+						"skillsLibrary": {
+							"steps": {
+								"published": "发布到技能库",
+								"review": "平台审核",
+								"submit": "提交技能"
+							}
+						},
+						"specificMembers": {
+							"action": "选择",
+							"label": "选择指定部门/成员",
+							"mockValue": "市场部 / 内容组",
+							"placeholder": "请选择"
+						}
+					},
+					"version": {
+						"label": "版本",
+						"placeholder": "输入版本号",
+						"required": "必填"
+					}
+				},
+				"title": "发布新版本"
+			},
+			"detail": {
+				"noContent": "无内容",
+				"reason": "原因",
+				"reviewFailed": "审核失败",
+				"skillsLibrary": {
+					"steps": {
+						"published": "发布到技能库",
+						"review": "平台审核",
+						"submit": "提交申请"
+					}
+				},
+				"title": "版本 {{version}}"
+			},
+			"emptyValue": "—",
+			"errors": {
+				"loadVersionsFailed": "加载发布记录失败，请稍后重试"
+			},
+			"history": {
+				"columns": {
+					"actions": "操作",
+					"publishTo": "发布到",
+					"publishedDate": "发布时间",
+					"publisher": "发布者",
+					"status": "状态",
+					"version": "版本"
+				},
+				"empty": {
+					"description": "创建完成后，需要发布变更才能生效",
+					"title": "尚未发布任何版本"
+				},
+				"publishNewVersion": "发布新版本",
+				"title": "发布",
+				"unpublishedChanges": "你有未发布的变更，发布后才能生效。",
+				"view": "查看"
+			},
+			"publishToOptions": {
+				"crew_market": {
+					"description": "发布后将展示在员工市场，供所有人查看",
+					"label": "发布到员工市场"
+				},
+				"internal": {
+					"description": "发布后仅对企业内部成员可见",
+					"label": "发布到内部"
+				},
+				"skills_library": {
+					"description": "发布后将对所有人可见",
+					"label": "发布到技能库"
+				}
+			},
+			"statuses": {
+				"published": "已发布",
+				"rejected": "已拒绝",
+				"under_review": "审核中"
+			},
+			"targets": {
+				"crew_market": {
+					"description": "发布到员工市场前需要经过平台审核",
+					"label": "员工市场"
+				},
+				"organization": {
+					"description": "组织内所有成员均可使用",
+					"label": "组织内可见"
+				},
+				"private": {
+					"description": "仅自己可见",
+					"label": "私有"
+				},
+				"skills_library": {
+					"description": "发布到技能库前需要经过平台审核",
+					"label": "技能库"
+				},
+				"specific_members": {
+					"description": "对组织内选定的部门或成员开放",
+					"label": "指定成员"
+				}
+			},
+			"toast": {
+				"publishFailed": "发布失败，请稍后重试",
+				"publishSuccess": "发布成功"
+			}
+		},
+		"untitledSkill": "未命名技能"
 	},
 	"skillsLibrary": {
 		"addToMySkills": "添加到我的技能",
+		"added": "已添加",
 		"aiSearchPlaceholder": "输入关键词或描述您需要的技能",
+		"authorFallback": "用户名",
 		"createMenu": {
 			"createViaChat": "通过对话创建",
 			"createViaChatDesc": "通过对话构建强大的技能",
+			"createViaChatFailed": "创建技能失败，请稍后重试。",
 			"importFromGithub": "从 GitHub 导入",
 			"importFromGithubDesc": "直接从公开的 GitHub 仓库导入技能",
 			"importSkill": "导入技能",
@@ -148,8 +392,11 @@
 		"noMoreData": "没有更多数据。",
 		"official": "官方",
 		"removeFromMySkills": "从我的技能中移除",
+		"searchAria": "搜索技能",
+		"searchSheetTitle": "搜索技能",
 		"subtitle": "探索新能力，为你的数字员工装备技能。",
 		"title": "技能库",
+		"updatedAt": "更新于 {{dateTime}}",
 		"upgrade": "升级"
 	},
 	"subtitle": "发现并雇用你的专属数字员工。",

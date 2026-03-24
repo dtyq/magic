@@ -6,6 +6,7 @@ import { TaskStatus, ProjectListItem, Topic } from "../../pages/Workspace/types"
 import useShareRoute from "../../hooks/useShareRoute"
 import { useResponsive } from "ahooks"
 import { cn } from "@/lib/utils"
+import { observer } from "mobx-react-lite"
 
 // Define the Detail component props interface
 interface DetailProps {
@@ -178,4 +179,4 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 	)
 })
 
-export default memo(Detail)
+export default observer(Detail)

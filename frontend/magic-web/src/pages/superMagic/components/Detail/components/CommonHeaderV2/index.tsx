@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo, useRef } from "react"
 import type { MenuProps } from "antd"
-import { Dropdown } from "antd"
 import {
 	Check,
 	ChevronDown,
@@ -9,11 +8,8 @@ import {
 	ExternalLink,
 	Fullscreen,
 	History,
-	Maximize2,
-	Minimize2,
 	MoreHorizontal,
 	RefreshCcw,
-	Share2,
 	View,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -35,6 +31,7 @@ import type { BuiltinComposedAction, CommonHeaderV2Props } from "./types"
 import { DetailType } from "../../types"
 import { MagicDropdown } from "@/components/base"
 import { IconShare3 } from "@tabler/icons-react"
+import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 
 export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	const {
@@ -68,6 +65,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
+	const { hideShare } = useFileActionVisibility()
 	const headerContainerRef = useRef<HTMLDivElement>(null)
 	const rightActionsContainerRef = useRef<HTMLDivElement>(null)
 	const showButtonText = useContainerShowButtonText(rightActionsContainerRef)
@@ -147,6 +145,18 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			onDownload,
 		})
 
+	const mergedActionConfig = useMemo(() => {
+		if (!hideShare) return actionConfig
+
+		const hideDefaults = new Set(actionConfig?.hideDefaults || [])
+		hideDefaults.add("share")
+
+		return {
+			...actionConfig,
+			hideDefaults: Array.from(hideDefaults),
+		}
+	}, [actionConfig, hideShare])
+
 	const actionContext = useMemo(
 		() => ({
 			type,
@@ -211,8 +221,8 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	)
 
 	const actions = useMemo(
-		() => composeHeaderActions(actionContext, actionConfig),
-		[actionContext, actionConfig],
+		() => composeHeaderActions(actionContext, mergedActionConfig),
+		[actionContext, mergedActionConfig],
 	)
 
 	const moreOperationsDropdownItems = useMemo<MenuProps["items"]>(() => {

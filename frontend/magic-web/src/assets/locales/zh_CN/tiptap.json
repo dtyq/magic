@@ -5,6 +5,12 @@
 			"limit": "字符限制：{{current}} / {{max}}",
 			"remaining": "剩余字符：{{count}}"
 		},
+		"frontmatter": {
+			"empty": "暂无元数据字段",
+			"invalid": "格式错误",
+			"rawLabel": "元数据",
+			"title": "元数据"
+		},
 		"mathEditor": {
 			"error": {
 				"empty": "LaTeX 代码不能为空",

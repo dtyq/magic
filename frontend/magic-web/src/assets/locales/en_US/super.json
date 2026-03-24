@@ -991,8 +991,8 @@
 		"modeNotAvailableMessage": "Current mode is not available, please create a \"New Topic\" and select an available mode to continue",
 		"modelSwitch": {
 			"autoModelDescription": "Auto mode automatically selects the most efficient AI model for the current task, suitable for handling most regular tasks with moderate credit consumption.",
-			"imageModel": "Image Model",
-			"languageModel": "Language Model",
+			"imageModel": "Image",
+			"languageModel": "Text",
 			"maxModelDescription": "MAX mode automatically selects the most powerful AI model available, suitable for handling large or complex tasks, or for switching when task completion quality is poor. However, it takes longer to execute and consumes more credits.",
 			"model": "Model",
 			"modelPreference": "Model Preference",
@@ -1005,7 +1005,7 @@
 			"searchPlaceholder": "Search Model",
 			"selectModel": "Select Model",
 			"tooltipImageModel": "Image Model",
-			"tooltipLanguageModel": "Language Model"
+			"tooltipLanguageModel": "Text Model"
 		},
 		"newTopicButton": "New Topic",
 		"placeholder": "Type a message...",
@@ -2477,6 +2477,18 @@
 		"batchOperation": "Batch Operation",
 		"batchOperations": "Batch Operations",
 		"cancelSelect": "Cancel",
+		"clawPlaygroundTags": {
+			"aboutYou": "About You",
+			"guidelines": "Guidelines",
+			"identityInfo": "Identity Info",
+			"initialSetup": "Initial Setup",
+			"installedSkills": "Installed Skills",
+			"proactiveExecution": "Proactive Execution",
+			"prompts": "Prompts",
+			"scheduledTasks": "Scheduled Tasks",
+			"skillList": "Skill List",
+			"toolList": "Tool List"
+		},
 		"collapseTitle": "Collapse",
 		"contentTranslation": "Content Translation",
 		"contentTranslationDescription": "AI converts the content into the language I need",
@@ -2878,6 +2890,7 @@
 		"readAgreement": "Please read this agreement before proceeding"
 	},
 	"waterfallCard": {
+		"imageUnavailable": "Preview unavailable",
 		"loadingImage": "Loading Image...",
 		"tryNow": "Try Now"
 	},

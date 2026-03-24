@@ -5,8 +5,6 @@ import { DEFAULT_INSPIRATION_GROUP_KEY, SceneEditStore } from "../store"
 
 const defaultGroupName: LocaleText = {
 	default: "Default Group",
-	zh_CN: "默认分组",
-	en_US: "Default Group",
 }
 
 const customGroupName: LocaleText = {
@@ -52,6 +50,7 @@ describe("SceneEditStore inspiration defaults", () => {
 		expect(inspiration?.demo.default_selected_group_key).toBe(DEFAULT_INSPIRATION_GROUP_KEY)
 		expect(inspiration?.demo.groups).toHaveLength(1)
 		expect(inspiration?.demo.groups[0]?.group_key).toBe(DEFAULT_INSPIRATION_GROUP_KEY)
+		expect(inspiration?.demo.groups[0]?.group_name).toEqual(defaultGroupName)
 		expect(inspiration?.demo.groups[0]?.children).toHaveLength(1)
 	})
 
@@ -70,6 +69,7 @@ describe("SceneEditStore inspiration defaults", () => {
 		expect(inspiration?.demo.default_selected_group_key).toBe(DEFAULT_INSPIRATION_GROUP_KEY)
 		expect(inspiration?.demo.groups).toHaveLength(2)
 		expect(inspiration?.demo.groups[0]?.group_key).toBe(DEFAULT_INSPIRATION_GROUP_KEY)
+		expect(inspiration?.demo.groups[0]?.group_name).toEqual(defaultGroupName)
 		expect(inspiration?.demo.groups[1]?.group_key).toBe(customGroupKey)
 		expect(inspiration?.demo.groups[1]?.group_name).toEqual(customGroupName)
 	})

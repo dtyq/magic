@@ -11,7 +11,7 @@ import { useEffect } from "react"
 function useUpdateModeList() {
 	useEffect(() => {
 		return reaction(
-			() => [configStore.i18n.language, userStore.user.organizationCode],
+			() => [configStore.i18n.displayLanguage, userStore.user.organizationCode],
 			([_, organizationCode]) => {
 				if (organizationCode) {
 					superMagicModeService.startRefreshTimer()

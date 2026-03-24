@@ -23,7 +23,6 @@ interface MessageEditorContainerViewProps {
 	onPaste: (e: React.ClipboardEvent) => void
 	onCompositionStart: () => void
 	onCompositionEnd: () => void
-	onClick: (e: React.MouseEvent) => void
 	topBarLeftContent: ReactNode
 	topBarRightContent: ReactNode
 	bottomLeftContent: ReactNode
@@ -47,7 +46,6 @@ export default function MessageEditorContainerView({
 	onPaste,
 	onCompositionStart,
 	onCompositionEnd,
-	onClick,
 	topBarLeftContent,
 	topBarRightContent,
 	bottomLeftContent,
@@ -69,7 +67,6 @@ export default function MessageEditorContainerView({
 			onPaste={onPaste}
 			onCompositionStart={onCompositionStart}
 			onCompositionEnd={onCompositionEnd}
-			onClick={onClick}
 			topBarLeftContent={topBarLeftContent}
 			topBarRightContent={topBarRightContent}
 			bottomLeftContent={bottomLeftContent}

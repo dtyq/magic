@@ -22,6 +22,7 @@ export { default as useSyncEditorStoreState } from "./useSyncEditorStoreState"
 export { default as useEditorSlotContent } from "./useEditorSlotContent"
 export { default as useUploadMentionFlow } from "./useUploadMentionFlow"
 export { default as useMessageSendHandler } from "./useMessageSendHandler"
+export { default as useCompressContext } from "./useCompressContext"
 export { default as useMessageEditorImperativeRef } from "./useMessageEditorImperativeRef"
 
 export { useMarkerClickHandler, type MarkerClickScene } from "./useMarkerClickHandler"

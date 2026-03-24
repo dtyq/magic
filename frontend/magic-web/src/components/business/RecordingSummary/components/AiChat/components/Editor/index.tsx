@@ -1,32 +1,39 @@
-import MessagePanel from "@/pages/superMagic/components/MessagePanel"
+import { useMemo } from "react"
+import { merge } from "lodash-es"
+import type { FC } from "react"
+import recordingSummaryStore from "@/stores/recordingSummary"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
+import TaskList from "@/pages/superMagic/components/TaskList"
+import MessageQueue from "@/pages/superMagic/components/MessagePanel/components/MessageQueue"
+import useMessageQueue from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
+import { MessageEditorProvider } from "@/pages/superMagic/components/MessageEditor"
+import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
+import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/DefaultMessageEditorContainer"
+import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
+import { useTaskData } from "@/pages/superMagic/hooks/useTaskData"
 import {
 	ProjectListItem,
 	Topic,
 	TopicMode,
 	Workspace,
 } from "@/pages/superMagic/pages/Workspace/types"
-import { initializeService } from "@/services/recordSummary/serviceInstance"
-import { JSONContent } from "@tiptap/core"
-import { useMemoizedFn } from "ahooks"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
-import { useMemo } from "react"
-import { useStyles } from "./styles"
-import { MessageEditorProvider } from "@/pages/superMagic/components/MessageEditor"
-import { SuperMagicApi } from "@/apis"
-import type { FC } from "react"
-import { useTaskData } from "@/pages/superMagic/hooks/useTaskData"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { initializeService } from "@/services/recordSummary/serviceInstance"
+import { useStyles } from "./styles"
 
 interface EditorProps {
-	messages: any[]
+	messages: SuperMagicMessageItem[]
 	attachments?: AttachmentItem[]
 	selectedWorkspace: Workspace | null
 	selectedTopic: Topic | null
 	selectedProject: ProjectListItem | null
 	mentionPanelStore: MentionPanelStore
+	projectFilesStore: ProjectFilesStore
 	isShowLoadingInit: boolean
 	showLoading: boolean
-	handleSendMsg: (content: JSONContent | string, options?: any) => void
 }
 
 const Editor: FC<EditorProps> = ({
@@ -36,39 +43,128 @@ const Editor: FC<EditorProps> = ({
 	selectedTopic,
 	selectedProject,
 	mentionPanelStore,
+	projectFilesStore,
 	isShowLoadingInit,
 	showLoading,
-	handleSendMsg,
 }: EditorProps) => {
 	const { styles } = useStyles()
-
 	const recordSummaryService = initializeService()
-
 	const { taskData } = useTaskData({ selectedTopic })
 
-	const handleCreateTopic = useMemoizedFn(async (): Promise<Topic | null> => {
-		if (!selectedProject) {
-			return null
-		}
-		const newTopic = await SuperMagicApi.createTopic({
-			topic_name: "",
-			// workspace_id: selectedProject?.workspace_id,
-			project_id: selectedProject?.id,
-			project_mode: TopicMode.General,
-		})
-
-		recordSummaryService.updateChatTopic(newTopic)
-
-		return newTopic
+	const messageQueue = useMessageQueue({
+		projectId: selectedProject?.id,
+		topicId: selectedTopic?.id,
+		isTaskRunning: showLoading,
+		isEmptyStatus: false,
+		isShowLoadingInit,
 	})
 
-	const topicModeLogic = useMemo(() => {
+	const editorContext = useMemo<SceneEditorContext>(() => {
 		return {
+			draftKey: createMessageEditorDraftKey({
+				selectedWorkspace,
+				selectedProject,
+				selectedTopic,
+			}),
+			selectedWorkspace,
+			selectedTopic,
+			selectedProject,
+			setSelectedWorkspace: (workspace) => {
+				if (workspace) {
+					void recordSummaryService.updateWorkspace(workspace)
+					return
+				}
+
+				recordingSummaryStore.setWorkspace(null)
+			},
+			setSelectedProject: (project) => {
+				if (project) {
+					void recordSummaryService.updateProject(project)
+					return
+				}
+
+				recordingSummaryStore.setProject(null)
+			},
+			setSelectedTopic: (topic) => {
+				if (topic) {
+					void recordSummaryService.updateChatTopic(topic)
+					return
+				}
+
+				recordingSummaryStore.setChatTopic(null)
+			},
 			topicMode: TopicMode.General,
-			setTopicMode: () => { },
-			allowEditorModeChange: false,
+			size: "small",
+			className: "border-none",
+			containerClassName: "rounded-xl border-muted-foreground",
+			showLoading,
+			isEmptyStatus: false,
+			messagesLength: messages.length,
+			enableMessageSendByContent: true,
+			modules: {
+				aiCompletion: {
+					enabled: true,
+				},
+			},
+			attachments,
+			mentionPanelStore,
+			projectFilesStore,
+			mergeSendParams: ({ defaultParams }) => {
+				return merge({}, defaultParams, {
+					extra: {
+						super_agent: {
+							dynamic_params: {
+								asr_task_key: recordSummaryService.getCurrentSessionTaskKey(),
+							},
+						},
+					},
+				})
+			},
+			onSendSuccess: () => {
+				setTimeout(() => {
+					pubsub.publish(PubSubEvents.Message_Scroll_To_Bottom)
+				}, 200)
+			},
+			queueContext: {
+				editingQueueItem: messageQueue.editingQueueItem,
+				addToQueue: messageQueue.addToQueue,
+				finishEditQueueItem: messageQueue.finishEditQueueItem,
+			},
 		}
-	}, [])
+	}, [
+		attachments,
+		messageQueue.addToQueue,
+		messageQueue.editingQueueItem,
+		messageQueue.finishEditQueueItem,
+		messages.length,
+		mentionPanelStore,
+		projectFilesStore,
+		recordSummaryService,
+		selectedProject,
+		selectedTopic,
+		selectedWorkspace,
+		showLoading,
+	])
+
+	const taskDataNode = taskData && taskData?.process?.length > 0 && (
+		<div className="mb-2 border-b border-border">
+			<TaskList taskData={taskData} isInChat />
+		</div>
+	)
+
+	const messageQueueNode = messageQueue.queue.length > 0 && (
+		<div className="mb-2">
+			<MessageQueue
+				queue={messageQueue.queue}
+				queueStats={messageQueue.queueStats}
+				editingQueueItem={messageQueue.editingQueueItem}
+				onRemoveMessage={messageQueue.removeFromQueue}
+				onSendMessage={messageQueue.sendQueuedMessage}
+				onStartEdit={messageQueue.startEditQueueItem}
+				onCancelEdit={messageQueue.cancelEditQueueItem}
+			/>
+		</div>
+	)
 
 	const messageEditorProviderConfig = useMemo(() => {
 		return {
@@ -78,29 +174,11 @@ const Editor: FC<EditorProps> = ({
 
 	return (
 		<MessageEditorProvider config={messageEditorProviderConfig}>
-			<MessagePanel
-				classNames={{
-					editorInnerWrapper: "border border-muted-foreground",
-					editor: "border-none",
-				}}
-				isShowLoadingInit={isShowLoadingInit}
-				messages={messages}
-				taskData={taskData}
-				showLoading={showLoading}
-				selectedWorkspace={selectedWorkspace}
-				selectedProject={selectedProject}
-				selectedTopic={selectedTopic}
-				setSelectedTopic={(topic: Topic | null | ((prev: Topic | null) => Topic | null)) =>
-					recordSummaryService.updateChatTopic(topic as Topic)
-				}
-				isEmptyStatus={false}
-				size="small"
-				attachments={attachments}
-				className={styles.editor}
-				mentionPanelStore={mentionPanelStore}
-				topicModeLogic={topicModeLogic}
-				enableMessageSendByContent
-			/>
+			<div className={styles.editor}>
+				{taskDataNode}
+				{messageQueueNode}
+				<DefaultMessageEditorContainer editorContext={editorContext} />
+			</div>
 		</MessageEditorProvider>
 	)
 }

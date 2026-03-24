@@ -23,6 +23,11 @@ export const zhCN: I18nTexts = {
 	// Hints
 	mcpHint: "@插件仅单次生效",
 	skillHint: "@技能仅单次生效",
+	skillSources: {
+		system: "系统技能",
+		agent: "员工技能",
+		mine: "我的技能",
+	},
 
 	// Panel titles
 	panelTitles: {

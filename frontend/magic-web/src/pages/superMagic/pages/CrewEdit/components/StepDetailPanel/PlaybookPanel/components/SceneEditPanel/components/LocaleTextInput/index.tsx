@@ -80,6 +80,7 @@ interface LocaleTextInputProps {
 	localizeLabel?: string
 	/** Render as Textarea instead of Input */
 	multiline?: boolean
+	disabled?: boolean
 	className?: string
 	"data-testid"?: string
 	/** Error message — highlights the main input border in destructive color */
@@ -92,6 +93,7 @@ export function LocaleTextInput({
 	placeholder,
 	localizeLabel,
 	multiline = false,
+	disabled = false,
 	className,
 	"data-testid": testId,
 	error,
@@ -127,7 +129,7 @@ export function LocaleTextInput({
 	}
 
 	function handleConfirmDialog() {
-		if (isDefaultMissing) return
+		if (disabled || isDefaultMissing) return
 		onChange(draft)
 		setDialogOpen(false)
 	}
@@ -150,7 +152,8 @@ export function LocaleTextInput({
 						onChange={(e) => onChange(e.target.value)}
 						placeholder={placeholder}
 						required={required}
-						className="shadow-xs min-h-[96px] resize-none bg-background"
+						disabled={disabled}
+						className="min-h-[96px] resize-none bg-background shadow-xs"
 						data-testid={testId}
 					/>
 				) : (
@@ -159,7 +162,8 @@ export function LocaleTextInput({
 						onChange={(e) => onChange(e.target.value)}
 						placeholder={placeholder}
 						required={required}
-						className="shadow-xs h-9 bg-background"
+						disabled={disabled}
+						className="h-9 bg-background shadow-xs"
 						data-testid={testId}
 					/>
 				)}
@@ -175,8 +179,9 @@ export function LocaleTextInput({
 					onChange={(e) => handleDefaultChange(e.target.value)}
 					placeholder={placeholder}
 					required
+					disabled={disabled}
 					className={cn(
-						"shadow-xs flex-1 resize-none bg-background",
+						"flex-1 resize-none bg-background shadow-xs",
 						error && "border-destructive",
 						className,
 					)}
@@ -188,8 +193,9 @@ export function LocaleTextInput({
 					onChange={(e) => handleDefaultChange(e.target.value)}
 					placeholder={placeholder}
 					required
+					disabled={disabled}
 					className={cn(
-						"shadow-xs h-9 flex-1 bg-background",
+						"h-9 flex-1 bg-background shadow-xs",
 						error && "border-destructive",
 						className,
 					)}
@@ -197,13 +203,20 @@ export function LocaleTextInput({
 				/>
 			)}
 
-			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+			<Dialog
+				open={dialogOpen}
+				onOpenChange={(open) => {
+					if (disabled && open) return
+					setDialogOpen(open)
+				}}
+			>
 				<DialogTrigger asChild>
 					<Button
 						type="button"
 						variant="outline"
 						size="icon"
-						className="shadow-xs h-9 w-9 shrink-0"
+						className="h-9 w-9 shrink-0 shadow-xs"
+						disabled={disabled}
 						data-testid={testId ? `${testId}-globe` : undefined}
 					>
 						<Globe className="h-4 w-4" />
@@ -249,11 +262,11 @@ export function LocaleTextInput({
 									placeholder:
 										draft[DEFAULT_LOCALE_KEY].length > 0
 											? t(
-												"playbook.edit.basicInfo.localeDialog.usingDefault",
-												{
-													value: draft[DEFAULT_LOCALE_KEY],
-												},
-											)
+													"playbook.edit.basicInfo.localeDialog.usingDefault",
+													{
+														value: draft[DEFAULT_LOCALE_KEY],
+													},
+												)
 											: placeholder,
 									testId: testId ? `${testId}-${localeKey}` : undefined,
 								})}
@@ -270,7 +283,7 @@ export function LocaleTextInput({
 							<Button
 								type="button"
 								variant="outline"
-								className="shadow-xs h-9 min-w-[82px]"
+								className="h-9 min-w-[82px] shadow-xs"
 								data-testid={testId ? `${testId}-localize-cancel` : undefined}
 							>
 								{t("playbook.edit.basicInfo.localeDialog.cancel")}
@@ -278,9 +291,9 @@ export function LocaleTextInput({
 						</DialogClose>
 						<Button
 							type="button"
-							className="shadow-xs h-9 min-w-[82px]"
+							className="h-9 min-w-[82px] shadow-xs"
 							onClick={handleConfirmDialog}
-							disabled={isDefaultMissing}
+							disabled={disabled || isDefaultMissing}
 							data-testid={testId ? `${testId}-localize-confirm` : undefined}
 						>
 							{t("playbook.edit.basicInfo.localeDialog.confirm")}

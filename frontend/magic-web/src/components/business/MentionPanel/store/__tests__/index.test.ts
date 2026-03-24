@@ -1,19 +1,72 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import mentionPanelStore from "../index"
-import projectFilesStore from "@/opensource/stores/projectFiles"
+import projectFilesStore from "@/stores/projectFiles"
 import { MentionItemType, MentionItem } from "../../types"
-import { BotApi, FlowApi } from "@/apis"
-import type { Bot } from "@/types/bot"
-import type { Flow, UseableToolSet } from "@/types/flow"
+import { BotApi, CrewApi, FlowApi, GlobalApi } from "@/apis"
 
 // Mock APIs
 vi.mock("@/apis", () => ({
 	BotApi: {
 		getUserAllAgentList: vi.fn(),
 	},
+	CrewApi: {
+		getMentionSkills: vi.fn(),
+	},
 	FlowApi: {
 		getAvailableMCP: vi.fn(),
 		getUseableToolList: vi.fn(),
+	},
+	GlobalApi: {
+		getSettingsGlobalData: vi.fn(),
+	},
+}))
+
+vi.mock("@/stores/projectFiles", () => {
+	const flattenWorkspaceFileTree = (tree: any[]): any[] =>
+		tree.reduce((acc, item) => {
+			acc.push(item)
+			if (item.children) {
+				acc.push(...flattenWorkspaceFileTree(item.children))
+			}
+			return acc
+		}, [] as any[])
+
+	const store = {
+		workspaceFileTree: [] as any[],
+		workspaceFilesList: [] as any[],
+		currentSelectedProject: null as any,
+		setWorkspaceFileTree(tree: any[]) {
+			this.workspaceFileTree = tree
+			this.workspaceFilesList = flattenWorkspaceFileTree(tree)
+		},
+		setSelectedProject(project: any) {
+			this.currentSelectedProject = project
+		},
+		hasProjectFile(fileId: string) {
+			return this.workspaceFilesList.some(
+				(item) => item.type === "file" && item.file_id === fileId,
+			)
+		},
+		hasFolder(fileId: string) {
+			return this.workspaceFilesList.some(
+				(item) => item.type === "directory" && item.file_id === fileId,
+			)
+		},
+	}
+
+	return {
+		__esModule: true,
+		default: store,
+	}
+})
+
+vi.mock("@/models/user", () => ({
+	userStore: {
+		user: {
+			userInfo: {
+				organization_code: "test-org",
+			},
+		},
 	},
 }))
 
@@ -21,12 +74,84 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		// Reset store state
+		const store = mentionPanelStore as any
 		projectFilesStore.setWorkspaceFileTree([])
 		projectFilesStore.setSelectedProject(null)
 		mentionPanelStore.mcpList = []
 		mentionPanelStore.agentList = []
+		mentionPanelStore.skillList = []
 		mentionPanelStore.toolItems = []
 		mentionPanelStore.uploadFiles = []
+		store.skillListCache = new Map()
+		store.currentSkillQueryKey = "__default__"
+		store.fetchSkillsPromise = null
+
+		vi.mocked(CrewApi.getMentionSkills).mockResolvedValue({
+			code: 1000,
+			message: "ok",
+			data: [],
+		})
+
+		vi.mocked(GlobalApi.getSettingsGlobalData).mockResolvedValue({
+			available_agents: {
+				list: [
+					{
+						id: "agent1",
+						name: "test-agent",
+						avatar: "avatar1",
+						description: "desc1",
+						created_at: "2023-01-01",
+					},
+				],
+			},
+			available_mcp_servers: {
+				list: [
+					{
+						id: "mcp1",
+						name: "test-mcp",
+						icon: "icon1",
+						description: "desc1",
+						require_fields: [],
+						check_require_fields: false,
+						check_auth: false,
+					},
+				],
+			},
+			available_tool_sets: {
+				list: [
+					{
+						id: "tool1",
+						name: "test-tool",
+						icon: "icon1",
+						description: "test tool description",
+						creator: "test-creator",
+						created_at: "2023-01-01",
+						modifier: "test-modifier",
+						updated_at: "2023-01-01",
+						tool_set_id: "toolset1",
+						agent_used_count: 0,
+						tools: [
+							{
+								code: "tool-code-1",
+								name: "awesome-tool",
+								description: "desc1",
+								input: {},
+								output: {},
+								custom_system_input: {},
+							},
+							{
+								code: "tool-code-2",
+								name: "html-parser",
+								description: "desc2",
+								input: {},
+								output: {},
+								custom_system_input: {},
+							},
+						],
+					},
+				],
+			},
+		} as any)
 	})
 
 	describe("fuzzyMatch algorithm", () => {
@@ -196,6 +321,21 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 					},
 				],
 			} as any)
+
+			vi.mocked(CrewApi.getMentionSkills).mockResolvedValue({
+				code: 1000,
+				message: "ok",
+				data: [
+					{
+						id: "analyzing-data-dashboard",
+						code: "analyzing-data-dashboard",
+						name: "数据分析看板",
+						description: "Dashboard skill",
+						logo: null,
+						source: "system",
+					},
+				],
+			})
 
 			// Setup test data
 			mentionPanelStore.uploadFiles = [
@@ -543,6 +683,98 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 			results = await mentionPanelStore.searchItems("vew")
 			const workspaceMatch = results.find((item) => item.name === "overview.html")
 			expect(workspaceMatch).toBeDefined()
+		})
+	})
+
+	describe("mention skills api integration", () => {
+		it("should omit agent_code for default topic mode", async () => {
+			await mentionPanelStore.getSkills()
+
+			expect(CrewApi.getMentionSkills).toHaveBeenCalledWith({})
+		})
+
+		it("should pass topic mode as agent_code", async () => {
+			mentionPanelStore.setSkillQueryContext("general")
+
+			await mentionPanelStore.getSkills()
+
+			expect(CrewApi.getMentionSkills).toHaveBeenCalledWith({
+				agent_code: "general",
+			})
+		})
+
+		it("should refresh latest skill data when requested", async () => {
+			vi.mocked(CrewApi.getMentionSkills)
+				.mockResolvedValueOnce({
+					code: 1000,
+					message: "ok",
+					data: [
+						{
+							id: "skill-a",
+							code: "skill-a",
+							name: "Skill A",
+							description: "Old description",
+							logo: null,
+							source: "system",
+						},
+					],
+				})
+				.mockResolvedValueOnce({
+					code: 1000,
+					message: "ok",
+					data: [
+						{
+							id: "skill-b",
+							code: "skill-b",
+							name: "Skill B",
+							description: "New description",
+							logo: "logo-b",
+							source: "agent",
+						},
+					],
+				})
+
+			await mentionPanelStore.getSkills()
+			expect(mentionPanelStore.skillList[0]?.name).toBe("Skill A")
+
+			await mentionPanelStore.refreshSkills()
+
+			expect(CrewApi.getMentionSkills).toHaveBeenCalledTimes(2)
+			expect(mentionPanelStore.skillList[0]?.name).toBe("Skill B")
+		})
+
+		it("should keep mention skill item shape stable", async () => {
+			vi.mocked(CrewApi.getMentionSkills).mockResolvedValueOnce({
+				code: 1000,
+				message: "ok",
+				data: [
+					{
+						id: "skill-1",
+						code: "skill-1",
+						name: "Skill One",
+						description: "Skill description",
+						logo: "skill-logo",
+						source: "mine",
+					},
+				],
+			})
+
+			const items = await mentionPanelStore.refreshSkills()
+
+			expect(items).toEqual([
+				expect.objectContaining({
+					id: "skill-1",
+					type: MentionItemType.SKILL,
+					name: "Skill One",
+					description: "Skill description",
+					data: expect.objectContaining({
+						id: "skill-1",
+						name: "Skill One",
+						icon: "skill-logo",
+						description: "Skill description",
+					}),
+				}),
+			])
 		})
 	})
 })

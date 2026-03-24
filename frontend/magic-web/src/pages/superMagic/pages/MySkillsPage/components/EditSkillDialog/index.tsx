@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Loader2 } from "lucide-react"
 import IdentityStep from "@/pages/superMagic/components/ImportSkillDialog/components/IdentityStep"
 import {
-	createEmptySkillI18nText,
 	createInitialSkillIdentityData,
 	normalizeSkillI18nText,
 } from "@/pages/superMagic/components/ImportSkillDialog/types"
@@ -37,8 +36,10 @@ function mapDetailToIdentity(detail: SkillDetailResponse): SkillIdentityData {
 	return {
 		iconUrl: detail.logo || undefined,
 		name: normalizeSkillI18nText(detail.name_i18n, detail.package_name),
-		role: createEmptySkillI18nText(),
-		description: normalizeSkillI18nText(detail.description_i18n, detail.package_description),
+		description: normalizeSkillI18nText(
+			detail.description_i18n,
+			detail.package_description ?? "",
+		),
 	}
 }
 
@@ -137,7 +138,12 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 							<Loader2 className="size-5 animate-spin text-muted-foreground" />
 						</div>
 					) : (
-						<IdentityStep identity={identity} onChange={setIdentity} />
+						<IdentityStep
+							identity={identity}
+							onChange={setIdentity}
+							namePlaceholder={t("editSkill.placeholders.name")}
+							descriptionPlaceholder={t("editSkill.placeholders.description")}
+						/>
 					)}
 				</ScrollArea>
 

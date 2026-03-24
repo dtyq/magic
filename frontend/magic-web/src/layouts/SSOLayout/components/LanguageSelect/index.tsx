@@ -1,6 +1,7 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconWorld } from "@tabler/icons-react"
 import MagicSelect from "@/components/base/MagicSelect"
+import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import {
 	setGlobalLanguage,
 	useGlobalLanguage,
@@ -14,6 +15,7 @@ function LanguageSelect() {
 	const lang = useGlobalLanguage()
 	const { prefersColorScheme } = useTheme()
 	const isDarkMode = prefersColorScheme === "dark"
+	if (!isLanguageSwitchEnabled()) return null
 
 	return (
 		<MagicSelect
