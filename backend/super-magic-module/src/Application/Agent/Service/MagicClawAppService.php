@@ -13,12 +13,14 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\MagicClawEntity;
 use Dtyq\SuperMagic\Domain\Agent\Event\BeforeCreateClawEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\MagicClawDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateMagicClawRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateMagicClawRequestDTO;
 use Hyperf\Di\Annotation\Inject;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 class MagicClawAppService extends AbstractSuperMagicAppService
 {
@@ -30,6 +32,9 @@ class MagicClawAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected ProjectDomainService $projectDomainService;
+
+    #[Inject]
+    protected TopicDomainService $topicDomainService;
 
     #[Inject]
     protected SandboxGatewayInterface $sandboxGateway;
@@ -107,16 +112,49 @@ class MagicClawAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * Delete a magic claw.
+     * Delete a magic claw and stop its associated sandbox (if any).
      */
     public function delete(Authenticatable $authorization, string $code): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $this->magicClawDomainService->deleteClaw(
-            $code,
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getCurrentOrganizationCode()
-        );
+        $userId = $dataIsolation->getCurrentUserId();
+        $orgCode = $dataIsolation->getCurrentOrganizationCode();
+
+        // Resolve sandbox_id before deletion: code → project_id → topic_id → sandbox_id
+        $sandboxId = null;
+        $entity = $this->magicClawDomainService->findByCode($code, $userId, $orgCode);
+        $projectId = $entity->getProjectId();
+        if ($projectId !== null) {
+            $topicIdMap = $this->projectDomainService->getTopicIdMapByProjectIds([$projectId]);
+            $topicId = $topicIdMap[$projectId] ?? null;
+            if ($topicId !== null) {
+                $topic = $this->topicDomainService->getTopicById($topicId);
+                $sandboxId = $topic?->getSandboxId() ?: null;
+            }
+        }
+
+        // Soft-delete MagicClaw record
+        $this->magicClawDomainService->deleteClaw($code, $userId, $orgCode);
+
+        // Stop sandbox after deletion (non-fatal: sandbox may already be gone)
+        if (! empty($sandboxId)) {
+            try {
+                $result = $this->sandboxGateway->deleteSandbox($sandboxId);
+                if (! $result->isSuccess()) {
+                    $this->logger->warning('[MagicClaw] Failed to stop sandbox after deletion', [
+                        'code' => $code,
+                        'sandbox_id' => $sandboxId,
+                        'message' => $result->getMessage(),
+                    ]);
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('[MagicClaw] Exception while stopping sandbox after deletion', [
+                    'code' => $code,
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
