@@ -105,6 +105,25 @@ func TestBuildProxyPlan_InvalidHostProxyWarnsAndReturnsEmptyPlan(t *testing.T) {
 	assert.Contains(t, plan.Warnings[0], "ignore invalid host proxy url")
 }
 
+func TestBuildProxyPlan_ReadProxyFileFailureAddsWarning(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(envNameCLIHostProxyURL, "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("http_proxy", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("https_proxy", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("all_proxy", "")
+	t.Setenv(envNameCLIContainerProxyURL, "")
+
+	plan, err := BuildProxyPlan(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, plan.HostProxyURL)
+	assert.Empty(t, plan.ContainerProxyURL)
+	require.NotEmpty(t, plan.Warnings)
+	assert.Contains(t, strings.ToLower(strings.Join(plan.Warnings, "\n")), "read proxy env file failed")
+}
+
 func TestProxyNoProxyDefaultsWith_ContainsExpectedDefaultsAndCustom(t *testing.T) {
 	entries := proxyNoProxyDefaultsWith("custom.internal")
 	assert.Contains(t, entries, "localhost")

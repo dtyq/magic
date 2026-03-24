@@ -20,12 +20,14 @@ const (
 	envNameCLIHostProxyURL      = "MAGICREW_CLI_HOST_PROXY_URL"
 	envNameCLIContainerProxyURL = "MAGICREW_CLI_CONTAINER_PROXY_URL"
 
-	dockerProbeCurlImage         = "curlimages/curl:latest"
-	dockerProbeTimeout           = 120 * time.Second
-	dockerBridgeInspectTimeout   = 50 * time.Second
-	dockerProbeCurlTargetTimeout = 60
+	dockerProbeCurlImage = "curlimages/curl:latest"
+
+	dockerBridgeInspectTimeout   = 5 * time.Second
+	dockerProbeCurlTargetTimeout = 10 * time.Second
 
 	dockerDaemonSmokeTimeout = 60 * time.Second
+
+	dockerProbeTimeout = dockerDaemonSmokeTimeout + dockerProbeCurlTargetTimeout
 )
 
 var containerProxyEgressTargets = []string{
@@ -59,9 +61,13 @@ func BuildProxyPlan(ctx context.Context) (ProxyPlan, error) {
 
 	if hostProxy == "" {
 		entries, err := readProxyEntriesFromFile(util.ExpandTilde(proxyEnvFilePath))
-		if err == nil {
+		if err != nil {
+			plan.Warnings = append(plan.Warnings, fmt.Sprintf("read proxy env file failed: %v", err))
+		} else {
 			restore, applyErr := applyEnvTemporarily(entries)
-			if applyErr == nil {
+			if applyErr != nil {
+				plan.Warnings = append(plan.Warnings, fmt.Sprintf("apply proxy env entries failed: %v", applyErr))
+			} else {
 				defer restore()
 				hostProxy = firstProxyFromEnv()
 				if containerProxy == "" {
