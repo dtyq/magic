@@ -522,12 +522,23 @@ export class SuperMagicStore {
 		if (appMessageId) {
 			runInAction(() => {
 				/** IMPORTANT: 当且仅当流式状态中文本内容存在待流式处理时才进行流式处理 */
-				if (cache.content?.length < content.length) {
+				/**
+				 * 旧逻辑只基于 `cache.content.length` 推进流式内容，
+				 * 但在流式消息和 HTML 预览增强场景下，`cache.content.length` 与 `index` 可能会短暂不同步，导致内容重复推进、局部回退，
+				 * 这里增加 `safeRenderedLength`，先对齐“当前已渲染长度”和“store 推进下标”，再继续推进后续内容，保证流式渲染更稳定。
+				 */
+				const renderedLength = cache.content?.length || 0
+				const safeRenderedLength = Math.min(Math.max(renderedLength, index), content.length)
+				if (renderedLength < safeRenderedLength) {
+					cache.content = content.slice(0, safeRenderedLength)
+				}
+
+				if (safeRenderedLength < content.length) {
 					// 缓存区是否存在多个消息节点
 					const hasNextCard = (this.buffer.get(topicId) || []).length > 0
 					// 每次渲染最大 5 个字符
 					topicMeta.content[correlationId].index = Math.min(
-						cache.content.length + (hasNextCard ? 5 : 1),
+						safeRenderedLength + (hasNextCard ? 5 : 1),
 						content.length,
 					)
 					cache.content = content.slice(0, topicMeta.content[correlationId].index)

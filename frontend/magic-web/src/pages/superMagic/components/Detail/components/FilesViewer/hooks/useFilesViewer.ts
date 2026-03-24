@@ -216,7 +216,14 @@ export function useFilesViewer(props: FilesViewerProps) {
 		onActiveTabChange,
 		topicName,
 		projectId,
+		onFileTabsCacheLoaded,
 	} = props
+
+	const onFileTabsCacheLoadedRef = useRef(onFileTabsCacheLoaded)
+	onFileTabsCacheLoadedRef.current = onFileTabsCacheLoaded
+	const notifyFileTabsCacheLoaded = useMemoizedFn((pid: string) => {
+		onFileTabsCacheLoadedRef.current?.(pid)
+	})
 
 	const { t } = useTranslation("super")
 
@@ -849,9 +856,9 @@ export function useFilesViewer(props: FilesViewerProps) {
 										// 恢复文件夹相关属性
 										...(file
 											? {
-												is_directory: file.is_directory,
-												children: file.children,
-											}
+													is_directory: file.is_directory,
+													children: file.children,
+												}
 											: {}),
 										metadata,
 									},
@@ -955,10 +962,14 @@ export function useFilesViewer(props: FilesViewerProps) {
 				setCacheLoaded(true)
 			}
 		}
-
+		// 如果文件列表为空，不加载缓存，避免出现显示文件被删除的 UI
+		if (fileList.length === 0) {
+			return
+		}
 		isRestoringCacheRef.current = true
 		void loadCacheState().finally(() => {
 			isRestoringCacheRef.current = false
+			notifyFileTabsCacheLoaded(selectedProject?.id)
 		})
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
@@ -967,6 +978,7 @@ export function useFilesViewer(props: FilesViewerProps) {
 		cacheLoaded,
 		projectStateRepository,
 		openPlaybackTab,
+		fileList,
 	])
 
 	useEffect(() => {

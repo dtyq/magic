@@ -2,19 +2,37 @@
 
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "react-router-dom"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { RecycleBinContent, RecycleBinSidebar } from "./components"
+import { useRecycleBinTabSearchParamsSync } from "./hooks/useRecycleBinTabSearchParamsSync"
+import {
+	RECYCLE_BIN_TABS_CONFIG,
+	getRecycleBinTabs,
+	getRecycleBinTabIdFromSearchParams,
+	isRecycleBinTabId,
+	setRecycleBinTabQuery,
+	type RecycleBinTab,
+	type RecycleBinTabId,
+} from "./tab-config"
 
 function RecycleBinPage() {
 	const { t } = useTranslation("super")
-	const [activeTabId, setActiveTabId] = useState(RECYCLE_BIN_TABS[0]?.id ?? "all")
+	const [searchParams] = useSearchParams()
+	const [activeTabId, setActiveTabId] = useState<RecycleBinTabId>(() => {
+		return (
+			getRecycleBinTabIdFromSearchParams(searchParams) ??
+			RECYCLE_BIN_TABS_CONFIG[0]?.id ??
+			"all"
+		)
+	})
 	const [tabCounts, setTabCounts] = useState<Record<string, number>>({})
 
-	const tabs = useMemo(() => {
-		return RECYCLE_BIN_TABS.map((tab) => ({
-			...tab,
-			count: tabCounts[tab.id] ?? 0,
-		}))
+	const tabs = useMemo<RecycleBinTab[]>(() => {
+		return getRecycleBinTabs({
+			counts: tabCounts,
+			variant: "pc",
+		})
 	}, [tabCounts])
 
 	const activeTab = useMemo(() => {
@@ -28,6 +46,16 @@ function RecycleBinPage() {
 			[tabId]: count,
 		}))
 	}
+
+	function handleTabChange(tabId: string) {
+		if (!isRecycleBinTabId(tabId)) return
+		setActiveTabId(tabId)
+		setRecycleBinTabQuery(tabId)
+	}
+
+	useRecycleBinTabSearchParamsSync({
+		onTabIdChange: setActiveTabId,
+	})
 
 	return (
 		<div
@@ -49,7 +77,7 @@ function RecycleBinPage() {
 				<RecycleBinSidebar
 					tabs={tabs}
 					activeTabId={activeTabId}
-					onTabChange={setActiveTabId}
+					onTabChange={handleTabChange}
 				/>
 				<RecycleBinContent activeTab={activeTab} onTabCountChange={handleTabCountChange} />
 			</div>
@@ -58,17 +86,3 @@ function RecycleBinPage() {
 }
 
 export default RecycleBinPage
-
-const RECYCLE_BIN_TABS: RecycleBinTab[] = [
-	{ id: "all", labelKey: "recycleBin.tabs.all", count: 0 },
-	{ id: "workspaces", labelKey: "recycleBin.tabs.workspaces", count: 0 },
-	{ id: "projects", labelKey: "recycleBin.tabs.projects", count: 0 },
-	{ id: "topics", labelKey: "recycleBin.tabs.topics", count: 0 },
-	// { id: "files", labelKey: "recycleBin.tabs.files", count: 0 },
-]
-
-interface RecycleBinTab {
-	id: string
-	labelKey: string
-	count: number
-}

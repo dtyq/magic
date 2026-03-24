@@ -108,7 +108,7 @@ pnpm lh:view
 **新组件（推荐）**：
 
 - 使用 **Tailwind CSS** + **shadcn/ui**
-- 组件位置：`src/opensource/components/shadcn-ui/`
+- 组件位置：`src/components/shadcn-ui/`
 - 配置文件：`components.json`、`tailwind.config.js`
 - 样式变量：`src/index.css`
 
@@ -130,7 +130,7 @@ pnpm lh:view
 **编写方式**：
 
 ```tsx
-import { cn } from "@/opensource/lib/utils"
+import { cn } from "@/lib/utils"
 
 // 基础组件示例
 function Button({ className, variant, ...props }) {
@@ -182,7 +182,7 @@ function Button({ className, variant, size, ...props }: VariantProps<typeof butt
 
 **关键要点**：
 
-- 使用 `cn()` 工具函数（来自 `@/opensource/lib/utils`）合并 Tailwind 类名
+- 使用 `cn()` 工具函数（来自 `@/lib/utils`）合并 Tailwind 类名
 - 使用 `class-variance-authority` (cva) 定义组件变体
 - 直接在 `className` prop 中使用 Tailwind 工具类
 - 支持响应式：使用 `sm:`、`md:`、`lg:` 等前缀
@@ -287,14 +287,14 @@ function Component() {
 
 **新组件开发（推荐）**：
 
-- shadcn/ui 组件：位于 `src/opensource/components/shadcn-ui/`，基于 Tailwind CSS
+- shadcn/ui 组件：位于 `src/components/shadcn-ui/`，基于 Tailwind CSS
 - 使用 `pnpm dlx shadcn@latest add [component]` 添加新组件
 
 **现有组件（维护模式）**：
 
 - 基础组件：基于 antd 封装了部分基础组件，完善了组件样式，或扩展了参数接口，文件目录位于 `src/components/base`，请优先使用
 - 业务组件：封装了日常业务中常用的组件，文件目录位于 `src/components/business`
-- 开源版本组件：位于 `src/opensource/components/`，包含 base、business、shadcn-ui 等目录
+- 开源版本组件：位于 `src/components/`，包含 base、business、shadcn-ui 等目录
 
 #### 组件开发原则
 
@@ -378,8 +378,8 @@ const Component = () => {
 
 #### 翻译文件位置
 
-- 中文：`src/opensource/assets/locales/zh_CN/interface.json`
-- 英文：`src/opensource/assets/locales/en_US/interface.json`
+- 中文：`src/assets/locales/zh_CN/interface.json`
+- 英文：`src/assets/locales/en_US/interface.json`
 
 #### 规范要求
 
@@ -408,10 +408,6 @@ magic-web/
 │   ├── components/         # 组件（base、business）
 │   ├── pages/              # 页面
 │   ├── stores/             # MobX 状态管理
-│   └── ...
-├── src/opensource/         # 开源版本代码
-│   ├── components/         # 组件（包含 shadcn-ui）
-│   ├── pages/              # 页面
 │   └── ...
 ├── packages/               # 内部包
 │   └── logger/             # 日志包

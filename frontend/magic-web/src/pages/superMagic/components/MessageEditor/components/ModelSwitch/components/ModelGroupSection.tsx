@@ -60,8 +60,6 @@ export function ModelGroupSection({
 										isSelected={false}
 										className={cn(
 											"w-fit max-w-full",
-											size === "small" && "max-w-20",
-											size === "mobile" && "max-w-[60px]",
 											isDisabled && "opacity-50",
 										)}
 									/>

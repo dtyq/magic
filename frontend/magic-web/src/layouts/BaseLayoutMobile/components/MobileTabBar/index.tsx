@@ -11,6 +11,8 @@ import { MessageIcon, ApprovalIcon } from "./icons"
 import useChatUnreadCount from "./hooks/useChatUnreadCount"
 import { userStore } from "@/models/user"
 import SuperIcon from "./icons/SuperIcon"
+import MagicrewIcon from "./icons/Magicrew"
+import { isInternationalEnv } from "@/utils/env"
 import { mobileTabStore } from "@/stores/mobileTab"
 import { RoutePathMobile } from "@/constants/routes"
 import { configStore } from "@/models/config"
@@ -203,100 +205,101 @@ function MobileTabBar() {
 	const iconSize = 20
 	// Memoize tab items to prevent unnecessary re-renders
 	const tabItems = useMemo(() => {
+		const SuperTabIcon = isInternationalEnv() ? MagicrewIcon : SuperIcon
 		const items = isPersonalOrganization
 			? ([
-				{
-					key: MobileTabBarKey.Super,
-					icon: (
-						<SuperIcon
-							active={activeKey === MobileTabBarKey.Super}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.super"),
-				},
-				...(isMagicAppVersionAtLeast("1.1.0")
-					? [
-						{
-							key: MobileTabBarKey.Recording,
-							icon: (
-								<RecordingIcon
-									active={activeKey === MobileTabBarKey.Recording}
-									size={iconSize}
-								/>
-							),
-							title: t("sider.mobileTabBar.recording"),
-						},
-					]
-					: []),
-				{
-					key: MobileTabBarKey.Profile,
-					icon: (
-						<ProfileIcon
-							active={activeKey === MobileTabBarKey.Profile}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.profile"),
-				},
-			] as TabBarItem[])
+					{
+						key: MobileTabBarKey.Super,
+						icon: (
+							<SuperTabIcon
+								active={activeKey === MobileTabBarKey.Super}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.super"),
+					},
+					...(isMagicAppVersionAtLeast("1.1.0")
+						? [
+								{
+									key: MobileTabBarKey.Recording,
+									icon: (
+										<RecordingIcon
+											active={activeKey === MobileTabBarKey.Recording}
+											size={iconSize}
+										/>
+									),
+									title: t("sider.mobileTabBar.recording"),
+								},
+							]
+						: []),
+					{
+						key: MobileTabBarKey.Profile,
+						icon: (
+							<ProfileIcon
+								active={activeKey === MobileTabBarKey.Profile}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.profile"),
+					},
+				] as TabBarItem[])
 			: ([
-				{
-					key: MobileTabBarKey.Super,
-					icon: (
-						<SuperIcon
-							active={activeKey === MobileTabBarKey.Super}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.super"),
-				},
-				{
-					key: MobileTabBarKey.Chat,
-					icon: (
-						<MessageIcon
-							active={activeKey === MobileTabBarKey.Chat}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.chat"),
-					badge: chatUnreadCount,
-				},
-				...(isMagicAppVersionAtLeast("1.1.0")
-					? [
-						{
-							key: MobileTabBarKey.Recording,
-							icon: (
-								<RecordingIcon
-									active={activeKey === MobileTabBarKey.Recording}
-									size={iconSize}
-								/>
-							),
-							title: t("sider.mobileTabBar.recording"),
-						},
-					]
-					: []),
-				{
-					key: MobileTabBarKey.Approval,
-					icon: (
-						<ApprovalIcon
-							active={activeKey === MobileTabBarKey.Approval}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.approval"),
-				},
-				{
-					key: MobileTabBarKey.Profile,
-					icon: (
-						<ProfileIcon
-							active={activeKey === MobileTabBarKey.Profile}
-							size={iconSize}
-						/>
-					),
-					title: t("sider.mobileTabBar.profile"),
-				},
-			].filter(Boolean) as TabBarItem[])
+					{
+						key: MobileTabBarKey.Super,
+						icon: (
+							<SuperTabIcon
+								active={activeKey === MobileTabBarKey.Super}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.super"),
+					},
+					{
+						key: MobileTabBarKey.Chat,
+						icon: (
+							<MessageIcon
+								active={activeKey === MobileTabBarKey.Chat}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.chat"),
+						badge: chatUnreadCount,
+					},
+					...(isMagicAppVersionAtLeast("1.1.0")
+						? [
+								{
+									key: MobileTabBarKey.Recording,
+									icon: (
+										<RecordingIcon
+											active={activeKey === MobileTabBarKey.Recording}
+											size={iconSize}
+										/>
+									),
+									title: t("sider.mobileTabBar.recording"),
+								},
+							]
+						: []),
+					{
+						key: MobileTabBarKey.Approval,
+						icon: (
+							<ApprovalIcon
+								active={activeKey === MobileTabBarKey.Approval}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.approval"),
+					},
+					{
+						key: MobileTabBarKey.Profile,
+						icon: (
+							<ProfileIcon
+								active={activeKey === MobileTabBarKey.Profile}
+								size={iconSize}
+							/>
+						),
+						title: t("sider.mobileTabBar.profile"),
+					},
+				].filter(Boolean) as TabBarItem[])
 
 		return items
 	}, [activeKey, chatUnreadCount, isPersonalOrganization, t])

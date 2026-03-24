@@ -21,8 +21,7 @@ export const env = (
 ): string => {
 	const { clusterConfig } = clusterStore
 
-	const defaultCDN =
-		import.meta.env?.MAGIC_CDNHOST || window?.CONFIG?.MAGIC_CDNHOST || "/packages"
+	const defaultCDN = import.meta.env?.MAGIC_CDNHOST || window?.CONFIG?.MAGIC_CDNHOST
 
 	if (deployCode && clusterConfig?.[deployCode]?.services && !isCurrentEnv) {
 		const dingTalkConfig = clusterConfig?.[deployCode]?.magic_app?.keyconfig?.find(

@@ -133,12 +133,10 @@ class OpenTaskApi extends AbstractApi
                 // 容器未正常运行，需要先运行容器
                 $userMessage = [
                     'chat_topic_id' => $topicDTO->getChatTopicId(),
-                    'topic_id' => (int) $topicDTO->getChatTopicId(),
-                    'chat_conversation_id' => $requestDTO->getConversationId(),
+                    'topic_id' => (int) $topicDTO->getId(),
                     'prompt' => $requestDTO->getPrompt(),
                     'attachments' => null,
                     'mentions' => null,
-                    'agent_user_id' => $magicUserAuthorization->getId(),
                     'agent_mode' => '',
                     'task_mode' => '',
                 ];

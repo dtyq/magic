@@ -8,7 +8,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import PinnedTag from "../EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
 import CollaborationProjectTag from "../CollaborationProjectTag"
 import { isCollaborationProject } from "../../constants"
-import { canManageProject, isOwner } from "../../utils/permission"
+import { canManageProject, isReadOnlyProject } from "../../utils/permission"
 import ProjectCardDropdown from "./components/ProjectCardDropdown"
 import ProjectCardShareSection from "./components/ProjectCardShareSection"
 
@@ -50,7 +50,7 @@ function ProjectCard({
 	const projectMenuContentRef = useRef<HTMLDivElement>(null)
 	const [isExpanded, setIsExpanded] = useState(false)
 	const isCollaborationProjectStatus = isCollaborationProject(selectedProject)
-	const canShare = isOwner(selectedProject?.user_role)
+	const canShare = !isReadOnlyProject(selectedProject?.user_role)
 	const canManage = canManageProject(selectedProject?.user_role)
 
 	useEffect(() => {

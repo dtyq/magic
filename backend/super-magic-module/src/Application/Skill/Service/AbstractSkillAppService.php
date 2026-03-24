@@ -16,6 +16,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 
 /**
@@ -200,6 +201,52 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
         foreach ($skillEntities as $skillEntity) {
             $fileLink = $allFileLinksMap[$skillEntity->getOrganizationCode()][$skillEntity->getFileKey()] ?? null;
             $skillEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
+        }
+    }
+
+    /**
+     * Update asset URLs for skill version entities.
+     *
+     * @param SkillVersionEntity[] $skillVersionEntities
+     */
+    protected function updateSkillVersionAssetUrls(SkillDataIsolation $dataIsolation, array $skillVersionEntities): void
+    {
+        if ($skillVersionEntities === []) {
+            return;
+        }
+
+        $logoPathsByOrg = [];
+        $fileKeysByOrg = [];
+        foreach ($skillVersionEntities as $skillVersionEntity) {
+            if ($skillVersionEntity->getLogo()) {
+                $logoPathsByOrg[$skillVersionEntity->getOrganizationCode()][] = EasyFileTools::formatPath($skillVersionEntity->getLogo());
+            }
+            if ($skillVersionEntity->getFileKey()) {
+                $fileKeysByOrg[$skillVersionEntity->getOrganizationCode()][] = $skillVersionEntity->getFileKey();
+            }
+        }
+
+        $logoLinksMapByOrg = [];
+        foreach ($logoPathsByOrg as $orgCode => $logoPaths) {
+            $logoLinksMapByOrg[$orgCode] = $this->getIcons($orgCode, $logoPaths);
+        }
+
+        $fileLinksMapByOrg = [];
+        foreach ($fileKeysByOrg as $orgCode => $fileKeys) {
+            $fileLinksMapByOrg[$orgCode] = $this->getPrivateFileLinks($orgCode, $fileKeys);
+        }
+
+        foreach ($skillVersionEntities as $skillVersionEntity) {
+            $orgCode = $skillVersionEntity->getOrganizationCode();
+            if ($skillVersionEntity->getLogo()) {
+                $formattedPath = EasyFileTools::formatPath($skillVersionEntity->getLogo());
+                $fileLink = $logoLinksMapByOrg[$orgCode][$formattedPath] ?? null;
+                $skillVersionEntity->setLogo($fileLink instanceof FileLink ? $fileLink->getUrl() : '');
+            }
+            if ($skillVersionEntity->getFileKey()) {
+                $fileLink = $fileLinksMapByOrg[$orgCode][$skillVersionEntity->getFileKey()] ?? null;
+                $skillVersionEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
+            }
         }
     }
 }

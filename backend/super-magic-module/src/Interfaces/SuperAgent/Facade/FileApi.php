@@ -536,11 +536,10 @@ class FileApi extends AbstractApi
         // 调用应用服务
         return $this->fileManagementAppService->getFileUrls(
             $requestContext,
-            $dto->getProjectId(),
             $dto->getFileIds(),
             $dto->getDownloadMode(),
             $options,
-            $dto->getFileVersions()  // 新增：直接作为方法参数传递
+            $dto->getFileVersions()
         );
     }
 

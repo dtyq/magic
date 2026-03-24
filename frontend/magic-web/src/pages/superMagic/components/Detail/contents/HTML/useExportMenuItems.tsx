@@ -24,6 +24,7 @@ export function useExportMenuItems({
 	isExporting = false,
 	showButtonText = true,
 	supportPPT = true,
+	handleExportPptx,
 }: {
 	handleExportSource: () => void
 	handleExportPDF: () => void
@@ -31,6 +32,7 @@ export function useExportMenuItems({
 	isExporting?: boolean
 	showButtonText?: boolean
 	supportPPT?: boolean
+	handleExportPptx?: () => void
 }) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
@@ -50,13 +52,19 @@ export function useExportMenuItems({
 			},
 			...(supportPPT && handleExportPPT
 				? [
-					{
-						key: "ppt",
-						label: t("topicFiles.exportPpt"),
-						icon: <IconFileTypePpt size={16} stroke={1.5} />,
-						onClick: handleExportPPT,
-					},
-				]
+						{
+							key: "ppt",
+							label: t("topicFiles.exportPpt"),
+							icon: <IconFileTypePpt size={16} stroke={1.5} />,
+							onClick: handleExportPPT,
+						},
+						{
+							key: "pptx",
+							label: t("topicFiles.exportPptx"),
+							icon: <IconFileTypePpt size={16} stroke={1.5} />,
+							onClick: handleExportPptx,
+						},
+					]
 				: []),
 		],
 		[handleExportPDF, handleExportPPT, handleExportSource, supportPPT, t],

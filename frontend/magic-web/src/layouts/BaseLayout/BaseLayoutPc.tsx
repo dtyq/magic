@@ -28,8 +28,7 @@ const isElectron = magic?.env?.isElectron?.()
 const ElectronHeader = lazy(() => import("./components/ElectronHeader"))
 
 const ShareManagementContainer = lazy(
-	() =>
-		import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
+	() => import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
 )
 
 function getSuperRouteParams(pathname: string): {
@@ -37,6 +36,25 @@ function getSuperRouteParams(pathname: string): {
 	projectId?: string
 	topicId?: string
 } {
+	// 旧版本路由解析兼容
+	if (pathname.includes("/super/collaboration")) {
+		const pathParts = pathname.split("/").filter(Boolean)
+		const superIndex = pathParts.indexOf("super")
+		return {
+			workspaceId: undefined,
+			projectId: pathParts[superIndex + 2],
+			topicId: undefined,
+		}
+	}
+	if (pathname.includes("/super/workspace")) {
+		const pathParts = pathname.split("/").filter(Boolean)
+		const superIndex = pathParts.indexOf("super")
+		return {
+			workspaceId: pathParts[superIndex + 2] || undefined,
+			projectId: undefined,
+			topicId: undefined,
+		}
+	}
 	const pathParts = pathname.split("/").filter(Boolean)
 	const superIndex = pathParts.indexOf("super")
 	if (superIndex === -1) return {}
@@ -57,7 +75,7 @@ const BaseLayoutPc = observer(() => {
 
 	// Handle smooth sidebar animation
 	useSidebarAnimation(sidebarPanelRef)
-	const { handleSidebarResize } = useSidebarResponsive({
+	const { handleSidebarResize, minSidebarSizePercent } = useSidebarResponsive({
 		sidebarPanelRef,
 		initialWidth,
 	})
@@ -120,7 +138,7 @@ const BaseLayoutPc = observer(() => {
 							minSize={
 								sidebarStore.collapsed
 									? sidebarStore.collapsedSizePercent
-									: sidebarStore.MIN_WIDTH_PERCENT
+									: minSidebarSizePercent
 							}
 							onResize={handleSidebarResize}
 						>

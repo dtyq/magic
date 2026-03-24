@@ -21,6 +21,8 @@ interface UserConversationItemProps {
 	enableMenu?: boolean
 	onMenuToggle?: () => void
 	onContextMenu?: (e: React.MouseEvent) => void
+	/** 用于 DOM id 前缀，避免 Message / AiBots 列表同 id 重复导致菜单定位错误 */
+	domIdPrefix?: string
 }
 
 const UserConversationItem = observer(
@@ -30,6 +32,7 @@ const UserConversationItem = observer(
 		enableMenu = true,
 		onMenuToggle,
 		onContextMenu,
+		domIdPrefix,
 	}: UserConversationItemProps) => {
 		const conversation = conversationStore.getConversation(conversationId)
 		const userInfo = userInfoStore.get(conversation.receive_id)
@@ -50,7 +53,7 @@ const UserConversationItem = observer(
 
 		return (
 			<Flex
-				id={conversation.id}
+				id={domIdPrefix ? `${domIdPrefix}-${conversation.id}` : conversation.id}
 				className={cx(
 					styles.container,
 					active ? "active" : undefined,

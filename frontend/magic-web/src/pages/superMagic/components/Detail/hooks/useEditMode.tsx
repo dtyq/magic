@@ -137,7 +137,7 @@ function useEditMode({ fileId, fileName }: { fileId?: string; fileName?: string 
 			return
 		}
 		try {
-			const promise = SuperMagicApi.leaveFileEdit(fileId).then(() => { })
+			const promise = SuperMagicApi.leaveFileEdit(fileId).then(() => {})
 			leaveStateRef.current.inFlight = promise
 			await promise
 			leaveStateRef.current.inFlight = null
@@ -251,7 +251,7 @@ function useEditMode({ fileId, fileName }: { fileId?: string; fileName?: string 
 						]
 
 						return (
-							<div className={cn("flex items-center justify-end gap-2")}>
+							<div className={cn("flex items-center justify-end gap-2 px-4 pb-4")}>
 								<CancelBtn />
 								{onSave ? (
 									<MagicDropdown menu={{ items: menuItems }} trigger={["hover"]}>

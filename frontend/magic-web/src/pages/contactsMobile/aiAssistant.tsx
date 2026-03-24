@@ -1,21 +1,20 @@
-import { MessageReceiveType } from "@/types/chat"
-import type { Friend } from "@/types/contact"
 import { useMemoizedFn } from "ahooks"
 import { createStyles } from "antd-style"
-import { useChatWithMember } from "@/hooks/chat/useChatWithMember"
-import userInfoStore from "@/stores/userInfo"
+import type { UserAvailableAgentInfo } from "@/apis/modules/chat/types"
 import MagicNavBar from "@/components/base-mobile/MagicNavBar"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { useTranslation } from "react-i18next"
 import { MagicButton } from "@dtyq/magic-admin/components"
 import { Flex } from "antd"
 import MagicAvatar from "@/components/base/MagicAvatar"
-import { getUserName } from "@/utils/modules/chat"
 import MagicInfiniteList from "@/components/business/MagicInfiniteList"
 import { useAiAssistantData } from "../contacts/hooks/useAiAssistantData"
+import { useOpenAiAssistantChat } from "../contacts/hooks/useOpenAiAssistantChat"
 import { RouteName } from "@/routes/constants"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { ListLoadingSkeleton } from "@/components/base/Skeleton"
+
+const mobileScrollTargetId = "contacts-ai-assistant-mobile-scroll"
 
 const useStyles = createStyles(({ css, token, prefixCls }) => {
 	return {
@@ -40,6 +39,27 @@ const useStyles = createStyles(({ css, token, prefixCls }) => {
 		item: css`
 			width: 100%;
 		`,
+		content: css`
+			flex: 1;
+			min-width: 0;
+		`,
+		name: css`
+			color: ${token.colorText};
+			font-size: 14px;
+			font-weight: 500;
+			line-height: 20px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		`,
+		description: css`
+			color: ${token.colorTextDescription};
+			font-size: 12px;
+			line-height: 18px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		`,
 	}
 })
 
@@ -47,31 +67,30 @@ function AiAssistant() {
 	const { styles } = useStyles()
 	const navigate = useNavigate()
 	const { t } = useTranslation("interface")
-	const chatWith = useChatWithMember()
+	const openAiAssistantChat = useOpenAiAssistantChat()
 
-	// Use the refactored hook
 	const { fetchAiAssistantData, initialData } = useAiAssistantData()
 
-	// 刷新列表（通过重新触发 dataFetcher）
 	const handleRefresh = useMemoizedFn(async () => {
-		// MagicInfiniteList 会自动通过 dataFetcher 重新获取数据
-		// 这里只需要返回 Promise
 		return
 	})
 
-	// Render item function
-	const renderItem = useMemoizedFn((item: Friend) => {
-		const user = userInfoStore.get(item.friend_id)
+	const renderItem = useMemoizedFn((item: UserAvailableAgentInfo) => {
 		const handleItemClick = () => {
-			chatWith(item.friend_id, MessageReceiveType.Ai, true)
+			void openAiAssistantChat(item)
 		}
 
 		return (
 			<Flex align="center" gap={10} onClick={handleItemClick} className={styles.item}>
-				<MagicAvatar src={user?.avatar_url} size={30}>
-					{getUserName(user)}
+				<MagicAvatar src={item.agent_avatar || item.robot_avatar} size={30}>
+					{item.agent_name || item.robot_name}
 				</MagicAvatar>
-				<div style={{ flex: 1 }}>{user?.real_name || item.friend_id}</div>
+				<div className={styles.content}>
+					<div className={styles.name}>{item.agent_name || item.robot_name}</div>
+					<div className={styles.description}>
+						{item.agent_description || item.robot_description}
+					</div>
+				</div>
 			</Flex>
 		)
 	})
@@ -104,19 +123,22 @@ function AiAssistant() {
 				<span className={styles.title}>{t("sider.aiAssistant")}</span>
 			</MagicNavBar>
 			<MagicPullToRefresh
+				containerId={mobileScrollTargetId}
 				onRefresh={handleRefresh}
 				showSuccessMessage={false}
 				height="calc(100% - 48px)"
 			>
 				<div className={styles.container}>
-					<MagicInfiniteList<Friend>
+					<MagicInfiniteList<UserAvailableAgentInfo>
+						key="contacts-ai-assistant-mobile"
 						dataFetcher={fetchAiAssistantData}
 						renderItem={renderItem}
-						getItemKey={(item: Friend) => item.friend_id}
+						getItemKey={(item: UserAvailableAgentInfo) => item.id}
 						useDefaultItemStyles={false}
 						itemClassName={styles.itemWrapper}
 						initialData={initialData}
 						initialLoadingComponent={<ListLoadingSkeleton count={7} avatarSize={30} />}
+						scrollableTarget={mobileScrollTargetId}
 					/>
 				</div>
 			</MagicPullToRefresh>

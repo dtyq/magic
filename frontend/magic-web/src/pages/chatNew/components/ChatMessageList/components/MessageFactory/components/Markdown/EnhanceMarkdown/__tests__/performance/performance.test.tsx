@@ -134,7 +134,7 @@ describe("EnhanceMarkdown Performance Tests", () => {
 		{
 			name: "Mixed Content",
 			content: `# Title
-   
+      
 This is a paragraph with **bold** and *italic* text.
 
 \`\`\`typescript

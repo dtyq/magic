@@ -83,7 +83,7 @@ If you're unsure which template to use or need help with Magic:
 
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/dtyq/magic/discussions)
 - 📖 **Documentation**: [docs.letsmagic.cn](https://docs.letsmagic.cn/en) | [中文文档](https://docs.letsmagic.cn/zh)
-- 🌐 **Official Website**: [letsmagic.ai](https://www.letsmagic.ai)
+- 🌐 **Official Website**: [magicrew.ai](https://www.magicrew.ai)
 - 📧 **Enterprise Support**: bd@dtyq.com
 
 ## Contributing

@@ -73,7 +73,7 @@
         "phpoffice/phpspreadsheet": "^2.0",
         "phpoffice/phpword": "^1.0",
         "spomky-labs/aes-key-wrap": "^7.0",
-        "swow/swow": "^v1.6.3-alpha.1",
+        "swow/swow": "1.7.*",
         "symfony/css-selector": "^7.1",
         "symfony/dom-crawler": "^7.1",
         "symfony/mime": "^7.1",

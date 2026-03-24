@@ -280,8 +280,8 @@ function createImperativeModal(
 					className={cn(
 						effectiveSize === "sm" && "flex-1",
 						type === "confirm" &&
-						variant === "destructive" &&
-						"bg-destructive/10 text-destructive hover:bg-destructive/20",
+							variant === "destructive" &&
+							"bg-destructive/10 text-destructive hover:bg-destructive/20",
 					)}
 					{...convertButtonProps(okButtonProps as Record<string, unknown>)}
 				>
@@ -352,13 +352,13 @@ function createImperativeModal(
 						}}
 					>
 						{/* Header/Content Section */}
-						<div className="px-4 py-8 pb-4">
+						<div className="p-4">
 							<div
 								className={cn(
 									"flex gap-3.5",
 									effectiveSize === "sm" &&
-									displayIcon &&
-									"flex-col items-center",
+										displayIcon &&
+										"flex-col items-center",
 								)}
 							>
 								{displayIcon && <div className="shrink-0">{displayIcon}</div>}
@@ -378,6 +378,7 @@ function createImperativeModal(
 											<DialogTitle
 												className={cn(
 													"text-base font-semibold text-foreground",
+													closable && "pr-5",
 													classNames?.title,
 												)}
 											>
@@ -394,8 +395,8 @@ function createImperativeModal(
 											className={cn(
 												"text-sm text-muted-foreground",
 												effectiveSize === "sm" &&
-												displayIcon &&
-												"text-center",
+													displayIcon &&
+													"text-center",
 												classNames?.body,
 											)}
 										>

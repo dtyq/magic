@@ -1,10 +1,11 @@
 import type {
 	GenerateImageRequest,
 	CanvasDesignMethods,
-	ImageGenerationResultResponse,
 	MagicPermissions,
 	GenerateHightImageRequest,
 	IdentifyImageMarkResponse,
+	GenerateVideoRequest,
+	GenerationStatus,
 } from "../types.magic"
 import type { TFunction } from "../context/I18nContext"
 
@@ -80,6 +81,8 @@ export const ElementTypeEnum = {
 	Triangle: "triangle",
 	/** 星形 */
 	Star: "star",
+	/** 视频 */
+	Video: "video",
 } as const
 
 /** 元素类型 */
@@ -266,13 +269,24 @@ export interface ImageElement extends BaseElementProps {
 	/** 图片源(用来换取 ossSrc 的临时 path) */
 	src?: string
 	/** 状态 */
-	status?: ImageGenerationResultResponse["status"]
+	status?: GenerationStatus
 	/** 错误信息 */
 	errorMessage?: string
 	/** 图片生成请求参数（请求成功后保存） */
 	generateImageRequest?: GenerateImageRequest
 	/** 高清化图片生成请求参数（请求成功后保存） */
 	generateHightImageRequest?: GenerateHightImageRequest
+}
+
+/** 视频元素 */
+export interface VideoElement extends BaseElementProps {
+	type: typeof ElementTypeEnum.Video
+	/** 视频源(用来换取 ossSrc 的临时 path) */
+	src?: string
+	/** 视频状态 */
+	status?: GenerationStatus
+	/** 视频生成请求参数（请求成功后保存） */
+	generateVideoRequest?: GenerateVideoRequest
 }
 
 /** 图层元素联合类型 */
@@ -285,6 +299,7 @@ export type LayerElement =
 	| TriangleElement
 	| TextElement
 	| ImageElement
+	| VideoElement
 
 /** 视口状态 */
 export interface ViewportState {

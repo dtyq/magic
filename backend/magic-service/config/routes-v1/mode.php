@@ -48,5 +48,6 @@ Router::addGroup('/api/v1', static function () {
     });
     Router::addGroup('/modes', static function () {
         Router::get('', [ModeApi::class, 'getModes']);
+        Router::get('/{identifier}', [ModeApi::class, 'show']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

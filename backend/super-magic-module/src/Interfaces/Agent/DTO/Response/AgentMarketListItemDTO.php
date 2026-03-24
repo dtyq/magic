@@ -16,8 +16,6 @@ class AgentMarketListItemDTO extends AbstractDTO
 {
     public bool $isAdded;
 
-    public bool $needUpgrade;
-
     public string $createdAt;
 
     public string $updatedAt;
@@ -37,7 +35,7 @@ class AgentMarketListItemDTO extends AbstractDTO
     /**
      * Agent图标对象，包含 type 和 value.
      */
-    private array $icon;
+    private ?array $icon = null;
 
     private int $iconType;
 
@@ -50,7 +48,13 @@ class AgentMarketListItemDTO extends AbstractDTO
 
     private string $publisherType;
 
+    private array $publisher;
+
     private ?int $categoryId;
+
+    private ?string $latestVersionCode;
+
+    private bool $allowDelete;
 
     public function __construct(
         int $id,
@@ -59,13 +63,15 @@ class AgentMarketListItemDTO extends AbstractDTO
         array $nameI18n,
         ?array $roleI18n,
         ?array $descriptionI18n,
-        array $icon,
+        ?array $icon,
         int $iconType,
         array $playbooks,
         string $publisherType,
+        array $publisher,
         ?int $categoryId,
         bool $isAdded,
-        bool $needUpgrade,
+        ?string $latestVersionCode,
+        bool $allowDelete,
         string $createdAt,
         string $updatedAt
     ) {
@@ -79,9 +85,11 @@ class AgentMarketListItemDTO extends AbstractDTO
         $this->iconType = $iconType;
         $this->playbooks = $playbooks;
         $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
         $this->categoryId = $categoryId;
         $this->isAdded = $isAdded;
-        $this->needUpgrade = $needUpgrade;
+        $this->latestVersionCode = $latestVersionCode;
+        $this->allowDelete = $allowDelete;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -102,9 +110,11 @@ class AgentMarketListItemDTO extends AbstractDTO
             'icon_type' => $this->iconType,
             'playbooks' => $this->playbooks,
             'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
             'category_id' => (string) $this->categoryId,
             'is_added' => $this->isAdded,
-            'need_upgrade' => $this->needUpgrade,
+            'latest_version_code' => $this->latestVersionCode,
+            'allow_delete' => $this->allowDelete,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

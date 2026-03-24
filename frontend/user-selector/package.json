@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/user-selector",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "React user selector components for organization and member selection.",
 	"keywords": [
 		"react",
@@ -176,5 +176,11 @@
 	},
 	"publishConfig": {
 		"access": "public"
+	},
+	"pnpm": {
+		"overrides": {
+			"stylelint-config-recommended-less": "^2.0.0",
+			"stylelint-less": "^2.0.0"
+		}
 	}
 }

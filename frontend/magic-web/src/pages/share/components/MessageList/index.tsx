@@ -7,69 +7,47 @@ import { useMemoizedFn } from "ahooks"
 import { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 import {
 	messagesConverter,
-	getMessageNodeKey,
 	createCheckIsLastMessage,
 } from "@/pages/superMagic/components/MessageList/helpers"
-import { toJS } from "mobx"
+import { buildMessageKeysAndTurnGroups } from "@/pages/superMagic/components/MessageList/message-turn-groups"
+import { MessageTurnGroupList } from "@/pages/superMagic/components/MessageList/MessageTurnGroupList"
 import { MessageListProvider } from "@/pages/superMagic/components/MessageList/context"
+import { useIsMobile } from "@/hooks/useIsMobile"
 
 function MessageList({
-	topicId,
 	messageList,
 	onSelectDetail,
 	currentTopicStatus,
+	stickyMessageClassName,
 }: {
 	topicId: string
 	messageList: any[]
 	onSelectDetail: (detail: any) => void
 	currentTopicStatus: TaskStatus
+	/**
+	 * Sticky user-turn mask. Default uses sidebar rgb. Override via:
+	 * `[--sticky-message-mask-bg:rgb(var(--background-rgb))]
+	 *  [--sticky-message-mask-fade-from:rgb(var(--background-rgb))]`
+	 */
+	stickyMessageClassName?: string
 }) {
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
+	const isMobile = useIsMobile()
 
-	// useEffect(() => {
-	// 	if (Array.isArray(messageList) && topicId) {
-	// 		// // 分享页不显示已撤销的消息
-	// 		// const _revokedMessageIndex = messageList.findIndex(
-	// 		// 	(item: any) => item?.im_status === MessageStatus.REVOKED,
-	// 		// )
-	// 		// const revokedMessageIndex =
-	// 		// 	_revokedMessageIndex !== -1 ? _revokedMessageIndex : messageList.length
-	// 		superMagicStore.setShareMessage(topicId, messageList)
-	// 	}
-	// }, [messageList.length, topicId])
-
-	// const messages = superMagicStore.messages.get(topicId) || []
 	const messages = messageList
 
-	const checkIsLastMessage = useMemoizedFn(createCheckIsLastMessage(messagesConverter(messages)))
+	const convertedMessages = useMemo(
+		() => messagesConverter(messages) as Array<SuperMagicMessageItem>,
+		[messages],
+	)
 
-	const renderList = useMemoizedFn((list: Array<SuperMagicMessageItem>) => {
-		return list?.map((node: SuperMagicMessageItem, index: number) => {
-			// const nodeType = node?.[node?.type]?.type
-			// const NodeComponent = NodeMap?.[nodeType] || Node
-			// if (index > 4) {
-			// 	return null
-			// }
-			return (
-				<Node
-					key={getMessageNodeKey(node)}
-					node={node}
-					// prevNode={index > 0 ? data[index - 1] : undefined}
-					// selectedTopic={selectedTopic}
-					// checkIsLastNode={checkIsLastNode}
-					onSelectDetail={onSelectDetail}
-					isSelected
-					currentTopicStatus={TaskStatus.FINISHED}
-					role={node?.role || "user"}
-					isFirst={list?.[index - 1]?.role === "user"}
-					checkIsLastMessage={checkIsLastMessage}
-					selectedTopic={null}
-					isShare={true}
-				/>
-			)
-		})
-	})
+	const { messageTurnGroups } = useMemo(
+		() => buildMessageKeysAndTurnGroups(convertedMessages),
+		[convertedMessages],
+	)
+
+	const checkIsLastMessage = useMemoizedFn(createCheckIsLastMessage(convertedMessages))
 
 	const value = useMemo(() => {
 		return {
@@ -79,33 +57,25 @@ function MessageList({
 
 	return (
 		<MessageListProvider value={value}>
-			<div
-				onClick={() =>
-					console.log(
-						/** keep-console */ "---->",
-						toJS(messages),
-						messagesConverter(messages),
-						messageList,
-					)
-				}
-			>
-				{renderList(messagesConverter(messages))}
-				{/*{messageList.slice(0, revokedMessageIndex).map((item: any, index: number) => {*/}
-				{/*	return (*/}
-				{/*		<Node*/}
-				{/*			node={item}*/}
-				{/*			key={item.message_id}*/}
-				{/*			prevNode={index > 0 ? messageList[index - 1] : undefined}*/}
-				{/*			onSelectDetail={onSelectDetail}*/}
-				{/*			isSelected*/}
-				{/*			isShare*/}
-				{/*			currentTopicStatus={TaskStatus.FINISHED}*/}
-				{/*			checkIsLastNode={(messageId) => {*/}
-				{/*				return messageId === messageList[messageList.length - 1].message_id*/}
-				{/*			}}*/}
-				{/*		/>*/}
-				{/*	)*/}
-				{/*})}*/}
+			<div className="flex flex-col gap-2">
+				<MessageTurnGroupList
+					groups={messageTurnGroups}
+					isMobile={isMobile}
+					stickyMessageClassName={stickyMessageClassName}
+					renderNode={({ node, index }) => (
+						<Node
+							node={node}
+							onSelectDetail={onSelectDetail}
+							isSelected
+							currentTopicStatus={TaskStatus.FINISHED}
+							role={node?.role || "user"}
+							isFirst={convertedMessages?.[index - 1]?.role === "user"}
+							checkIsLastMessage={checkIsLastMessage}
+							selectedTopic={null}
+							isShare={true}
+						/>
+					)}
+				/>
 				{messageList.length > 0 && currentTopicStatus !== TaskStatus.RUNNING && (
 					<div className={styles.aiGeneratedTip}>{t("ui.aiGeneratedTip")}</div>
 				)}

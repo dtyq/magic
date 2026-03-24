@@ -1,13 +1,3 @@
-import { GmailIcon, GoogleIcon, FigmaIcon, GitHubIcon, NotionIcon } from "./components/ToolIconSvgs"
-
-export const TOOL_ICONS = [
-	{ id: "gmail", label: "Gmail", icon: GmailIcon },
-	{ id: "google", label: "Google", icon: GoogleIcon },
-	{ id: "figma", label: "Figma", icon: FigmaIcon },
-	{ id: "github", label: "GitHub", icon: GitHubIcon },
-	{ id: "notion", label: "Notion", icon: NotionIcon },
-]
-
 export const AGENT_INPUT_CONTAINER_HEADER_ID = "agent-input-container-header" as const
 
 /**

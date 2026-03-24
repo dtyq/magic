@@ -2,14 +2,35 @@
 	"name": "magic-web",
 	"version": "3.0.0",
 	"private": true,
+	"description": "Main Magic web application built with React and Vite for enterprise and open-source editions.",
+	"keywords": [
+		"react",
+		"vite",
+		"web-application",
+		"enterprise",
+		"typescript",
+		"ai",
+		"agent",
+		"super-magic"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/magic-web#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/magic-web"
+	},
+	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
-		"build": "pnpm build:enterprise",
+		"build": "pnpm build:opensource",
 		"build:enterprise": "EDITION=enterprise node scripts/build.cjs",
 		"build:iframe": "cd src/pages/superMagic/components/Detail/contents/HTML/iframe-runtime && pnpm run build",
 		"build:opensource": "node scripts/build.cjs",
 		"coverage": "vitest run --coverage",
-		"dev": "pnpm dev:enterprise",
+		"dev": "pnpm dev:opensource",
 		"dev:all": "concurrently --names \"opensource,enterprise\" --prefix-colors \"cyan,yellow\" \"PORT=4443 pnpm dev:opensource\" \"EDITION=enterprise node scripts/dev.cjs\"",
 		"dev:enterprise": "EDITION=enterprise node scripts/dev.cjs",
 		"dev:iframe": "cd src/pages/superMagic/components/Detail/contents/HTML/iframe-runtime && pnpm run build:watch",
@@ -61,7 +82,7 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@dtyq/es6-template-strings": "~0.0.4",
-		"@dtyq/magic-admin": "^0.1.8",
+		"@dtyq/magic-admin": "^0.1.12",
 		"@dtyq/magic-flow": "0.0.13",
 		"@dtyq/timezone": "^0.0.2",
 		"@dtyq/upload-sdk": "~0.0.9",

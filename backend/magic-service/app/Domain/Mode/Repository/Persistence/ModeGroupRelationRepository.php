@@ -24,8 +24,10 @@ class ModeGroupRelationRepository extends AbstractRepository implements ModeGrou
         $builder = $this->createBuilder($dataIsolation, ModeGroupRelationModel::query());
         /** @var null|ModeGroupRelationModel $model */
         $model = $builder->where('id', $id)->first();
-
-        return $model ? ModeGroupRelationFactory::modelToEntity($model) : null;
+        if ($model instanceof ModeGroupRelationModel) {
+            return ModeGroupRelationFactory::modelToEntity($model);
+        }
+        return null;
     }
 
     /**

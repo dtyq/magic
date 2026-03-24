@@ -6,13 +6,13 @@ const path = require("node:path")
 module.exports.baseUrl = "http://magic-service:9501"
 
 /** teamshare service(official service) */
-module.exports.teamshareUrl = "http://teamshare-service:9501"
+module.exports.teamshareUrl = "http://teamshare-service.teamshare:9501"
 
 /** keewood service(official service) */
 module.exports.keewoodUrl = "http://keewood-v2-service.teamshare:9501"
 
 /** CDN 地址 */
-module.exports.CDNUrl = process.env.MAGIC_CDNHOST || "/packages"
+module.exports.CDNUrl = process.env.MAGIC_CDNHOST
 
 /** 用户行为分析功能 */
 const behaviorAnalysis = process.env?.MAGIC_USER_BEHAVIOR_ANALYSIS || "[]"

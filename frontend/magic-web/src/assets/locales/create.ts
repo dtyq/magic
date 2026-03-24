@@ -22,11 +22,11 @@ const allNamespaces = Object.keys(zhCNModules)
 
 // 从 @teamshare/magic-admin 包中导入国际化资源
 const adminZhCNModules = import.meta.glob(
-	"../../../../node_modules/@teamshare/magic-admin/dist/locales/zh_CN/**/*.json",
+	"../../../node_modules/@dtyq/magic-admin/dist/src/locales/zh_CN/**/*.json",
 	{ eager: true },
 )
 const adminEnUSModules = import.meta.glob(
-	"../../../../node_modules/@teamshare/magic-admin/dist/locales/en_US/**/*.json",
+	"../../../node_modules/@dtyq/magic-admin/dist/src/locales/en_US/**/*.json",
 	{ eager: true },
 )
 
@@ -89,7 +89,7 @@ export function createI18nNext(defaultLang?: string) {
 				// 处理 magicFlow 命名空间
 				if (namespace === "magicFlow") {
 					return import(
-						`../../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizedLng}/${namespace}.json`
+						`../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizedLng}/${namespace}.json`
 					)
 				}
 

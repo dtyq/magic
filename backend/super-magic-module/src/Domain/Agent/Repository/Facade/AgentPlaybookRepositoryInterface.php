@@ -35,6 +35,11 @@ interface AgentPlaybookRepositoryInterface
     public function getByAgentCodeForCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode, ?bool $isEnabled = null): array;
 
     /**
+     * @return AgentPlaybookEntity[]
+     */
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId, ?bool $isEnabled = null): array;
+
+    /**
      * 保存 Playbook 实体.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象

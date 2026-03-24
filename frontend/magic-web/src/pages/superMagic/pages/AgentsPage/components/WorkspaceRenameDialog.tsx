@@ -65,7 +65,7 @@ export function WorkspaceRenameDialog({
 				<DialogHeader>
 					<DialogTitle>{t("common.rename")}</DialogTitle>
 				</DialogHeader>
-				<div className="py-4">
+				<div>
 					<Input
 						autoFocus
 						maxLength={100}

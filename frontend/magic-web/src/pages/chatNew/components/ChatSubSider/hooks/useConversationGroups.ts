@@ -1,8 +1,6 @@
 import { useMemo } from "react"
 import conversationSidebarStore from "@/stores/chatNew/conversationSidebar"
-import { ConversationGroupLists, MessageGroupKey } from "../types"
-
-const INITIAL_BATCH_SIZE = window.innerHeight / 40
+import { MessageGroupKey } from "../types"
 
 /**
  * Hook for managing conversation groups
@@ -53,6 +51,17 @@ export function useConversationGroups() {
 		return undefined
 	}, [groupGroupList.length, singleGroupList.length, topGroupList.length])
 
+	const defaultActiveKeys = useMemo(() => {
+		const nextKeys: MessageGroupKey[] = []
+
+		if (topGroupList.length) nextKeys.push(MessageGroupKey.Pinned)
+		if (singleGroupList.length) nextKeys.push(MessageGroupKey.Single)
+		if (nextKeys.length) return nextKeys
+		if (groupGroupList.length) return [MessageGroupKey.Group]
+
+		return []
+	}, [groupGroupList.length, singleGroupList.length, topGroupList.length])
+
 	return {
 		topGroupList,
 		singleGroupList,
@@ -63,5 +72,6 @@ export function useConversationGroups() {
 		groupGroupKey,
 		aiGroupKey,
 		firstAvailableGroup,
+		defaultActiveKeys,
 	}
 }

@@ -231,6 +231,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleDownloadOriginal,
 		handleDownloadPdf,
 		handleDownloadPpt,
+		handleDownloadPptx,
 		handleOpenFile,
 		handleMoveFile,
 		shareModalVisible,
@@ -647,6 +648,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleDownloadOriginal,
 		handleDownloadPdf,
 		handleDownloadPpt,
+		handleDownloadPptx,
 		handleOpenFile,
 		handleStartRename,
 		handleAddToCurrentChat,
@@ -1488,7 +1490,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 				{isMobile && isSelectMode && (
 					<Button
 						variant="secondary"
-						className="shadow-xs h-9 px-8 py-2 text-sm font-medium"
+						className="h-9 px-8 py-2 text-sm font-medium shadow-xs"
 						onClick={() => pubsub.publish(PubSubEvents.Cancel_File_Selection)}
 					>
 						{t("topicFiles.cancelSelect")}
@@ -1503,7 +1505,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					>
 						<Button
 							variant="default"
-							className="shadow-xs h-9 w-[253px] gap-2 px-4 py-2 text-sm font-medium"
+							className="h-9 w-[253px] gap-2 px-4 py-2 text-sm font-medium shadow-xs"
 							disabled={!showBatchDownload || batchLoading}
 						>
 							{batchLoading ? <Loader2 className="animate-spin" size={16} /> : null}
@@ -1655,7 +1657,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					}
 					text={
 						crossProjectOperation.isOperating &&
-							crossProjectOperation.operationType === "copy"
+						crossProjectOperation.operationType === "copy"
 							? t("topicFiles.copying")
 							: t("topicFiles.moving")
 					}

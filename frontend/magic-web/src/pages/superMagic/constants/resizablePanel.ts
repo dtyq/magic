@@ -19,7 +19,7 @@ export const MESSAGE_PANEL_WIDTH_STORAGE_KEY = "MAGIC:supermagic-message-panel-w
  */
 export const DEFAULT_MIN_WIDTH = {
 	PROJECT_SIDER: 240,
-	MESSAGE_PANEL: 420,
+	MESSAGE_PANEL: 360,
 }
 
 /**

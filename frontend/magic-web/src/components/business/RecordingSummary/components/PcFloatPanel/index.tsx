@@ -338,6 +338,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 			{/* {isFullscreen && <div className={styles.fullscreenOverlay} />} */}
 			<div
 				ref={elementRef}
+				data-testid="record-summary-pc-float-panel"
 				className={cx(
 					styles.container,
 					isDragging && styles.dragging,
@@ -349,12 +350,13 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 					isExpanded || isFullscreen
 						? {}
 						: {
-							left: position.x,
-							top: position.y,
-						}
+								left: position.x,
+								top: position.y,
+							}
 				}
 			>
 				<div
+					data-testid="record-summary-pc-float-panel-content"
 					className={cx(
 						styles.content,
 						getExpandedStyle(),
@@ -368,6 +370,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 						<MagicSplitter.Panel defaultSize="70%" className={styles.contentLeft}>
 							{/* Header - 始终显示 */}
 							<div
+								data-testid="record-summary-pc-float-panel-header"
 								className={cx(
 									styles.header,
 									"recording-header",
@@ -415,6 +418,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 												isPausing={isPausing}
 												isContinuing={isContinuing}
 												disabled={isWaitingSummarize}
+												data-testid="record-summary-pc-float-panel-pause"
 											/>
 										)}
 										{isEditMode && (
@@ -422,6 +426,8 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 												title={t("recordingSummary.actions.stopRecording")}
 											>
 												<button
+													type="button"
+													data-testid="record-summary-pc-float-panel-stop-button"
 													className={cx(styles.cancelButton)}
 													disabled={isWaitingSummarize}
 													onClick={onCancelRecording}
@@ -438,6 +444,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 											<RetryButton
 												isRetrying={isRetrying}
 												onRetryVoiceService={onRetryVoiceService}
+												data-testid="record-summary-pc-float-panel-retry-voice"
 											/>
 										)}
 										{isExpanded && isEditMode && (
@@ -446,6 +453,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 												onChange={handleAudioSourceChange}
 												disabled={isSwitchingAudioSource}
 												size="small"
+												data-testid="record-summary-pc-float-panel-audio-source"
 											/>
 										)}
 									</div>
@@ -463,6 +471,8 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 											)}
 
 											<button
+												type="button"
+												data-testid="record-summary-pc-float-panel-expand-button"
 												className={cx(
 													styles.toggleButton,
 													!isExpanded && "left-divider",
@@ -484,6 +494,8 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 											</button>
 											{isExpanded && (
 												<button
+													type="button"
+													data-testid="record-summary-pc-float-panel-ai-chat-toggle"
 													className={cx(styles.toggleButton)}
 													onClick={() => onToggleExpandedAiChat()}
 												>
@@ -511,7 +523,11 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 														<RecordingDebugPanel isOpen />
 													)}
 												>
-													<button className={cx(styles.toggleButton)}>
+													<button
+														type="button"
+														data-testid="record-summary-pc-float-panel-debug-trigger"
+														className={cx(styles.toggleButton)}
+													>
 														{isDebugPanelOpen
 															? t("recordingSummary.debugPanel.close")
 															: t("recordingSummary.debugPanel.open")}
@@ -533,7 +549,10 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 									defaultSize="40%"
 								>
 									{/* Messages - 动画容器 */}
-									<div style={{ position: "relative", height: "100%" }}>
+									<div
+										data-testid="record-summary-pc-float-panel-messages"
+										style={{ position: "relative", height: "100%" }}
+									>
 										{isEditMode && hasVoiceError && (
 											<RetrySection
 												onRetryVoiceService={onRetryVoiceService}
@@ -548,7 +567,11 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 								</MagicSplitter.Panel>
 								{isEditMode && (
 									<MagicSplitter.Panel min={340} defaultSize="60%">
-										<FlexBox vertical className={styles.editorContainer}>
+										<FlexBox
+											vertical
+											className={styles.editorContainer}
+											data-testid="record-summary-pc-float-panel-editor"
+										>
 											<FlexBox
 												className={styles.editorTitle}
 												align="center"
@@ -593,6 +616,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 														"recordingSummary.ui.editorPlaceholder",
 													)}
 													onSave={onSave}
+													data-testid="record-summary-pc-float-panel-editor-body"
 												/>
 											)}
 											{/* <FlexBox
@@ -624,6 +648,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 								max="50%"
 								min={380}
 								className={styles.contentRight}
+								data-testid="record-summary-pc-float-panel-ai-chat-panel"
 							>
 								<AiChat
 									projectFilesStore={projectFilesStore}
@@ -637,7 +662,9 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 					</MagicSplitter>
 				</div>
 			</div>
-			{isExpanded && <div className={styles.shadow} />}
+			{isExpanded && (
+				<div data-testid="record-summary-pc-float-panel-shadow" className={styles.shadow} />
+			)}
 		</>
 	)
 }

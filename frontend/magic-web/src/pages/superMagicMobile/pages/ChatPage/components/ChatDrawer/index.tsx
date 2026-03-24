@@ -13,12 +13,7 @@ import { useProjectListActions } from "@/pages/superMagicMobile/components/Proje
 import { useMemoizedFn } from "ahooks"
 import ActionsPopupComponent from "@/pages/superMagicMobile/components/ActionsPopup"
 import RenameModal from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ActionModals/RenameModal"
-import type {
-	Workspace,
-	ProjectListItem,
-	Topic,
-} from "@/pages/superMagic/pages/Workspace/types"
-import { openModal } from "@/utils/react"
+import type { Workspace, ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import DeleteDangerModal from "@/components/business/DeleteDangerModal"
 import SuperMagicService from "@/pages/superMagic/services"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -99,6 +94,7 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 	const [renameModalVisible, setRenameModalVisible] = useState(false)
 	const [currentActionItem, setCurrentActionItem] = useState<ActionItem | null>(null)
 	const [projectDeleteModalVisible, setProjectDeleteModalVisible] = useState(false)
+	const [workspaceDeleteModalVisible, setWorkspaceDeleteModalVisible] = useState(false)
 
 	const closeActionsPopup = useMemoizedFn(() => {
 		setWorkspaceActionsPopupVisible(false)
@@ -201,13 +197,14 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 	// 处理工作区删除
 	const handleDeleteWorkspaceConfirm = useMemoizedFn((workspace?: Workspace) => {
 		if (!workspace) return
-		openModal(DeleteDangerModal, {
-			content: workspace.name || t("workspace.unnamedWorkspace"),
-			needConfirm: true,
-			onSubmit: async () => {
-				await SuperMagicService.deleteWorkspace(workspace.id)
-			},
-		})
+		closeActionsPopup()
+		setWorkspaceDeleteModalVisible(true)
+	})
+
+	const handleDeleteWorkspaceSubmit = useMemoizedFn(async () => {
+		const workspace = currentActionItem?.workspace
+		if (!workspace) return
+		await SuperMagicService.deleteWorkspace(workspace.id)
 	})
 
 	// 处理项目删除
@@ -258,7 +255,6 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 				label: t("hierarchicalWorkspacePopup.deleteWorkspace"),
 				onClick: () => {
 					handleDeleteWorkspaceConfirm(currentActionItem?.workspace)
-					closeActionsPopup()
 				},
 				variant: "danger",
 			},
@@ -414,6 +410,15 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 					</Button>
 				</div>
 			</ActionDrawer>
+
+			{workspaceDeleteModalVisible && currentActionItem?.workspace && (
+				<DeleteDangerModal
+					content={currentActionItem.workspace.name || t("workspace.unnamedWorkspace")}
+					needConfirm={true}
+					onClose={() => setWorkspaceDeleteModalVisible(false)}
+					onSubmit={handleDeleteWorkspaceSubmit}
+				/>
+			)}
 
 			{projectActionComponents}
 		</>

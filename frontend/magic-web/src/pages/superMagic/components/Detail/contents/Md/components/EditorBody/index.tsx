@@ -2,10 +2,7 @@ import { memo, useEffect, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
 import MagicSpin from "@/components/base/MagicSpin"
 import EditorErrorBoundary from "./components/EditorErrorBoundary"
-import {
-	SimpleEditor,
-	SimpleEditorRef,
-} from "@/components/tiptap-templates/simple/simple-editor"
+import { SimpleEditor, SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
 import { useProjectImageExtensions } from "@/components/tiptap-templates/simple/hooks"
 import { useCustomLinkNode } from "./hooks/useCustomLinkNode"
 import CodeSourceEditor from "./components/CodeSourceEditor"
@@ -40,6 +37,7 @@ interface EditorBodyProps {
 	attachments?: AttachmentFile[]
 	onOpenFile?: (fileItem: { file_id: string }) => void
 	onSave?: (editor: Editor | null) => void
+	"data-testid"?: string
 }
 
 function EditorBody({
@@ -62,6 +60,7 @@ function EditorBody({
 	attachments,
 	onOpenFile,
 	onSave,
+	"data-testid": dataTestId,
 }: EditorBodyProps) {
 	// Use project image extensions hook
 	const projectImageExtensions = useProjectImageExtensions({
@@ -193,7 +192,7 @@ function EditorBody({
 				className,
 			}}
 		>
-			<div className={className}>
+			<div className={className} data-testid={dataTestId}>
 				{isLoading ? (
 					<div
 						style={{

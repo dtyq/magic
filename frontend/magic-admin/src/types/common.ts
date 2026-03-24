@@ -1,4 +1,4 @@
-import type { NodeType } from "@dtyq/user-selector"
+import type { NodeType } from "@feb/user-selector"
 import type { AiModel } from "../const/aiModel"
 
 export interface TeamshareUserInfo {

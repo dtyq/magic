@@ -22,4 +22,9 @@ class ModeApi extends AbstractApi
     {
         return $this->modeAppService->getModes($this->getAuthorization());
     }
+
+    public function show(string $identifier): array
+    {
+        return $this->modeAppService->show($this->getAuthorization(), $identifier);
+    }
 }

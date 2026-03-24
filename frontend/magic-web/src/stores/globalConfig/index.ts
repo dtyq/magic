@@ -2,6 +2,7 @@ import { makeAutoObservable } from "mobx"
 import type { PlatformConfig } from "@/apis/types"
 import type { useTranslation } from "react-i18next"
 import { SupportLocales } from "@/constants/locale"
+import MagicCrewLogo from "@/assets/logos/magic-crew.png"
 
 export class GlobalConfigStore {
 	globalConfig?: PlatformConfig
@@ -97,9 +98,18 @@ export class GlobalConfigStore {
 		config: PlatformConfig,
 		i18n: ReturnType<typeof useTranslation>["i18n"],
 	) {
-		this.globalConfig = config
-		if (config.favicon) {
-			this.updateFavicon(config.favicon)
+		this.globalConfig = {
+			...config,
+			minimal_logo: config.minimal_logo || MagicCrewLogo,
+			logo: {
+				[SupportLocales.fallback]: config.logo?.[SupportLocales.fallback] || MagicCrewLogo,
+				[SupportLocales.zhCN]: config.logo?.[SupportLocales.zhCN] || MagicCrewLogo,
+				[SupportLocales.enUS]: config.logo?.[SupportLocales.enUS] || MagicCrewLogo,
+			},
+			favicon: config.favicon || MagicCrewLogo,
+		}
+		if (this.globalConfig?.favicon) {
+			this.updateFavicon(this.globalConfig.favicon)
 		}
 		await this.updateI18nMetaResources(config, i18n)
 	}

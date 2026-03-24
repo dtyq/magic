@@ -8,14 +8,46 @@ export const useStyles = createStyles(({ css, token }) => {
 			overflow: hidden;
 		`,
 
+		externalContainer: css`
+			width: 100%;
+			min-height: 100%;
+		`,
+
 		list: css`
 			width: 100%;
 			height: 100%;
-			overflow-y: auto;
+			overflow: hidden;
+
+			[data-slot="scroll-area-viewport"] > div {
+				display: block !important;
+				width: 100% !important;
+				min-width: 0 !important;
+				max-width: 100% !important;
+			}
 
 			.infinite-scroll-component__outerdiv,
 			.infinite-scroll-component {
 				height: 100%;
+				width: 100%;
+				max-width: 100%;
+			}
+
+			.infinite-scroll-component {
+				overflow: visible !important;
+			}
+		`,
+
+		externalList: css`
+			width: 100%;
+
+			.infinite-scroll-component__outerdiv,
+			.infinite-scroll-component {
+				width: 100%;
+				max-width: 100%;
+			}
+
+			.infinite-scroll-component {
+				overflow: visible !important;
 			}
 		`,
 

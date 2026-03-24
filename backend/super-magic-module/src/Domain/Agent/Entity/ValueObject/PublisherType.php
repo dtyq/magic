@@ -33,6 +33,11 @@ enum PublisherType: string
     case PARTNER = 'PARTNER';
 
     /**
+     * 官方内置.
+     */
+    case OFFICIAL_BUILTIN = 'OFFICIAL_BUILTIN';
+
+    /**
      * 获取发布者类型描述.
      */
     public function getDescription(): string
@@ -42,6 +47,7 @@ enum PublisherType: string
             self::OFFICIAL => '官方运营',
             self::VERIFIED_CREATOR => '认证创作者',
             self::PARTNER => '第三方机构',
+            self::OFFICIAL_BUILTIN => '官方内置',
         };
     }
 
@@ -59,6 +65,11 @@ enum PublisherType: string
     public function isOfficial(): bool
     {
         return $this === self::OFFICIAL;
+    }
+
+    public function isOfficialBuiltin(): bool
+    {
+        return $this === self::OFFICIAL_BUILTIN;
     }
 
     /**

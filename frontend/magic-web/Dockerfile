@@ -7,6 +7,8 @@ ARG NODE_IMAGE=${DOCKERHUB_LIBRARY_IMAGE_PREFIX}node:${NODE_VERSION}-alpine
 # build
 FROM ${NODE_IMAGE} AS builder
 
+ARG TARGETARCH
+
 WORKDIR /app
 
 COPY package.json ./
@@ -14,8 +16,8 @@ COPY patches ./patches
 COPY plugins ./plugins
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
-RUN --mount=type=cache,id=node-${NODE_VERSION}-npm,target=/root/.npm \
-    --mount=type=cache,id=node-${NODE_VERSION}-npm-compile-cache,target=/tmp/node-compile-cache \
+RUN --mount=type=cache,id=node-npm-${NODE_VERSION}-alpine-${TARGETARCH},target=/root/.npm \
+    --mount=type=cache,id=node-npm-compile-cache-${NODE_VERSION}-alpine-${TARGETARCH},target=/tmp/node-compile-cache \
     npm config set registry "${NPM_REGISTRY}" && \
     npm install pnpm --location=global && \
     npm install patch-package -g && \
@@ -23,12 +25,14 @@ RUN --mount=type=cache,id=node-${NODE_VERSION}-npm,target=/root/.npm \
 
 COPY . .
 
-RUN --mount=type=cache,id=node-${NODE_VERSION}-npm,target=/root/.npm \
-    --mount=type=cache,id=node-${NODE_VERSION}-npm-compile-cache,target=/tmp/node-compile-cache \
+RUN --mount=type=cache,id=node-npm-${NODE_VERSION}-alpine-${TARGETARCH},target=/root/.npm \
+    --mount=type=cache,id=node-npm-compile-cache-${NODE_VERSION}-alpine-${TARGETARCH},target=/tmp/node-compile-cache \
     pnpm build:opensource
 
 # deploy
 FROM ${NODE_IMAGE} AS runner
+
+ARG TARGETARCH
 
 # 在 runner 阶段重新定义环境变量
 ARG CI_COMMIT_SHA=
@@ -47,8 +51,8 @@ COPY server/package.json ./
 
 ARG NODE_VERSION=22
 ARG NPM_REGISTRY=https://registry.npmmirror.com
-RUN --mount=type=cache,id=node-${NODE_VERSION}-npm,target=/root/.npm \
-    --mount=type=cache,id=node-${NODE_VERSION}-npm-compile-cache,target=/tmp/node-compile-cache \
+RUN --mount=type=cache,id=node-npm-${NODE_VERSION}-alpine-${TARGETARCH},target=/root/.npm \
+    --mount=type=cache,id=node-npm-compile-cache-${NODE_VERSION}-alpine-${TARGETARCH},target=/tmp/node-compile-cache \
     npm config set registry "${NPM_REGISTRY}" && \
     npm install && \
     # restore npm registry

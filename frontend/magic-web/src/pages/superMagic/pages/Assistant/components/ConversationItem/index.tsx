@@ -25,6 +25,7 @@ const useStyles = createStyles(({ css, token }) => ({
 		padding: 10px;
 		border-radius: 8px;
 		cursor: pointer;
+		border: 1px solid ${token.magicColorUsages.border};
 
 		&:hover {
 			background-color: ${token.colorFillTertiary};

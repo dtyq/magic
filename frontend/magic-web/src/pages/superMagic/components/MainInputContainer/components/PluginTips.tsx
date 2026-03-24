@@ -1,6 +1,13 @@
+import { useMemo } from "react"
 import { Plug, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { TOOL_ICONS } from "../constants"
+import { useCreation, useRequest } from "ahooks"
+import {
+	MCPManagerService,
+	OfficialStrategy,
+} from "@/components/Agent/MCP/service/MCPManagerService"
+
+const MAX_DISPLAY_ICONS = 5
 
 interface PluginTipsProps {
 	onConnectClick?: () => void
@@ -8,6 +15,21 @@ interface PluginTipsProps {
 
 function PluginTips({ onConnectClick }: PluginTipsProps) {
 	const { t } = useTranslation("super/mainInput")
+
+	const service = useCreation(() => {
+		const s = new MCPManagerService()
+		s.setContext(new OfficialStrategy())
+		return s
+	}, [])
+
+	const { data } = useRequest(() => service.getMCPList(), {
+		cacheKey: "plugin-tips-mcp-list",
+	})
+
+	const iconList = useMemo(
+		() => (data ?? []).filter((item) => item.icon).slice(0, MAX_DISPLAY_ICONS),
+		[data],
+	)
 
 	return (
 		<button
@@ -22,20 +44,24 @@ function PluginTips({ onConnectClick }: PluginTipsProps) {
 			</div>
 
 			{/* Icon Group - Tool integration icons */}
-			<div className="flex items-center pr-1.5">
-				{TOOL_ICONS.map((tool) => {
-					const IconComponent = tool.icon
-					return (
+			{iconList.length > 0 && (
+				<div className="flex items-center pr-1.5">
+					{iconList.map((tool) => (
 						<div
 							key={tool.id}
 							className="-mr-1.5 flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-background shadow-xs"
-							title={tool.label}
+							title={tool.name}
 						>
-							<IconComponent />
+							<img
+								src={tool.icon}
+								alt={tool.name}
+								className="size-3.5 rounded-xs object-contain"
+								draggable={false}
+							/>
 						</div>
-					)
-				})}
-			</div>
+					))}
+				</div>
+			)}
 
 			<ChevronRight className="size-4" />
 		</button>

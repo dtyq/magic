@@ -111,7 +111,7 @@ export function toResourceType(value?: number): ResourceType {
 	return RESOURCE_TYPE.FILE
 }
 
-export function mapRecycleBinItem(item: RecycleBinListItemDto): RecycleBinItem {
+export function mapRecycleBinItem(item: RecycleBinListItemDto, t: TFunction): RecycleBinItem {
 	const parentInfo = item.extra_data?.parent_info
 	const workspaceName = parentInfo?.workspace_name?.trim() || ""
 	const projectName = parentInfo?.project_name?.trim() || ""
@@ -127,7 +127,11 @@ export function mapRecycleBinItem(item: RecycleBinListItemDto): RecycleBinItem {
 		resourceId: item.resource_id,
 		resourceType,
 		category: getCategoryByResourceType(resourceType),
-		title: item.resource_name,
+		title: getRecycleBinItemTitle({
+			resourceName: item.resource_name,
+			resourceType,
+			t,
+		}),
 		deletedBy,
 		deletedByUser,
 		path,
@@ -141,6 +145,21 @@ export function getCategoryByResourceType(resourceType?: ResourceType): RecycleB
 	if (resourceType === RESOURCE_TYPE.PROJECT) return "projects"
 	if (resourceType === RESOURCE_TYPE.TOPIC) return "topics"
 	return "files"
+}
+
+export function getRecycleBinItemTitle(props: {
+	resourceName?: string
+	resourceType?: ResourceType
+	t: TFunction
+}) {
+	const { resourceName, resourceType, t } = props
+	const trimmedName = resourceName?.trim() ?? ""
+	if (trimmedName) return trimmedName
+	if (resourceType === RESOURCE_TYPE.WORKSPACE) return t("common.unNamedWorkspace")
+	if (resourceType === RESOURCE_TYPE.PROJECT) return t("common.untitledProject")
+	if (resourceType === RESOURCE_TYPE.TOPIC) return t("common.untitledTopic")
+	if (resourceType === RESOURCE_TYPE.FILE) return t("common.untitledFile")
+	return trimmedName
 }
 
 export function getResourceTypeByTabId(tabId?: string): ResourceType | undefined {

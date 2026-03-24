@@ -46,7 +46,7 @@ function escapeUrl(url) {
 // 默认平台信息（fallback）
 const DEFAULT_PLATFORM_INFO = {
 	zh_CN: {
-		title: "超级麦吉 - 灯塔引擎新一代企业级 AI 应用创新引擎",
+		title: "超级麦吉 - 首个开源企业级 AI Agent 平台",
 		keywords: "",
 		description: "",
 	},

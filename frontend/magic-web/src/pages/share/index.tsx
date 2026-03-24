@@ -38,6 +38,7 @@ import useNewTopicShareData from "./hooks/useNewTopicShareData"
 import { userStore } from "@/models/user"
 import { MagicAvatar } from "@/components/base"
 import { useSharePermission } from "./hooks/useSharePermission"
+import UserAvatar from "@/assets/logos/user-avatar.svg"
 
 const topicContainerBase =
 	"flex items-center justify-between py-2.5 px-3.5 h-12 bg-card dark:bg-card backdrop-blur-[50px] border-b border-border rounded-[5px] w-full z-[99] max-md:absolute max-md:h-[calc(52px+var(--safe-area-inset-top,0px))] max-md:pt-[var(--safe-area-inset-top,0px)] max-md:px-3 max-md:pb-0 max-md:rounded-none"
@@ -607,7 +608,7 @@ function Share() {
 				)}
 				{!isMobile && hasStarted && data?.extra?.show_original_info ? (
 					<div className="ml-[30px] flex min-w-0 flex-1 shrink items-center gap-2.5 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-5 text-foreground/80">
-						<MagicAvatar src={data?.creator?.avatar_url} size={24} />
+						<MagicAvatar src={data?.creator?.avatar_url || UserAvatar} size={24} />
 						<span className="shrink-0 font-semibold text-foreground/80">
 							{data?.creator?.nickname || t("common.unknownUser")}
 						</span>

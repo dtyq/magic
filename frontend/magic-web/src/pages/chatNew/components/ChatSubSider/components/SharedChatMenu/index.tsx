@@ -7,10 +7,11 @@ const SharedChatMenu = observer(() => {
 	const triggerRef = useRef<HTMLDivElement>(null)
 	const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
 	const currentConversationId = chatMenuStore.currentConversationId
+	const menuElementId = chatMenuStore.menuElementId
 
 	useEffect(() => {
-		if (currentConversationId) {
-			const element = document.getElementById(currentConversationId)
+		if (currentConversationId && menuElementId) {
+			const element = document.getElementById(menuElementId)
 			if (element) {
 				const rect = element.getBoundingClientRect()
 				setPosition({
@@ -21,7 +22,7 @@ const SharedChatMenu = observer(() => {
 		} else {
 			setPosition(null)
 		}
-	}, [currentConversationId])
+	}, [currentConversationId, menuElementId])
 
 	if (!currentConversationId || !position) {
 		return null

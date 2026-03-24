@@ -1,13 +1,24 @@
 {
 	"name": "@dtyq/es6-template-strings",
 	"version": "0.0.4",
-	"description": "字符串模版引擎",
-	"keywords": [],
+	"description": "Lightweight ES6 template string engine for dynamic string interpolation.",
+	"keywords": [
+		"template-string",
+		"string-template",
+		"interpolation",
+		"javascript",
+		"utility"
+	],
+	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/es6-template-strings#readme",
+	"bugs": {
+		"url": "https://github.com/dtyq/magic/issues"
+	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/dtyq/es6-template-strings"
+		"url": "git+https://github.com/dtyq/magic.git",
+		"directory": "frontend/es6-template-strings"
 	},
-	"license": "Apache License 2.0",
+	"license": "Apache-2.0",
 	"type": "module",
 	"main": "dist/lib/index.js",
 	"module": "dist/es/index.js",

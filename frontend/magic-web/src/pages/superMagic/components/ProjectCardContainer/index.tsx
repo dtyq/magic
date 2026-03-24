@@ -10,7 +10,7 @@ import projectStore from "../../stores/core/project"
 import SuperMagicService from "../../services"
 import { observer } from "mobx-react-lite"
 import { Workspace, WorkspaceStatus } from "../../pages/Workspace/types"
-import { isOwner } from "../../utils/permission"
+import { isReadOnlyProject } from "../../utils/permission"
 import { isOtherCollaborationProject } from "../../constants"
 import { generateShareUrl } from "../../components/ShareManagement/utils/shareTypeHelpers"
 
@@ -109,7 +109,7 @@ function ProjectCardContainer({
 				className={className}
 			/>
 
-			{isOwner(selectedProject?.user_role) && (
+			{!isReadOnlyProject(selectedProject?.user_role) && (
 				<>
 					<Suspense fallback={null}>
 						<ShareModal

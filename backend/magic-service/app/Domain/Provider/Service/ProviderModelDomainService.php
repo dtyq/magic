@@ -171,6 +171,15 @@ readonly class ProviderModelDomainService
     }
 
     /**
+     * 根据 model_id 列查询模型（不限制组织）.
+     * 入参为 service_provider_models.model_id，如 deepseek-v3.
+     */
+    public function getModelByModelId(string $modelId): ?ProviderModelEntity
+    {
+        return $this->providerModelRepository->getByModelIdWithoutOrgFilter($modelId);
+    }
+
+    /**
      * 批量根据ModelID获取模型.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离对象

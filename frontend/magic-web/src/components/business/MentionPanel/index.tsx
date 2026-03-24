@@ -27,7 +27,6 @@ import MenuItem from "./components/MenuItem"
 import MagicIcon from "../../base/MagicIcon"
 import {
 	IconArrowBack,
-	IconArrowNarrowDown,
 	IconArrowNarrowLeft,
 	IconArrowNarrowRight,
 	IconSearch,
@@ -37,8 +36,6 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/shadcn-ui/popover"
 import { ChevronLeft, Plug, Puzzle } from "lucide-react"
 import useGeistFont from "@/styles/fonts/geist"
-import PlugIcon from "./components/icons/PlugIcon"
-import SkillIcon from "./components/icons/SkillIcon"
 
 const MentionPanelMobile = lazy(() => import("./MentionPanelMobile"))
 
@@ -225,16 +222,18 @@ const MentionPanel = observer(
 					return
 				}
 
-				const isRightArrow = (event?.target as HTMLElement)?.getAttribute(
-					"data-right-arrow",
-				)
+				const eventTarget = event?.target
+				const isRightArrow =
+					eventTarget instanceof HTMLElement
+						? Boolean(eventTarget.closest("[data-right-arrow]"))
+						: false
 
 				// Update selection index
 				actions.selectItem(index)
 
 				// Use normal confirmation process (history items are handled in useMentionPanel)
 				setTimeout(() => {
-					actions.confirmSelection({ enterFolder: isRightArrow ? true : false })
+					actions.confirmSelection({ enterFolder: isRightArrow })
 				})
 			},
 			[actions, displayItems],
@@ -322,7 +321,7 @@ const MentionPanel = observer(
 
 		const panelClassName = cn(
 			// Base styles matching Figma design
-			"z-[9999] flex w-80 flex-col items-start overflow-hidden rounded-lg border border-solid border-border bg-popover shadow-md",
+			"z-dropdown flex w-80 flex-col items-start overflow-hidden rounded-lg border border-solid border-border bg-popover shadow-md",
 			className,
 		)
 
@@ -398,18 +397,18 @@ const MentionPanel = observer(
 					{/* Back button - show when not in default state or has navigation stack */}
 					{(state.currentState !== PanelState.DEFAULT ||
 						state.navigationStack.length > 0) && (
-							<Button
-								variant="outline"
-								size="icon"
-								className="border-b-1 size-9 shrink-0 rounded-none border-l-0 border-t-0 border-input shadow-xs"
-								onClick={actions.navigateBack}
-								role="button"
-								aria-label={t.ariaLabels.goBackButton}
-								tabIndex={-1}
-							>
-								<ChevronLeft />
-							</Button>
-						)}
+						<Button
+							variant="outline"
+							size="icon"
+							className="border-b-1 size-9 shrink-0 rounded-none border-l-0 border-t-0 border-input shadow-xs"
+							onClick={actions.navigateBack}
+							role="button"
+							aria-label={t.ariaLabels.goBackButton}
+							tabIndex={-1}
+						>
+							<ChevronLeft />
+						</Button>
+					)}
 
 					{/* Search area */}
 					<div className="flex min-w-0 flex-1 flex-col items-start gap-2">

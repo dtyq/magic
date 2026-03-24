@@ -36,7 +36,31 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
     {
         $authorization = $this->getAuthorization();
         $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
-        return $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema, true)->toArray();
+        $result = $this->superMagicAgentAppService->show($authorization, $code, $withToolSchema, true);
+        return SuperMagicAgentAssembler::createDetailResponseDTO(
+            $result['agent'],
+            $result['skills'],
+            $result['is_store_offline'],
+            true,
+            $result['publish_type'],
+            $result['allowed_publish_target_types']
+        )->toArray(true);
+    }
+
+    public function showLatestVersion(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $withToolSchema = (bool) $this->request->input('with_tool_schema', false);
+        $result = $this->superMagicAgentAppService->showLatestVersion($authorization, $code, $withToolSchema, true);
+
+        return SuperMagicAgentAssembler::createDetailResponseDTO(
+            $result['agent'],
+            $result['skills'],
+            $result['is_store_offline'],
+            true,
+            $result['publish_type'],
+            $result['allowed_publish_target_types']
+        )->toArray(true);
     }
 
     public function executeTool()
@@ -63,6 +87,12 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
         $users = $this->superMagicAgentAppService->getUsers($entity->getOrganizationCode(), [$entity->getCreator(), $entity->getModifier()]);
 
         return SuperMagicAgentAssembler::createDTO($entity, $users, $withPromptString);
+    }
+
+    public function touchUpdatedAt(string $code): array
+    {
+        $this->superMagicAgentAppService->touchUpdatedAt($this->getAuthorization(), $code);
+        return [];
     }
 
     /**

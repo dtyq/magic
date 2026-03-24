@@ -50,6 +50,10 @@ export enum RoutePath {
 	PlatformAIDrawingDetail = "/admin/platform/model/vlm/:id",
 	PlatformAgent = "/admin/platform/agent",
 	PlatformAgentMode = "/admin/platform/agent/mode",
+	PlatformAgentSkill = "/admin/platform/agent/skill",
+	PlatformAgentEmployeeReview = "/admin/platform/agent/employee-review",
+	PlatformAgentSkillMarket = "/admin/platform/agent/skill-market",
+	PlatformAgentEmployeeMarket = "/admin/platform/agent/employee-market",
 	PlatformCapability = "/admin/platform/agent/capability",
 	PlatformCapabilityDetail = "/admin/platform/agent/capability/:code",
 	PlatformTenant = "/admin/platform/tenant",
@@ -115,6 +119,14 @@ export enum RouteName {
 	AdminAgentEnhancement = "AdminAgentEnhancement",
 	/** 智能体增强 - 系统智能体 */
 	AdminSystemAgent = "AdminSystemAgent",
+	/** 智能体增强 - Skill管理 */
+	AdminSystemSkill = "AdminSystemSkill",
+	/** 智能体增强 - 员工审核 */
+	AdminEmployeeReview = "AdminEmployeeReview",
+	/** 智能体增强 - Skill 市场 */
+	AdminSkillMarket = "AdminSkillMarket",
+	/** 智能体增强 - 员工市场 */
+	AdminEmployeeMarket = "AdminEmployeeMarket",
 	/** 智能体增强 - 能力管理 */
 	AdminSystemCapability = "AdminSystemCapability",
 	/** 智能体增强 - 能力详情 */

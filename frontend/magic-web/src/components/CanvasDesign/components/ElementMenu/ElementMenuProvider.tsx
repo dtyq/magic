@@ -83,32 +83,6 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		})
 	}, [])
 
-	// 打开菜单
-	const openMenu = useCallback(
-		(event: React.MouseEvent, elementId: string, source: MenuSource = "layers") => {
-			event.preventDefault()
-			event.stopPropagation()
-			handleElementSelection(elementId)
-			menuSource.current = source
-			setCurrentElementId(elementId)
-			setMenuKey((prev) => prev + 1)
-			triggerMenuDisplay(event.clientX, event.clientY)
-		},
-		[handleElementSelection, triggerMenuDisplay],
-	)
-
-	// 打开菜单（通过坐标）
-	const openMenuByPosition = useCallback(
-		(elementId: string, x: number, y: number, source: MenuSource = "canvas") => {
-			handleElementSelection(elementId)
-			menuSource.current = source
-			setCurrentElementId(elementId)
-			setMenuKey((prev) => prev + 1)
-			triggerMenuDisplay(x, y)
-		},
-		[handleElementSelection, triggerMenuDisplay],
-	)
-
 	// 清理菜单项：移除首尾分隔符和相邻的多个分隔符（递归处理子菜单）
 	const cleanMenuItems = useCallback((items: MenuItem[]): MenuItem[] => {
 		// 先过滤掉不可见的菜单项
@@ -180,32 +154,83 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		return cleaned
 	}, [])
 
-	// 获取画布空白区域的菜单项（只有粘贴项）
-	const getCanvasMenuItems = useCallback((): MenuItem[] => {
-		if (!canvas || readonly) return []
+	// 预计算元素菜单项数量（用于决定是否展开菜单）
+	const getElementMenuItemsCount = useCallback(
+		(elementId: string) =>
+			canvas
+				? cleanMenuItems(
+						getMenuItems(
+							canvas,
+							selectedElementIds,
+							elementId,
+							methods,
+							permissions,
+							readonly,
+							t,
+						),
+					).length
+				: 0,
+		[canvas, selectedElementIds, methods, permissions, readonly, t, cleanMenuItems],
+	)
 
-		const translate = (key: string, fallback: string) => {
-			return t ? t(key, fallback) : fallback
-		}
+	// 打开菜单
+	const openMenu = useCallback(
+		(event: React.MouseEvent, elementId: string, source: MenuSource = "layers") => {
+			event.preventDefault()
+			event.stopPropagation()
+			if (getElementMenuItemsCount(elementId) === 0) return
+			handleElementSelection(elementId)
+			menuSource.current = source
+			setCurrentElementId(elementId)
+			setMenuKey((prev) => prev + 1)
+			triggerMenuDisplay(event.clientX, event.clientY)
+		},
+		[handleElementSelection, triggerMenuDisplay, getElementMenuItemsCount],
+	)
 
-		// 只返回粘贴项
-		return [
-			{
-				id: "paste",
-				label: translate("menu.paste", "粘贴"),
-				icon: ClipboardPaste,
-				shortcut: getShortcutDisplay("edit.paste"),
-				onClick: async () => {
-					await canvas.userActionRegistry.execute("edit.paste", {
-						pastePosition: canvasMenuPosition || undefined,
-					})
+	// 打开菜单（通过坐标）
+	const openMenuByPosition = useCallback(
+		(elementId: string, x: number, y: number, source: MenuSource = "canvas") => {
+			if (getElementMenuItemsCount(elementId) === 0) return
+			handleElementSelection(elementId)
+			menuSource.current = source
+			setCurrentElementId(elementId)
+			setMenuKey((prev) => prev + 1)
+			triggerMenuDisplay(x, y)
+		},
+		[handleElementSelection, triggerMenuDisplay, getElementMenuItemsCount],
+	)
+
+	// 获取画布空白区域的菜单项（只有粘贴项），position 用于预计算时传入即将使用的位置
+	const getCanvasMenuItems = useCallback(
+		(position?: { x: number; y: number }): MenuItem[] => {
+			if (!canvas || readonly) return []
+
+			const translate = (key: string, fallback: string) => {
+				return t ? t(key, fallback) : fallback
+			}
+			const pastePosition = position ?? canvasMenuPosition
+
+			// 只返回粘贴项
+			return [
+				{
+					id: "paste",
+					label: translate("menu.paste", "粘贴"),
+					icon: ClipboardPaste,
+					shortcut: getShortcutDisplay("edit.paste"),
+					onClick: async () => {
+						await canvas.userActionRegistry.execute("edit.paste", {
+							pastePosition: pastePosition || undefined,
+						})
+					},
+					visible: () => {
+						return canvas.userActionRegistry.canExecute("edit.paste")
+					},
 				},
-				visible: () => {
-					return canvas.userActionRegistry.canExecute("edit.paste")
-				},
-			},
-		]
-	}, [canvas, readonly, t, canvasMenuPosition])
+			]
+		},
+		[canvas, readonly, t, canvasMenuPosition],
+	)
 
 	// 获取菜单项
 	const menuItems = useMemo(() => {
@@ -279,6 +304,8 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		useCallback(
 			({ data }) => {
 				const { x, y, canvasX, canvasY } = data
+				const canvasItems = cleanMenuItems(getCanvasMenuItems({ x: canvasX, y: canvasY }))
+				if (canvasItems.length === 0) return
 				setIsCanvasMenu(true)
 				setCanvasMenuPosition({ x: canvasX, y: canvasY })
 				setCurrentElementId(null)
@@ -286,9 +313,9 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 				setMenuKey((prev) => prev + 1)
 				triggerMenuDisplay(x, y)
 			},
-			[triggerMenuDisplay],
+			[triggerMenuDisplay, cleanMenuItems, getCanvasMenuItems],
 		),
-		[triggerMenuDisplay],
+		[triggerMenuDisplay, cleanMenuItems, getCanvasMenuItems],
 	)
 
 	return (

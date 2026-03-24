@@ -191,12 +191,10 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        $dataIsolation->disabled();
+
         // 1. 查询 Playbook 详情
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
-
-        if ($playbook->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $playbookId]);
-        }
 
         // 2. 转换为 DTO
         return new PlaybookListItemDTO(

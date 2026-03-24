@@ -42,6 +42,10 @@ const routeNameToPathMap: Record<RouteName, RoutePath> = {
 
 	[RouteName.AdminAgentEnhancement]: RoutePath.PlatformAgent,
 	[RouteName.AdminSystemAgent]: RoutePath.PlatformAgentMode,
+	[RouteName.AdminSystemSkill]: RoutePath.PlatformAgentSkill,
+	[RouteName.AdminEmployeeReview]: RoutePath.PlatformAgentEmployeeReview,
+	[RouteName.AdminSkillMarket]: RoutePath.PlatformAgentSkillMarket,
+	[RouteName.AdminEmployeeMarket]: RoutePath.PlatformAgentEmployeeMarket,
 	[RouteName.AdminSystemCapability]: RoutePath.PlatformCapability,
 	[RouteName.AdminSystemCapabilityDetail]: RoutePath.PlatformCapabilityDetail,
 

@@ -88,8 +88,8 @@ function Demo2({ open, onClose }: { open: boolean; onClose: () => void }) {
 		<UserSelector
 			organization={{
 				id: "Xcxcx",
-				name: "灯塔引擎",
-				logo: "https://texample.com/588417215791890433/bb1902a4_1735635442151.png",
+				name: "Magic",
+				logo: "https://example.com/588417215791890433/bb1902a4_1735635442151.png",
 			}}
 			open={open}
 			loading={loading}

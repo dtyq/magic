@@ -129,6 +129,9 @@ export interface FilesViewerProps extends BaseComponentProps {
 
 	// 是否显示空内容
 	showFallbackWhenEmpty?: boolean
+
+	/** 当前项目 tabs 缓存已加载完成时的回调用 */
+	onFileTabsCacheLoaded?: (projectId: string) => void
 }
 
 // FilesViewer ref interface

@@ -36,6 +36,14 @@ export interface IsolatedHTMLRendererRef {
 	getContent: () => Promise<string | null>
 	getFetchInterceptedCallback: () => OnFetchIntercepted | undefined
 }
+//HTML预览增强组件 iframe里面的内容尺寸，用于计算缩放比例
+export interface IsolatedHTMLRendererContentMetrics {
+	contentWidth: number
+	contentHeight: number
+	phase?: "initial" | "settled"
+	hasHorizontalOverflow?: boolean
+	hasVerticalOverflow?: boolean
+}
 import magicToast from "@/components/base/MagicToaster/utils"
 import { base64ToFile } from "@/pages/superMagic/components/MessageEditor/utils/fileConverter"
 import { resolveUploadPath, cleanPath } from "./utils/file-utils"
@@ -80,6 +88,10 @@ interface IsolatedHTMLRendererProps {
 	toolbarClassName?: string
 	isVisible?: boolean
 	iframeClassName?: string
+	containIframeOverscroll?: boolean //控制HTML预览增强组件内部是否启用
+	disableIframeDocumentClickBridge?: boolean // **重要** 控制HTML预览增强组件内部是否禁用 iframe 到父层的通用 DOM_CLICK 桥接
+	onRenderReady?: () => void //控制HTML预览组件的skeleton结束时机
+	onContentMetrics?: (metrics: IsolatedHTMLRendererContentMetrics) => void //计算HTML预览组件内部内容尺寸
 }
 
 interface MagicUploadFileData {
@@ -162,6 +174,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			toolbarClassName,
 			iframeClassName,
 			isVisible,
+			containIframeOverscroll = false,
+			disableIframeDocumentClickBridge = false,
+			onRenderReady,
+			onContentMetrics,
 		} = props
 
 		const { styles, cx } = useStyles()
@@ -172,6 +188,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		const [iframeLoaded, setIframeLoaded] = useState(false)
 		const [contentInjected, setContentInjected] = useState(false) // 标记内容是否已注入到 iframe
 		const hasRenderedOnceRef = useRef(false) // 跟踪 iframe 是否至少已渲染一次
+		const hasNotifiedRenderReadyRef = useRef(false)
 
 		// Track selected element for zoom centering
 		const [selectedElementRect, setSelectedElementRect] = useState<{
@@ -209,6 +226,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				hasRenderedOnceRef.current = true
 			}
 		}, [isScaleReady, isVisible])
+		//控制HTML预览组件的skeleton结束时机
+		useEffect(() => {
+			hasNotifiedRenderReadyRef.current = false
+		}, [content])
+
+		const notifyRenderReady = useMemoizedFn(() => {
+			if (hasNotifiedRenderReadyRef.current) return
+
+			hasNotifiedRenderReadyRef.current = true
+			onRenderReady?.()
+		})
 
 		// Handle zoom request from iframe (trackpad pinch-to-zoom)
 		const handleIframeZoomRequest = useMemoizedFn((delta: number) => {
@@ -814,6 +842,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			// 创建完整HTML内容
 			const fullContent = getFullContent(decodedContent, markerId, {
 				dynamicInterception: dynamicResourceInterceptionConfig,
+				containOverscroll: containIframeOverscroll,
+				disableParentClickBridge: disableIframeDocumentClickBridge,
 			})
 			// 发送内容到iframe
 			try {
@@ -894,6 +924,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					// 创建完整HTML内容
 					const fullContent = getFullContent(decodedContent, markerId, {
 						dynamicInterception: dynamicResourceInterceptionConfig,
+						containOverscroll: containIframeOverscroll,
+						disableParentClickBridge: disableIframeDocumentClickBridge,
 					})
 					// 发送内容到iframe
 					try {
@@ -940,6 +972,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				getFetchInterceptedCallback: () => handleFetchIntercepted,
 			}),
 			[
+				containIframeOverscroll,
+				disableIframeDocumentClickBridge,
 				dynamicResourceInterceptionConfig,
 				getMarkerId,
 				injectMediaScript,
@@ -1072,6 +1106,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					"domReady",
 					"renderComplete",
 					"pageFullyLoaded",
+					"contentMetrics",
 					"iframeError",
 					"linkClicked",
 					"DOWNLOAD_IMAGE",
@@ -1117,6 +1152,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			const messageType = typeof event.data?.type === "string" ? event.data.type : ""
 			const isExpectedSource = event.source === iframeRef.current?.contentWindow
 			const isAllowedType = messageType ? iframeMessageTypes.has(messageType) : false
+			const shouldStrictlyValidatePreviewSource =
+				Boolean(onContentMetrics || onRenderReady) &&
+				Boolean(messageType) &&
+				[
+					"iframeReady",
+					"contentLoaded",
+					"domReady",
+					"renderComplete",
+					"pageFullyLoaded",
+					"contentMetrics",
+				].includes(messageType)
 
 			// 只处理来自iframe的消息，兼容钉钉 WebView source 不一致
 			if (!isExpectedSource && !isAllowedType) {
@@ -1131,6 +1177,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				}
 				return
 			}
+
+			if (shouldStrictlyValidatePreviewSource && !isExpectedSource) return
 
 			// 检查是否是 EditorBridge 协议消息（由 MessageBridge 处理）
 			// MessageBridge 的监听器会先处理新协议消息（有 version 字段的）
@@ -1185,11 +1233,28 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					console.log("iframe DOM已准备就绪")
 				} else if (event.data && event.data.type === "renderComplete") {
 					// iframe渲染真正完成，现在可以安全地计算缩放比例
-					console.log("iframe渲染完成，开始计算缩放比例")
+					notifyRenderReady()
 				} else if (event.data && event.data.type === "pageFullyLoaded") {
 					// 页面完全加载完成（包括图片、样式表等）
-					console.log("iframe页面完全加载完成")
-					// 非PPT模式下不需要进行任何缩放计算
+					notifyRenderReady()
+				} else if (event.data && event.data.type === "contentMetrics") {
+					const contentWidth = Number(event.data?.contentWidth)
+					const contentHeight = Number(event.data?.contentHeight)
+
+					if (
+						Number.isFinite(contentWidth) &&
+						contentWidth > 0 &&
+						Number.isFinite(contentHeight) &&
+						contentHeight > 0
+					) {
+						onContentMetrics?.({
+							contentWidth,
+							contentHeight,
+							phase: event.data?.phase === "settled" ? "settled" : "initial",
+							hasHorizontalOverflow: event.data?.hasHorizontalOverflow === true,
+							hasVerticalOverflow: event.data?.hasVerticalOverflow === true,
+						})
+					}
 				} else if (event.data && event.data.type === "linkClicked") {
 					// 如果是回放模式，不处理链接点击
 					if (isPlaybackMode) {
@@ -1402,7 +1467,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							className={cn(
 								"w-full flex-shrink-0",
 								isPptRender &&
-								`absolute left-1/2 ${TAILWIND_Z_INDEX_CLASSES.TOOLBAR.STYLE_PANEL} top-[10px] w-[98%] -translate-x-1/2 rounded-lg border border-border bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60`,
+									`absolute left-1/2 ${TAILWIND_Z_INDEX_CLASSES.TOOLBAR.STYLE_PANEL} top-[10px] w-[98%] -translate-x-1/2 rounded-lg border border-border bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60`,
 								toolbarClassName,
 							)}
 						/>

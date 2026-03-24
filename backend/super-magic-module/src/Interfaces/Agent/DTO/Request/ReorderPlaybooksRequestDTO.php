@@ -50,11 +50,11 @@ class ReorderPlaybooksRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'ids.required' => __('crew.ids_required'),
-            'ids.array' => __('crew.ids_must_be_array'),
-            'ids.*.required' => __('crew.playbook_id_required'),
-            'ids.*.integer' => __('crew.playbook_id_must_be_integer'),
-            'ids.*.min' => __('crew.playbook_id_min_1'),
+            'ids.required' => __('super_magic.agent.ids_required'),
+            'ids.array' => __('super_magic.agent.ids_must_be_array'),
+            'ids.*.required' => __('super_magic.agent.playbook_id_required'),
+            'ids.*.integer' => __('super_magic.agent.playbook_id_must_be_integer'),
+            'ids.*.min' => __('super_magic.agent.playbook_id_min_1'),
         ];
     }
 }

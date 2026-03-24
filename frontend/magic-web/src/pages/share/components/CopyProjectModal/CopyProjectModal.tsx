@@ -4,13 +4,13 @@ import { IconPlus, IconFolder, IconSearch, IconCheck } from "@tabler/icons-react
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import type { CopyProjectModalProps, WorkspaceOption } from "./types"
-import { useStyles } from "./styles"
 import { SuperMagicApi } from "@/apis"
 import folderIcon from "@/pages/share/components/CopyProjectModal/assets/folder.svg"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { cn } from "@/lib/utils"
+import { WorkspaceStatus } from "@/pages/superMagic/pages/Workspace/types"
 
 function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyProjectModalProps) {
-	const { styles } = useStyles()
 	const { t } = useTranslation("super")
 
 	// 状态管理
@@ -54,6 +54,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 	useEffect(() => {
 		fetchWorkspaces()
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open])
 
 	// 过滤工作区列表
@@ -92,7 +93,8 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 					is_archived: 0,
 					current_topic_id: "",
 					current_project_id: null,
-					workspace_status: "waiting" as any,
+					workspace_status: WorkspaceStatus.WAITING,
+					project_count: 0,
 				}
 
 				setWorkspaces((prev) => [newWorkspace, ...prev])
@@ -194,81 +196,99 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 			title={null}
 			closable={false}
 		>
-			<div className={styles.modalBody}>
+			<div>
 				{/* 标题和描述 */}
-				<div className={styles.header}>
-					<div className={styles.title}>{t("share.copyProject")}</div>
-					<div className={styles.description}>{t("share.copyProjectDescription")}</div>
+				<div className="mb-5 h-10">
+					<div className="text-base font-semibold leading-[22px]">
+						{t("share.copyProject")}
+					</div>
+					<div className="mb-2.5 text-xs leading-4 text-muted-foreground">
+						{t("share.copyProjectDescription")}
+					</div>
 				</div>
 
 				{/* 原项目信息 */}
-				<div className={styles.oldProjectContainer}>
-					<div className={styles.originalProjectInfo}>
-						<span className={styles.originalProjectInfoTitle}>{`${t(
-							"share.originalProject",
-						)}${t("share.author")}`}</span>
-						<div className={styles.ProjectText}>{projectData?.originalAuthor}</div>
+				<div className="flex flex-row gap-2.5">
+					<div className="flex flex-col gap-2">
+						<span className="text-sm font-normal leading-5 text-foreground">
+							{`${t("share.originalProject")}${t("share.author")}`}
+						</span>
+						<div className="flex h-9 items-center justify-start gap-1.5 rounded-lg border border-border bg-muted px-1.5 text-sm font-semibold leading-5 text-foreground">
+							{projectData?.originalAuthor}
+						</div>
 					</div>
 
-					<div className={styles.originalProjectInfo} style={{ flex: 1 }}>
-						<span className={styles.originalProjectInfoTitle}>
+					<div className="flex flex-1 flex-col gap-2">
+						<span className="text-sm font-normal leading-5 text-foreground">
 							{`${t("share.originalProject")}${t("share.name")}`}
 						</span>
-						<div className={styles.ProjectText}>{projectData?.originalProjectName}</div>
+						<div className="flex h-9 items-center justify-start gap-1.5 rounded-lg border border-border bg-muted px-1.5 text-sm font-semibold leading-5 text-foreground">
+							{projectData?.originalProjectName || t("project.unnamedProject")}
+						</div>
 					</div>
 				</div>
 
 				{/* 新项目名称 */}
-				<div className={styles.newProjectContainer}>
-					<div className={styles.formItem}>
-						<div className={styles.label}>{t("share.newProjectName")}</div>
-						<div className={styles.description}>{t("share.newProjectDescription")}</div>
+				<div className="mt-5 rounded-xl border border-border p-5">
+					<div className="mb-4">
+						<div className="mb-1 block text-sm font-medium text-foreground">
+							{t("share.newProjectName")}
+						</div>
+						<div className="mb-2.5 text-xs leading-4 text-muted-foreground">
+							{t("share.newProjectDescription")}
+						</div>
 						<Input
 							prefix={
-								<IconFolder size={16} stroke={1.5} className={styles.folderIcon} />
+								<IconFolder
+									size={16}
+									stroke={1.5}
+									className="text-muted-foreground"
+								/>
 							}
 							value={newProjectName}
 							onChange={(e) => setNewProjectName(e.target.value)}
 							placeholder={t("share.enterNewProjectName")}
-							className={styles.input}
+							className="w-full"
 						/>
 					</div>
-					<div className={styles.sectionTitle}>{t("share.selectWorkspace")}</div>
-					<div className={styles.description}>
+					<div className="mb-2 text-sm font-medium text-foreground">
+						{t("share.selectWorkspace")}
+					</div>
+					<div className="mb-2.5 text-xs leading-4 text-muted-foreground">
 						{t("share.newProjectWorkspaceDescription")}
 					</div>
 					{/* 工作区选择 */}
 
-					<div className={styles.workspaceContainer}>
-						<div className={styles.workspaceSelect}>
+					<div className="mt-5 gap-5 rounded-xl border border-border">
+						<div>
 							{/* 搜索框 */}
-							<div className={styles.searchContainer}>
+							<div className="mb-2.5 rounded-t-lg bg-muted p-2.5">
 								<Input
 									prefix={<IconSearch size={16} />}
 									value={searchValue}
 									onChange={(e) => setSearchValue(e.target.value)}
 									placeholder={t("share.searchWorkspace")}
-									className={styles.searchInput}
+									className="rounded-lg"
 								/>
 							</div>
 							{/* 工作区列表 */}
-							<div className={styles.workspaceList}>
+							<div className="max-h-[200px] overflow-y-auto rounded-lg bg-background p-2.5">
 								{/* 新建工作区选项 */}
 								{!isCreatingWorkspace ? (
 									<div
-										className={styles.createNewWorkspace}
+										className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-sm font-medium text-foreground transition-all hover:bg-accent"
 										onClick={handleCreateNewWorkspace}
 									>
-										<div className={styles.createNewIcon}>
+										<div className="flex h-6 w-6 items-center justify-center rounded text-foreground">
 											<IconPlus size={16} />
 										</div>
-										<span className={styles.createNewWorkspaceText}>
+										<span className="text-foreground">
 											{t("share.createNewWorkspace")}
 										</span>
 									</div>
 								) : (
-									<div className={styles.workspaceItem}>
-										<div className={styles.createNewIcon}>
+									<div className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2.5 py-1.5">
+										<div className="flex h-6 w-6 items-center justify-center rounded text-foreground">
 											<IconPlus size={16} />
 										</div>
 										<Input
@@ -277,38 +297,40 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 											onBlur={handleWorkspaceInputBlur}
 											onKeyDown={handleWorkspaceInputKeyDown}
 											placeholder={t("share.enterWorkspaceName")}
-											className={styles.createWorkspaceInput}
 											autoFocus
 										/>
 									</div>
 								)}
 								{loading ? (
-									<div className={styles.emptyState}>{t("common.loading")}</div>
+									<div className="p-6 text-center text-sm text-muted-foreground">
+										{t("common.loading")}
+									</div>
 								) : filteredWorkspaces.length > 0 ? (
 									filteredWorkspaces.map((workspace) => (
 										<div
 											key={workspace.id}
-											className={`${styles.workspaceItem} ${selectedWorkspace?.id === workspace.id
-													? styles.workspaceSelected
-													: ""
-												}`}
+											className={cn(
+												"flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-2 px-2.5 hover:bg-accent",
+												selectedWorkspace?.id === workspace.id &&
+													"border-primary bg-accent/50 hover:bg-accent",
+											)}
 											onClick={() => handleWorkspaceSelect(workspace)}
 										>
 											<div>
-												<img src={folderIcon}></img>
+												<img src={folderIcon} alt="folder" />
 											</div>
-											<div className={styles.workspaceInfo}>
-												<div className={styles.workspaceName}>
+											<div className="flex-1">
+												<div className="text-sm font-medium text-foreground">
 													{workspace.name || t("share.unNamedWorkspace")}
 												</div>
 											</div>
 											{selectedWorkspace?.id === workspace.id && (
-												<IconCheck size={16} color="rgba(49, 92, 236, 1)" />
+												<IconCheck size={16} className="text-primary" />
 											)}
 										</div>
 									))
 								) : (
-									<div className={styles.emptyState}>
+									<div className="p-6 text-center text-sm text-muted-foreground">
 										{t("share.noWorkspaceFound")}
 									</div>
 								)}
@@ -318,8 +340,8 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 				</div>
 
 				{/* 底部按钮 */}
-				<div className={styles.footer}>
-					<Button onClick={handleClose} className={styles.cancelButton}>
+				<div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+					<Button onClick={handleClose} className="min-w-[80px]">
 						{t("common.cancel")}
 					</Button>
 					<Button
@@ -327,7 +349,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 						onClick={handleSubmit}
 						loading={submitting}
 						disabled={!isFormValid}
-						className={styles.confirmButton}
+						className="min-w-[80px]"
 					>
 						{t("common.confirm")}
 					</Button>

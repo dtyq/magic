@@ -45,6 +45,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		exportPdf,
 		exportPpt,
 		allowDownload,
+		projectId,
 	} = props
 
 	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map())
@@ -208,6 +209,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 					slidePaths={originalSlidesPaths}
 					attachments={attachments}
 					attachmentList={attachmentList}
+					projectId={projectId}
 					mainFileId={displayData?.file_id}
 					mainFileName={displayData?.file_name}
 					filePathMapping={filePathMapping}

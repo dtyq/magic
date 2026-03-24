@@ -44,7 +44,7 @@ class BootstrapApi
     public function checkStatus(RequestInterface $request): array
     {
         return [
-            'need_initial' => $this->magicSettingAppService->getWithoutCache()->isNeedInitial(),
+            'need_initial' => $this->isBootstrapPending(),
         ];
     }
 
@@ -53,6 +53,8 @@ class BootstrapApi
      */
     public function execute(RequestInterface $request): array
     {
+        $this->assertBootstrapPending();
+
         $requestDTO = BootstrapExecuteRequestDTO::fromRequest($this->request);
 
         return $this->bootstrapInitializationAppService->initialize($requestDTO);
@@ -77,8 +79,13 @@ class BootstrapApi
 
     protected function assertBootstrapPending(): void
     {
-        if (! $this->magicSettingAppService->get()->isNeedInitial()) {
+        if (! $this->isBootstrapPending()) {
             ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'bootstrap has already been initialized');
         }
+    }
+
+    protected function isBootstrapPending(): bool
+    {
+        return $this->magicSettingAppService->getWithoutCache()->isNeedInitial();
     }
 }

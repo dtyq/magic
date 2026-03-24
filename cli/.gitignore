@@ -1,0 +1,15 @@
+# config files
+/config.yml
+
+# playground
+/play
+
+# built binaries
+/cli
+/dist
+
+# IDE files
+/.idea/
+/.vscode/
+/.fleet/
+*.iml

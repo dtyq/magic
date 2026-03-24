@@ -206,6 +206,8 @@ interface ProjectRepositoryInterface
      */
     public function batchEnableCollaboration(array $projectIds): int;
 
+    public function getProjectByTopicId(int $topicId): ?ProjectEntity;
+
     /**
      * 查询项目（包含软删除）.
      *

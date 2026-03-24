@@ -10,6 +10,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenWorkspaceApi;
@@ -77,8 +78,10 @@ Router::addGroup(
     static function () {
         Router::addGroup('/agents', static function () {
             Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
+            Router::get('/{code}/latest-version', [SuperMagicAgentSandboxApi::class, 'showLatestVersion']);
             Router::get('/{code}', [SuperMagicAgentSandboxApi::class, 'show']);
             Router::put('/{code}', [SuperMagicAgentSandboxApi::class, 'update']);
+            Router::put('/{code}/updated-at', [SuperMagicAgentSandboxApi::class, 'touchUpdatedAt']);
             Router::post('/{code}/skills', [SuperMagicAgentSandboxApi::class, 'addAgentSkills']);
             Router::delete('/{code}/skills', [SuperMagicAgentSandboxApi::class, 'removeAgentSkills']);
         });
@@ -87,6 +90,8 @@ Router::addGroup(
         Router::addGroup('/skills', static function () {
             // 获取用户技能列表
             Router::post('/queries', [SkillSandboxApi::class, 'queries']);
+            // 批量查询当前用户技能的最新已发布当前版本
+            Router::post('/last-versions/queries', [SkillSandboxApi::class, 'queryLatestPublishedVersions']);
             // 批量获取技能 file_key 及下载 URL（仅返回当前用户自己的技能）
             Router::post('/file-urls', [SkillSandboxApi::class, 'getSkillFileUrls']);
             // Agent 第三方导入技能
@@ -96,7 +101,7 @@ Router::addGroup(
         // 市场技能库相关
         Router::addGroup('/skill-market', static function () {
             // 获取市场技能库列表
-            Router::post('/queries', [SkillSandboxApi::class, 'queries']);
+            Router::post('/queries', [SkillSandboxApi::class, 'queriesMarket']);
         });
     },
     ['middleware' => [SandboxUserAuthMiddleware::class]]
@@ -142,6 +147,15 @@ Router::addGroup(
         Router::addGroup('/project', static function () {
             // 创建项目
             Router::post('', [OpenProjectApi::class, 'createProject']);
+        });
+
+        // 消息定时任务
+        Router::addGroup('/message-schedule', static function () {
+            Router::post('', [OpenMessageScheduleApi::class, 'createMessageSchedule']);
+            Router::get('/queries', [OpenMessageScheduleApi::class, 'queryMessageSchedules']);
+            Router::put('/{id}', [OpenMessageScheduleApi::class, 'updateMessageSchedule']);
+            Router::get('/{id}', [OpenMessageScheduleApi::class, 'getMessageScheduleDetail']);
+            Router::delete('/{id}', [OpenMessageScheduleApi::class, 'deleteMessageSchedule']);
         });
     },
     ['middleware' => [ApiKeyMiddleware::class]]

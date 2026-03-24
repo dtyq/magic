@@ -66,6 +66,21 @@ class CreateMessageScheduleRequestDTO extends AbstractRequestDTO
     public ?array $plugins = null;
 
     /**
+     * Remark.
+     */
+    public string $remark = '';
+
+    /**
+     * Build from array (e.g. resolved data from Open flow). No validation.
+     */
+    public static function fromArray(array $data): self
+    {
+        $dto = new self(); // 使用 self 而不是 static
+        $dto->initProperty($data);
+        return $dto;
+    }
+
+    /**
      * Get task name.
      */
     public function getTaskName(): string

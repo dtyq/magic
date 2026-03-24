@@ -33,6 +33,11 @@ enum ReviewStatus: string
     case REJECTED = 'REJECTED';
 
     /**
+     * 已失效（被新版本替代）：用户再次提交发布时，将仍处于 PENDING/UNDER_REVIEW 的旧版本批量更新为此状态，非管理员 REJECTED.
+     */
+    case INVALIDATED = 'INVALIDATED';
+
+    /**
      * 判断是否为待审核状态.
      */
     public function isPending(): bool
@@ -62,5 +67,10 @@ enum ReviewStatus: string
     public function isRejected(): bool
     {
         return $this === self::REJECTED;
+    }
+
+    public function isInvalidated(): bool
+    {
+        return $this === self::INVALIDATED;
     }
 }

@@ -1,6 +1,15 @@
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { Ellipsis, MessageCirclePlus, Pencil, Search, Trash2, WandSparkles, X } from "lucide-react"
+import {
+	Ellipsis,
+	Loader2,
+	MessageCirclePlus,
+	Pencil,
+	Search,
+	Trash2,
+	WandSparkles,
+	X,
+} from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
@@ -13,9 +22,12 @@ import ModeTag from "@/pages/superMagicMobile/components/HierarchicalWorkspacePo
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
 import StatusIcon from "./StatusIcon"
 import { observer } from "mobx-react-lite"
+import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
+import type TopicServiceClass from "@/pages/superMagic/services/topicService"
 
 interface TopicHistoryDropdownProps {
 	topics: Topic[]
+	projectId: string
 	selectedTopicId?: string
 	editingTopicId: string | null
 	editingValue: string
@@ -28,6 +40,7 @@ interface TopicHistoryDropdownProps {
 	onSelectTopic: (topic: Topic) => void
 	canDeleteTopic: boolean
 	onCreateTopic: () => void
+	topicService?: TopicServiceClass
 	placement?: string
 	onDropdownOpenChange?: (open: boolean) => void
 	children: ReactNode
@@ -35,6 +48,7 @@ interface TopicHistoryDropdownProps {
 
 function TopicHistoryDropdown({
 	topics,
+	projectId,
 	selectedTopicId,
 	editingTopicId,
 	editingValue,
@@ -47,6 +61,7 @@ function TopicHistoryDropdown({
 	onSelectTopic,
 	canDeleteTopic,
 	onCreateTopic,
+	topicService,
 	placement = "bottomRight",
 	onDropdownOpenChange,
 	children,
@@ -61,6 +76,20 @@ function TopicHistoryDropdown({
 	const editInputRef = useRef<HTMLInputElement>(null)
 	const suppressNextCloseRef = useRef(false)
 
+	const {
+		displayTopics,
+		isLoading: isLoadingTopics,
+		currentPage,
+		onScroll: handleListScroll,
+		reload: reloadTopics,
+		reset: resetTopics,
+	} = usePaginatedTopics({
+		projectId,
+		selectedTopicId,
+		storeTopics: topics,
+		topicService,
+	})
+
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen && suppressNextCloseRef.current) {
 			suppressNextCloseRef.current = false
@@ -71,11 +100,15 @@ function TopicHistoryDropdown({
 	}
 
 	useEffect(() => {
+		if (open && projectId) {
+			reloadTopics()
+		}
 		if (!open) {
 			setSearchKeyword("")
 			setOpenMenuTopicId(null)
+			resetTopics()
 		}
-	}, [open])
+	}, [open, projectId, reloadTopics, resetTopics])
 
 	useEffect(() => {
 		if (open && searchInputRef.current) {
@@ -93,19 +126,19 @@ function TopicHistoryDropdown({
 	}, [editingTopicId, open])
 
 	const filteredTopics = useMemo(() => {
-		if (!topics.length) return []
-		if (!searchKeyword.trim()) return topics
+		if (!displayTopics.length) return []
+		if (!searchKeyword.trim()) return displayTopics
 
 		const keyword = searchKeyword.toLowerCase().trim()
-		return topics.filter((topic) => {
+		return displayTopics.filter((topic) => {
 			const topicName = topic.topic_name || t("messageHeader.untitledTopic")
 			return topicName.toLowerCase().includes(keyword)
 		})
-	}, [searchKeyword, t, topics])
+	}, [searchKeyword, t, displayTopics])
 
 	const historyDropdownContent = (
 		<div
-			className="shadow-xs w-[300px] rounded-md border border-border bg-popover p-2.5"
+			className="w-[300px] rounded-md border border-border bg-popover p-2.5 shadow-xs"
 			data-testid="message-header-history-panel"
 		>
 			<div className="mb-[10px]" data-testid="message-header-history-header">
@@ -113,7 +146,7 @@ function TopicHistoryDropdown({
 					<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						ref={searchInputRef}
-						className="shadow-xs h-7 rounded-lg border border-border bg-background pl-9 pr-8 text-sm leading-[20px] focus:border-border focus:outline-none focus:ring-0"
+						className="h-7 rounded-lg border border-border bg-background pl-9 pr-8 text-sm leading-[20px] shadow-xs focus:border-border focus:outline-none focus:ring-0"
 						placeholder={t("messageHeader.searchHistoryTopics")}
 						value={searchKeyword}
 						onChange={(event) => {
@@ -140,13 +173,27 @@ function TopicHistoryDropdown({
 			<div
 				className="mb-[10px] flex max-h-[226px] flex-col gap-0.5 overflow-y-auto [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1"
 				data-testid="message-header-history-list"
+				onScroll={(e) => {
+					if (!searchKeyword.trim()) {
+						handleListScroll(e.currentTarget)
+					}
+				}}
 			>
-				{filteredTopics.length === 0 && searchKeyword.trim() && (
+				{filteredTopics.length === 0 && !isLoadingTopics && searchKeyword.trim() && (
 					<div
 						className="flex items-center justify-center p-5 text-sm text-muted-foreground"
 						data-testid="message-header-history-empty"
 					>
 						{t("messageHeader.noMatchingTopics")}
+					</div>
+				)}
+
+				{filteredTopics.length === 0 && isLoadingTopics && currentPage === 1 && (
+					<div
+						className="flex items-center justify-center p-5"
+						data-testid="message-header-history-loading"
+					>
+						<Loader2 className="size-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
 
@@ -165,14 +212,12 @@ function TopicHistoryDropdown({
 							if (editingTopicId !== topic.id) {
 								onSelectTopic(topic)
 								setOpen(false)
-								// 选中话题时重置状态
 								setHoveredTopicId(null)
 								setOpenMenuTopicId(null)
 							}
 						}}
 						onMouseEnter={() => setHoveredTopicId(topic.id)}
 						onMouseLeave={() => {
-							// 只在菜单未打开时清除 hover 状态
 							if (openMenuTopicId !== topic.id) {
 								setHoveredTopicId(null)
 							}
@@ -185,7 +230,7 @@ function TopicHistoryDropdown({
 						{editingTopicId === topic.id ? (
 							<Input
 								ref={editInputRef}
-								className="shadow-xs h-6 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm leading-[20px] focus:border-border focus:outline-none focus:ring-0"
+								className="h-6 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm leading-[20px] shadow-xs focus:border-border focus:outline-none focus:ring-0"
 								value={editingValue}
 								onChange={(e) => onEditingValueChange(e.target.value)}
 								onKeyDown={(e) => {
@@ -308,7 +353,7 @@ function TopicHistoryDropdown({
 														recordSummaryStore.isRecordingTopic(
 															topic.id,
 														)) &&
-													"pointer-events-none opacity-50",
+														"pointer-events-none opacity-50",
 												)}
 												data-testid="message-header-history-item-delete"
 												onClick={(e) => {
@@ -317,7 +362,7 @@ function TopicHistoryDropdown({
 													onDeleteTopic(
 														topic.id,
 														topic.topic_name ||
-														t("messageHeader.untitledTopic"),
+															t("messageHeader.untitledTopic"),
 													)
 													setOpenMenuTopicId(null)
 												}}
@@ -331,12 +376,18 @@ function TopicHistoryDropdown({
 							)}
 					</div>
 				))}
+
+				{isLoadingTopics && currentPage > 1 && (
+					<div className="flex items-center justify-center py-2">
+						<Loader2 className="size-4 animate-spin text-muted-foreground" />
+					</div>
+				)}
 			</div>
 
 			<Button
 				variant="outline"
 				size="sm"
-				className="shadow-xs h-6 w-full justify-center gap-1.5 rounded-lg border-border bg-background px-3 text-xs font-normal"
+				className="h-6 w-full justify-center gap-1.5 rounded-lg border-border bg-background px-3 text-xs font-normal shadow-xs"
 				onClick={(e) => {
 					e.stopPropagation()
 					onCreateTopic()

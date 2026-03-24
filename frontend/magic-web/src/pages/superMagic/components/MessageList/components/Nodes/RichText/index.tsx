@@ -8,7 +8,7 @@ import type { NodeProps } from "../types"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { memo } from "react"
 import { observer } from "mobx-react-lite"
-import RichTextComponent from "../../Text/components/RichText"
+import { UserMessageCollapsibleRichText } from "../../UserMessageCollapsibleRichText"
 import { Attachment } from "@/pages/superMagic/components/MessageList/components/MessageAttachment"
 import { MessageStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { Button } from "antd"
@@ -80,7 +80,8 @@ function RichText(props: NodeProps) {
 					onSelectDetail={onFileClick}
 					onFileClick={handleFileClick}
 				/>
-				<RichTextComponent
+				<UserMessageCollapsibleRichText
+					clampFadeFromClass="from-white dark:from-card"
 					content={node?.content}
 					onFileClick={onFileClick}
 					mentions={mentions}

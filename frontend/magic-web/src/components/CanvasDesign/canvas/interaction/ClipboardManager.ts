@@ -1,6 +1,7 @@
 import type { Canvas } from "../Canvas"
 import type { LayerElement, ImageElement } from "../types"
 import { ElementTypeEnum } from "../types"
+import { GenerationStatus } from "../../types.magic"
 import { toast } from "sonner"
 import {
 	getImageDimensions,
@@ -681,7 +682,7 @@ export class ClipboardManager {
 			const finalElement: ImageElement = {
 				type: ElementTypeEnum.Image,
 				src: imageElementData.src,
-				status: "completed",
+				status: GenerationStatus.Completed,
 				...commonFinalElement,
 			}
 

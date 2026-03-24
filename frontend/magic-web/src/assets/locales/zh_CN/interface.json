@@ -299,7 +299,7 @@
 		"enterpriseVersionTip2": "可联系我们的销售人员",
 		"expenditure": "支出",
 		"expiredTime": "到期时间：{{date}}",
-		"freeUnlimitedModelTip": "注：免费无限量模型仅适用于“超级麦吉”场景，流程编排等功能不在此权益范围内。",
+		"freeUnlimitedModelTip": "注：免费无限量模型仅适用于“$t(common:platform.name)和 Chat” 场景，MagiClaw 及流程编排等功能不在此权益范围内。",
 		"freeUnlimitedModels": "免费无限量的模型",
 		"freeUnlimitedModelsLabel": "免费无限量模型",
 		"freeUnlimitedModelsTip": "免费无限量的模型适用于$t(common:platform.name)，执行任务期间所使用到的网络搜索、图像分析与生成、文档解析等能力将照常收取少量积分费用；非$t(common:platform.name)功能（如 流程编排、API 调用等）使用大模型均按照正常用量进行计费。",
@@ -1045,6 +1045,7 @@
 			},
 			"copy": "复制",
 			"graph": "图形",
+			"htmlSnippet": "HTML 片段",
 			"raw": "原始",
 			"totalLength": "总长度",
 			"viewFullText": "查看全文"

@@ -28,8 +28,15 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 	const topicNotHaveMoreMessageMap = useRef<Record<string, boolean>>({})
 	// Track which topics have completed their initial load
 	const initialLoadedTopicsRef = useRef<Set<string>>(new Set())
+	const selectedTopicRef = useRef(selectedTopic)
+	selectedTopicRef.current = selectedTopic
+
 	const [isMessagesInitialLoading, setIsMessagesInitialLoading] = useState(() =>
 		Boolean(selectedTopic?.chat_topic_id),
+	)
+	/** 当前选中话题本轮拉取已结束（写入 store 或请求结束），用于避免切换话题时读到空消息列表 */
+	const [isSelectedTopicMessagesReady, setIsSelectedTopicMessagesReady] = useState(
+		() => !selectedTopic?.id,
 	)
 
 	const pullMessage = useMemoizedFn(
@@ -49,6 +56,8 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 				updatePageToken
 			) {
 				console.log("没有更多消息")
+				if (selectedTopicRef.current?.chat_topic_id === chat_topic_id)
+					setIsSelectedTopicMessagesReady(true)
 				return
 			}
 			SuperMagicApi.getMessagesByConversationId({
@@ -57,51 +66,56 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 				page_token,
 				limit,
 				order,
-			}).then((res) => {
-				const newMessage = res?.items
-					.filter((item: any) => {
-						return (
-							item?.seq?.message?.general_agent_card ||
-							item?.seq?.message?.text?.content ||
-							item?.seq?.message?.rich_text?.content
-						)
-					})
-					?.map((item: any) => {
-						const data = item?.seq?.message?.general_agent_card
-							? item?.seq?.message?.general_agent_card
-							: item?.seq?.message
-						return {
-							...data,
-							seq_id: item?.seq?.seq_id,
-							messageStatus: item?.seq?.message?.status,
-						}
-					})
-					.filter((item: any) => !isEmpty(item))
-				const hasAttachments = newMessage.some(
-					(item: any) =>
-						item?.attachments?.length > 0 || item?.tool?.attachments?.length > 0,
-				)
-				if (hasAttachments) {
-					checkNowDebounced?.()
-				}
-				if (updatePageToken && res?.page_token) {
-					topicPageTokenMap.current[chat_topic_id] = res?.page_token
-				}
-
-				callback?.()
-				if (refreshMessages) {
-					res?.items?.reverse()?.forEach((o: any) => {
-						superMagicStore.enqueueMessage(chat_topic_id, o)
-					})
-				} else {
-					superMagicStore.initializeMessages(chat_topic_id, res?.items)
-				}
-				// Mark initial load complete for this topic
-				if (!initialLoadedTopicsRef.current.has(chat_topic_id)) {
-					initialLoadedTopicsRef.current.add(chat_topic_id)
-					setIsMessagesInitialLoading(false)
-				}
 			})
+				.then((res) => {
+					const newMessage = res?.items
+						.filter((item: any) => {
+							return (
+								item?.seq?.message?.general_agent_card ||
+								item?.seq?.message?.text?.content ||
+								item?.seq?.message?.rich_text?.content
+							)
+						})
+						?.map((item: any) => {
+							const data = item?.seq?.message?.general_agent_card
+								? item?.seq?.message?.general_agent_card
+								: item?.seq?.message
+							return {
+								...data,
+								seq_id: item?.seq?.seq_id,
+								messageStatus: item?.seq?.message?.status,
+							}
+						})
+						.filter((item: any) => !isEmpty(item))
+					const hasAttachments = newMessage.some(
+						(item: any) =>
+							item?.attachments?.length > 0 || item?.tool?.attachments?.length > 0,
+					)
+					if (hasAttachments) {
+						checkNowDebounced?.()
+					}
+					if (updatePageToken && res?.page_token) {
+						topicPageTokenMap.current[chat_topic_id] = res?.page_token
+					}
+
+					callback?.()
+					if (refreshMessages) {
+						res?.items?.reverse()?.forEach((o: any) => {
+							superMagicStore.enqueueMessage(chat_topic_id, o)
+						})
+					} else {
+						superMagicStore.initializeMessages(chat_topic_id, res?.items)
+					}
+					// Mark initial load complete for this topic
+					if (!initialLoadedTopicsRef.current.has(chat_topic_id)) {
+						initialLoadedTopicsRef.current.add(chat_topic_id)
+						setIsMessagesInitialLoading(false)
+					}
+				})
+				.finally(() => {
+					if (selectedTopicRef.current?.chat_topic_id !== chat_topic_id) return
+					setIsSelectedTopicMessagesReady(true)
+				})
 		},
 	)
 
@@ -144,6 +158,7 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 
 	// Initialize messages when topic changes
 	useDeepCompareEffect(() => {
+		setIsSelectedTopicMessagesReady(false)
 		const topicId = selectedTopic?.chat_topic_id
 		if (topicId && !initialLoadedTopicsRef.current.has(topicId)) {
 			setIsMessagesInitialLoading(true)
@@ -243,5 +258,6 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 		handlePullMoreMessage,
 		topicPageTokenMap,
 		isMessagesInitialLoading,
+		isSelectedTopicMessagesReady,
 	}
 }

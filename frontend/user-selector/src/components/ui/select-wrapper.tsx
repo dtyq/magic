@@ -69,10 +69,7 @@ const SelectWrapper = forwardRef<HTMLButtonElement, SelectWrapperProps>(
 			>
 				<SelectTrigger
 					ref={ref}
-					className={cn(
-						"h-9 rounded-lg w-full focus:ring-border focus:ring-offset-0",
-						className,
-					)}
+					className={cn("h-9 rounded-lg w-full focus:ring-offset-0", className)}
 					style={style}
 				>
 					<SelectValue placeholder={placeholder} />

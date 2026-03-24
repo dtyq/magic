@@ -1,7 +1,4 @@
-import {
-	initializeService,
-	getServiceInstance,
-} from "@/services/recordSummary/serviceInstance"
+import { initializeService, getServiceInstance } from "@/services/recordSummary/serviceInstance"
 import { useMemoizedFn } from "ahooks"
 import recordingSummaryStore from "@/stores/recordingSummary"
 import { GetRecordingSummaryResultResponse } from "@/apis/modules/superMagic/recordSummary"

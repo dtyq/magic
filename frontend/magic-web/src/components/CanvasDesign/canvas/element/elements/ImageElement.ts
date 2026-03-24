@@ -11,6 +11,7 @@ import type {
 	GenerateHightImageRequest,
 	UploadImageResponse,
 } from "../../../types.magic"
+import { GenerationStatus } from "../../../types.magic"
 import { generateUUID, collectElementsByType, type Rect, normalizePath } from "../../utils/utils"
 import { TransformBehavior } from "../../interaction/TransformManager"
 import type { Canvas } from "../../Canvas"
@@ -538,7 +539,10 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		}
 
 		// 情况2: 有 src 但状态是 pending 或 processing
-		if (hasSrc && (status === "pending" || status === "processing")) {
+		if (
+			hasSrc &&
+			(status === GenerationStatus.Pending || status === GenerationStatus.Processing)
+		) {
 			return true
 		}
 
@@ -753,13 +757,13 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const status = this.data.status
 
 		// 有结果且失败，添加"(失败)"后缀
-		if (status === "failed") {
+		if (status === GenerationStatus.Failed) {
 			const suffix = this.getText("image.nameSuffix.failed", "(失败)")
 			return `${baseName}${suffix}`
 		}
 
 		// 有结果且状态是 pending 或 processing
-		if (status === "pending" || status === "processing") {
+		if (status === GenerationStatus.Pending || status === GenerationStatus.Processing) {
 			// 区分上传中和生成中
 			if (hasRequest) {
 				const suffix = this.getText("image.nameSuffix.generating", "(生成中)")
@@ -928,7 +932,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const status = this.data.status
 
 		// 有 src：视为 completed 状态，直接渲染图片或加载状态
-		if (!!this.data.src || status === "completed") {
+		if (!!this.data.src || status === GenerationStatus.Completed) {
 			// 如果图片加载失败，渲染错误状态
 			if (this.isErrorState) {
 				return this.renderError(this.getText("image.loadError", "图片加载失败"))
@@ -947,14 +951,14 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		}
 
 		// 有结果且失败，渲染错误信息
-		if (status === "failed") {
+		if (status === GenerationStatus.Failed) {
 			const errorMessage =
 				this.data.errorMessage || this.getText("image.generateFailed", "图片生成失败")
 			return this.renderError(errorMessage)
 		}
 
 		// 有结果且状态是 pending 或 processing，渲染生成中状态
-		if (status === "pending" || status === "processing") {
+		if (status === GenerationStatus.Pending || status === GenerationStatus.Processing) {
 			return this.renderGeneratingPlaceholder()
 		}
 
@@ -982,7 +986,8 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		// 检查状态是否变为 failed
 		const oldStatus = this.data.status
 		const newStatus = newData.status
-		const statusChangedToFailed = oldStatus !== "failed" && newStatus === "failed"
+		const statusChangedToFailed =
+			oldStatus !== GenerationStatus.Failed && newStatus === GenerationStatus.Failed
 
 		this.data = newData
 
@@ -1170,7 +1175,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		// 如果是 processing 状态且不是临时元素，视为生成中（即使没有生成请求信息）
 		const isGenerating =
 			hasRequest ||
-			(this.data.status === "processing" &&
+			(this.data.status === GenerationStatus.Processing &&
 				!this.canvas.elementManager.isTemporary(this.data.id))
 		const displayText = isGenerating
 			? this.getText("image.generating", "正在生成中...")

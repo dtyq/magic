@@ -403,7 +403,7 @@ export const fallbackImageBase64 =
 	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB2aWV3Qm94PSIwIDAgMjAwIDIwMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjRmNiIvPjxzdmcgeD0iNzUiIHk9Ijc1IiB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWNhM2FmIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3Qgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiB4PSIzIiB5PSIzIiByeD0iMiIgcnk9IjIiLz48Y2lyY2xlIGN4PSI5IiBjeT0iOSIgcj0iMiIvPjxwYXRoIGQ9Im0yMSAxNS0zLjA4Ni0zLjA4NmEyIDIgMCAwIDAtMi44MjggMEw2IDIxIi8+PC9zdmc+PC9zdmc+"
 
 // DOM 内容加载后的处理脚本
-const getDOMContentLoadedScript = () => {
+const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 	return `
 		// 在HTML内容内直接注入脚本，避免跨域访问
 		document.addEventListener("DOMContentLoaded", function() {
@@ -465,11 +465,11 @@ const getDOMContentLoadedScript = () => {
 					const currentHref = this.getAttribute("href");
 					// 只有当前仍然是锚点链接时才阻止默认行为
 					if (currentHref && currentHref.startsWith("#")) {
+						e.preventDefault();
+						e.stopPropagation();
 						const targetId = currentHref.substring(1);
 						const targetElement = document.getElementById(targetId);
 						if (targetElement) {
-							// 目标元素存在时阻止默认行为
-							e.preventDefault();
 							// 滚动到目标元素
 							targetElement.scrollIntoView({ behavior: "smooth" });
 							// 替换历史记录
@@ -477,6 +477,16 @@ const getDOMContentLoadedScript = () => {
 								window.history.replaceState(null, "", currentHref);
 							} else {
 								window.location.hash = currentHref;
+							}
+						} else {
+							if (!targetId) {
+								const scrollContainer = document.scrollingElement || document.documentElement || document.body;
+								if (typeof scrollContainer.scrollTo === "function") {
+									scrollContainer.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+								} else {
+									scrollContainer.scrollTop = 0;
+									scrollContainer.scrollLeft = 0;
+								}
 							}
 						}
 					}
@@ -494,12 +504,16 @@ const getDOMContentLoadedScript = () => {
 				console.error(message);
 			};
 
-		    document.addEventListener("click", function(event) {
+		    ${
+				disableParentClickBridge
+					? ""
+					: `document.addEventListener("click", function(event) {
                 window.parent.postMessage({
                     type: "DOM_CLICK",
                     data: {}
                 }, "*")
-			})
+			})`
+			}
 		});
 	`
 }
@@ -1164,6 +1178,14 @@ const getBaseStylesScript = () => {
 		}
 	`
 }
+//注入HTML预览组件基础样式
+const getOverscrollContainStylesScript = () => {
+	return `
+		html, body {
+			overscroll-behavior: contain;
+		}
+	`
+}
 
 /**
  * 替换脚本内容中的全局 let/const 声明为 var，避免重复声明错误
@@ -1260,7 +1282,13 @@ export const getFullContent = (
 	// 创建基础样式
 	const styleElement = doc.createElement("style")
 	styleElement.setAttribute("data-injected", "true")
-	styleElement.textContent = getBaseStylesScript()
+	//注入基础样式和overscroll样式，用于HTML预览组件
+	styleElement.textContent = [
+		getBaseStylesScript(),
+		options.containOverscroll ? getOverscrollContainStylesScript() : "",
+	]
+		.filter(Boolean)
+		.join("\n")
 	doc.head.appendChild(styleElement)
 
 	// 创建注入脚本
@@ -1272,7 +1300,7 @@ export const getFullContent = (
 		${getStorageMockScript(markerId)}
 		${getIndexedDBMockScript()}
 		${getServiceWorkerMockScript()}
-		${getDOMContentLoadedScript()}
+		${getDOMContentLoadedScript(options.disableParentClickBridge === true)}
 		${getLinkHandlingScript()}
 		${getNestedIframeInterceptorScript()}
 		${getDynamicResourceInterceptorScript(dynamicInterceptionOptions)}
@@ -1335,4 +1363,6 @@ interface DynamicResourceInterceptorOptions {
 
 interface GetFullContentOptions {
 	dynamicInterception?: DynamicResourceInterceptorOptions
+	containOverscroll?: boolean
+	disableParentClickBridge?: boolean
 }

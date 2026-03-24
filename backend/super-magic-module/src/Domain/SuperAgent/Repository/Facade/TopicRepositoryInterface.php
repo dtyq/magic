@@ -18,6 +18,8 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    public function getTopicByTopicIdAndUserId(int $topicId, string $userId): ?TopicEntity;
+
     /**
      * 批量获取话题.
      * @return TopicEntity[]

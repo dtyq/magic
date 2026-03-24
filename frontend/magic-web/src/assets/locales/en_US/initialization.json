@@ -10,9 +10,9 @@
 	},
 	"step1": {
 		"adminPassword": "Admin Password",
-		"adminPasswordPlaceholder": "At least 8 characters, including letters and numbers",
+		"adminPasswordPlaceholder": "Enter admin password",
 		"adminPhone": "Admin Phone",
-		"adminPhonePlaceholder": "Please enter 11-digit phone number",
+		"adminPhonePlaceholder": "Enter phone number",
 		"agentDescription": "Agent Description",
 		"agentDescriptionPlaceholder": "Briefly describe the functionality and purpose of this Agent...",
 		"agentLogo": "Agent Logo",

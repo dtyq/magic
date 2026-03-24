@@ -19,7 +19,7 @@ export default ({ prefixCls, token }: { prefixCls: string; token: Theme }) => cs
 		justify-content: center;
 		gap: 10px;
 	}
- 
+  
 	th.${prefixCls}-table-cell {
 		--${prefixCls}-table-cell-padding-block: 10px !important;
 	}

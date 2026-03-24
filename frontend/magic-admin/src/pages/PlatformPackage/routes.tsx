@@ -3,31 +3,27 @@ import { Navigate } from "@/pages/Navigate"
 import { RouteName, RoutePath } from "@/const/routes"
 import {
 	PLATFORM_MANAGEMENT,
-	PLATFORM_PACKAGE_MANAGEMENT,
 	PERMISSION_KEY_MAP,
 	PLATFORM_SYSTEM_SETTING,
-	PLATFORM_ORIENTATION_MANAGEMENT,
 	PLATFORM_MODEL_MANAGEMENT,
 	PLATFORM_AGENT_MANAGEMENT,
 } from "@/const/common"
 
 const PlatformPackageLayout = lazy(() => import("./index.layout"))
-const PackageManagementPage = lazy(() => import("./PackageManagement/index.page"))
-const PackageDetailPage = lazy(() => import("./PackageDetail/index.page"))
+
 const InfoManagementPage = lazy(() => import("./InfoManagement/index.page"))
 const ModeManagementPage = lazy(() => import("./ModeManagement/index.page"))
 const ModelPage = lazy(() => import("./Model/index.page"))
 const ModelDetailPage = lazy(() => import("./ModelDetail/index.page"))
 const AIDrawingPage = lazy(() => import("./AIDrawing/index.page"))
 const AIDrawingDetailPage = lazy(() => import("./AIDrawingDetail/index.page"))
-const AIAuditPage = lazy(() => import("./AIAudit/index.page"))
-const OrderManagementPage = lazy(() => import("./OrderManagement/index.page"))
-const OrgListPage = lazy(() => import("./OrganizationList/index.page"))
-const OrganizationPoints = lazy(() => import("./OrganizationPoints/index.page"))
 const PlatformInfoPage = lazy(() => import("./PlatformInfo/index.page"))
 const AIPowerPage = lazy(() => import("./AIPower/index.page"))
 const AIPowerDetailPage = lazy(() => import("./AIPowerDetail/index.page"))
-const ProxyServerPage = lazy(() => import("./ProxyServer/index.page"))
+const SkillManagementPage = lazy(() => import("./SkillManagement/index.page"))
+const EmployeeReviewPage = lazy(() => import("./EmployeeReview/index.page"))
+const SkillMarketPage = lazy(() => import("./SkillMarket/index.page"))
+const EmployeeMarketPage = lazy(() => import("./EmployeeMarket/index.page"))
 const AppMenuPage = lazy(() => import("./AppMenu/index.page"))
 
 export default {
@@ -47,66 +43,8 @@ export default {
 	children: [
 		{
 			index: true,
-			element: <Navigate to={RoutePath.PlatformPaidPackage} replace />,
+			element: <Navigate to={RoutePath.PlatformModel} replace />,
 		},
-		{
-			name: RouteName.AdminPlatformPackage,
-			path: RoutePath.PlatformPaidPackage,
-			title: "nav.platformSubMenu.platformPackage",
-			validate: (permissions: string[], isSuperAdmin?: boolean) => {
-				return (
-					isSuperAdmin ||
-					PLATFORM_PACKAGE_MANAGEMENT.some((permission) =>
-						permissions.includes(permission),
-					)
-				)
-			},
-			children: [
-				{
-					index: true,
-					element: <Navigate to={RoutePath.PlatformPaidPackageManage} replace />,
-				},
-				{
-					name: RouteName.AdminPackageManage,
-					path: RoutePath.PlatformPaidPackageManage,
-					element: <PackageManagementPage />,
-					title: "nav.platformSubMenu.packageManagement",
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminPackageDetail,
-					path: RoutePath.PlatformPaidPackageDetail,
-					element: <PackageDetailPage />,
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.PACKAGE_MANAGEMENT_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminPackageOrder,
-					path: RoutePath.PlatformPaidPackageOrder,
-					element: <OrderManagementPage />,
-					title: "nav.platformSubMenu.orderManagement",
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.ORDER_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.ORDER_MANAGEMENT_EDIT)
-						)
-					},
-				},
-			],
-		},
-
 		{
 			name: RouteName.AdminPlatformModel,
 			path: RoutePath.PlatformModel,
@@ -241,49 +179,55 @@ export default {
 						)
 					},
 				},
-			],
-		},
-		{
-			name: RouteName.AdminTenant,
-			path: RoutePath.PlatformTenant,
-			title: "nav.platformSubMenu.platformTenant",
-			validate: (permissions: string[], isSuperAdmin?: boolean) => {
-				return (
-					isSuperAdmin ||
-					PLATFORM_ORIENTATION_MANAGEMENT.some((permission) =>
-						permissions.includes(permission),
-					)
-				)
-			},
-			children: [
 				{
-					index: true,
-					element: <Navigate to={RoutePath.PlatformTenantList} replace />,
-				},
-				{
-					name: RouteName.AdminTenantList,
-					path: RoutePath.PlatformTenantList,
-					title: "nav.platformSubMenu.tenantList",
-					element: <OrgListPage />,
+					name: RouteName.AdminSkillMarket,
+					path: RoutePath.PlatformAgentSkillMarket,
+					element: <SkillMarketPage />,
+					title: "nav.platformSubMenu.skillMarket",
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_LIST_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_LIST_EDIT)
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
 						)
 					},
 				},
 				{
-					name: RouteName.AdminTenantPoints,
-					path: RoutePath.PlatformTenantPoints,
-					title: "nav.platformSubMenu.tenantPoints",
-					element: <OrganizationPoints />,
+					name: RouteName.AdminSystemSkill,
+					path: RoutePath.PlatformAgentSkill,
+					element: <SkillManagementPage />,
+					title: "nav.platformSubMenu.systemSkill",
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_POINTS_LIST) ||
-							permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_POINTS_DETAIL) ||
-							permissions.includes(PERMISSION_KEY_MAP.ORIENTATION_POINTS_ADD_POINTS)
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+						)
+					},
+				},
+				{
+					name: RouteName.AdminEmployeeReview,
+					path: RoutePath.PlatformAgentEmployeeReview,
+					element: <EmployeeReviewPage />,
+					title: "nav.platformSubMenu.employeeReview",
+					validate: (permissions: string[], isSuperAdmin?: boolean) => {
+						return (
+							isSuperAdmin ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+						)
+					},
+				},
+				{
+					name: RouteName.AdminEmployeeMarket,
+					path: RoutePath.PlatformAgentEmployeeMarket,
+					element: <EmployeeMarketPage />,
+					title: "nav.platformSubMenu.employeeMarket",
+					validate: (permissions: string[], isSuperAdmin?: boolean) => {
+						return (
+							isSuperAdmin ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
 						)
 					},
 				},
@@ -329,33 +273,6 @@ export default {
 							isSuperAdmin ||
 							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_QUERY) ||
 							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminProxyServer,
-					path: RoutePath.PlatformProxyServer,
-					title: "nav.platformSubMenu.proxyServer",
-					element: <ProxyServerPage />,
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.PROXY_SERVER_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.PROXY_SERVER_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminAIAudit,
-					path: RoutePath.PlatformAIAudit,
-					element: <AIAuditPage />,
-					title: "nav.platformSubMenu.audit",
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_DETAIL) ||
-							permissions.includes(PERMISSION_KEY_MAP.AIAUDIT_MARK_RISK)
 						)
 					},
 				},

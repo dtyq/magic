@@ -12,10 +12,7 @@ import type {
 } from "@/components/CanvasDesign/types.magic"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { Marker } from "@/components/CanvasDesign/canvas/types"
-import type {
-	ProjectListItem,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import type { TFunction } from "i18next"
 import { CanvasDesignRef } from "@/components/CanvasDesign/types"
 import { isLikelyAbortError, type SuperMagicMarkerManager } from "../marker-manager"
@@ -100,11 +97,11 @@ export function useDesignMarker(options: UseDesignMarkerOptions): UseDesignMarke
 			// 如果出错，创建一个包含错误信息的 suggestion 项
 			const finalSuggestions = isError
 				? [
-					{
-						label: displayName || `Marker ${markerId.slice(0, 8)}`,
-						kind: "custom" as const,
-					},
-				]
+						{
+							label: displayName || `Marker ${markerId.slice(0, 8)}`,
+							kind: "custom" as const,
+						},
+					]
 				: suggestions
 			pubsub.publish(PubSubEvents.Super_Magic_Marker_Data_Updated, {
 				markerId,

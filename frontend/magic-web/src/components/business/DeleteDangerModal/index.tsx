@@ -93,8 +93,8 @@ function DeleteDangerModal({
 	// 按钮变体
 	const buttonVariant = dangerLevel === DangerLevel.Danger ? "destructive" : "default"
 
-	// Icon 容器
-	const IconContainer = () => (
+	// Icon 容器（使用 JSX 变量避免内部函数组件导致的重渲染卸载问题）
+	const iconContainer = (
 		<div
 			className={cn(
 				"flex size-10 shrink-0 items-center justify-center rounded-lg",
@@ -110,8 +110,8 @@ function DeleteDangerModal({
 		</div>
 	)
 
-	// 描述内容
-	const DescriptionContent = () => {
+	// 描述内容（使用 JSX 变量避免内部函数组件导致 Input 被卸载重建、中文 IME 输入中断）
+	const descriptionContent = (() => {
 		if (needConfirm) {
 			return (
 				<div className="space-y-2">
@@ -190,7 +190,7 @@ function DeleteDangerModal({
 				{content}
 			</DialogDescription>
 		)
-	}
+	})()
 
 	return (
 		<Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
@@ -207,7 +207,7 @@ function DeleteDangerModal({
 						)}
 						data-testid="delete-danger-modal-content"
 					>
-						<IconContainer />
+						{iconContainer}
 						<div
 							className={cn(
 								"flex-1 space-y-1.5",
@@ -220,7 +220,7 @@ function DeleteDangerModal({
 							>
 								{title || t("deleteConfirmTitle")}
 							</DialogTitle>
-							<DescriptionContent />
+							{descriptionContent}
 						</div>
 					</div>
 				</div>

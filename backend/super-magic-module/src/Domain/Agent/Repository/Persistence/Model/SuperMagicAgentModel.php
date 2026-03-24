@@ -32,12 +32,14 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property array $name_i18n Agent 名称（多语言）
  * @property null|array $role_i18n 角色定位（多语言）
  * @property null|array $description_i18n 核心职责与适用场景描述（多语言）
- * @property string $source_type 关联来源类型：LOCAL_CREATE=本地创建, STORE=商店添加
+ * @property string $source_type 关联来源类型：LOCAL_CREATE=本地创建, MARKET/STORE=市场添加
  * @property null|int $source_id 来源关联 ID
  * @property null|int $version_id 版本ID
- * @property null|string $version_code 版本号
+ * @property null|string $version_code 市场原始 Agent code
  * @property null|DateTime $pinned_at 置顶时间
  * @property null|int $project_id 项目ID
+ * @property null|string $file_key Agent 文件key
+ * @property null|DateTime $latest_published_at Latest published timestamp
  */
 class SuperMagicAgentModel extends AbstractModel
 {
@@ -71,6 +73,8 @@ class SuperMagicAgentModel extends AbstractModel
         'version_code',
         'pinned_at',
         'project_id',
+        'file_key',
+        'latest_published_at',
     ];
 
     protected array $casts = [
@@ -99,5 +103,7 @@ class SuperMagicAgentModel extends AbstractModel
         'version_code' => 'string',
         'pinned_at' => 'datetime',
         'project_id' => 'integer',
+        'file_key' => 'string',
+        'latest_published_at' => 'datetime',
     ];
 }

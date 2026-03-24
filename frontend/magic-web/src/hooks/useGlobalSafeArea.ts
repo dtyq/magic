@@ -9,7 +9,7 @@ const SAFE_AREA_STYLE_ROUTES: Record<
 	string,
 	{ top?: { backgroundColor: string }; bottom?: { backgroundColor: string } }
 > = {
-	[RouteName.UserMy]: {
+	[RouteName.Profile]: {
 		top: { backgroundColor: "rgba(249,249,249, 1)" },
 		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
 	},

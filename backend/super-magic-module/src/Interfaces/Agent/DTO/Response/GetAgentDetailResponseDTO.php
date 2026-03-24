@@ -14,7 +14,7 @@ use App\Infrastructure\Core\AbstractDTO;
  */
 class GetAgentDetailResponseDTO extends AbstractDTO
 {
-    private int $id;
+    private string $id;
 
     private string $code;
 
@@ -49,6 +49,9 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private string $sourceType;
 
+    /**
+     * 实际语义表示“市场来源的 Agent 是否已从市场下架”.
+     */
     private ?bool $isStoreOffline;
 
     private ?string $pinnedAt;
@@ -75,8 +78,18 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private ?int $projectId = null;
 
+    private ?string $fileKey = null;
+
+    private ?string $fileUrl = null;
+
+    private ?string $latestPublishedAt = null;
+
+    private ?string $publishType = null;
+
+    private array $allowedPublishTargetTypes = [];
+
     public function __construct(
-        int $id,
+        string $id,
         string $code,
         ?string $versionCode,
         ?string $versionId,
@@ -96,6 +109,11 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         array $playbooks,
         array $tools,
         ?int $projectId,
+        ?string $fileKey,
+        ?string $fileUrl,
+        ?string $latestPublishedAt,
+        ?string $publishType,
+        array $allowedPublishTargetTypes,
         string $createdAt,
         string $updatedAt
     ) {
@@ -119,6 +137,11 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         $this->playbooks = $playbooks;
         $this->tools = $tools;
         $this->projectId = $projectId;
+        $this->fileKey = $fileKey;
+        $this->fileUrl = $fileUrl;
+        $this->latestPublishedAt = $latestPublishedAt;
+        $this->publishType = $publishType;
+        $this->allowedPublishTargetTypes = $allowedPublishTargetTypes;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -141,9 +164,9 @@ class GetAgentDetailResponseDTO extends AbstractDTO
     /**
      * 转换为数组（输出保持下划线命名，以保持API兼容性）.
      */
-    public function toArray(): array
+    public function toArray(bool $withFileUrl = false): array
     {
-        return [
+        $result = [
             'id' => (string) $this->id,
             'code' => $this->code,
             'version_code' => $this->versionCode,
@@ -164,8 +187,19 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'playbooks' => $this->playbooks,
             'tools' => $this->tools,
             'project_id' => $this->projectId ? (string) $this->projectId : null,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'file_key' => $this->fileKey,
+            'latest_published_at' => $this->latestPublishedAt,
+            'publish_type' => $this->publishType,
+            'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
         ];
+
+        if ($withFileUrl) {
+            $result['file_url'] = $this->fileUrl;
+        }
+
+        $result['created_at'] = $this->createdAt;
+        $result['updated_at'] = $this->updatedAt;
+
+        return $result;
     }
 }

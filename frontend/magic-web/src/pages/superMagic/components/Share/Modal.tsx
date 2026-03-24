@@ -23,6 +23,7 @@ import { ShareListRefreshType } from "@/pages/superMagic/components/ShareManagem
 import magicToast from "@/components/base/MagicToaster/utils"
 import projectFilesStore from "@/stores/projectFiles"
 import { isInApp } from "@/pages/superMagicMobile/utils/mobile"
+import { userStore } from "@/models/user"
 
 const useStyles = createStyles(({ css, token }) => ({
 	shareModal: {
@@ -81,6 +82,9 @@ export default memo(function ShareModel(props: ShareModalProps) {
 		onSaveSuccess,
 	} = props
 
+	// Check if user is personal organization
+	const { isPersonalOrganization } = userStore.user
+
 	// 默认的取消分享方法
 	const handleCancelShareDefault = useCallback(
 		async (resourceId: string) => {
@@ -107,7 +111,10 @@ export default memo(function ShareModel(props: ShareModalProps) {
 		if (shareMode === ShareMode.Topic) {
 			return ShareType.None
 		}
-		return types?.[0] || ShareType.Public
+		if (isPersonalOrganization) {
+			return ShareType.Public
+		}
+		return ShareType.PasswordProtected
 	})
 
 	const [extraData, setExtraData] = useState<any>(undefined) // Start with undefined, let Share component initialize
@@ -180,13 +187,17 @@ export default memo(function ShareModel(props: ShareModalProps) {
 							allowDownloadProjectFile: extra?.allow_download_project_file ?? true,
 						})
 					} else {
-						// 如果没有分享设置
-						if (shareMode === ShareMode.Topic) {
-							// 话题模式下，设置为 None 表示未分享
-							setType(ShareType.None)
+						if (isPersonalOrganization) {
+							setType(ShareType.Public)
 						} else {
-							// 文件/项目模式下，使用默认分享类型
-							setType(types?.[0] || ShareType.Public)
+							// 如果没有分享设置
+							if (shareMode === ShareMode.Topic) {
+								// 话题模式下，设置为 None 表示未分享
+								setType(ShareType.None)
+							} else {
+								// 文件/项目模式下，使用默认分享类型
+								setType(types?.[0] || ShareType.Public)
+							}
 						}
 						setExtraData(undefined)
 					}
@@ -481,11 +492,11 @@ export default memo(function ShareModel(props: ShareModalProps) {
 						onEditShare={
 							shareSuccessData?.resourceId
 								? () => {
-									// 关闭成功弹窗，回到编辑模式
-									setShareSuccessModalVisible(false)
-									// 保留 shareSuccessData，确保 FileShareModal 能够获取 resourceId
-									// FileShareModal 会重新显示，并以编辑模式加载（因为 resourceId 存在）
-								}
+										// 关闭成功弹窗，回到编辑模式
+										setShareSuccessModalVisible(false)
+										// 保留 shareSuccessData，确保 FileShareModal 能够获取 resourceId
+										// FileShareModal 会重新显示，并以编辑模式加载（因为 resourceId 存在）
+									}
 								: undefined
 						}
 						onCancelShare={

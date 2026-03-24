@@ -7,22 +7,37 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\Skill\Service;
 
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\File\EasyFileTools;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\UserSkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ImportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use ValueError;
@@ -35,7 +50,12 @@ class SkillDomainService
     public function __construct(
         protected SkillRepositoryInterface $skillRepository,
         protected SkillVersionRepositoryInterface $skillVersionRepository,
-        protected SkillMarketDomainService $skillMarketDomainService
+        protected UserSkillRepositoryInterface $userSkillRepository,
+        protected SkillMarketDomainService $skillMarketDomainService,
+        protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected SandboxGatewayInterface $sandboxGateway,
+        protected WorkspaceExporterInterface $workspaceExporter,
+        protected WorkspaceImporterInterface $workspaceImporter,
     ) {
     }
 
@@ -50,16 +70,30 @@ class SkillDomainService
     public function findUserSkillByCode(SkillDataIsolation $dataIsolation, string $code): SkillEntity
     {
         $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
+        if (! $skillEntity) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
+        }
 
-        // 验证技能是否属于当前用户
-        if ($skillEntity && $skillEntity->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
+        if ($skillEntity->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
         }
+
+        return $skillEntity;
+    }
+
+    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    {
+        $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
         if (! $skillEntity) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
         }
 
         return $skillEntity;
+    }
+
+    public function findOptionalSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    {
+        return $this->skillRepository->findByCode($dataIsolation, $code);
     }
 
     /**
@@ -75,30 +109,6 @@ class SkillDomainService
     }
 
     /**
-     * 根据 code 列表批量查询用户技能.
-     * 验证技能是否属于当前用户（通过 creator_id）.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param array $codes Skill code 列表
-     * @return array<string, SkillEntity> 技能实体数组，key 为 code
-     */
-    public function findUserSkillsByCodes(SkillDataIsolation $dataIsolation, array $codes): array
-    {
-        $skillEntities = $this->skillRepository->findByCodes($dataIsolation, $codes);
-
-        // 验证技能是否属于当前用户
-        $result = [];
-        foreach ($skillEntities as $code => $skillEntity) {
-            if ($skillEntity->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
-                ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
-            }
-            $result[$code] = $skillEntity;
-        }
-
-        return $result;
-    }
-
-    /**
      * 保存 Skill.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象
@@ -106,6 +116,7 @@ class SkillDomainService
      */
     public function saveSkill(SkillDataIsolation $dataIsolation, SkillEntity $entity): SkillEntity
     {
+        $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkill($entity));
         return $this->skillRepository->save($dataIsolation, $entity);
     }
 
@@ -121,6 +132,122 @@ class SkillDomainService
     }
 
     /**
+     * 根据 code 列表批量查询当前版本或最新版本.
+     *
+     * @param SkillDataIsolation $dataIsolation 数据隔离对象
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findSkillCurrentOrLatestByCodes(SkillDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentOrLatestByCodes($dataIsolation, $codes);
+    }
+
+    /**
+     * 根据 code 列表批量查询当前版本，忽略组织过滤.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findCurrentSkillVersionsByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentByCodesWithoutOrganizationFilter($codes);
+    }
+
+    /**
+     * 根据 code 列表批量查询当前已发布版本.
+     *
+     * @param array $codes Skill code 列表
+     * @return array<string, SkillVersionEntity> 技能版本实体数组，key 为 code
+     */
+    public function findCurrentPublishedVersionsByCodes(SkillDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->skillVersionRepository->findCurrentPublishedByCodes($dataIsolation, $codes);
+    }
+
+    /**
+     * Export agent workspace from sandbox to object storage.
+     *
+     * @param SkillDataIsolation $dataIsolation Data isolation context
+     * @param string $code Agent code, e.g. "SMA-xxx"
+     * @param int $projectId Associated project ID
+     * @param string $fullWorkdir Full working directory path on object storage
+     * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
+     */
+    public function exportAgentFromSandbox(SkillDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
+    {
+        // Build sandbox ID (same strategy as file converter)
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+
+        // Ensure sandbox is running
+        $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
+
+        // Build upload_config: STS credentials for private bucket, matches sandbox API contract
+        $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
+            $dataIsolation->getCurrentOrganizationCode(),
+            StorageBucketType::Private,
+            '/skill_export'
+        );
+
+        // Call sandbox workspace export API via proxy request
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $response = $this->workspaceExporter->export($sandboxId, $request);
+
+        if (! $response->isSuccess()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+        }
+
+        return $response->toArray();
+    }
+
+    /**
+     * Import skill workspace archive from URL into sandbox workspace.
+     * Sandbox initialization must be completed by the application layer before calling.
+     *
+     * @return array{workspace_dir: string, extracted_files: int}
+     */
+    public function importSkillWorkspaceFromSandbox(
+        SkillDataIsolation $dataIsolation,
+        string $sandboxId,
+        string $fileUrl,
+        string $targetDir = ''
+    ): array {
+        $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+
+        $request = new ImportWorkspaceRequest($fileUrl, $targetDir);
+        $response = $this->workspaceImporter->import($sandboxId, $request);
+
+        if (! $response->isSuccess()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, $response->getMessage());
+        }
+
+        return $response->toArray();
+    }
+
+    /**
+     * Query current published versions by skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryCurrentPublishedVersionsByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        ?string $keyword,
+        string $languageCode,
+        Page $page
+    ): array {
+        return $this->skillVersionRepository->queriesCurrentPublishedByCodes(
+            $dataIsolation,
+            $codes,
+            $keyword,
+            $languageCode,
+            $page
+        );
+    }
+
+    /**
      * 根据 ID 查找 Skill 版本（不进行组织过滤，用于查询公开的商店技能版本）.
      *
      * @param int $id 版本 ID
@@ -128,6 +255,16 @@ class SkillDomainService
     public function findSkillVersionByIdWithoutOrganizationFilter(int $id): ?SkillVersionEntity
     {
         return $this->skillVersionRepository->findByIdWithoutOrganizationFilter($id);
+    }
+
+    /**
+     * Batch query skill versions without organization filter.
+     *
+     * @return array<int, SkillVersionEntity>
+     */
+    public function findSkillVersionsByIdsWithoutOrganizationFilter(array $ids): array
+    {
+        return $this->skillVersionRepository->findByIdsWithoutOrganizationFilter($ids);
     }
 
     /**
@@ -162,6 +299,7 @@ class SkillDomainService
      */
     public function saveSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $entity): SkillVersionEntity
     {
+        $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkillVersion($entity));
         return $this->skillVersionRepository->save($dataIsolation, $entity);
     }
 
@@ -190,15 +328,17 @@ class SkillDomainService
     }
 
     /**
-     * 根据 version_code 列表查询用户已添加的技能（用于判断 is_added 和 need_upgrade）.
+     * 根据市场 skill_code 列表查询用户已添加的技能（用于判断 is_added 和 need_upgrade）.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param array $versionCodes version_code 列表
-     * @return array<string, SkillEntity> 技能实体数组，key 为 version_code
+     * @param array $versionCodes 市场 skill_code 列表
+     * @return array<string, SkillEntity> 技能实体数组，key 为 skill_code
      */
     public function findByVersionCodes(SkillDataIsolation $dataIsolation, array $versionCodes): array
     {
-        return $this->skillRepository->findByVersionCodes($dataIsolation, $versionCodes);
+        return $this->buildSkillEntitiesFromUserSkills(
+            $this->userSkillRepository->findBySkillCodes($dataIsolation, $versionCodes)
+        );
     }
 
     /**
@@ -210,56 +350,28 @@ class SkillDomainService
      */
     public function isSkillAdded(SkillDataIsolation $dataIsolation, string $code): bool
     {
-        $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
-        return $skillEntity !== null;
+        return $this->userSkillRepository->findBySkillCode($dataIsolation, $code) !== null;
+    }
+
+    public function findUserSkillOwnershipByCode(SkillDataIsolation $dataIsolation, string $code): ?UserSkillEntity
+    {
+        return $this->userSkillRepository->findBySkillCode($dataIsolation, $code);
     }
 
     /**
-     * 升级来自市场的技能到最新版本.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return SkillEntity 更新后的技能实体
+     * @return array<string>
      */
-    public function upgradeMarketSkill(SkillDataIsolation $dataIsolation, string $code): SkillEntity
+    public function findCurrentUserSkillCodes(SkillDataIsolation $dataIsolation): array
     {
-        // 1. 查询技能记录（校验权限和来源类型）
-        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
+        return $this->userSkillRepository->findCurrentUserSkillCodes($dataIsolation);
+    }
 
-        // 2. 检查来源类型：仅允许升级市场来源的技能
-        if (! $skillEntity->getSourceType()->isMarket()) {
-            ExceptionBuilder::throw(SkillErrorCode::NON_STORE_SKILL_CANNOT_UPGRADE, 'skill.non_store_skill_cannot_upgrade');
-        }
-
-        // 3. 查询市场中该技能的已发布版本（使用 version_code 匹配 skill_code）
-        $versionCode = $skillEntity->getVersionCode();
-        if (! $versionCode) {
-            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_NOT_FOUND, 'skill.store_skill_not_found');
-        }
-
-        $marketSkill = $this->skillMarketDomainService->findStoreSkillBySkillCode($versionCode);
-        if (! $marketSkill || ! $marketSkill->getPublishStatus()->isPublished()) {
-            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_NOT_FOUND, 'skill.store_skill_not_found');
-        }
-
-        // 4. 查询市场版本对应的 Skill 版本详情（获取 package_name、file_key 等）
-        $skillVersion = $this->findSkillVersionByIdWithoutOrganizationFilter($marketSkill->getSkillVersionId());
-        if (! $skillVersion) {
-            ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.skill_version_not_found');
-        }
-
-        // 5. 判断是否需要升级：比较用户当前的 version_id 和 version_code 与市场的 skill_version_id 和 version
-        $currentVersionId = $skillEntity->getVersionId();
-        $currentVersionCode = $skillEntity->getVersionCode();
-        $marketVersionId = $marketSkill->getSkillVersionId();
-        $marketVersionCode = $skillVersion->getVersion();
-
-        if ($currentVersionId === $marketVersionId && $currentVersionCode === $marketVersionCode) {
-            ExceptionBuilder::throw(SkillErrorCode::SKILL_ALREADY_LATEST_VERSION, 'skill.skill_already_latest_version');
-        }
-
-        // 6. 执行升级操作
-        return $this->applyMarketSkillUpgrade($dataIsolation, $skillEntity, $marketSkill, $skillVersion);
+    /**
+     * @return UserSkillEntity[]
+     */
+    public function findAllUserSkillOwnershipsByCode(SkillDataIsolation $dataIsolation, string $code): array
+    {
+        return $this->userSkillRepository->findAllBySkillCode($dataIsolation, $code);
     }
 
     /**
@@ -276,6 +388,124 @@ class SkillDomainService
         Page $page
     ): array {
         return $this->skillRepository->queries($dataIsolation, $query, $page);
+    }
+
+    /**
+     * Query visible local skills by visible skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array {
+        return $this->skillRepository->queriesByCodes($dataIsolation, $codes, $query, $page);
+    }
+
+    /**
+     * Query shared skills by visible skill codes.
+     *
+     * @param array<string> $codes
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function queriesSharedByCodes(
+        SkillDataIsolation $dataIsolation,
+        array $codes,
+        SkillQuery $query,
+        Page $page
+    ): array {
+        return $this->skillRepository->queriesSharedByCodes($dataIsolation, $codes, $query, $page);
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function findCurrentUserSkillCodesBySourceType(
+        SkillDataIsolation $dataIsolation,
+        SkillSourceType|string $sourceType
+    ): array {
+        return $this->userSkillRepository->findSkillCodesBySourceType($dataIsolation, $sourceType);
+    }
+
+    /**
+     * Replace visible skill display fields with the installed version snapshot
+     * when the current user is not the creator of the local skill record.
+     *
+     * @param SkillEntity[] $skillEntities
+     * @return SkillEntity[]
+     */
+    public function replaceVisibleSkillDisplayFields(SkillDataIsolation $dataIsolation, array $skillEntities): array
+    {
+        if ($skillEntities === []) {
+            return [];
+        }
+
+        $skillCodesToReplace = [];
+        foreach ($skillEntities as $skillEntity) {
+            if ($skillEntity->getCreatorId() !== $dataIsolation->getCurrentUserId()) {
+                $skillCodesToReplace[] = $skillEntity->getCode();
+            }
+        }
+
+        if ($skillCodesToReplace === []) {
+            return $skillEntities;
+        }
+
+        $skillCodesToReplace = array_values(array_unique($skillCodesToReplace));
+
+        $publishedVersionMap = $this->findCurrentPublishedVersionsByCodes(
+            $dataIsolation,
+            $skillCodesToReplace
+        );
+
+        $userSkillMap = $this->userSkillRepository->findBySkillCodes(
+            $dataIsolation,
+            $skillCodesToReplace
+        );
+
+        $versionIds = [];
+        foreach ($userSkillMap as $userSkillEntity) {
+            if ($userSkillEntity->getSkillVersionId() !== null) {
+                $versionIds[] = $userSkillEntity->getSkillVersionId();
+            }
+        }
+
+        $versionMap = $versionIds === []
+            ? []
+            : $this->findSkillVersionsByIdsWithoutOrganizationFilter(array_values(array_unique($versionIds)));
+
+        foreach ($skillEntities as $index => $skillEntity) {
+            if ($skillEntity->getCreatorId() === $dataIsolation->getCurrentUserId()) {
+                continue;
+            }
+
+            $userSkillEntity = $userSkillMap[$skillEntity->getCode()] ?? null;
+            $skillVersionEntity = $userSkillEntity?->getSkillVersionId() !== null
+                ? ($versionMap[$userSkillEntity->getSkillVersionId()] ?? null)
+                : null;
+
+            if ($userSkillEntity !== null && $skillVersionEntity !== null) {
+                $skillEntities[$index] = $this->applyInstalledVersionSnapshotToSkill(
+                    $skillEntity,
+                    $userSkillEntity,
+                    $skillVersionEntity
+                );
+                continue;
+            }
+
+            $publishedVersionEntity = $publishedVersionMap[$skillEntity->getCode()] ?? null;
+            if ($publishedVersionEntity !== null) {
+                $skillEntities[$index] = $this->applyPublishedVersionSnapshotToSkill(
+                    $skillEntity,
+                    $publishedVersionEntity
+                );
+            }
+        }
+
+        return $skillEntities;
     }
 
     /**
@@ -306,24 +536,12 @@ class SkillDomainService
      */
     public function deleteSkill(SkillDataIsolation $dataIsolation, string $code): bool
     {
-        // 使用事务处理删除逻辑
         Db::beginTransaction();
         try {
-            // 1. 查询该技能的所有版本（不限制状态）
-            $allVersions = $this->findAllSkillVersionsByCode($dataIsolation, $code);
-
-            // 2. 将所有版本的状态改为 OFFLINE（如果当前不是 OFFLINE）
-            foreach ($allVersions as $version) {
-                if (! $version->getPublishStatus()->isOffline()) {
-                    $version->setPublishStatus(PublishStatus::OFFLINE);
-                    $this->saveSkillVersion($dataIsolation, $version);
-                }
-            }
-
-            // 3. 更新市场技能表中对应记录的发布状态为 OFFLINE（不限制当前状态）
             $this->skillMarketDomainService->updateAllPublishStatusBySkillCode($code, PublishStatus::OFFLINE->value);
+            $this->deleteAllUserSkillOwnershipsByCode($dataIsolation, $code);
+            $this->skillVersionRepository->deleteByCode($dataIsolation, $code);
 
-            // 4. 执行软删除
             $result = $this->skillRepository->deleteByCode($dataIsolation, $code);
 
             Db::commit();
@@ -421,9 +639,9 @@ class SkillDomainService
     /**
      * 查找待审核的技能版本.
      */
-    public function findPendingReviewSkillVersionById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity
+    public function findPendingReviewSkillVersionById(int $id): ?SkillVersionEntity
     {
-        return $this->skillVersionRepository->findPendingReviewById($dataIsolation, $id);
+        return $this->skillVersionRepository->findPendingReviewById($id);
     }
 
     /**
@@ -451,63 +669,164 @@ class SkillDomainService
     }
 
     /**
-     * 发布技能到商店（创建待审核版本）.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Skill code
-     * @return SkillVersionEntity 创建的版本实体
+     * Publish a skill version snapshot.
      */
-    public function publishSkill(SkillDataIsolation $dataIsolation, string $code): SkillVersionEntity
-    {
-        // 1. 查询技能基础信息（校验权限和来源类型）
-        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
-
-        // 2. 校验来源类型：仅允许发布非市场来源的技能
+    public function publishSkill(
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity,
+        SkillVersionEntity $versionEntity
+    ): SkillVersionEntity {
+        // 1. 校验来源类型：仅允许发布非市场来源的技能
         if ($skillEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
         }
 
-        // 3. 处理 Logo：如果 logo 是完整 URL，提取路径部分
-        $logoPath = EasyFileTools::formatPath($skillEntity->getLogo() ?? '');
+        $publishTargetType = $versionEntity->getPublishTargetType();
+        $publishType = PublishType::fromPublishTargetType($publishTargetType);
 
-        // 4. 使用事务处理发布逻辑
-        Db::beginTransaction();
-        try {
-            // 5. 查询该技能的最新版本号（用于版本号递增）
-            $latestVersion = $this->findLatestSkillVersionByCode($dataIsolation, $skillEntity->getCode());
+        // 个人组织没有成员/组织范围，内部发布只能退化为 PRIVATE。
+        if (
+            $dataIsolation->getOrganizationInfoManager()->getOrganizationType() === OrganizationType::Personal
+            && $publishType === PublishType::INTERNAL
+            && $publishTargetType !== PublishTargetType::PRIVATE
+        ) {
+            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
+        }
 
-            // 6. 自动递增版本号
-            $newVersion = '1';
-            if ($latestVersion) {
-                $currentVersion = (int) $latestVersion->getVersion();
-                $newVersion = (string) ($currentVersion + 1);
+        if (! in_array($publishTargetType, [PublishTargetType::PRIVATE, PublishTargetType::MEMBER, PublishTargetType::ORGANIZATION, PublishTargetType::MARKET], true)) {
+            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_TYPE_INVALID, 'skill.publish_target_type_invalid');
+        }
+
+        /*if (
+            $publishTargetType === PublishTargetType::MARKET
+            && ! OfficialOrganizationUtil::isOfficialOrganization($dataIsolation->getCurrentOrganizationCode())
+        ) {
+            ExceptionBuilder::throw(
+                SkillErrorCode::NON_OFFICIAL_ORGANIZATION_CANNOT_PUBLISH_TO_MARKET,
+                'skill.non_official_organization_cannot_publish_to_market'
+            );
+        }*/
+
+        if ($publishTargetType->requiresTargetValue()) {
+            $publishTargetValue = $versionEntity->getPublishTargetValue();
+            if ($publishTargetValue === null || ! $publishTargetValue->hasTargets()) {
+                ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_VALUE_REQUIRED, 'skill.publish_target_value_required');
             }
+        } elseif ($versionEntity->getPublishTargetValue() !== null) {
+            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_TARGET_VALUE_SHOULD_BE_EMPTY, 'skill.publish_target_value_should_be_empty');
+        }
 
-            // 7. 创建 Skill 版本记录（待发布、审核中状态）
-            $versionEntity = new SkillVersionEntity();
-            $versionEntity->setCode($skillEntity->getCode());
-            $versionEntity->setOrganizationCode($skillEntity->getOrganizationCode());
-            $versionEntity->setCreatorId($skillEntity->getCreatorId());
-            $versionEntity->setPackageName($skillEntity->getPackageName());
-            $versionEntity->setPackageDescription($skillEntity->getPackageDescription());
-            $versionEntity->setVersion($newVersion);
-            $versionEntity->setNameI18n($skillEntity->getNameI18n());
-            $versionEntity->setDescriptionI18n($skillEntity->getDescriptionI18n());
-            $versionEntity->setLogo($logoPath ?: null);
-            $versionEntity->setFileKey($skillEntity->getFileKey());
-            $versionEntity->setSourceType($skillEntity->getSourceType());
-            $versionEntity->setProjectId($skillEntity->getProjectId());
-            $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
-            $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+        if ($this->skillVersionRepository->existsByCodeAndVersion($dataIsolation, $skillEntity->getCode(), $versionEntity->getVersion())) {
+            ExceptionBuilder::throw(SkillErrorCode::VERSION_ALREADY_EXISTS, 'skill.version_already_exists');
+        }
 
+        // English: single SQL batch — review_status IN (PENDING, UNDER_REVIEW) -> INVALIDATED (not admin REJECTED).
+        $this->skillVersionRepository->invalidateAwaitingReviewVersionsByCode($dataIsolation, $skillEntity->getCode());
+
+        // 2. 处理 Logo：如果 logo 是完整 URL，提取路径部分
+        $logoPath = EasyFileTools::formatPath($skillEntity->getLogo() ?? '');
+        $versionEntity->setCode($skillEntity->getCode());
+        $versionEntity->setOrganizationCode($skillEntity->getOrganizationCode());
+        $versionEntity->setCreatorId($skillEntity->getCreatorId());
+        $versionEntity->setPackageName($skillEntity->getPackageName());
+        $versionEntity->setPackageDescription($skillEntity->getPackageDescription());
+        $versionEntity->setNameI18n($skillEntity->getNameI18n());
+        $versionEntity->setDescriptionI18n($skillEntity->getDescriptionI18n());
+        $versionEntity->setLogo($logoPath ?: null);
+        $versionEntity->setFileKey($skillEntity->getFileKey());
+        $versionEntity->setSourceType($skillEntity->getSourceType());
+        $versionEntity->setProjectId($skillEntity->getProjectId());
+        $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
+
+        if ($publishTargetType !== PublishTargetType::MARKET) {
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setIsCurrentVersion(true);
+
+            $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillEntity->getCode());
             $versionEntity = $this->saveSkillVersion($dataIsolation, $versionEntity);
 
-            Db::commit();
+            $skillEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+            $this->saveSkill($dataIsolation, $skillEntity);
+
             return $versionEntity;
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
         }
+
+        $skillEntity->setLatestPublishedAt(date('Y-m-d H:i:s'));
+        $this->saveSkill($dataIsolation, $skillEntity);
+
+        $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
+        $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+        $versionEntity->setPublishedAt(null);
+        $versionEntity->setIsCurrentVersion(false);
+        return $this->saveSkillVersion($dataIsolation, $versionEntity);
+    }
+
+    /**
+     * 查询版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryVersionsByCode(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        ?PublishTargetType $publishTargetType = null,
+        ?ReviewStatus $reviewStatus = null,
+        Page $page = new Page()
+    ): array {
+        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
+        if ($skillEntity->getSourceType()->isMarket()) {
+            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
+        }
+
+        return $this->skillVersionRepository->queriesByCode(
+            $dataIsolation,
+            $code,
+            $publishTargetType,
+            $reviewStatus,
+            $page
+        );
+    }
+
+    public function countSkillVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->skillVersionRepository->countByCode($dataIsolation, $code);
+    }
+
+    /**
+     * 查询管理后台版本列表.
+     *
+     * @return array{list: SkillVersionEntity[], total: int}
+     */
+    public function queryVersions(
+        SkillDataIsolation $dataIsolation,
+        ?string $reviewStatus,
+        ?string $publishStatus,
+        ?string $publishTargetType,
+        ?string $sourceType,
+        ?string $version,
+        ?string $skillName,
+        ?string $organizationCode,
+        ?string $startTime,
+        ?string $endTime,
+        string $orderBy,
+        Page $page
+    ): array {
+        return $this->skillVersionRepository->queryVersions(
+            $dataIsolation,
+            $reviewStatus,
+            $publishStatus,
+            $publishTargetType,
+            $sourceType,
+            $version,
+            $skillName,
+            $organizationCode,
+            $startTime,
+            $endTime,
+            $orderBy,
+            $page
+        );
     }
 
     /**
@@ -519,7 +838,10 @@ class SkillDomainService
     public function offlineSkill(SkillDataIsolation $dataIsolation, string $code): void
     {
         // 1. 查询技能基础信息（校验权限）
-        $this->findUserSkillByCode($dataIsolation, $code);
+        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
+        if ($skillEntity->getSourceType()->isMarket()) {
+            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
+        }
 
         // 2. 使用事务处理下架逻辑
         Db::beginTransaction();
@@ -557,7 +879,7 @@ class SkillDomainService
     public function reviewSkillVersion(SkillDataIsolation $dataIsolation, int $id, string $action, string $publisherType = ''): void
     {
         // 1. 查找待审核的技能版本
-        $skillVersion = $this->findPendingReviewSkillVersionById($dataIsolation, $id);
+        $skillVersion = $this->findPendingReviewSkillVersionById($id);
         if (! $skillVersion) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.skill_version_not_found');
         }
@@ -612,41 +934,33 @@ class SkillDomainService
             ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.skill_version_not_found');
         }
 
-        // 3. 检查用户组织是否已添加该技能（通过 version_code 判断）
-        $versionCode = $skillVersion->getVersion();
-        $userSkillsMap = $this->findByVersionCodes($dataIsolation, [$versionCode]);
-        if (isset($userSkillsMap[$versionCode])) {
+        if ($skillVersion->getCreatorId() === $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(
+                SkillErrorCode::SKILL_CREATOR_CANNOT_ADD_FROM_MARKET,
+                'skill.skill_creator_cannot_add_from_market'
+            );
+        }
+
+        // 3. 检查用户是否已添加该市场 skill_code
+        $marketSkillCode = $storeSkill->getSkillCode();
+        $userSkillsMap = $this->findByVersionCodes($dataIsolation, [$marketSkillCode]);
+        if (isset($userSkillsMap[$marketSkillCode])) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_ALREADY_ADDED, 'skill.store_skill_already_added');
         }
 
-        // 4. 创建技能记录
-        $skillEntity = new SkillEntity([
+        $userSkillEntity = new UserSkillEntity([
             'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-            'code' => IdGenerator::getUniqueId32(),
-            'creator_id' => $dataIsolation->getCurrentUserId(),
-            'package_name' => $skillVersion->getPackageName(),
-            'package_description' => $skillVersion->getPackageDescription(),
-            'name_i18n' => $storeSkill->getNameI18n() ?? [],
-            'description_i18n' => $storeSkill->getDescriptionI18n() ?? [],
-            'logo' => $storeSkill->getLogo() ?? '',
-            'file_key' => $skillVersion->getFileKey(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'skill_code' => $storeSkill->getSkillCode(),
+            'skill_version_id' => $storeSkill->getSkillVersionId(),
             'source_type' => SkillSourceType::MARKET->value,
             'source_id' => $storeSkill->getId(),
-            'source_meta' => [
-                'store_skill_id' => $storeSkill->getId(),
-                'skill_version_id' => $storeSkill->getSkillVersionId(),
-                'version_code' => $storeSkill->getSkillCode(),
-            ],
-            'version_id' => $storeSkill->getSkillVersionId(),
-            'version_code' => $storeSkill->getSkillCode(),
-            'is_enabled' => true,
         ]);
 
         // 使用事务确保数据一致性
         Db::beginTransaction();
         try {
-            // 保存技能记录
-            $skillEntity = $this->saveSkill($dataIsolation, $skillEntity);
+            $userSkillEntity = $this->saveUserSkillOwnership($dataIsolation, $userSkillEntity);
 
             // 更新商店技能的安装次数
             $this->skillMarketDomainService->incrementInstallCount($storeSkill->getId());
@@ -657,52 +971,176 @@ class SkillDomainService
             throw $e;
         }
 
+        $installedSkill = $this->buildSkillEntityFromUserSkill($userSkillEntity);
+        if ($installedSkill === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
+        }
+
+        return $installedSkill;
+    }
+
+    public function saveUserSkillOwnership(SkillDataIsolation $dataIsolation, UserSkillEntity $entity): UserSkillEntity
+    {
+        return $this->userSkillRepository->save($dataIsolation, $entity);
+    }
+
+    public function deleteUserSkillOwnership(SkillDataIsolation $dataIsolation, string $code): bool
+    {
+        return $this->userSkillRepository->deleteBySkillCode($dataIsolation, $code);
+    }
+
+    public function deleteUserSkillOwnershipsExceptUser(SkillDataIsolation $dataIsolation, string $code, string $excludedUserId): int
+    {
+        return $this->userSkillRepository->deleteBySkillCodeExceptUser($dataIsolation, $code, $excludedUserId);
+    }
+
+    public function deleteAllUserSkillOwnershipsByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->userSkillRepository->deleteAllBySkillCode($dataIsolation, $code);
+    }
+
+    /**
+     * Build a market-installed skill entity from a user-skill relation.
+     */
+    private function buildSkillEntityFromUserSkill(UserSkillEntity $userSkillEntity): ?SkillEntity
+    {
+        $entities = $this->buildSkillEntitiesFromUserSkills([$userSkillEntity->getSkillCode() => $userSkillEntity]);
+        return $entities[$userSkillEntity->getSkillCode()] ?? null;
+    }
+
+    /**
+     * Build skill entities from user-skill relations using separate repository queries.
+     *
+     * @param array<string, UserSkillEntity> $userSkillEntities
+     * @return array<string, SkillEntity>
+     */
+    private function buildSkillEntitiesFromUserSkills(array $userSkillEntities): array
+    {
+        if ($userSkillEntities === []) {
+            return [];
+        }
+
+        $marketIds = [];
+        $versionIds = [];
+        foreach ($userSkillEntities as $userSkillEntity) {
+            if ($userSkillEntity->getSourceId() !== null) {
+                $marketIds[] = $userSkillEntity->getSourceId();
+            }
+            if ($userSkillEntity->getSkillVersionId() !== null) {
+                $versionIds[] = $userSkillEntity->getSkillVersionId();
+            }
+        }
+
+        $marketMap = $this->skillMarketDomainService->findByIds(array_values(array_unique($marketIds)));
+        $versionMap = $this->findSkillVersionsByIdsWithoutOrganizationFilter(array_values(array_unique($versionIds)));
+
+        $result = [];
+        foreach ($userSkillEntities as $skillCode => $userSkillEntity) {
+            $marketSkill = $userSkillEntity->getSourceId() !== null ? ($marketMap[$userSkillEntity->getSourceId()] ?? null) : null;
+            $skillVersion = $userSkillEntity->getSkillVersionId() !== null ? ($versionMap[$userSkillEntity->getSkillVersionId()] ?? null) : null;
+            $skillEntity = $this->toSkillEntityFromUserSkill($userSkillEntity, $marketSkill, $skillVersion);
+            if ($skillEntity !== null) {
+                $result[$skillCode] = $skillEntity;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert a user-skill relation into a skill entity.
+     */
+    private function toSkillEntityFromUserSkill(
+        UserSkillEntity $userSkillEntity,
+        ?SkillMarketEntity $marketSkill,
+        ?SkillVersionEntity $skillVersion
+    ): ?SkillEntity {
+        if ($userSkillEntity->getSourceType()->isMarket()) {
+            if ($marketSkill === null || $skillVersion === null) {
+                return null;
+            }
+
+            return new SkillEntity([
+                'id' => $userSkillEntity->getId(),
+                'organization_code' => $userSkillEntity->getOrganizationCode(),
+                'code' => $userSkillEntity->getSkillCode(),
+                'creator_id' => $userSkillEntity->getUserId(),
+                'package_name' => $skillVersion->getPackageName(),
+                'package_description' => $skillVersion->getPackageDescription(),
+                'name_i18n' => $marketSkill->getNameI18n() ?? $skillVersion->getNameI18n() ?? [],
+                'description_i18n' => $marketSkill->getDescriptionI18n() ?? $skillVersion->getDescriptionI18n(),
+                'logo' => $marketSkill->getLogo() ?? $skillVersion->getLogo(),
+                'file_key' => $skillVersion->getFileKey(),
+                'source_type' => $userSkillEntity->getSourceType()->value,
+                'source_id' => $userSkillEntity->getSourceId(),
+                'source_meta' => [
+                    'store_skill_id' => $userSkillEntity->getSourceId(),
+                    'skill_version_id' => $userSkillEntity->getSkillVersionId(),
+                    'version_code' => $userSkillEntity->getSkillCode(),
+                ],
+                'version_id' => $userSkillEntity->getSkillVersionId(),
+                'version_code' => $userSkillEntity->getSkillCode(),
+                'is_enabled' => 1,
+                'pinned_at' => null,
+                'project_id' => null,
+                'latest_published_at' => $skillVersion->getPublishedAt(),
+                'created_at' => $userSkillEntity->getCreatedAt(),
+                'updated_at' => $userSkillEntity->getUpdatedAt(),
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Apply the installed version snapshot fields to a visible skill entity.
+     */
+    private function applyInstalledVersionSnapshotToSkill(
+        SkillEntity $skillEntity,
+        UserSkillEntity $userSkillEntity,
+        SkillVersionEntity $skillVersionEntity
+    ): SkillEntity {
+        $skillEntity->setPackageName($skillVersionEntity->getPackageName());
+        $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
+        $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
+        $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
+        $skillEntity->setLogo($skillVersionEntity->getLogo());
+        $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
+        $skillEntity->setSourceType($userSkillEntity->getSourceType());
+        $skillEntity->setSourceId($userSkillEntity->getSourceId());
+        $skillEntity->setVersionId($skillVersionEntity->getId());
+        $skillEntity->setVersionCode($skillVersionEntity->getVersion());
+        $skillEntity->setProjectId($skillVersionEntity->getProjectId());
+        $skillEntity->setLatestPublishedAt($skillVersionEntity->getPublishedAt());
+        $skillEntity->setCreatedAt($skillVersionEntity->getCreatedAt());
+        $skillEntity->setUpdatedAt($skillVersionEntity->getUpdatedAt());
+
         return $skillEntity;
     }
 
     /**
-     * 应用市场技能的升级（更新技能实体到指定版本）.
-     *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity $skillEntity 技能实体
-     * @param SkillMarketEntity $marketSkill 市场技能实体
-     * @param SkillVersionEntity $skillVersion 技能版本实体
-     * @return SkillEntity 更新后的技能实体
+     * Apply the current published version snapshot fields to a visible shared skill entity.
      */
-    private function applyMarketSkillUpgrade(
-        SkillDataIsolation $dataIsolation,
+    private function applyPublishedVersionSnapshotToSkill(
         SkillEntity $skillEntity,
-        SkillMarketEntity $marketSkill,
-        SkillVersionEntity $skillVersion
+        SkillVersionEntity $skillVersionEntity
     ): SkillEntity {
-        // 更新 name_i18n、description_i18n、logo（来自市场技能信息）
-        $skillEntity->setNameI18n($marketSkill->getNameI18n() ?? []);
-        $skillEntity->setDescriptionI18n($marketSkill->getDescriptionI18n() ?? []);
+        $skillEntity->setPackageName($skillVersionEntity->getPackageName());
+        $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
+        $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
+        $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
+        $skillEntity->setLogo($skillVersionEntity->getLogo());
+        $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
+        $skillEntity->setSourceType($skillVersionEntity->getSourceType());
+        $skillEntity->setSourceId($skillVersionEntity->getSourceId());
+        $skillEntity->setVersionId($skillVersionEntity->getId());
+        $skillEntity->setVersionCode($skillVersionEntity->getVersion());
+        $skillEntity->setProjectId($skillVersionEntity->getProjectId());
+        $skillEntity->setLatestPublishedAt($skillVersionEntity->getPublishedAt());
+        $skillEntity->setCreatedAt($skillVersionEntity->getCreatedAt());
+        $skillEntity->setUpdatedAt($skillVersionEntity->getUpdatedAt());
 
-        // 处理 logo（提取路径部分）
-        $logo = $marketSkill->getLogo() ?? '';
-        $logoPath = ! empty($logo) ? EasyFileTools::formatPath($logo) : null;
-        $skillEntity->setLogo($logoPath);
-
-        // 更新 package_name、package_description、file_key（来自版本信息）
-        $skillEntity->setPackageName($skillVersion->getPackageName());
-        $skillEntity->setPackageDescription($skillVersion->getPackageDescription());
-        $skillEntity->setFileKey($skillVersion->getFileKey());
-
-        // 更新 version_id 和 version_code
-        $skillEntity->setVersionId($marketSkill->getSkillVersionId());
-        $skillEntity->setVersionCode($skillVersion->getVersion());
-
-        // 更新 source_meta 中的 skill_version_id
-        $sourceMeta = $skillEntity->getSourceMeta() ?? [];
-        $sourceMeta['skill_version_id'] = $marketSkill->getSkillVersionId();
-        // 保持 store_skill_id（如果存在）
-        if (! isset($sourceMeta['store_skill_id'])) {
-            $sourceMeta['store_skill_id'] = $marketSkill->getId();
-        }
-        $skillEntity->setSourceMeta($sourceMeta);
-
-        return $this->skillRepository->save($dataIsolation, $skillEntity);
+        return $skillEntity;
     }
 
     /**
@@ -714,13 +1152,28 @@ class SkillDomainService
      */
     private function approveSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $skillVersion, PublisherType $publisherType): void
     {
+        $dataIsolation->disabled();
+
         // 1. 更新技能版本状态为已发布和审核通过
+        $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillVersion->getCode());
         $skillVersion->setReviewStatus(ReviewStatus::APPROVED);
         $skillVersion->setPublishStatus(PublishStatus::PUBLISHED);
+        $skillVersion->setPublishTargetType(PublishTargetType::MARKET);
+        $skillVersion->setPublishedAt(date('Y-m-d H:i:s'));
+        $skillVersion->setPublisherUserId($skillVersion->getCreatorId());
+        $skillVersion->setIsCurrentVersion(true);
         $this->saveSkillVersion($dataIsolation, $skillVersion);
+
+        $skillEntity = $this->skillRepository->findByCode($dataIsolation, $skillVersion->getCode());
+        if (! $skillEntity) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
+        }
+        $skillEntity->setLatestPublishedAt($skillVersion->getPublishedAt());
+        $this->saveSkill($dataIsolation, $skillEntity);
 
         // 2. 检查商店表中是否已存在该 skill_code 的记录
         $storeSkill = $this->skillMarketDomainService->findStoreSkillBySkillCode($skillVersion->getCode());
+        $searchText = SkillMarketSearchTextBuilder::buildFromSkillVersion($skillVersion);
 
         if ($storeSkill) {
             // 更新现有记录
@@ -728,6 +1181,7 @@ class SkillDomainService
             $storeSkill->setSkillVersionId($skillVersion->getId());
             $storeSkill->setNameI18n($skillVersion->getNameI18n());
             $storeSkill->setDescriptionI18n($skillVersion->getDescriptionI18n());
+            $storeSkill->setSearchText($searchText);
             $storeSkill->setLogo($skillVersion->getLogo());
             $storeSkill->setPublisherType($publisherType);
             $storeSkill->setPublishStatus(PublishStatus::PUBLISHED);
@@ -740,6 +1194,7 @@ class SkillDomainService
                 'skill_version_id' => $skillVersion->getId(),
                 'name_i18n' => $skillVersion->getNameI18n(),
                 'description_i18n' => $skillVersion->getDescriptionI18n(),
+                'search_text' => $searchText,
                 'logo' => $skillVersion->getLogo(),
                 'publisher_id' => $skillVersion->getCreatorId(),
                 'publisher_type' => $publisherType->value,

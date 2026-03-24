@@ -1,7 +1,10 @@
 import { useCallback } from "react"
 import { SuperMagicApi } from "@/apis"
+import type { ServiceProviderModel } from "@/apis/modules/org-ai-model-provider"
 import type { GetImageGenerationResultParams as ApiGetImageGenerationResultParams } from "@/apis/modules/superMagic"
+import { MODEL_TYPE_IMAGE } from "@/apis/modules/org-ai-model-provider"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import superMagicCustomModelService from "@/services/superMagic/SuperMagicCustomModelService"
 import type {
 	ImageModelItem,
 	GenerateImageRequest,
@@ -10,8 +13,10 @@ import type {
 	ImageGenerationResultResponse,
 } from "@/components/CanvasDesign/types.magic"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import MyModelsIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/assets/my-models-icon.svg"
 import { normalizePath } from "../utils/utils"
 import { useTranslation } from "react-i18next"
+import { toCanvasGenerateHightImageResponse } from "./useHighImageGeneration"
 
 interface UseImageGenerationOptions {
 	projectId?: string
@@ -62,10 +67,41 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 	 * 获取生图模型列表
 	 */
 	const getImageModelList = useCallback(async (): Promise<ImageModelItem[]> => {
-		const result = superMagicModeService.getImageModelListByMode("general") || []
-		// 使用 JSON 序列化/反序列化来深度转换 MobX Proxy 对象为普通 JavaScript 对象
-		return JSON.parse(JSON.stringify(result)) as ImageModelItem[]
-	}, [])
+		const officialGroups = JSON.parse(
+			JSON.stringify(superMagicModeService.getImageModelGroupsByMode("general") || []),
+		) as Array<{
+			group: { id: string; name: string; icon: string; sort: number }
+			models: ImageModelItem[]
+		}>
+		const officialModels: ImageModelItem[] = officialGroups.flatMap((groupItem) =>
+			(groupItem.models || []).map(
+				(model): ImageModelItem => ({
+					...model,
+					model_source: "official",
+					model_group: {
+						id: groupItem.group.id,
+						name: normalizeImageModelGroupLabel(groupItem.group.name),
+						icon: groupItem.group.icon,
+						sort: groupItem.group.sort,
+						source: "official",
+					},
+				}),
+			),
+		)
+		const customModels = getRepresentativeModelsByModelId(
+			await superMagicCustomModelService.getMyModelsByType(MODEL_TYPE_IMAGE),
+		)
+		const modelIdSet = new Set(officialModels.map((item) => item.model_id))
+		const mergedModels: ImageModelItem[] = [...officialModels]
+
+		customModels.forEach((model) => {
+			if (modelIdSet.has(model.model_id)) return
+
+			mergedModels.push(toImageModelItem(model, t("messageEditor.addModel.myModels")))
+		})
+
+		return mergedModels
+	}, [t])
 
 	/**
 	 * 发起图片生成
@@ -142,7 +178,7 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 						(item) =>
 							item.is_directory &&
 							normalizePath(item.relative_file_path || "") ===
-							normalizedImagesDirPath,
+								normalizedImagesDirPath,
 					)
 
 					// 如果 images 目录不存在，创建它
@@ -191,7 +227,7 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 			}
 
 			const result = await SuperMagicApi.generateImage(requestParams)
-			return result
+			return toCanvasGenerateHightImageResponse(result)
 		},
 		[projectId, currentFile?.id, currentFile?.name, flatAttachments, t, updateAttachments],
 	)
@@ -263,3 +299,41 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 		getImageGenerationResult,
 	}
 }
+
+function toImageModelItem(model: ServiceProviderModel, groupName: string): ImageModelItem {
+	return {
+		id: model.id,
+		group_id: MY_MODELS_GROUP_ID,
+		model_id: model.model_id,
+		model_name: model.name,
+		provider_model_id: model.model_version || model.model_id,
+		model_description: typeof model.description === "string" ? model.description : "",
+		model_icon: model.icon ?? "",
+		model_status: "normal",
+		sort: 0,
+		model_source: "custom",
+		model_group: {
+			id: MY_MODELS_GROUP_ID,
+			name: groupName,
+			icon: MyModelsIcon,
+			source: "custom",
+		},
+	}
+}
+
+function getRepresentativeModelsByModelId(models: ServiceProviderModel[]): ServiceProviderModel[] {
+	const modelMap = new Map<string, ServiceProviderModel>()
+
+	models.forEach((model) => {
+		if (modelMap.has(model.model_id)) return
+		modelMap.set(model.model_id, model)
+	})
+
+	return Array.from(modelMap.values())
+}
+
+function normalizeImageModelGroupLabel(label: string): string {
+	return label.replace(/[-_\s]image$/i, "").trim()
+}
+
+const MY_MODELS_GROUP_ID = "my-models"

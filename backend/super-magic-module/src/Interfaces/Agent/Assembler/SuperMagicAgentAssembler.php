@@ -7,19 +7,33 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
+use App\Domain\Contact\Entity\MagicDepartmentEntity;
+use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateAgentRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentListItemDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\AgentVersionListItemDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetAgentDetailResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\PublishAgentVersionResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentsResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentCategorizedListDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\SuperMagicAgentListDTO;
+use Hyperf\Codec\Json;
 
 class SuperMagicAgentAssembler
 {
@@ -48,6 +62,7 @@ class SuperMagicAgentAssembler
         }
 
         $DTO->setProjectId($superMagicAgentEntity->getProjectId() ? (string) $superMagicAgentEntity->getProjectId() : null);
+        $DTO->setFileKey($superMagicAgentEntity->getFileKey());
         $DTO->setCreator($superMagicAgentEntity->getCreator());
         $DTO->setCreatedAt($superMagicAgentEntity->getCreatedAt());
         $DTO->setModifier($superMagicAgentEntity->getModifier());
@@ -69,6 +84,7 @@ class SuperMagicAgentAssembler
         $superMagicAgentEntity->setIconType($superMagicAgentDTO->getIconType());
         $superMagicAgentEntity->setPrompt($superMagicAgentDTO->getPrompt());
         $superMagicAgentEntity->setTools($superMagicAgentDTO->getTools());
+        $superMagicAgentEntity->setFileKey($superMagicAgentDTO->getFileKey());
 
         if ($superMagicAgentDTO->getEnabled() !== null) {
             $superMagicAgentEntity->setEnabled($superMagicAgentDTO->getEnabled());
@@ -158,7 +174,361 @@ class SuperMagicAgentAssembler
         $entity->setSourceType(AgentSourceType::LOCAL_CREATE);
         $entity->setEnabled(true);
         $entity->setVisibilityConfig($requestDTO->getVisibilityConfig());
+        $entity->setFileKey($requestDTO->getFileKey());
 
         return $entity;
+    }
+
+    /**
+     * @param SkillEntity[] $skills
+     */
+    public static function createDetailResponseDTO(
+        SuperMagicAgentEntity $agent,
+        array $skills,
+        ?bool $isStoreOffline,
+        bool $withFileUrl = false,
+        ?string $publishType = null,
+        array $allowedPublishTargetTypes = []
+    ): GetAgentDetailResponseDTO {
+        $language = CoContext::getLanguage();
+
+        $promptString = json_encode($agent->getPrompt(), JSON_UNESCAPED_UNICODE);
+        $prompt = $promptString ? Json::decode($promptString) : [];
+
+        $nameI18n = $agent->getNameI18n();
+        $roleI18n = $agent->getRoleI18n();
+        $descriptionI18n = $agent->getDescriptionI18n();
+
+        if (! $nameI18n) {
+            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+                $nameI18n[$languageCode] = $agent->getName();
+            }
+        }
+        if (! $descriptionI18n) {
+            foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+                $descriptionI18n[$languageCode] = $agent->getDescription();
+            }
+        }
+
+        $skillMap = [];
+        foreach ($skills as $skill) {
+            $skillMap[$skill->getCode()] = $skill;
+        }
+
+        $skillItems = [];
+        foreach ($agent->getSkills() as $agentSkill) {
+            $skill = $skillMap[$agentSkill->getSkillCode()] ?? null;
+            if (! $skill) {
+                continue;
+            }
+
+            $skillItems[] = [
+                'id' => (string) $agentSkill->getId(),
+                'skill_id' => (string) $agentSkill->getSkillId(),
+                'skill_code' => $agentSkill->getSkillCode(),
+                'name_i18n' => $skill->getNameI18n(),
+                'description_i18n' => $skill->getDescriptionI18n(),
+                'logo' => $skill->getLogo(),
+                'file_url' => $skill->getFileUrl(),
+                'sort_order' => $agentSkill->getSortOrder(),
+            ];
+        }
+
+        $playbooks = [];
+        foreach ($agent->getPlaybooks() as $playbook) {
+            $playbooks[] = [
+                'id' => (string) $playbook->getId(),
+                'name_i18n' => $playbook->getNameI18n(),
+                'description_i18n' => $playbook->getDescriptionI18n(),
+                'icon' => $playbook->getIcon(),
+                'theme_color' => $playbook->getThemeColor(),
+                'enabled' => $playbook->getIsEnabled(),
+                'sort_order' => $playbook->getSortOrder(),
+            ];
+        }
+
+        return new GetAgentDetailResponseDTO(
+            id: $agent->getCode(),
+            code: $agent->getCode(),
+            versionCode: null,
+            versionId: null,
+            name: $agent->getI18nName($language),
+            description: $agent->getI18nDescription($language),
+            nameI18n: $nameI18n,
+            roleI18n: $roleI18n,
+            descriptionI18n: $descriptionI18n,
+            icon: $agent->getIcon(),
+            iconType: $agent->getIconType(),
+            prompt: $prompt,
+            enabled: $agent->getEnabled() ?? false,
+            sourceType: $agent->getSourceType()->value,
+            isStoreOffline: $isStoreOffline,
+            pinnedAt: $agent->getPinnedAt(),
+            skills: $skillItems,
+            playbooks: $playbooks,
+            tools: $agent->getTools(),
+            projectId: $agent->getProjectId(),
+            fileKey: $agent->getFileKey(),
+            fileUrl: $withFileUrl ? $agent->getFileUrl() : null,
+            latestPublishedAt: $agent->getLatestPublishedAt(),
+            publishType: $publishType,
+            allowedPublishTargetTypes: $allowedPublishTargetTypes,
+            createdAt: $agent->getCreatedAt(),
+            updatedAt: $agent->getUpdatedAt()
+        );
+    }
+
+    public static function createPublishVersionResponseDTO(AgentVersionEntity $version): PublishAgentVersionResponseDTO
+    {
+        return new PublishAgentVersionResponseDTO(
+            versionId: (string) $version->getId(),
+            version: $version->getVersion(),
+            publishStatus: $version->getPublishStatus()->value,
+            reviewStatus: $version->getReviewStatus()->value,
+            publishTargetType: $version->getPublishTargetType()->value,
+            isCurrentVersion: $version->isCurrentVersion(),
+            publishedAt: $version->getPublishedAt(),
+        );
+    }
+
+    /**
+     * @param array<int, SuperMagicAgentEntity> $agents
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     */
+    public static function createMyAgentsResponseDTO(
+        array $agents,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        array $userAgentsMap,
+        int $page,
+        int $pageSize,
+        int $total
+    ): QueryAgentsResponseDTO {
+        $list = [];
+        foreach ($agents as $agent) {
+            $list[] = self::createAgentListItemDTO(
+                $agent,
+                $playbooksMap,
+                $storeAgentsMap,
+                $latestVersionsMap,
+                $userAgentsMap
+            );
+        }
+
+        return new QueryAgentsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<int, SuperMagicAgentEntity> $agents
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<string, MagicUserEntity> $publisherUserMap
+     */
+    public static function createExternalAgentsResponseDTO(
+        array $agents,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        array $userAgentsMap,
+        string $currentUserId,
+        int $page,
+        int $pageSize,
+        int $total,
+        array $publisherUserMap = []
+    ): QueryAgentsResponseDTO {
+        $list = [];
+        foreach ($agents as $agent) {
+            $list[] = self::createAgentListItemDTO(
+                $agent,
+                $playbooksMap,
+                $storeAgentsMap,
+                $latestVersionsMap,
+                $userAgentsMap,
+                $publisherUserMap
+            );
+        }
+
+        return new QueryAgentsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $userMap
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap
+     * @param AgentVersionEntity[] $versions
+     */
+    public static function createQueryAgentVersionsResponseDTO(
+        array $versions,
+        array $userMap,
+        int $page,
+        int $pageSize,
+        int $total,
+        array $memberDepartmentMap = []
+    ): QueryAgentVersionsResponseDTO {
+        $list = [];
+        foreach ($versions as $version) {
+            $enrichedPublishTargetValue = self::buildEnrichedPublishTargetValue(
+                $version,
+                $userMap,
+                $memberDepartmentMap
+            );
+
+            $list[] = new AgentVersionListItemDTO(
+                id: (string) $version->getId(),
+                version: $version->getVersion(),
+                publishStatus: $version->getPublishStatus()->value,
+                reviewStatus: $version->getReviewStatus()->value,
+                publishTargetType: $version->getPublishTargetType()->value,
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publishedAt: $version->getPublishedAt(),
+                isCurrentVersion: $version->isCurrentVersion(),
+                versionDescriptionI18n: $version->getVersionDescriptionI18n(),
+                publishTargetValue: $enrichedPublishTargetValue,
+            );
+        }
+
+        return new QueryAgentVersionsResponseDTO($list, $page, $pageSize, $total);
+    }
+
+    /**
+     * 构建 MEMBER 类型的 publishTargetValue enriched 数据.
+     *
+     * @param array<string, MagicUserEntity> $userMap
+     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap
+     * @return null|array{users: array<array{id: string, name: string}>, departments: array<array{id: string, name: string}>}
+     */
+    private static function buildEnrichedPublishTargetValue(
+        AgentVersionEntity $version,
+        array $userMap,
+        array $memberDepartmentMap
+    ): ?array {
+        $targetValue = $version->getPublishTargetValue();
+        if ($targetValue === null || ! $version->getPublishTargetType()->requiresTargetValue()) {
+            return null;
+        }
+
+        $users = [];
+        foreach ($targetValue->getUserIds() as $userId) {
+            $userEntity = $userMap[$userId] ?? null;
+            $users[] = [
+                'id' => $userId,
+                'name' => $userEntity?->getNickname() ?: $userId,
+            ];
+        }
+
+        $departments = [];
+        foreach ($targetValue->getDepartmentIds() as $departmentId) {
+            $departmentEntity = $memberDepartmentMap[$departmentId] ?? null;
+            $departments[] = [
+                'id' => $departmentId,
+                'name' => $departmentEntity?->getName() ?: $departmentId,
+            ];
+        }
+
+        return [
+            'users' => $users,
+            'departments' => $departments,
+        ];
+    }
+
+    /**
+     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
+     * @param array<string, AgentMarketEntity> $storeAgentsMap
+     * @param array<string, AgentVersionEntity> $latestVersionsMap
+     * @param array<string, MagicUserEntity> $publisherUserMap
+     */
+    private static function createAgentListItemDTO(
+        SuperMagicAgentEntity $agent,
+        array $playbooksMap,
+        array $storeAgentsMap,
+        array $latestVersionsMap,
+        array $userAgentsMap = [],
+        array $publisherUserMap = []
+    ): AgentListItemDTO {
+        $playbooks = $playbooksMap[$agent->getCode()] ?? [];
+        $features = [];
+        foreach ($playbooks as $playbook) {
+            $features[] = [
+                'name_i18n' => $playbook->getNameI18n(),
+                'icon' => $playbook->getIcon(),
+                'theme_color' => $playbook->getThemeColor(),
+            ];
+        }
+
+        $versionLookupCode = $agent->getCode();
+        if ($agent->getSourceType()->isMarket()) {
+            $versionLookupCode = $storeAgentsMap[$agent->getCode()]?->getAgentCode() ?? $agent->getCode();
+        }
+        $latestVersionCode = isset($latestVersionsMap[$versionLookupCode]) ? $latestVersionsMap[$versionLookupCode]->getVersion() : null;
+
+        // 对市场来源的本地 Agent，仍需额外告知其原始市场记录是否已经下架。
+        $isStoreOffline = null;
+        if ($agent->getSourceType()->isMarket()) {
+            $storeAgent = $storeAgentsMap[$agent->getCode()] ?? null;
+            if ($storeAgent === null) {
+                $isStoreOffline = true;
+            } else {
+                $isStoreOffline = ! $storeAgent->getPublishStatus()->isPublished();
+            }
+        }
+
+        $userAgent = $userAgentsMap[$agent->getCode()] ?? null;
+        $isAdded = $userAgent !== null;
+        $allowDelete = $userAgent === null
+            ? $agent->getSourceType()->isMarket()
+            : ($isAdded && $userAgent?->getSourceType()->isMarket() === true);
+
+        $publisher = self::buildAgentPublisher($agent->getCreator(), $publisherUserMap);
+
+        return new AgentListItemDTO(
+            id: $agent->getId(),
+            code: $agent->getCode(),
+            nameI18n: $agent->getNameI18n() ?? [],
+            roleI18n: $agent->getRoleI18n() ?? [],
+            descriptionI18n: $agent->getDescriptionI18n() ?? [],
+            icon: $agent->getIcon(),
+            iconType: $agent->getIconType(),
+            playbooks: $features,
+            sourceType: $agent->getSourceType()->value,
+            enabled: $agent->getEnabled() ?? false,
+            isStoreOffline: $isStoreOffline,
+            latestVersionCode: $latestVersionCode,
+            allowDelete: $allowDelete,
+            pinnedAt: $agent->getPinnedAt(),
+            latestPublishedAt: $agent->getLatestPublishedAt(),
+            updatedAt: $agent->getUpdatedAt(),
+            createdAt: $agent->getCreatedAt(),
+            publisherType: $publisher['type'],
+            publisher: $publisher['info'],
+        );
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $publisherUserMap
+     * @return array{type: string, info: array{name: string, avatar: string}}
+     */
+    private static function buildAgentPublisher(string $creatorId, array $publisherUserMap): array
+    {
+        $userEntity = $publisherUserMap[$creatorId] ?? null;
+        if ($userEntity !== null) {
+            return [
+                'type' => PublisherType::USER->value,
+                'info' => [
+                    'name' => $userEntity->getNickname() ?: $creatorId,
+                    'avatar' => $userEntity->getAvatarUrl() ?? '',
+                ],
+            ];
+        }
+
+        return [
+            'type' => PublisherType::USER->value,
+            'info' => [
+                'name' => '',
+                'avatar' => '',
+            ],
+        ];
     }
 }

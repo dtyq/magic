@@ -51,6 +51,7 @@ function ContactsSubSider() {
 				<MagicList
 					active={collapseKey}
 					onItemClick={handleItemClick}
+					className="px-2"
 					items={[
 						{
 							id: "aiAssistant",

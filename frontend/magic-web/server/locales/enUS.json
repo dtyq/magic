@@ -27,5 +27,64 @@
 		"docs": "Cloud Document",
 		"pivotTable": "Pivot Table",
 		"document": "Document"
+	},
+	"admin": {
+		"routes": {
+			"admin": "Admin Console",
+			"home": "Admin Console"
+		},
+		"noAuth": {
+			"title": "Unauthorized Access"
+		},
+		"capability": {
+			"approvalDesign": "Approval Design"
+		},
+		"nav": {
+			"ai": "AI Management",
+			"application": "Application Management",
+			"capability": "Capability Management",
+			"enterprise": "Enterprise Management",
+			"platform": "Platform Management",
+			"security": "Security Control",
+			"aiSubMenu": {
+				"controlStrategy": "Control Strategy",
+				"intelligentDrawing": "AI Drawing Management",
+				"modelManagement": "LLM Management",
+				"powerManagement": "Capability Management"
+			},
+			"capabilitySubMenu": {
+				"oaApproval": "OA Approval",
+				"oaApprovalDataView": "Data View",
+				"oaApprovalLimitedTime": "Limited Time Approval",
+				"oaApprovalManagement": "Approval Management",
+				"oaApprovalTemplateHandover": "Template Handover",
+				"oaApprovalWorkflowHandover": "Workflow Handover"
+			},
+			"enterpriseSubMenu": {
+				"memberAndDepartment": "Members and Departments",
+				"organization": "Organization Structure",
+				"userGroup": "User Groups"
+			},
+			"platformSubMenu": {
+				"audit": "AI Content Audit",
+				"infoManagement": "Maintenance Info Management",
+				"modeManagement": "Mode Management",
+				"orderManagement": "Order Management",
+				"organizationList": "Organization List",
+				"organizationManagement": "Organization Management",
+				"organizationPoints": "Organization Points",
+				"packageDetail": "Package Detail",
+				"packageManagement": "Package Management",
+				"paidPackage": "Paid Package",
+				"platformInfo": "Platform Information",
+				"proxyServer": "Proxy Server",
+				"system": "System Settings"
+			},
+			"securitySubMenu": {
+				"adminAuthority": "Admin Authority",
+				"adminLog": "Admin Operation Log",
+				"authorityControl": "Authority Control"
+			}
+		}
 	}
 }

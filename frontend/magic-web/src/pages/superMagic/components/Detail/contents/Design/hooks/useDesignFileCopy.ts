@@ -291,7 +291,7 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 							(item) =>
 								item.is_directory &&
 								normalizePath(item.relative_file_path || "") ===
-								normalizedImagesDirPath,
+									normalizedImagesDirPath,
 						)
 
 						if (!imagesDirItem?.file_id) {
@@ -339,7 +339,7 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 			}
 			return processedPaths
 		},
-		[projectId, currentFile, flatAttachments, copyFileToImagesDirectory],
+		[projectId, currentFile, flatAttachments, updateAttachments, copyFileToImagesDirectory],
 	)
 
 	return {

@@ -33,6 +33,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicCo
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
@@ -150,6 +151,7 @@ class AgentDomainService
         $agentInitContext->setAgentMode($topicEntity->getTopicMode());
         // 设置 magic_service_host
         $agentInitContext->setMagicServiceHost(config('super-magic.sandbox.callback_host', ''));
+        $agentInitContext->setMagicServiceWsHost(config('super-magic.sandbox.magic_service_ws_host', ''));
         // 设置记忆
         $agentInitContext->setMemories($memories);
         // 设置路径
@@ -478,12 +480,18 @@ class AgentDomainService
             }
         }
 
+        $agentMode = $taskContext->getAgentMode();
+        if (str_starts_with($taskContext->getAgentMode(), 'SMA-')) {
+            $agentMode = ProjectMode::CUSTOM_AGENT->value;
+            $taskDynamicConfig['agent_code'] = $taskContext->getAgentMode();
+        }
+
         $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
             'prompt' => $taskContext->getTask()->getPrompt(),
             'task_mode' => $taskContext->getTask()->getTaskMode(),
-            'agent_mode' => $taskContext->getAgentMode(),
+            'agent_mode' => $agentMode,
             'mentions' => $taskContext->getTask()->getMentions(),
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
@@ -515,7 +523,7 @@ class AgentDomainService
             taskId: (string) $taskContext->getTask()->getId(),
             prompt: $prompt,
             taskMode: $taskContext->getTask()->getTaskMode(),
-            agentMode: $taskContext->getAgentMode(),
+            agentMode: $agentMode,
             mentions: $mentionsJsonStruct,
             mcpConfig: $taskContext->getMcpConfig(),
             modelId: $taskContext->getModelId(),
@@ -1055,6 +1063,7 @@ class AgentDomainService
             'task_mode' => $taskContext->getTask()->getTaskMode(),
             'agent_mode' => $taskContext->getAgentMode(),
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
+            'magic_service_ws_host' => config('super-magic.sandbox.magic_service_ws_host', ''),
             'memories' => $initMetadata->getMemories(),
             'chat_history_dir' => $fullChatWorkDir,
             'work_dir' => $fullWorkDir,

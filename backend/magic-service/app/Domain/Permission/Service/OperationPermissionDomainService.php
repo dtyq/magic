@@ -64,6 +64,19 @@ readonly class OperationPermissionDomainService
     }
 
     /**
+     * Delete all operation permissions for a resource.
+     */
+    public function deleteByResource(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, string $resourceId): void
+    {
+        $operationPermissions = $this->operationPermissionRepository->listByResource($dataIsolation, $resourceType, $resourceId);
+        if ($operationPermissions === []) {
+            return;
+        }
+
+        $this->operationPermissionRepository->beachDelete($dataIsolation, array_values($operationPermissions));
+    }
+
+    /**
      * 判断用户是否是资源的所有者.
      */
     public function isResourceOwner(BaseDataIsolation|PermissionDataIsolation $dataIsolation, ResourceType $resourceType, string $resourceId, string $userId): bool

@@ -184,7 +184,7 @@ function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 								/>
 							</SelectTrigger>
 							<SelectContent
-								className="max-h-60 overflow-y-auto"
+								className="!z-[1002] max-h-60 overflow-y-auto"
 								showScrollButtons={false}
 							>
 								{DISCOVERY_CHANNEL_GROUPS.map((group) => (

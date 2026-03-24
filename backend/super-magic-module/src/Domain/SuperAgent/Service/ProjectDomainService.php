@@ -73,6 +73,11 @@ class ProjectDomainService
         if (! empty($projectId)) {
             $project->setId((int) $projectId);
         }
+
+        if ($projectMode !== null && str_starts_with($projectMode, 'SMA-')) {
+            $projectMode = ProjectMode::CUSTOM_AGENT->value;
+        }
+
         $project->setUserId($userId)
             ->setUserOrganizationCode($userOrganizationCode)
             ->setWorkspaceId($workspaceId)
@@ -579,6 +584,11 @@ class ProjectDomainService
     public function batchEnableCollaboration(array $projectIds): int
     {
         return $this->projectRepository->batchEnableCollaboration($projectIds);
+    }
+
+    public function getProjectByTopicId(int $topicId): ?ProjectEntity
+    {
+        return $this->projectRepository->getProjectByTopicId($topicId);
     }
 
     /**

@@ -1,6 +1,7 @@
 import Konva from "konva"
 import type { LayerElement, CanvasDocument } from "../types"
 import { ElementTypeEnum } from "../types"
+import { GenerationStatus } from "../../types.magic"
 import { type CanvasEventMap } from "../EventEmitter"
 import { ElementFactory } from "./ElementFactory"
 import { BaseElement } from "./BaseElement"
@@ -914,13 +915,13 @@ export class ElementManager {
 		const docCopy = JSON.parse(JSON.stringify(doc)) as CanvasDocument
 		let newElements = docCopy.elements || []
 
-		// 过滤掉临时元素（status: "processing" 的图片）
+		// 过滤掉临时元素（status: Processing 的图片）
 		// 因为撤销/恢复时，临时元素的上传任务已经丢失，无法恢复
 		const filterTemporaryElements = (elements: LayerElement[]): LayerElement[] => {
 			return elements
 				.filter((item) => {
 					// 过滤掉上传中的图片元素
-					if (item.type === "image" && item.status === "processing") {
+					if (item.type === "image" && item.status === GenerationStatus.Processing) {
 						return false
 					}
 					return true

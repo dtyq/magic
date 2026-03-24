@@ -18,6 +18,64 @@ class StreamingConfigGenerator:
     """Generator for creating SocketIODriverConfig instances with fixed configuration logic."""
 
     @classmethod
+    def _contains_unsafe_url_chars(cls, host: str) -> bool:
+        """Reject whitespace and control characters in configured URLs."""
+        return any(char.isspace() or ord(char) < 32 for char in host)
+
+    @classmethod
+    def _build_safe_log_base_url(cls, url: str, protocol: Optional[str] = None) -> str:
+        """Build a sanitized URL for logs without userinfo, query, or fragment."""
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return "<invalid>"
+
+        safe_protocol = protocol or parsed.scheme or "unknown"
+        port_suffix = f":{parsed.port}" if parsed.port else ""
+        return f"{safe_protocol}://{hostname}{port_suffix}"
+
+    @classmethod
+    def _build_socketio_config(
+        cls, host: str, *, convert_http_to_ws: bool
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Build Socket.IO config from a host string."""
+        if not host or cls._contains_unsafe_url_chars(host):
+            logger.error("Invalid Socket.IO host: empty or contains unsafe characters")
+            return None, None
+
+        parsed = urlparse(host)
+
+        if convert_http_to_ws:
+            if parsed.scheme == 'https':
+                protocol = 'wss'
+            elif parsed.scheme == 'http':
+                protocol = 'ws'
+            elif parsed.scheme in ('ws', 'wss'):
+                protocol = parsed.scheme
+            else:
+                logger.error(f"Unsupported protocol in host: {parsed.scheme}")
+                return None, None
+        else:
+            if parsed.scheme in ('ws', 'wss'):
+                protocol = parsed.scheme
+            elif parsed.scheme == 'https':
+                protocol = 'wss'
+            elif parsed.scheme == 'http':
+                protocol = 'ws'
+            else:
+                logger.debug(f"Unsupported protocol in WS host: {parsed.scheme}")
+                return None, None
+
+        if not parsed.netloc or not parsed.hostname:
+            logger.error("Invalid Socket.IO host: missing netloc or hostname")
+            return None, None
+
+        base_url = f"{protocol}://{parsed.netloc}"
+        normalized_path = parsed.path.rstrip("/")
+        socketio_path = f"{normalized_path}/socket.io/" if normalized_path else "/socket.io/"
+        return base_url, socketio_path
+
+    @classmethod
     def create_for_agent(cls) -> Optional[SocketIODriverConfig]:
         """
         Create a SocketIODriverConfig for agent use with fixed generation logic.
@@ -32,7 +90,11 @@ class StreamingConfigGenerator:
                     base_url=base_url,
                     socketio_path=socketio_path
                 )
-                logger.debug(f"Created SocketIO driver config with base_url: {base_url}, socketio_path: {socketio_path}")
+                safe_base_url = cls._build_safe_log_base_url(base_url)
+                logger.debug(
+                    f"Created SocketIO driver config with base_url: {safe_base_url}, "
+                    f"socketio_path: {socketio_path}"
+                )
                 return config
             else:
                 logger.debug("No Socket.IO configuration available, returning None")
@@ -54,28 +116,36 @@ class StreamingConfigGenerator:
             # Use existing utility to get full config
             config_data = InitClientMessageUtil.get_full_config()
 
+            magic_service_ws_host = config_data.get('magic_service_ws_host')
+            if magic_service_ws_host:
+                base_url, socketio_path = cls._build_socketio_config(
+                    magic_service_ws_host,
+                    convert_http_to_ws=False
+                )
+                if base_url and socketio_path:
+                    safe_base_url = cls._build_safe_log_base_url(base_url)
+                    logger.debug(
+                        f"Using sanitized Socket.IO WS host, "
+                        f"base_url: {safe_base_url}, socketio_path: {socketio_path}"
+                    )
+                    return base_url, socketio_path
+                logger.debug("magic_service_ws_host is invalid, falling back to magic_service_host")
+
             magic_service_host = config_data.get('magic_service_host')
             if not magic_service_host:
                 logger.debug("No magic_service_host found in credentials")
                 return None, None
 
-            # 使用 urllib.parse 解析 URL
-            parsed = urlparse(magic_service_host)
-
-            # 转换协议：https -> wss, http -> ws
-            if parsed.scheme == 'https':
-                protocol = 'wss'
-            elif parsed.scheme == 'http':
-                protocol = 'ws'
-            else:
-                logger.debug(f"Unsupported protocol in magic_service_host: {parsed.scheme}")
-                return None, None
-
-            # 构建结果
-            base_url = f"{protocol}://{parsed.netloc}"
-            socketio_path = f"{parsed.path}/socket.io/"
-
-            logger.debug(f"Converted {magic_service_host} to base_url: {base_url}, socketio_path: {socketio_path}")
+            base_url, socketio_path = cls._build_socketio_config(
+                magic_service_host,
+                convert_http_to_ws=True
+            )
+            if base_url and socketio_path:
+                safe_base_url = cls._build_safe_log_base_url(base_url)
+                logger.debug(
+                    f"Converted HTTP host to Socket.IO config with base_url: {safe_base_url}, "
+                    f"socketio_path: {socketio_path}"
+                )
             return base_url, socketio_path
 
         except InitializationError as e:

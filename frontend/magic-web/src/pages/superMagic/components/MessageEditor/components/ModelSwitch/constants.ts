@@ -9,7 +9,7 @@ export const modelSwitchVariants = cva(
 			size: {
 				small: "h-6 px-1.5 py-1 text-xs",
 				default: "h-8 px-2 py-1 text-xs",
-				mobile: "h-7 px-2 py-1 text-xs",
+				mobile: "h-8 px-2 py-1 text-xs",
 			},
 			variant: {
 				secondary: "bg-secondary text-secondary-foreground",

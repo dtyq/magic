@@ -18,6 +18,9 @@ import { DownloadImageMode } from "../../pages/Workspace/types"
 import { MagicSpin } from "@/components/base"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { prepareSingleSlideExport } from "@/pages/superMagic/services/pptService"
+import { exportPPTX } from "../../../../../packages/html2pptx/src"
+import { Button } from "@/components/shadcn-ui/button"
 
 export default function Render(props: any) {
 	const {
@@ -280,6 +283,83 @@ export default function Render(props: any) {
 			})
 	}
 
+	const exportPptx = async (fileId: string) => {
+		if (!fileId) return
+
+		const toastId = crypto.randomUUID()
+		let exportHandle: ReturnType<typeof exportPPTX> | null = null
+
+		function getExportToastContent(progressText: string) {
+			return (
+				<div className="flex items-center gap-2">
+					<span>{progressText}</span>
+					<Button
+						type="button"
+						variant="secondary"
+						size="sm"
+						className="h-6 bg-destructive-custom px-2 text-xs text-destructive hover:opacity-90"
+						onClick={() => exportHandle?.cancel()}
+					>
+						{t("topicFiles.exportCancel")}
+					</Button>
+				</div>
+			)
+		}
+
+		try {
+			magicToast.loading({
+				key: toastId,
+				content: getExportToastContent(t("topicFiles.exporting")),
+				duration: 0,
+			})
+
+			const fileItem = attachmentList?.find((item: any) => item.file_id === fileId)
+			const result = await prepareSingleSlideExport({
+				fileId,
+				fileName: fileItem?.file_name || data?.file_name,
+				attachmentList: attachments ?? [],
+			})
+
+			if (!result.htmlSlides.some(Boolean)) {
+				magicToast.error({
+					key: toastId,
+					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+					duration: 1000,
+				})
+				return
+			}
+
+			exportHandle = exportPPTX(result.htmlSlides, {
+				fileName: result.fileName,
+				skipFailedPages: true,
+			})
+
+			await exportHandle.promise
+
+			magicToast.success({
+				key: toastId,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error: unknown) {
+			const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+			if (isAbort) {
+				magicToast.info({
+					key: toastId,
+					content: t("topicFiles.exportCancel"),
+					duration: 1000,
+				})
+			} else {
+				magicToast.error({
+					key: toastId,
+					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+					duration: 1000,
+				})
+				console.error("Export editable PPT failed:", error)
+			}
+		}
+	}
+
 	// Common props object for passing to content components
 	const commonProps = {
 		type,
@@ -324,6 +404,7 @@ export default function Render(props: any) {
 		exportFile,
 		exportPdf,
 		exportPpt,
+		exportPptx,
 		isExporting,
 		selectedProject,
 		selectedTopic,

@@ -34,7 +34,8 @@ export const getAllIcons = () => {
 export const IconComponent = (selectedIcon?: string, size: number = 24, iconColor?: string) => {
 	if (!selectedIcon) return null
 
-	if (selectedIcon === "IconSuperMagic") return <IconSuperMagic size={size} color={iconColor} />
+	if (selectedIcon === "IconSuperMagic")
+		return <IconSuperMagic size={size} color={iconColor} strokeWidth={1} />
 
 	const iconNames = Object.keys(OfficialTablerIcons || {})
 	if (iconNames.includes(selectedIcon))

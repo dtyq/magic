@@ -78,11 +78,27 @@ export function useTopicDesktopLayout({
 	useEffect(() => {
 		if (!store.isDraggingProjectSider && !store.isDraggingMessagePanel) return
 
+		let rafId: number | null = null
+		let nextClientX: number | null = null
+
+		const flushDragPosition = () => {
+			rafId = null
+			if (nextClientX === null) return
+			store.updateDrag(nextClientX)
+			nextClientX = null
+		}
+
 		const handleMouseMove = (event: MouseEvent) => {
-			store.updateDrag(event.clientX)
+			nextClientX = event.clientX
+			if (rafId !== null) return
+			rafId = window.requestAnimationFrame(flushDragPosition)
 		}
 
 		const handleMouseUp = () => {
+			if (rafId !== null) {
+				window.cancelAnimationFrame(rafId)
+				flushDragPosition()
+			}
 			store.endDrag()
 		}
 
@@ -90,6 +106,9 @@ export function useTopicDesktopLayout({
 		document.addEventListener("mouseup", handleMouseUp)
 
 		return () => {
+			if (rafId !== null) {
+				window.cancelAnimationFrame(rafId)
+			}
 			document.removeEventListener("mousemove", handleMouseMove)
 			document.removeEventListener("mouseup", handleMouseUp)
 		}

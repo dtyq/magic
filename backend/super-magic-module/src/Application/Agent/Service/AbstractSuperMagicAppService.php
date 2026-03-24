@@ -15,6 +15,7 @@ use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
+use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -23,6 +24,7 @@ use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
@@ -31,6 +33,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -310,7 +313,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      * 更新 Skill 实体的 Logo URL（将路径转换为完整URL）.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity[] $skillEntities Skill 实体数组
+     * @param array<SkillEntity|SkillVersionEntity> $skillEntities Skill 实体数组
      */
     protected function updateSkillLogoUrls(SuperMagicAgentDataIsolation $dataIsolation, array $skillEntities): void
     {
@@ -399,7 +402,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      * 更新 Skill 实体的 FileUrl（根据 fileKey 获取私有链接）.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity[] $skillEntities Skill 实体数组
+     * @param array<SkillEntity|SkillVersionEntity> $skillEntities Skill 实体数组
      */
     protected function updateSkillFileUrl(SuperMagicAgentDataIsolation $dataIsolation, array $skillEntities): void
     {
@@ -425,5 +428,28 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             $fileLink = $allFileLinksMap[$skillEntity->getOrganizationCode()][$skillEntity->getFileKey()] ?? null;
             $skillEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
         }
+    }
+
+    protected function updateAgentFileUrl(SuperMagicAgentEntity $agentEntity): void
+    {
+        $fileKey = $agentEntity->getFileKey();
+        if (empty($fileKey)) {
+            return;
+        }
+
+        $fileLink = $this->getPrivateFileLinks($agentEntity->getOrganizationCode(), [$fileKey])[$fileKey] ?? null;
+        $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
+    }
+
+    protected function getOfficialAgentCodes(Authenticatable $authorization): array
+    {
+        $modeDataIsolation = $this->createModeDataIsolation($authorization);
+        $modeDataIsolation->disabled();
+
+        // 获取后台的所有模式，用于封装数据到 Agent 中
+        $query = new ModeQuery(status: true);
+        $modeEntities = $this->modeDomainService->getModes($modeDataIsolation, $query, Page::createNoPage())['list'];
+
+        return array_map(fn ($modeEntity) => $modeEntity->getIdentifier(), $modeEntities);
     }
 }

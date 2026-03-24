@@ -74,6 +74,7 @@ export default function CrewSelectModal({
 
 	const handleSelect = useMemoizedFn((crew: CrewItem) => {
 		onSelectCrew(crew)
+		onClose()
 	})
 
 	return (

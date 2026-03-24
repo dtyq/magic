@@ -24,6 +24,11 @@ interface AgentSkillRepositoryInterface
      */
     public function getByAgentCodeForCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): array;
 
+    /**
+     * @return AgentSkillEntity[]
+     */
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId): array;
+
     public function deleteByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): bool;
 
     /**

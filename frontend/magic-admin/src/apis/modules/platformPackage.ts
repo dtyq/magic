@@ -7,53 +7,6 @@ import type { HttpClient } from "../core/HttpClient"
 
 export const generatePlatformPackageApi = (client: HttpClient) => {
 	return {
-		/** 获取套餐列表 */
-		getPackageList() {
-			return client.get<WithPage<PlatformPackage.Package>>(RequestUrl.getPackageList)
-		},
-
-		/** 更新套餐状态 */
-		updatePackageStatus(id: string, data: { status: boolean }) {
-			return client.put<null>(genRequestUrl(RequestUrl.updatePackageStatus, { id }), data)
-		},
-
-		/* 获取套餐下可用的模型 */
-		getPackageAvailableModels(id: string) {
-			return client.get<PlatformPackage.PackageAvailableModels>(
-				genRequestUrl(RequestUrl.getPackageAvailableModels, { id }),
-			)
-		},
-
-		/** 获取套餐详情 */
-		getPackageDetail(id: string) {
-			return client.get<PlatformPackage.PackageDetail>(
-				genRequestUrl(RequestUrl.getPackageDetail, { id }),
-			)
-		},
-
-		/** 更新套餐信息 */
-		updatePackageInfo(id: string, data: PlatformPackage.PackageDetail) {
-			return client.put<PlatformPackage.PackageDetail>(
-				genRequestUrl(RequestUrl.getPackageDetail, { id }),
-				data,
-			)
-		},
-
-		/** 添加套餐 */
-		addPackage(data: PlatformPackage.PackageDetail) {
-			return client.post<PlatformPackage.PackageDetail>(RequestUrl.addPackage, data)
-		},
-
-		/** 删除套餐 */
-		deletePackage(id: string) {
-			return client.delete<null>(genRequestUrl(RequestUrl.getPackageDetail, { id }))
-		},
-
-		/** 获取套餐常量可选项 */
-		getPackageConstantOptions() {
-			return client.get<PlatformPackage.PackageConstantOptions>(RequestUrl.getPackageOptions)
-		},
-
 		/** 获取模式列表 */
 		getModeList(params: PlatformPackage.ModeListParams) {
 			return client.get<WithPage<PlatformPackage.Mode>>(
@@ -143,6 +96,70 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			return client.post<WithPage<PlatformPackage.OrderList>>(RequestUrl.getOrderList, data)
 		},
 
+		/** 获取 Skill 版本列表 */
+		getSkillVersionList(data: PlatformPackage.GetSkillVersionListParams) {
+			return client.post<WithPage<PlatformPackage.SkillVersion>>(
+				RequestUrl.getSkillVersionList,
+				data,
+			)
+		},
+
+		/** 获取 Skill 市场列表 */
+		getSkillMarketList(data: PlatformPackage.GetSkillMarketListParams) {
+			return client.post<WithPage<PlatformPackage.SkillMarketItem>>(
+				RequestUrl.getSkillMarketList,
+				data,
+			)
+		},
+
+		/** 更新 Skill 市场排序 */
+		updateSkillMarketSortOrder(
+			id: string,
+			data: PlatformPackage.UpdateSkillMarketSortOrderParams,
+		) {
+			return client.put<null>(
+				genRequestUrl(RequestUrl.updateSkillMarketSortOrder, { id }),
+				data,
+			)
+		},
+
+		/** 获取员工审核列表 */
+		getAgentVersionReviewList(data: PlatformPackage.GetAgentVersionReviewListParams) {
+			return client.post<WithPage<PlatformPackage.AgentVersionReview>>(
+				RequestUrl.getAgentVersionReviewList,
+				data,
+			)
+		},
+
+		/** 审核员工版本 */
+		reviewAgentVersion(id: string, data: PlatformPackage.ReviewSkillVersionParams) {
+			return client.put<null>(genRequestUrl(RequestUrl.reviewAgentVersion, { id }), data)
+		},
+
+		/** 获取员工市场列表 */
+		getAgentMarketList(data: PlatformPackage.GetAgentMarketListParams) {
+			return client.post<WithPage<PlatformPackage.AgentMarketItem>>(
+				RequestUrl.getAgentMarketList,
+				data,
+			)
+		},
+
+		/** 更新员工市场排序 */
+		updateAgentMarketSortOrder(
+			id: string,
+			data: PlatformPackage.UpdateAgentMarketSortOrderParams,
+		) {
+			return client.put<null>(
+				genRequestUrl(RequestUrl.updateAgentMarketSortOrder, { id }),
+				data,
+			)
+		},
+
+		/** 审核 Skill 版本 */
+		reviewSkillVersion(id: string, data: PlatformPackage.ReviewSkillVersionParams) {
+			return client.put<null>(genRequestUrl(RequestUrl.reviewSkillVersion, { id }), data)
+		},
+
 		/** 获取订单商品筛选条件 */
 		getOrderProduct() {
 			return client.get<PlatformPackage.OrderProduct[]>(RequestUrl.getOrderProduct)
@@ -194,57 +211,6 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 获取代理列表 */
-		getProxyServerList(data: PlatformPackage.GetProxyServerListParams) {
-			return client.get<WithPage<PlatformPackage.ProxyServer>>(
-				genRequestUrl(RequestUrl.getProxyServerList, {}, data),
-			)
-		},
-
-		/** 获取单个可用代理 */
-		getAvailableProxy(id: string) {
-			return client.get<PlatformPackage.ProxyServer>(
-				genRequestUrl(RequestUrl.getAvailableProxy, { id }),
-			)
-		},
-
-		/** 创建代理 */
-		createProxy(data: PlatformPackage.CreateOrUpdateProxyParams) {
-			return client.post<PlatformPackage.ProxyServer>(RequestUrl.createProxy, data)
-		},
-
-		/** 更新代理 */
-		updateProxy(id: string, data: PlatformPackage.CreateOrUpdateProxyParams) {
-			return client.put<PlatformPackage.ProxyServer>(
-				genRequestUrl(RequestUrl.updateProxy, { id }),
-				data,
-			)
-		},
-
-		/** 删除代理 */
-		deleteProxy(id: string) {
-			return client.delete<null>(genRequestUrl(RequestUrl.updateProxy, { id }))
-		},
-
-		/** 启停用代理 */
-		updateProxyStatus(id: string, data: { status: 0 | 1 }) {
-			return client.put<null>(genRequestUrl(RequestUrl.updateProxyStatus, { id }), data)
-		},
-
-		/** 测试代理连通性 */
-		testProxyConnection(id: string) {
-			return client.post<PlatformPackage.TestProxyConnection>(
-				genRequestUrl(RequestUrl.testProxyConnection, { id }),
-			)
-		},
-
-		/** 获取所有代理配置（仅ID和名称） */
-		getAllProxyList() {
-			return client.get<Pick<PlatformPackage.ProxyServer, "id" | "name">[]>(
-				RequestUrl.getAllProxyList,
-			)
-		},
-
 		/** 获取全局配置 */
 		getGlobalConfig() {
 			return client.get<PlatformPackage.GlobalConfig>(RequestUrl.getGlobalConfig)
@@ -253,44 +219,6 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 		/** 更新全局配置 */
 		updateGlobalConfig(data: { is_maintenance: boolean; maintenance_description: string }) {
 			return client.put(genRequestUrl(RequestUrl.getGlobalConfig), data)
-		},
-
-		/* ========== 组织管理相关接口 ========== */
-		/** 获取组织列表 */
-		getOrgList(params: PlatformPackage.GetOrgListParams) {
-			return client.get<WithPage<PlatformPackage.Organization>>(
-				genRequestUrl(RequestUrl.getOrgList, {}, params),
-			)
-		},
-
-		/** 创建组织 */
-		createOrganization(data: PlatformPackage.CreateOrganizationParams) {
-			return client.post(genRequestUrl(RequestUrl.createOrganization), data)
-		},
-
-		/** 获取组织信息 */
-		getOrganizationInfo(code: string) {
-			return client.get<PlatformPackage.OrganizationInfo>(
-				genRequestUrl(
-					RequestUrl.getOrganizationInfo,
-					{},
-					{ magic_organization_code: code },
-				),
-			)
-		},
-
-		/** 更新组织信息 */
-		updateOrganizationInfo(data: PlatformPackage.OrganizationInfo) {
-			return client.put(
-				genRequestUrl(
-					RequestUrl.getOrganizationInfo,
-					{},
-					{
-						magic_organization_code: data.magic_organization_code,
-					},
-				),
-				data,
-			)
 		},
 	}
 }

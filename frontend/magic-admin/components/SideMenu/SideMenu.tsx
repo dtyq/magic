@@ -54,8 +54,8 @@ const SideMenu = memo((props: SideMenuProps) => {
 						return { item: route, path: [...parentKeys] }
 					}
 
-					// 前缀匹配（用于详情页等子路径）
-					if (pathname.startsWith(routeKey)) {
+					// 前缀匹配（用于详情页等子路径），按路径边界匹配，避免 /skill 误匹配 /skill-market
+					if (pathname.startsWith(`${routeKey}/`)) {
 						// 如果有子菜单，继续递归查找
 						if (route.children && Array.isArray(route.children)) {
 							const childResult = findMatchedItemWithPath(route.children, [

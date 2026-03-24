@@ -148,4 +148,6 @@ export interface CommonHeaderV2Props {
 	actionConfig?: HeaderActionConfig
 	/** 全屏等场景下将 Tooltip/Dropdown 挂载到指定容器内，避免被裁切 */
 	getPopupContainer?: () => HTMLElement | null
+	/** 自定义「定位到文件」行为，未传时使用 currentFile.id */
+	onLocateFile?: () => void
 }

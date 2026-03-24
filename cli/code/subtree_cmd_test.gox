@@ -1,0 +1,144 @@
+package code
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/dtyq/magicrew-cli/util"
+	git "github.com/libgit2/git2go/v34"
+	"github.com/stretchr/testify/assert"
+)
+
+func makeDummyCode(t *testing.T) (string, *Code) {
+	tempDir := t.TempDir()
+
+	codeBase := filepath.Join(tempDir, "dummy-magic")
+	err := os.MkdirAll(codeBase, 0755)
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	// init git repository
+	repo, err := git.InitRepository(codeBase, false)
+	if err != nil {
+		t.FailNow()
+	}
+
+	// create commits
+	const dests = 5
+	for i := 0; i < dests; i++ {
+		err := os.MkdirAll(filepath.Join(tempDir), "dest"+strconv.Itoa(i))
+	}
+	const commitCount = 20
+	for i := 0; i < commitCount; i++ {
+		if err := os.WriteFile(filepath.Join(codeBase,
+			"proj"+strconv.Itoa(i%dests), "file.txt"),
+			[]byte("content "+strconv.Itoa(i)),
+			0644,
+		); err != nil {
+			t.FailNow()
+		}
+		err = repo.Worktree().AddWithOptions(&git.AddOptions{
+			Path: "proj" + strconv.Itoa(i%dests) + "/file.txt",
+		})
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		_, err = repo.Worktree().Commit("commit "+strconv.Itoa(i), &git.CommitOptions{
+			Author: &git.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				Time:  time.Now(),
+			},
+		})
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+	}
+
+	err = os.WriteFile(filepath.Join(codeBase, "magicrew.yml"), []byte(testMagicrewYml), 0644)
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	code, err := FindMagicrew(tempDir)
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	return tempDir, code
+}
+
+func makeLogContext() context.Context {
+	loggers, err := util.NewLoggers([]util.LogStreamConfig{
+		{
+			Kind:  util.LogKindFile,
+			Path:  "stdout",
+			Level: util.LogLevelDebug,
+			Type:  util.LogTypeText,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return context.WithValue(context.Background(), util.ContextTypeLoggerGroup{}, loggers)
+}
+
+func testSubtree(t *testing.T, tempDir string, subtreeImpl subtreeSpliter, code *Code) {
+	ctx := makeLogContext()
+
+	t.Run("AbsoluteDestPath", func(t *testing.T) {
+		destPath1, err := filepath.Abs(filepath.Join(tempDir, "dest0"))
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		err = subtreeImpl.Split(ctx, code, SubtreeSplit{
+			Prefix:   "proj0",
+			DestPath: destPath1,
+		})
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+	})
+
+	t.Run("RelativeDestPath", func(t *testing.T) {
+		destPath2, err := filepath.Rel(code.BaseDir, filepath.Join(tempDir, "dest1"))
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		err = subtreeImpl.Split(ctx, code, SubtreeSplit{
+			Prefix:   "proj1",
+			DestPath: destPath2,
+		})
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+	})
+
+}
+
+func TestSubtreeCmd(t *testing.T) {
+	tempDir, code := makeDummyCode(t)
+	defer os.RemoveAll(tempDir)
+
+	t.Run("Git", func(t *testing.T) {
+		subtreeImpl := &subtreeSpliterCmd{
+			Kind: subtreeKindCmd,
+			// it should use git by default
+		}
+		testSubtree(t, tempDir, subtreeImpl, code)
+		assert.Equal(t, subtreeSpliterCmdKindGit, subtreeImpl.Cmd)
+	})
+
+	t.Run("SplitshLite", func(t *testing.T) {
+		subtreeImpl := &subtreeSpliterCmd{
+			Kind: subtreeKindCmd,
+			Cmd:  subtreeSpliterCmdKindSplitshLite,
+		}
+		testSubtree(t, tempDir, subtreeImpl, code)
+	})
+}

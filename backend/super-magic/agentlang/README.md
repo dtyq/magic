@@ -87,7 +87,7 @@ AgentLang 的代码组织遵循清晰的模块化结构:
 
 ## 📞 联系方式
 
-- **Email**: dev@letsmagic.ai
+- **Email**: dev@magicrew.ai
 - **GitHub**: [https://github.com/dtyq/agentlang](https://github.com/dtyq/agentlang)
 - **问题追踪**: [https://github.com/dtyq/agentlang/issues](https://github.com/dtyq/agentlang/issues)
 

@@ -99,7 +99,7 @@ function MessageQueue({
 								className={cn(
 									"flex items-start justify-between gap-3 rounded-[4px] [&_p]:m-0",
 									isEditing &&
-									"relative items-center pl-2 before:absolute before:bottom-0 before:left-0 before:top-0 before:w-[3px] before:rounded-[1.5px] before:bg-orange-500 before:content-[''] dark:before:bg-orange-400",
+										"relative items-center pl-2 before:absolute before:bottom-0 before:left-0 before:top-0 before:w-[3px] before:rounded-[1.5px] before:bg-orange-500 before:content-[''] dark:before:bg-orange-400",
 								)}
 							>
 								<div
@@ -148,7 +148,7 @@ function MessageQueue({
 													className={cn(
 														actionButtonBase,
 														message.isDeletingLoading &&
-														"cursor-not-allowed opacity-60",
+															"cursor-not-allowed opacity-60",
 													)}
 													onClick={() => {
 														if (!message.isDeletingLoading)
@@ -158,7 +158,7 @@ function MessageQueue({
 													{message.isDeletingLoading ? (
 														<Spin size="small" />
 													) : (
-														<LucideLazyIcon icon="Trash2" size={14} />
+														<LucideLazyIcon icon="Trash" size={14} />
 													)}
 												</div>
 											</Tooltip>
@@ -167,7 +167,7 @@ function MessageQueue({
 													className={cn(
 														actionButtonBase,
 														isDisabled &&
-														"cursor-not-allowed opacity-40",
+															"cursor-not-allowed opacity-40",
 													)}
 													onClick={() => {
 														if (!isDisabled) onStartEdit(message.id)
@@ -181,7 +181,7 @@ function MessageQueue({
 													className={cn(
 														actionButtonBase,
 														message.isSendingLoading &&
-														"cursor-not-allowed opacity-60",
+															"cursor-not-allowed opacity-60",
 													)}
 													onClick={() => {
 														if (!message.isSendingLoading)

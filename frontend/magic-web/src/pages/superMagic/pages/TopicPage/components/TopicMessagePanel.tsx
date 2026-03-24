@@ -1,4 +1,4 @@
-import { lazy, useMemo } from "react"
+import { lazy, memo, useMemo } from "react"
 import { JSONContent } from "@tiptap/core"
 import MessageList, { MessageListProvider } from "../../../components/MessageList"
 import MessageHeader from "../../../components/MessageHeader"
@@ -29,6 +29,7 @@ interface TopicMessagePanelProps {
 	onExpandConversationPanel?: () => void
 	detailPanelVisible?: boolean
 	isMessagesLoading?: boolean
+	isDraggingPanel?: boolean
 }
 
 function TopicMessagePanel({
@@ -49,6 +50,7 @@ function TopicMessagePanel({
 	onExpandConversationPanel,
 	detailPanelVisible = true,
 	isMessagesLoading,
+	isDraggingPanel = false,
 }: TopicMessagePanelProps) {
 	const value = useMemo(() => {
 		return {
@@ -64,7 +66,8 @@ function TopicMessagePanel({
 	return (
 		<div
 			className={cn(
-				"relative z-10 flex h-full flex-col items-center overflow-hidden transition-all duration-300",
+				"relative z-10 flex h-full flex-col items-center overflow-hidden",
+				!isDraggingPanel && "transition-all duration-300",
 				!isConversationPanelCollapsed && "rounded-lg",
 				isConversationPanelCollapsed ? "px-0 pb-0" : "pb-2",
 			)}
@@ -118,4 +121,4 @@ function TopicMessagePanel({
 	)
 }
 
-export default TopicMessagePanel
+export default memo(TopicMessagePanel)

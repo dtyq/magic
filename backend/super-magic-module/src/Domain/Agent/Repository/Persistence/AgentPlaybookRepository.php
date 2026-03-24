@@ -63,6 +63,46 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         return $entities;
     }
 
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId, ?bool $isEnabled = null): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentPlaybookModel::query());
+
+        $builder = $builder
+            ->select([
+                'id',
+                'organization_code',
+                'agent_id',
+                'agent_version_id',
+                'agent_code',
+                'name_i18n',
+                'description_i18n',
+                'icon',
+                'theme_color',
+                'is_enabled',
+                'sort_order',
+            ])
+            ->where('agent_version_id', $agentVersionId);
+
+        if ($isEnabled === true) {
+            $builder->where('is_enabled', 1);
+        } elseif ($isEnabled === false) {
+            $builder->where('is_enabled', 0);
+        }
+
+        $models = $builder
+            ->orderBy('is_enabled', 'DESC')
+            ->orderBy('sort_order', 'DESC')
+            ->orderBy('created_at', 'ASC')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = new AgentPlaybookEntity($model->toArray());
+        }
+
+        return $entities;
+    }
+
     /**
      * 批量根据 agent_code 列表查询 Playbook 列表.
      */
@@ -126,50 +166,7 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         }
 
         // 新建时，所有字段都需要设置
-        $attributes = $this->getAttributes($entity);
-        /*
-        // 转换 Entity 属性到 Model
-        $attributes = [];
-         if (! $entity->getId()) {
-            $attributes = [
-                'organization_code' => $entity->getOrganizationCode(),
-                'agent_id' => $entity->getAgentId(),
-                'agent_version_id' => $entity->getAgentVersionId(),
-                'agent_code' => $entity->getAgentCode(),
-                'name_i18n' => $entity->getNameI18n(),
-                'description_i18n' => $entity->getDescriptionI18n(),
-                'icon' => $entity->getIcon(),
-                'theme_color' => $entity->getThemeColor(),
-                'is_enabled' => $entity->getIsEnabled() !== null ? ($entity->getIsEnabled() ? 1 : 0) : 1,
-                'sort_order' => $entity->getSortOrder() ?? 0,
-                'config' => $entity->getConfig(),
-                'creator_id' => $entity->getCreatorId(),
-                'created_at' => date('Y-m-d H:i:s'),
-            ];
-        } else {
-            // 更新时，只更新非 null 的字段（部分更新）
-            if ($entity->getNameI18n() !== null) {
-                $attributes['name_i18n'] = $entity->getNameI18n();
-            }
-            if ($entity->getDescriptionI18n() !== null) {
-                $attributes['description_i18n'] = $entity->getDescriptionI18n();
-            }
-            if ($entity->getIcon() !== null) {
-                $attributes['icon'] = $entity->getIcon();
-            }
-            if ($entity->getThemeColor() !== null) {
-                $attributes['theme_color'] = $entity->getThemeColor();
-            }
-            if ($entity->getIsEnabled() !== null) {
-                $attributes['is_enabled'] = $entity->getIsEnabled() ? 1 : 0;
-            }
-            if ($entity->getSortOrder() !== null) {
-                $attributes['sort_order'] = $entity->getSortOrder();
-            }
-            if ($entity->getConfig() !== null) {
-                $attributes['config'] = $entity->getConfig();
-            }
-        }*/
+        $attributes = $entity->toArray();
 
         $attributes['updated_at'] = date('Y-m-d H:i:s');
 
@@ -251,6 +248,7 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         $builder = $this->createBuilder($dataIsolation, $this->agentPlaybookModel::query());
         $models = $builder
             ->where('agent_id', $agentId)
+            ->whereNull('agent_version_id')
             ->whereNull('deleted_at')
             ->orderBy('sort_order', 'DESC')
             ->get();
@@ -318,6 +316,17 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
         }
 
         $models = $this->agentPlaybookModel::query()
+            ->select(['id',
+                'organization_code',
+                'agent_id',
+                'agent_version_id',
+                'agent_code',
+                'name_i18n',
+                'description_i18n',
+                'icon',
+                'theme_color',
+                'is_enabled',
+                'sort_order', ])
             ->whereIn('agent_version_id', $agentVersionIds)
             ->where('is_enabled', 1)
             ->whereNull('deleted_at')

@@ -368,6 +368,9 @@ export function getContentTypeFromExtension(filePath: string): string {
 }
 
 export const handleHtCdnUrl = (content: string) => {
+	if (!env("MAGIC_CDNHOST")) {
+		return content
+	}
 	/** 替换的静态资源包映射 */
 	const packages = {
 		tailwindcss: {
@@ -392,6 +395,9 @@ export const handleHtCdnUrl = (content: string) => {
 		echarts: {
 			["5.6.0"]: `${env("MAGIC_CDNHOST")}/echarts/5.6.0/echarts.min.js`,
 			["6.0.0"]: `${env("MAGIC_CDNHOST")}/echarts/6.0.0/echarts.min.js`,
+		},
+		qrcode: {
+			["1.0.0"]: `${env("MAGIC_CDNHOST")}/qrcodejs/1.0.0/qrcode.min.js`,
 		},
 	}
 
@@ -462,6 +468,12 @@ export const handleHtCdnUrl = (content: string) => {
 				}
 			})
 		}
+		if (href?.includes("qrcode") && href?.includes("1.0.0")) {
+			// 保存原始URL
+			link.setAttribute("data-original-href", href)
+			const qrcodeSrc = packages.qrcode["1.0.0"]
+			link.setAttribute("href", qrcodeSrc)
+		}
 	}
 
 	for (let i = scriptElements.length - 1; i >= 0; i--) {
@@ -507,6 +519,12 @@ export const handleHtCdnUrl = (content: string) => {
 			}
 			const scriptSrc = packages.echarts[version]
 			script.setAttribute("src", scriptSrc)
+		}
+		if (src?.includes("qrcode") && src?.includes("1.0.0")) {
+			// 保存原始URL
+			script.setAttribute("data-original-src", src)
+			const qrcodeSrc = packages.qrcode["1.0.0"]
+			script.setAttribute("src", qrcodeSrc)
 		}
 	}
 	return htmlDoc

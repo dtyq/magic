@@ -156,9 +156,9 @@ function MagicDropdownDesktop({
 		return convertMenuItemsToComponents(menu?.items, {
 			onClick: menu?.onClick
 				? (info) =>
-					menu.onClick?.(
-						info as unknown as Parameters<NonNullable<typeof menu.onClick>>[0],
-					)
+						menu.onClick?.(
+							info as unknown as Parameters<NonNullable<typeof menu.onClick>>[0],
+						)
 				: undefined,
 			isContextMenu,
 		})
@@ -207,7 +207,7 @@ function MagicDropdownDesktop({
 	}, [isHover, handleMouseEnter, handleMouseLeave, disabled, rootClassName, children])
 
 	const contextTriggerWrapper = useMemo(() => {
-		const triggerNode = <span className={cn("inline-flex", rootClassName)}>{children}</span>
+		const triggerNode = <span className={cn("flex w-full", rootClassName)}>{children}</span>
 
 		if (disabled) return triggerNode
 

@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import type {
-	Workspace,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { Workspace, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { workspaceStore } from "@/pages/superMagic/stores/core"
 import { useMemoizedFn } from "ahooks"
 
@@ -59,7 +56,11 @@ export function useNavigationState({ selectedProject, visible }: UseNavigationSt
 	})
 
 	useEffect(() => {
-		if (visible) {
+		if (!visible) return
+		const { level, currentWorkspace } = navigationStateRef.current
+		// 仅在默认状态（workspace 级且无选中工作区）时自动导航，
+		// 避免覆盖 navigateToProjects / showAndNavigateToWorkspace 手动设置的导航状态
+		if (level === "workspace" && !currentWorkspace) {
 			handleAutoNavigation()
 		}
 	}, [visible, handleAutoNavigation])

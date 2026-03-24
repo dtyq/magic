@@ -1,9 +1,5 @@
 import { useMemo, useCallback } from "react"
-import type {
-	Topic,
-	Workspace,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { Topic, Workspace, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import type {
 	CanvasDesignMethods,
 	IdentifyImageMarkRequest,
@@ -121,6 +117,12 @@ export function useDesignMethods(options: UseDesignMethodsOptions): CanvasDesign
 		currentFile,
 	})
 
+	const generateCanvasHightImage: CanvasDesignMethods["generateHightImage"] = useCallback(
+		(params) =>
+			generateHightImage(params) as ReturnType<CanvasDesignMethods["generateHightImage"]>,
+		[generateHightImage],
+	)
+
 	const { getDataTransferFileInfo } = useDesignFileCopy({
 		projectId,
 		currentFile,
@@ -143,7 +145,7 @@ export function useDesignMethods(options: UseDesignMethodsOptions): CanvasDesign
 		return {
 			getImageModelList,
 			generateImage,
-			generateHightImage,
+			generateHightImage: generateCanvasHightImage,
 			getConvertHightConfig,
 			getImageGenerationResult,
 			uploadImages,
@@ -171,7 +173,7 @@ export function useDesignMethods(options: UseDesignMethodsOptions): CanvasDesign
 	}, [
 		getImageModelList,
 		generateImage,
-		generateHightImage,
+		generateCanvasHightImage,
 		getConvertHightConfig,
 		getImageGenerationResult,
 		uploadImages,

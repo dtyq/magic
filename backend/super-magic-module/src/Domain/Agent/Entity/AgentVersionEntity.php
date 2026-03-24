@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\Agent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Hyperf\Codec\Json;
 
@@ -90,7 +93,7 @@ class AgentVersionEntity extends AbstractEntity
     /**
      * @var array Agent 名称（多语言），格式：{"zh":"市场分析师","en":"Marketing Analyst"}
      */
-    protected array $nameI18n;
+    protected ?array $nameI18n = null;
 
     /**
      * @var null|array 角色定位（多语言），格式：{"zh":["市场分析师","内容创作者"],"en":["Marketing Analyst","Content Creator"]}
@@ -108,9 +111,36 @@ class AgentVersionEntity extends AbstractEntity
     protected PublishStatus $publishStatus = PublishStatus::UNPUBLISHED;
 
     /**
-     * @var ReviewStatus 审核状态：PENDING=待审核, UNDER_REVIEW=审核中, APPROVED=审核通过, REJECTED=审核拒绝
+     * @var ReviewStatus 审核状态：PENDING=待审核, UNDER_REVIEW=审核中, APPROVED=审核通过, REJECTED=审核拒绝, INVALIDATED=被新版本替代失效
      */
     protected ReviewStatus $reviewStatus = ReviewStatus::PENDING;
+
+    /**
+     * @var PublishTargetType Publish target type
+     */
+    protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
+
+    protected ?PublishTargetValue $publishTargetValue = null;
+
+    /**
+     * @var null|array Version description in i18n format
+     */
+    protected ?array $versionDescriptionI18n = null;
+
+    /**
+     * @var null|string Publisher user ID
+     */
+    protected ?string $publisherUserId = null;
+
+    /**
+     * @var null|string Published timestamp
+     */
+    protected ?string $publishedAt = null;
+
+    /**
+     * @var bool Whether this is the current version
+     */
+    protected bool $isCurrentVersion = false;
 
     /**
      * @var null|string 创建时间
@@ -131,6 +161,11 @@ class AgentVersionEntity extends AbstractEntity
      * @var null|int 项目ID
      */
     protected ?int $projectId = null;
+
+    /**
+     * @var null|string Agent package file key snapshot
+     */
+    protected ?string $fileKey = null;
 
     public function __construct(array $data = [])
     {
@@ -162,7 +197,14 @@ class AgentVersionEntity extends AbstractEntity
             'description_i18n' => $this->descriptionI18n,
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus->value,
+            'publish_target_type' => $this->publishTargetType->value,
+            'publish_target_value' => $this->publishTargetValue?->toArray(),
+            'version_description_i18n' => $this->versionDescriptionI18n,
+            'publisher_user_id' => $this->publisherUserId,
+            'published_at' => $this->publishedAt,
+            'is_current_version' => $this->isCurrentVersion,
             'project_id' => $this->projectId,
+            'file_key' => $this->fileKey,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -335,12 +377,12 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getNameI18n(): array
+    public function getNameI18n(): ?array
     {
         return $this->nameI18n;
     }
 
-    public function setNameI18n(array $nameI18n): self
+    public function setNameI18n(?array $nameI18n): self
     {
         $this->nameI18n = $nameI18n;
         return $this;
@@ -398,6 +440,80 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
+    public function getPublishTargetType(): PublishTargetType
+    {
+        return $this->publishTargetType;
+    }
+
+    public function setPublishTargetType(PublishTargetType|string $publishTargetType): self
+    {
+        if ($publishTargetType instanceof PublishTargetType) {
+            $this->publishTargetType = $publishTargetType;
+        } else {
+            $this->publishTargetType = PublishTargetType::from($publishTargetType);
+        }
+        return $this;
+    }
+
+    public function getPublishTargetValue(): ?PublishTargetValue
+    {
+        return $this->publishTargetValue;
+    }
+
+    public function setPublishTargetValue(null|array|PublishTargetValue $publishTargetValue): self
+    {
+        if (is_array($publishTargetValue)) {
+            $this->publishTargetValue = PublishTargetValue::fromArray($publishTargetValue);
+        } else {
+            $this->publishTargetValue = $publishTargetValue;
+        }
+        return $this;
+    }
+
+    public function getVersionDescriptionI18n(): ?array
+    {
+        return $this->versionDescriptionI18n;
+    }
+
+    public function setVersionDescriptionI18n(?array $versionDescriptionI18n): self
+    {
+        $this->versionDescriptionI18n = $versionDescriptionI18n;
+        return $this;
+    }
+
+    public function getPublisherUserId(): ?string
+    {
+        return $this->publisherUserId;
+    }
+
+    public function setPublisherUserId(?string $publisherUserId): self
+    {
+        $this->publisherUserId = $publisherUserId;
+        return $this;
+    }
+
+    public function getPublishedAt(): ?string
+    {
+        return $this->publishedAt;
+    }
+
+    public function setPublishedAt(?string $publishedAt): self
+    {
+        $this->publishedAt = $publishedAt;
+        return $this;
+    }
+
+    public function isCurrentVersion(): bool
+    {
+        return $this->isCurrentVersion;
+    }
+
+    public function setIsCurrentVersion(bool|int $isCurrentVersion): self
+    {
+        $this->isCurrentVersion = (bool) $isCurrentVersion;
+        return $this;
+    }
+
     public function getCreatedAt(): ?string
     {
         return $this->createdAt;
@@ -440,5 +556,42 @@ class AgentVersionEntity extends AbstractEntity
     {
         $this->projectId = $projectId;
         return $this;
+    }
+
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
+    public function setFileKey(?string $fileKey): self
+    {
+        $this->fileKey = $fileKey;
+        return $this;
+    }
+
+    public function getI18nName(string $language): string
+    {
+        if (! empty($this->nameI18n[$language])) {
+            return $this->nameI18n[$language];
+        }
+
+        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->nameI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        return $this->name;
+    }
+
+    public function getI18nDescription(string $language): string
+    {
+        if (! empty($this->descriptionI18n[$language])) {
+            return $this->descriptionI18n[$language];
+        }
+
+        if (! empty($this->descriptionI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->descriptionI18n[LanguageEnum::DEFAULT->value];
+        }
+
+        return $this->description;
     }
 }

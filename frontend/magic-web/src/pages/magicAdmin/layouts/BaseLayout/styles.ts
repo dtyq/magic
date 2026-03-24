@@ -37,6 +37,7 @@ export const useStyles = createStyles(({ token, css }) => {
 		logo: css`
 			padding: 0 10px;
 			flex-shrink: 0;
+			cursor: pointer;
 		`,
 	}
 })

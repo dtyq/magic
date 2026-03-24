@@ -2,6 +2,7 @@ const { getHtmlTemplate } = require("./getHtmlTemplate")
 const { logger } = require("../../logger.cjs")
 const getGlobalPlatformInfo = require("../../apis/getGlobalPlatformInfo")
 const SEORoutes = require("../../routes/seo.route")
+const { getAdminSeoRoutes, getAdminSeoRoutesWithClusterCode } = require("../../routes/admin.route")
 const { cleanSEOString, getPlatformInfo, processHtmlContent } = require("./html-utils")
 
 const seoRoutes = new SEORoutes()
@@ -53,10 +54,14 @@ const routes = [
 	["/:clusterCode/drive/shared", seoRoutes.driveShared],
 	// 云盘 - 文件夹
 	["/:clusterCode/drive/folder/:folderId/:spaceId", seoRoutes.folder],
-	// 知识库 - 目录管理
-	["/:clusterCode/knowledge/directory/:fileId", seoRoutes.file],
+	// 知识库 - 目录管理（微前端天书分享链接，不走 file 接口避免 getFileInfo 报错导致 og 空）
+	["/:clusterCode/knowledge/directory/:fileId", seoRoutes.knowledgeDirectory],
 	// 知识库 - 预览
 	["/:clusterCode/knowledge/preview/:knowledgeId/:fileId", seoRoutes.file],
+	// 管理后台（静态 title，与 src/routes/modules/admin、各模块 routes 对应）
+	...getAdminSeoRoutes(),
+	// 管理后台（带 clusterCode 前缀，/:clusterCode/admin/*）
+	...getAdminSeoRoutesWithClusterCode(),
 ]
 
 module.exports = (app) => {
@@ -80,14 +85,18 @@ module.exports = (app) => {
 				// 提取平台信息（带 fallback）
 				const platformInfo = getPlatformInfo(platformInfoRaw, locale)
 
-				// 获取页面特定的 SEO 信息
-				const { title, keywords, description } = await routeHandler(req, res, next)
+				// 获取页面特定的 SEO 信息（useDefaultPlatformTitle 为 true 时用产品名而非工作区名）
+				const seoData = await routeHandler(req, res, next)
+				const { title, keywords, description, useDefaultPlatformTitle } = seoData
+				const platformTitle = useDefaultPlatformTitle
+					? getPlatformInfo({}, locale).title
+					: platformInfo.title
 
 				// 清理并合成最终的 SEO 信息
 				const ogTitle = cleanSEOString(
 					req.__("site.title", {
 						title: title || "",
-						platformTitle: platformInfo.title,
+						platformTitle,
 					}),
 				)
 				const ogKeywords = cleanSEOString(

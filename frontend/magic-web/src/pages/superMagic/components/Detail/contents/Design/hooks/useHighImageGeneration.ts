@@ -2,10 +2,11 @@ import { useCallback } from "react"
 import { SuperMagicApi } from "@/apis"
 import type {
 	GenerateHightImageRequest as ApiGenerateHightImageRequest,
-	GenerateHightImageResponse,
+	GenerateHightImageResponse as ApiGenerateHightImageResponse,
 } from "@/apis/modules/superMagic"
 import type {
 	GenerateHightImageRequest,
+	GenerateHightImageResponse,
 	GetConvertHightConfigResponse,
 } from "@/components/CanvasDesign/types.magic"
 import { useTranslation } from "react-i18next"
@@ -85,7 +86,7 @@ export function useHighImageGeneration(
 			}
 
 			const result = await SuperMagicApi.generateHighImage(requestParams)
-			return result
+			return toCanvasGenerateHightImageResponse(result)
 		},
 		[projectId, t],
 	)
@@ -101,5 +102,14 @@ export function useHighImageGeneration(
 	return {
 		generateHightImage,
 		getConvertHightConfig,
+	}
+}
+
+export function toCanvasGenerateHightImageResponse(
+	response: ApiGenerateHightImageResponse,
+): GenerateHightImageResponse {
+	return {
+		...response,
+		status: response.status as GenerateHightImageResponse["status"],
 	}
 }

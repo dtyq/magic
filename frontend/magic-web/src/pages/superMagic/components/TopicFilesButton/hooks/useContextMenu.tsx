@@ -40,6 +40,7 @@ interface UseContextMenuOptions {
 	handleDownloadOriginal: (item: AttachmentItem, mode?: DownloadImageMode) => void
 	handleDownloadPdf: (item: AttachmentItem) => void
 	handleDownloadPpt: (item: AttachmentItem) => void
+	handleDownloadPptx: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
 	handleOpenFile: (item: AttachmentItem) => void
 	handleStartRename: (item: AttachmentItem) => void
 	handleAddToCurrentChat: (item: AttachmentItem) => void
@@ -173,6 +174,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		preloadWaterMarkFreeModal,
 		handleDownloadPdf,
 		handleDownloadPpt,
+		handleDownloadPptx,
 		handleOpenFile,
 		handleStartRename,
 		handleAddToCurrentChat,
@@ -290,13 +292,13 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				// 只有当浏览器支持文件夹上传时才显示上传文件夹选项
 				...(supportsFolderUpload(isMobile)
 					? [
-						{
-							key: "uploadFolder",
-							label: t("topicFiles.contextMenu.uploadFolder"),
-							icon: <MagicIcon component={IconFolderUp} stroke={2} size={18} />,
-							onClick: () => handleUploadFolder(item),
-						},
-					]
+							{
+								key: "uploadFolder",
+								label: t("topicFiles.contextMenu.uploadFolder"),
+								icon: <MagicIcon component={IconFolderUp} stroke={2} size={18} />,
+								onClick: () => handleUploadFolder(item),
+							},
+						]
 					: []),
 				{ type: "divider" as const },
 				{
@@ -308,161 +310,173 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 				...(handleMoveFile
 					? [
-						{
-							key: "moveFile",
-							label: t("topicFiles.contextMenu.moveTo"),
-							icon: (
-								<MagicIcon component={IconFolderSymlink} stroke={2} size={18} />
-							),
-							onClick: () => handleMoveFile(item),
-							disabled: isMoving,
-						},
-					]
+							{
+								key: "moveFile",
+								label: t("topicFiles.contextMenu.moveTo"),
+								icon: (
+									<MagicIcon component={IconFolderSymlink} stroke={2} size={18} />
+								),
+								onClick: () => handleMoveFile(item),
+								disabled: isMoving,
+							},
+						]
 					: []),
 				...(onCopyFile
 					? [
-						{
-							key: "copyFile",
-							label: t("topicFiles.contextMenu.copyTo"),
-							icon: <MagicIcon component={IconFolders} stroke={2} size={18} />,
-							onClick: () => handleCopyFile(item),
-							disabled: isMoving,
-						},
-					]
+							{
+								key: "copyFile",
+								label: t("topicFiles.contextMenu.copyTo"),
+								icon: <MagicIcon component={IconFolders} stroke={2} size={18} />,
+								onClick: () => handleCopyFile(item),
+								disabled: isMoving,
+							},
+						]
 					: []),
 				{ type: "divider" as const },
 				// 根据选中状态决定显示单文件还是多文件菜单（文件夹版本）
 				...(selectedItems && selectedItems.size > 1
 					? [
-						{
-							key: "addSelectedToCurrentChat",
-							label: t("topicFiles.contextMenu.addToCurrentChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCircleShare}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddMultipleFilesToCurrentChat?.(),
-						},
-						{
-							key: "addSelectedToNewChat",
-							label: t("topicFiles.contextMenu.addToNewChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCirclePlus}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddMultipleFilesToNewChat?.(),
-						},
-					]
+							{
+								key: "addSelectedToCurrentChat",
+								label: t("topicFiles.contextMenu.addToCurrentChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCircleShare}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddMultipleFilesToCurrentChat?.(),
+							},
+							{
+								key: "addSelectedToNewChat",
+								label: t("topicFiles.contextMenu.addToNewChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCirclePlus}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddMultipleFilesToNewChat?.(),
+							},
+						]
 					: [
-						{
-							key: "addToCurrentChat",
-							label: (
-								<Flex
-									align="center"
-									justify="space-between"
-									style={{ width: "100%" }}
-								>
-									<span>{t("topicFiles.contextMenu.addToCurrentChat")}</span>
-									{getShortcutHint &&
-										!isMobile &&
-										(() => {
-											const shortcut = getShortcutHint("addToCurrentChat")
-											if (!shortcut) return null
-											return (
-												<div className={styles.menuItemShortcut}>
-													{shortcut.modifiers.map((modifier) => (
+							{
+								key: "addToCurrentChat",
+								label: (
+									<Flex
+										align="center"
+										justify="space-between"
+										style={{ width: "100%" }}
+									>
+										<span>{t("topicFiles.contextMenu.addToCurrentChat")}</span>
+										{getShortcutHint &&
+											!isMobile &&
+											(() => {
+												const shortcut = getShortcutHint("addToCurrentChat")
+												if (!shortcut) return null
+												return (
+													<div className={styles.menuItemShortcut}>
+														{shortcut.modifiers.map((modifier) => (
+															<div
+																key={modifier}
+																className={
+																	styles.menuItemShortcutItem
+																}
+															>
+																{modifier}
+															</div>
+														))}
 														<div
-															key={modifier}
-															className={
-																styles.menuItemShortcutItem
-															}
+															className={styles.menuItemShortcutItem}
 														>
-															{modifier}
+															{shortcut.key}
 														</div>
-													))}
-													<div
-														className={styles.menuItemShortcutItem}
-													>
-														{shortcut.key}
 													</div>
-												</div>
-											)
-										})()}
-								</Flex>
-							),
-							icon: (
-								<MagicIcon
-									component={IconMessageCircleShare}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddToCurrentChat(item),
-						},
-						{
-							key: "addToNewChat",
-							label: t("topicFiles.contextMenu.addToNewChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCirclePlus}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddToNewChat(item),
-						},
-					]),
+												)
+											})()}
+									</Flex>
+								),
+								icon: (
+									<MagicIcon
+										component={IconMessageCircleShare}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddToCurrentChat(item),
+							},
+							{
+								key: "addToNewChat",
+								label: t("topicFiles.contextMenu.addToNewChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCirclePlus}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddToNewChat(item),
+							},
+						]),
 				{ type: "divider" as const },
 				// 文件夹下载菜单：根据metadata决定显示方式
 				...(item.metadata
 					? [
-						{
-							key: "download",
-							label: t("topicFiles.contextMenu.download"),
-							icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
-							children: [
-								{
-									key: "downloadOriginal",
-									label: t("topicFiles.contextMenu.downloadOriginal"),
-									onClick: () => handleDownloadOriginal(item),
-								},
-								{
-									key: "downloadPdf",
-									label: t("topicFiles.contextMenu.downloadPdf"),
-									onClick: () => {
-										const appEntryFile = getAppEntryFile(
-											item.children || [],
-										)
-										if (appEntryFile) handleDownloadPdf(appEntryFile)
+							{
+								key: "download",
+								label: t("topicFiles.contextMenu.download"),
+								icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
+								children: [
+									{
+										key: "downloadOriginal",
+										label: t("topicFiles.contextMenu.downloadOriginal"),
+										onClick: () => handleDownloadOriginal(item),
 									},
-								},
-								{
-									key: "downloadPpt",
-									label: t("topicFiles.contextMenu.downloadPpt"),
-									onClick: () => {
-										const appEntryFile = getAppEntryFile(
-											item.children || [],
-										)
-										if (appEntryFile) handleDownloadPpt(appEntryFile)
+									{
+										key: "downloadPdf",
+										label: t("topicFiles.contextMenu.downloadPdf"),
+										onClick: () => {
+											const appEntryFile = getAppEntryFile(
+												item.children || [],
+											)
+											if (appEntryFile) handleDownloadPdf(appEntryFile)
+										},
 									},
-								},
-							],
-						},
-					]
+									{
+										key: "downloadPpt",
+										label: t("topicFiles.contextMenu.downloadPpt"),
+										onClick: () => {
+											const appEntryFile = getAppEntryFile(
+												item.children || [],
+											)
+											if (appEntryFile) handleDownloadPpt(appEntryFile)
+										},
+									},
+									{
+										key: "downloadPptx",
+										label: t("topicFiles.contextMenu.downloadPptx"),
+										onClick: () => {
+											const children = item.children || []
+											const appEntryFile = getAppEntryFile(children)
+											if (appEntryFile) {
+												console.log("children", children)
+												handleDownloadPptx(appEntryFile, children)
+											}
+										},
+									},
+								],
+							},
+						]
 					: [
-						{
-							key: "downloadFolder",
-							label: t("topicFiles.contextMenu.downloadFolder"),
-							icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
-							onClick: () => handleDownloadOriginal(item),
-						},
-					]),
+							{
+								key: "downloadFolder",
+								label: t("topicFiles.contextMenu.downloadFolder"),
+								icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
+								onClick: () => handleDownloadOriginal(item),
+							},
+						]),
 				{ type: "divider" as const },
 				{
 					key: "share",
@@ -472,15 +486,15 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 				...(handleEnterMultiSelectMode && !isSelectMode
 					? [
-						{
-							key: "selectMultiple",
-							label: t("topicFiles.contextMenu.selectMultiple"),
-							icon: (
-								<MagicIcon component={IconSquareCheck} stroke={2} size={18} />
-							),
-							onClick: () => handleEnterMultiSelectMode(item),
-						},
-					]
+							{
+								key: "selectMultiple",
+								label: t("topicFiles.contextMenu.selectMultiple"),
+								icon: (
+									<MagicIcon component={IconSquareCheck} stroke={2} size={18} />
+								),
+								onClick: () => handleEnterMultiSelectMode(item),
+							},
+						]
 					: []),
 				{ type: "divider" as const },
 				{
@@ -504,11 +518,11 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								: t("topicFiles.contextMenu.deleteTip"),
 							content: isFolder
 								? t("topicFiles.contextMenu.deleteFolderContent", {
-									name: item.name,
-								})
+										name: item.name,
+									})
 								: t("topicFiles.contextMenu.deleteContent", {
-									name: item.name,
-								}),
+										name: item.name,
+									}),
 							variant: "destructive",
 							showIcon: true,
 							okText: t("topicFiles.contextMenu.delete"),
@@ -544,127 +558,127 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 				...(handleMoveFile
 					? [
-						{
-							key: "moveFile",
-							label: t("topicFiles.contextMenu.moveTo"),
-							icon: (
-								<MagicIcon component={IconFolderSymlink} stroke={2} size={18} />
-							),
-							onClick: () => handleMoveFile(item),
-							disabled: isMoving,
-						},
-					]
+							{
+								key: "moveFile",
+								label: t("topicFiles.contextMenu.moveTo"),
+								icon: (
+									<MagicIcon component={IconFolderSymlink} stroke={2} size={18} />
+								),
+								onClick: () => handleMoveFile(item),
+								disabled: isMoving,
+							},
+						]
 					: []),
 				...(onCopyFile
 					? [
-						{
-							key: "copyFile",
-							label: t("topicFiles.contextMenu.copyTo"),
-							icon: <MagicIcon component={IconFolders} stroke={2} size={18} />,
-							onClick: () => handleCopyFile(item),
-							disabled: isMoving,
-						},
-					]
+							{
+								key: "copyFile",
+								label: t("topicFiles.contextMenu.copyTo"),
+								icon: <MagicIcon component={IconFolders} stroke={2} size={18} />,
+								onClick: () => handleCopyFile(item),
+								disabled: isMoving,
+							},
+						]
 					: []),
 				...(handleReplaceFile
 					? [
-						{
-							key: "replaceFile",
-							label: t("topicFiles.contextMenu.replaceFile"),
-							icon: <MagicIcon component={IconReplace} stroke={2} size={18} />,
-							onClick: () => handleReplaceFile(item),
-							disabled: isMoving,
-						},
-					]
+							{
+								key: "replaceFile",
+								label: t("topicFiles.contextMenu.replaceFile"),
+								icon: <MagicIcon component={IconReplace} stroke={2} size={18} />,
+								onClick: () => handleReplaceFile(item),
+								disabled: isMoving,
+							},
+						]
 					: []),
 				{ type: "divider" as const },
 				// 根据选中状态决定显示单文件还是多文件菜单（文件版本）
 				...(selectedItems && selectedItems.size > 1
 					? [
-						{
-							key: "addSelectedToCurrentChat",
-							label: t("topicFiles.contextMenu.addToCurrentChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCircleShare}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddMultipleFilesToCurrentChat?.(),
-						},
-						{
-							key: "addSelectedToNewChat",
-							label: t("topicFiles.contextMenu.addToNewChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCirclePlus}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddMultipleFilesToNewChat?.(),
-						},
-					]
+							{
+								key: "addSelectedToCurrentChat",
+								label: t("topicFiles.contextMenu.addToCurrentChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCircleShare}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddMultipleFilesToCurrentChat?.(),
+							},
+							{
+								key: "addSelectedToNewChat",
+								label: t("topicFiles.contextMenu.addToNewChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCirclePlus}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddMultipleFilesToNewChat?.(),
+							},
+						]
 					: [
-						{
-							key: "addToCurrentChat",
-							label: (
-								<Flex
-									align="center"
-									justify="space-between"
-									style={{ width: "100%" }}
-								>
-									<span>{t("topicFiles.contextMenu.addToCurrentChat")}</span>
-									{getShortcutHint &&
-										!isMobile &&
-										(() => {
-											const shortcut = getShortcutHint("addToCurrentChat")
-											if (!shortcut) return null
-											return (
-												<div className={styles.menuItemShortcut}>
-													{shortcut.modifiers.map((modifier) => (
+							{
+								key: "addToCurrentChat",
+								label: (
+									<Flex
+										align="center"
+										justify="space-between"
+										style={{ width: "100%" }}
+									>
+										<span>{t("topicFiles.contextMenu.addToCurrentChat")}</span>
+										{getShortcutHint &&
+											!isMobile &&
+											(() => {
+												const shortcut = getShortcutHint("addToCurrentChat")
+												if (!shortcut) return null
+												return (
+													<div className={styles.menuItemShortcut}>
+														{shortcut.modifiers.map((modifier) => (
+															<div
+																key={modifier}
+																className={
+																	styles.menuItemShortcutItem
+																}
+															>
+																{modifier}
+															</div>
+														))}
 														<div
-															key={modifier}
-															className={
-																styles.menuItemShortcutItem
-															}
+															className={styles.menuItemShortcutItem}
 														>
-															{modifier}
+															{shortcut.key}
 														</div>
-													))}
-													<div
-														className={styles.menuItemShortcutItem}
-													>
-														{shortcut.key}
 													</div>
-												</div>
-											)
-										})()}
-								</Flex>
-							),
-							icon: (
-								<MagicIcon
-									component={IconMessageCircleShare}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddToCurrentChat(item),
-						},
-						{
-							key: "addToNewChat",
-							label: t("topicFiles.contextMenu.addToNewChat"),
-							icon: (
-								<MagicIcon
-									component={IconMessageCirclePlus}
-									stroke={2}
-									size={18}
-								/>
-							),
-							onClick: () => handleAddToNewChat(item),
-						},
-					]),
+												)
+											})()}
+									</Flex>
+								),
+								icon: (
+									<MagicIcon
+										component={IconMessageCircleShare}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddToCurrentChat(item),
+							},
+							{
+								key: "addToNewChat",
+								label: t("topicFiles.contextMenu.addToNewChat"),
+								icon: (
+									<MagicIcon
+										component={IconMessageCirclePlus}
+										stroke={2}
+										size={18}
+									/>
+								),
+								onClick: () => handleAddToNewChat(item),
+							},
+						]),
 				{ type: "divider" as const },
 			)
 
@@ -690,13 +704,19 @@ export function useContextMenu(options: UseContextMenuOptions) {
 
 				// 添加PPTX转换选项
 				if (canConvertToPPTX) {
+					console.log(item)
 					downloadChildren.push({
 						key: "downloadPpt",
 						label: t("topicFiles.contextMenu.downloadPpt"),
 						onClick: () => handleDownloadPpt(item),
 					})
+					downloadChildren.push({
+						key: "downloadPptx",
+						label: t("topicFiles.contextMenu.downloadPptx"),
+						onClick: () => handleDownloadPptx(item, item.children || []),
+					})
 				}
-				console.log("downloadChildren", downloadChildren)
+
 				menuItems.push({
 					key: "download",
 					label: t("topicFiles.contextMenu.download"),
@@ -716,31 +736,31 @@ export function useContextMenu(options: UseContextMenuOptions) {
 						: undefined,
 					children: isAIImageFile
 						? [
-							{
-								key: "downloadImage",
-								label: t("topicFiles.contextMenu.downloadImage"),
-								onClick: () =>
-									handleDownloadOriginal(
-										item,
-										DownloadImageMode.NormalDownload,
+								{
+									key: "downloadImage",
+									label: t("topicFiles.contextMenu.downloadImage"),
+									onClick: () =>
+										handleDownloadOriginal(
+											item,
+											DownloadImageMode.NormalDownload,
+										),
+								},
+								{
+									key: "downloadImageNoWaterMark",
+									label: (
+										<Flex align="center" gap={4}>
+											<span>
+												{t(
+													"topicFiles.contextMenu.downloadImageNoWaterMark",
+												)}
+											</span>
+											{isFreeTrialVersion && <VIPTag />}
+										</Flex>
 									),
-							},
-							{
-								key: "downloadImageNoWaterMark",
-								label: (
-									<Flex align="center" gap={4}>
-										<span>
-											{t(
-												"topicFiles.contextMenu.downloadImageNoWaterMark",
-											)}
-										</span>
-										{isFreeTrialVersion && <VIPTag />}
-									</Flex>
-								),
-								onClick: () => handleDownloadNoWaterMark?.(item),
-								onMouseEnter: () => preloadWaterMarkFreeModal?.(),
-							},
-						]
+									onClick: () => handleDownloadNoWaterMark?.(item),
+									onMouseEnter: () => preloadWaterMarkFreeModal?.(),
+								},
+							]
 						: undefined,
 				})
 			}
@@ -755,15 +775,15 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 				...(handleEnterMultiSelectMode && !isSelectMode
 					? [
-						{
-							key: "selectMultiple",
-							label: t("topicFiles.contextMenu.selectMultiple"),
-							icon: (
-								<MagicIcon component={IconSquareCheck} stroke={2} size={18} />
-							),
-							onClick: () => handleEnterMultiSelectMode(item),
-						},
-					]
+							{
+								key: "selectMultiple",
+								label: t("topicFiles.contextMenu.selectMultiple"),
+								icon: (
+									<MagicIcon component={IconSquareCheck} stroke={2} size={18} />
+								),
+								onClick: () => handleEnterMultiSelectMode(item),
+							},
+						]
 					: []),
 				{ type: "divider" as const },
 				{
@@ -787,11 +807,11 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								: t("topicFiles.contextMenu.deleteTip"),
 							content: isFolder
 								? t("topicFiles.contextMenu.deleteFolderContent", {
-									name: item.name,
-								})
+										name: item.name,
+									})
 								: t("topicFiles.contextMenu.deleteContent", {
-									name: item.name,
-								}),
+										name: item.name,
+									}),
 							variant: "destructive",
 							showIcon: true,
 							okText: t("topicFiles.contextMenu.delete"),

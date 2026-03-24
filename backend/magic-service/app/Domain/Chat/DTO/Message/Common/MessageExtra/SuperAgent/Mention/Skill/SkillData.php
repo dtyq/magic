@@ -24,6 +24,8 @@ final class SkillData extends AbstractDTO implements MentionDataInterface
 
     protected string $sourceType;
 
+    protected ?string $mentionSource = null;
+
     protected bool $needUpgrade = false;
 
     public function __construct(array $data = [])
@@ -89,6 +91,25 @@ final class SkillData extends AbstractDTO implements MentionDataInterface
     public function setSourceType(string $sourceType): void
     {
         $this->sourceType = $sourceType;
+        if ($this->mentionSource === null) {
+            $this->mentionSource = $sourceType;
+        }
+    }
+
+    public function getMentionSource(): ?string
+    {
+        return $this->mentionSource ?? $this->sourceType ?? null;
+    }
+
+    /**
+     * Alias field for frontend payload key "mention_source".
+     */
+    public function setMentionSource(?string $mentionSource): void
+    {
+        $this->mentionSource = $mentionSource;
+        if (! empty($mentionSource)) {
+            $this->sourceType = $mentionSource;
+        }
     }
 
     public function isNeedUpgrade(): bool

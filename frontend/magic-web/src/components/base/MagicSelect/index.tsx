@@ -230,13 +230,13 @@ const MagicSelect = memo(
 				? popupRender()
 				: dropdownRender
 					? dropdownRender(
-						<div
-							className={cn("p-1", classNames?.popup?.root)}
-							style={styles?.popup?.root}
-						>
-							{renderOptions}
-						</div>,
-					)
+							<div
+								className={cn("p-1", classNames?.popup?.root)}
+								style={styles?.popup?.root}
+							>
+								{renderOptions}
+							</div>,
+						)
 					: renderOptions
 
 			return (
@@ -287,7 +287,7 @@ const MagicSelect = memo(
 					style={style}
 					data-size={size}
 					className={cn(
-						"shadow-xs flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:ring-ring/50",
+						"flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-ring/50",
 						"focus-visible:border-ring focus-visible:ring-[3px]",
 						"disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50",
 						"data-[placeholder]:text-muted-foreground",

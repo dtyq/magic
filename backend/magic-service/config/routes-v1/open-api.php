@@ -4,7 +4,9 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use App\Interfaces\Chat\Facade\Open\MagicChatOpenApi;
 use App\Interfaces\Flow\Facade\Open\MagicFlowOpenApi;
+use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/open-api', function () {
@@ -19,3 +21,7 @@ Router::addGroup('/api/v1/open-api', function () {
     Router::get('/async-chat/{taskId}', [MagicFlowOpenApi::class, 'getExecuteResult']);
     Router::post('/knowledge-bases/files/links', [MagicFlowOpenApi::class, 'generateKnowledgeBaseFileLinks']);
 });
+
+Router::addGroup('/api/v1/open-api', function () {
+    Router::post('/im/messages/queries', [MagicChatOpenApi::class, 'messageQueries']);
+}, ['middleware' => [ApiKeyMiddleware::class]]);

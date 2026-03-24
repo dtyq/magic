@@ -57,6 +57,11 @@ class SkillEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
+     * @var null|string 统一小写搜索字段
+     */
+    protected ?string $searchText = null;
+
+    /**
      * @var null|string Logo 图片 URL
      */
     protected ?string $logo = null;
@@ -109,6 +114,11 @@ class SkillEntity extends AbstractEntity
     protected ?int $projectId = null;
 
     /**
+     * @var null|string Latest published timestamp
+     */
+    protected ?string $latestPublishedAt = null;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -142,6 +152,7 @@ class SkillEntity extends AbstractEntity
             'package_description' => $this->packageDescription,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'search_text' => $this->searchText,
             'logo' => $this->logo,
             'file_key' => $this->fileKey,
             'source_type' => $this->sourceType->value,
@@ -152,6 +163,7 @@ class SkillEntity extends AbstractEntity
             'is_enabled' => $this->isEnabled ? 1 : 0,
             'pinned_at' => $this->pinnedAt,
             'project_id' => $this->projectId,
+            'latest_published_at' => $this->latestPublishedAt,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -197,6 +209,12 @@ class SkillEntity extends AbstractEntity
     {
         $this->code = $code;
         return $this;
+    }
+
+    /** 新业务 code：`SKILL-` + uniqid 片段（生成规则与 Agent `SMA-` code 一致）. */
+    public static function generateNewCode(): string
+    {
+        return 'SKILL-' . str_replace('.', '-', uniqid('', true));
     }
 
     public function getCreatorId(): string
@@ -254,9 +272,25 @@ class SkillEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSearchText(): ?string
+    {
+        return $this->searchText;
+    }
+
+    public function setSearchText(?string $searchText): self
+    {
+        $this->searchText = $searchText;
+        return $this;
+    }
+
     public function getLogo(): ?string
     {
         return $this->logo;
+    }
+
+    public function getFileKey(): string
+    {
+        return $this->fileKey;
     }
 
     public function setLogo(?string $logo): self
@@ -270,17 +304,19 @@ class SkillEntity extends AbstractEntity
         return $this->fileUrl;
     }
 
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
     public function setFileUrl(?string $fileUrl): self
     {
         $this->fileUrl = $fileUrl;
         return $this;
     }
 
-    public function getFileKey(): string
-    {
-        return $this->fileKey;
-    }
-
+    /**
+     * Note: File links will not be stored in the database.
+     * @return $this
+     */
     public function setFileKey(string $fileKey): self
     {
         $this->fileKey = $fileKey;
@@ -417,6 +453,17 @@ class SkillEntity extends AbstractEntity
     public function setProjectId(?int $projectId): self
     {
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function getLatestPublishedAt(): ?string
+    {
+        return $this->latestPublishedAt;
+    }
+
+    public function setLatestPublishedAt(?string $latestPublishedAt): self
+    {
+        $this->latestPublishedAt = $latestPublishedAt;
         return $this;
     }
 

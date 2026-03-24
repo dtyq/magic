@@ -107,6 +107,19 @@ class MessageScheduleDomainService
     }
 
     /**
+     * Create message schedule from entity (single parameter, DDD-style).
+     * Caller (Application) builds entity via Factory; Domain only validates and persists.
+     */
+    public function create(DataIsolation $dataIsolation, MessageScheduleEntity $entity): MessageScheduleEntity
+    {
+        $userId = $dataIsolation->getCurrentUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $entity->setUserId($userId);
+        $entity->setOrganizationCode($organizationCode);
+        return $this->messageScheduleRepository->create($entity);
+    }
+
+    /**
      * Update message schedule.
      */
     public function updateMessageSchedule(DataIsolation $dataIsolation, MessageScheduleEntity $messageSchedule): MessageScheduleEntity

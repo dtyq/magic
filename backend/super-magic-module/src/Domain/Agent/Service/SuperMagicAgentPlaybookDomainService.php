@@ -52,6 +52,14 @@ class SuperMagicAgentPlaybookDomainService
     }
 
     /**
+     * @return AgentPlaybookEntity[]
+     */
+    public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId, ?bool $isEnabled = null): array
+    {
+        return $this->agentPlaybookRepository->getByAgentVersionId($dataIsolation, $agentVersionId, $isEnabled);
+    }
+
+    /**
      * 创建 Playbook.
      *
      * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
@@ -194,5 +202,14 @@ class SuperMagicAgentPlaybookDomainService
         }
 
         return $updatedCount;
+    }
+
+    /**
+     * @param mixed $agentVersionIds
+     * @return array<int, array<AgentPlaybookEntity>>
+     */
+    public function getByAgentVersionIds($agentVersionIds): array
+    {
+        return $this->agentPlaybookRepository->getByAgentVersionIds($agentVersionIds);
     }
 }

@@ -143,6 +143,8 @@ export const getHTMLMessengerContent = () => {
           
           // 通知父窗口内容已加载
           window.parent.postMessage({ type: "contentLoaded" }, "*");
+          //计算HTML预览组件内部内容尺寸
+          scheduleContentMetrics("initial");
         } else if (event.data && event.data.type === "setAnimationState") {
           isAnimationPaused = !!event.data.paused;
           applyAnimationState();
@@ -343,6 +345,83 @@ export const getHTMLMessengerContent = () => {
         }
       });
     }
+   //HTML预览组件 iframe内部内容尺寸测量与上报函数
+    function measureElementMetric(element, metric) {
+      if (!element || typeof element.getBoundingClientRect !== "function") {
+        return 0;
+      }
+
+      var rect = element.getBoundingClientRect();
+      var rectValue = metric === "width" ? rect.width : rect.height;
+      var scrollKey = metric === "width" ? "scrollWidth" : "scrollHeight";
+      var scrollValue = Number(element[scrollKey] || 0);
+
+      return Math.max(rectValue || 0, scrollValue || 0);
+    }
+
+    function measureBodyChildrenMetric(metric) {
+      var body = document.body;
+      if (!body) {
+        return 0;
+      }
+
+      var bodyChildren = Array.prototype.slice.call(body.children || []);
+      return bodyChildren.reduce(function(maxMetric, element) {
+        return Math.max(maxMetric, measureElementMetric(element, metric));
+      }, 0);
+    }
+
+    function measureContentMetrics() {
+      var docEl = document.documentElement;
+      var body = document.body;
+      var viewportWidth = docEl ? docEl.clientWidth : (window.innerWidth || 0);
+      var viewportHeight = docEl ? docEl.clientHeight : (window.innerHeight || 0);
+      var overflowWidth = Math.max(docEl ? docEl.scrollWidth : 0, body ? body.scrollWidth : 0);
+      var overflowHeight = Math.max(docEl ? docEl.scrollHeight : 0, body ? body.scrollHeight : 0);
+      var bodyMetricWidth = measureElementMetric(body, "width");
+      var bodyMetricHeight = measureElementMetric(body, "height");
+      var childContentWidth = measureBodyChildrenMetric("width");
+      var childContentHeight = measureBodyChildrenMetric("height");
+      var intrinsicContentWidth = Math.max(childContentWidth, bodyMetricWidth);
+      var intrinsicContentHeight = Math.max(childContentHeight, bodyMetricHeight);
+      var contentWidth = overflowWidth > viewportWidth
+        ? overflowWidth
+        : (intrinsicContentWidth || viewportWidth);
+      var contentHeight = overflowHeight > viewportHeight
+        ? overflowHeight
+        : (intrinsicContentHeight || viewportHeight);
+
+      return {
+        contentWidth: Math.max(1, Math.ceil(contentWidth)),
+        contentHeight: Math.max(1, Math.ceil(contentHeight)),
+        hasHorizontalOverflow: overflowWidth > viewportWidth,
+        hasVerticalOverflow: overflowHeight > viewportHeight
+      };
+    }
+
+    function postContentMetrics(phase) {
+      try {
+        var metrics = measureContentMetrics();
+        window.parent.postMessage({
+          type: "contentMetrics",
+          phase: phase,
+          contentWidth: metrics.contentWidth,
+          contentHeight: metrics.contentHeight,
+          hasHorizontalOverflow: metrics.hasHorizontalOverflow,
+          hasVerticalOverflow: metrics.hasVerticalOverflow
+        }, "*");
+      } catch (error) {
+        console.error("发送contentMetrics消息时出错:", error);
+      }
+    }
+
+    function scheduleContentMetrics(phase) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          postContentMetrics(phase);
+        });
+      });
+    }
 
 
     // 设置DOM加载监听器
@@ -360,12 +439,14 @@ export const getHTMLMessengerContent = () => {
         waitForRenderComplete();
       }
       
-      // 检查页面是否完全加载
+      // 检查页面是否完全加载 并上报给HTML预览组件内部内容尺寸
       if (document.readyState === "complete") {
         window.parent.postMessage({ type: "pageFullyLoaded" }, "*");
+        scheduleContentMetrics("settled");
       } else {
         window.addEventListener("load", function() {
           window.parent.postMessage({ type: "pageFullyLoaded" }, "*");
+          scheduleContentMetrics("settled");
         });
       }
     }

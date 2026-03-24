@@ -28,3 +28,6 @@ lib
 /types
 .env
 .nvm
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

@@ -23,27 +23,6 @@ function TopicResizeHandle({
 		onMouseDown(event)
 	}
 
-	const handleOverlayMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
-		const mouseEvent = new MouseEvent("mousemove", {
-			clientX: event.clientX,
-			clientY: event.clientY,
-			bubbles: true,
-			cancelable: true,
-		})
-		document.dispatchEvent(mouseEvent)
-	}
-
-	const handleOverlayMouseUp = (event: ReactMouseEvent<HTMLDivElement>) => {
-		setIsDragging(false)
-		const mouseEvent = new MouseEvent("mouseup", {
-			clientX: event.clientX,
-			clientY: event.clientY,
-			bubbles: true,
-			cancelable: true,
-		})
-		document.dispatchEvent(mouseEvent)
-	}
-
 	useEffect(() => {
 		if (!isDragging) return
 
@@ -86,8 +65,9 @@ function TopicResizeHandle({
 				ReactDOM.createPortal(
 					<div
 						className="fixed inset-0 z-[9999] cursor-col-resize select-none bg-transparent"
-						onMouseMove={handleOverlayMouseMove}
-						onMouseUp={handleOverlayMouseUp}
+						onMouseUp={() => {
+							setIsDragging(false)
+						}}
 					/>,
 					document.body,
 				)}

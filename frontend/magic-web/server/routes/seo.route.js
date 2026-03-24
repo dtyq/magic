@@ -36,7 +36,7 @@ class SEO {
 
 		const data = await getSuperMagicShareResource(resourceId)
 
-		const name = data?.data?.project_name || data?.data?.topic_name
+		const name = data?.data?.resource_name || data?.data?.project_name || data?.data?.topic_name
 		const description = data?.data?.file_names?.join(",") || data?.data?.topic_name
 		return {
 			title: name || "Magic Shared",
@@ -222,6 +222,40 @@ class SEO {
 			title: data?.name || req.__("file.document"),
 			description: data?.name || req.__("file.document"),
 			keywords: data?.name || req.__("file.document"),
+		}
+	}
+
+	/**
+	 * 知识库目录（微前端天书内分享的链接）
+	 * 通过 getFileInfo 拉取知识库对应文件名写入 og，平台名用默认产品名（useDefaultPlatformTitle）；无文件名时不使用兜底文案
+	 */
+	async knowledgeDirectory(req, res, next) {
+		const { clusterCode, fileId } = req.params
+		if (!clusterCode || !fileId) {
+			return {
+				title: req.__("file.document"),
+				description: req.__("file.document"),
+				keywords: req.__("file.document"),
+				useDefaultPlatformTitle: true
+			}
+		}
+		try {
+			const { teamshareUrl } = await getClusterConfiguration(clusterCode)
+			let data = await getFileInfo(fileId, teamshareUrl)
+			const title = data?.name || req.__("file.document")
+			return {
+				title,
+				description: title,
+				keywords: title,
+				useDefaultPlatformTitle: true
+			}
+		} catch (_) {
+			const title = req.__("file.document")
+			return {
+				title,
+				description: title,
+				keywords: title,
+			}
 		}
 	}
 

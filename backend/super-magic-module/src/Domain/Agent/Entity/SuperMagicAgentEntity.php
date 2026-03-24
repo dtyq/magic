@@ -109,22 +109,22 @@ class SuperMagicAgentEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
-     * 关联来源类型：LOCAL_CREATE=本地创建, STORE=商店添加.
+     * 关联来源类型：LOCAL_CREATE=本地创建, MARKET/STORE=市场添加（兼容历史值）.
      */
     protected AgentSourceType $sourceType = AgentSourceType::LOCAL_CREATE;
 
     /**
-     * 来源关联 ID：source_type=STORE 时关联 magic_super_magic_agent_market.id，其余为 NULL.
+     * 来源关联 ID：source_type=MARKET/STORE 时关联 magic_super_magic_agent_market.id，其余为 NULL.
      */
     protected ?int $sourceId = null;
 
     /**
-     * 版本ID，对应 magic_super_magic_agent_versions.id；source_type=STORE 时有值，其他为空.
+     * 版本ID，对应 magic_super_magic_agent_versions.id；source_type=MARKET/STORE 时有值，其他为空.
      */
     protected ?int $versionId = null;
 
     /**
-     * 版本号，对应 magic_super_magic_agent_versions.version；source_type=STORE 时有值，其他为空.
+     * 版本号，对应市场原始 Agent code；source_type=MARKET/STORE 时有值，其他为空.
      */
     protected ?string $versionCode = null;
 
@@ -137,6 +137,21 @@ class SuperMagicAgentEntity extends AbstractEntity
      * 项目ID.
      */
     protected ?int $projectId = null;
+
+    /**
+     * Agent 文件key.
+     */
+    protected ?string $fileKey = null;
+
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
+    protected ?string $fileUrl = null;
+
+    /**
+     * Latest published timestamp persisted on the agent record.
+     */
+    protected ?string $latestPublishedAt = null;
 
     /**
      * Category for agent classification.
@@ -247,6 +262,10 @@ class SuperMagicAgentEntity extends AbstractEntity
         // 更新 project_id（如果设置了）
         if (isset($this->projectId)) {
             $originalEntity->setProjectId($this->projectId);
+        }
+
+        if ($this->fileKey !== null) {
+            $originalEntity->setFileKey($this->fileKey);
         }
 
         $originalEntity->setUpdatedAt(date('Y-m-d H:i:s'));
@@ -697,5 +716,41 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setProjectId(?int $projectId): void
     {
         $this->projectId = $projectId;
+    }
+
+    public function getFileKey(): ?string
+    {
+        return $this->fileKey;
+    }
+
+    public function setFileKey(?string $fileKey): void
+    {
+        $this->fileKey = $fileKey;
+    }
+
+    /**
+     * Note: File links must be obtained from the file service using the file_key.
+     */
+    public function getFileUrl(): ?string
+    {
+        return $this->fileUrl;
+    }
+
+    /**
+     * Note: File links will not be stored in the database.
+     */
+    public function setFileUrl(?string $fileUrl): void
+    {
+        $this->fileUrl = $fileUrl;
+    }
+
+    public function getLatestPublishedAt(): ?string
+    {
+        return $this->latestPublishedAt;
+    }
+
+    public function setLatestPublishedAt(?string $latestPublishedAt): void
+    {
+        $this->latestPublishedAt = $latestPublishedAt;
     }
 }

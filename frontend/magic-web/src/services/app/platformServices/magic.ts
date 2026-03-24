@@ -23,6 +23,9 @@ import { INIT_DOMAINS } from "@/models/user/stores/initialization.store"
 import superMagicModeService from "../../superMagic/SuperMagicModeService"
 import { LongMemory } from "@/types/longMemory"
 import { RouteName } from "@/routes/constants"
+import { MobileTabParam } from "@/pages/mobileTabs/constants"
+import { baseHistory } from "@/routes/history"
+import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 
 export class MagicPlatformService implements PlatformServiceInterface {
 	PlatformType: Platform = Platform.Magic
@@ -161,6 +164,10 @@ export class MagicPlatformService implements PlatformServiceInterface {
 					projectId: params?.projectId,
 					topicId: params?.topicId,
 				})
+			} else if (route?.name === RouteName.MobileTabs) {
+				if (this.shouldInitializeMobileTabsSuperState()) {
+					await this.initMobileTabsSuperData()
+				}
 			} else if (route?.name === RouteName.Chat) {
 				await this.initChatDataIfNeeded(magicUser)
 			}
@@ -172,6 +179,65 @@ export class MagicPlatformService implements PlatformServiceInterface {
 	}
 
 	private chatInitPromise: Promise<void> | null = null
+
+	private shouldInitializeMobileTabsSuperState() {
+		const searchParams = new URLSearchParams(window.location.search)
+		const activeTab = searchParams.get("tab")
+
+		return (
+			activeTab === MobileTabParam.Super ||
+			searchParams.has("workspaceId") ||
+			searchParams.has("projectId") ||
+			searchParams.has("topicId")
+		)
+	}
+
+	private syncMobileTabsSuperQueryState() {
+		const currentSearchParams = new URLSearchParams(window.location.search)
+		const nextSearchParams = new URLSearchParams(currentSearchParams)
+		const selectedWorkspaceId = workspaceStore.selectedWorkspace?.id || null
+		const selectedProjectId = projectStore.selectedProject?.id || null
+		const selectedTopicId = topicStore.selectedTopic?.id || null
+
+		if (selectedWorkspaceId) nextSearchParams.set("workspaceId", selectedWorkspaceId)
+		else nextSearchParams.delete("workspaceId")
+
+		if (selectedProjectId) nextSearchParams.set("projectId", selectedProjectId)
+		else nextSearchParams.delete("projectId")
+
+		if (selectedTopicId) nextSearchParams.set("topicId", selectedTopicId)
+		else nextSearchParams.delete("topicId")
+
+		const nextSearch = nextSearchParams.toString()
+		const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`
+		const currentUrl = `${window.location.pathname}${window.location.search}`
+
+		if (nextUrl !== currentUrl) {
+			baseHistory.replace(nextUrl)
+		}
+	}
+
+	private async initMobileTabsSuperData() {
+		const { default: SuperMagicService } = await import("@/pages/superMagic/services/index")
+		const searchParams = new URLSearchParams(window.location.search)
+		const workspaceId = searchParams.get("workspaceId") || undefined
+		const projectId = searchParams.get("projectId") || undefined
+		const topicId = searchParams.get("topicId") || undefined
+
+		await SuperMagicService.initializeState({
+			workspaceId,
+			projectId,
+			topicId,
+		})
+
+		this.syncMobileTabsSuperQueryState()
+
+		userStore.initialization.markInitialized({
+			magicId: userStore.user.userInfo?.magic_id,
+			organizationCode: userStore.user.userInfo?.organization_code,
+			domain: INIT_DOMAINS.super,
+		})
+	}
 
 	/**
 	 * 初始化超级麦吉数据
@@ -188,8 +254,7 @@ export class MagicPlatformService implements PlatformServiceInterface {
 		topicId?: string
 	}) => {
 		if (userStore.initialization.isInitialized({ domain: INIT_DOMAINS.super })) return
-		const { default: SuperMagicService } =
-			await import("@/pages/superMagic/services/index")
+		const { default: SuperMagicService } = await import("@/pages/superMagic/services/index")
 		const hasRouteParams = !!(workspaceId || projectId || topicId)
 		if (interfaceStore.isMobile && hasRouteParams) {
 			SuperMagicService.refreshState({

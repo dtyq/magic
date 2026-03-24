@@ -143,9 +143,33 @@
 	padding-right: 40px !important;
 }
 
+.select-option-item-indented {
+	padding-left: 30px !important;
+}
+
 .select-option-item > span:first-child {
 	right: 10px !important;
 	left: unset !important;
+}
+
+.select-group-label {
+	padding: 6px 10px 4px !important;
+	color: var(--base-muted-foreground, #737373) !important;
+	font-weight: var(--font-weight-semibold, 600) !important;
+	font-size: var(--text-xs-font-size, 12px) !important;
+}
+
+.select-group-label-content {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.select-group-label-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	object-fit: contain;
 }
 
 /* 模型 */
@@ -157,10 +181,11 @@
 
 .model-option-item-content > .icon {
 	display: inline-flex;
+	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	width: var(--width-w-6, 24px);
-	height: var(--height-h-6, 24px);
+	width: 16px;
+	height: 16px;
 }
 
 .model-option-item-content > .icon > img {

@@ -301,4 +301,17 @@ enum SuperAgentErrorCode: int
 
     #[ErrorMessage('transfer.cannot_transfer_empty_workspace')]
     case CANNOT_TRANSFER_EMPTY_WORKSPACE = 51285;
+
+    // Import related error codes (51239-51242)
+    #[ErrorMessage('super_magic.agent.import.invalid_file_type')]
+    case IMPORT_INVALID_FILE_TYPE = 51239;
+
+    #[ErrorMessage('super_magic.agent.import.file_too_large')]
+    case IMPORT_FILE_TOO_LARGE = 51240;
+
+    #[ErrorMessage('super_magic.agent.import.invalid_package')]
+    case IMPORT_INVALID_PACKAGE = 51241;
+
+    #[ErrorMessage('super_magic.agent.import.extract_failed')]
+    case IMPORT_EXTRACT_FAILED = 51242;
 }

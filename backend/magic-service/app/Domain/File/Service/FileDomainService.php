@@ -168,8 +168,9 @@ readonly class FileDomainService
         string $dir = '',
         int $expires = 3600,
         bool $autoBucket = true,
+        array $options = [],
     ): array {
-        return $this->cloudFileRepository->getStsTemporaryCredential($organizationCode, $bucketType, $dir, $expires, $autoBucket);
+        return $this->cloudFileRepository->getStsTemporaryCredential($organizationCode, $bucketType, $dir, $expires, $autoBucket, $options);
     }
 
     public function exist(array $metas, string $key): bool

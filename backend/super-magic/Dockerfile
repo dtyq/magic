@@ -3,6 +3,8 @@ ARG DEBIAN_VERSION=trixie
 ARG DOCKERHUB_LIBRARY_IMAGE_PREFIX=public.ecr.aws/docker/library/
 FROM ${DOCKERHUB_LIBRARY_IMAGE_PREFIX}debian:${DEBIAN_VERSION} AS base
 
+ARG TARGETARCH
+
 # 环境变量
 ARG TZ=Asia/Shanghai
 ENV TZ=${TZ} \
@@ -18,8 +20,8 @@ SHELL ["/bin/bash", "-c"]
 # 准备基础依赖
 ARG DEBIAN_VERSION=trixie
 ARG DEBIAN_APT_MIRROR=mirrors.aliyun.com
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists,target=/var/lib/apt/lists \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
     # setup apt mirror follow deb-822 format
     sed -i.bak "s/deb.debian.org/${DEBIAN_APT_MIRROR}/g" /etc/apt/sources.list.d/debian.sources && \
     # debian的docker会自动删除下载的包 导致缓存失效 因此修改一下
@@ -52,8 +54,8 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
         libheif1
 
 # 安装 LibreOffice（用于 .doc, .xls 和 .ppt 文件转换）
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists,target=/var/lib/apt/lists \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         libreoffice-core-nogui \
@@ -67,9 +69,9 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
 ARG NODE_VERSION=24
 ARG NODEJS_MIRROR=https://mirrors.aliyun.com/nodejs-release/
 ARG NPM_REGISTRY=https://registry.npmmirror.com
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm,target=/root/.npm \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-compile-cache,target=/tmp/node-compile-cache \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-nvm-cache,target=/root/.nvm/.cache \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/root/.npm \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-compile-cache-${TARGETARCH},target=/tmp/node-compile-cache \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-nvm-cache-${TARGETARCH},target=/root/.nvm/.cache \
     # install nvm for use to choose node version
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && \
     . ~/.bashrc && \
@@ -102,8 +104,8 @@ ENV PNPM_HOME=/root/.local/share/pnpm
 
 # 杂项配置
 COPY deploy/ /app/deploy/
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt,target=/var/cache/apt \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists,target=/var/lib/apt/lists \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
     # alias python
     ln -sf /usr/bin/python3 /usr/bin/python && \
     # setup timezone
@@ -122,7 +124,7 @@ WORKDIR /build
 COPY requirements.txt requirements_sandbox.txt .
 ENV PATH="/venv/bin:$PATH"
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip,target=/root/.cache/pip \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/root/.cache/pip \
     pip config set global.index-url "${PIP_INDEX_URL}" && \
     python3 -m venv /venv && \
     export PATH="/venv/bin:$PATH" && \

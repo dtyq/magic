@@ -11,7 +11,7 @@ const SassTestEnv = {
 	keewood_base_url: "",
 }
 
-const TestEnv = {
+const kkTestEnv = {
 	// Magic 基础 URL
 	base_url: "",
 	// Teamshare 基础 URL
@@ -175,7 +175,7 @@ const teamshareUserData = {
 			active_count: 1,
 		},
 	},
-	services: TestEnv,
+	services: kkTestEnv,
 }
 
 const config = {

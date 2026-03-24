@@ -16,14 +16,13 @@ import { useApis } from "@/apis"
 import { PlatformPackage } from "@/types/platformPackage"
 import type { AiManage } from "@/types/aiManage"
 import { useOpenModal } from "@/hooks/useOpenModal"
-import { addAlphaToHex } from "@/utils/color"
 import useRights from "@/hooks/useRights"
 import { PERMISSION_KEY_MAP } from "@/const/common"
 import dynamicModelIcon from "@/assets/logos/dynamic-model-logo.svg"
 import { useStyles } from "./styles"
 import { AddModeModal } from "./components/AddModeModal"
 import { AssignModal } from "./components/AssignModal"
-import { IconComponent } from "./utils"
+import ModeIcon from "./components/ModeIcon.tsx"
 
 const AddModuleBox = lazy(() => import("../components/AddModuleBox"))
 
@@ -210,22 +209,6 @@ const ModeManagementPage = () => {
 		)
 	})
 
-	const icon = useMemoizedFn((item: PlatformPackage.Mode) => {
-		const { icon_type, icon_url } = item
-
-		const opacity = icon_type === PlatformPackage.IconType.Image ? 1 : 0.1
-		const bgColor = addAlphaToHex(item.color, opacity)
-		return (
-			<div className={styles.iconWrapper} style={{ backgroundColor: bgColor }}>
-				{icon_type === PlatformPackage.IconType.Image && icon_url ? (
-					<img src={icon_url} alt="icon" width={28} height={28} />
-				) : (
-					IconComponent(item.icon, 30, item.color)
-				)}
-			</div>
-		)
-	})
-
 	const onScroll = useMemoizedFn((e: React.UIEvent<HTMLDivElement>) => {
 		if (total === list.length || loading) return
 		const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
@@ -272,7 +255,9 @@ const ModeManagementPage = () => {
 						<MagicCard
 							key={item.id}
 							title={item.name_i18n.zh_CN}
-							avatar={icon(item)}
+							avatar={
+								<ModeIcon item={item} size={28} className={styles.iconWrapper} />
+							}
 							className={styles.card}
 							description={
 								item.is_default ? (

@@ -50,6 +50,7 @@ interface PPTSlideProps {
 		isPPTEditMode?: boolean,
 	) => Promise<void>
 	fileId: string
+	projectId?: string
 	filePathMapping: Map<string, string>
 	openNewTab: (fileId: string, path: string) => void
 	relative_file_path?: string
@@ -92,6 +93,7 @@ const PPTSlide = observer(function PPTSlide({
 	isPlaybackMode,
 	saveEditContent,
 	fileId,
+	projectId,
 	filePathMapping,
 	openNewTab,
 	relative_file_path,
@@ -691,6 +693,7 @@ const PPTSlide = observer(function PPTSlide({
 						attachmentList={attachmentList}
 						fileId={fileId}
 						mainFileId={mainFileId}
+						projectId={selectedProject?.id || projectId}
 						onEdit={handleEdit}
 						onSave={handleSave}
 						onCancel={handleCancel}

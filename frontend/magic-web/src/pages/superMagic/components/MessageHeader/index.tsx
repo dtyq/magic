@@ -283,14 +283,6 @@ function MessageHeader({
 
 	const handleTopicHistoryDropdownOpenChange = useMemoizedFn((open: boolean) => {
 		setTopicHistoryOpen(open)
-		if (open && selectedProject) {
-			SuperMagicService.topic.fetchTopics({
-				projectId: selectedProject.id,
-				isAutoSelect: false,
-				page: 1,
-			})
-		}
-		// 关闭时重置悬浮状态
 		if (!open) {
 			setTopicHistoryOpen(false)
 		}
@@ -307,7 +299,7 @@ function MessageHeader({
 		<>
 			<div
 				className={cn(
-					"absolute z-[5] mb-2.5 flex h-10 w-full items-center justify-between gap-2 px-1.5 py-2",
+					"absolute z-[30] mb-2.5 flex h-10 w-full items-center justify-between gap-2 px-1.5 py-2",
 					"bg-sidebar",
 					isConversationPanelCollapsed && "h-full flex-col py-1.5 pl-0 pr-2",
 				)}
@@ -360,6 +352,7 @@ function MessageHeader({
 
 						<TopicHistoryDropdown
 							topics={topics}
+							projectId={selectedProject?.id || ""}
 							selectedTopicId={selectedTopic?.id}
 							editingTopicId={editingTopicId}
 							editingValue={editingValue}
@@ -487,6 +480,7 @@ function MessageHeader({
 
 								<TopicHistoryDropdown
 									topics={topics}
+									projectId={selectedProject?.id || ""}
 									selectedTopicId={selectedTopic?.id}
 									editingTopicId={editingTopicId}
 									editingValue={editingValue}
@@ -606,7 +600,7 @@ function MessageHeader({
 											handleDeleteTopic(
 												selectedTopic.id,
 												selectedTopic.topic_name ||
-												t("messageHeader.untitledTopic"),
+													t("messageHeader.untitledTopic"),
 											)
 										}
 									>

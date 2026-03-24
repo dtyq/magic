@@ -10,9 +10,9 @@
 	},
 	"step1": {
 		"adminPassword": "管理员密码",
-		"adminPasswordPlaceholder": "至少8位，包含字母和数字",
+		"adminPasswordPlaceholder": "请输入管理员密码",
 		"adminPhone": "管理员手机号",
-		"adminPhonePlaceholder": "请输入11位手机号",
+		"adminPhonePlaceholder": "请输入手机号",
 		"agentDescription": "Agent 描述",
 		"agentDescriptionPlaceholder": "简要描述此 Agent 的功能和用途...",
 		"agentLogo": "Agent Logo",
@@ -47,7 +47,7 @@
 			"DeepSeek": "DeepSeek",
 			"Gemini": "Google (AI Studio)",
 			"MicrosoftAzure": "Microsoft Azure",
-			"OpenAI": "自定义提供商",
+			"OpenAI": "OpenAI",
 			"OpenRouter": "OpenRouter",
 			"Volcengine": "火山引擎"
 		},

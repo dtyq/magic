@@ -92,6 +92,8 @@ interface EditToolbarProps {
 	allowShare?: boolean
 	/** 是否显示下载按钮 */
 	showDownload?: boolean
+	/** 项目ID（分享页面等 projectStore 不可用时的 fallback） */
+	projectId?: string
 }
 
 function EditToolbar({
@@ -128,14 +130,15 @@ function EditToolbar({
 	mainFileId,
 	showDownload = true,
 	style,
+	projectId,
 }: EditToolbarProps) {
 	const { t } = useTranslation("super")
 	const { emitFullscreenToggle } = usePPTEventBus()
 	const [isFullscreen, setIsFullscreen] = useState(false)
 	const [isEditableExporting, setIsEditableExporting] = useState(false)
 
-	// Get project info from store
 	const selectedProject = projectStore.selectedProject
+	const resolvedProjectId = selectedProject?.id || projectId
 
 	// Try to get PPT store if available (only in PPT context)
 	const pptStore = usePPTStoreOptional()
@@ -147,8 +150,8 @@ function EditToolbar({
 	// File export hook
 	const { isExporting, exportFile, exportPdf, exportPpt } = useFileExport({
 		attachments: attachmentList,
-		selectedProject: selectedProject ? { id: selectedProject.id } : undefined,
-		projectId: selectedProject?.id,
+		selectedProject: resolvedProjectId ? { id: resolvedProjectId } : undefined,
+		projectId: resolvedProjectId,
 		t,
 	})
 
@@ -322,7 +325,7 @@ function EditToolbar({
 							variant="secondary"
 							size="sm"
 							onClick={onViewServerUpdate}
-							className="shadow-xs h-6 gap-1.5 rounded-md px-3 text-xs font-normal"
+							className="h-6 gap-1.5 rounded-md px-3 text-xs font-normal shadow-xs"
 						>
 							<AlertTriangle size={16} className="text-amber-600" />
 							<span>{t("ppt.serverUpdateAvailable")}</span>
@@ -479,8 +482,8 @@ function EditToolbar({
 							onGenerateScreenshot={
 								pptStore
 									? async (index: number) => {
-										await pptStore.ensureSlideScreenshot(index)
-									}
+											await pptStore.ensureSlideScreenshot(index)
+										}
 									: undefined
 							}
 						/>

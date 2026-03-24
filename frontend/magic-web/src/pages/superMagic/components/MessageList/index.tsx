@@ -19,6 +19,8 @@ import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { superMagicStore } from "../../stores"
 import { SuperMagicApi } from "@/apis"
 import { messagesConverter, getMessageNodeKey, createCheckIsLastMessage } from "./helpers"
+import { buildMessageKeysAndTurnGroups } from "./message-turn-groups"
+import { MessageTurnGroupList, wrapUserMessageRow } from "./MessageTurnGroupList"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { Button } from "@/components/shadcn-ui/button"
@@ -39,6 +41,8 @@ interface MessageListProps {
 	handleSendMsg?: (content: string, options?: any) => void
 	children?: ReactNode | ((item: any, index: number) => ReactNode)
 	onFileClick?: (fileItem: any) => void
+	/** Extra classes; set [--sticky-message-mask-bg] / [--sticky-message-mask-fade-from] to tune mask */
+	stickyMessageClassName?: string
 	/** True while the initial message fetch is in-flight; suppresses the empty fallback */
 	isMessagesLoading?: boolean
 	fallbackRender?: ReactNode
@@ -87,6 +91,7 @@ const MessageList = observer(
 		currentTopicStatus,
 		handleSendMsg,
 		onFileClick,
+		stickyMessageClassName,
 		children,
 	}: MessageListProps) => {
 		const { t } = useTranslation("super")
@@ -120,11 +125,11 @@ const MessageList = observer(
 		// 使用场景：当用户向上滚动查看历史消息时显示，点击可快速回到最新消息
 		const [showBackToLatest, setShowBackToLatest] = useState(false)
 
-		const messages = messagesConverter(data)
-		const messageKeys = useMemo(
-			() => messages.map((item) => getMessageNodeKey(item)).filter(Boolean) as Array<string>,
-			[messages],
-		)
+		const { messages, messageKeys, messageTurnGroups } = useMemo(() => {
+			const messages = messagesConverter(data)
+			const { messageKeys, messageTurnGroups } = buildMessageKeysAndTurnGroups(messages)
+			return { messages, messageKeys, messageTurnGroups }
+		}, [data])
 
 		const currentTopicKey = selectedTopic?.chat_topic_id || ""
 		if (currentTopicKeyRef.current !== currentTopicKey) {
@@ -300,8 +305,8 @@ const MessageList = observer(
 					if (isProgrammaticScrolling.current) return
 					autoScrollBottom.current =
 						event.target.scrollHeight -
-						event.target.scrollTop -
-						event.target.clientHeight <
+							event.target.scrollTop -
+							event.target.clientHeight <
 						MIN_BOTTOM_DISTANCE
 				},
 				100,
@@ -317,7 +322,7 @@ const MessageList = observer(
 					scrollHeight.current = event.target.scrollHeight
 					setShowBackToLatest(
 						event.target.scrollTop + event.target.clientHeight + 100 <
-						event.target.scrollHeight,
+							event.target.scrollHeight,
 					)
 					pullMessages(event)
 					keepAutoScrollToBottom(event)
@@ -454,13 +459,14 @@ const MessageList = observer(
 			}
 		}, [])
 
-		const renderNodes = (
+		const renderNodeContent = (
 			node: SuperMagicMessageItem,
 			index: number,
 			options?: { disableEntryAnimation?: boolean },
-		) => {
+		): ReactNode => {
+			const nodeKey = getMessageNodeKey(node) || `${node?.role || "message"}-${index}`
+
 			if (!children) {
-				const nodeKey = getMessageNodeKey(node)
 				const isNewlyInserted =
 					!options?.disableEntryAnimation &&
 					Boolean(nodeKey) &&
@@ -472,7 +478,6 @@ const MessageList = observer(
 				return (
 					<Node
 						role={node?.role || "user"}
-						key={nodeKey}
 						node={node}
 						isFirst={messages?.[index - 1]?.role === "user"}
 						checkIsLastMessage={checkIsLastMessage}
@@ -482,17 +487,35 @@ const MessageList = observer(
 						onFileClick={onFileClick}
 						isNewlyInserted={isNewlyInserted}
 						entryAnimationOrder={entryAnimationOrder}
-						// currentTopicStatus={currentTopicStatus}
 						isShare={false}
 					/>
 				)
 			}
-			if (typeof children === "function") {
-				return children(node, index)
-			}
-			if (children) {
-				return children
-			}
+			if (typeof children === "function") return children(node, index)
+			if (children) return children
+			return null
+		}
+
+		const renderNodes = (
+			node: SuperMagicMessageItem,
+			index: number,
+			options?: {
+				disableEntryAnimation?: boolean
+				disableUserSticky?: boolean
+			},
+		) => {
+			const nodeKey = getMessageNodeKey(node) || `${node?.role || "message"}-${index}`
+
+			return (
+				<div
+					key={nodeKey}
+					data-message-id={nodeKey}
+					data-message-role={node?.role || "user"}
+					className="relative"
+				>
+					{wrapUserMessageRow(node, renderNodeContent(node, index, options))}
+				</div>
+			)
 		}
 
 		// 使用 useCallback 优化 itemContent 函数，避免每次渲染都重新创建
@@ -516,7 +539,9 @@ const MessageList = observer(
 							"h-full w-full",
 							"[&>[data-slot='scroll-area-viewport']>div]:pr-3",
 							"[&>[data-slot='scroll-area-viewport']>div]:pl-2",
-							"[&>[data-slot='scroll-area-viewport']>div]:py-0",
+							"[&>[data-slot='scroll-area-viewport']>div]:pt-0",
+							// Bottom inset so the last message is not flush with the editor
+							"[&>[data-slot='scroll-area-viewport']>div]:pb-8",
 							"[&>[data-slot='scroll-area-viewport']>div]:!flex",
 							"[&>[data-slot='scroll-area-viewport']>div]:!flex-col",
 							"[&>[data-slot='scroll-area-viewport']>div]:!gap-2",
@@ -531,7 +556,12 @@ const MessageList = observer(
 					>
 						{data.length > 0 || !isEmptyStatus ? (
 							<>
-								{messages?.map((node, index) => renderNodes(node, index))}
+								<MessageTurnGroupList
+									groups={messageTurnGroups}
+									isMobile={isMobile}
+									stickyMessageClassName={stickyMessageClassName}
+									renderNode={({ node, index }) => renderNodeContent(node, index)}
+								/>
 								{data.filter((node: any) => node?.status === MessageStatus.REVOKED)
 									.length > 0 &&
 									!forceHideRevokedMessages && (
@@ -539,7 +569,7 @@ const MessageList = observer(
 											className={cn(
 												"relative max-h-[600px] flex-shrink-0 overflow-hidden",
 												isRevokedMessagesExpanded &&
-												"max-h-none overflow-visible",
+													"max-h-none overflow-visible",
 											)}
 										>
 											<div
@@ -558,6 +588,7 @@ const MessageList = observer(
 												)?.map((node, index) =>
 													renderNodes(node, index, {
 														disableEntryAnimation: true,
+														disableUserSticky: true,
 													}),
 												)}
 											</div>
@@ -589,11 +620,11 @@ const MessageList = observer(
 																<div>
 																	{isRevokedMessagesExpanded
 																		? t(
-																			"warningCard.collapseContent",
-																		)
+																				"warningCard.collapseContent",
+																			)
 																		: t(
-																			"warningCard.expandContent",
-																		)}
+																				"warningCard.expandContent",
+																			)}
 																</div>
 																{isRevokedMessagesExpanded ? (
 																	<IconChevronsUp size={16} />

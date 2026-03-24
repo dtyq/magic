@@ -37,7 +37,11 @@ function AiBotsList({
 		>
 			{items.map((item) => (
 				<div key={item} className={styles.virtualItem}>
-					<ConversationItem conversationId={item} onClick={onConversationClick} />
+					<ConversationItem
+						conversationId={item}
+						onClick={onConversationClick}
+						domIdPrefix={SegmentedKey.AiBots}
+				/>
 				</div>
 			))}
 		</div>
