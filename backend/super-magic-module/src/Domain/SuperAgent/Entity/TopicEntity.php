@@ -68,6 +68,11 @@ class TopicEntity extends AbstractEntity
     protected ?string $sandboxConfig = null;
 
     /**
+     * @var null|string 沙箱网关 create/upgrade 接口返回的 Agent 镜像版本
+     */
+    protected ?string $agentImage = null;
+
+    /**
      * @var string 工作目录
      */
     protected string $workDir = '';
@@ -190,6 +195,7 @@ class TopicEntity extends AbstractEntity
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
             'sandbox_config' => $this->sandboxConfig,
+            'agent_image' => $this->agentImage,
             'work_dir' => $this->workDir ?? '',
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
@@ -372,6 +378,17 @@ class TopicEntity extends AbstractEntity
     public function setSandboxConfig(?string $sandboxConfig): self
     {
         $this->sandboxConfig = $sandboxConfig;
+        return $this;
+    }
+
+    public function getAgentImage(): ?string
+    {
+        return $this->agentImage;
+    }
+
+    public function setAgentImage(?string $agentImage): self
+    {
+        $this->agentImage = $agentImage;
         return $this;
     }
 

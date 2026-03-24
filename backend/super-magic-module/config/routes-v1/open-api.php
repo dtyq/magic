@@ -52,6 +52,8 @@ Router::addGroup(
     static function () {
         // 沙箱自我升级
         Router::put('/upgrade', [InternalSandboxApi::class, 'upgradeSandbox']);
+        // 检查沙箱镜像版本（当前版本 vs 最新版本）
+        Router::get('/version-check', [InternalSandboxApi::class, 'checkSandboxVersion']);
 
         // 文件管理相关
         Router::addGroup('/file', static function () {

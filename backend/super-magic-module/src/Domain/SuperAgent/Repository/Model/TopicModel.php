@@ -41,6 +41,7 @@ class TopicModel extends AbstractModel
         'chat_conversation_id',
         'sandbox_id',
         'sandbox_config',
+        'agent_image',
         'current_task_id',
         'current_task_status',
         'topic_mode',

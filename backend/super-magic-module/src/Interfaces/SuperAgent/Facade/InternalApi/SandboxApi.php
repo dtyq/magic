@@ -31,6 +31,25 @@ class SandboxApi extends AbstractApi
     }
 
     /**
+     * 检查沙箱镜像版本（当前版本 vs 最新版本）.
+     * 沙箱调用此接口检查自身是否需要升级.
+     */
+    public function checkSandboxVersion(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $sandboxId = $this->request->input('sandbox_id', '');
+
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
+        }
+
+        // sandbox_id 即 topic_id，直接复用 getTopic（含权限校验）
+        $this->topicAppService->getTopic($requestContext, (int) $sandboxId);
+
+        return $this->agentAppService->checkSandboxVersion((int) $sandboxId);
+    }
+
+    /**
      * 沙箱自我升级接口.
      * 沙箱调用此接口将自身升级到最新 Agent 镜像.
      */

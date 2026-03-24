@@ -7,16 +7,23 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Facade;
 
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\ErrorCode\AgentErrorCode;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\MagicClawAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Interfaces\Agent\Assembler\MagicClawAssembler;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateMagicClawRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryMagicClawListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateMagicClawRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\SandboxStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use RuntimeException;
@@ -30,6 +37,8 @@ class MagicClawApi extends AbstractApi
         protected RequestInterface $request,
         private readonly MagicClawAppService $magicClawAppService,
         private readonly ProjectAppService $projectAppService,
+        private readonly TopicAppService $topicAppService,
+        private readonly AgentAppService $agentAppService,
     ) {
         parent::__construct($request);
     }
@@ -153,5 +162,120 @@ class MagicClawApi extends AbstractApi
             'page_size' => $result['page_size'],
             'list' => $list,
         ];
+    }
+
+    /**
+     * Stop (delete) the sandbox for a magic-claw topic.
+     *
+     * @return array<string,mixed>
+     */
+    public function stopSandbox(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
+        $sandboxId = $topic->getSandboxId();
+
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
+        }
+
+        $this->agentAppService->stopSandbox($sandboxId);
+
+        return [];
+    }
+
+    /**
+     * Get sandbox status for a magic-claw topic.
+     *
+     * @return array<string,mixed>
+     */
+    public function getSandboxStatus(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
+        $sandboxId = $topic->getSandboxId();
+
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
+        }
+
+        $result = $this->agentAppService->getSandboxStatus($sandboxId);
+        if (! $result->isSuccess()) {
+            ExceptionBuilder::throw(AgentErrorCode::SANDBOX_NOT_FOUND, $result->getMessage());
+        }
+
+        return SandboxStatusResponseDTO::fromSandboxStatusResult($result)->toArray();
+    }
+
+    /**
+     * Upgrade sandbox to the latest agent image.
+     *
+     * @return array<string,mixed>
+     */
+    public function upgradeSandbox(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
+        $sandboxId = $topic->getSandboxId();
+
+        if (empty($sandboxId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
+        }
+
+        $project = $this->projectAppService->getProjectNotUserId((int) $topic->getProjectId());
+        $workDir = $project->getWorkDir() ?? '';
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId($authorization->getId());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+
+        $result = $this->agentAppService->upgradeSandbox($dataIsolation, $sandboxId, (string) $topic->getProjectId(), $workDir);
+
+        return $result->toArray();
+    }
+
+    /**
+     * Check sandbox image version (current vs latest).
+     *
+     * @return array<string,mixed>
+     */
+    public function checkSandboxVersion(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        return $this->agentAppService->checkSandboxVersion((int) $topicId);
     }
 }

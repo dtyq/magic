@@ -56,6 +56,14 @@ interface SandboxGatewayInterface
     public function upgradeSandbox(string $sandboxId, string $projectId, string $workDir): GatewayResult;
 
     /**
+     * 删除（停止）沙箱.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @return GatewayResult 删除结果
+     */
+    public function deleteSandbox(string $sandboxId): GatewayResult;
+
+    /**
      * Get single sandbox status.
      *
      * @param string $sandboxId Sandbox ID
@@ -108,4 +116,11 @@ interface SandboxGatewayInterface
      * @return GatewayResult 复制结果
      */
     public function copyFiles(array $files): GatewayResult;
+
+    /**
+     * 获取沙箱网关当前部署的最新 Agent 镜像.
+     *
+     * @return string 最新 Agent 镜像全名（如 registry.example.com/agent:v1.2.3），失败时返回空字符串
+     */
+    public function getLatestAgentImage(): string;
 }
