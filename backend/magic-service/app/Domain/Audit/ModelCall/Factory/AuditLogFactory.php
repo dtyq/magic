@@ -13,11 +13,11 @@ use DateTime;
 class AuditLogFactory
 {
     /**
-     * @param array<string, mixed> $userInfo
      * @param array<string, mixed> $usage
      */
     public static function createNew(
-        array $userInfo,
+        string $userId,
+        string $organizationCode,
         string $ip,
         string $type,
         string $productCode,
@@ -31,7 +31,8 @@ class AuditLogFactory
         $now = new DateTime();
 
         $entity = new AuditLogEntity();
-        $entity->setUserInfo($userInfo);
+        $entity->setUserId($userId);
+        $entity->setOrganizationCode($organizationCode);
         $entity->setIp($ip);
         $entity->setType($type);
         $entity->setProductCode($productCode);

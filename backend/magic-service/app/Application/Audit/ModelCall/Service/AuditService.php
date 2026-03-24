@@ -14,8 +14,7 @@ use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\StringMaskUtil;
-use DateTimeInterface;
-use Hyperf\DbConnection\Model\Model;
+use App\Interfaces\Chat\DTO\UserDetailDTO;
 use Hyperf\Logger\LoggerFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -37,7 +36,7 @@ class AuditService
     /**
      * 发布审计事件 - 统一入口方法.
      *
-     * @param array $userInfo 用户信息 ['organization_code' => '', 'user_id' => '', 'user_name' => '']
+     * @param array $userInfo 用户信息 ['organization_code' => '', 'user_id' => '', 'user_name' => '']（落库仅 user_id、organization_code）
      * @param string $ip 客户端 IP
      * @param AuditType $type 审计类型枚举
      * @param string $productCode 产品/模型标识
@@ -90,7 +89,8 @@ class AuditService
     }
 
     /**
-     * 管理端查询模型调用审计列表.
+     * 管理端查询模型调用审计列表（行内为表字段 + 反查得到的 user_info）.
+     *
      * @param array<string, mixed> $filters
      * @return array{total: int, page: int, page_size: int, list: array<int, array<string, mixed>>}
      */
@@ -114,100 +114,8 @@ class AuditService
             'total' => (int) ($result['total'] ?? 0),
             'page' => $pageVO->getPage(),
             'page_size' => $pageVO->getPageNum(),
-            'list' => $this->appendAllDetailToListItems($this->enrichUserInfoForAdminList($list)),
+            'list' => $this->enrichUserInfoForAdminList($list),
         ];
-    }
-
-    /**
-     * 列表每项补充 all_detail：与表 magic_model_audit_logs 列一致的快照（便于导出/对账）.
-     *
-     * @param array<int, mixed> $list
-     * @return array<int, array<string, mixed>>
-     */
-    private function appendAllDetailToListItems(array $list): array
-    {
-        $out = [];
-        foreach ($list as $item) {
-            $row = $this->listItemToRowArray($item);
-            $row['all_detail'] = $this->buildAllDetailPayload($row);
-            $out[] = $row;
-        }
-
-        return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function listItemToRowArray(mixed $item): array
-    {
-        if (is_array($item)) {
-            return $item;
-        }
-        if ($item instanceof Model) {
-            return $item->toArray();
-        }
-
-        return [];
-    }
-
-    /**
-     * 仅收录审计表列，与列表行当前值一致（含 enrich 后的 user_info）.
-     *
-     * @param array<string, mixed> $row
-     * @return array<string, mixed>
-     */
-    private function buildAllDetailPayload(array $row): array
-    {
-        $keys = [
-            'id',
-            'user_info',
-            'ip',
-            'type',
-            'product_code',
-            'status',
-            'ak',
-            'operation_time',
-            'all_latency',
-            'usage',
-            'detail_info',
-            'created_at',
-            'updated_at',
-        ];
-        $detail = [];
-        foreach ($keys as $key) {
-            if (! array_key_exists($key, $row)) {
-                continue;
-            }
-            $detail[$key] = $this->normalizeAllDetailValue($row[$key], $key);
-        }
-
-        return $detail;
-    }
-
-    private function normalizeAllDetailValue(mixed $value, string $key): mixed
-    {
-        if ($value instanceof DateTimeInterface) {
-            return $value->format(DateTimeInterface::ATOM);
-        }
-
-        if ($key === 'id' && $value !== null && $value !== '') {
-            return (string) $value;
-        }
-
-        if ($key === 'operation_time' || $key === 'all_latency') {
-            return (int) $value;
-        }
-
-        if ($key === 'user_info' || $key === 'usage') {
-            return is_array($value) ? $value : [];
-        }
-
-        if ($key === 'detail_info') {
-            return is_array($value) ? $value : null;
-        }
-
-        return $value;
     }
 
     /**
@@ -218,48 +126,66 @@ class AuditService
     {
         $userIds = [];
         foreach ($list as $item) {
-            $uid = (string) ($item['user_info']['user_id'] ?? $item['user_info']['id'] ?? '');
+            $uid = (string) ($item['user_id'] ?? '');
             if ($uid !== '') {
                 $userIds[] = $uid;
             }
         }
         $userIds = array_values(array_unique($userIds));
-        if ($userIds === []) {
-            return $list;
+
+        /** @var array<string, UserDetailDTO> $detailMap */
+        $detailMap = [];
+        if ($userIds !== []) {
+            try {
+                $details = $this->magicUserDomainService->getUserDetailByUserIdsInMagic($userIds, true);
+                foreach ($details as $detail) {
+                    $detailMap[$detail->getUserId()] = $detail;
+                }
+            } catch (Throwable $throwable) {
+                $this->logger->warning('Model audit list enrich user info failed', [
+                    'user_ids_count' => count($userIds),
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
         }
 
-        try {
-            $details = $this->magicUserDomainService->getUserDetailByUserIdsInMagic($userIds, true);
-            $detailMap = [];
-            foreach ($details as $detail) {
-                $detailMap[$detail->getUserId()] = [
-                    'phone' => $detail->getPhone(),
-                    'email' => $this->maskEmail((string) ($detail->getEmail() ?? '')),
+        foreach ($list as &$item) {
+            $uid = (string) ($item['user_id'] ?? '');
+            $rowOrg = (string) ($item['organization_code'] ?? '');
+
+            if ($uid !== '' && isset($detailMap[$uid])) {
+                $d = $detailMap[$uid];
+                $detailOrg = $d->getOrganizationCode();
+                $item['user_info'] = [
+                    'user_id' => $d->getUserId(),
+                    'user_name' => $this->resolveUserDisplayNameFromDetail($d),
+                    'organization_code' => $detailOrg !== '' ? $detailOrg : $rowOrg,
+                    'phone' => $d->getPhone(),
+                    'email' => $this->maskEmail((string) ($d->getEmail() ?? '')),
+                ];
+            } else {
+                $item['user_info'] = [
+                    'user_id' => $uid,
+                    'user_name' => '',
+                    'organization_code' => $rowOrg,
+                    'phone' => '',
+                    'email' => '',
                 ];
             }
-
-            foreach ($list as &$item) {
-                $item['user_info'] = is_array($item['user_info'] ?? null) ? $item['user_info'] : [];
-                $uid = (string) ($item['user_info']['user_id'] ?? $item['user_info']['id'] ?? '');
-                $item['user_info']['email'] = '';
-                if ($uid !== '' && isset($detailMap[$uid])) {
-                    $phone = (string) ($detailMap[$uid]['phone'] ?? '');
-                    $email = (string) ($detailMap[$uid]['email'] ?? '');
-                    if ($phone !== '') {
-                        $item['user_info']['phone'] = $phone;
-                    }
-                    $item['user_info']['email'] = $email;
-                }
-            }
-        } catch (Throwable $throwable) {
-            // 用户附加信息补全失败不影响主流程
-            $this->logger->warning('Model audit list enrich user info failed', [
-                'user_ids_count' => count($userIds),
-                'error' => $throwable->getMessage(),
-            ]);
         }
+        unset($item);
 
         return $list;
+    }
+
+    private function resolveUserDisplayNameFromDetail(UserDetailDTO $detail): string
+    {
+        $real = trim($detail->getRealName());
+        if ($real !== '') {
+            return $real;
+        }
+
+        return $detail->getNickname();
     }
 
     private function maskEmail(string $email): string

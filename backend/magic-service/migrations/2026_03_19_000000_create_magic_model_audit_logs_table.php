@@ -18,7 +18,8 @@ class CreateMagicModelAuditLogsTable extends Migration
     {
         Schema::create('magic_model_audit_logs', function (Blueprint $table) {
             $table->bigIncrements('id')->comment('主键ID');
-            $table->json('user_info')->comment('用户信息');
+            $table->string('user_id', 64)->default('')->comment('Magic 用户 ID');
+            $table->string('organization_code', 64)->default('')->comment('调用时组织编码');
             $table->string('ip', 45)->default('')->comment('IP地址');
             $table->string('type', 50)->default('')->comment('类型(TEXT/EMBEDDING/IMAGE/SEARCH/WEB_SCRAPE)');
             $table->string('product_code', 255)->default('')->comment('引擎/模型标识');
@@ -30,6 +31,9 @@ class CreateMagicModelAuditLogsTable extends Migration
             $table->json('detail_info')->nullable()->comment('详情信息');
             $table->timestamp('created_at')->default(Db::raw('CURRENT_TIMESTAMP'))->comment('创建时间');
             $table->timestamp('updated_at')->default(Db::raw('CURRENT_TIMESTAMP'))->comment('修改时间')->nullable();
+
+            $table->index('user_id', 'idx_magic_model_audit_logs_user_id');
+            $table->index('organization_code', 'idx_magic_model_audit_logs_org_code');
         });
     }
 

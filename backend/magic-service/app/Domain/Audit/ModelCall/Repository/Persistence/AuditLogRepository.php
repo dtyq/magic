@@ -61,7 +61,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         );
 
         if ($organizationCode !== null) {
-            $builder->where('user_info->organization_code', $organizationCode);
+            $builder->where('organization_code', $organizationCode);
         }
 
         if (! empty($filters['type'])) {
@@ -74,8 +74,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $builder->where('product_code', (string) $filters['product_code']);
         }
         if (! empty($filters['user_id'])) {
-            $userId = (string) $filters['user_id'];
-            $builder->where('user_info->user_id', $userId);
+            $builder->where('user_id', (string) $filters['user_id']);
         }
         if (! empty($filters['start_operation_time'])) {
             $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
@@ -123,9 +122,10 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
     {
         foreach ($list as &$item) {
             $item['id'] = isset($item['id']) ? (string) $item['id'] : '';
+            $item['user_id'] = (string) ($item['user_id'] ?? '');
+            $item['organization_code'] = (string) ($item['organization_code'] ?? '');
             $item['operation_time'] = (int) ($item['operation_time'] ?? 0);
             $item['all_latency'] = (int) ($item['all_latency'] ?? 0);
-            $item['user_info'] = is_array($item['user_info'] ?? null) ? $item['user_info'] : [];
             $item['usage'] = is_array($item['usage'] ?? null) ? $item['usage'] : [];
             $item['detail_info'] = is_array($item['detail_info'] ?? null) ? $item['detail_info'] : null;
         }

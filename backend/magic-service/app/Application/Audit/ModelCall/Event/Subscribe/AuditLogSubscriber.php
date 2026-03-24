@@ -96,8 +96,13 @@ class AuditLogSubscriber implements ListenerInterface
      */
     private static function entityFromEvent(AuditLogEvent $event): AuditLogEntity
     {
+        $userInfo = $event->userInfo;
+        $userId = (string) ($userInfo['user_id'] ?? '');
+        $organizationCode = (string) ($userInfo['organization_code'] ?? '');
+
         return AuditLogFactory::createNew(
-            userInfo: $event->userInfo,
+            userId: $userId,
+            organizationCode: $organizationCode,
             ip: $event->ip,
             type: $event->type,
             productCode: $event->productCode,

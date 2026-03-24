@@ -14,7 +14,9 @@ class AuditLogEntity extends AbstractEntity
 {
     protected ?string $id = null;
 
-    protected array $userInfo = [];
+    protected string $userId = '';
+
+    protected string $organizationCode = '';
 
     protected string $ip = '';
 
@@ -48,14 +50,24 @@ class AuditLogEntity extends AbstractEntity
         $this->id = $id ? (string) $id : null;
     }
 
-    public function getUserInfo(): array
+    public function getUserId(): string
     {
-        return $this->userInfo;
+        return $this->userId;
     }
 
-    public function setUserInfo(array $userInfo): void
+    public function setUserId(string $userId): void
     {
-        $this->userInfo = $userInfo;
+        $this->userId = $userId;
+    }
+
+    public function getOrganizationCode(): string
+    {
+        return $this->organizationCode;
+    }
+
+    public function setOrganizationCode(string $organizationCode): void
+    {
+        $this->organizationCode = $organizationCode;
     }
 
     public function getIp(): string
