@@ -38,6 +38,8 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 		}
 		if plan.ContainerProxyURL != "" {
 			s.d.log.Logi("deploy", "container proxy selected: %s", maskProxyURLForLog(plan.ContainerProxyURL))
+		} else if plan.HostProxyURL != "" {
+			s.d.log.Logi("deploy", "container proxy disabled due to failed reachability checks")
 		}
 	}
 	return s.d.resolveChartRefs()

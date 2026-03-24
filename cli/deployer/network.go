@@ -120,17 +120,20 @@ func CheckDockerDaemonNetwork(ctx context.Context) error {
 
 func ApplyContainerProxyTemporarily(proxyURL string, noProxyAdditions []string) (func(), error) {
 	proxyURL = strings.TrimSpace(proxyURL)
-	if proxyURL == "" {
-		return func() {}, nil
-	}
 	noProxy := mergeCSV(firstNonEmpty(
 		os.Getenv("NO_PROXY"),
 		os.Getenv("no_proxy"),
 	), proxyNoProxyDefaultsWith(noProxyAdditions...))
 	envs := map[string]string{
-		"HTTP_PROXY": proxyURL, "HTTPS_PROXY": proxyURL, "ALL_PROXY": proxyURL,
-		"http_proxy": proxyURL, "https_proxy": proxyURL, "all_proxy": proxyURL,
 		"NO_PROXY": noProxy, "no_proxy": noProxy,
+	}
+	if proxyURL != "" {
+		envs["HTTP_PROXY"] = proxyURL
+		envs["HTTPS_PROXY"] = proxyURL
+		envs["ALL_PROXY"] = proxyURL
+		envs["http_proxy"] = proxyURL
+		envs["https_proxy"] = proxyURL
+		envs["all_proxy"] = proxyURL
 	}
 	return applyEnvTemporarily(envs)
 }
@@ -194,8 +197,8 @@ func chooseContainerProxy(ctx context.Context, hostProxy, preferredContainer str
 		}
 		return c, warnings
 	}
-	warnings = append(warnings, "no verified container proxy candidate found; fallback to host proxy")
-	return hostProxy, warnings
+	warnings = append(warnings, "no verified container proxy candidate found; container proxy disabled")
+	return "", warnings
 }
 
 func checkContainerProxyConnectivity(ctx context.Context, proxyURL string) (bool, string) {

@@ -191,3 +191,39 @@ func TestMaskProxyURLForLog(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildProxyPlan_NoReachableContainerProxy_NoFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	selected, warnings := chooseContainerProxy(ctx, "http://127.0.0.1:7897", "http://127.0.0.1:7897")
+	assert.Empty(t, selected)
+	assert.NotEmpty(t, warnings)
+}
+
+func TestApplyContainerProxyTemporarily_EmptyProxySetsOnlyNoProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("http_proxy", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("https_proxy", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("all_proxy", "")
+	t.Setenv("NO_PROXY", "localhost")
+	t.Setenv("no_proxy", "localhost")
+
+	restore, err := ApplyContainerProxyTemporarily("", []string{"kind-registry", "kind-registry:5000"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "", os.Getenv("HTTP_PROXY"))
+	assert.Equal(t, "", os.Getenv("http_proxy"))
+	assert.Equal(t, "", os.Getenv("HTTPS_PROXY"))
+	assert.Equal(t, "", os.Getenv("https_proxy"))
+	assert.Equal(t, "", os.Getenv("ALL_PROXY"))
+	assert.Equal(t, "", os.Getenv("all_proxy"))
+	assert.Contains(t, os.Getenv("NO_PROXY"), "kind-registry")
+	assert.Contains(t, os.Getenv("NO_PROXY"), "kind-registry:5000")
+
+	restore()
+	assert.Equal(t, "localhost", os.Getenv("NO_PROXY"))
+	assert.Equal(t, "localhost", os.Getenv("no_proxy"))
+}
