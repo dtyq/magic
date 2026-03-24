@@ -216,7 +216,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
 
         $name18n = trim((string) $name18n);
         if ($name18n !== '') {
-            $builder->where('search_text', '%' . $name18n . '%');
+            $builder->where('search_text', 'LIKE', '%' . $name18n . '%');
         }
 
         $startTime = trim((string) $startTime);
