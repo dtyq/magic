@@ -25,7 +25,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
@@ -265,10 +264,6 @@ class TopicDomainService
         // Validate required parameters
         if (empty($chatTopicId)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic.id_required');
-        }
-
-        if (str_starts_with($topicMode, 'SMA-')) {
-            $topicMode = ProjectMode::CUSTOM_AGENT->value;
         }
 
         // Create topic entity
