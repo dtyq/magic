@@ -56,6 +56,7 @@ type Deployer struct {
 
 	// populated by PreflightStage
 	chartRefs map[string]chart.ChartReference
+	proxyPlan ProxyPlan
 
 	// populated by BootstrapClusterStage
 	kubeClient *kube.Client
