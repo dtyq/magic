@@ -1535,6 +1535,13 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('call_time', date('Y-m-d H:i:s'));
             $proxyModelRequest->addBusinessParam('original_model_id', $originalModelId);
 
+            if ((string) ($proxyModelRequest->getBusinessParam('request_id') ?? '') === '') {
+                $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+                if ($requestId !== '') {
+                    $proxyModelRequest->addBusinessParam('request_id', $requestId);
+                }
+            }
+
             // Call LLM model to get response
             /** @var ResponseInterface $response */
             $response = $modelCallFunction($modelGatewayDataIsolation, $model, $proxyModelRequest);
