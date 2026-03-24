@@ -226,7 +226,9 @@ class SkillApi extends AbstractApi
             $result['total'],
             SkillSourceType::MARKET->value,
             $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+            $result['latestVersionMap'] ?? [],
+            $result['marketEntityMap'] ?? [],
+            $result['publisherUserMap'] ?? []
         );
     }
 

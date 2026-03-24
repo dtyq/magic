@@ -69,7 +69,9 @@ class SkillAssembler
         SkillVersionEntity $entity,
         ?string $sourceType = null,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null
+        ?string $latestVersion = null,
+        ?string $publisherType = null,
+        ?array $publisher = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -93,7 +95,9 @@ class SkillAssembler
             latestPublishedAt: $entity->getPublishedAt(),
             latestVersion: $latestVersion ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
-            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
+            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt()),
+            publisherType: $publisherType,
+            publisher: $publisher
         );
     }
 
@@ -220,15 +224,32 @@ class SkillAssembler
         int $total,
         ?string $sourceType = null,
         array $creatorUserMap = [],
-        array $latestVersionMap = []
+        array $latestVersionMap = [],
+        array $marketEntityMap = [],
+        array $publisherUserMap = []
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillVersionEntities as $entity) {
+            $publisherType = null;
+            $publisher = null;
+
+            $marketEntity = $marketEntityMap[$entity->getCode()] ?? null;
+            if ($marketEntity instanceof SkillMarketEntity) {
+                $publisherType = $marketEntity->getPublisherType()->value;
+                $publisher = self::buildPublisher(
+                    $marketEntity->getPublisherType(),
+                    $marketEntity->getPublisherId(),
+                    $publisherUserMap[$marketEntity->getPublisherId()] ?? null
+                );
+            }
+
             $listItems[] = self::createListItemDTOFromVersion(
                 $entity,
                 $sourceType,
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion()
+                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
+                $publisherType,
+                $publisher
             );
         }
 
@@ -455,25 +476,16 @@ class SkillAssembler
      */
     private static function buildPublisher(PublisherType $publisherType, string $publisherId, ?MagicUserEntity $userEntity = null): array
     {
-        // 官方类型，头像为空
-        if ($publisherType === PublisherType::OFFICIAL) {
+        // 如果有用户实体，使用用户信息
+        if ($publisherType->isUser() && $userEntity) {
             return [
-                'name' => PublisherType::OFFICIAL->value,
+                'name' => $userEntity->getNickname() ?? PublisherType::USER->value,
                 'avatar' => '',
             ];
         }
 
-        // 如果有用户实体，使用用户信息
-        if ($userEntity !== null) {
-            return [
-                'name' => $userEntity->getNickname() ?? PublisherType::USER->value,
-                'avatar' => $userEntity->getAvatarUrl() ?? '',
-            ];
-        }
-
-        // 如果没有用户实体，返回默认值（理论上不应该走到这里，因为已经批量查询了）
         return [
-            'name' => PublisherType::USER->value,
+            'name' => $publisherType->value,
             'avatar' => '',
         ];
     }

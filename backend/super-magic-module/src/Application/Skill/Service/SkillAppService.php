@@ -38,8 +38,10 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
@@ -500,11 +502,26 @@ class SkillAppService extends AbstractSkillAppService
         $creatorUserMap = $this->buildCreatorUserMapFromSkillVersions($dataIsolation, $result['list']);
         $latestVersionMap = $this->buildLatestVersionMapFromSkillVersions($result['list']);
 
+        $marketCodes = [];
+        foreach ($result['list'] as $skillVersionEntity) {
+            if ($skillVersionEntity->getPublishTargetType()->isMarket()) {
+                $marketCodes[] = $skillVersionEntity->getCode();
+            }
+        }
+
+        $marketEntityMap = $publisherUserMap = [];
+        if ($marketCodes) {
+            $marketEntityMap = $this->skillMarketDomainService->findLatestPublishedBySkillCodes($marketCodes);
+            $publisherUserMap = $this->buildPublisherUserMapFromSkillMarkets($dataIsolation, $marketEntityMap);
+        }
+
         return [
             'list' => $result['list'],
             'total' => $result['total'],
             'creatorUserMap' => $creatorUserMap,
             'latestVersionMap' => $latestVersionMap,
+            'marketEntityMap' => $marketEntityMap,
+            'publisherUserMap' => $publisherUserMap,
         ];
     }
 
@@ -1055,6 +1072,37 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         return [$userMap, $memberDepartmentMap];
+    }
+
+    /**
+     * @param array<int, SkillMarketEntity> $skillMarketEntities
+     * @return array<string, MagicUserEntity>
+     */
+    private function buildPublisherUserMapFromSkillMarkets(
+        SkillDataIsolation $dataIsolation,
+        array $skillMarketEntities
+    ): array {
+        $publisherIds = [];
+        foreach ($skillMarketEntities as $skillMarketEntity) {
+            if ($skillMarketEntity->getPublisherType() !== PublisherType::OFFICIAL) {
+                $publisherIds[] = $skillMarketEntity->getPublisherId();
+            }
+        }
+
+        $publisherIds = array_values(array_unique($publisherIds));
+        if ($publisherIds === []) {
+            return [];
+        }
+
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($publisherIds);
+        $this->updateUserAvatarUrl($dataIsolation, $userEntities);
+
+        $publisherUserMap = [];
+        foreach ($userEntities as $userEntity) {
+            $publisherUserMap[$userEntity->getUserId()] = $userEntity;
+        }
+
+        return $publisherUserMap;
     }
 
     /**

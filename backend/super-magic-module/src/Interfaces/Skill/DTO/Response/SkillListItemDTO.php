@@ -47,6 +47,10 @@ class SkillListItemDTO implements JsonSerializable
 
     private ?OperatorDTO $creatorInfo;
 
+    private ?string $publisherType;
+
+    private ?array $publisher;
+
     public function __construct(
         string $id,
         string $code,
@@ -63,7 +67,9 @@ class SkillListItemDTO implements JsonSerializable
         ?string $latestPublishedAt,
         string $latestVersion = '',
         string $packageName = '',
-        ?OperatorDTO $creatorInfo = null
+        ?OperatorDTO $creatorInfo = null,
+        ?string $publisherType = null,
+        ?array $publisher = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -81,6 +87,8 @@ class SkillListItemDTO implements JsonSerializable
         $this->latestVersion = $latestVersion;
         $this->packageName = $packageName;
         $this->creatorInfo = $creatorInfo;
+        $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
     }
 
     public function jsonSerialize(): array
@@ -102,6 +110,8 @@ class SkillListItemDTO implements JsonSerializable
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
             'creator_info' => $this->creatorInfo,
+            'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
         ];
     }
 }

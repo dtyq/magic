@@ -36,4 +36,9 @@ enum PublishTargetType: string
     {
         return $this === self::MEMBER;
     }
+
+    public function isMarket(): bool
+    {
+        return $this === self::MARKET;
+    }
 }
