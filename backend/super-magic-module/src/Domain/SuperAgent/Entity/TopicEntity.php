@@ -93,6 +93,11 @@ class TopicEntity extends AbstractEntity
     protected string $topicMode = '';
 
     /**
+     * @var string Agent code for custom agent mode
+     */
+    protected string $agentCode = '';
+
+    /**
      * @var float 话题成本
      */
     protected float $cost = 0.0;
@@ -190,6 +195,7 @@ class TopicEntity extends AbstractEntity
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
             'topic_mode' => $this->topicMode,
+            'agent_code' => $this->agentCode,
             'cost' => $this->cost ?? 0.0,
             'token_used' => $this->tokenUsed,
             'source' => $this->source,
@@ -546,8 +552,24 @@ class TopicEntity extends AbstractEntity
      */
     public function setTopicMode(?string $topicMode): self
     {
-        // 如果传入 null，转换为空字符串
         $this->topicMode = $topicMode ?? '';
+        return $this;
+    }
+
+    /**
+     * Get agent code.
+     */
+    public function getAgentCode(): string
+    {
+        return $this->agentCode;
+    }
+
+    /**
+     * Set agent code.
+     */
+    public function setAgentCode(?string $agentCode): self
+    {
+        $this->agentCode = $agentCode ?? '';
         return $this;
     }
 

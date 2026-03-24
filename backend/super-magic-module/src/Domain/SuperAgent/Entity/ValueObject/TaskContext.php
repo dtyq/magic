@@ -33,6 +33,7 @@ class TaskContext
      * @param string $messageId 消息ID
      * @param bool $isFirstTask 是否为首次任务
      * @param null|SuperAgentExtra $extra 扩展参数
+     * @param string $agentCode Agent code for custom agent mode
      */
     public function __construct(
         private readonly TaskEntity $task,
@@ -51,6 +52,7 @@ class TaskContext
         private string $messageId = '',
         private bool $isFirstTask = false,
         private ?SuperAgentExtra $extra = null,
+        private string $agentCode = '',
     ) {
     }
 
@@ -201,6 +203,7 @@ class TaskContext
             $this->messageId,
             $this->isFirstTask,
             $this->extra,
+            $this->agentCode,
         );
     }
 
@@ -324,6 +327,23 @@ class TaskContext
     public function setExtra(?SuperAgentExtra $extra): self
     {
         $this->extra = $extra;
+        return $this;
+    }
+
+    /**
+     * Get agent code.
+     */
+    public function getAgentCode(): string
+    {
+        return $this->agentCode;
+    }
+
+    /**
+     * Set agent code.
+     */
+    public function setAgentCode(string $agentCode): self
+    {
+        $this->agentCode = $agentCode;
         return $this;
     }
 }

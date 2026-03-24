@@ -74,4 +74,5 @@ return [
     'query_codes_too_many' => 'codes must not contain more than 200 items',
     'query_codes_item_must_be_string' => 'each item in codes must be a string',
     'query_codes_item_too_long' => 'each code must not exceed 64 characters',
+    'export_failed' => 'Skill export failed. Please try again later',
 ];

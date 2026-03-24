@@ -195,7 +195,7 @@ class SkillDomainService
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.skill.export_failed');
         }
 
         return $response->toArray();

@@ -44,6 +44,7 @@ class TopicModel extends AbstractModel
         'current_task_id',
         'current_task_status',
         'topic_mode',
+        'agent_code',
         'topic_name',
         'work_dir',
         'task_mode',
