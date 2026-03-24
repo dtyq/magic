@@ -26,8 +26,7 @@ body:
       label: Deployment Type / 部署类型
       description: How do you run Magic? / 你是怎么运行magic的？
       options:
-        - Self-hosted (Docker)
-        - Self-hosted (Source)
+        - Self-hosted (Kind)
         - Chinese Site (https://www.letsmagic.cn)
         - International Site (https://www.magicrew.ai)
         - Other
