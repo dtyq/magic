@@ -585,7 +585,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntity->setPublishTargetType(PublishTargetType::PRIVATE);
         $versionEntity->setPublishTargetValue(null);
 
-        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, false);
+        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, true);
     }
 
     /**
