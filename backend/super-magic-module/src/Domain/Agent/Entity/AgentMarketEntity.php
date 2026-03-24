@@ -91,6 +91,11 @@ class AgentMarketEntity extends AbstractEntity
     protected ?int $sortOrder = null;
 
     /**
+     * @var bool 是否精选
+     */
+    protected bool $isFeatured = false;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -133,6 +138,7 @@ class AgentMarketEntity extends AbstractEntity
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
             'sort_order' => $this->sortOrder,
+            'is_featured' => $this->isFeatured,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -312,6 +318,22 @@ class AgentMarketEntity extends AbstractEntity
         } else {
             $this->sortOrder = is_string($sortOrder) ? (int) $sortOrder : $sortOrder;
         }
+        return $this;
+    }
+
+    public function isFeatured(): bool
+    {
+        return $this->isFeatured;
+    }
+
+    public function setIsFeatured(bool|int|string $isFeatured): self
+    {
+        if (is_bool($isFeatured)) {
+            $this->isFeatured = $isFeatured;
+        } else {
+            $this->isFeatured = filter_var((string) $isFeatured, FILTER_VALIDATE_BOOLEAN);
+        }
+
         return $this;
     }
 

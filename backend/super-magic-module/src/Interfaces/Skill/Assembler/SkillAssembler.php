@@ -167,6 +167,7 @@ class SkillAssembler
             isAdded: $isAdded,
             needUpgrade: $needUpgrade,
             isCreator: $isCurrentUserCreator,
+            isFeatured: $entity->isFeatured(),
             createdAt: $entity->getCreatedAt() ?? '',
             updatedAt: $entity->getUpdatedAt() ?? '',
             fileKey: $fileKey,

@@ -157,6 +157,7 @@ class SuperMagicAgentMarketAssembler
             publisherType: $agentMarket->getPublisherType()->value,
             publisher: $publisher,
             categoryId: $agentMarket->getCategoryId(),
+            isFeatured: $agentMarket->isFeatured(),
             isAdded: $isAdded,
             latestVersionCode: $latestVersionCode,
             allowDelete: $allowDelete,

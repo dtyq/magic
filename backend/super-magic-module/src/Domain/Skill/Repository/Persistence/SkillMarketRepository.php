@@ -156,10 +156,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         // 先查询总数
         $total = $builder->count();
 
-        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
-        $builder->orderByRaw('sort_order IS NULL ASC');
+        // 排序：精选优先，其次 sort_order 非空优先且数值越大越靠前；为空时回落按 id
+        $builder->orderBy('is_featured', 'DESC');
         $builder->orderBy('sort_order', 'DESC');
-        $builder->orderBy('created_at', 'DESC');
+        $builder->orderBy('id', 'DESC');
 
         // 分页
         $offset = ($page->getPage() - 1) * $page->getPageNum();
@@ -216,7 +216,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
 
         $name18n = trim((string) $name18n);
         if ($name18n !== '') {
-            $builder->where('search_txt', '%' . $name18n . '%');
+            $builder->where('search_text', '%' . $name18n . '%');
         }
 
         $startTime = trim((string) $startTime);
@@ -229,10 +229,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
-        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
-        $builder->orderByRaw('sort_order IS NULL ASC');
-        $builder->orderBy('sort_order', 'DESC');
-        $builder->orderBy('created_at', $createdAtOrder);
+        $idOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderBy('is_featured', $idOrder);
+        $builder->orderBy('sort_order', $idOrder);
+        $builder->orderBy('id', $idOrder);
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -317,6 +317,11 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
      */
     public function updateSortOrderById(int $id, int $sortOrder): bool
     {
+        return $this->updateInfoById($id, ['sort_order' => $sortOrder]);
+    }
+
+    public function updateInfoById(int $id, array $payload): bool
+    {
         /** @var null|SkillMarketModel $model */
         $model = $this->skillMarketModel::query()
             ->where('id', $id)
@@ -326,7 +331,22 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             return false;
         }
 
-        $model->sort_order = $sortOrder;
+        if (array_key_exists('sort_order', $payload)) {
+            $model->sort_order = $payload['sort_order'];
+        }
+
+        if (array_key_exists('is_featured', $payload)) {
+            $model->is_featured = $payload['is_featured'];
+        }
+
+        if (array_key_exists('category_id', $payload)) {
+            $model->category_id = $payload['category_id'];
+        }
+
+        if ($model->isDirty() === false) {
+            return true;
+        }
+
         return $model->save();
     }
 
@@ -349,6 +369,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'publish_status' => $entity->getPublishStatus()->value,
             'install_count' => $entity->getInstallCount(),
             'sort_order' => $entity->getSortOrder(),
+            'is_featured' => $entity->isFeatured(),
         ];
     }
 
@@ -385,6 +406,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'install_count' => $data['install_count'] ?? 0,
             'sort_order' => $data['sort_order'] ?? null,
+            'is_featured' => $data['is_featured'] ?? false,
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,

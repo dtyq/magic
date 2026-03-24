@@ -93,4 +93,14 @@ class SuperMagicAgentMarketDomainService
     {
         return $this->agentMarketRepository->updateSortOrderById($id, $sortOrder);
     }
+
+    /**
+     * 按传入字段部分更新市场员工信息.
+     *
+     * @param array{sort_order?: null|int, is_featured?: bool} $payload
+     */
+    public function updateInfoById(int $id, array $payload): bool
+    {
+        return $this->agentMarketRepository->updateInfoById($id, $payload);
+    }
 }

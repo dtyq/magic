@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentMarketRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseAdminDTO;
@@ -108,6 +109,23 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation->disabled();
 
         if (! $this->superMagicAgentMarketDomainService->updateSortOrderById($id, $sortOrder)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
+        }
+    }
+
+    /**
+     * 按传入字段部分更新员工市场信息.
+     */
+    public function updateMarket(Authenticatable $authorization, int $id, UpdateAgentMarketRequestAdminDTO $requestDTO): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $dataIsolation->disabled();
+
+        if (! $requestDTO->hasUpdates()) {
+            return;
+        }
+
+        if (! $this->superMagicAgentMarketDomainService->updateInfoById($id, $requestDTO->getUpdatePayload())) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
         }
     }

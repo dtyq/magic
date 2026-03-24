@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillMarketRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillVersionsResponseAdminDTO;
 use Hyperf\DbConnection\Db;
@@ -109,6 +110,23 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
 
         if (! $this->skillMarketDomainService->updateSortOrderById($id, $sortOrder)) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
+        }
+    }
+
+    /**
+     * 按传入字段部分更新 Skill 市场信息.
+     */
+    public function updateMarket(RequestContext $requestContext, int $id, UpdateSkillMarketRequestAdminDTO $requestDTO): void
+    {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+        $dataIsolation->disabled();
+
+        if (! $requestDTO->hasUpdates()) {
+            return;
+        }
+
+        if (! $this->skillMarketDomainService->updateInfoById($id, $requestDTO->getUpdatePayload())) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $id]);
         }
     }

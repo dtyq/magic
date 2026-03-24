@@ -172,4 +172,14 @@ class SkillMarketDomainService
     {
         return $this->skillMarketRepository->updateSortOrderById($id, $sortOrder);
     }
+
+    /**
+     * 按传入字段部分更新市场 Skill 信息.
+     *
+     * @param array{sort_order?: null|int, is_featured?: bool} $payload
+     */
+    public function updateInfoById(int $id, array $payload): bool
+    {
+        return $this->skillMarketRepository->updateInfoById($id, $payload);
+    }
 }
