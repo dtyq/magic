@@ -16,6 +16,8 @@ use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
+use App\Domain\Chat\Event\FollowUpSuggestionGenerateEvent;
+use App\Domain\Chat\Repository\Persistence\MagicChatFollowUpSuggestionRepository;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -86,6 +88,7 @@ class TopicTaskAppService extends AbstractAppService
         private readonly SandboxDomainService $sandboxDomainService,
         private readonly AgentDomainService $agentDomainService,
         private readonly MagicChatMessageAppService $chatMessageAppService,
+        private readonly MagicChatFollowUpSuggestionRepository $followUpSuggestionRepository,
         protected MagicUserDomainService $userDomainService,
         protected MagicDepartmentUserDomainService $departmentUserDomainService,
         protected LockerInterface $locker,
@@ -1270,6 +1273,14 @@ class TopicTaskAppService extends AbstractAppService
             if ($seqId !== null) {
                 $taskMessageEntity->setImSeqId((int) $seqId);
                 $this->taskMessageDomainService->updateMessageSeqId($taskMessageEntity->getId(), (int) $seqId);
+                $this->followUpSuggestionRepository->createGenerating($topicEntity->getId(), (string) $taskEntity->getId());
+                AsyncEventUtil::dispatch(new FollowUpSuggestionGenerateEvent(
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    userId: $dataIsolation->getCurrentUserId() ?? '',
+                    topicId: $topicEntity->getId(),
+                    taskId: (string) $taskEntity->getId(),
+                    language: $this->translator->getLocale(),
+                ));
             }
         }
 

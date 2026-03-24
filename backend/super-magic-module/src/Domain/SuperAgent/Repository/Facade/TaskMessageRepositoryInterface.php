@@ -41,10 +41,9 @@ interface TaskMessageRepositoryInterface
     public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
 
     /**
-     * 获取某个话题下最近的用户问题消息.
-     * @return TaskMessageEntity[]
+     * 获取某个话题下最新一条用户问题消息.
      */
-    public function findLatestQuestionMessagesByTopicId(int $topicId, int $limit = 3): array;
+    public function findLatestQuestionByTopicId(int $topicId): ?TaskMessageEntity;
 
     /**
      * 获取某个话题下最近的 after_agent_reply 消息.
@@ -62,6 +61,11 @@ interface TaskMessageRepositoryInterface
      * @return array<int, array{source_id:int, sort_ts:int, msg_role:string, display_time:string, content:?string}>
      */
     public function findFollowUpContextRowsByTopicId(int $topicId, int $roundLimit = 3): array;
+
+    /**
+     * 在指定 assistant 消息之前，获取最近一条用户问题消息.
+     */
+    public function findLatestQuestionBeforeMessageId(int $topicId, int $beforeMessageId): ?TaskMessageEntity;
 
     /**
      * 根据话题ID获取消息列表，支持分页.

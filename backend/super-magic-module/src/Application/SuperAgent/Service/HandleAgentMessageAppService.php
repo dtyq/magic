@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Domain\Chat\Event\FollowUpSuggestionGenerateEvent;
+use App\Domain\Chat\Repository\Persistence\MagicChatFollowUpSuggestionRepository;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -67,6 +69,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly MagicChatFollowUpSuggestionRepository $followUpSuggestionRepository,
         private readonly LockerInterface $locker,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
@@ -380,6 +383,23 @@ class HandleAgentMessageAppService extends AbstractAppService
             $seqId = $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
 
             $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), (int) $seqId);
+
+            // 等待magic_chat_messages 和 magic_super_agent_message两个都落库后开始触发事件
+            if ((int) $seqId > 0) {
+                // 首先落库推荐问题表中状态为generating
+                $this->followUpSuggestionRepository->createGenerating(
+                    $taskContext->getTopicId(),
+                    (string) $taskContext->getTask()->getId()
+                );
+                // 异步分发生成推荐问题事件
+                AsyncEventUtil::dispatch(new FollowUpSuggestionGenerateEvent(
+                    organizationCode: $taskContext->getCurrentOrganizationCode(),
+                    userId: $taskContext->getCurrentUserId(),
+                    topicId: $taskContext->getTopicId(),
+                    taskId: (string) $taskContext->getTask()->getId(),
+                    language: $messageDTO->getMetadata()?->getLanguage(),
+                ));
+            }
         }
     }
 
@@ -583,7 +603,10 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ->setTool($messageData['tool'])
                 ->setAttachments($messageData['attachments'])
                 ->setEvent($messageData['event'])
-                ->setShowInUi($messageData['showInUi']);
+                ->setShowInUi($messageData['showInUi'])
+                ->setCorrelationId($messageData['correlationId'] ?? null)
+                ->setParentCorrelationId($messageData['parentCorrelationId'] ?? null)
+                ->setContentType($messageData['contentType'] ?? null);
 
             $this->taskMessageDomainService->updateExistingMessage($existingMessage);
 
@@ -612,7 +635,10 @@ class HandleAgentMessageAppService extends AbstractAppService
             attachments: $messageData['attachments'],
             mentions: null,
             showInUi: $messageData['showInUi'],
-            messageId: $messageData['messageId']
+            messageId: $messageData['messageId'],
+            correlationId: $messageData['correlationId'] ?? null,
+            parentCorrelationId: $messageData['parentCorrelationId'] ?? null,
+            contentType: $messageData['contentType'] ?? null
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);

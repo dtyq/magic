@@ -436,20 +436,24 @@ class MagicChatHttpApi extends AbstractApi
     }
 
     /**
-     * 根据 topic 生成追问建议.
+     * 查询追问建议状态与结果.
      */
     public function followUpSuggestions(RequestInterface $request): array
     {
         $params = $request->all();
         $rules = [
             'topic_id' => 'required|string',
+            'task_id' => 'nullable|string',
         ];
         $params = $this->checkParams($params, $rules);
         $topicId = (int) ($params['topic_id'] ?? 0);
-        $authorization = $this->getAuthorization();
-        return $this->followUpSuggestionAppService->generateFollowUpSuggestions(
-            $authorization,
+        $taskId = isset($params['task_id']) && $params['task_id'] !== ''
+            ? (string) $params['task_id']
+            : null;
+
+        return $this->followUpSuggestionAppService->query(
             $topicId,
+            $taskId,
         );
     }
 

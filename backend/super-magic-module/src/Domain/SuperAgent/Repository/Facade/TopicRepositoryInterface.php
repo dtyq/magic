@@ -120,6 +120,11 @@ interface TopicRepositoryInterface
     public function getTopicsByProjectId(int $projectId, string $userId): array;
 
     /**
+     * 判断话题是否属于指定用户与组织.
+     */
+    public function existsOwnedTopic(int $topicId, string $userId, string $organizationCode): bool;
+
+    /**
      * Update topic status by sandbox IDs.
      *
      * @param array $sandboxIds Sandbox IDs to filter

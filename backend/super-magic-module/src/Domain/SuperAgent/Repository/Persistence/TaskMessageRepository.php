@@ -77,22 +77,20 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }, $result);
     }
 
-    public function findLatestQuestionMessagesByTopicId(int $topicId, int $limit = 3): array
+    public function findLatestQuestionByTopicId(int $topicId): ?TaskMessageEntity
     {
-        $records = $this->model::query()
+        $record = $this->model::query()
             ->where('topic_id', $topicId)
             ->where('sender_type', 'user')
             ->whereNull('status')
             ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
+            ->first();
 
-        $messages = [];
-        foreach ($records as $record) {
-            $messages[] = new TaskMessageEntity($record->toArray());
+        if (! $record) {
+            return null;
         }
 
-        return $messages;
+        return new TaskMessageEntity($record->toArray());
     }
 
     public function findRecentAfterAgentReplyMessagesByTopicId(int $topicId, int $limit = 3): array
@@ -173,6 +171,23 @@ ORDER BY sort_ts ASC, source_id ASC
 SQL, $topicId, $roundLimit, $topicId, $roundLimit);
 
         return array_map(static fn ($record) => (array) $record, Db::select($sql));
+    }
+
+    public function findLatestQuestionBeforeMessageId(int $topicId, int $beforeMessageId): ?TaskMessageEntity
+    {
+        $record = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('id', '<', $beforeMessageId)
+            ->where('sender_type', 'user')
+            ->whereNull('status')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $record) {
+            return null;
+        }
+
+        return new TaskMessageEntity($record->toArray());
     }
 
     /**
