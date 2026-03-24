@@ -10,9 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Service;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
-use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
 
@@ -75,48 +73,6 @@ class SuperMagicAgentMarketDomainService
             $orderBy,
             $page
         );
-    }
-
-    /**
-     * Resolve the current user's installed agents by market agent codes.
-     *
-     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
-     * @param string[] $agentCodes Market agent codes
-     * @return array<string, UserAgentEntity> User ownerships keyed by market agent code
-     */
-    public function getUserAgentsByAgentCodes(SuperMagicAgentDataIsolation $dataIsolation, array $agentCodes): array
-    {
-        $agentCodes = array_values(array_unique(array_filter($agentCodes)));
-        if ($agentCodes === []) {
-            return [];
-        }
-
-        $marketAgents = $this->agentMarketRepository->findByAgentCodes($agentCodes);
-        if ($marketAgents === []) {
-            return [];
-        }
-
-        $agentVersionIds = [];
-        foreach ($marketAgents as $marketAgent) {
-            $agentVersionIds[] = $marketAgent->getAgentVersionId();
-        }
-
-        $userAgentOwnerships = $this->userAgentDomainService->findUserAgentOwnershipsByVersionIds($dataIsolation, $agentVersionIds);
-        if ($userAgentOwnerships === []) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($marketAgents as $marketAgentCode => $marketAgent) {
-            $userAgentOwnership = $userAgentOwnerships[$marketAgent->getAgentVersionId()] ?? null;
-            if ($userAgentOwnership === null) {
-                continue;
-            }
-
-            $result[$marketAgentCode] = $userAgentOwnership;
-        }
-
-        return $result;
     }
 
     /**
