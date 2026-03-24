@@ -1,56 +1,46 @@
 ## Quick Start
-Supports Mac OS and Linux operating systems. Windows systems can run through docker-compose.
+Supports macOS and Linux. Windows is coming soon.
 
-### 1. Clone the Project
-```bash
-git clone https://github.com/dtyq/magic.git
-cd magic
-```
+### UNIX-like
 
-### 2. Configure Environment Variables
-Configure Magic environment variables. You must configure at least one large language model environment variable for proper functionality.
-Copy the `.env.example` file to `.env` and modify the configuration as needed:
-```bash
-cp .env.example .env
-```
+#### Prerequisites
 
-### 3. Start the Service
+- Linux kernel version 3.2 or later / macOs 12 Monterey or later (for running the Magicrew CLI)
+- Working [Docker](https://www.docker.com/)
+- curl (for retrieving the one-line deployment script)
+
+### One-line script to deploy Magicrew
 
 ```bash
-# Start the service in foreground
-./bin/magic.sh start
+curl -fsSL https://getmagicrew.sh | bash
 ```
 
-### 4. Other Commands
+The script is also located at `https://dtyq.github.io/artifacts/bootstrap/latest/install.sh`
+
+The script will fetch the latest release of [Magicrew CLI](https://github.com/dtyq/magic/tree/master/cli) and use it to deploy Magicrew.
+
+Wait for the installation to complete. This may take a few minutes depending on your network speed.
+
+After the installation is complete, the installer will show you the following message:
 
 ```bash
-# Display help information
-./bin/magic.sh help
+[2026-03-24 01:46:39.285][I][deploy] [print summary]...
 
-# Start the service in foreground
-./bin/magic.sh start
+✓ Deployment complete!
+  Access magic-web: http://localhost:38080
+  To access from another machine, set MAGIC_WEB_BASE_URL, e.g. export MAGIC_WEB_BASE_URL=http://your-server:38080
 
-# Start the service in background
-./bin/magic.sh daemon
-
-# Stop the service
-./bin/magic.sh stop
-
-# Restart the service
-./bin/magic.sh restart
-
-# Check service status
-./bin/magic.sh status
-
-# View service logs
-./bin/magic.sh logs
+To remove the cluster, run: magicrew teardown
 ```
 
-### 4. Access Services
-- API Service: http://localhost:9501
-- Web Application: http://localhost:8080
-  - Account `13812345678`：Password `letsmagic.ai`
-  - Account `13912345678`：Password `letsmagic.ai`
-- RabbitMQ Management Interface: http://localhost:15672
-  - Username: admin
-  - Password: magic123456
+You can now access the web interface at http://localhost:38080 to use Magicrew.
+
+### Manual deployment
+
+**TODO** Add manual deployment instructions here.
+
+Since we have implemented full sandbox support with Kubernetes, Magicrew can only be deployed on Kubernetes. This may be a tough task for users who are not familiar with Kubernetes. We may provide a user-friendly deployment guide in the future.
+
+## Windows
+
+Coming soon.

@@ -1,57 +1,47 @@
-
 ## 快速开始
-支持 macOS 和 Linux 操作系统。Windows 系统可以通过 docker compose 运行
-### 1. 克隆项目
-```bash
-git clone https://github.com/dtyq/magic.git
-cd magic
-```
 
-### 2. 配置环境变量
-配置 Magic 环境变量，必须配置任意一种大模型的环境变量才可正常使用 Magic。
+支持 macOS 和 Linux。即将支持Windows。
 
-复制 `.env.example` 文件为 `.env`，并根据需要修改配置：
-```bash
-cp .env.example .env
-```
+### 类 UNIX 系统（macOS 和 Linux）
 
-### 3. 启动服务
+#### 前置要求
+
+- Linux 内核 3.2 及以上 / macOS 12 Monterey 及以上（运行 Magicrew CLI需要）
+- 已安装并正常运行的 [Docker](https://www.docker.com/)
+- curl（用于获取一键部署脚本）
+
+### 使用脚本一键部署 Magicrew
 
 ```bash
-# 在前台启动服务
-./bin/magic.sh start
+curl -fsSL https://getmagicrew.sh | bash
 ```
 
-### 4. 其它命令
+这个脚本也可从 `https://dtyq.github.io/artifacts/bootstrap/latest/install.sh` 获取。
+
+脚本会拉取 [Magicrew CLI](https://github.com/dtyq/magic/tree/master/cli) 的最新发布版本，并用它部署 Magicrew。
+
+请等待安装完成。根据网络情况，这可能需要很长时间。
+
+安装完成后，安装程序会展示如下信息：
 
 ```bash
-# 显示帮助信息
-./bin/magic.sh help
+[2026-03-24 01:46:39.285][I][deploy] [print summary]...
 
-# 在前台启动服务
-./bin/magic.sh start
+✓ Deployment complete!
+  Access magic-web: http://localhost:38080
+  To access from another machine, set MAGIC_WEB_BASE_URL, e.g. export MAGIC_WEB_BASE_URL=http://your-server:38080
 
-# 在后台启动服务
-./bin/magic.sh daemon
-
-# 停止服务
-./bin/magic.sh stop
-
-# 重启服务
-./bin/magic.sh restart
-
-# 查看服务状态
-./bin/magic.sh status
-
-# 查看服务日志
-./bin/magic.sh logs
+To remove the cluster, run: magicrew teardown
 ```
 
-### 4. 访问服务
-- API 服务：http://localhost:9501
-- Web 应用：http://localhost:8080
-  - 账号 `13812345678`：密码为 `letsmagic.ai`
-  - 账号 `13912345678`：密码为 `letsmagic.ai`
-- RabbitMQ 管理界面：http://localhost:15672
-  - 用户名：admin
-  - 密码：magic123456
+安装完成后，可以在 `http://localhost:38080` 访问 Magicrew。
+
+### 手动部署
+
+**TODO** 补充手动部署说明
+
+由于我们通过 Kubernetes 实现完整的沙箱支持，Magicrew 现在只能部署在 Kubernetes 上。对不熟悉 Kubernetes 的用户而言，这可能有亿点点难度。未来我们可能会提供友好的部署指南。
+
+## Windows
+
+即将支持。

@@ -1,5 +1,9 @@
 # Environment Variables Configuration Guide
 
+**STALE DOCUMENT**
+
+**This document is stale and will be updated soon.**
+
 This document provides detailed information about the environment variables used in the Magic project, serving as a reference for development and deployment.
 
 ## Overview
