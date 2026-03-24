@@ -50,6 +50,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInter
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -350,6 +351,43 @@ class AgentDomainService
         ]);
 
         return $result->getDataValue('sandbox_id');
+    }
+
+    /**
+     * 升级沙箱到最新 Agent 镜像.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $projectId 项目ID
+     * @param string $workDir 工作目录（项目 OSS 路径）
+     * @return GatewayResult 升级结果
+     */
+    public function upgradeSandbox(DataIsolation $dataIsolation, string $sandboxId, string $projectId, string $workDir): GatewayResult
+    {
+        $this->logger->debug('[Sandbox][Domain] Upgrading sandbox', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+        ]);
+
+        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
+        $result = $this->gateway->upgradeSandbox($sandboxId, $projectId, $workDir);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to upgrade sandbox', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'code' => $result->getCode(),
+                'message' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
+            'sandbox_id' => $sandboxId,
+            'agent_image' => $result->getDataValue('agent_image'),
+        ]);
+
+        return $result;
     }
 
     /**

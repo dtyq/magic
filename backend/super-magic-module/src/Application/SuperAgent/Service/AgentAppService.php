@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -47,6 +48,20 @@ readonly class AgentAppService
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
         return $this->agentDomainService->getSandboxStatus($sandboxId);
+    }
+
+    /**
+     * 升级沙箱到最新 Agent 镜像.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $projectId 项目ID
+     * @param string $workDir 工作目录（项目 OSS 路径）
+     * @return GatewayResult 升级结果，data 包含 sandbox_id、pod_name、namespace、agent_image
+     */
+    public function upgradeSandbox(DataIsolation $dataIsolation, string $sandboxId, string $projectId, string $workDir): GatewayResult
+    {
+        return $this->agentDomainService->upgradeSandbox($dataIsolation, $sandboxId, $projectId, $workDir);
     }
 
     /**

@@ -10,6 +10,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\SandboxApi as InternalSandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
@@ -49,6 +50,9 @@ Router::addGroup(
 Router::addGroup(
     '/api/v1/open-api/sandbox',
     static function () {
+        // 沙箱自我升级
+        Router::put('/upgrade', [InternalSandboxApi::class, 'upgradeSandbox']);
+
         // 文件管理相关
         Router::addGroup('/file', static function () {
             // 创建文件版本
