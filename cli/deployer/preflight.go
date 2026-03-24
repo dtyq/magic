@@ -37,7 +37,7 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 			s.d.log.Logw("deploy", "%s", w)
 		}
 		if plan.ContainerProxyURL != "" {
-			s.d.log.Logi("deploy", "container proxy selected: %s", plan.ContainerProxyURL)
+			s.d.log.Logi("deploy", "container proxy selected: %s", maskProxyURLForLog(plan.ContainerProxyURL))
 		}
 	}
 	return s.d.resolveChartRefs()

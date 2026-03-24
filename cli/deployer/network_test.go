@@ -125,3 +125,50 @@ func TestOutputShowsProxyEndpoint(t *testing.T) {
 	assert.True(t, outputShowsProxyEndpoint(out, "host.docker.internal", "7897"))
 	assert.False(t, outputShowsProxyEndpoint(out, "registry.k8s.io", "443"))
 }
+
+func TestMaskProxyURLForLog(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "mask username and password",
+			in:   "http://user:pass@proxy.example.com:8080",
+			want: "http://REDACTED:REDACTED@proxy.example.com:8080",
+		},
+		{
+			name: "mask username only",
+			in:   "http://user@proxy.example.com:8080",
+			want: "http://REDACTED@proxy.example.com:8080",
+		},
+		{
+			name: "keep url without credentials",
+			in:   "http://proxy.example.com:8080",
+			want: "http://proxy.example.com:8080",
+		},
+		{
+			name: "keep invalid url as is",
+			in:   "://bad",
+			want: "://bad",
+		},
+		{
+			name: "keep empty userinfo as is",
+			in:   "http://@proxy.example.com:8080",
+			want: "http://@proxy.example.com:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := maskProxyURLForLog(tt.in)
+			if got != tt.want {
+				t.Fatalf("maskProxyURLForLog(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

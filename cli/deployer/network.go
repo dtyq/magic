@@ -439,3 +439,24 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
+func maskProxyURLForLog(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.User == nil {
+		return raw
+	}
+
+	username := parsed.User.Username()
+	_, hasPassword := parsed.User.Password()
+	if username == "" && !hasPassword {
+		return raw
+	}
+
+	if hasPassword {
+		parsed.User = url.UserPassword("REDACTED", "REDACTED")
+		return parsed.String()
+	}
+
+	parsed.User = url.User("REDACTED")
+	return parsed.String()
+}
