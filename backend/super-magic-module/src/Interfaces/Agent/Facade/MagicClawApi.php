@@ -63,7 +63,7 @@ class MagicClawApi extends AbstractApi
         $projectResult = retry(3, function () use ($requestContext, $clawEntity) {
             $projectRequestDTO = new CreateAgentProjectRequestDTO();
             $projectRequestDTO->setProjectName($clawEntity->getName());
-            $projectRequestDTO->setInitTemplateFiles(true);
+            $projectRequestDTO->setInitTemplateFiles(false);
 
             $result = $this->projectAppService->createAgentProject(
                 $requestContext,
@@ -153,7 +153,7 @@ class MagicClawApi extends AbstractApi
 
         $list = [];
         foreach ($result['list'] as $item) {
-            $list[] = MagicClawAssembler::toListItem($item['entity'], $item['status']);
+            $list[] = MagicClawAssembler::toListItem($item['entity'], $item['status'], $item['topic_id'] ?? null);
         }
 
         return [

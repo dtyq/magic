@@ -159,9 +159,9 @@ class MagicClawAppService extends AbstractSuperMagicAppService
 
     /**
      * Get paginated magic claw list with resolved icon URLs and sandbox status.
-     * Each item in list contains 'entity' (MagicClawEntity) and 'status' (?string).
+     * Each item in list contains 'entity' (MagicClawEntity), 'status' (?string), and 'topic_id' (?int).
      *
-     * @return array{total: int, list: array<array{entity: MagicClawEntity, status: null|string}>, page: int, page_size: int}
+     * @return array{total: int, list: array<array{entity: MagicClawEntity, status: null|string, topic_id: null|int}>, page: int, page_size: int}
      */
     public function queries(Authenticatable $authorization, int $page, int $pageSize): array
     {
@@ -177,11 +177,14 @@ class MagicClawAppService extends AbstractSuperMagicAppService
         $entities = $result['list'];
         $this->resolveIconUrls($dataIsolation->getCurrentOrganizationCode(), $entities);
 
-        // Resolve sandbox status and attach to each list item directly
-        $statusByProjectId = $this->resolveSandboxStatusByProjectId($entities);
+        // Batch resolve projectId => topicId, then derive sandbox status from the same map
+        $topicIdMap = $this->resolveTopicIdMap($entities);
+        $statusByProjectId = $this->resolveSandboxStatusFromTopicIdMap($topicIdMap);
+
         $list = array_map(fn (MagicClawEntity $entity) => [
             'entity' => $entity,
             'status' => $statusByProjectId[$entity->getProjectId()] ?? null,
+            'topic_id' => $topicIdMap[$entity->getProjectId()] ?? null,
         ], $entities);
 
         return [
@@ -207,15 +210,13 @@ class MagicClawAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * Batch-resolve sandbox running status indexed by project ID.
-     * Flow: claws → projectIds → currentTopicIds (= sandboxIds) → getBatchSandboxStatus.
+     * Batch-resolve projectId => currentTopicId for a list of claw entities.
      *
      * @param MagicClawEntity[] $entities
-     * @return array<int, null|string> Map of projectId => sandbox status string (null if unavailable)
+     * @return array<int, null|int> Map of projectId => topicId (null if none assigned)
      */
-    private function resolveSandboxStatusByProjectId(array $entities): array
+    private function resolveTopicIdMap(array $entities): array
     {
-        // Collect non-null project IDs from the claw list
         $projectIds = array_values(array_filter(
             array_map(fn (MagicClawEntity $e) => $e->getProjectId(), $entities)
         ));
@@ -224,8 +225,21 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             return [];
         }
 
-        // Batch get projectId => currentTopicId mapping (topic_id is used as sandbox_id)
-        $topicIdMap = $this->projectDomainService->getTopicIdMapByProjectIds($projectIds);
+        return $this->projectDomainService->getTopicIdMapByProjectIds($projectIds);
+    }
+
+    /**
+     * Batch-resolve sandbox running status indexed by project ID.
+     * Accepts a pre-computed topicIdMap to avoid redundant DB queries.
+     *
+     * @param array<int, null|int> $topicIdMap Map of projectId => topicId
+     * @return array<int, null|string> Map of projectId => sandbox status string (null if unavailable)
+     */
+    private function resolveSandboxStatusFromTopicIdMap(array $topicIdMap): array
+    {
+        if (empty($topicIdMap)) {
+            return [];
+        }
 
         // Collect non-null topic IDs as sandbox IDs
         $sandboxIds = array_values(array_map(
