@@ -622,11 +622,14 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        $this->checkPermission($dataIsolation, $code);
+        if (empty($this->getAccessibleSkillCodes($dataIsolation, [$code]))) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
+        }
 
         // 查询技能记录（校验权限）
         $dataIsolation->disabled();
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
+
         $latestVersionEntity = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
         // Use the latest published version as the source of truth for creator metadata.
         // This keeps creator_info stable for shared and market-installed skills.
@@ -1874,12 +1877,13 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * @return array<string>
      */
-    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation, ?array $resourceCode = null): array
     {
         return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
             $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL
+            ResourceVisibilityResourceType::SKILL,
+            $resourceCode
         );
     }
 
