@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\Audit\ModelCall\Event;
 
+use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
+
 class AuditLogEvent
 {
     public function __construct(
@@ -22,6 +24,7 @@ class AuditLogEvent
         public ?array $detailInfo = null,
         // 仅用于事件链路透传的上下文，不直接落库.
         public array $businessParams = [],
+        public ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
     ) {
     }
 

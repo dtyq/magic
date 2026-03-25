@@ -1600,6 +1600,7 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('user_id', $modelGatewayDataIsolation->getCurrentUserId());
             $proxyModelRequest->addBusinessParam('access_token_id', $modelGatewayDataIsolation->getAccessToken()->getId());
             $proxyModelRequest->addBusinessParam('access_token_name', $modelGatewayDataIsolation->getAccessToken()->getName());
+            $proxyModelRequest->addBusinessParam('access_token_type', $modelGatewayDataIsolation->getAccessToken()->getType()->value);
             $proxyModelRequest->addBusinessParam('call_time', date('Y-m-d H:i:s'));
             $proxyModelRequest->addBusinessParam('original_model_id', $originalModelId);
 

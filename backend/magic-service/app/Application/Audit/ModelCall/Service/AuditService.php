@@ -10,6 +10,7 @@ namespace App\Application\Audit\ModelCall\Service;
 use App\Application\Audit\ModelCall\Event\AuditLogEvent;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -59,9 +60,11 @@ class AuditService
         AuditStatus $status,
         array $usage = [],
         ?array $detailInfo = null,
-        array $businessParams = []
+        array $businessParams = [],
+        ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
     ): void {
         try {
+            $ip = $this->normalizeClientIpForAudit($ip);
             $event = new AuditLogEvent(
                 ip: $ip,
                 type: $type->value,
@@ -73,7 +76,8 @@ class AuditService
                 userInfo: $userInfo,
                 usage: $usage,
                 detailInfo: $detailInfo,
-                businessParams: $businessParams
+                businessParams: $businessParams,
+                accessScope: $accessScope,
             );
 
             $this->eventDispatcher->dispatch($event);
@@ -86,6 +90,25 @@ class AuditService
                 'error' => $throwable->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * 审计落库 IP：逗号分隔链（X-Forwarded-For / 多来源拼接）只保留第一个非空段，避免重复段落库.
+     */
+    private function normalizeClientIpForAudit(string $ip): string
+    {
+        $ip = trim($ip);
+        if ($ip === '') {
+            return '';
+        }
+        foreach (explode(',', $ip) as $segment) {
+            $segment = trim($segment);
+            if ($segment !== '') {
+                return $segment;
+            }
+        }
+
+        return '';
     }
 
     /**

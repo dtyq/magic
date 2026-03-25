@@ -26,6 +26,8 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $all_latency 总耗时(毫秒)
  * @property array $usage 花费信息
  * @property null|array $detail_info 详情信息
+ * @property null|string $access_scope 访问范围 api_platform / magic
+ * @property null|string $magic_topic_id Magic 话题 ID
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 修改时间
  */
@@ -48,6 +50,8 @@ class AuditLogModel extends Model
         'all_latency',
         'usage',
         'detail_info',
+        'access_scope',
+        'magic_topic_id',
     ];
 
     protected array $casts = [
@@ -63,6 +67,8 @@ class AuditLogModel extends Model
         'all_latency' => 'integer',
         'usage' => 'array',            // JSON自动转数组
         'detail_info' => 'array',      // JSON自动转数组
+        'access_scope' => 'string',
+        'magic_topic_id' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Factory;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use DateTime;
 
 class AuditLogFactory
@@ -27,6 +28,8 @@ class AuditLogFactory
         int $allLatency,
         array $usage = [],
         ?array $detailInfo = null,
+        ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
+        ?string $magicTopicId = null,
     ): AuditLogEntity {
         $now = new DateTime();
 
@@ -42,6 +45,8 @@ class AuditLogFactory
         $entity->setAllLatency($allLatency);
         $entity->setUsage($usage);
         $entity->setDetailInfo($detailInfo);
+        $entity->setAccessScope($accessScope);
+        $entity->setMagicTopicId($magicTopicId);
         $entity->setCreatedAt($now);
         $entity->setUpdatedAt($now);
 

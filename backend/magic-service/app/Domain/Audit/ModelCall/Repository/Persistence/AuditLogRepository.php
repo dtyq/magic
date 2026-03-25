@@ -76,6 +76,12 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         if (! empty($filters['user_id'])) {
             $builder->where('user_id', (string) $filters['user_id']);
         }
+        if (! empty($filters['access_scope'])) {
+            $builder->where('access_scope', (string) $filters['access_scope']);
+        }
+        if (! empty($filters['magic_topic_id'])) {
+            $builder->where('magic_topic_id', (string) $filters['magic_topic_id']);
+        }
         if (! empty($filters['start_operation_time'])) {
             $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
         }
@@ -128,6 +134,9 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $item['all_latency'] = (int) ($item['all_latency'] ?? 0);
             $item['usage'] = is_array($item['usage'] ?? null) ? $item['usage'] : [];
             $item['detail_info'] = is_array($item['detail_info'] ?? null) ? $item['detail_info'] : null;
+            $item['access_scope'] = (string) ($item['access_scope'] ?? '');
+            $mtid = $item['magic_topic_id'] ?? null;
+            $item['magic_topic_id'] = $mtid !== null && $mtid !== '' ? (string) $mtid : null;
         }
 
         return $list;

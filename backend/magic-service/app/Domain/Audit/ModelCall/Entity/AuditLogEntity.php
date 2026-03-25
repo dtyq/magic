@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Audit\ModelCall\Entity;
 
+use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use App\Infrastructure\Core\AbstractEntity;
 use DateTime;
 
@@ -35,6 +36,10 @@ class AuditLogEntity extends AbstractEntity
     protected array $usage = [];
 
     protected ?array $detailInfo = null;
+
+    protected ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic;
+
+    protected ?string $magicTopicId = null;
 
     protected ?DateTime $createdAt = null;
 
@@ -158,6 +163,26 @@ class AuditLogEntity extends AbstractEntity
     public function setDetailInfo(?array $detailInfo): void
     {
         $this->detailInfo = $detailInfo;
+    }
+
+    public function getAccessScope(): ModelAuditAccessScope
+    {
+        return $this->accessScope;
+    }
+
+    public function setAccessScope(ModelAuditAccessScope $accessScope): void
+    {
+        $this->accessScope = $accessScope;
+    }
+
+    public function getMagicTopicId(): ?string
+    {
+        return $this->magicTopicId;
+    }
+
+    public function setMagicTopicId(?string $magicTopicId): void
+    {
+        $this->magicTopicId = $magicTopicId;
     }
 
     public function getCreatedAt(): ?DateTime

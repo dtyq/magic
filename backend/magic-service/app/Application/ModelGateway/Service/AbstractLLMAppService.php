@@ -14,6 +14,7 @@ use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
@@ -142,6 +143,8 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
             $dispatchBusinessParams['audit_source_marker'] = $sourceMarker;
         }
 
+        $accessScope = $this->resolveAccessScopeForAudit($dispatchBusinessParams, $accessToken);
+
         $dispatchKey = $this->buildAuditDispatchKey($type, $dispatchBusinessParams);
         if ($dispatchKey === '') {
             $this->auditService->dispatchAuditEvent(
@@ -155,7 +158,8 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
                 status: $status,
                 usage: $usage,
                 detailInfo: $detailInfo,
-                businessParams: $dispatchBusinessParams
+                businessParams: $dispatchBusinessParams,
+                accessScope: $accessScope,
             );
             return;
         }
@@ -183,8 +187,32 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
             status: $status,
             usage: $usage,
             detailInfo: $detailInfo,
-            businessParams: $dispatchBusinessParams
+            businessParams: $dispatchBusinessParams,
+            accessScope: $accessScope,
         );
+    }
+
+    /**
+     * 与 {@see createModelGatewayDataIsolationByAccessToken} 一致：User→开放平台，Application→Magic；无 token 字符串的会话类审计视为 Magic.
+     */
+    protected function resolveAccessScopeForAudit(array $businessParams, string $accessToken): ModelAuditAccessScope
+    {
+        $tokenType = (string) ($businessParams['access_token_type'] ?? '');
+        if ($tokenType === AccessTokenType::User->value) {
+            return ModelAuditAccessScope::ApiPlatform;
+        }
+        if ($tokenType === AccessTokenType::Application->value) {
+            return ModelAuditAccessScope::Magic;
+        }
+        if ($accessToken === '') {
+            return ModelAuditAccessScope::Magic;
+        }
+        $tokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
+        if ($tokenEntity === null) {
+            return ModelAuditAccessScope::Magic;
+        }
+
+        return ModelAuditAccessScope::fromAccessTokenType($tokenEntity->getType());
     }
 
     protected function buildAuditDispatchKey(AuditType $type, array $businessParams = []): string
