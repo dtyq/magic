@@ -393,6 +393,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ];
         }
 
+        $dataIsolation->disabled();
         $nonOfficialCodes = array_values(array_diff($queryCodes, $officialCodes));
         $nonOfficialVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $nonOfficialCodes);
         $officialPublishedVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $officialCodes);
