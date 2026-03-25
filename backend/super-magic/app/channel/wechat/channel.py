@@ -193,7 +193,6 @@ class WechatChannel(BaseChannel):
         self._typing_config_manager = None
         self._credential = None
         self._session_pause_until_ms = 0
-        self._keepalive.stop()
         logger.info("[WechatChannel] 已断开")
 
     async def _sleep_ms(self, delay_ms: int) -> None:
