@@ -2,6 +2,7 @@
 let messageHistory = []; // 存储用户发送过的消息历史
 let currentTaskMode = "plan"; // 当前任务模式，默认为 plan（保留兼容性）
 let currentAgentMode = "magic"; // 当前Agent模式，默认为 magic
+let currentLanguage = "zh_CN"; // 当前语言，默认中文
 let currentFileName = ""; // 存储当前上传的文件名
 let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
 
@@ -121,6 +122,7 @@ const agentCodeGroup = document.getElementById('agentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
+const languageSelect = document.getElementById('languageSelect');
 
 // 初始化配置折叠面板
 const configPanelToggle = document.getElementById('configPanelToggle');
@@ -277,10 +279,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initSendHint();
 
     // Enter 发送，Shift+Enter 换行
+    // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
     const messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
@@ -290,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawJsonInput = document.getElementById('rawJsonInput');
     if (rawJsonInput) {
         rawJsonInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
@@ -345,6 +348,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // 高级模式切换事件
     if (advancedModeToggle) {
         advancedModeToggle.addEventListener('change', toggleAdvancedMode);
+    }
+
+    // 语言切换事件
+    if (languageSelect) {
+        // 从 localStorage 恢复上次选择的语言
+        const savedLanguage = localStorage.getItem('selectedLanguage');
+        if (savedLanguage) {
+            currentLanguage = savedLanguage;
+            languageSelect.value = savedLanguage;
+        }
+        languageSelect.addEventListener('change', changeLanguage);
     }
 
     // 保留任务模式切换事件（兼容性）
@@ -651,7 +665,9 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         task_mode: currentTaskMode, // 保留兼容性
         agent_mode: currentAgentMode, // 新的 agent 模式
         attachments: [],
-        metadata: {}
+        metadata: {
+            language: currentLanguage
+        }
     };
 
     // Add model_id field if provided
@@ -773,6 +789,14 @@ function toggleAdvancedMode() {
         advancedFields.style.display = 'none';
         showSystemMessage("已切换到普通模式");
     }
+}
+
+// 切换语言
+function changeLanguage() {
+    currentLanguage = languageSelect.value;
+    localStorage.setItem('selectedLanguage', currentLanguage);
+    const displayName = languageSelect.options[languageSelect.selectedIndex].text;
+    showSystemMessage(`语言已切换为: ${displayName}`);
 }
 
 // 切换Agent模式
