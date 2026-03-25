@@ -118,7 +118,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
     chmod +x /entrypoint.sh
 
 # 设置工作目录
-WORKDIR /build
+WORKDIR /app
 
 # 创建venv，安装依赖
 COPY requirements.txt requirements_sandbox.txt .
@@ -143,8 +143,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/roo
 # 安装项目并预加载 tiktoken
 COPY . .
 COPY scripts/preload_tiktoken.py /app/scripts/preload_tiktoken.py
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/root/.cache/pip \
-    mkdir -p /app/tiktoken_cache && \
+RUN mkdir -p /app/tiktoken_cache && \
     chmod 777 /app/tiktoken_cache && \
     pip install ./agentlang && \
     python3 /app/scripts/preload_tiktoken.py && \
@@ -166,4 +165,4 @@ ENTRYPOINT [ "/entrypoint.sh" ]
 EXPOSE 8000
 EXPOSE 8002
 
-CMD ["./main", "start", "ws-server"]
+CMD ["python3", "./main.py", "start", "ws-server"]
