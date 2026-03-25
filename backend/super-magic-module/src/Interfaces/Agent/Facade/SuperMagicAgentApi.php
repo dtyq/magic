@@ -230,6 +230,14 @@ class SuperMagicAgentApi extends AbstractApi
         return $responseDTO->toArray();
     }
 
+    /**
+     * 查询员工排序列表，并按 frequent/all 返回轻量数据.
+     */
+    public function sortListQueries(): array
+    {
+        return $this->superMagicAgentAppService->sortListQueries($this->getAuthorization());
+    }
+
     public function externalQueries(): array
     {
         $authorization = $this->getAuthorization();

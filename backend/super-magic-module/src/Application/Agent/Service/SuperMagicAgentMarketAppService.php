@@ -173,7 +173,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         $userAgentsMap = $this->mergeVisibleAgentOwnerships($dataIsolation, $agentCodes, $userAgentsMap);
 
         // load latest versions map
-        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $agentCodes);
 
         // Load playbooks in batch for the list cards.
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
