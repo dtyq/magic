@@ -79,7 +79,7 @@ Choose the preview method based on the source:
 **skillhub source** (supports `--dir` for temp directory):
 
 ```bash
-skillhub install <slug> --dir /tmp/skillhub-preview/
+skillhub --dir /tmp/skillhub-preview/ install <slug>
 ```
 
 <!--zh
