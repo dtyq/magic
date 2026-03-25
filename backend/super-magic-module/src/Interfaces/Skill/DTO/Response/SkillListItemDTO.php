@@ -23,6 +23,8 @@ class SkillListItemDTO implements JsonSerializable
 
     private array $descriptionI18n;
 
+    private array $sourceI18n;
+
     private string $logo;
 
     private string $sourceType;
@@ -58,6 +60,7 @@ class SkillListItemDTO implements JsonSerializable
         string $description,
         array $nameI18n,
         array $descriptionI18n,
+        array $sourceI18n,
         string $logo,
         string $sourceType,
         int $isEnabled,
@@ -77,6 +80,7 @@ class SkillListItemDTO implements JsonSerializable
         $this->description = $description;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
+        $this->sourceI18n = $sourceI18n;
         $this->logo = $logo;
         $this->sourceType = $sourceType;
         $this->isEnabled = $isEnabled;
@@ -100,6 +104,7 @@ class SkillListItemDTO implements JsonSerializable
             'description' => $this->description,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'logo' => $this->logo,
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,

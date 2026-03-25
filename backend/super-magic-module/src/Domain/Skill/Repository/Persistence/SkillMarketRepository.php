@@ -94,6 +94,22 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return $this->toEntity($model->toArray());
     }
 
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity
+    {
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->where('skill_code', $skillCode)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return $this->toEntity($model->toArray());
+    }
+
     /**
      * 保存市场技能.
      */

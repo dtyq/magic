@@ -139,6 +139,24 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
+    public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity
+    {
+        // Pick the newest non-directory record so repeated uploads/edits of SKILL.md
+        // always resolve to the latest workspace file entry.
+        $model = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('file_name', $fileName)
+            ->where('is_directory', 0)
+            ->orderByDesc('file_id')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
+
     /**
      * Get files by project ID and file keys.
      *

@@ -35,6 +35,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private array $descriptionI18n;
 
+    private array $sourceI18n;
+
     private string $logo;
 
     private string $publisherType;
@@ -73,6 +75,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         string $description,
         array $nameI18n,
         array $descriptionI18n,
+        array $sourceI18n,
         string $logo,
         string $publisherType,
         array $publisher,
@@ -95,6 +98,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->description = $description;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
+        $this->sourceI18n = $sourceI18n;
         $this->logo = $logo;
         $this->publisherType = $publisherType;
         $this->publisher = $publisher;
@@ -122,6 +126,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'description' => $this->description,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'logo' => $this->logo,
             'publisher_type' => $this->publisherType,
             'publisher' => $this->publisher,

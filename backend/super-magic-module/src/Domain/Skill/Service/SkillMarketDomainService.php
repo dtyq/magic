@@ -61,6 +61,14 @@ class SkillMarketDomainService
     }
 
     /**
+     * Find the latest published market skill by skill code.
+     */
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity
+    {
+        return $this->skillMarketRepository->findPublishedBySkillCode($skillCode);
+    }
+
+    /**
      * 保存市场技能.
      */
     public function saveStoreSkill(SkillMarketEntity $entity): SkillMarketEntity

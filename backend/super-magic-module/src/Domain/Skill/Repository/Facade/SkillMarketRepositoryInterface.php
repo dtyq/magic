@@ -42,6 +42,11 @@ interface SkillMarketRepositoryInterface
     public function findBySkillCode(string $skillCode): ?SkillMarketEntity;
 
     /**
+     * Find the latest published market skill by skill code.
+     */
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity;
+
+    /**
      * 保存市场技能.
      *
      * @param SkillMarketEntity $entity 市场技能实体
