@@ -12,7 +12,6 @@ use App\Application\Bootstrap\Service\Initializer\AccountInitializer;
 use App\Application\Bootstrap\Service\Initializer\OrganizationInitializer;
 use App\Application\Bootstrap\Service\Initializer\PermissionInitializer;
 use App\Application\Bootstrap\Service\Initializer\PlatformSettingInitializer;
-use App\Application\Kernel\Service\MagicSettingAppService;
 use App\Application\Mode\DTO\Admin\AdminModeGroupAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeGroupDTO;
 use App\Application\Mode\DTO\Admin\AdminModeGroupModelDTO;
@@ -57,7 +56,7 @@ class BootstrapInitializationAppService
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly AdminModeAppService $adminModeAppService,
         private readonly PlatformSettingInitializer $platformSettingInitializer,
-        private readonly MagicSettingAppService $magicSettingAppService,
+        private readonly BootstrapStatusService $bootstrapStatusService,
     ) {
     }
 
@@ -150,11 +149,7 @@ class BootstrapInitializationAppService
                 agentDescription: $requestDTO->getAgentDescription(),
             );
 
-            $globalConfig = $this->magicSettingAppService->get();
-            if ($globalConfig->isNeedInitial()) {
-                $globalConfig->setNeedInitial(false);
-                $this->magicSettingAppService->save($globalConfig);
-            }
+            $this->bootstrapStatusService->markInitialized();
 
             return [
                 'success' => true,
