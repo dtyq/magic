@@ -442,18 +442,26 @@ class MagicChatHttpApi extends AbstractApi
     {
         $params = $request->all();
         $rules = [
-            'topic_id' => 'required|string',
-            'task_id' => 'nullable|string',
+            'type' => 'required|integer',
+            'relation_key1' => 'required|string',
+            'relation_key2' => 'nullable|string',
+            'relation_key3' => 'nullable|string',
         ];
         $params = $this->checkParams($params, $rules);
-        $topicId = (int) ($params['topic_id'] ?? 0);
-        $taskId = isset($params['task_id']) && $params['task_id'] !== ''
-            ? (string) $params['task_id']
+        $type = (int) ($params['type'] ?? 0);
+        $relationKey1 = (string) ($params['relation_key1'] ?? '');
+        $relationKey2 = isset($params['relation_key2']) && $params['relation_key2'] !== ''
+            ? (string) $params['relation_key2']
+            : null;
+        $relationKey3 = isset($params['relation_key3']) && $params['relation_key3'] !== ''
+            ? (string) $params['relation_key3']
             : null;
 
-        return $this->followUpSuggestionAppService->query(
-            $topicId,
-            $taskId,
+        return $this->followUpSuggestionAppService->queryByRelationKeys(
+            $type,
+            $relationKey1,
+            $relationKey2,
+            $relationKey3,
         );
     }
 

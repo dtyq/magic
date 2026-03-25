@@ -430,16 +430,6 @@ class TopicRepository implements TopicRepositoryInterface
         return $result;
     }
 
-    public function existsOwnedTopic(int $topicId, string $userId, string $organizationCode): bool
-    {
-        return $this->model::query()
-            ->where('id', $topicId)
-            ->where('user_id', $userId)
-            ->where('user_organization_code', $organizationCode)
-            ->whereNull('deleted_at')
-            ->exists();
-    }
-
     /**
      * 统计项目下的话题数量.
      */

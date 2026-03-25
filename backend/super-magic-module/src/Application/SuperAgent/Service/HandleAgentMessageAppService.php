@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Domain\Chat\Event\FollowUpSuggestionGenerateEvent;
-use App\Domain\Chat\Repository\Persistence\MagicChatFollowUpSuggestionRepository;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -28,6 +26,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageSentSuccessEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -69,7 +68,6 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
-        private readonly MagicChatFollowUpSuggestionRepository $followUpSuggestionRepository,
         private readonly LockerInterface $locker,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
@@ -386,13 +384,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // 等待magic_chat_messages 和 magic_super_agent_message两个都落库后开始触发事件
             if ((int) $seqId > 0) {
-                // 首先落库推荐问题表中状态为generating
-                $this->followUpSuggestionRepository->createGenerating(
-                    $taskContext->getTopicId(),
-                    (string) $taskContext->getTask()->getId()
-                );
-                // 异步分发生成推荐问题事件
-                AsyncEventUtil::dispatch(new FollowUpSuggestionGenerateEvent(
+                AsyncEventUtil::dispatch(new TopicMessageSentSuccessEvent(
                     organizationCode: $taskContext->getCurrentOrganizationCode(),
                     userId: $taskContext->getCurrentUserId(),
                     topicId: $taskContext->getTopicId(),

@@ -8,7 +8,8 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service;
 
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
-use App\Domain\Chat\Repository\Persistence\MagicChatFollowUpSuggestionRepository;
+use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionType;
+use App\Domain\Chat\Repository\Persistence\MagicGeneratedSuggestionRepository;
 use App\Domain\Chat\Service\FollowUpContextDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
@@ -22,7 +23,7 @@ class FollowUpSuggestionAppService extends AbstractAppService
     public function __construct(
         protected LoggerInterface $logger,
         protected readonly FollowUpContextDomainService $followUpContextDomainService,
-        protected readonly MagicChatFollowUpSuggestionRepository $followUpSuggestionRepository,
+        protected readonly MagicGeneratedSuggestionRepository $generatedSuggestionRepository,
     ) {
         try {
             $this->logger = ApplicationContext::getContainer()->get(LoggerFactory::class)?->get(static::class);
@@ -39,14 +40,14 @@ class FollowUpSuggestionAppService extends AbstractAppService
         $modelGatewayDataIsolation = $this->createFollowUpModelGatewayDataIsolation($isolation);
         $microAgent = MicroAgentFactory::fast('follow_up_generator');
         if (! $microAgent->isEnabled()) {
-            $this->followUpSuggestionRepository->markFailed($taskId);
+            $this->markSuperMagicTopicFollowUpFailed($topicId, $taskId);
             return;
         }
 
         // 查询当前话题下最近的6条问题消息作为上下文
         $historyContext = $this->followUpContextDomainService->buildFollowUpContextExcerptByTopicId($topicId, 3);
         if ($historyContext === '') {
-            $this->followUpSuggestionRepository->markFailed($taskId);
+            $this->markSuperMagicTopicFollowUpFailed($topicId, $taskId);
             return;
         }
 
@@ -86,35 +87,72 @@ PROMPT;
                 'task_id' => $taskId,
                 'error' => $e->getMessage(),
             ]);
-            $this->followUpSuggestionRepository->markFailed($taskId);
+            $this->markSuperMagicTopicFollowUpFailed($topicId, $taskId);
             return;
         }
 
-        $this->followUpSuggestionRepository->markDone(
+        $this->markSuperMagicTopicFollowUpDone(
+            $topicId,
             $taskId,
-            $this->parseSuggestions($content)
+            $this->parseSuggestions($content),
         );
     }
 
     /**
-     * 查询已落库的追问建议，HTTP 层只走这一条查询能力。
+     * 通用查询入口：API 层使用 relation keys，业务层再映射为语义化参数。
      */
-    public function query(int $topicId, ?string $taskId = null): array
+    public function queryByRelationKeys(
+        int $type,
+        string $relationKey1,
+        ?string $relationKey2 = null,
+        ?string $relationKey3 = null,
+    ): array {
+        return match ($type) {
+            GeneratedSuggestionType::SUPER_MAGIC_TOPIC_FOLLOW_UP => $this->querySuperMagicTopicFollowUp(
+                $relationKey1,
+                $relationKey2,
+            ),
+            default => $this->buildEmptyQueryResult($type, $relationKey1, $relationKey2, $relationKey3),
+        };
+    }
+
+    /**
+     * 查询超级麦吉话题追问建议。
+     */
+    public function querySuperMagicTopicFollowUp(string $topicId, ?string $taskId = null): array
     {
+        $topicIdInt = (int) $topicId;
+
         // 最新的消息查询
         if ($taskId !== null && $taskId !== '') {
-            $record = $this->followUpSuggestionRepository->findLatestByTopicIdAndTaskId($topicId, $taskId);
+            $record = $this->generatedSuggestionRepository->findLatestByRelationKeys(
+                $this->getSuggestionType(),
+                $this->getRelationKey1($topicIdInt),
+                $this->getRelationKey2($taskId),
+                $this->getRelationKey3(),
+            );
         }
         // 历史消息查询
         else {
-            $record = $this->followUpSuggestionRepository->findLatestByTopicId($topicId);
+            $record = $this->generatedSuggestionRepository->findLatestByTypeAndRelationKey1(
+                $this->getSuggestionType(),
+                $this->getRelationKey1($topicIdInt),
+            );
         }
 
         // 异常为空的话直接返回
         if ($record === null) {
             return [
-                'topic_id' => $topicId,
-                'task_id' => null,
+                'type' => $this->getSuggestionType(),
+                'type_label' => GeneratedSuggestionType::label($this->getSuggestionType()),
+                'relation_keys' => [
+                    'relation_key1' => $this->getRelationKey1($topicIdInt),
+                    'relation_key2' => $taskId !== null ? $this->getRelationKey2($taskId) : '',
+                    'relation_key3' => $this->getRelationKey3(),
+                ],
+                'params' => [],
+                'topic_id' => $topicIdInt,
+                'task_id' => $taskId,
                 'status' => null,
                 'suggestions' => [],
                 'updated_at' => '',
@@ -122,9 +160,17 @@ PROMPT;
         }
 
         return [
-            'topic_id' => (int) ($record['topic_id'] ?? $topicId),
-            'task_id' => $record['task_id'] ?? null,
-            'status' => (int) ($record['status'] ?? MagicChatFollowUpSuggestionRepository::STATUS_GENERATING),
+            'type' => (int) ($record['type'] ?? $this->getSuggestionType()),
+            'type_label' => GeneratedSuggestionType::label((int) ($record['type'] ?? $this->getSuggestionType())),
+            'relation_keys' => [
+                'relation_key1' => (string) ($record['relation_key1'] ?? $this->getRelationKey1($topicIdInt)),
+                'relation_key2' => (string) ($record['relation_key2'] ?? ($taskId !== null ? $this->getRelationKey2($taskId) : '')),
+                'relation_key3' => (string) ($record['relation_key3'] ?? $this->getRelationKey3()),
+            ],
+            'params' => $record['params'] ?? [],
+            'topic_id' => (int) ($record['relation_key1'] ?? $topicIdInt),
+            'task_id' => (string) ($record['relation_key2'] ?? ($record['params']['task_id'] ?? '')),
+            'status' => (int) ($record['status'] ?? MagicGeneratedSuggestionRepository::STATUS_GENERATING),
             'suggestions' => array_values($record['suggestions'] ?? []),
             'updated_at' => $record['updated_at'] ?? '',
         ];
@@ -162,5 +208,70 @@ PROMPT;
         $dataIsolation->setBusinessId('follow_up_suggestions');
 
         return $dataIsolation;
+    }
+
+    private function getSuggestionType(): int
+    {
+        return GeneratedSuggestionType::SUPER_MAGIC_TOPIC_FOLLOW_UP;
+    }
+
+    /**
+     * @param string[] $suggestions
+     */
+    private function markSuperMagicTopicFollowUpDone(int $topicId, string $taskId, array $suggestions): void
+    {
+        $this->generatedSuggestionRepository->markDone(
+            $this->getSuggestionType(),
+            $this->getRelationKey1($topicId),
+            $this->getRelationKey2($taskId),
+            $this->getRelationKey3(),
+            $suggestions,
+        );
+    }
+
+    private function markSuperMagicTopicFollowUpFailed(int $topicId, string $taskId): void
+    {
+        $this->generatedSuggestionRepository->markFailed(
+            $this->getSuggestionType(),
+            $this->getRelationKey1($topicId),
+            $this->getRelationKey2($taskId),
+            $this->getRelationKey3(),
+        );
+    }
+
+    private function buildEmptyQueryResult(
+        int $type,
+        string $relationKey1,
+        ?string $relationKey2 = null,
+        ?string $relationKey3 = null,
+    ): array {
+        return [
+            'type' => $type,
+            'type_label' => GeneratedSuggestionType::label($type),
+            'relation_keys' => [
+                'relation_key1' => $relationKey1,
+                'relation_key2' => $relationKey2 ?? '',
+                'relation_key3' => $relationKey3 ?? '',
+            ],
+            'params' => [],
+            'status' => null,
+            'suggestions' => [],
+            'updated_at' => '',
+        ];
+    }
+
+    private function getRelationKey1(int $topicId): string
+    {
+        return (string) $topicId;
+    }
+
+    private function getRelationKey2(string $taskId): string
+    {
+        return (string) $taskId;
+    }
+
+    private function getRelationKey3(): string
+    {
+        return '';
     }
 }

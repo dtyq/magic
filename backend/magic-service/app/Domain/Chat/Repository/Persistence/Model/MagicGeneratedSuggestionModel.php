@@ -11,30 +11,39 @@ use Hyperf\DbConnection\Model\Model;
 
 /**
  * @property string $id
- * @property int $topic_id
- * @property string $task_id
+ * @property int $type
+ * @property string $relation_key1
+ * @property string $relation_key2
+ * @property string $relation_key3
+ * @property array $params
  * @property array $suggestions
  * @property int $status
+ * @property null|string $created_uid
  * @property string $created_at
  * @property string $updated_at
  */
-class MagicChatFollowUpSuggestionModel extends Model
+class MagicGeneratedSuggestionModel extends Model
 {
-    protected ?string $table = 'magic_super_agent_message_suggestions';
+    protected ?string $table = 'magic_generated_suggestions';
 
     protected array $fillable = [
         'id',
-        'topic_id',
-        'task_id',
+        'type',
+        'relation_key1',
+        'relation_key2',
+        'relation_key3',
+        'params',
         'suggestions',
         'status',
+        'created_uid',
         'created_at',
         'updated_at',
     ];
 
     protected array $casts = [
         'id' => 'string',
-        'topic_id' => 'integer',
+        'type' => 'integer',
+        'params' => 'array',
         'suggestions' => 'array',
         'status' => 'integer',
     ];

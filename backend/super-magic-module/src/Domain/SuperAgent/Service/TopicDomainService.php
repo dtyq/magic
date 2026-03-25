@@ -82,15 +82,6 @@ class TopicDomainService
         return $topic->getSandboxId();
     }
 
-    public function isTopicOwnedByUser(int $topicId, string $userId, string $organizationCode): bool
-    {
-        if ($topicId <= 0 || $userId === '' || $organizationCode === '') {
-            return false;
-        }
-
-        return $this->topicRepository->existsOwnedTopic($topicId, $userId, $organizationCode);
-    }
-
     public function updateTopicStatus(int $id, int $taskId, TaskStatus $taskStatus): bool
     {
         return $this->topicRepository->updateTopicStatus($id, $taskId, $taskStatus);
