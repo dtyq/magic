@@ -143,7 +143,8 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/roo
 # 安装项目并预加载 tiktoken
 COPY . .
 COPY scripts/preload_tiktoken.py /app/scripts/preload_tiktoken.py
-RUN mkdir -p /app/tiktoken_cache && \
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/root/.cache/pip \
+    mkdir -p /app/tiktoken_cache && \
     chmod 777 /app/tiktoken_cache && \
     pip install ./agentlang && \
     python3 /app/scripts/preload_tiktoken.py && \
