@@ -360,25 +360,35 @@ class AgentDispatcher(Base):
             logger.info(f"Set crew agent profile: name={name}, role={role}")
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
-        """Compile claw definition files into .agent (if needed) and set AgentProfile."""
+        """Compile claw definition files into .agent (if needed) and set AgentProfile.
+
+        Source files live in the workspace .magic/ directory. On first run the
+        template is copied from agents/claws/<claw_code>/ with SKIP strategy so
+        that existing workspace files are never overwritten.
+        """
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_read_markdown
+        from app.utils.async_file_utils import async_copytree, async_exists, async_read_markdown, CopyConflict
 
-        claw_dir = PathManager.get_claw_agent_dir(claw_code)
+        magic_dir = PathManager.get_magic_dir()
+        identity_file = magic_dir / "IDENTITY.md"
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
-        compiler = ClawAgentCompiler()
 
         if output_agent_file.exists():
             logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
-            identity_file = claw_dir / "IDENTITY.md"
-            if not identity_file.exists():
-                logger.warning(f"IDENTITY.md not found for existing claw agent: {identity_file}")
+            if not await async_exists(identity_file):
+                logger.warning(f"IDENTITY.md not found in workspace magic dir: {identity_file}")
                 return
             identity_meta = (await async_read_markdown(identity_file)).meta
         else:
-            identity_meta = await compiler.compile(claw_code, claw_dir)
+            if not await async_exists(identity_file):
+                claw_src = PathManager.get_claw_agent_dir(claw_code)
+                logger.info(f"Copying claw template to workspace: {claw_src} -> {magic_dir}")
+                await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
+
+            compiler = ClawAgentCompiler()
+            identity_meta = await compiler.compile(claw_code, magic_dir)
 
         name        = identity_meta.get("name", "")
         role        = identity_meta.get("role", "")

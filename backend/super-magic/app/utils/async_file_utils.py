@@ -14,6 +14,7 @@ import shutil
 import json
 import os
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Union, Any, Dict, Optional
 
@@ -69,26 +70,55 @@ async def async_copy2(src: Union[str, Path], dst: Union[str, Path]) -> None:
         raise
 
 
-async def async_copytree(src: Union[str, Path], dst: Union[str, Path]) -> None:
+class CopyConflict(StrEnum):
+    """File conflict strategy for async_copytree."""
+    ERROR = "error"
+    OVERWRITE = "overwrite"
+    SKIP = "skip"
+
+
+async def async_copytree(
+    src: Union[str, Path],
+    dst: Union[str, Path],
+    on_conflict: CopyConflict = CopyConflict.ERROR,
+) -> None:
     """
     异步复制目录树
 
     Args:
         src: 源目录路径
         dst: 目标目录路径
+        on_conflict: 目标已存在时的冲突策略
+            - ERROR: 目标存在即报错（默认，向后兼容）
+            - OVERWRITE: 目录合并，同名文件覆盖
+            - SKIP: 目录合并，已有文件保留不动
 
     Raises:
         FileNotFoundError: 源目录不存在
-        FileExistsError: 目标目录已存在
+        FileExistsError: 目标目录已存在（仅 ERROR 策略）
         PermissionError: 权限不足
     """
     src_path = Path(src)
     dst_path = Path(dst)
 
     try:
-        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path}")
+        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path} (on_conflict={on_conflict})")
 
-        await asyncio.to_thread(shutil.copytree, src_path, dst_path)
+        if on_conflict == CopyConflict.SKIP:
+            def _copy_skip(src_f: str, dst_f: str) -> None:
+                if not os.path.exists(dst_f):
+                    shutil.copy2(src_f, dst_f)
+
+            await asyncio.to_thread(
+                shutil.copytree, src_path, dst_path,
+                copy_function=_copy_skip, dirs_exist_ok=True,
+            )
+        elif on_conflict == CopyConflict.OVERWRITE:
+            await asyncio.to_thread(
+                shutil.copytree, src_path, dst_path, dirs_exist_ok=True,
+            )
+        else:
+            await asyncio.to_thread(shutil.copytree, src_path, dst_path)
 
         logger.debug(f"异步复制目录完成: {src_path} -> {dst_path}")
 
