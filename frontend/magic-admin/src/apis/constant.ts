@@ -263,6 +263,8 @@ export const RequestUrl = {
 	saveModeConfig: "/api/v1/official/admin/modes/${id}/config",
 	/** 获取所有模型列表 */
 	getAllModelList: "/api/v1/admin/service-providers/models/queries",
+	/** 模型调用审计日志列表 */
+	getModelAuditLogList: "/api/v1/admin/model-audit-logs/list",
 	/** 创建分组 */
 	createModeGroup: "/api/v1/official/admin/mode-groups",
 	/** 修改分组 */
