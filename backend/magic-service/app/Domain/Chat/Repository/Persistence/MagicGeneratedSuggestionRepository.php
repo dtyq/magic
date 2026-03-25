@@ -25,7 +25,7 @@ class MagicGeneratedSuggestionRepository
 
     public function createGenerating(
         int $type,
-        string|int $relationKey1,
+        int|string $relationKey1,
         null|int|string $relationKey2 = '',
         null|int|string $relationKey3 = '',
         array $params = [],
@@ -58,7 +58,7 @@ class MagicGeneratedSuggestionRepository
         return $record->toArray();
     }
 
-    public function findLatestByTypeAndRelationKey1(int $type, string|int $relationKey1): ?array
+    public function findLatestByTypeAndRelationKey1(int $type, int|string $relationKey1): ?array
     {
         $record = $this->model::query()
             ->where('type', $type)
@@ -72,7 +72,7 @@ class MagicGeneratedSuggestionRepository
 
     public function findLatestByRelationKeys(
         int $type,
-        string|int $relationKey1,
+        int|string $relationKey1,
         null|int|string $relationKey2 = '',
         null|int|string $relationKey3 = '',
     ): ?array {
@@ -93,7 +93,7 @@ class MagicGeneratedSuggestionRepository
      */
     public function markDone(
         int $type,
-        string|int $relationKey1,
+        int|string $relationKey1,
         null|int|string $relationKey2 = '',
         null|int|string $relationKey3 = '',
         array $suggestions = [],
@@ -116,7 +116,7 @@ class MagicGeneratedSuggestionRepository
 
     public function markFailed(
         int $type,
-        string|int $relationKey1,
+        int|string $relationKey1,
         null|int|string $relationKey2 = '',
         null|int|string $relationKey3 = '',
     ): void {
