@@ -12,7 +12,6 @@
 	"callType": "Call Type",
 	"callStatus": "Call Status",
 	"accessKey": "Access Key",
-	"requestIp": "Request IP",
 	"operationTime": "Operation Time",
 	"latency": "Total Latency",
 	"usage": "Usage",

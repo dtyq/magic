@@ -227,15 +227,6 @@ function ModelAuditLogPage() {
 				),
 			},
 			{
-				title: t("requestIp"),
-				dataIndex: "ip",
-				key: "ip",
-				width: 140,
-				render: (text: string) => (
-					<span style={{ fontFamily: "monospace" }}>{text || "-"}</span>
-				),
-			},
-			{
 				title: t("operationTime"),
 				dataIndex: "operation_time",
 				key: "operation_time",
@@ -376,9 +367,6 @@ function ModelAuditLogPage() {
 					</Descriptions.Item>
 					<Descriptions.Item label={t("email")}>
 						{detailRecord?.user_info?.email || "-"}
-					</Descriptions.Item>
-					<Descriptions.Item label={t("requestIp")}>
-						{detailRecord?.ip || "-"}
 					</Descriptions.Item>
 					<Descriptions.Item label={t("callType")}>
 						{detailRecord?.type || "-"}

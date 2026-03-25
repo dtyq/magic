@@ -12,7 +12,6 @@
 	"callType": "调用类型",
 	"callStatus": "调用状态",
 	"accessKey": "访问凭证",
-	"requestIp": "请求 IP",
 	"operationTime": "操作时间",
 	"latency": "总耗时",
 	"usage": "用量",
