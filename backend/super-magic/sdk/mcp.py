@@ -188,6 +188,83 @@ class McpSDK:
             print(f"[SDK Error] 获取工具列表失败: {e}", file=sys.stderr)
             return []
 
+    def add_server(
+        self,
+        name: str,
+        server_type: str,
+        command: Optional[str] = None,
+        args: Optional[List[str]] = None,
+        url: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+        label_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """动态添加 MCP 服务器（同步）
+
+        将新服务器加入运行中的全局 MCP 管理器。同名服务器会先断开旧连接再重建。
+        仅在当前运行期间有效，重启后失效。
+
+        Args:
+            name: MCP 服务器名称
+            server_type: 连接类型，"stdio" 或 "http"
+            command: 启动命令（stdio 类型必填）
+            args: 命令参数列表（stdio 类型可选）
+            url: 服务器 URL（http 类型必填）
+            env: 环境变量字典
+            label_name: 服务器显示名称
+
+        Returns:
+            Dict: 包含 ok, name, tool_count, tools 等字段的结果字典
+        """
+        try:
+            request_data: Dict[str, Any] = {
+                "name": name,
+                "type": server_type,
+            }
+            if command is not None:
+                request_data["command"] = command
+            if args is not None:
+                request_data["args"] = args
+            if url is not None:
+                request_data["url"] = url
+            if env is not None:
+                request_data["env"] = env
+            if label_name is not None:
+                request_data["label_name"] = label_name
+
+            url_str = f"{self.api_base_url}/api/skills/mcp_add_server"
+            data = json.dumps(request_data).encode("utf-8")
+
+            req = urllib.request.Request(
+                url_str,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+                result_data = json.loads(response.read().decode("utf-8"))
+
+                if result_data.get("code") == 1000:
+                    return result_data.get("data", {"ok": True})
+                else:
+                    error_msg = result_data.get("message", "添加 MCP 服务器失败")
+                    return {"ok": False, "error": error_msg}
+
+        except urllib.error.HTTPError as e:
+            error_msg = f"HTTP 请求失败: {e.code} - {e.reason}"
+            print(f"[SDK Error] {error_msg}", file=sys.stderr)
+            return {"ok": False, "error": error_msg}
+
+        except urllib.error.URLError as e:
+            error_msg = f"HTTP 请求错误: {str(e.reason)}"
+            print(f"[SDK Error] {error_msg}", file=sys.stderr)
+            return {"ok": False, "error": error_msg}
+
+        except Exception as e:
+            error_msg = f"添加 MCP 服务器失败: {str(e)}"
+            print(f"[SDK Error] {error_msg}", file=sys.stderr)
+            return {"ok": False, "error": error_msg}
+
     def get_tool_schema(self, server_name: str, tool_name: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """获取工具 Schema（同步，支持单个或多个工具）
 

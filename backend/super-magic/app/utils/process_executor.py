@@ -368,16 +368,16 @@ class ProcessExecutor:
                 # 超时，渐进式终止进程
                 await ProcessExecutor._terminate_process_gracefully(process)
 
-                return TerminalToolResult(
-                    error=f"命令执行超时 ({timeout}秒)",
+                return TerminalToolResult.error(
+                    f"Command timed out ({timeout}s)",
                     command=command,
-                    exit_code=-1  # 使用-1表示超时
+                    exit_code=-1,
                 )
 
         except Exception as e:
             logger.exception(f"执行命令时出错: {e}")
-            return TerminalToolResult(
-                error=f"执行命令时出错: {e}",
+            return TerminalToolResult.error(
+                f"Command execution failed: {e}",
                 command=command,
-                exit_code=-2  # 使用-2表示异常
+                exit_code=-2,
             )
