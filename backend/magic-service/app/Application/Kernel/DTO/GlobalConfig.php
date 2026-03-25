@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Kernel\DTO;
 
-use App\Application\Bootstrap\ValueObject\BootstrapStatus;
-
 class GlobalConfig
 {
     private bool $isMaintenance = false;
@@ -56,12 +54,9 @@ class GlobalConfig
 
     public function toArray(): array
     {
-        $bootstrapStatus = BootstrapStatus::tryFrom($this->bootstrapStatus);
-
         return [
             'is_maintenance' => $this->isMaintenance,
             'maintenance_description' => $this->maintenanceDescription,
-            'need_initial' => $bootstrapStatus?->needInitial() ?? true,
             'bootstrap_status' => $this->bootstrapStatus,
         ];
     }
