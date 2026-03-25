@@ -26,11 +26,13 @@ Query MCP server information, tool lists, and schemas through scripts, and call 
 - 列出所有可用的 MCP 工具
 - 获取工具的 JSON Schema 定义
 - 调用 MCP 工具并获取结果
+- 动态添加新的 MCP 服务器（运行时生效，可选持久化）
 -->
 - Query MCP server list and status
 - List all available MCP tools
 - Get JSON Schema definitions of tools
 - Call MCP tools and get results
+- Dynamically add new MCP servers (effective at runtime, optionally persisted)
 
 <!--zh
 ## 重要规则
@@ -266,6 +268,11 @@ else:
 **必须遵循**的工作流程：
 
 ```
+[如需添加新服务器]
+A. 添加 MCP 服务器 (add_server.py) - 可选
+   ↓ 服务器添加成功后立即可用，输出中包含工具列表，可跳过步骤 0 和 1
+
+[调用已有服务器的工具]
 0. [可选] 获取服务器列表 (get_servers.py)
    ↓ 如果不确定有哪些服务器，可以先查询
 1. 查看工具列表 (get_tools.py) - 必须
@@ -282,6 +289,12 @@ else:
 **MUST follow** this workflow:
 
 ```
+[If you need to add a new server first]
+A. Add MCP server (add_server.py) - Optional
+   ↓ Server is immediately available after success; output includes tool list,
+     so you can skip steps 0 and 1
+
+[To call tools on an existing server]
 0. [Optional] Get server list (get_servers.py)
    ↓ Query if unsure which servers are available
 1. View tool list (get_tools.py) - REQUIRED
@@ -299,6 +312,145 @@ else:
 ## 可用脚本
 -->
 ## Available Scripts
+
+<!--zh
+### add_server.py - 动态添加 MCP 服务器
+-->
+### add_server.py - Add MCP Server Dynamically
+
+<!--zh
+动态将新 MCP 服务器加入运行中的系统，立即生效。仅在当前运行期间有效，重启后失效。
+-->
+Dynamically add a new MCP server to the running system, effective immediately. Only valid for the current runtime session.
+
+**SYNOPSIS**
+```bash
+python scripts/add_server.py --name <name> --type stdio|http [OPTIONS]
+```
+
+**DESCRIPTION**
+
+<!--zh
+支持 stdio（命令行进程）和 http（URL）两种类型的 MCP 服务器。
+同名服务器会先断开旧连接再重建。添加的服务器仅在当前运行期间有效，重启后失效。
+-->
+Supports both stdio (command-line process) and http (URL) MCP server types.
+An existing server with the same name will be disconnected and replaced.
+Added servers only exist for the current runtime session and do not survive restarts.
+
+**OPTIONS**
+
+<!--zh
+| 选项 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `--name <name>` | string | 是 | 服务器名称 |
+| `--type <type>` | string | 是 | 连接类型：`stdio` 或 `http` |
+| `--command <cmd>` | string | stdio 必填 | 启动命令（如 `npx`、`uvx`） |
+| `--args <json>` | string | 否 | 命令参数，**必须是 JSON 数组字符串**，例如 `'["-y","@pkg"]'`；禁止直接传 `-y pkg` 格式 |
+| `--url <url>` | string | http 必填 | 服务器 URL |
+| `--env KEY=VALUE [...]` | string | 否 | 环境变量，支持多个 |
+| `--label <name>` | string | 否 | 服务器显示名称 |
+-->
+| Option | Type | Required | Description |
+|------|------|------|------|
+| `--name <name>` | string | Yes | Server name |
+| `--type <type>` | string | Yes | Connection type: `stdio` or `http` |
+| `--command <cmd>` | string | stdio only | Launch command (e.g. `npx`, `uvx`) |
+| `--args <json>` | string | No | Command arguments as a **JSON array string**, e.g. `'["-y","@pkg"]'`; do NOT pass raw space-separated args like `-y @pkg` |
+| `--url <url>` | string | http only | Server URL |
+| `--env KEY=VALUE [...]` | string | No | Environment variables, supports multiple |
+| `--label <name>` | string | No | Server display name |
+
+**OUTPUT**
+
+<!--zh
+返回 JSON 对象，包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ok` | boolean | 是否成功 |
+| `name` | string | 服务器名称 |
+| `tool_count` | number | 注册的工具数量 |
+| `tools` | array | 工具名称列表 |
+| `error` | string | 失败时的错误信息 |
+-->
+Returns a JSON object containing:
+
+| Field | Type | Description |
+|------|------|------|
+| `ok` | boolean | Whether succeeded |
+| `name` | string | Server name |
+| `tool_count` | number | Number of registered tools |
+| `tools` | array | Tool name list |
+| `error` | string | Error message on failure |
+
+**EXAMPLES**
+
+<!--zh
+添加 stdio 类型服务器（npx 启动的 MCP）：
+注意：--args 必须是 JSON 数组字符串，用单引号包裹整体，内部用双引号。
+```bash
+python scripts/add_server.py \
+    --name my-fs-server \
+    --type stdio \
+    --command npx \
+    --args '["-y","@modelcontextprotocol/server-filesystem","/tmp"]' \
+    --label "文件系统"
+```
+
+添加 http 类型服务器：
+```bash
+python scripts/add_server.py \
+    --name my-api-server \
+    --type http \
+    --url http://localhost:3000/mcp \
+    --label "自定义 API"
+```
+
+带环境变量：
+```bash
+python scripts/add_server.py \
+    --name my-server \
+    --type stdio \
+    --command npx \
+    --args '["-y","some-mcp-server"]' \
+    --env API_KEY=your_key BASE_URL=https://example.com
+```
+-->
+Add a stdio server (npx-based MCP).
+CRITICAL: `--args` MUST be a JSON array string. Use single quotes around the whole value.
+[correct] `--args '["-y","@modelcontextprotocol/server-sequential-thinking"]'`
+[wrong]   `--args -y @modelcontextprotocol/server-sequential-thinking`
+[wrong]   `--args "-y @modelcontextprotocol/server-sequential-thinking"`
+```bash
+python scripts/add_server.py \
+    --name my-fs-server \
+    --type stdio \
+    --command npx \
+    --args '["-y","@modelcontextprotocol/server-filesystem","/tmp"]' \
+    --label "Filesystem"
+```
+
+Add an http server:
+```bash
+python scripts/add_server.py \
+    --name my-api-server \
+    --type http \
+    --url http://localhost:3000/mcp \
+    --label "Custom API"
+```
+
+Add with environment variables:
+```bash
+python scripts/add_server.py \
+    --name my-server \
+    --type stdio \
+    --command npx \
+    --args '["-y","some-mcp-server"]' \
+    --env API_KEY=your_key BASE_URL=https://example.com
+```
+
+---
 
 <!--zh
 ### get_servers.py - 获取 MCP 服务器列表
