@@ -6,6 +6,11 @@ let currentLanguage = "zh_CN"; // 当前语言，默认中文
 let currentFileName = ""; // 存储当前上传的文件名
 let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
 
+// 工作区挂载目录名，空字符串表示直接展示根目录
+let mountDirName = localStorage.getItem('mountDirName') ?? '.workspace';
+// 用户通过文件选择器选中的原始项目根目录 handle
+let rootDirHandle = null;
+
 // WebSocket相关变量
 let websocket = null;
 let isWebSocketConnected = false;
@@ -1420,6 +1425,8 @@ function updateSubscribeButtonState(state, additionalInfo = '') {
 const filetreeContainer = document.getElementById('filetreeContainer');
 const selectWorkspaceBtn = document.getElementById('selectWorkspaceBtn');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
+const mountDirInput = document.getElementById('mountDirInput');
+const applyMountDirBtn = document.getElementById('applyMountDirBtn');
 const filePreviewOverlay = document.getElementById('filePreviewOverlay');
 const filePreviewName = document.getElementById('filePreviewName');
 const filePreviewContent = document.getElementById('filePreviewContent');
@@ -1427,6 +1434,7 @@ const filePreviewClose = document.getElementById('filePreviewClose');
 
 let workspaceDirHandle = null;
 let filetreeRefreshTimer = null;
+let selectBtnState = 'default'; // 'default' | 'active' | 'need-auth'
 const expandedDirs = new Set();
 
 // ── IndexedDB 存取 DirectoryHandle ──
@@ -1470,41 +1478,62 @@ async function loadHandle() {
 
 // 更新按钮状态
 function updateSelectBtn(state) {
+    selectBtnState = state;
     if (!selectWorkspaceBtn) return;
     if (state === 'active') {
-        selectWorkspaceBtn.title = '重新选择目录';
-        selectWorkspaceBtn.textContent = '✓';
+        selectWorkspaceBtn.title = '切换项目根目录';
+        selectWorkspaceBtn.textContent = '📂';
         selectWorkspaceBtn.style.color = 'var(--wechat-green)';
     } else if (state === 'need-auth') {
-        selectWorkspaceBtn.title = '点击重新授权 .workspace';
+        const dirHint = mountDirName || '根目录';
+        selectWorkspaceBtn.title = `点击重新授权读取 ${dirHint}`;
         selectWorkspaceBtn.textContent = '🔓';
         selectWorkspaceBtn.style.color = 'var(--wechat-warning)';
     } else {
-        selectWorkspaceBtn.title = '选择项目根目录（自动进入 .workspace）';
+        selectWorkspaceBtn.title = '选择项目根目录';
         selectWorkspaceBtn.textContent = '📂';
         selectWorkspaceBtn.style.color = '';
     }
 }
 
 // 激活文件树（已有 handle）
-// 若选中的是项目根目录且含有 .workspace 子目录，自动进入 .workspace
+// 若配置了挂载目录且根目录下存在对应子目录，则自动进入该子目录
 async function activateFiletree(handle) {
+    rootDirHandle = handle;
     let target = handle;
-    try {
-        const sub = await handle.getDirectoryHandle('.workspace', { create: false });
-        target = sub;
-    } catch (e) {
-        // 没有 .workspace 子目录，直接展示所选目录
+    if (mountDirName) {
+        try {
+            const sub = await handle.getDirectoryHandle(mountDirName, { create: false });
+            target = sub;
+        } catch (e) {
+            // 子目录不存在，直接展示根目录
+        }
     }
     workspaceDirHandle = target;
-    await saveHandle(handle); // 存原始 handle，下次恢复时再次尝试进入 .workspace
+    await saveHandle(handle); // 存原始根目录 handle，下次恢复时再次尝试进入挂载目录
     updateSelectBtn('active');
     await renderFileTree();
     startFiletreeAutoRefresh();
 }
 
+// 应用挂载目录变更
+async function applyMountDir() {
+    const newMountDir = mountDirInput ? mountDirInput.value.trim() : '';
+    mountDirName = newMountDir;
+    localStorage.setItem('mountDirName', mountDirName);
+    if (!rootDirHandle) {
+        showSystemMessage('请先选择项目根目录');
+        return;
+    }
+    await activateFiletree(rootDirHandle);
+    showSystemMessage(`挂载目录已切换为: ${mountDirName || '(根目录)'}`);
+}
+
 // 页面加载时尝试恢复上次的目录
 (async () => {
+    // 初始化挂载目录输入框
+    if (mountDirInput) mountDirInput.value = mountDirName;
+
     const saved = await loadHandle();
     if (!saved) return;
     try {
@@ -1515,17 +1544,18 @@ async function activateFiletree(handle) {
             return;
         }
         // 权限过期，提示用户点击重新授权
-        workspaceDirHandle = saved;
+        rootDirHandle = saved;
         updateSelectBtn('need-auth');
         if (filetreeContainer) {
-            filetreeContainer.innerHTML = '<div class="filetree-empty">点击 🔓 重新授权读取 .workspace</div>';
+            const dirHint = mountDirName || '根目录';
+            filetreeContainer.innerHTML = `<div class="filetree-empty">点击 🔓 重新授权读取 ${dirHint}</div>`;
         }
     } catch (e) {
         console.warn('恢复目录句柄失败', e);
     }
 })();
 
-// 点击授权/重新授权按钮
+// 点击选择/切换目录按钮
 if (selectWorkspaceBtn) {
     selectWorkspaceBtn.addEventListener('click', async () => {
         if (!('showDirectoryPicker' in window)) {
@@ -1533,20 +1563,30 @@ if (selectWorkspaceBtn) {
             return;
         }
         try {
-            // 若已有 handle，先尝试 requestPermission 避免重新选目录
-            if (workspaceDirHandle) {
-                const perm = await workspaceDirHandle.requestPermission({ mode: 'read' });
+            // need-auth 状态：权限过期，先尝试对已有根目录重新授权，避免用户重新选
+            if (selectBtnState === 'need-auth' && rootDirHandle) {
+                const perm = await rootDirHandle.requestPermission({ mode: 'read' });
                 if (perm === 'granted') {
-                    await activateFiletree(workspaceDirHandle);
+                    await activateFiletree(rootDirHandle);
                     return;
                 }
             }
-            // 无 handle 或 requestPermission 失败，让用户重新选
+            // active / default 状态：直接弹出选择器，支持切换到新项目
             const handle = await window.showDirectoryPicker({ mode: 'read' });
             await activateFiletree(handle);
         } catch (e) {
             if (e.name !== 'AbortError') console.error('授权目录失败', e);
         }
+    });
+}
+
+// 挂载目录应用按钮
+if (applyMountDirBtn) {
+    applyMountDirBtn.addEventListener('click', applyMountDir);
+}
+if (mountDirInput) {
+    mountDirInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyMountDir();
     });
 }
 

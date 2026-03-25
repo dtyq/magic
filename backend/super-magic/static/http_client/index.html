@@ -49,11 +49,16 @@
                     <span class="filetree-title">工作区文件</span>
                     <div class="filetree-actions">
                         <button id="refreshTreeBtn" class="icon-btn" title="刷新">↻</button>
-                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择目录">📂</button>
+                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择项目根目录">📂</button>
                     </div>
                 </div>
+                <div class="mount-dir-row">
+                    <span class="mount-dir-label">挂载目录:</span>
+                    <input type="text" id="mountDirInput" class="mount-dir-input" placeholder="留空为根目录">
+                    <button id="applyMountDirBtn" class="icon-btn" title="应用挂载目录">✓</button>
+                </div>
                 <div id="filetreeContainer" class="filetree-container">
-                    <div class="filetree-empty">点击 📂 选择项目根目录<br>（会自动进入 .workspace）</div>
+                    <div class="filetree-empty">点击 📂 选择项目根目录</div>
                 </div>
             </div>
         </div>

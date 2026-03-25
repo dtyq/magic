@@ -1421,6 +1421,39 @@ input[type="file"] {
     color: var(--wechat-text-dark);
 }
 
+.mount-dir-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid var(--wechat-border);
+    flex-shrink: 0;
+}
+
+.mount-dir-label {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mount-dir-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    padding: 2px 5px;
+    background: #fff;
+    color: var(--wechat-text-dark);
+    outline: none;
+}
+
+.mount-dir-input:focus {
+    border-color: var(--wechat-green);
+}
+
 .filetree-container {
     flex: 1;
     overflow-y: auto;
