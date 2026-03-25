@@ -440,6 +440,18 @@ class AgentDispatcher(Base):
 
     async def _run_dispatch_task(self, message: ChatClientMessage) -> None:
         """Background task wrapper for dispatch_message, used by submit_message."""
+        # Re-apply language at the start of every dispatch task.
+        # asyncio.create_task() inherits a copy of the parent coroutine's ContextVar
+        # state, but each HTTP request starts with no language set (ContextVar default
+        # is None → zh_CN). Applying it here inside the task guarantees the correct
+        # locale regardless of the caller's context state.
+        from app.i18n import i18n
+        metadata = self.agent_context.get_init_client_message_metadata()
+        if metadata and metadata.language:
+            i18n.set_language(metadata.language)
+        else:
+            i18n.set_language("zh_CN")
+
         try:
             await self.dispatch_message(message)
         except asyncio.CancelledError:
