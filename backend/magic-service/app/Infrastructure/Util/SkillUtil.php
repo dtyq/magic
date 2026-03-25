@@ -121,8 +121,8 @@ class SkillUtil
     }
 
     /**
-     * 在指定目录及其子目录中查找包含 SKILL.md 的目录.
-     * 优先检查根目录，其次一层子目录，若子目录无 SKILL.md 则递归遍历其子目录.
+     * 在指定目录中查找包含 SKILL.md 的目录.
+     * 仅支持根目录或一层子目录，不再支持更深层级的父子目录结构.
      *
      * @param string $baseDir 要搜索的根目录路径
      * @return null|string 包含 SKILL.md 的目录路径，未找到时返回 null
@@ -166,11 +166,6 @@ class SkillUtil
             if (file_exists($skillMdPath)) {
                 self::logSkillUtil('在子目录找到 SKILL.md', ['foundDir' => $itemPath]);
                 return $itemPath;
-            }
-            // 子目录无 SKILL.md，递归遍历其子目录
-            $found = self::findSkillMdDirectory($itemPath);
-            if ($found !== null) {
-                return $found;
             }
         }
 

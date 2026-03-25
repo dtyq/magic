@@ -12,7 +12,9 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillMarketModel;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
 use Hyperf\DbConnection\Db;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
 use RuntimeException;
@@ -98,6 +100,31 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertNull($response['data']['code'] ?? null);
             $this->assertNull($response['data']['skill_id'] ?? null);
         }
+    }
+
+    /**
+     * 测试技能导入第一阶段：不再支持多级目录结构.
+     */
+    public function testParseFileImportRejectsNestedDirectoryStructure(): void
+    {
+        $this->switchUserTest1();
+
+        $testFile = $this->createTestSkillZip($this->name(), 'level1/level2/skill-dir');
+
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $fileKey = $this->uploadFileAndGetKey($testFile, $organizationCode);
+
+        $response = $this->json(
+            self::BASE_URI . '/import/parse/file',
+            [
+                'file_key' => $fileKey,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertNotEquals(1000, $response['code'], '多级目录结构不应该再被导入解析');
+        $this->assertSame(51253, $response['code']);
     }
 
     /**
@@ -1079,6 +1106,22 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals('PRIVATE', $version['publish_target_type']);
         $this->assertEquals(1, $version['is_current_version']);
         $this->assertNotNull($version['published_at']);
+        $this->assertNotEmpty($version['skill_file_key']);
+
+        $skill = SkillModel::query()
+            ->where('code', $skillCode)
+            ->where('organization_code', $organizationCode)
+            ->first();
+        $this->assertNotNull($skill);
+
+        $projectSkillFile = TaskFileModel::query()
+            ->where('project_id', $skill->project_id)
+            ->where('file_name', 'SKILL.md')
+            ->where('is_directory', 0)
+            ->orderByDesc('file_id')
+            ->first();
+        $this->assertNotNull($projectSkillFile);
+        $this->assertNotSame($projectSkillFile->file_key, $version['skill_file_key']);
 
         $detailResponse = $this->get(
             self::BASE_URI . '/' . $skillCode,
@@ -2031,7 +2074,7 @@ class UserSkillApiTest extends AbstractApiTest
     /**
      * 创建标准的测试 Skill Zip 文件，包含 SKILL.md 文件.
      */
-    private function createTestSkillZip(?string $seed = null): string
+    private function createTestSkillZip(?string $seed = null, string $skillMdZipPath = 'SKILL.md'): string
     {
         ++$this->testSkillZipSequence;
         $skillSeed = $seed ?? 'skill';
@@ -2061,7 +2104,7 @@ MD;
         }
 
         // 添加 SKILL.md 文件到 zip
-        $zip->addFile($tempDir . '/SKILL.md', 'SKILL.md');
+        $zip->addFile($tempDir . '/SKILL.md', $skillMdZipPath);
         $zip->close();
 
         // 清理临时目录
