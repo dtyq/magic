@@ -576,7 +576,7 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 							</div>
 
 							<div
-								className="flex items-start gap-2"
+								className="mb-1 flex items-start gap-2"
 								data-testid="edit-crew-description-field"
 							>
 								<div className="flex min-h-[96px] flex-1 items-start pt-2">

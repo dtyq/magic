@@ -10,9 +10,9 @@ import useResizablePanel from "@/pages/superMagic/hooks/useResizablePanel"
 import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import { useCompositeDetailPanelController } from "@/pages/superMagic/hooks/useCompositeDetailPanelController"
 import { useAttachmentsPolling } from "@/pages/superMagic/hooks/useAttachmentsPolling"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
-import { useTopicDetailPanelController } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicDetailPanelController"
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
 import {
 	FileActionVisibilityProvider,
@@ -174,6 +174,8 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			: layout.activeDetailKey && isCrewStepEnabled(layout.activeDetailKey)
 				? layout.activeDetailKey
 				: null
+	const shouldShowStepDetailPanel =
+		layout.activeSidebarTab === CREW_SIDEBAR_TAB.Advanced && layout.showDetailPanel
 	const updateAttachments = useDebounceFn(
 		(projectId?: string, callback?: () => void) => {
 			if (!projectId) {
@@ -220,19 +222,21 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		isReadOnly: false,
 	})
 
-	const {
-		shouldShowDetailPanel: shouldShowFileDetailPanel,
-		topicFilesPropsWithPanel,
-		handleActiveDetailTabChange,
-		clearActiveDetailTabType,
-	} = useTopicDetailPanelController({
-		detailRef,
-		isReadOnly: false,
-		activeFileId,
-		setActiveFileId,
-		handleFileClick,
-		topicFilesProps,
-	})
+	const { shouldShowDetailPanel, topicFilesPropsWithPanel, handleActiveDetailTabChange } =
+		useCompositeDetailPanelController({
+			detailRef,
+			isReadOnly: false,
+			activeFileId,
+			setActiveFileId,
+			handleFileClick,
+			topicFilesProps,
+			extraPanelVisible: shouldShowStepDetailPanel,
+			resetDeps: [selectedProject?.id],
+			onReset: () => {
+				setUserSelectDetail(undefined)
+				setIsDetailPanelFullscreen(false)
+			},
+		})
 
 	const {
 		width: sidebarWidthPx,
@@ -287,13 +291,6 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			store.projectFilesStore.setSelectedProject(null)
 		}
 	}, [selectedProject, store.projectFilesStore])
-
-	useEffect(() => {
-		setUserSelectDetail(undefined)
-		setIsDetailPanelFullscreen(false)
-		clearActiveDetailTabType()
-		setActiveFileId(null)
-	}, [clearActiveDetailTabType, selectedProject?.id, setActiveFileId])
 
 	useAttachmentsPolling({
 		projectId: selectedProject?.id,
@@ -350,9 +347,6 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		})
 	}, [crewId, currentRoutePanel, location.search, navigate, routePanel])
 
-	const shouldShowStepDetailPanel =
-		layout.activeSidebarTab === CREW_SIDEBAR_TAB.Advanced && layout.showDetailPanel
-	const shouldShowDetailPanel = shouldShowStepDetailPanel || shouldShowFileDetailPanel
 	const shouldHideMessagePanel = shouldShowStepDetailPanel ? layout.isMessagePanelHidden : false
 	const detailPanel = shouldShowStepDetailPanel ? (
 		<StepDetailPanel />

@@ -21,6 +21,7 @@ interface UseMessageEditorToolbarContextParams {
 	fileUploadStore: FileUploadStore
 	shouldEnableMention: boolean
 	uploadEnabled: boolean
+	sendEnabled: boolean
 	sendButtonDisabled: boolean
 	showLoading: boolean
 	isTaskRunning: boolean
@@ -56,6 +57,7 @@ function useMessageEditorToolbarContext({
 	fileUploadStore,
 	shouldEnableMention,
 	uploadEnabled,
+	sendEnabled,
 	sendButtonDisabled,
 	showLoading,
 	isTaskRunning,
@@ -91,6 +93,7 @@ function useMessageEditorToolbarContext({
 			fileUploadStore,
 			shouldEnableMention,
 			uploadEnabled,
+			sendEnabled,
 			sendButtonDisabled,
 			showLoading,
 			isTaskRunning,
@@ -125,6 +128,7 @@ function useMessageEditorToolbarContext({
 			fileUploadStore,
 			shouldEnableMention,
 			uploadEnabled,
+			sendEnabled,
 			sendButtonDisabled,
 			showLoading,
 			isTaskRunning,

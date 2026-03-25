@@ -57,7 +57,11 @@ describe("moduleConfig", () => {
 		it("enables related modules when buttons are present in layout config", () => {
 			const layoutConfig: MessageEditorLayoutConfig = {
 				topBarLeft: [ToolbarButton.AT],
-				bottomRight: [ToolbarButton.UPLOAD, ToolbarButton.VOICE_INPUT],
+				bottomRight: [
+					ToolbarButton.UPLOAD,
+					ToolbarButton.VOICE_INPUT,
+					ToolbarButton.SEND_BUTTON,
+				],
 			}
 
 			const resolved = resolveMessageEditorModules({
@@ -71,12 +75,17 @@ describe("moduleConfig", () => {
 			expect(resolved.mention.enabled).toBe(true)
 			expect(resolved.upload.enabled).toBe(true)
 			expect(resolved.voiceInput.enabled).toBe(true)
+			expect(resolved.send.enabled).toBe(true)
 		})
 
 		it("keeps explicit module config as highest priority", () => {
 			const layoutConfig: MessageEditorLayoutConfig = {
 				topBarLeft: [ToolbarButton.AT],
-				bottomRight: [ToolbarButton.UPLOAD, ToolbarButton.VOICE_INPUT],
+				bottomRight: [
+					ToolbarButton.UPLOAD,
+					ToolbarButton.VOICE_INPUT,
+					ToolbarButton.SEND_BUTTON,
+				],
 			}
 
 			const resolved = resolveMessageEditorModules({
@@ -84,6 +93,7 @@ describe("moduleConfig", () => {
 					mention: { enabled: false },
 					upload: { enabled: false, confirmDelete: false },
 					voiceInput: { enabled: false },
+					send: { enabled: false },
 				},
 				layoutConfig,
 				providerConfig: {
@@ -95,6 +105,7 @@ describe("moduleConfig", () => {
 			expect(resolved.upload.enabled).toBe(false)
 			expect(resolved.upload.confirmDelete).toBe(false)
 			expect(resolved.voiceInput.enabled).toBe(false)
+			expect(resolved.send.enabled).toBe(false)
 		})
 	})
 })

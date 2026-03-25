@@ -94,6 +94,7 @@ export interface MessageEditorModules {
 	mcp?: MessageEditorMCPModuleConfig
 	upload?: MessageEditorUploadModuleConfig
 	voiceInput?: MessageEditorModuleConfig
+	send?: MessageEditorModuleConfig
 }
 
 // Component Props

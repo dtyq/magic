@@ -16,6 +16,7 @@ import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import TopicDesktopPanels from "@/pages/superMagic/pages/TopicPage/components/TopicDesktopPanels"
+import { useCompositeDetailPanelController } from "@/pages/superMagic/hooks/useCompositeDetailPanelController"
 import { useAttachmentsPolling } from "@/pages/superMagic/hooks/useAttachmentsPolling"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
 import PublishPanel, { PublishPanelStore } from "@/pages/superMagic/components/PublishPanel"
@@ -177,7 +178,6 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 	const attachments = store.projectFilesStore.workspaceFileTree
 	const attachmentList = store.projectFilesStore.workspaceFilesList
 	const isPublishPanelVisible = activeQuickActionPanel === "publish"
-	const shouldShowDetailPanel = Boolean(activeFileId || isPublishPanelVisible)
 	const loadedSkillCode = store.skill?.code
 	const routeState = useMemo(() => getRouteStateFromSearch(location.search), [location.search])
 	const publishPanelData = useMemo(
@@ -248,13 +248,6 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 	}, [store.project, store.projectFilesStore])
 
 	useEffect(() => {
-		setActiveFileId(null)
-		setUserSelectDetail(undefined)
-		setIsDetailPanelFullscreen(false)
-		setActiveQuickActionPanel(null)
-	}, [store.project?.id])
-
-	useEffect(() => {
 		const handleActiveFileIdUpdate = (fileId: string | null) => {
 			if (fileId) {
 				setActiveQuickActionPanel(null)
@@ -266,19 +259,6 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Update_Active_File_Id, handleActiveFileIdUpdate)
-		}
-	}, [])
-
-	useEffect(() => {
-		const handleOpenFileTab = (data: { fileId: string; fileData?: unknown }) => {
-			window.setTimeout(() => {
-				detailRef.current?.openFileTab?.(data.fileData || { file_id: data.fileId })
-			}, 100)
-		}
-
-		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
-		return () => {
-			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 		}
 	}, [])
 
@@ -326,6 +306,23 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 			detailRef.current?.openFileTab?.(fileItem)
 		}, 100)
 	})
+
+	const { shouldShowDetailPanel, handleFileClickWithPanel, handleActiveDetailTabChange } =
+		useCompositeDetailPanelController({
+			detailRef,
+			isReadOnly: false,
+			activeFileId,
+			setActiveFileId,
+			handleFileClick,
+			topicFilesProps: {},
+			extraPanelVisible: isPublishPanelVisible,
+			resetDeps: [store.project?.id],
+			onReset: () => {
+				setUserSelectDetail(undefined)
+				setIsDetailPanelFullscreen(false)
+				setActiveQuickActionPanel(null)
+			},
+		})
 
 	const openPublishPanel = useMemoizedFn(() => {
 		void refreshSkillVersions()
@@ -517,7 +514,7 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 								<TopicFilesButton
 									attachments={attachments}
 									setUserSelectDetail={setUserSelectDetail}
-									onFileClick={handleFileClick}
+									onFileClick={handleFileClickWithPanel}
 									projectId={store.project?.id}
 									activeFileId={activeFileId}
 									onAttachmentsChange={
@@ -562,6 +559,7 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 								attachmentList={attachmentList}
 								activeFileId={activeFileId}
 								onActiveFileChange={setActiveFileId}
+								onActiveTabChange={handleActiveDetailTabChange}
 								onFullscreenChange={setIsDetailPanelFullscreen}
 								allowEdit
 								selectedProject={store.project}

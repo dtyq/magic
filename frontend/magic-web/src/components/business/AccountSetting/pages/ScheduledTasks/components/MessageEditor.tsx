@@ -130,6 +130,10 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(function 
 			onContentChange: onChange ? (content) => onChange(content) : undefined,
 			modules: {
 				...modules,
+				send: {
+					...modules?.send,
+					enabled: false,
+				},
 				aiCompletion: {
 					...modules?.aiCompletion,
 					enabled: enableAiCompletion,

@@ -906,7 +906,7 @@
 	"messageEditor": {
 		"addAttachment": "添加附件",
 		"addModel": {
-			"addModel": "添加模型",
+			"addModel": "自定义模型",
 			"addProvider": "添加厂商",
 			"addProviderHint": "添加你的模型服务厂商信息",
 			"apiKey": "API Key",

@@ -45,6 +45,7 @@ interface UseMessageEditorProps {
 	selectedTopic?: Topic | null
 	onKeyboardInput?: () => void
 	shouldEnableMention?: boolean
+	sendEnabled?: boolean
 	aiCompletionEnabled?: boolean
 	isOAuthInProgress?: boolean
 	onFocus?: () => void
@@ -113,6 +114,7 @@ export const useMessageEditor = ({
 	selectedTopic,
 	onKeyboardInput,
 	shouldEnableMention = true,
+	sendEnabled = true,
 	aiCompletionEnabled = true,
 	isOAuthInProgress = false,
 	onFocus,
@@ -244,12 +246,14 @@ export const useMessageEditor = ({
 					// 移动端回车换行
 					if (isMobile) {
 						return false
-					} else {
-						// 普通回车发送消息
-						onKeyboardInput?.()
-						onSend?.(tiptapEditor?.getJSON())
-						return true
 					}
+
+					if (!sendEnabled) return true
+
+					// 普通回车发送消息
+					onKeyboardInput?.()
+					onSend?.(tiptapEditor?.getJSON())
+					return true
 				}
 
 				if (isContentKey) {

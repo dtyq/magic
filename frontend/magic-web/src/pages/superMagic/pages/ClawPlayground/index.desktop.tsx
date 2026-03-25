@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { JSONContent } from "@tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
@@ -15,13 +15,13 @@ import type { SuperMagicMessageItem } from "@/pages/superMagic/components/Messag
 import type { SendMessageOptions } from "@/pages/superMagic/components/MessagePanel/types"
 import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
+import { useCompositeDetailPanelController } from "@/pages/superMagic/hooks/useCompositeDetailPanelController"
 import { useInterruptAndUndoMessage } from "@/pages/superMagic/hooks/useInterruptAndUndoMessage"
 import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicConversationLoading"
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { createMessageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import TopicDesktopPanels from "@/pages/superMagic/pages/TopicPage/components/TopicDesktopPanels"
-import { useTopicDetailPanelController } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicDetailPanelController"
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
 import {
 	FileActionVisibilityProvider,
@@ -246,34 +246,27 @@ function ClawPlaygroundDesktop() {
 		isReadOnly,
 	})
 
-	const {
-		shouldShowDetailPanel,
-		topicFilesPropsWithPanel,
-		handleActiveDetailTabChange,
-		clearActiveDetailTabType,
-	} = useTopicDetailPanelController({
-		detailRef,
-		isReadOnly: false,
-		activeFileId,
-		setActiveFileId,
-		handleFileClick,
-		topicFilesProps,
-	})
-
-	const shouldShowDetailPanelWithSkills = shouldShowDetailPanel || isSkillsPanelOpen
+	const { shouldShowDetailPanel, topicFilesPropsWithPanel, handleActiveDetailTabChange } =
+		useCompositeDetailPanelController({
+			detailRef,
+			isReadOnly: false,
+			activeFileId,
+			setActiveFileId,
+			handleFileClick,
+			topicFilesProps,
+			extraPanelVisible: isSkillsPanelOpen,
+			resetDeps: [selectedProject?.id],
+			onReset: () => {
+				setUserSelectDetail(undefined)
+				setIsDetailPanelFullscreen(false)
+				setIsSkillsPanelOpen(false)
+			},
+		})
 	const resolveTopicFileRowDecoration = useMemoizedFn(
 		createClawPlaygroundFileRowDecorationResolver({
 			t: tSuper,
 		}),
 	)
-
-	useEffect(() => {
-		setUserSelectDetail(undefined)
-		setIsDetailPanelFullscreen(false)
-		clearActiveDetailTabType()
-		setActiveFileId(null)
-		setIsSkillsPanelOpen(false)
-	}, [clearActiveDetailTabType, selectedProject?.id, setActiveFileId])
 
 	function handleBack() {
 		navigate({ delta: -1 })
@@ -420,7 +413,7 @@ function ClawPlaygroundDesktop() {
 				}
 				isReadOnly={false}
 				showProjectResizeHandle
-				shouldShowDetailPanel={shouldShowDetailPanelWithSkills}
+				shouldShowDetailPanel={shouldShowDetailPanel}
 				renderMessagePanel={({
 					isConversationPanelCollapsed,
 					onToggleConversationPanel,
@@ -430,7 +423,7 @@ function ClawPlaygroundDesktop() {
 						isConversationPanelCollapsed={isConversationPanelCollapsed}
 						onToggleConversationPanel={onToggleConversationPanel}
 						onExpandConversationPanel={onExpandConversationPanel}
-						detailPanelVisible={shouldShowDetailPanelWithSkills}
+						detailPanelVisible={shouldShowDetailPanel}
 						clawCode={code}
 					/>
 				)}

@@ -139,6 +139,7 @@ export const MessageEditorContainer = observer(
 			const uploadEnabled = resolvedModules.upload.enabled
 			const mcpButtonConfig = resolvedModules.mcp
 			const voiceInputEnabled = resolvedModules.voiceInput.enabled
+			const sendEnabled = resolvedModules.send.enabled
 			const shouldConfirmUploadDelete = resolvedModules.upload.confirmDelete
 
 			const { store, parentStore } = useResolvedEditorStore({
@@ -225,6 +226,7 @@ export const MessageEditorContainer = observer(
 			)
 
 			const canSendMessage = useMemo(() => {
+				if (!sendEnabled) return false
 				if (hasLoadingMarker) return false
 				if (isEditingQueueItem) {
 					return isAllFilesUploaded && !isSending
@@ -237,6 +239,7 @@ export const MessageEditorContainer = observer(
 				store.editorStore.value,
 				isAllFilesUploaded,
 				isSending,
+				sendEnabled,
 			])
 
 			const sendButtonDisabled = !canSendMessage
@@ -316,6 +319,7 @@ export const MessageEditorContainer = observer(
 				selectedTopic,
 				onKeyboardInput: handleKeyboardInput,
 				shouldEnableMention,
+				sendEnabled,
 				aiCompletionEnabled,
 				isOAuthInProgress: store.editorStore.isOAuthInProgress,
 				onFocus,
@@ -634,6 +638,7 @@ export const MessageEditorContainer = observer(
 				fileUploadStore: store.fileUploadStore,
 				shouldEnableMention,
 				uploadEnabled,
+				sendEnabled,
 				sendButtonDisabled,
 				showLoading,
 				isTaskRunning,

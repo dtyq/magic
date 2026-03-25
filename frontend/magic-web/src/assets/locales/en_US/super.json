@@ -904,7 +904,7 @@
 	"messageEditor": {
 		"addAttachment": "Add Attachment",
 		"addModel": {
-			"addModel": "Add Model",
+			"addModel": "Custom Model",
 			"addProvider": "Add Provider",
 			"addProviderHint": "Add your model service provider information",
 			"apiKey": "API Key",

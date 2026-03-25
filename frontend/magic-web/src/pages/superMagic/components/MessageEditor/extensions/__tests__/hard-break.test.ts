@@ -1,4 +1,81 @@
-import { describe, it, expect } from "vitest"
+import { describe, expect, it } from "vitest"
+import { Schema } from "prosemirror-model"
+import { buildPasteSlice, shouldHandlePlainTextPaste } from "../hard-break"
+
+const schema = new Schema({
+	nodes: {
+		doc: {
+			content: "block+",
+		},
+		paragraph: {
+			group: "block",
+			content: "inline*",
+		},
+		text: {
+			group: "inline",
+		},
+		hardBreak: {
+			inline: true,
+			group: "inline",
+			selectable: false,
+		},
+	},
+})
+
+describe("buildPasteSlice", () => {
+	it("keeps single-line paste as inline content", () => {
+		const slice = buildPasteSlice({
+			schema,
+			text: "multi-search-engine",
+			isTextBlock: true,
+		})
+
+		expect(slice.openStart).toBe(0)
+		expect(slice.openEnd).toBe(0)
+		expect(slice.content.childCount).toBe(1)
+		expect(slice.content.firstChild?.type.name).toBe("text")
+		expect(slice.content.firstChild?.textContent).toBe("multi-search-engine")
+	})
+
+	it("turns multiline paste into paragraphs without hidden fillers", () => {
+		const slice = buildPasteSlice({
+			schema,
+			text: "multi-search-engine\nsonoscli\n\ndesktop-control",
+			isTextBlock: true,
+		})
+
+		expect(slice.openStart).toBe(1)
+		expect(slice.openEnd).toBe(1)
+		expect(slice.content.childCount).toBe(4)
+		expect(slice.content.child(0).type.name).toBe("paragraph")
+		expect(slice.content.child(0).textContent).toBe("multi-search-engine")
+		expect(slice.content.child(1).textContent).toBe("sonoscli")
+		expect(slice.content.child(2).textContent).toBe("")
+		expect(slice.content.child(2).content.size).toBe(0)
+		expect(slice.content.child(3).textContent).toBe("desktop-control")
+	})
+})
+
+describe("shouldHandlePlainTextPaste", () => {
+	it("handles plain text when html is absent", () => {
+		expect(shouldHandlePlainTextPaste("multi-search-engine", "")).toBe(true)
+	})
+
+	it("handles multiline plain text even when html exists", () => {
+		expect(
+			shouldHandlePlainTextPaste(
+				"multi-search-engine\nsonoscli",
+				"<div>multi-search-engine</div><div>sonoscli</div>",
+			),
+		).toBe(true)
+	})
+
+	it("keeps single-line rich html on the default paste path", () => {
+		expect(
+			shouldHandlePlainTextPaste("multi-search-engine", "<div>multi-search-engine</div>"),
+		).toBe(false)
+	})
+})
 
 // Helper function to detect if content is code (from the main file)
 function isCodeContent(text: string): boolean {
