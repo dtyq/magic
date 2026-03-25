@@ -301,6 +301,7 @@ class LLMAppService extends AbstractLLMAppService
             ->setAgentId($data['agent_id'] ?? '');
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateRequest->setModel($providerConfigItem->getModelVersion());
+        $startTime = microtime(true);
         $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
@@ -311,6 +312,40 @@ class LLMAppService extends AbstractLLMAppService
 
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
+
+        $productCodeForAudit = $modelId !== '' ? $modelId : (string) ($data['model'] ?? $modelVersion);
+        $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+        $auditCount = (int) ($data['generate_num'] ?? 4);
+        if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes(), true)) {
+            $auditCount = 1;
+        }
+        $this->dispatchAuditEventOnce(
+            userInfo: [
+                'organization_code' => $authorization->getOrganizationCode(),
+                'user_id' => $authorization->getId(),
+                'user_name' => trim($authorization->getRealName() ?: $authorization->getNickname()),
+            ],
+            ip: '',
+            type: AuditType::IMAGE,
+            productCode: $productCodeForAudit,
+            accessToken: '',
+            startTime: $startTime,
+            latencyMs: $latencyMs,
+            status: AuditStatus::SUCCESS,
+            usage: ['count' => $auditCount],
+            detailInfo: AuditDetailInfo::forModel(
+                '',
+                (string) ($data['source_id'] ?? ''),
+                $providerConfigItem->getProviderModelId(),
+                null,
+                ['chain' => 'imageGenerate']
+            ),
+            businessParams: [
+                'source_id' => (string) ($data['source_id'] ?? ''),
+                'chain' => 'imageGenerate',
+            ],
+            sourceMarker: 'imageGenerate'
+        );
 
         // 发布图片生成事件
         $imageGeneratedEvent = new ImageGeneratedEvent();
@@ -352,6 +387,39 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig()->toArray());
         $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
+        // 同步等待并返回图片URL
+        $startTime = microtime(true);
+        $imageUrl = $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
+        $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+        $this->dispatchAuditEventOnce(
+            userInfo: [
+                'organization_code' => $userAuthorization->getOrganizationCode(),
+                'user_id' => $userAuthorization->getId(),
+                'user_name' => trim($userAuthorization->getRealName() ?: $userAuthorization->getNickname()),
+            ],
+            ip: '',
+            type: AuditType::IMAGE,
+            productCode: $providerConfigItem->getModelVersion(),
+            accessToken: '',
+            startTime: $startTime,
+            latencyMs: $latencyMs,
+            status: AuditStatus::SUCCESS,
+            usage: ['count' => 1],
+            detailInfo: AuditDetailInfo::forModel(
+                '',
+                $reqDTO->getSourceId(),
+                $providerConfigItem->getProviderModelId(),
+                null,
+                ['chain' => 'imageConvertHigh']
+            ),
+            businessParams: [
+                'source_id' => $reqDTO->getSourceId(),
+                'chain' => 'imageConvertHigh',
+            ],
+            sourceMarker: 'imageConvertHigh'
+        );
+
+        // 审计同步落库后再派发计费事件，异步 worker 消费时便于先存在审计行再回填积分等
         $imageGeneratedEvent = new ImageGeneratedEvent();
         $imageGeneratedEvent->setOrganizationCode($userAuthorization->getOrganizationCode());
         $imageGeneratedEvent->setUserId($userAuthorization->getId());
@@ -365,8 +433,7 @@ class LLMAppService extends AbstractLLMAppService
 
         AsyncEventUtil::dispatch($imageGeneratedEvent);
 
-        // 同步等待并返回图片URL
-        return $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
+        return $imageUrl;
     }
 
     /**
@@ -1140,18 +1207,6 @@ class LLMAppService extends AbstractLLMAppService
                     $n = 1;
                 }
 
-                // 统一触发事件
-                $this->dispatchImageGeneratedEvent(
-                    $creator,
-                    $organizationCode,
-                    $textGenerateImageDTO,
-                    $n,
-                    $imageModel->getProviderModelId(),
-                    $callTime,
-                    $startTime,
-                    $accessTokenEntity
-                );
-
                 $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
                 $auditCount = $textGenerateImageDTO->getN();
                 if (in_array($imageModel->getModelVersion(), ImageGenerateModelType::getMidjourneyModes(), true)) {
@@ -1182,6 +1237,17 @@ class LLMAppService extends AbstractLLMAppService
                     ),
                     businessParams: $textGenerateImageDTO->getBusinessParams(),
                     sourceMarker: 'textGenerateImage'
+                );
+
+                $this->dispatchImageGeneratedEvent(
+                    $creator,
+                    $organizationCode,
+                    $textGenerateImageDTO,
+                    $n,
+                    $imageModel->getProviderModelId(),
+                    $callTime,
+                    $startTime,
+                    $accessTokenEntity
                 );
 
                 return $generateImageRaw;
@@ -1283,17 +1349,6 @@ class LLMAppService extends AbstractLLMAppService
             $imageGenerateRequest->setModel($imageModel->getModelVersion());
             $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
             if (! empty($generateImageRaw)) {
-                // 统一触发事件（图生图默认 1 张）
-                $this->dispatchImageGeneratedEvent(
-                    $creator,
-                    $organizationCode,
-                    $imageEditDTO,
-                    1,
-                    $imageModel->getProviderModelId(),
-                    $callTime,
-                    $startTime,
-                    $accessTokenEntity
-                );
 
                 $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
@@ -1323,6 +1378,19 @@ class LLMAppService extends AbstractLLMAppService
                     sourceMarker: 'imageEdit'
                 );
 
+                // 统一触发事件（图生图默认 1 张）
+                $this->dispatchImageGeneratedEvent(
+                    $creator,
+                    $organizationCode,
+                    $imageEditDTO,
+                    1,
+                    $imageModel->getProviderModelId(),
+                    $callTime,
+                    $startTime,
+                    $accessTokenEntity
+                );
+
+             
                 return $generateImageRaw;
             }
         } catch (Exception $e) {
