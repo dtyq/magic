@@ -641,13 +641,18 @@ class AgentContext(BaseAgentContext):
     def get_metadata(self) -> Dict[str, Any]:
         """获取元数据
 
-        每次从文件读取以确保获取到最新的 metadata
+        每次从文件读取以确保获取到最新的 metadata。
+        language 字段以 i18n 当前语言为准，覆盖文件中的值，
+        确保流消息中的 language 始终与实际翻译语言一致。
 
         Returns:
             Dict[str, Any]: 上下文元数据
         """
         from app.utils.init_client_message_util import InitClientMessageUtil
-        return InitClientMessageUtil.get_metadata()
+        from app.i18n import i18n
+        metadata = dict(InitClientMessageUtil.get_metadata())
+        metadata["language"] = i18n.get_language()
+        return metadata
 
     def _serialize_value(self, value: Any) -> Any:
         """将值转换为可序列化的格式
