@@ -45,7 +45,7 @@ class AuditLogEntity extends AbstractEntity
         return $this->id;
     }
 
-    public function setId(int|string|null $id): void
+    public function setId(null|int|string $id): void
     {
         $this->id = $id ? (string) $id : null;
     }
