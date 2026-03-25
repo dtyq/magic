@@ -510,7 +510,7 @@ class SuperMagicAgentAssembler
             return [
                 'type' => $publisherType->value,
                 'info' => [
-                    'name' => $userEntity->getNickname() ?: $creatorId,
+                    'name' => $userEntity?->getNickname() ?: $publisherType->value,
                     'avatar' => '',
                 ],
             ];
