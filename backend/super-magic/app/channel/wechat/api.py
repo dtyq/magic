@@ -312,10 +312,10 @@ def describe_non_text_item(item: dict[str, Any]) -> str:
         voice_text = str(((item.get("voice_item") or {}).get("text") or ""))
         return voice_text or "[voice message]"
     if item_type == 4:
-        return "[video]"
-    if item_type == 5:
         file_name = str(((item.get("file_item") or {}).get("file_name") or "")).strip()
         return f"[file: {file_name}]" if file_name else "[file]"
+    if item_type == 5:
+        return "[video]"
     return ""
 
 
