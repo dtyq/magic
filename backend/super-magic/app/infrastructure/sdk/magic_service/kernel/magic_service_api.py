@@ -104,3 +104,4 @@ class MagicServiceAbstractApi(AbstractApi):
 
         # Process Magic Service specific response
         return _process_magic_service_response(response)
+

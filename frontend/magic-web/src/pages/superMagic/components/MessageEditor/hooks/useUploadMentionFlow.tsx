@@ -30,6 +30,7 @@ interface UseUploadMentionFlowParams {
 	fileUploadStore: FileUploadStore
 	getEditor: () => Editor | null
 	isProjectContext: boolean
+	isQueueDraftMode?: boolean
 	confirmDelete?: boolean
 	onFileUpload?: (files: FileData[]) => void
 	runWithoutMentionRemoveSync: (callback: () => void) => void
@@ -42,6 +43,7 @@ export default function useUploadMentionFlow({
 	fileUploadStore,
 	getEditor,
 	isProjectContext,
+	isQueueDraftMode = false,
 	confirmDelete = true,
 	onFileUpload,
 	runWithoutMentionRemoveSync,
@@ -303,6 +305,11 @@ export default function useUploadMentionFlow({
 			return
 		}
 
+		if (isQueueDraftMode) {
+			removeMentionOnly(mentionAttrs)
+			return
+		}
+
 		if (!confirmDelete) {
 			void executeFileDeletion(mentionAttrs)
 			return
@@ -329,6 +336,10 @@ export default function useUploadMentionFlow({
 			// When delete confirmation is disabled, removing a mention from the editor
 			// should be treated as a confirmed deletion instead of being restored first.
 			if (!confirmDelete) {
+				return false
+			}
+
+			if (isQueueDraftMode) {
 				return false
 			}
 

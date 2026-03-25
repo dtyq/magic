@@ -8,7 +8,8 @@ declare(strict_types=1);
 namespace App\Interfaces\Bootstrap\Facade;
 
 use App\Application\Bootstrap\Service\BootstrapInitializationAppService;
-use App\Application\Kernel\Service\MagicSettingAppService;
+use App\Application\Bootstrap\Service\BootstrapStatusService;
+use App\Application\Bootstrap\ValueObject\BootstrapStatus;
 use App\Application\ModelGateway\Service\LLMTestAppService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -34,7 +35,7 @@ class BootstrapApi
 
     public function __construct(
         protected readonly RequestInterface $request,
-        protected readonly MagicSettingAppService $magicSettingAppService,
+        protected readonly BootstrapStatusService $bootstrapStatusService,
     ) {
     }
 
@@ -43,8 +44,12 @@ class BootstrapApi
      */
     public function checkStatus(RequestInterface $request): array
     {
+        $status = $this->bootstrapStatusService->getStatus();
+
         return [
-            'need_initial' => $this->magicSettingAppService->getWithoutCache()->isNeedInitial(),
+            'status' => $status->value,
+            'need_initial' => $status->needInitial(),
+            'allow_bootstrap_execute' => $status->allowExecute(),
         ];
     }
 
@@ -79,8 +84,20 @@ class BootstrapApi
 
     protected function assertBootstrapPending(): void
     {
-        if (! ($this->checkStatus($this->request)['need_initial'] ?? false)) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'bootstrap has already been initialized');
+        $status = $this->bootstrapStatusService->getStatus();
+        if ($status->allowExecute()) {
+            return;
         }
+
+        $message = $status === BootstrapStatus::Legacy
+            ? 'bootstrap is not available for legacy environment'
+            : 'bootstrap has already been initialized';
+
+        ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, $message);
+    }
+
+    protected function isBootstrapPending(): bool
+    {
+        return $this->bootstrapStatusService->getStatus()->needInitial();
     }
 }

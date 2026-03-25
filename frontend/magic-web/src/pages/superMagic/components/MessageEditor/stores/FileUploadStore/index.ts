@@ -1,7 +1,7 @@
 import { makeAutoObservable } from "mobx"
 import { t } from "i18next"
 import { logger as Logger } from "@/utils/log"
-import projectFilesStore from "@/stores/projectFiles"
+import projectFilesStore, { type ProjectFilesStore } from "@/stores/projectFiles"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { generateUniqueFileName } from "../../utils/generateUniqueFileName"
 import { superMagicUploadTokenService } from "../../services/UploadTokenService"
@@ -40,6 +40,7 @@ export interface FileUploadStoreOptions {
 	source?: UploadSource
 	needFilterSameFile?: boolean
 	onChange?: (files: FileData[]) => void
+	projectFilesStore?: ProjectFilesStore
 }
 
 const logger = Logger.createLogger("SuperMagicUpload")
@@ -76,8 +77,10 @@ export class FileUploadStore {
 	private uploadHandlers!: ReturnType<typeof createUploadHandlers>
 	private sessionUploadFileIds = new Set<string>()
 	private sessionSavedProjectFileIds = new Set<string>()
+	private projectFilesStore: ProjectFilesStore
 
 	constructor(options: FileUploadStoreOptions = {}) {
+		this.projectFilesStore = options.projectFilesStore ?? projectFilesStore
 		makeAutoObservable(
 			this,
 			{},
@@ -90,6 +93,7 @@ export class FileUploadStore {
 			getTopicId: () => this.topicId,
 			getStorageType: () => this.storageType,
 			getSource: () => this.source,
+			getProjectFilesStore: () => this.projectFilesStore,
 			trackSavedProjectFileId: (fileId) => this.trackSavedProjectFileId(fileId),
 			setFilesWithLimit: (updater) => this.setFilesWithLimit(updater),
 			onFileProgressUpdate: (...args) => this.onFileProgressUpdate?.(...args),
@@ -110,6 +114,8 @@ export class FileUploadStore {
 		if ("source" in options) this.source = options.source
 		if ("needFilterSameFile" in options && options.needFilterSameFile !== undefined)
 			this.needFilterSameFile = options.needFilterSameFile
+		if ("projectFilesStore" in options && options.projectFilesStore)
+			this.projectFilesStore = options.projectFilesStore
 
 		if ("onFileUpload" in options) this.onFileUpload = options.onFileUpload
 		if ("onFileAdded" in options) this.onFileAdded = options.onFileAdded
@@ -269,9 +275,9 @@ export class FileUploadStore {
 			const renamedFile =
 				uniqueFileName !== file.name
 					? new File([file], uniqueFileName, {
-						type: file.type,
-						lastModified: file.lastModified,
-					})
+							type: file.type,
+							lastModified: file.lastModified,
+						})
 					: file
 
 			fileDataList.push({
@@ -289,7 +295,7 @@ export class FileUploadStore {
 		)
 
 		if (this.projectId && customCredentials) {
-			const projectFileNames = projectFilesStore.getFileNamesInFolder(
+			const projectFileNames = this.projectFilesStore.getFileNamesInFolder(
 				customCredentials.temporary_credential.dir,
 			)
 

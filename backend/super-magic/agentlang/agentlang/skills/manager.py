@@ -6,7 +6,7 @@ import logging
 import asyncio
 import aiofiles
 
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from .models import SkillMetadata
 from .loader import SkillLoader
 from .exceptions import SkillNotFoundError, SkillResourceError
@@ -81,29 +81,32 @@ class SkillManager:
         """保留接口兼容性，实际不做任何事（已无缓存）"""
         pass
 
-    async def get_skill(self, name: str) -> Optional[SkillMetadata]:
+    async def get_skill(self, name: str, search_path: Optional[Path] = None) -> Optional[SkillMetadata]:
         """获取指定名称的 Skill（实时扫描磁盘，大小写不敏感）
 
         查找策略：
-        1. 精确匹配目录名
-        2. 大小写不敏感匹配目录名，读取 SKILL.md 后返回
+        1. 若指定 search_path，仅在该目录下做一次 iterdir() 查找，跳过 skills_dirs 遍历
+        2. 否则依次扫描 skills_dirs 中的每个目录
 
         Args:
             name: Skill 名称或 slug（大小写不敏感）
+            search_path: 可选，指定在哪个目录下查找，传入时不再遍历 skills_dirs
 
         Returns:
             SkillMetadata 实例，如果不存在返回 None
         """
         name_lower = name.lower()
+        dirs_to_search = [search_path] if search_path is not None else self.skills_dirs
 
-        for skills_dir in self.skills_dirs:
-            if not skills_dir.exists():
+        for skills_dir in dirs_to_search:
+            if not await asyncio.to_thread(skills_dir.exists):
                 continue
-            for entry in skills_dir.iterdir():
-                if not entry.is_dir() or entry.name.lower() != name_lower:
+            entries = await asyncio.to_thread(lambda: list(skills_dir.iterdir()))
+            for entry in entries:
+                if not await asyncio.to_thread(entry.is_dir) or entry.name.lower() != name_lower:
                     continue
                 skill_file = entry / "SKILL.md"
-                if not skill_file.exists():
+                if not await asyncio.to_thread(skill_file.exists):
                     continue
                 try:
                     return await self.loader.load_from_file(skill_file)
@@ -221,7 +224,7 @@ class SkillManager:
         async with aiofiles.open(ref_path, mode='r', encoding='utf-8') as f:
             content = await f.read()
 
-        return remove_human_annotations(content)
+        return remove_developer_annotations(content)
 
     async def get_resource_path(self, skill_name: str, resource_path: str) -> Path:
         """获取资源文件路径（异步）

@@ -1,6 +1,0 @@
-Hello World!
-This is a UTF-8 encoded text file.
-Line 3 with some content.
-Line 4 for testing pagination.
-Line 5 with unicode: 你好世界
-Final line for testing.

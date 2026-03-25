@@ -2,7 +2,6 @@ import { useMemoizedFn } from "ahooks"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { handleProjectFileMention } from "@/pages/superMagic/components/MessageEditor/utils"
 import { ProjectFileMentionData } from "@/components/business/MentionPanel/types"
-import pubsub from "@/utils/pubsub"
 import { useTranslation } from "react-i18next"
 import type { NodeProps } from "../types"
 import { Attachment } from "@/pages/superMagic/components/MessageList/components/MessageAttachment"
@@ -16,6 +15,7 @@ import {
 	type MentionListItem,
 } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { cn } from "@/lib/utils"
+import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 
 function Chat(props: NodeProps) {
 	const { onSelectDetail, onFileClick: handleFileClick } = props
@@ -26,18 +26,7 @@ function Chat(props: NodeProps) {
 	const mentions = node?.extra?.super_agent?.mentions || []
 
 	const onFileClick = useMemoizedFn((item?: TiptapMentionAttributes) => {
-		pubsub.publish("super_magic_switch_detail_mode", "files")
-
-		// 发布文件选择事件，传递文件信息用于打开对应的tab
-		// 根据MessageAttachment传递的数据结构，file_id可能在detail.data.file_id或detail.currentFileId中
-		// @ts-expect-error - TiptapMentionAttributes does not expose all file id shapes
-		const fileId = item?.data?.file_id || item?.currentFileId || item?.file_id || item?.id
-		if (item && fileId) {
-			pubsub.publish("super_magic_open_file_tab", {
-				fileId,
-				fileData: item,
-			})
-		}
+		openMessageFile(item)
 
 		onSelectDetail?.(item)
 	})

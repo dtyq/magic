@@ -13,7 +13,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, ToolDetail, TerminalContent
 
@@ -140,7 +140,7 @@ Whether to auto-compute layout (default False). When True, ignores card layout a
 
 
 @tool()
-class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], WorkspaceGuardTool[CreateDashboardCardsParams]):
+class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], WorkspaceTool[CreateDashboardCardsParams]):
     """<!--zh
     创建Dashboard卡片工具
     
@@ -223,10 +223,7 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
         """
         try:
             # 1. 获取项目路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-            
+            project_path = self.resolve_path(params.project_path)
             if not project_path.exists():
                 return ToolResult(
                     error=i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)

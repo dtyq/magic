@@ -32,6 +32,25 @@ export const CREW_SKILLS_TAB = {
 
 export type CrewSkillsTab = (typeof CREW_SKILLS_TAB)[keyof typeof CREW_SKILLS_TAB]
 
+export const CREW_SIDEBAR_TAB = {
+	Files: "files",
+	Advanced: "advanced",
+} as const
+
+export type CrewSidebarTab = (typeof CREW_SIDEBAR_TAB)[keyof typeof CREW_SIDEBAR_TAB]
+
+export const CREW_PANEL_ENABLED = {
+	[CREW_EDIT_STEP.Identity]: false,
+	[CREW_EDIT_STEP.KnowledgeBase]: false,
+	[CREW_EDIT_STEP.Skills]: true,
+	[CREW_EDIT_STEP.RunAndDebug]: false,
+	[CREW_EDIT_STEP.Publishing]: true,
+	[CREW_EDIT_STEP.Playbook]: true,
+	[CREW_EDIT_STEP.BuiltinSkills]: true,
+	[CREW_SIDEBAR_TAB.Files]: true,
+	[CREW_SIDEBAR_TAB.Advanced]: true,
+} as const
+
 /** Member identity aligned with AgentDetailResponse (name_i18n, role_i18n, etc). */
 export interface CrewMemberData {
 	name_i18n: CrewI18nText
@@ -46,6 +65,14 @@ export interface CrewMemberData {
 /** Maps a step key to the detail panel it should render in the center column */
 export type StepDetailKey = CrewEditStep | null
 
+export function isCrewStepEnabled(step: CrewEditStep) {
+	return CREW_PANEL_ENABLED[step]
+}
+
+export function isCrewSidebarTabEnabled(tab: CrewSidebarTab) {
+	return CREW_PANEL_ENABLED[tab]
+}
+
 interface CrewEditErrorLike {
 	code?: number
 	message?: string
@@ -59,6 +86,7 @@ export interface CrewEditAsyncError {
 export interface CrewCodeController {
 	getCrewCode: () => string | null
 	setCrewCode: (crewCode: string | null) => void
+	markCrewUpdated?: (updatedAt?: string) => void
 }
 
 export function createEmptyMemberData(): CrewMemberData {

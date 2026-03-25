@@ -1,194 +1,201 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
-import { CirclePlus, ChevronDown, Check, Upload, Github, Loader2 } from "lucide-react"
+import { CirclePlus, ChevronDown, Check, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
+import { useLocation } from "react-router"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import MagicDropdown from "@/components/base/MagicDropdown"
-import { cn } from "@/lib/utils"
-import ImportSkillDialog from "@/pages/superMagic/components/ImportSkillDialog"
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import PageTopBar from "@/pages/superMagic/components/PageTopBar"
-import { useUpload } from "@/hooks/useUploadFiles"
-import { skillsService } from "@/services/skills/SkillsService"
-import magicToast from "@/components/base/MagicToaster/utils"
-import EditSkillDialog from "./components/EditSkillDialog"
+import ImportSkillPublishPromptDialog from "@/pages/superMagic/components/ImportSkillPublishPromptDialog"
+import SkillActionDropdown from "@/pages/superMagic/components/SkillActionDropdown"
+import { useSkillCreateMenuItems } from "@/pages/superMagic/hooks/useSkillCreateMenuItems"
+import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
+import { RoutePath } from "@/constants/routes"
+import { configStore } from "@/models/config"
+import { defaultClusterCode } from "@/routes/helpers"
+import { fillRoute } from "@/routes/history/helpers"
+import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
+import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
 import MySkillCard from "./components/MySkillCard"
 import { UserSkillsStore } from "./stores/user-skills"
+import {
+	buildMySkillsQuery,
+	getMySkillsPublishPromptSkillCode,
+	getMySkillsRequestedTab,
+	MY_SKILLS_TAB_SCOPE_MAP,
+	MY_SKILLS_TAB_VALUES,
+	type MySkillsTabValue,
+} from "./route-state"
+
+interface MySkillsTabItem {
+	value: MySkillsTabValue
+	labelKey: string
+	testId: string
+}
 
 function MySkillsPage() {
 	const { t } = useTranslation("crew/market")
 	const userSkillsStore = useMemo(() => new UserSkillsStore(), [])
-	const sentinelRef = useRef<HTMLDivElement | null>(null)
-	const [importDialogOpen, setImportDialogOpen] = useState(false)
-	const [editingSkillCode, setEditingSkillCode] = useState<string | null>(null)
-	const updateFileInputRef = useRef<HTMLInputElement>(null)
-	const updatingSkillIdRef = useRef<string | null>(null)
-	const { upload } = useUpload({ storageType: "private" })
+	const navigate = useNavigate()
+	const location = useLocation()
+	const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
+	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
+	const [activeTab, setActiveTab] = useState<MySkillsTabValue>(
+		() => getMySkillsRequestedTab(location.search) ?? MY_SKILLS_TAB_VALUES.createdByMe,
+	)
+	const [publishPromptSkillCode, setPublishPromptSkillCode] = useState<string | null>(null)
+	const currentScope = MY_SKILLS_TAB_SCOPE_MAP[activeTab]
+	const handleAutoLoadMore = useCallback(() => {
+		void userSkillsStore.loadMore()
+	}, [userSkillsStore])
+	const loadMoreSentinelRef = useAutoLoadMoreSentinel({
+		rootRef: scrollViewportRef,
+		disabled:
+			userSkillsStore.loading || userSkillsStore.loadingMore || !userSkillsStore.hasMore,
+		onLoadMore: handleAutoLoadMore,
+	})
 
 	useEffect(() => {
-		void userSkillsStore.fetchSkills()
 		return () => userSkillsStore.reset()
 	}, [userSkillsStore])
 
 	useEffect(() => {
-		const sentinel = sentinelRef.current
-		if (!sentinel) return
+		const requestedTab = getMySkillsRequestedTab(location.search)
+		const requestedPublishPromptSkillCode = getMySkillsPublishPromptSkillCode(location.search)
+		if (!requestedTab && !requestedPublishPromptSkillCode) return
 
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (!entry.isIntersecting) return
-				if (
-					userSkillsStore.loading ||
-					userSkillsStore.loadingMore ||
-					!userSkillsStore.hasMore
-				) {
-					return
-				}
-				void userSkillsStore.loadMore()
-			},
-			{ rootMargin: "160px 0px" },
-		)
-		observer.observe(sentinel)
-		return () => observer.disconnect()
-	}, [
-		userSkillsStore,
-		userSkillsStore.loading,
-		userSkillsStore.loadingMore,
-		userSkillsStore.hasMore,
-	])
+		if (requestedTab) setActiveTab(requestedTab)
+		if (requestedPublishPromptSkillCode) {
+			setPublishPromptSkillCode(requestedPublishPromptSkillCode)
+		}
+		navigate({
+			name: RouteName.MySkills,
+			query: buildMySkillsQuery({
+				search: location.search,
+				tab: null,
+				publishSkillCode: null,
+			}),
+			replace: true,
+		})
+	}, [location.search, navigate])
 
-	const handleEdit = useCallback(
-		(id: string) => {
-			const skill = userSkillsStore.list.find((s) => s.id === id)
-			if (skill) setEditingSkillCode(skill.skillCode)
+	useEffect(() => {
+		void userSkillsStore.fetchSkills({ page: 1 }, currentScope)
+	}, [currentScope, userSkillsStore])
+	const shouldShowLoadingMoreIndicator = useDelayedVisibility({
+		visible: userSkillsStore.loadingMore,
+	})
+
+	const handleOpenSkill = useCallback(
+		(code: string) => {
+			navigate({ name: RouteName.SkillEdit, params: { code } })
 		},
-		[userSkillsStore.list],
+		[navigate],
 	)
 
-	const handleDelete = useCallback(
+	const handleEdit = handleOpenSkill
+
+	const getSkillEditHref = useCallback(
+		(skillCode: string) =>
+			fillRoute(`/:clusterCode${RoutePath.SkillEdit}`, {
+				clusterCode,
+				code: skillCode,
+			}) || "#",
+		[clusterCode],
+	)
+
+	const handleSkillCardNavigate = useCallback(
+		(skillCode: string, event: React.MouseEvent<HTMLElement>) => {
+			if (
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			) {
+				return
+			}
+			event.preventDefault()
+			navigate({ name: RouteName.SkillEdit, params: { code: skillCode } })
+		},
+		[navigate],
+	)
+
+	const handleDeleteCreatedSkill = useCallback(
 		(id: string) => {
-			void userSkillsStore.deleteSkill(id)
+			void userSkillsStore.deleteCreatedSkill(id)
 		},
 		[userSkillsStore],
 	)
 
-	// Directly trigger file picker inside the user-gesture call chain
-	const handleUpdate = useCallback((id: string) => {
-		updatingSkillIdRef.current = id
-		updateFileInputRef.current?.click()
-	}, [])
-
-	const handleUpdateFileChange = useCallback(
-		async (e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0]
-			// Reset so the same file can be re-selected next time
-			e.target.value = ""
-			if (!file) return
-
-			try {
-				const { fullfilled, rejected } = await upload([
-					{ name: file.name, file, status: "init" },
-				])
-				if (rejected.length > 0 || fullfilled.length === 0) {
-					magicToast.error(t("updateSkill.errors.parseFailed"))
-					return
-				}
-				const fileKey = fullfilled[0].value.key
-				const parseResult = await skillsService.parseSkillFile(fileKey)
-				const skill = userSkillsStore.list.find((s) => s.id === updatingSkillIdRef.current)
-				await skillsService.importSkill({
-					import_token: parseResult.import_token,
-					name_i18n: skill?.nameI18n ?? parseResult.name_i18n,
-					description_i18n: skill?.descriptionI18n ?? parseResult.description_i18n,
-					logo: skill?.logo || parseResult.logo || undefined,
-				})
-				magicToast.success(t("updateSkill.done"))
-				void userSkillsStore.fetchSkills()
-			} catch {
-				magicToast.error(t("updateSkill.errors.updateFailed"))
-			} finally {
-				updatingSkillIdRef.current = null
-			}
+	const handleRemoveInstalledSkill = useCallback(
+		(id: string) => {
+			void userSkillsStore.removeInstalledSkill(id)
 		},
-		[upload, t, userSkillsStore],
+		[userSkillsStore],
 	)
 
-	function handleCreateViaChat() {
-		// TODO: navigate to chat creation
-	}
+	const createSkillMenuItems = useSkillCreateMenuItems({
+		createViaChatTestId: "my-skills-create-via-chat",
+		importSkillTestId: "my-skills-import-skill",
+	})
 
-	function handleImportSkill() {
-		setImportDialogOpen(true)
-	}
+	const handleImportSuccess = useCallback(() => {
+		if (activeTab !== MY_SKILLS_TAB_VALUES.createdByMe) {
+			setActiveTab(MY_SKILLS_TAB_VALUES.createdByMe)
+			return
+		}
 
-	function handleImportFromGithub() {
-		// TODO: open github import dialog
-	}
+		void userSkillsStore.fetchSkills(
+			{ page: 1 },
+			MY_SKILLS_TAB_SCOPE_MAP[MY_SKILLS_TAB_VALUES.createdByMe],
+		)
+	}, [activeTab, userSkillsStore])
 
-	const createSkillMenuItems = useMemo(
+	const tabItems = useMemo<MySkillsTabItem[]>(
 		() => [
-			// {
-			// 	key: "create-via-chat",
-			// 	icon: <MessageCircleMore className="mt-0.5 size-4 shrink-0" />,
-			// 	label: (
-			// 		<div className="flex flex-col gap-1">
-			// 			<span className="text-sm font-medium">
-			// 				{t("skillsLibrary.createMenu.createViaChat")}
-			// 			</span>
-			// 			<span className="text-xs text-muted-foreground">
-			// 				{t("skillsLibrary.createMenu.createViaChatDesc")}
-			// 			</span>
-			// 		</div>
-			// 	),
-			// 	onClick: handleCreateViaChat,
-			// 	"data-testid": "my-skills-create-via-chat",
-			// },
 			{
-				key: "import-skill",
-				icon: <Upload className="mt-0.5 size-4 shrink-0" />,
-				label: (
-					<div className="flex flex-col gap-1">
-						<span className="text-sm font-medium">
-							{t("skillsLibrary.createMenu.importSkill")}
-						</span>
-						<span className="text-xs text-muted-foreground">
-							{t("skillsLibrary.createMenu.importSkillDesc")}
-						</span>
-					</div>
-				),
-				onClick: handleImportSkill,
-				"data-testid": "my-skills-import-skill",
+				value: MY_SKILLS_TAB_VALUES.createdByMe,
+				labelKey: "mySkills.tabs.createdByMe",
+				testId: "my-skills-tab-created-by-me",
 			},
 			{
-				key: "import-github",
-				icon: <Github className="mt-0.5 size-4 shrink-0" />,
-				label: (
-					<div className="flex flex-col gap-1">
-						<span className="text-sm font-medium">
-							{t("skillsLibrary.createMenu.importFromGithub")}
-						</span>
-						<span className="text-xs text-muted-foreground">
-							{t("skillsLibrary.createMenu.importFromGithubDesc")}
-						</span>
-					</div>
-				),
-				onClick: handleImportFromGithub,
-				"data-testid": "my-skills-import-github",
+				value: MY_SKILLS_TAB_VALUES.sharedByTeam,
+				labelKey: "mySkills.tabs.sharedByTeam",
+				testId: "my-skills-tab-shared-by-team",
+			},
+			{
+				value: MY_SKILLS_TAB_VALUES.fromSkillsLibrary,
+				labelKey: "mySkills.tabs.fromSkillsLibrary",
+				testId: "my-skills-tab-from-skills-library",
 			},
 		],
-		[t],
+		[],
 	)
+
+	const isCreatedByMeTab = activeTab === MY_SKILLS_TAB_VALUES.createdByMe
+	const isFromSkillsLibraryTab = activeTab === MY_SKILLS_TAB_VALUES.fromSkillsLibrary
+	const displayedSkills = userSkillsStore.list
 
 	return (
 		<div
-			className="shadow-xs flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background"
+			className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xs"
 			data-testid="my-skills-page"
 		>
+			<ImportSkillPublishPromptDialog
+				skillCode={publishPromptSkillCode}
+				onOpenChange={(open) => {
+					if (open) return
+					setPublishPromptSkillCode(null)
+				}}
+			/>
 			{/* Top header bar */}
 			<PageTopBar data-testid="my-skills-top-bar" backButtonTestId="my-skills-back-button" />
 
 			{/* Main scrollable section */}
-			<ScrollArea className="min-h-0 flex-1">
+			<ScrollArea className="min-h-0 flex-1" viewportRef={scrollViewportRef}>
 				<div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-7">
 					{/* Title + action buttons */}
 					<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -201,18 +208,16 @@ function MySkillsPage() {
 							</p>
 						</div>
 						<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-							<MagicDropdown
-								menu={{ items: createSkillMenuItems }}
+							<SkillActionDropdown
+								createMenuItems={createSkillMenuItems}
+								onImportSuccess={handleImportSuccess}
+								promptPublishAfterImport
 								placement="bottomRight"
-								overlayClassName={cn(
-									"w-80",
-									"[&_[data-slot='dropdown-menu-item']]:items-start",
-									"[&_[data-slot='dropdown-menu-item']]:!p-2",
-								)}
+								overlayClassName="w-80"
 							>
 								<span>
 									<Button
-										className="shadow-xs h-9 flex-1 gap-2 sm:flex-none"
+										className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
 										data-testid="my-skills-create-button"
 									>
 										<CirclePlus className="h-4 w-4" />
@@ -220,12 +225,34 @@ function MySkillsPage() {
 										<ChevronDown className="h-4 w-4" />
 									</Button>
 								</span>
-							</MagicDropdown>
+							</SkillActionDropdown>
 						</div>
 					</div>
 
+					<Tabs
+						value={activeTab}
+						onValueChange={(value) => setActiveTab(value as MySkillsTabValue)}
+						className="gap-0"
+						data-testid="my-skills-tabs"
+					>
+						<TabsList
+							className="grid h-9 w-full max-w-[600px] grid-cols-3"
+							data-testid="my-skills-tabs-list"
+						>
+							{tabItems.map((tabItem) => (
+								<TabsTrigger
+									key={tabItem.value}
+									value={tabItem.value}
+									data-testid={tabItem.testId}
+								>
+									{t(tabItem.labelKey)}
+								</TabsTrigger>
+							))}
+						</TabsList>
+					</Tabs>
+
 					{/* Skill card grid */}
-					{userSkillsStore.loading && userSkillsStore.list.length === 0 ? (
+					{userSkillsStore.loading && displayedSkills.length === 0 ? (
 						<div
 							className="flex items-center justify-center py-8"
 							data-testid="my-skills-loading"
@@ -241,28 +268,54 @@ function MySkillsPage() {
 						</div>
 					) : (
 						<div
-							className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3"
+							className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
 							data-testid="my-skill-card-grid"
 						>
-							{userSkillsStore.list.map((skill) => (
+							{displayedSkills.map((skill) => (
 								<MySkillCard
 									key={skill.id}
 									skill={skill}
+									cardVariant={
+										isCreatedByMeTab
+											? "created"
+											: isFromSkillsLibraryTab
+												? "library"
+												: "team"
+									}
+									href={
+										isCreatedByMeTab
+											? getSkillEditHref(skill.skillCode)
+											: undefined
+									}
+									onNavigate={
+										isCreatedByMeTab
+											? (event) =>
+													handleSkillCardNavigate(skill.skillCode, event)
+											: undefined
+									}
 									onEdit={handleEdit}
-									onUpdate={handleUpdate}
-									onDelete={handleDelete}
+									onDelete={
+										isCreatedByMeTab ? handleDeleteCreatedSkill : undefined
+									}
+									onRemove={
+										isFromSkillsLibraryTab
+											? handleRemoveInstalledSkill
+											: undefined
+									}
+									canEdit={isCreatedByMeTab}
+									isInteractive={isCreatedByMeTab}
 								/>
 							))}
 						</div>
 					)}
 
 					<div
-						ref={sentinelRef}
+						ref={loadMoreSentinelRef}
 						className="h-1 w-full"
 						data-testid="my-skills-scroll-sentinel"
 					/>
 
-					{userSkillsStore.loadingMore ? (
+					{shouldShowLoadingMoreIndicator ? (
 						<div
 							className="flex items-center justify-center py-2"
 							data-testid="my-skills-loading-more"
@@ -282,29 +335,6 @@ function MySkillsPage() {
 					) : null}
 				</div>
 			</ScrollArea>
-
-			{/* Hidden file input — clicked directly in handleUpdate (user-gesture context) */}
-			<input
-				ref={updateFileInputRef}
-				type="file"
-				accept=".zip,.skill"
-				className="hidden"
-				onChange={handleUpdateFileChange}
-				data-testid="update-skill-file-input"
-			/>
-
-			<ImportSkillDialog
-				open={importDialogOpen}
-				onOpenChange={setImportDialogOpen}
-				onSuccess={() => void userSkillsStore.fetchSkills()}
-			/>
-
-			<EditSkillDialog
-				open={!!editingSkillCode}
-				onOpenChange={(v) => !v && setEditingSkillCode(null)}
-				skillCode={editingSkillCode}
-				onSuccess={() => void userSkillsStore.fetchSkills()}
-			/>
 		</div>
 	)
 }

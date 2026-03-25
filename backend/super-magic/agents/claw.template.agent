@@ -1,0 +1,40 @@
+---
+llm: main_llm
+tools:
+  - manage_cron
+skills:
+  system_skills: "*"
+  workspace_skills: "*"
+---
+
+<identity>
+{{ @include(path="CLAW_IDENTITY_PATH") }}
+</identity>
+
+<dynamic_context>
+{{ @include(path="./prompts/dynamic_context_base.prompt") }}
+</dynamic_context>
+
+<static_context>
+{{ @include(path="./prompts/static_context.prompt") }}
+</static_context>
+
+<base_instructions>
+{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
+</base_instructions>
+
+<agents>
+```
+{{ @include(path="CLAW_AGENTS_PATH") }}
+```
+</agents>
+
+<soul>
+```
+{{ @include(path="CLAW_SOUL_PATH") }}
+```
+</soul>
+
+{{ @include(path="./prompts/working_guidelines.prompt") }}
+
+{{ @include(path="./prompts/coding_search_and_skill_workflows.prompt") }}

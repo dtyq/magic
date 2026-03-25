@@ -43,11 +43,13 @@ export class CrewIdentityStore {
 	private _debouncedSave: ReturnType<typeof debounce>
 	private readonly _getCrewCode: CrewCodeController["getCrewCode"]
 	private readonly _setCrewCode: CrewCodeController["setCrewCode"]
+	private readonly _markCrewUpdated?: CrewCodeController["markCrewUpdated"]
 	private readonly _saveDisposer: IReactionDisposer
 
-	constructor({ getCrewCode, setCrewCode }: CrewCodeController) {
+	constructor({ getCrewCode, setCrewCode, markCrewUpdated }: CrewCodeController) {
 		this._getCrewCode = getCrewCode
 		this._setCrewCode = setCrewCode
+		this._markCrewUpdated = markCrewUpdated
 		this._debouncedSave = debounce(() => {
 			// Skip flush if hydrate guard still active (edge timing vs. reaction).
 			if (
@@ -66,6 +68,7 @@ export class CrewIdentityStore {
 			| "_debouncedSave"
 			| "_getCrewCode"
 			| "_setCrewCode"
+			| "_markCrewUpdated"
 			| "_saveDisposer"
 		>(
 			this,
@@ -76,6 +79,7 @@ export class CrewIdentityStore {
 				_debouncedSave: false,
 				_getCrewCode: false,
 				_setCrewCode: false,
+				_markCrewUpdated: false,
 				_saveDisposer: false,
 			},
 			{ autoBind: true },
@@ -149,6 +153,7 @@ export class CrewIdentityStore {
 			await crewService.updateAgentInfo(crewCode, {
 				prompt_shadow: encodeCrewAgentPrompt(prompt),
 			})
+			this._markCrewUpdated?.()
 		} catch (error) {
 			const { message } = resolveCrewEditError({
 				error,
@@ -196,6 +201,7 @@ export class CrewIdentityStore {
 				description_i18n: update.description_i18n,
 				icon: iconUrl ? { type: "Image", value: iconUrl } : { value: "" },
 			})
+			this._markCrewUpdated?.()
 		} catch (error) {
 			const { message } = resolveCrewEditError({
 				error,
@@ -251,6 +257,7 @@ export class CrewIdentityStore {
 				runInAction(() => {
 					this._setCrewCode(code)
 				})
+				this._markCrewUpdated?.()
 			} else {
 				await crewService.updateAgentInfo(crewCode, {
 					name_i18n: nameI18n,
@@ -259,6 +266,7 @@ export class CrewIdentityStore {
 					icon: iconUrl ? { type: "Image", value: iconUrl } : { value: "" },
 					icon_type: iconUrl ? 2 : undefined,
 				})
+				this._markCrewUpdated?.()
 			}
 		} catch (error) {
 			const { message } = resolveCrewEditError({

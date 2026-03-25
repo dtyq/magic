@@ -22,5 +22,25 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	if err := dockerCheck.Run(ctx); err != nil {
 		return fmt.Errorf("Docker is not running. Please start Docker and try again")
 	}
+
+	s.d.log.Logi("deploy", "checking docker daemon network...")
+	if err := CheckDockerDaemonNetwork(ctx); err != nil {
+		s.d.log.Logw("deploy", "%s", err)
+	}
+
+	plan, err := BuildProxyPlan(ctx)
+	if err != nil {
+		s.d.log.Logw("deploy", "build proxy plan failed: %v", err)
+	} else {
+		s.d.proxyPlan = plan
+		for _, w := range plan.Warnings {
+			s.d.log.Logw("deploy", "%s", w)
+		}
+		if plan.ContainerProxyURL != "" {
+			s.d.log.Logi("deploy", "container proxy selected: %s", maskProxyURLForLog(plan.ContainerProxyURL))
+		} else if plan.HostProxyURL != "" {
+			s.d.log.Logi("deploy", "container proxy disabled due to failed reachability checks")
+		}
+	}
 	return s.d.resolveChartRefs()
 }

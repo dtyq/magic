@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react"
+import { createElement, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
 import { useLocation, useNavigate as useReactRouterNavigate } from "react-router"
@@ -6,61 +6,47 @@ import { useTabBarIndicator } from "./hooks"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { cn } from "@/lib/utils"
 
-// Icons
-import { MessageIcon, ApprovalIcon } from "./icons"
 import useChatUnreadCount from "./hooks/useChatUnreadCount"
 import { userStore } from "@/models/user"
-import SuperIcon from "./icons/SuperIcon"
-import MagicrewIcon from "./icons/Magicrew"
-import { isInternationalEnv } from "@/utils/env"
 import { mobileTabStore } from "@/stores/mobileTab"
 import { RoutePathMobile } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
-import { ProfileIcon } from "./icons/ProfileIcon"
 import TabBarOverlayGradient from "./TabBarOverlayGradient"
 import {
 	ROUTE_NAME_TO_TAB_PARAM,
 	MobileTabParam,
 	MobileTabBarKey,
 } from "@/pages/mobileTabs/constants"
-import { isMagicAppVersionAtLeast } from "@/utils/devices"
-import { RecordingIcon } from "./icons/RecordingIcon"
 import { notifyAppTabChange } from "./utils"
+import {
+	getMobileTabBarItems,
+	MOBILE_TAB_BAR_APPS_KEY,
+	type MobileTabBarItem,
+} from "./constants/tabsConfig"
+import { AppsMenu } from "./components/AppsMenu"
 
-type TabBarItem = {
-	key: MobileTabBarKey
-	icon: React.ReactNode
-	title: string
-	badge?: number
-	className?: string
-}
+const TAB_ICON_SIZE = 20
 
 function MobileTabBar() {
 	const { t } = useTranslation("interface")
-	const [tabBarVisible, setTabBarVisible] = useState(false)
 	const location = useLocation()
 	const reactRouterNavigate = useReactRouterNavigate()
 
-	// Touch handling for moreHandle swipe down gesture
-	const touchState = useRef({
-		startY: 0,
-		startTime: 0,
-		isTracking: false,
-	})
-
 	const { isPersonalOrganization } = userStore.user
 	const chatUnreadCount = useChatUnreadCount()
+	const [isAppsMenuOpen, setIsAppsMenuOpen] = useState(false)
 
 	// Get active key from store (cast via unknown for type compatibility)
 	const activeKey = mobileTabStore.activeTab
+	const visualActiveKey = isAppsMenuOpen ? MOBILE_TAB_BAR_APPS_KEY : activeKey
 
 	// Check if we're on MobileTabs route
 	const isOnMobileTabsRoute = location.pathname.includes("/mobile-tabs")
 
 	// 使用选中框动画 hook
 	const { tabBarRef, renderIndicator } = useTabBarIndicator({
-		activeKey: activeKey as string,
+		activeKey: visualActiveKey as string,
 		indicatorClassName:
 			"absolute h-12 bg-fill rounded-full transition-[left,width] duration-300 ease-in-out z-0 pointer-events-none",
 	})
@@ -74,6 +60,8 @@ function MobileTabBar() {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Chat)
 			} else if (pathname.includes("/approval")) {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Approval)
+			} else if (pathname.includes("/magi-claw")) {
+				mobileTabStore.setActiveTab(MobileTabBarKey.MagiClaw)
 			} else if (pathname.includes("/contacts")) {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Contacts)
 			} else if (pathname.includes("/super")) {
@@ -82,8 +70,13 @@ function MobileTabBar() {
 		}
 	}, [isOnMobileTabsRoute, location.pathname])
 
+	useEffect(() => {
+		setIsAppsMenuOpen(false)
+	}, [location.pathname, location.search])
+
 	// Handle tab change with state management
 	const handleTabChange = (targetKey: MobileTabBarKey) => {
+		setIsAppsMenuOpen(false)
 		if (targetKey === activeKey) return
 
 		// 震动反馈（在用户交互事件中触发）
@@ -154,155 +147,38 @@ function MobileTabBar() {
 			// 使用 push 记录到 history 堆栈
 			reactRouterNavigate(targetPath)
 		}
-
-		if (tabBarVisible) {
-			setTabBarVisible(false)
-		}
 	}
 
-	// Handle touch events for moreHandle swipe down gesture
-	const handleTouchStart = (e: React.TouchEvent) => {
-		const touch = e.touches[0]
-		touchState.current = {
-			startY: touch.clientY,
-			startTime: Date.now(),
-			isTracking: true,
+	const handleTabItemClick = (item: MobileTabBarItem) => {
+		if (item.key === MOBILE_TAB_BAR_APPS_KEY) {
+			setIsAppsMenuOpen((prevOpen) => !prevOpen)
+			notifyAppTabChange(MOBILE_TAB_BAR_APPS_KEY)
+			return
 		}
+
+		handleTabChange(item.key)
 	}
 
-	const handleTouchMove = (e: React.TouchEvent) => {
-		if (!touchState.current.isTracking) return
-
-		const touch = e.touches[0]
-		const deltaY = touch.clientY - touchState.current.startY
-
-		// Prevent scrolling on small movements
-		if (Math.abs(deltaY) > 10) {
-			e.preventDefault()
-		}
-	}
-
-	const handleTouchEnd = (e: React.TouchEvent) => {
-		if (!touchState.current.isTracking) return
-
-		const touch = e.changedTouches[0]
-		const deltaY = touch.clientY - touchState.current.startY
-		const deltaTime = Date.now() - touchState.current.startTime
-
-		// Reset tracking state
-		touchState.current.isTracking = false
-
-		// Check if it's a valid swipe down gesture
-		// Requirements: downward movement > 50px, duration < 500ms, minimum velocity
-		const isSwipeDown = deltaY > 50 && deltaTime < 500 && deltaY / deltaTime > 0.3
-
-		if (isSwipeDown && tabBarVisible) {
-			setTabBarVisible(false)
-		}
-	}
-
-	// Icon size for consistent rendering
-	const iconSize = 20
 	// Memoize tab items to prevent unnecessary re-renders
-	const tabItems = useMemo(() => {
-		const SuperTabIcon = isInternationalEnv() ? MagicrewIcon : SuperIcon
-		const items = isPersonalOrganization
-			? ([
-					{
-						key: MobileTabBarKey.Super,
-						icon: (
-							<SuperTabIcon
-								active={activeKey === MobileTabBarKey.Super}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.super"),
-					},
-					...(isMagicAppVersionAtLeast("1.1.0")
-						? [
-								{
-									key: MobileTabBarKey.Recording,
-									icon: (
-										<RecordingIcon
-											active={activeKey === MobileTabBarKey.Recording}
-											size={iconSize}
-										/>
-									),
-									title: t("sider.mobileTabBar.recording"),
-								},
-							]
-						: []),
-					{
-						key: MobileTabBarKey.Profile,
-						icon: (
-							<ProfileIcon
-								active={activeKey === MobileTabBarKey.Profile}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.profile"),
-					},
-				] as TabBarItem[])
-			: ([
-					{
-						key: MobileTabBarKey.Super,
-						icon: (
-							<SuperTabIcon
-								active={activeKey === MobileTabBarKey.Super}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.super"),
-					},
-					{
-						key: MobileTabBarKey.Chat,
-						icon: (
-							<MessageIcon
-								active={activeKey === MobileTabBarKey.Chat}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.chat"),
-						badge: chatUnreadCount,
-					},
-					...(isMagicAppVersionAtLeast("1.1.0")
-						? [
-								{
-									key: MobileTabBarKey.Recording,
-									icon: (
-										<RecordingIcon
-											active={activeKey === MobileTabBarKey.Recording}
-											size={iconSize}
-										/>
-									),
-									title: t("sider.mobileTabBar.recording"),
-								},
-							]
-						: []),
-					{
-						key: MobileTabBarKey.Approval,
-						icon: (
-							<ApprovalIcon
-								active={activeKey === MobileTabBarKey.Approval}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.approval"),
-					},
-					{
-						key: MobileTabBarKey.Profile,
-						icon: (
-							<ProfileIcon
-								active={activeKey === MobileTabBarKey.Profile}
-								size={iconSize}
-							/>
-						),
-						title: t("sider.mobileTabBar.profile"),
-					},
-				].filter(Boolean) as TabBarItem[])
-
-		return items
+	const tabItems = useMemo<MobileTabBarItem[]>(() => {
+		return getMobileTabBarItems({
+			activeKey,
+			chatUnreadCount,
+			iconSize: TAB_ICON_SIZE,
+			isPersonalOrganization,
+			translate: (key, values) => t(key, values),
+		})
 	}, [activeKey, chatUnreadCount, isPersonalOrganization, t])
+
+	const appsMenuItems = useMemo(
+		() => tabItems.find((item) => item.key === MOBILE_TAB_BAR_APPS_KEY)?.children ?? [],
+		[tabItems],
+	)
+
+	const handleAppsMenuClose = () => {
+		setIsAppsMenuOpen(false)
+		notifyAppTabChange(activeKey)
+	}
 
 	return (
 		<>
@@ -312,6 +188,7 @@ function MobileTabBar() {
 					"shadow-[0_2px_10px_rgba(0,0,0,0.05)] backdrop:blur-md",
 					"border border-[var(--custom-outline-10-dark-outline-20)]",
 				)}
+				data-testid="mobile-tab-bar"
 				style={{
 					bottom: "max(var(--safe-area-inset-bottom), 12px)",
 					left: 0,
@@ -328,13 +205,25 @@ function MobileTabBar() {
 					{renderIndicator()}
 
 					{/* Tab Items */}
-					{tabItems.slice(0, 5).map((item) => {
-						const isActive = activeKey === item.key
+					{tabItems.map((item) => {
+						const isActive =
+							item.key === MOBILE_TAB_BAR_APPS_KEY
+								? isAppsMenuOpen
+								: activeKey === item.key
 						return (
 							<button
 								key={item.key}
 								data-tab-key={item.key}
-								onClick={() => handleTabChange(item.key)}
+								data-testid={`mobile-tab-bar-${item.testIdSuffix}-${item.children?.length ? "trigger" : "tab"}`}
+								aria-expanded={
+									item.key === MOBILE_TAB_BAR_APPS_KEY
+										? isAppsMenuOpen
+										: undefined
+								}
+								aria-haspopup={
+									item.key === MOBILE_TAB_BAR_APPS_KEY ? "dialog" : undefined
+								}
+								onClick={() => handleTabItemClick(item)}
 								className={cn(
 									"relative z-[1] flex h-11 flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 transition-colors duration-200",
 									item.className,
@@ -348,7 +237,12 @@ function MobileTabBar() {
 											isActive ? "text-primary" : "text-muted-foreground",
 										)}
 									>
-										{item.icon}
+										{item.key === MOBILE_TAB_BAR_APPS_KEY
+											? createElement(item.iconComponent, {
+													active: isActive,
+													size: TAB_ICON_SIZE,
+												})
+											: item.icon}
 									</div>
 									{item.badge && item.badge > 0 ? (
 										<Badge
@@ -377,44 +271,14 @@ function MobileTabBar() {
 				</div>
 			</div>
 
-			{/* More Panel */}
-			{tabItems.length > 5 && (
-				<div
-					className={cn(
-						"absolute left-0 right-0 z-[998] rounded-t-[10px] border-t border-border bg-background px-3 pb-5 pt-2 transition-transform duration-300 ease-in-out",
-						tabBarVisible ? "translate-y-0" : "translate-y-full",
-					)}
-					style={{
-						bottom: `calc(59px + var(--safe-area-inset-bottom))`,
-					}}
-				>
-					{/* Swipe Handle */}
-					<div
-						className="box-border h-7 w-full rounded-[27px] after:mx-auto after:block after:h-1 after:w-[30px] after:rounded-[10px] after:bg-muted-foreground/30 after:content-['']"
-						onTouchStart={handleTouchStart}
-						onTouchMove={handleTouchMove}
-						onTouchEnd={handleTouchEnd}
-					/>
-
-					{/* More Items Grid */}
-					<div className="grid grid-cols-5 gap-1">
-						{tabItems.slice(5).map((item) => (
-							<button
-								key={item.key}
-								className="flex flex-col items-center gap-1 py-2"
-								onClick={() => handleTabChange(item.key)}
-							>
-								<div className="flex h-8 w-8 items-center justify-center">
-									{item.icon}
-								</div>
-								<span className="text-[10px] leading-[13px] text-muted-foreground">
-									{item.title}
-								</span>
-							</button>
-						))}
-					</div>
-				</div>
-			)}
+			<AppsMenu
+				open={isAppsMenuOpen}
+				title={t("sider.mobileTabBar.apps")}
+				items={appsMenuItems}
+				emptyText={t("sider.mobileTabBar.noOtherApps")}
+				onClose={handleAppsMenuClose}
+				onItemClick={handleTabChange}
+			/>
 
 			<TabBarOverlayGradient className="z-[997]" />
 		</>

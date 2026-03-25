@@ -40,12 +40,14 @@ Reading Data Files:
 <!--zh
 写文件：
 - 小文件(<=200行)直接一次性写入，大文件(>200行)先写入框架再逐步编辑添加，谨记单次写入太多会导致致命错误
-- 当大批量编辑时，你需要评估使用命令行或临时脚本进行替换是否会更为高效，尤其是当你需要通过输出大量的文本来完成替换或尝试批量编辑失败时
+- 当大批量编辑时，你需要评估使用命令行或临时脚本进行替换是否会更为高效，仅当需要输出大量文本才能完成替换时才适用；编辑工具失败本身不是升级为脚本的理由
+- 编辑工具失败时的处理顺序：重新读取文件获取精确内容 → 逐字复制 `old_string` → 再次尝试 → 确认内容完全匹配后仍失败 3 次以上，才考虑脚本
 - 多次写入技巧：第一次先写骨架，在每个待填充区域留锚点注释（格式：`<!-- ANCHOR: region-name -->`，代码文件用 `# ANCHOR: region-name`），后续 edit_file 按锚点定位精确填充，避免在大文件中搜索大段模糊文本导致定位失败
 -->
 Writing Files:
 - Small files (≤200 lines): Write directly in one go. Large files (>200 lines): Write framework first then gradually edit and add. Remember that writing too much at once causes fatal errors.
-- For large batch edits, assess whether using command-line or temporary scripts for replacement would be more efficient, especially when you need to output large amounts of text for replacement or batch editing fails.
+- For large batch edits, assess whether using command-line or temporary scripts for replacement would be more efficient, but only when you need to output large amounts of text for replacement. Edit tool failure alone is not a reason to escalate to scripts.
+- When edit tool fails, follow this order: re-read the file to get exact content → copy old_string character-by-character → retry → only consider scripts after 3+ confirmed failures with verified exact-match content.
 - Multi-pass technique: on pass 1, write the skeleton and place anchor comments at every region to be filled later (format: `<!-- ANCHOR: region-name -->` for HTML/markup, `# ANCHOR: region-name` for code). Subsequent edit_file calls target anchors precisely instead of searching through large ambiguous text blocks.
 
 <!--zh
@@ -57,10 +59,14 @@ Viewing Directories:
 
 <!--zh
 路径使用：
-- 默认工作区为 {{ @variable("workspace_dir") }}，文件操作优先使用相对路径，路径以工作区为基准
+- .workspace 内的文件：使用相对路径（如 `report.md`、`data/file.csv`）
+- .workspace 外的文件（项目其他路径或 VM 任意位置）：使用绝对路径
+- 向用户展示路径时，.workspace 内优先用相对路径，仅在必要时展示绝对路径
 -->
 Path Usage:
-- Default workspace is {{ @variable("workspace_dir") }}. Prefer relative paths for file operations, with paths relative to the workspace.
+- Files inside .workspace (current PWD): use relative paths (e.g., `report.md`, `data/file.csv`)
+- Files outside .workspace (other project paths or anywhere on VM): use absolute paths
+- When showing paths to users, prefer relative paths for .workspace files; show absolute only when necessary
 
 <!--zh
 【重要】中英文标点符号严格区分：

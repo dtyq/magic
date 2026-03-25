@@ -23,7 +23,7 @@ from typing import Optional, Tuple
 from filelock import FileLock
 from loguru import logger
 
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager
 from app.service.asr.asr_size_config import asr_size_config
 from app.service.asr.asr_base import AsrServiceBase

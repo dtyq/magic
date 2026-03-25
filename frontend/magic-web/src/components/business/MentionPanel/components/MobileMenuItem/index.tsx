@@ -16,7 +16,7 @@ import { useMobileStyles, getMobileItemIconStyle } from "../../mobileStyles"
 // Constants
 import { ICON_MAPPINGS } from "../../constants"
 import ToolIcon from "../icons/ToolIcon"
-import { getItemTypeDescription } from "../../utils/getValue"
+import { getItemTypeDescription, getSkillMentionSourceLabel } from "../../utils/getValue"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconX } from "@tabler/icons-react"
 import { getAttachmentType } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
@@ -77,8 +77,6 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 
 	const { styles, cx } = useMobileStyles()
 
-	console.log("item", item)
-
 	// Render icon (consistent with PC version)
 	const renderIcon = useCallback(() => {
 		const { icon, data, type } = item
@@ -99,7 +97,7 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 			return icon && typeof icon === "string" ? (
 				<img src={icon} style={{ width: 20, height: 20, borderRadius: 8 }} alt="agent" />
 			) : (
-				<BotIcon size={20} radius={8} />
+				<BotIcon size={20} />
 			)
 		}
 
@@ -107,7 +105,7 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 			return icon && typeof icon === "string" ? (
 				<img src={icon} style={{ width: 20, height: 20, borderRadius: 8 }} alt="mcp" />
 			) : (
-				<PlugIcon size={20} radius={8} />
+				<PlugIcon size={20} />
 			)
 		}
 
@@ -131,7 +129,7 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 			return icon && typeof icon === "string" ? (
 				<img src={icon} style={{ width: 20, height: 20, borderRadius: 8 }} alt="tool" />
 			) : (
-				icon || <ToolIcon size={20} radius={8} />
+				icon || <ToolIcon size={20} />
 			)
 		}
 
@@ -241,6 +239,13 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 	}
 
 	const iconStyle = getMobileItemIconStyle(item.type)
+	const skillSourceLabel = getSkillMentionSourceLabel(item, t)
+	const shouldRenderTypeDescription =
+		!!skillSourceLabel ||
+		isSearch ||
+		item.tags?.includes("history") ||
+		item.tags?.includes("tab")
+	const typeDescription = skillSourceLabel || getItemTypeDescription(item, t)
 
 	return (
 		<div
@@ -251,6 +256,7 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 			role="option"
 			aria-selected={selected}
 			tabIndex={selected ? 0 : -1}
+			data-testid="mention-panel-menu-item"
 			{...restProps}
 		>
 			{/* Icon */}
@@ -261,11 +267,12 @@ const MobileMenuItem = memo((props: MenuItemProps) => {
 				<div className={styles.menuItemTitle}>{item.name}</div>
 				{renderDescription()}
 			</div>
-			{(isSearch || item.tags?.includes("history") || item.tags?.includes("tab")) && (
-				<div className={styles.typeDescription}>
-					<span className={styles.typeDescriptionContent}>
-						{getItemTypeDescription(item, t)}
-					</span>
+			{shouldRenderTypeDescription && (
+				<div
+					className={styles.typeDescription}
+					data-testid={skillSourceLabel ? "mention-panel-skill-source" : undefined}
+				>
+					<span className={styles.typeDescriptionContent}>{typeDescription}</span>
 				</div>
 			)}
 			{/* Delete button */}

@@ -27,7 +27,7 @@ from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.exceptions import InitException, UploadException
 from app.infrastructure.storage.factory import StorageFactory
 from app.infrastructure.storage.types import StorageResponse
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.agent_event.base_listener_service import BaseListenerService
 from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir, get_storage_dir, get_storage_dir_with_fallback

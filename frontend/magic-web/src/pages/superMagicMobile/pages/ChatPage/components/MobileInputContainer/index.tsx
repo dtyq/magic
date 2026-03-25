@@ -107,6 +107,11 @@ const MobileInputContainer = forwardRef<MobileInputContainerRef, MobileInputCont
 					onInputClick={handleOpenRealInput}
 					syncContent={sharedContent}
 					editorNodes={editorNodes}
+					isTaskRunning={
+						editorContext.isTaskRunning ?? editorContext.showLoading ?? false
+					}
+					stopEventLoading={editorContext.stopEventLoading ?? false}
+					onInterrupt={editorContext.handleInterrupt}
 				/>
 
 				{/* 真正的输入框 */}

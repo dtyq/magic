@@ -175,10 +175,10 @@ export const ScheduledTasksModify = forwardRef<ScheduledTasksModifyRef, Schedule
 					plugins:
 						mcpTempStorage.mcpList.length > 0
 							? {
-								servers: mcpTempStorage.mcpList.map((item) => ({
-									id: item.id,
-								})),
-							}
+									servers: mcpTempStorage.mcpList.map((item) => ({
+										id: item.id,
+									})),
+								}
 							: undefined,
 				})
 			} catch (error) {
@@ -224,7 +224,7 @@ export const ScheduledTasksModify = forwardRef<ScheduledTasksModifyRef, Schedule
 			)
 			setTopicMode(
 				(initialValues.message_content.extra?.super_agent?.topic_pattern as TopicMode) ||
-				TopicMode.General,
+					TopicMode.General,
 			)
 		}, [initialValues, loading])
 
@@ -399,6 +399,7 @@ export const ScheduledTasksModify = forwardRef<ScheduledTasksModifyRef, Schedule
 								allowChangeMode
 								attachments={attachments}
 								size={isMobile ? "mobile" : "default"}
+								containerClassName="border-none"
 							/>
 						</Form.Item>
 

@@ -11,7 +11,7 @@ from ...interface import StreamingInterface
 from ...models import ChunkData, StreamingResult
 from .config import SocketIODriverConfig
 from agentlang.logger import get_logger
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.utils.shadow_code import ShadowCode
 
 logger = get_logger(__name__)

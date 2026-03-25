@@ -57,10 +57,40 @@ export const enum ConversationMessageType {
 	SuperMagic = "general_agent_card",
 }
 
-export interface SuperMagicContent {
-	type: ConversationMessageType.SuperMagic
-	content: string
+export interface SuperMagicTool {
+	id?: string
+	name?: string
+	action?: string
+	status?: string
+	remark?: string
+	detail?: Record<string, unknown>
+	attachments?: Array<Record<string, unknown>>
+	[key: string]: unknown
 }
+
+export interface SuperMagicNode {
+	topic_id?: string
+	message_id?: string
+	task_id?: string
+	type?: string
+	status?: string
+	content?: string
+	steps?: unknown[]
+	event?: string
+	role?: string
+	correlation_id?: string
+	parent_correlation_id?: string
+	tool?: SuperMagicTool
+	send_timestamp?: number
+	[key: string]: unknown
+}
+
+export interface SuperMagicConversationMessage extends ConversationMessageBase {
+	type: ConversationMessageType.SuperMagic
+	general_agent_card: SuperMagicNode
+}
+
+export type SuperMagicContent = SuperMagicConversationMessage
 
 /**
  * 携带流式消息状态
@@ -754,6 +784,8 @@ export type ConversationMessage =
 	| AIImagesMessage
 	| RecordSummaryConversationMessage
 	| HDImageMessage
+
+export type ConversationQueryMessage = ConversationMessage | SuperMagicConversationMessage
 
 /** 发送状态 */
 export const enum SendStatus {

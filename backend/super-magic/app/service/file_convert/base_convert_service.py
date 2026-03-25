@@ -37,7 +37,7 @@ from app.core.context.agent_context import AgentContext
 from app.core.entity.aigc_metadata import AigcMetadataParams
 from app.core.entity.message.client_message import InitClientMessage
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.convert_task_manager import task_manager
 from app.utils.metadata_utils import AigcMetadataUtil
 from app.utils.path_utils import get_workspace_dir

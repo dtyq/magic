@@ -12,12 +12,13 @@ const useStyles = createStyles(({ css, token }) => {
 		logo: css`
 			height: 100%;
 			width: auto;
+			max-width: unset;
 			color: ${token.magicColorUsages.text[3]};
 		`,
 	}
 })
 
-const DEFAULT_LOGO_HEIGHT = 42
+const DEFAULT_LOGO_HEIGHT = 80
 
 function Logo({
 	className,

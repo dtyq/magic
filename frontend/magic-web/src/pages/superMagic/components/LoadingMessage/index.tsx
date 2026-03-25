@@ -15,6 +15,7 @@ import { superMagicStore } from "@/pages/superMagic/stores"
 import { SendMessageOptions } from "../MessagePanel/types"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { cn } from "@/lib/utils"
+import { useMessageListContext } from "../MessageList/context"
 
 const TIMEOUT_THRESHOLD = 60 * 5 // 5分钟
 const MAX_TIMEOUT_THRESHOLD = 60 * 60 // 60分钟
@@ -45,6 +46,8 @@ export default function LoadingMessage({
 	const [lastMessageKey, setLastMessageKey] = useState<string>("")
 	const [confirmDisabled, setConfirmDisabled] = useState(false)
 	const [cancelDisabled, setCancelDisabled] = useState(false)
+
+	const { allowCreateNewTopic } = useMessageListContext()
 
 	const { t } = useTranslation("super")
 
@@ -237,11 +240,15 @@ export default function LoadingMessage({
 					cancelText={t("warningCard.tryAgain")}
 					confirmDisabled={confirmDisabled}
 					cancelDisabled={cancelDisabled}
-					onConfirm={() => {
-						setConfirmDisabled(true)
-						pubsub.publish("send_interrupt_message")
-						pubsub.publish("super_magic_create_create_topic")
-					}}
+					onConfirm={
+						allowCreateNewTopic
+							? () => {
+									setConfirmDisabled(true)
+									pubsub.publish("send_interrupt_message")
+									pubsub.publish("super_magic_create_create_topic")
+								}
+							: undefined
+					}
 					onCancel={() => {
 						setCancelDisabled(true)
 						handleSendInterruptMessage()

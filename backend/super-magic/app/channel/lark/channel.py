@@ -85,7 +85,7 @@ class LarkChannel(BaseChannel):
         if credential is None:
             return None
 
-        return f"App ID：{credential.app_id}"
+        return f"App ID: {credential.app_id}"
 
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         credential = config.lark
@@ -248,19 +248,19 @@ class LarkChannel(BaseChannel):
         ctx.add_streaming_sink(driver)
 
         task_id = f"lark_{uuid.uuid4().hex[:16]}"
-        try:
-            chat_msg = ChatClientMessage(
-                message_id=task_id,
-                prompt=text,
-                metadata=Metadata(agent_user_id=user_id),
-            )
-            logger.info(f"[LarkChannel] 分发消息: user_id={user_id}, len={len(text)}")
-            await dispatcher.dispatch_agent(chat_msg)
-        except Exception as e:
-            logger.error(f"[LarkChannel] dispatch_agent 失败: {e}")
-        finally:
+        chat_msg = ChatClientMessage(
+            message_id=task_id,
+            prompt=text,
+            metadata=Metadata(agent_user_id=user_id),
+        )
+        logger.info(f"[LarkChannel] 分发消息: user_id={user_id}, len={len(text)}")
+        await dispatcher.submit_message(chat_msg)
+
+        async def _cleanup() -> None:
             ctx.remove_stream(stream)
             ctx.remove_streaming_sink(driver)
+
+        ctx.register_run_cleanup("lark_stream", _cleanup)
 
     async def _create_streaming_card(self) -> Optional[str]:
         """创建 CardKit 流式卡片，返回 card_id，失败返回 None。"""

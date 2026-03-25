@@ -4,9 +4,9 @@
 Current time: {{ @variable("current_datetime") }}. When handling time-related expressions like "this year", "recently", "currently", "latest", "now", you must calculate and understand based on current time. For example, when the question is "this year's stock performance", interpret it as stock performance for the year of current time.
 
 <!--zh
-当前AI大语言模型: {{ @variable("dynamic_model_id") }}
+当前AI大语言模型 (model_id): {{ @variable("dynamic_model_id") }}
 -->
-Current AI LLM: {{ @variable("dynamic_model_id") }}
+Current AI LLM (model_id): {{ @variable("dynamic_model_id") }}
 
 <!--zh
 当前工作区文件列表(list_dir(path=".")):
@@ -17,9 +17,9 @@ Current workspace file list (list_dir(path=".")):
 ```
 
 <!--zh
-用户偏好语言是：{{ @variable("user_preferred_language") }}。若用户明确要求使用其他语言，请使用用户要求的语言。
+我(用户)的偏好语言是：{{ @variable("user_preferred_language") }}，你需要使用我的偏好的语言进行回答。若我后续明确要求使用其他语言，请立即切换到我要求的语言。
 -->
-User preferred language is: {{ @variable("user_preferred_language") }}. If user explicitly requests another language, use the language user requested.
+My (user) preferred language is: {{ @variable("user_preferred_language") }}. You need to use my preferred language to answer. If I explicitly request another language, please switch to the language I requested immediately.
 
 <!--zh
 以下是从我们之前对话中提炼的一些重要记忆：

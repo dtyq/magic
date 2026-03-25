@@ -18,7 +18,7 @@ from uuid import uuid4
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.asr.asr_time_config import asr_time_config
 from app.service.asr.asr_base import AsrServiceBase, ReadJsonOptions
 

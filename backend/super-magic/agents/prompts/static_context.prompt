@@ -1,10 +1,20 @@
 <!--zh
-- 工作区（workspace）: {{ @variable("workspace_dir") }}，用户的项目文件存放目录，文件操作默认在此目录下进行
-- 当前工作目录（cwd）: {{ @variable("cwd") }}，进程运行时的当前目录
-以下目录相对于工作区：
-注：用户采用的术语与此不同，当前的工作区对用户而言是一个大项目，里面可能包含多个独立项目，用户所说的「项目」可能指的是整个工作区，也可能指的是工作区下的某个项目文件夹，请在理解与表述时注意区分
+- 当前工作目录 (PWD): {{ @variable("workspace_dir") }}
+  - 工具默认运行在此目录；.workspace 内的文件使用相对路径访问
+  - 此目录挂载于对象存储，用户在界面上看到的文件就是这里的内容，会持久化保存
+  - .workspace 之外的文件：用户不可见、VM 重启后重置，只有在需要时临时访问
+- 路径规则：
+  - .workspace 内的文件：使用相对路径（如 report.md）
+  - .workspace 外（项目代码、VM 系统路径等）：使用绝对路径，如 {{ @variable("project_root") }}/agents/magic.agent
+以下目录路径相对于当前工作目录（即 .workspace）：
+注：用户采用的术语与此不同，当前的工作目录对用户而言是一个大项目，里面可能包含多个独立项目，用户所说的「项目」可能指的是整个工作目录，也可能指的是工作目录下的某个子项目，请在理解与表述时注意区分
 -->
-- Workspace: {{ @variable("workspace_dir") }}, directory where user's project files reside; file operations default to this directory
-- Current Working Directory (cwd): {{ @variable("cwd") }}, the process's current directory at runtime
-Directories below are relative to workspace:
-Note: User terminology differs. The current workspace is a large project to the user, which may contain multiple independent projects. When user says "project", it may refer to the entire workspace or a specific project folder within it. Pay attention to this distinction in understanding and expression.
+- Current Working Directory (PWD): {{ @variable("workspace_dir") }}
+  - Tools run here by default; files inside .workspace use relative paths
+  - This directory is mounted on object storage — it's what users see in the UI and persists across sessions
+  - Files outside .workspace are NOT visible to users and reset on VM restart; access them temporarily only if needed
+- Path rules:
+  - Files inside .workspace: use relative paths (e.g., `report.md`)
+  - Files outside .workspace (project code, VM system paths, etc.): use absolute paths, e.g., `{{ @variable("project_root") }}/agents/magic.agent`
+Directories below are relative to current working directory (.workspace):
+Note: User terminology differs. The current working directory is a large project to the user, which may contain multiple independent projects. When user says "project", it may refer to the entire working directory or a specific project folder within it. Pay attention to this distinction.

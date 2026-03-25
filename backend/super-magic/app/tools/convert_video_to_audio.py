@@ -17,7 +17,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,7 @@ class ConvertVideoToAudioParams(BaseToolParams):
 
 
 @tool()
-class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], WorkspaceGuardTool[ConvertVideoToAudioParams]):
+class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], WorkspaceTool[ConvertVideoToAudioParams]):
     """
     将视频文件转换为音频文件
 
@@ -98,18 +98,15 @@ class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], Workspace
             # 1. 参数验证
             output_format = params.output_format.lower()
             if output_format not in AUDIO_FORMATS:
-                return ToolResult(error=f"不支持的音频格式 '{params.output_format}'。支持的格式：{', '.join(AUDIO_FORMATS.keys())}")
+                return ToolResult.error(f"不支持的音频格式 '{params.output_format}'。支持的格式：{', '.join(AUDIO_FORMATS.keys())}")
 
             # 2. 检查视频文件是否存在
-            video_path, error = self.get_safe_path(params.video_path)
-            if error:
-                return ToolResult(error=error)
-
+            video_path = self.resolve_path(params.video_path)
             if not await asyncio.to_thread(video_path.exists):
-                return ToolResult(error=f"视频文件不存在：{params.video_path}")
+                return ToolResult.error(f"视频文件不存在：{params.video_path}")
 
             if not await asyncio.to_thread(video_path.is_file):
-                return ToolResult(error=f"路径不是文件：{params.video_path}")
+                return ToolResult.error(f"路径不是文件：{params.video_path}")
 
             # 3. 确定输出路径（与视频文件同目录，同名但扩展名不同）
             output_path = video_path.with_suffix(f'.{output_format}')
@@ -126,7 +123,7 @@ class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], Workspace
 
             if not success:
                 error_detail = f"视频转音频失败: {error}" if error else "视频转音频失败，请检查视频文件是否包含音频流"
-                return ToolResult(error=error_detail)
+                return ToolResult.error(error_detail)
 
             created_files.append(output_path)
 
@@ -152,7 +149,7 @@ class ConvertVideoToAudio(AbstractFileTool[ConvertVideoToAudioParams], Workspace
             # 回滚：删除已创建的文件
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error="Failed to convert video to audio")
+            return ToolResult.error("Failed to convert video to audio")
 
     async def _convert_video_to_audio(
         self,

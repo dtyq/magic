@@ -528,6 +528,21 @@ models:
       output_price: 0.004
       currency: "CNY"
 
+  qwen3.5-flash:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_5_FLASH_MODEL:-qwen3.5-flash}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.0003
+      output_price: 0.0006
+      currency: "CNY"
+
   qwen-flash:
     api_key: "${MAGIC_API_KEY}"
     api_base_url: "${MAGIC_API_BASE_URL}"
@@ -731,11 +746,27 @@ image_search:
   # 默认图片搜索引擎: bing, serpapi 或 magic
   default_engine: "${IMAGE_SEARCH_DEFAULT_ENGINE:-magic}"
 
+filebase:
+  embedding_model_id: "${FILEBASE_EMBEDDING_MODEL_ID:-magic-embedding}"
+  collection_prefix: "${FILEBASE_COLLECTION_PREFIX:-SUPERMAGIC-FILEBASE}"
+  max_vectorization_concurrency: "${FILEBASE_MAX_VECTORIZATION_CONCURRENCY:-20}"
+  max_embedding_retry_attempts: "${FILEBASE_MAX_EMBEDDING_RETRY_ATTEMPTS:-5}"
+
 token_service:
   address: "${TOKEN_SERVICE_ADDRESS}"
   redis_uri: "${REDIS_URI}"
   app_id: "${APP_ID}"
   app_secret: "${APP_SECRET}"
+
+qdrant:
+  base_uri: "${QDRANT_BASE_URI}"
+  api_key: "${QDRANT_API_KEY}"
+  collection_prefix: "${QDRANT_COLLECTION_PREFIX:-SUPERMAGIC-}"
+  filebase_prefix: "${QDRANT_FILEBASE_PREFIX:-SUPERMAGIC-FILEBASE-}"
+
+# TikHub配置
+tikhub:
+  api_key: "${TIKHUB_API_KEY}"
 
 # 存储服务配置
 storage:
@@ -803,7 +834,7 @@ ai_abilities:
   # Visual Understanding Ability (视觉理解能力)
   # Used for image analysis and visual content understanding
   visual_understanding:
-    model_id: "${VISUAL_UNDERSTANDING_MODEL_ID:-doubao-seed-1.6-vision}"
+    model_id: "${VISUAL_UNDERSTANDING_MODEL_ID:-qwen3.5-flash}"
     timeout: 120
     max_images: 10
     enabled: true
@@ -865,6 +896,8 @@ web_scraping:
 
   # SearchAPI 配置 (第三方网页爬取服务)
   search_api:
+    # API 端点地址
+#    endpoint: ${SEARCH_API_ENDPOINT:-https://searchapi.cloudsway.net/search/HcAMcybqJTnDtGiJ/read}
     # API Token (必须通过环境变量 MAGIC_API_KEY 设置, 走magic-service代理)
     token: ${MAGIC_API_KEY}
     # 爬取模式: quality (质量优先) 或 speed (速度优先)

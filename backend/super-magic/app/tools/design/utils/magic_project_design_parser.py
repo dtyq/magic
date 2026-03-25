@@ -17,7 +17,7 @@ from typing import List, Optional, Union, Literal, Dict, Any
 import aiofiles
 import aiofiles.os
 
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.logger import get_logger
 from app.tools.design.constants import DEFAULT_ELEMENT_WIDTH, DEFAULT_ELEMENT_HEIGHT
 from app.utils.async_file_utils import async_exists, async_mkdir

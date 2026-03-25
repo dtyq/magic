@@ -43,6 +43,8 @@ interface TopicHistoryDropdownProps {
 	topicService?: TopicServiceClass
 	placement?: string
 	onDropdownOpenChange?: (open: boolean) => void
+	/** Hide mode tag icon in each topic list row */
+	hideTopicListModeIcon?: boolean
 	children: ReactNode
 }
 
@@ -64,6 +66,7 @@ function TopicHistoryDropdown({
 	topicService,
 	placement = "bottomRight",
 	onDropdownOpenChange,
+	hideTopicListModeIcon = false,
 	children,
 }: TopicHistoryDropdownProps) {
 	const { t } = useTranslation("super")
@@ -249,7 +252,9 @@ function TopicHistoryDropdown({
 							/>
 						) : (
 							<>
-								<ModeTag mode={topic.topic_mode || TopicMode.General} />
+								{!hideTopicListModeIcon ? (
+									<ModeTag mode={topic.topic_mode || TopicMode.General} />
+								) : null}
 								<MagicEllipseWithTooltip
 									text={topic.topic_name || t("messageHeader.untitledTopic")}
 									data-testid={`message-header-history-item-name-${topic.id}`}

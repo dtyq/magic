@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.utils.datetime_formatter import get_current_datetime_str
 from agentlang.logger import get_logger
 from app.tools.visual_understanding import VisualUnderstanding, VisualUnderstandingParams

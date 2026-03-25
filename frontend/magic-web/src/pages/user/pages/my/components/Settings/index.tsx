@@ -1,14 +1,15 @@
 import { ChevronLeft } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useMemoizedFn } from "ahooks"
+import { useMemo } from "react"
 import { useNavigate } from "@/routes/hooks/useNavigate"
 import { Button } from "@/components/shadcn-ui/button"
 import { useTranslation } from "react-i18next"
 import { RouteName } from "@/routes/constants"
 import FontSizeChanger from "@/components/settings/FontSizeChanger"
+import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import { useGlobalLanguage, useSupportLanguageOptions } from "@/models/config/hooks"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
-import { useMemo } from "react"
 import SettingItem from "../common/SettingItem"
 
 function Settings() {
@@ -17,6 +18,7 @@ function Settings() {
 
 	const options = useSupportLanguageOptions()
 	const language = useGlobalLanguage()
+	const isLanguageSwitchVisible = isLanguageSwitchEnabled()
 	const { timezone } = useTimezone()
 	const { data: timezoneList } = useTimezoneList()
 
@@ -75,19 +77,20 @@ function Settings() {
 
 			{/* Content */}
 			<div className="flex w-full flex-1 flex-col gap-4 overflow-y-auto px-3.5">
-				{/* 语言设置 */}
-				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
-					<SettingItem
-						label={t("setting.language")}
-						description={t("setting.languageDescription")}
-						value={
-							<div className="whitespace-nowrap text-sm text-foreground">
-								{languageLabel}
-							</div>
-						}
-						onClick={handleLanguageClick}
-					/>
-				</div>
+				{isLanguageSwitchVisible && (
+					<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
+						<SettingItem
+							label={t("setting.language")}
+							description={t("setting.languageDescription")}
+							value={
+								<div className="whitespace-nowrap text-sm text-foreground">
+									{languageLabel}
+								</div>
+							}
+							onClick={handleLanguageClick}
+						/>
+					</div>
+				)}
 
 				{/* 时区设置 */}
 				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">

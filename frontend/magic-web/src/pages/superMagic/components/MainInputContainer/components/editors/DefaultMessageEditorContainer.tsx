@@ -11,6 +11,10 @@ import {
 	createMessageSendService,
 	type HandleSendParams,
 } from "@/pages/superMagic/services/messageSendFlowService"
+import {
+	createTopicForMessageContext,
+	preparePanelSend,
+} from "@/pages/superMagic/services/messageSendPreparation"
 import { roleStore } from "@/pages/superMagic/stores"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import useSharedProjectMode from "@/pages/superMagic/hooks/useSharedProjectMode"
@@ -50,15 +54,16 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 		() =>
 			createMessageSendService({
 				mentionPanelStore,
-				topicStore: _topicStore,
 			}),
-		[_topicStore, mentionPanelStore],
+		[mentionPanelStore],
 	)
 
 	const selectedProject = editorContext?.selectedProject ?? projectStore.selectedProject
-	const selectedTopic = editorContext?.selectedTopic ?? topicStore.selectedTopic
+	const selectedTopic = editorContext?.selectedTopic ?? _topicStore.selectedTopic
 	const effectiveTopicMode = editorContext?.topicMode ?? roleStore.currentRole
 	const effectiveSetTopicMode = editorContext?.setTopicMode ?? roleStore.setCurrentRole
+	const effectiveSetSelectedWorkspace =
+		editorContext?.setSelectedWorkspace ?? workspaceStore.setSelectedWorkspace
 	const queueContext = editorContext?.queueContext
 	const showLoading = editorContext?.showLoading ?? false
 	const isEmptyStatus = editorContext?.isEmptyStatus ?? true
@@ -67,14 +72,29 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 
 	useEffect(() => {
 		if (!editorContext?.autoFocus) return
-		// 代理 input 已唤起键盘，此处等待 Vaul Drawer 过渡动画结束后再转移焦点，
-		// 避免动画期间 focus() 在部分 iOS 版本上定位错乱或静默失败
-		const timer = setTimeout(() => {
-			tiptapEditorRef.current?.focus?.({ enableWhenIsMobile: true })
-		}, 100)
-		return () => clearTimeout(timer)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+		// 等编辑器真正挂载完成后再 focus，
+		// 同时保留对 iOS 上过渡动画期间焦点错位或静默失败的兜底。
+		let focusTimer: number | null = null
+		let attemptCount = 0
+
+		function focusEditor() {
+			const editor = tiptapEditorRef.current?.editor
+			if (editor && !editor.isDestroyed) {
+				tiptapEditorRef.current?.focus?.({ enableWhenIsMobile: true })
+				return
+			}
+
+			attemptCount += 1
+			if (attemptCount >= 10) return
+			focusTimer = window.setTimeout(focusEditor, 100)
+		}
+
+		focusTimer = window.setTimeout(focusEditor, 100)
+
+		return () => {
+			if (focusTimer != null) window.clearTimeout(focusTimer)
+		}
+	}, [editorContext?.autoFocus, tiptapEditorRef])
 
 	useEffect(() => {
 		if (!editorContext?.initialContent) return
@@ -148,7 +168,7 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 		if (queueContext?.editingQueueItem) {
 			if (!params.queueId || params.queueId === queueContext.editingQueueItem.id) {
 				queueContext.finishEditQueueItem(nextValue, params.mentionItems)
-				tiptapEditorRef.current?.clearContent()
+				tiptapEditorRef.current?.clearContentAfterSend()
 				setFocused(false)
 				return
 			}
@@ -166,15 +186,22 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 				selectedImageModel: params.selectedImageModel,
 				topicMode: params.topicMode,
 			})
-			tiptapEditorRef.current?.clearContent()
+			tiptapEditorRef.current?.clearContentAfterSend()
 			setFocused(false)
 			return
 		}
 
-		const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
+		const selectedWorkspace =
+			editorContext?.selectedWorkspace ??
+			workspaceStore.selectedWorkspace ??
+			workspaceStore.firstWorkspace
 
-		if (!workspaceStore.selectedWorkspace && selectedWorkspace) {
-			workspaceStore.setSelectedWorkspace(selectedWorkspace)
+		if (
+			!editorContext?.selectedWorkspace &&
+			!workspaceStore.selectedWorkspace &&
+			selectedWorkspace
+		) {
+			effectiveSetSelectedWorkspace(selectedWorkspace)
 		}
 
 		const defaultParams: HandleSendParams = {
@@ -185,8 +212,34 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			defaultParams,
 		})
 
+		const finalParams = customParamsPatch
+			? { ...defaultParams, ...customParamsPatch }
+			: defaultParams
+		const preparedSend = await preparePanelSend({
+			params: finalParams,
+			context: {
+				selectedProject,
+				selectedTopic,
+				selectedWorkspace,
+				setSelectedProject: editorContext?.setSelectedProject,
+				setSelectedTopic: editorContext?.setSelectedTopic,
+				setSelectedWorkspace: editorContext?.setSelectedWorkspace,
+				topicStore: editorContext?.topicStore,
+			},
+			tabPattern: effectiveTopicMode,
+			editorRef: tiptapEditorRef.current,
+			messagesLength: editorContext?.messagesLength ?? 0,
+		})
+
+		if (!preparedSend) {
+			return
+		}
+
 		const sendResult = await scopedMessageSendService.sendPanelMessage({
-			params: customParamsPatch ? { ...defaultParams, ...customParamsPatch } : defaultParams,
+			params: preparedSend.params,
+			context: preparedSend.context,
+			currentProject: preparedSend.currentProject,
+			currentTopic: preparedSend.currentTopic,
 			isSending,
 			setIsSending,
 			showLoading,
@@ -195,12 +248,7 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			tabPattern: effectiveTopicMode,
 			editorRef: tiptapEditorRef.current,
 			setFocused,
-			selectedProject,
-			selectedTopic,
 			messagesLength: editorContext?.messagesLength ?? 0,
-			setSelectedProject:
-				editorContext?.setSelectedProject ?? projectStore.setSelectedProject,
-			setSelectedTopic: editorContext?.setSelectedTopic ?? topicStore.setSelectedTopic,
 		})
 
 		editorContext?.onSendSuccess?.({
@@ -221,7 +269,10 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 
 	useSandboxPreWarm({
 		selectedTopic,
-		selectedWorkspace: workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace,
+		selectedWorkspace:
+			editorContext?.selectedWorkspace ??
+			workspaceStore.selectedWorkspace ??
+			workspaceStore.firstWorkspace,
 		editorRef: tiptapEditorRef.current?.editor,
 	})
 
@@ -242,7 +293,10 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 		: (configPlaceholder ??
 			(superMagicModeService.getModePlaceholderWithLegacy(effectiveTopicMode, t, isMobile) ||
 				t("messageEditor.placeholderTask")))
-	const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
+	const selectedWorkspace =
+		editorContext?.selectedWorkspace ??
+		workspaceStore.selectedWorkspace ??
+		workspaceStore.firstWorkspace
 	const draftKey = editorContext?.draftKey
 
 	const editorStyleProps = useMemo(
@@ -267,7 +321,6 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 				placeholder={placeholder}
 				onSend={handleSend}
 				isTaskRunning={showLoading}
-				onInterrupt={editorContext?.onInterrupt}
 				selectedTopic={selectedTopic}
 				selectedProject={selectedProject}
 				selectedWorkspace={selectedWorkspace}
@@ -280,10 +333,17 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 				onBlur={handleBlur}
 				onFileClick={editorContext?.onFileClick}
 				attachments={editorContext?.attachments}
+				projectFilesStore={editorContext?.projectFilesStore}
 				isEditingQueueItem={!!queueContext?.editingQueueItem}
 				onCreateTopic={() =>
-					scopedMessageSendService.createTopic({
+					createTopicForMessageContext({
 						selectedProject,
+						selectedTopic,
+						selectedWorkspace,
+						setSelectedProject: editorContext?.setSelectedProject,
+						setSelectedTopic: editorContext?.setSelectedTopic,
+						setSelectedWorkspace: editorContext?.setSelectedWorkspace,
+						topicStore: editorContext?.topicStore,
 					})
 				}
 				showLoading={showLoading}

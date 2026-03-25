@@ -126,7 +126,7 @@ class NavigationOperations(OperationGroup):
         is_invalid, error_message = self._check_invalid_url(url)
         if is_invalid:
             logger.warning(f"尝试访问无效URL: {url}")
-            return ToolResult(error=error_message)
+            return ToolResult.error(error_message)
 
         # 2. 如果提供了 page_id，验证它 (goto 本身会处理 None page_id)
         if page_id_to_use:
@@ -143,7 +143,7 @@ class NavigationOperations(OperationGroup):
             if isinstance(result, MagicBrowserError):
                 suggestion = self._get_document_suggestion(url)
                 error_msg = f"{result.error}{f' {suggestion}' if suggestion else ''}".strip()
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
             elif isinstance(result, GotoSuccess):
                 suggestion = self._get_document_suggestion(url)
                 markdown_content = (
@@ -158,7 +158,7 @@ class NavigationOperations(OperationGroup):
             else:
                 # 未知返回类型，记录错误
                 logger.error(f"goto 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="goto 操作返回了意外的结果类型。")
+                return ToolResult.error("goto 操作返回了意外的结果类型。")
 
         except Exception as e:
             # 兜底处理未被 MagicBrowser 捕获的异常 (理论上不应发生)
@@ -166,7 +166,7 @@ class NavigationOperations(OperationGroup):
             error_msg = f"导航到 {url} 时发生意外错误: {e!s}"
             suggestion = self._get_document_suggestion(url)
             if suggestion: error_msg += f" {suggestion}"
-            return ToolResult(error=error_msg)
+            return ToolResult.error(error_msg)
 
     @operation(
         example={
@@ -186,7 +186,7 @@ class NavigationOperations(OperationGroup):
         if error_result: return error_result
         page_id = params.page_id or await browser.get_active_page_id()
         if not page_id:
-            return ToolResult(error="无法确定要滚动的页面ID")
+            return ToolResult.error("无法确定要滚动的页面ID")
 
         # 2. 调用 MagicBrowser 的 scroll_to 方法
         try:
@@ -197,7 +197,7 @@ class NavigationOperations(OperationGroup):
 
             # 3. 处理返回结果
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, ScrollToSuccess):
                 # 格式化成功结果
                 markdown_content = (
@@ -211,11 +211,11 @@ class NavigationOperations(OperationGroup):
                 return ToolResult(content=markdown_content)
             else:
                 logger.error(f"scroll_to 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="scroll_to 操作返回了意外的结果类型。")
+                return ToolResult.error("scroll_to 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"scroll_to 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error=f"Failed to scroll to screen {params.screen_number}")
+            return ToolResult.error(f"Failed to scroll to screen {params.screen_number}")
 
     @operation(
         example=[
@@ -263,7 +263,7 @@ class NavigationOperations(OperationGroup):
             goto_result = await self.goto(browser, goto_params)
 
             if not goto_result.ok:
-                return ToolResult(error=f"导航失败: {goto_result.content}")
+                return ToolResult.error(f"导航失败: {goto_result.content}")
 
             # Step 2: Wait for page to fully load
             logger.info("页面导航成功，等待页面完全加载...")
@@ -284,7 +284,7 @@ class NavigationOperations(OperationGroup):
             read_result = await content_ops.read_as_markdown(browser, read_params)
 
             if not read_result.ok:
-                return ToolResult(error=f"页面导航成功但读取内容失败: {read_result.content}")
+                return ToolResult.error(f"页面导航成功但读取内容失败: {read_result.content}")
 
             # Step 4: Use structured data if available, otherwise fall back to text formatting
             if read_result.extra_info and "structured_data" in read_result.extra_info:
@@ -340,4 +340,4 @@ class NavigationOperations(OperationGroup):
 
         except Exception as e:
             logger.error(f"goto_and_read_as_markdown 复合操作失败: {e!s}", exc_info=True)
-            return ToolResult(error="Composite operation failed")
+            return ToolResult.error("Composite operation failed")

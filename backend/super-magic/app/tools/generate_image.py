@@ -34,22 +34,23 @@ from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.file import generate_safe_filename
 from agentlang.utils.metadata import MetadataUtil
 from agentlang.utils.retry import retry_with_exponential_backoff
-from app.utils.async_file_utils import async_exists, async_stat, async_mkdir
+from app.utils.async_file_utils import async_exists, async_stat, async_mkdir, async_unlink
+from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
 from app.api.http_dto.file_notification_dto import FileNotificationRequest
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
-from app.core.entity.tool.tool_result import ImageToolResult
+from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
 from app.service.file_service import FileService
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.credential_utils import sanitize_headers
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 
@@ -281,7 +282,7 @@ Scenario 4: User says "Generate poster with '欢迎光临' text"
 
 
 @tool()
-class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceGuardTool[GenerateImageParams]):
+class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceTool[GenerateImageParams]):
     """<!--zh
     图片生成和编辑工具
     该工具支持使用文本提示进行文本到图片生成和图片编辑。
@@ -602,6 +603,8 @@ Call generate_image tool directly when user has following scenarios:
 
     async def _edit_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
         """通过 magic-service 平台编辑图片"""
+        # 记录本次调用中压缩产生的临时文件，用于最终清理
+        compressed_temp_files: List[str] = []
         try:
             # 获取 magic-service 相关配置
             api_base_url = config.get("image_generator.text_to_image_api_base_url")
@@ -642,8 +645,9 @@ Call generate_image tool directly when user has following scenarios:
             if not params.image_paths:
                 raise ValueError("Must provide at least one image path or URL for editing")
 
-            # 如果需要，将本地图片转换为 URL
+            # 如果需要，将本地图片转换为 URL（超过 10MB 的图片先压缩）
             image_urls = []
+            visual_dir = os.path.join(str(self.base_dir), ".visual")
             for image_source in params.image_paths:
                 image_url = image_source
 
@@ -651,7 +655,28 @@ Call generate_image tool directly when user has following scenarios:
                 if not image_source.startswith(("http://", "https://")):
                     # 处理本地文件路径
                     logger.info(f"将本地图片转换为 URL: {image_source}")
-                    image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+
+                    # 超过 10MB 时先压缩到 .visual 目录，再生成预签名 URL
+                    effective_path = image_source
+                    await async_mkdir(visual_dir, parents=True, exist_ok=True)
+                    compressed_path = await compress_if_needed(image_source, output_dir=visual_dir)
+                    if compressed_path != image_source and await async_exists(compressed_path):
+                        logger.info(f"原图超过大小限制，已压缩: {image_source} -> {compressed_path}")
+                        compressed_temp_files.append(compressed_path)
+                        effective_path = compressed_path
+
+                    # 压缩后的文件使用绝对路径直接转相对路径生成预签名 URL，
+                    # 避免 _convert_local_image_to_url 对绝对路径 lstrip('/') 的处理问题
+                    if effective_path != image_source:
+                        workspace_dir = PathManager.get_workspace_dir()
+                        try:
+                            rel_path = str(Path(effective_path).relative_to(workspace_dir))
+                        except ValueError:
+                            rel_path = Path(effective_path).name
+                        image_url = await self._generate_presigned_url_for_file(rel_path)
+                    else:
+                        image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+
                     if not image_url:
                         raise ValueError(f"Failed to convert local image to accessible URL: {image_source}")
                     logger.info(f"本地图片已转换为 URL: {image_source} -> {image_url}")
@@ -712,6 +737,15 @@ Call generate_image tool directly when user has following scenarios:
         except Exception as e:
             logger.error(f"magic-service 图片编辑失败: {e}")
             raise
+        finally:
+            # API 调用完成后清理压缩产生的临时文件
+            for temp_file in compressed_temp_files:
+                try:
+                    if await async_exists(temp_file):
+                        await async_unlink(temp_file)
+                        logger.debug(f"已清理临时压缩文件: {temp_file}")
+                except Exception as cleanup_e:
+                    logger.warning(f"清理临时压缩文件失败: {temp_file}, 错误: {cleanup_e}")
 
     def _process_url(self, url: str) -> str:
         """处理 URL，保留签名参数的原始编码"""
@@ -866,10 +900,7 @@ Call generate_image tool directly when user has following scenarios:
 
         # 准备保存路径
         save_path_str = os.path.join(save_dir, f"{custom_filename}.jpg")
-        save_path, error = self.get_safe_path(save_path_str)
-        if error:
-            raise ValueError(error)
-
+        save_path = self.resolve_path(save_path_str)
         await async_mkdir(save_path.parent, parents=True, exist_ok=True)
 
         # 处理文件名冲突
@@ -878,9 +909,7 @@ Call generate_image tool directly when user has following scenarios:
             while True:
                 new_filename = f"{custom_filename}_{counter}.jpg"
                 new_path_str = os.path.join(save_dir, new_filename)
-                new_path, new_error = self.get_safe_path(new_path_str)
-                if new_error:
-                    raise ValueError(new_error)
+                new_path = self.resolve_path(new_path_str)
                 if not await async_exists(new_path):
                     save_path = new_path
                     break
@@ -1206,11 +1235,7 @@ Call generate_image tool directly when user has following scenarios:
 
         # 使用安全路径检查验证文件路径
         try:
-            safe_path, error = self.get_safe_path(first_image_path)
-            if error:
-                logger.error(f"无效的图片路径: {error}，路径: {first_image_path}")
-                return None
-
+            safe_path = self.resolve_path(first_image_path)
             # 检查图片文件是否实际存在
             if not await async_exists(safe_path):
                 logger.warning(f"图片文件不存在: {safe_path}")

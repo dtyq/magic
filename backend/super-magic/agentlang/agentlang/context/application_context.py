@@ -1,6 +1,6 @@
 from logging import Logger
 from typing import ClassVar
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 
 
 class ApplicationContext:

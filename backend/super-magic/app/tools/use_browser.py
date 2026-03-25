@@ -71,7 +71,7 @@ from app.tools.core import BaseToolParams, tool
 from magic_use.magic_browser import MagicBrowser, MagicBrowserConfig, PageStateSuccess, ScreenshotSuccess, MagicBrowserError
 from app.tools.use_browser_operations.operations_registry import operations_registry
 from app.tools.visual_understanding import VisualUnderstanding, VisualUnderstandingParams
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.file import generate_safe_filename_with_timestamp
 from app.core.entity.event.event_context import EventContext
 
@@ -192,7 +192,7 @@ class UseBrowserParams(BaseToolParams):
 
 
 @tool()
-class UseBrowser(WorkspaceGuardTool[UseBrowserParams], AbstractFileTool):
+class UseBrowser(WorkspaceTool[UseBrowserParams], AbstractFileTool):
     """<!--zh
     浏览器使用工具
 
@@ -764,7 +764,7 @@ class UseBrowser(WorkspaceGuardTool[UseBrowserParams], AbstractFileTool):
             # --- 查找操作处理器 ---
             operation_info = await self._find_and_validate_operation(operation)
             if "error" in operation_info:
-                return ToolResult(error=operation_info["error"])
+                return ToolResult.error(operation_info["error"])
 
             handler = operation_info["handler"]
             params_class = operation_info["params_class"]
@@ -774,7 +774,7 @@ class UseBrowser(WorkspaceGuardTool[UseBrowserParams], AbstractFileTool):
                 browser, operation, params_class, operation_params_dict
             )
             if isinstance(op_params_result, dict) and "error" in op_params_result:
-                return ToolResult(error=op_params_result["error"])
+                return ToolResult.error(op_params_result["error"])
 
             op_params_obj = op_params_result
 
@@ -800,7 +800,7 @@ class UseBrowser(WorkspaceGuardTool[UseBrowserParams], AbstractFileTool):
         except Exception as e:
             logger.error(f"执行浏览器操作 '{operation}' 时发生意外错误: {e!s}", exc_info=True)
             # 返回通用错误消息
-            return ToolResult(error=f"Browser operation '{operation}' failed unexpectedly")
+            return ToolResult.error(f"Browser operation '{operation}' failed unexpectedly")
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         # 从工具上下文中获取事件上下文

@@ -19,15 +19,15 @@ Provides data analysis report development capabilities, including creating analy
 ## 如何使用本文档 / How to Use This Document
 
 <!--zh
-本文档提供快速指引和核心工具说明。当需要了解细节时，阅读对应的 reference 文档（使用 skill_read_references 工具）：
-- **完整代码示例** → reference/report-workflow.md
-- **ECharts 5.6.0 规范** → reference/report-echarts-v5.md
+本文档提供快速指引和核心工具说明。需要了解细节时，可阅读以下 reference 文档：
+- **完整代码示例** → references/report-workflow.md
+- **ECharts 5.6.0 规范** → references/report-echarts-v5.md
 -->
 
-This document provides quick guidance and core tool descriptions. When needing details, read the corresponding reference document (use skill_read_references tool):
+This document provides quick guidance and core tool descriptions. For details, refer to the following reference documents:
 
-- **Complete code examples** → reference/report-workflow.md
-- **ECharts 5.6.0 specification** → reference/report-echarts-v5.md
+- **Complete code examples** → references/report-workflow.md
+- **ECharts 5.6.0 specification** → references/report-echarts-v5.md
 
 ---
 

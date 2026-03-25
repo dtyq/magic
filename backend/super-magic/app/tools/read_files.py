@@ -15,7 +15,7 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -56,6 +56,7 @@ class FileReadingResult(BaseModel):
     content: str  # 完整内容（包含元信息）
     is_success: bool
     error_message: Optional[str] = None
+    error_type: Optional[str] = None  # 错误类型 code，来自 tool_context metadata
     tokens: int = 0  # token数量，用于计算截断
     # 截断信息（如果被截断）
     was_truncated: bool = False  # 是否被截断
@@ -63,7 +64,7 @@ class FileReadingResult(BaseModel):
 
 
 @tool()
-class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesParams]):
+class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams]):
     """<!--zh
     批量读取文件内容工具
 
@@ -76,7 +77,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
     - Jupyter笔记本（.ipynb）
 
     注意：
-    - 禁止读取工作目录外的文件
+    - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
     - 无法读取支持的文件类型以外的文件，尤其是二进制文件
     - 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
     - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
@@ -94,7 +95,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
     - Jupyter notebooks (.ipynb)
 
     Notes:
-    - Cannot read files outside workspace
+    - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
     - Cannot read files other than supported types, especially binary files
     - For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
     - Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed
@@ -115,7 +116,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
         """
         if not params.operations:
             tool_context.set_metadata("error_type", "read_file.failed")
-            return ToolResult(error=i18n.translate("read_file.failed", category="tool.messages"))
+            return ToolResult.error(i18n.translate("read_file.failed", category="tool.messages"))
 
         results = []
         files_without_line_numbers = []  # 直接在这里收集不带行号的内容
@@ -186,6 +187,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
                         content="",
                         is_success=False,
                         error_message=result.content,  # 失败时，content 实际是错误信息
+                        error_type=tool_context.get_metadata("error_type"),
                         tokens=0
                     ))
                     read_failure_count += 1
@@ -375,7 +377,21 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceGuardTool[ReadFilesP
             else:
                 # 对失败的文件添加具体的错误信息
                 if result.error_message:
-                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {result.error_message}\n")
+                    error_text = result.error_message
+                    # 文件不存在且路径为相对路径时，提示模型使用绝对路径
+                    # 用 error_type code 判断，不依赖特定语言的错误文本
+                    if (
+                        result.error_type == "read_file.error_file_not_exist"
+                        and not result.file_path.startswith("/")
+                    ):
+                        error_text += (
+                            "\n\n[Hint] The file path is relative and was not found. "
+                            "If you are reading a skill-related file, you MUST construct an absolute path: "
+                            "take the absolute path from the skill's `<location>` tag, strip the filename "
+                            "to get the skill directory, then append the relative path from the skill content. "
+                            "Example: read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])"
+                        )
+                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {error_text}\n")
                 else:
                     error_detail = i18n.translate("read_file.error_detail", category="tool.messages")
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n{error_detail}\n")

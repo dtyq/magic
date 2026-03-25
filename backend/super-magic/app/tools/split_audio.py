@@ -19,7 +19,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -47,7 +47,7 @@ class SplitAudioParams(BaseToolParams):
 
 
 @tool()
-class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAudioParams]):
+class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceTool[SplitAudioParams]):
     """<!--zh: 将大音频文件拆分成多个小文件。当音频文件时长超过指定阈值或文件大小超过指定阈值时，自动拆分成多个片段，确保每个拆分后的音频不超过指定的大小或时长。支持的音频格式：MP3, WAV, M4A, AAC, OGG, FLAC 等。-->
     Split large audio files into multiple smaller files. When audio file duration exceeds specified threshold or file size exceeds specified threshold, automatically split into multiple segments, ensuring each split audio does not exceed specified size or duration. Supported audio formats: MP3, WAV, M4A, AAC, OGG, FLAC, etc."""
 
@@ -67,20 +67,17 @@ class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAud
 
         try:
             # 1. 检查音频文件是否存在
-            audio_path, error = self.get_safe_path(params.audio_path)
-            if error:
-                return ToolResult(error=error)
-
+            audio_path = self.resolve_path(params.audio_path)
             if not await asyncio.to_thread(audio_path.exists):
-                return ToolResult(error=f"音频文件不存在：{params.audio_path}")
+                return ToolResult.error(f"音频文件不存在：{params.audio_path}")
 
             if not await asyncio.to_thread(audio_path.is_file):
-                return ToolResult(error=f"路径不是文件：{params.audio_path}")
+                return ToolResult.error(f"路径不是文件：{params.audio_path}")
 
             # 2. 获取音频信息
             file_size_mb, duration_seconds, error = await self._get_audio_info(audio_path)
             if error:
-                return ToolResult(error=error)
+                return ToolResult.error(error)
 
             duration_hours = duration_seconds / 3600
             max_duration_seconds = params.max_duration_hours * 3600
@@ -116,7 +113,7 @@ class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAud
             )
 
             if split_duration_seconds is None:
-                return ToolResult(error="无法计算合适的拆分时长")
+                return ToolResult.error("无法计算合适的拆分时长")
 
             # 5. 执行拆分
             output_files = await self._split_audio_file(
@@ -127,7 +124,7 @@ class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAud
             )
 
             if not output_files:
-                return ToolResult(error="音频拆分失败，未生成任何文件")
+                return ToolResult.error("音频拆分失败，未生成任何文件")
 
             created_files.extend(output_files)
 
@@ -158,7 +155,7 @@ class SplitAudio(AbstractFileTool[SplitAudioParams], WorkspaceGuardTool[SplitAud
             # 回滚：删除已创建的文件
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error=f"音频拆分失败: {str(e)}")
+            return ToolResult.error(f"音频拆分失败: {str(e)}")
 
     async def _get_audio_info(self, audio_path: Path) -> Tuple[float, float, Optional[str]]:
         """

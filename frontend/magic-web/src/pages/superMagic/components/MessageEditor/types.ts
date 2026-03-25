@@ -5,6 +5,7 @@ import { ProjectListItem, Topic, TopicMode, Workspace } from "../../pages/Worksp
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { SaveUploadFileToProjectResponse } from "../../utils/api"
 import { AttachmentItem } from "../TopicFilesButton/hooks"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 // Re-export ModelSwitch types for unified type imports
 export type {
@@ -93,6 +94,7 @@ export interface MessageEditorModules {
 	mcp?: MessageEditorMCPModuleConfig
 	upload?: MessageEditorUploadModuleConfig
 	voiceInput?: MessageEditorModuleConfig
+	send?: MessageEditorModuleConfig
 }
 
 // Component Props
@@ -115,8 +117,6 @@ export interface MessageEditorProps {
 	onFileUpload?: (files: FileData[]) => void
 	/** task running state - controls send/interrupt button */
 	isTaskRunning?: boolean
-	/** Interrupt action handler */
-	onInterrupt?: (callback?: () => void) => void
 	/** Selected topic */
 	selectedTopic?: Topic | null
 	/** Selected project */
@@ -152,6 +152,8 @@ export interface MessageEditorProps {
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => React.ReactNode
 	/** Mention panel store */
 	mentionPanelStore?: MentionPanelStore
+	/** Project files store used by upload optimistic updates */
+	projectFilesStore?: ProjectFilesStore
 	/**
 	 * Layout configuration for toolbar buttons
 	 * If not provided, uses default layout

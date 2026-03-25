@@ -26,7 +26,7 @@ import useProjectItemActionProps from "./hooks/useProjectItemActionProps"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import EditionActivityBanner from "@/components/business/EditionActivity/Banner"
 
-const MessagePanel = lazy(() => import("../MessagePanel"))
+const ProjectPageInputContainer = lazy(() => import("../ProjectPageInputContainer"))
 
 interface EmptyWorkspacePanelProps {
 	messages: unknown[]
@@ -84,7 +84,7 @@ function EmptyWorkspacePanel({ messages }: EmptyWorkspacePanelProps) {
 			<Slogan />
 
 			<Suspense fallback={<MessagePanelSkeleton className="mx-auto max-w-[980px]" />}>
-				<MessagePanel
+				<ProjectPageInputContainer
 					messages={messages}
 					taskData={null}
 					showLoading={false}

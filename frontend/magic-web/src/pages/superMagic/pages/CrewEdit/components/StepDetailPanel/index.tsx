@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { CREW_EDIT_STEP, type StepDetailKey } from "../../store"
+import { CREW_EDIT_STEP, isCrewStepEnabled, type StepDetailKey } from "../../store"
 import { useCrewEditStore } from "../../context"
 import IdentityPanel from "./IdentityPanel"
 import { CREW_PANEL_IDS } from "./IdentityPanel/constants"
-import { PlaybookPanel } from "./PlaybookPanel"
+import PublishingPanel from "./PublishingPanel"
 import SkillsPanel from "./SkillsPanel"
 import BuiltinSkillsPanel from "../ConfigStepsPanel/BuiltinSkillsPanel"
 import identityPanelBg from "./IdentityPanel/identity-panel-bg.svg"
+import { SceneEditPanel } from "./PlaybookPanel/components/SceneEditPanel"
 
 function PlaceholderPanel({ stepKey }: { stepKey: StepDetailKey }) {
 	return (
@@ -59,14 +60,24 @@ function IdentityDetail() {
 
 function StepDetailPanel() {
 	const {
-		layout: { activeDetailKey },
+		layout: { activeDetailKey, activePlaybookId, closePlaybookEditor },
 	} = useCrewEditStore()
+
+	if (activeDetailKey && !isCrewStepEnabled(activeDetailKey)) return null
 
 	switch (activeDetailKey) {
 		case CREW_EDIT_STEP.Identity:
 			return <IdentityDetail />
 		case CREW_EDIT_STEP.Playbook:
-			return <PlaybookPanel />
+			if (!activePlaybookId) return null
+			return (
+				<SceneEditPanel
+					key={activePlaybookId}
+					playbookId={activePlaybookId}
+					onBack={closePlaybookEditor}
+					onClose={closePlaybookEditor}
+				/>
+			)
 		case CREW_EDIT_STEP.Skills:
 			return <SkillsPanel />
 		case CREW_EDIT_STEP.BuiltinSkills:
@@ -74,8 +85,9 @@ function StepDetailPanel() {
 		case CREW_EDIT_STEP.KnowledgeBase:
 			return null
 		case CREW_EDIT_STEP.RunAndDebug:
-		case CREW_EDIT_STEP.Publishing:
 			return <PlaceholderPanel stepKey={activeDetailKey} />
+		case CREW_EDIT_STEP.Publishing:
+			return <PublishingPanel />
 		default:
 			return null
 	}

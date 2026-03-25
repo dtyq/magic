@@ -1,5 +1,9 @@
 # Super Magic Installation and Usage Guide
 
+**STALE DOCUMENT**
+
+**This document is stale and will be updated soon.**
+
 This guide will walk you through how to install, configure, and use the Super Magic service.
 
 ## Prerequisites

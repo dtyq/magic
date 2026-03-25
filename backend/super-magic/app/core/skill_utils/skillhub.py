@@ -1,118 +1,55 @@
-"""Skillhub CLI 操作：install-github、remove 及已安装元数据刷新"""
+"""Skillhub：从互联网检索并安装 skill 到 workspace（install-github、remove 等）。
+
+本地目录遍历与元数据发现见 skill_directory_scan 模块。
+"""
 import asyncio
-import json
 from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
-from app.utils.async_file_utils import async_read_text, async_write_text, async_exists, async_rmtree, async_mkdir
-from app.core.skill_utils.constants import SKILLHUB_LOCK_FILE, INSTALLED_SKILLS_META_FILE, get_skillhub_install_dir
+from app.utils.async_file_utils import async_exists, async_rmtree
+from app.core.skill_utils.constants import get_skillhub_install_dir, get_workspace_skills_dir
 
 logger = get_logger(__name__)
 
 
-async def refresh_installed_skills_meta() -> None:
-    """刷新 workspace/installed_skills.json
+async def register_custom_skill(name: str, description: str) -> tuple[bool, str]:
+    """注册自定义 skill（当前仅验证 skill 目录和 SKILL.md 是否存在）
 
-    读取 skillhub lock 文件，将当前已安装的 skills 元数据写入 workspace，
-    在每次 skillhub 命令（install/remove/install-github/upgrade）成功后调用。
+    无需写锁文件，skill_list 通过直接扫描目录发现 skill。
+    保留此函数是为了兼容 SKILL.md 中可能存在的旧版调用。
     """
-    from app.paths import PathManager
-    # manager 必须懒加载：manager→installed→skillhub→manager 形成循环，顶层导入会报错
-    from app.core.skill_utils.manager import get_global_skill_manager
+    skills_dir = await get_workspace_skills_dir()
+    skill_dir = skills_dir / name
+    skill_file = skill_dir / "SKILL.md"
 
-    try:
-        lock_file = get_skillhub_install_dir() / SKILLHUB_LOCK_FILE
-        installed = []
+    if not await async_exists(skill_dir):
+        msg = f"注册失败：skill 目录不存在 ({skill_dir})，请先创建 SKILL.md"
+        logger.warning(msg)
+        return False, msg
+    if not await async_exists(skill_file):
+        msg = f"注册失败：SKILL.md 不存在 ({skill_file})，请先完成 skill 文件创建"
+        logger.warning(msg)
+        return False, msg
 
-        skill_manager = get_global_skill_manager()
-        if await async_exists(lock_file):
-            content = await async_read_text(lock_file)
-            lock_data = json.loads(content)
-            skills_dict = lock_data.get("skills", {})
-            for slug, meta in skills_dict.items():
-                if isinstance(meta, dict):
-                    skill = await skill_manager.get_skill(slug)
-                    name = (skill.name if skill else None) or meta.get("name") or slug
-                    description = skill.description if skill else ""
-                    installed.append({
-                        "slug": slug,
-                        "name": name,
-                        "description": description,
-                        "source": meta.get("source", "skillhub"),
-                        "version": meta.get("version", ""),
-                        "url": meta.get("url", ""),
-                    })
-
-        output_file = PathManager.get_workspace_dir() / INSTALLED_SKILLS_META_FILE
-        await async_mkdir(output_file.parent, parents=True, exist_ok=True)
-        await async_write_text(output_file, json.dumps(installed, ensure_ascii=False, indent=2))
-        logger.info(f"已刷新 installed_skills.json，共 {len(installed)} 个 skills")
-    except Exception as e:
-        logger.warning(f"刷新 installed_skills.json 失败: {e}")
+    logger.info(f"skill '{name}' 已在磁盘上，无需锁文件注册，直接扫描即可发现")
+    return True, f"skill '{name}' 已就绪，可通过 skill_list 发现和使用。"
 
 
 async def skillhub_remove(identifier: str) -> tuple[bool, str]:
     """移除已安装的 skillhub skill
 
-    支持按技能名或 slug 匹配。匹配优先级：
-    1. lock 文件中的 slug 精确匹配
-    2. lock 文件中的 name 字段大小写不敏感匹配
-    3. 直接将 identifier 当 slug 使用（兼容手动安装场景）
+    直接删除对应目录，无锁文件依赖。
     """
     skills_dir = get_skillhub_install_dir()
-    lock_file = skills_dir / SKILLHUB_LOCK_FILE
+    skill_dir = skills_dir / identifier
 
-    slug = None
-    lock = None
-
-    if await async_exists(lock_file):
-        try:
-            content = await async_read_text(lock_file)
-            lock = json.loads(content)
-            skills: dict = lock.get("skills", {})
-
-            if identifier in skills:
-                slug = identifier
-            else:
-                identifier_lower = identifier.lower()
-                for s, meta in skills.items():
-                    skill_name = meta.get("name", "") if isinstance(meta, dict) else ""
-                    if skill_name.lower() == identifier_lower or s.lower() == identifier_lower:
-                        slug = s
-                        break
-        except Exception as e:
-            logger.warning(f"skillhub remove: 读取 lock 文件失败: {e}")
-
-    if slug is None:
-        slug = identifier
-
-    skill_dir = skills_dir / slug
-    removed_dir = False
-    removed_lock = False
-
-    if await async_exists(skill_dir):
-        await async_rmtree(skill_dir)
-        removed_dir = True
-        logger.info(f"skillhub remove: 已删除目录 {skill_dir}")
-
-    if lock is not None:
-        try:
-            skills = lock.get("skills", {})
-            if slug in skills:
-                del skills[slug]
-                lock["skills"] = skills
-                await async_write_text(lock_file, json.dumps(lock, ensure_ascii=False, indent=2))
-                removed_lock = True
-                logger.info(f"skillhub remove: 已从 lock 文件移除 {slug}")
-        except Exception as e:
-            logger.warning(f"skillhub remove: 更新 lock 文件失败: {e}")
-
-    if not removed_dir and not removed_lock:
+    if not await async_exists(skill_dir):
         return False, f"skill '{identifier}' not found"
 
-    await refresh_installed_skills_meta()
-    return True, f"Removed: {slug}"
+    await async_rmtree(skill_dir)
+    logger.info(f"skillhub remove: 已删除目录 {skill_dir}")
+    return True, f"Removed: {identifier}"
 
 
 def _parse_github_url(url: str) -> tuple[str, str, str, str, str]:
@@ -149,16 +86,111 @@ def _parse_github_url(url: str) -> tuple[str, str, str, str, str]:
     return owner, repo, branch, subdir, install_name
 
 
-async def skillhub_install_github(url: str) -> tuple[bool, str]:
-    """从 GitHub 下载并安装 skill
+def _find_skill_root(base: Path) -> Path | None:
+    """在 base 下递归查找包含 SKILL.md 的目录，返回该目录，找不到返回 None"""
+    if (base / "SKILL.md").exists():
+        return base
+    for child in sorted(base.iterdir()):
+        if child.is_dir() and child.name != "__MACOSX":
+            found = _find_skill_root(child)
+            if found is not None:
+                return found
+    return None
 
-    通过 GitHub archive API 下载 zip 包，无需 git 命令。
-    支持整个仓库或仓库内子目录，安装到 skills/<name>/ 并写入 lock 文件。
+
+def _download_zip_and_install(download_url: str, install_dir: Path, subdir: str = "") -> None:
+    """下载 zip 并将指定目录（或顶层目录）复制到 install_dir（同步，供 asyncio.to_thread 调用）
+
+    兼容三种 zip 结构：
+    - 平铺结构：顶层直接是 SKILL.md 等文件，无外层目录
+    - 标准结构：顶层有单一目录（如 GitHub archive），skill 文件在其内部（可含 subdir）
+    - 深层嵌套：SKILL.md 在任意层级的子目录中，递归查找定位
     """
+    import shutil
     import tempfile
     import urllib.request
     import zipfile
 
+    with tempfile.TemporaryDirectory() as tmp:
+        zip_path = Path(tmp) / "skill.zip"
+        logger.info(f"下载 skill zip: {download_url}")
+        urllib.request.urlretrieve(download_url, zip_path)
+
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(tmp)
+
+        tmp_path = Path(tmp)
+
+        # 平铺结构：顶层直接存在 SKILL.md，无外层目录包裹
+        if (tmp_path / "SKILL.md").exists():
+            shutil.copytree(tmp_path, install_dir, ignore=shutil.ignore_patterns("*.zip"))
+            return
+
+        # 标准结构：取顶层单一目录，再按 subdir 定位，同时验证 SKILL.md 确实存在于该位置
+        extracted = [p for p in tmp_path.iterdir() if p.is_dir() and p.name != "__MACOSX"]
+        if extracted:
+            src = extracted[0] / subdir if subdir else extracted[0]
+            if src.exists() and (src / "SKILL.md").exists():
+                shutil.copytree(src, install_dir)
+                return
+
+        # 兜底：递归查找 SKILL.md，找到后以其所在目录为 skill 根
+        skill_root = _find_skill_root(tmp_path)
+        if skill_root is not None:
+            logger.warning(
+                f"zip 结构非标准，通过递归查找定位到 skill 根目录: {skill_root.relative_to(tmp_path)}"
+            )
+            shutil.copytree(skill_root, install_dir)
+            return
+
+        # 记录实际内容辅助排查
+        actual_contents = [str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.name != "skill.zip"]
+        logger.error(f"zip 解压内容: {actual_contents[:30]}")
+        raise FileNotFoundError("zip 解压后未找到包含 SKILL.md 的目录")
+
+
+def _workspace_skill_folder_name(package_name: str, display_name: str, code: str) -> str:
+    """本地 skills 目录名：与 SKILL.md / skill_list 中的 skill 标识一致，优先包名（package_name），其次展示名，最后才用平台 code。"""
+    pn = (package_name or "").strip()
+    dn = (display_name or "").strip()
+    c = (code or "").strip()
+    if pn:
+        return pn
+    if dn:
+        return dn
+    return c
+
+
+async def _install_from_url(download_url: str, install_name: str, tag: str, subdir: str = "", target_dir: Optional[Path] = None) -> tuple[bool, str]:
+    """下载 zip 并安装到指定目录（target_dir）或默认 workspace skills 目录"""
+    if target_dir is not None:
+        install_dir = target_dir / install_name
+    else:
+        skills_dir = await get_workspace_skills_dir()
+        install_dir = skills_dir / install_name
+
+    if await async_exists(install_dir):
+        await async_rmtree(install_dir)
+
+    try:
+        await asyncio.to_thread(_download_zip_and_install, download_url, install_dir, subdir)
+    except Exception as e:
+        logger.error(f"skillhub {tag}: 安装失败: {e}")
+        if await async_exists(install_dir):
+            await async_rmtree(install_dir)
+        return False, f"安装失败: {e}"
+
+    logger.info(f"skillhub {tag}: 安装完成 {install_name} -> {install_dir}")
+    return True, f"Installed: {install_name} -> {install_dir}"
+
+
+async def skillhub_install_github(url: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
+    """从 GitHub 下载并安装 skill
+
+    通过 GitHub archive API 下载 zip 包，无需 git 命令。
+    支持整个仓库或仓库内子目录，安装到 skills/<name>/。
+    安装后无需注册，skill_list 直接扫描目录即可发现。
+    """
     try:
         owner, repo, branch, subdir, install_name = _parse_github_url(url)
     except ValueError as e:
@@ -167,69 +199,63 @@ async def skillhub_install_github(url: str) -> tuple[bool, str]:
     ref = f"refs/heads/{branch}" if branch else "HEAD"
     download_url = f"https://github.com/{owner}/{repo}/archive/{ref}.zip"
 
-    skills_dir = get_skillhub_install_dir()
-    install_dir = skills_dir / install_name
-    await async_mkdir(skills_dir, parents=True, exist_ok=True)
+    return await _install_from_url(download_url, install_name, "install-github", subdir, target_dir)
 
-    if await async_exists(install_dir):
-        await async_rmtree(install_dir)
 
+async def skillhub_install_platform_me(skill_code: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
+    """从「我的技能库」下载并安装 skill
+
+    通过 SDK 查询最新已发布版本获取签名下载链接，下载 zip 包后安装到 workspace。
+    """
     try:
-        def _download_and_extract() -> Path:
-            """下载 zip 并解压到临时目录，返回解压后的仓库根目录路径"""
-            import shutil
+        from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
+        from app.infrastructure.sdk.magic_service.parameter.get_latest_published_skill_versions_parameter import (
+            GetLatestPublishedSkillVersionsParameter,
+        )
 
-            with tempfile.TemporaryDirectory() as tmp:
-                zip_path = Path(tmp) / "archive.zip"
-                urllib.request.urlretrieve(download_url, zip_path)
-
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(tmp)
-
-                extracted = [
-                    p for p in Path(tmp).iterdir()
-                    if p.is_dir() and p.name != "__MACOSX"
-                ]
-                if not extracted:
-                    raise FileNotFoundError("zip 解压后未找到目录")
-
-                repo_dir = extracted[0]
-
-                if subdir:
-                    src = repo_dir / subdir
-                    if not src.exists():
-                        raise FileNotFoundError(f"子目录 '{subdir}' 在仓库中不存在")
-                    shutil.copytree(src, install_dir)
-                else:
-                    shutil.copytree(repo_dir, install_dir)
-
-            return install_dir
-
-        await asyncio.to_thread(_download_and_extract)
-
+        sdk = create_magic_service_sdk_with_defaults()
+        result = sdk.skill.query_latest_published_versions(
+            GetLatestPublishedSkillVersionsParameter(codes=[skill_code])
+        )
+        items = result.get_items()
     except Exception as e:
-        logger.error(f"skillhub install-github: 安装失败: {e}")
-        if await async_exists(install_dir):
-            await async_rmtree(install_dir)
-        return False, f"安装失败: {e}"
+        return False, f"查询我的技能库失败: {e}"
 
-    lock_file = skills_dir / SKILLHUB_LOCK_FILE
+    if not items:
+        return False, f"我的技能库未找到 code='{skill_code}' 的技能"
+
+    item = items[0]
+    if not item.file_url:
+        return False, f"技能 '{skill_code}' 暂无可用下载链接"
+
+    install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
+    return await _install_from_url(item.file_url, install_name, "install-platform-me", target_dir=target_dir)
+
+
+async def skillhub_install_platform_market(skill_code: str, target_dir: Optional[Path] = None) -> tuple[bool, str]:
+    """从「平台技能市场」下载并安装 skill
+
+    通过 SDK 搜索市场技能获取签名下载链接，下载 zip 包后安装到 workspace。
+    """
     try:
-        lock: dict = {}
-        if await async_exists(lock_file):
-            content = await async_read_text(lock_file)
-            lock = json.loads(content)
-        skills_entry = lock.setdefault("skills", {})
-        skills_entry[install_name] = {
-            "source": "github",
-            "url": url,
-            "branch": branch,
-            "subdir": subdir,
-        }
-        await async_write_text(lock_file, json.dumps(lock, ensure_ascii=False, indent=2))
-    except Exception as e:
-        logger.warning(f"skillhub install-github: 写入 lock 文件失败: {e}")
+        from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
+        from app.infrastructure.sdk.magic_service.parameter.query_skills_parameter import QuerySkillsParameter
 
-    await refresh_installed_skills_meta()
-    logger.info(f"skillhub install-github: 安装完成 {install_name} -> {install_dir}")
-    return True, f"Installed: {install_name} -> {install_dir}"
+        sdk = create_magic_service_sdk_with_defaults()
+        result = sdk.skill.query_skill_market(
+            QuerySkillsParameter(page=1, page_size=50, codes=[skill_code])
+        )
+        items = result.get_items()
+    except Exception as e:
+        return False, f"查询技能市场失败: {e}"
+
+    # 用 code 精确匹配，避免关键词搜索返回不相关的结果
+    item = next((i for i in items if i.code == skill_code), None)
+    if item is None:
+        return False, f"技能市场未找到 code='{skill_code}' 的技能"
+
+    if not item.file_url:
+        return False, f"技能 '{skill_code}' 暂无可用下载链接"
+
+    install_name = _workspace_skill_folder_name(item.package_name, item.name, item.code)
+    return await _install_from_url(item.file_url, install_name, "install-platform-market", target_dir=target_dir)

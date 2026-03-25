@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+// PROJECT OVERRIDE — radix-ui barrel; retain when merging alert-dialog.
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -28,6 +29,7 @@ function AlertDialogOverlay({
 		<AlertDialogPrimitive.Overlay
 			data-slot="alert-dialog-overlay"
 			className={cn(
+				// PROJECT OVERRIDE — data-open variants, z-modal, light scrim, blur.
 				"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-modal bg-black/10 duration-100 supports-[backdrop-filter]:backdrop-blur-sm",
 				className,
 			)}
@@ -50,7 +52,10 @@ function AlertDialogContent({
 				data-slot="alert-dialog-content"
 				data-size={size}
 				className={cn(
-					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 group/alert-dialog-content fixed left-1/2 top-1/2 z-modal grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl bg-background p-4 outline-none ring-1 ring-foreground/10 duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
+					// PROJECT OVERRIDE — retain when merging upstream shadcn alert-dialog.
+					// Same centered zoom as dialog.tsx; data-open / data-closed translate vars.
+					// Also: rounded-xl, ring, max-w-xs — visual tokens differ from upstream.
+					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-open:[--tw-enter-translate-x:-50%] data-open:[--tw-enter-translate-y:-50%] data-closed:[--tw-exit-translate-x:-50%] data-closed:[--tw-exit-translate-y:-50%] group/alert-dialog-content fixed left-1/2 top-1/2 z-modal grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl bg-background p-4 outline-none ring-1 ring-foreground/10 duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
 					className,
 				)}
 				{...props}

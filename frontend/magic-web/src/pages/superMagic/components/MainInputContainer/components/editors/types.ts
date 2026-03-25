@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import type { LocaleText } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import type {
 	DraftKey,
@@ -44,6 +45,7 @@ export interface SceneEditorContext {
 	selectedWorkspace?: Workspace | null
 	setSelectedTopic?: (topic: Topic | null) => void
 	setSelectedProject?: (project: ProjectListItem | null) => void
+	setSelectedWorkspace?: (workspace: Workspace | null) => void
 	topicMode: TopicMode
 	setTopicMode?: (mode: TopicMode) => void
 	topicExamplesMode?: TopicMode
@@ -51,6 +53,8 @@ export interface SceneEditorContext {
 	className?: string
 	containerClassName?: string
 	showLoading?: boolean
+	isTaskRunning?: boolean
+	stopEventLoading?: boolean
 	isEmptyStatus?: boolean
 	messagesLength?: number
 	enableMessageSendByContent?: boolean
@@ -58,6 +62,7 @@ export interface SceneEditorContext {
 	layoutConfig?: MessageEditorLayoutConfig
 	attachments?: AttachmentItem[]
 	mentionPanelStore?: MentionPanelStore
+	projectFilesStore?: ProjectFilesStore
 	selectedModel?: ModelItem | null
 	onSendSuccess?: (params: {
 		currentProject: ProjectListItem | null
@@ -66,7 +71,7 @@ export interface SceneEditorContext {
 	onFileClick?: (fileItem: unknown) => void
 	onEditorFocus?: () => void
 	onEditorBlur?: () => void
-	onInterrupt?: (callback?: () => void) => void
+	handleInterrupt?: () => void
 	mergeSendParams?: (params: {
 		defaultParams: HandleSendParams
 	}) => Partial<HandleSendParams> | void

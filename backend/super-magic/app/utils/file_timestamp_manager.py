@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from .file_utils import calculate_file_hash, get_fresh_file_stat
 
 logger = get_logger(__name__)

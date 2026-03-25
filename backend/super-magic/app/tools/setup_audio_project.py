@@ -12,7 +12,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.tool_param_utils import parse_multiline_kv
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 
 logger = get_logger(__name__)
@@ -335,7 +335,7 @@ Unless inferring speech transcription has errors, prohibit multiple Speaker-N ma
 
 
 @tool()
-class SetupAudioProject(AbstractFileTool[SetupAudioProjectParams], WorkspaceGuardTool[SetupAudioProjectParams]):
+class SetupAudioProject(AbstractFileTool[SetupAudioProjectParams], WorkspaceTool[SetupAudioProjectParams]):
     """<!--zh
     搭建音频项目基础架构。调用前必须：完整读取文字稿，否则将无法识别所有说话人并完成映射！
 
@@ -403,10 +403,7 @@ class SetupAudioProject(AbstractFileTool[SetupAudioProjectParams], WorkspaceGuar
             optional_files_dict = parse_multiline_kv(params.optional_files, "optional_files")
 
             # 获取安全的项目路径（文件夹应该已存在，由 AI 创建）
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-
+            project_path = self.resolve_path(params.project_path)
             # 检查项目文件夹是否存在
             if not await asyncio.to_thread(project_path.exists):
                 return ToolResult(

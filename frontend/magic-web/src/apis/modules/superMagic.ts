@@ -1,13 +1,15 @@
 import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
+import type { SeqRecord } from "@/apis/modules/chat/types"
 import type {
 	CopiedProjectResponse,
 	CopyProjectRequest,
 } from "@/pages/share/components/CopyProjectModal/types"
+import type { ConversationQueryMessage } from "@/types/chat/conversation_message"
+import type { PaginationResponse } from "@/types/request"
 import { genRequestUrl } from "@/utils/http"
 
 import {
 	CreatedProject,
-	CrewItem,
 	CrewItemResponse,
 	FileHistoryVersion,
 	FileInfo,
@@ -27,13 +29,10 @@ import { generateCollaborationApi } from "./superMagic/collaboration"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { buildImageProcessQuery } from "@/utils/image-processing"
 import { TreeNode } from "@dtyq/user-selector"
-import { SKILL_CONFIGS_MAP } from "@/pages/superMagic/components/MainInputContainer/mock"
-import { SkillConfig } from "@/pages/superMagic/components/MainInputContainer/panels"
 import {
 	IdentifyImageMarkRequest,
 	IdentifyImageMarkResponse,
 } from "@/components/CanvasDesign/types.magic"
-import { SceneConfigStore } from "@/pages/superMagic/components/MainInputContainer/stores"
 import { PlaybookItem } from "./crew"
 
 /** LLM model capabilities */
@@ -283,26 +282,6 @@ export interface GetConvertHightConfigResponse {
 			scale: string
 		}[]
 	}
-}
-
-function shuffleScenes(scenes: Array<(typeof SKILL_CONFIGS_MAP)[keyof typeof SKILL_CONFIGS_MAP]>) {
-	const shuffled = [...scenes]
-
-	for (let index = shuffled.length - 1; index > 0; index -= 1) {
-		const randomIndex = Math.floor(Math.random() * (index + 1))
-			;[shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]]
-	}
-
-	return shuffled
-}
-
-function getRandomScenes() {
-	const scenes = Object.values(SKILL_CONFIGS_MAP)
-	if (!scenes.length) return []
-
-	const count = Math.floor(Math.random() * scenes.length) + 1
-
-	return shuffleScenes(scenes).slice(0, count)
 }
 
 export const generateSuperMagicApi = (fetch: HttpClient) => ({
@@ -802,7 +781,7 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 		order?: "asc" | "desc"
 		page_token?: string
 	}) {
-		return fetch.post(
+		return fetch.post<PaginationResponse<SeqRecord<ConversationQueryMessage>>>(
 			`/api/v1/im/conversations/${conversation_id}/messages/queries`,
 			{
 				limit,
@@ -1615,7 +1594,7 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 			enableRequestUnion: true,
 			headers: {
 				"X-Magic-Image-Process": buildImageProcessQuery({
-					resize: { h: 32, w: 32 },
+					resize: { h: 512, w: 512 },
 					format: "webp",
 				}),
 			},
@@ -1633,7 +1612,26 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 				enableRequestUnion: true,
 				headers: {
 					"X-Magic-Image-Process": buildImageProcessQuery({
-						resize: { h: 32, w: 32 },
+						resize: { h: 512, w: 512 },
+						format: "webp",
+					}),
+				},
+			},
+		)
+	},
+
+	/**
+	 * 获取默认模式模型列表
+	 * @returns 默认模式模型列表
+	 */
+	getDefaultModeModelList() {
+		return fetch.get<ModeItem & { models: Record<string, ModelItem> }>(
+			`/api/v1/modes/default`,
+			{
+				enableRequestUnion: true,
+				headers: {
+					"X-Magic-Image-Process": buildImageProcessQuery({
+						resize: { h: 512, w: 512 },
 						format: "webp",
 					}),
 				},
@@ -1651,7 +1649,7 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 			enableRequestUnion: true,
 			headers: {
 				"X-Magic-Image-Process": buildImageProcessQuery({
-					resize: { h: 32, w: 32 },
+					resize: { h: 512, w: 512 },
 					format: "webp",
 				}),
 			},

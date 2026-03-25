@@ -10,7 +10,7 @@ import SkillIcon from "../icons/SkillIcon"
 import ToolIcon from "../icons/ToolIcon"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconX } from "@tabler/icons-react"
-import { getItemTypeDescription } from "../../utils/getValue"
+import { getItemTypeDescription, getSkillMentionSourceLabel } from "../../utils/getValue"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import FoldIcon from "@/pages/superMagic/assets/svg/file-folder.svg"
 import { getAttachmentType } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
@@ -231,6 +231,13 @@ const MenuItem = memo((props: MenuItemProps) => {
 		selected && "bg-accent [&_.deleteButton]:opacity-100",
 		className,
 	)
+	const skillSourceLabel = getSkillMentionSourceLabel(item, t)
+	const shouldRenderTypeDescription =
+		!!skillSourceLabel ||
+		isSearch ||
+		item.tags?.includes("history") ||
+		item.tags?.includes("tab")
+	const typeDescription = skillSourceLabel || getItemTypeDescription(item, t)
 
 	return (
 		<div
@@ -252,6 +259,7 @@ const MenuItem = memo((props: MenuItemProps) => {
 			aria-disabled={item.unSelectable}
 			aria-label={`${t.ariaLabels.menuItem}: ${item.name}`}
 			tabIndex={selected && !item.unSelectable ? 0 : -1}
+			data-testid="mention-panel-menu-item"
 			{...restProps}
 		>
 			<div className="flex min-w-0 flex-1 items-center gap-1">
@@ -263,13 +271,14 @@ const MenuItem = memo((props: MenuItemProps) => {
 				</div>
 			</div>
 
-			{(isSearch || item.tags?.includes("history") || item.tags?.includes("tab")) && (
+			{shouldRenderTypeDescription && (
 				<div
 					className="relative max-w-[50%] overflow-hidden whitespace-nowrap font-['Geist'] text-[10px] font-normal leading-[13px] text-muted-foreground"
 					style={{ direction: "rtl", textOverflow: "ellipsis" }}
+					data-testid={skillSourceLabel ? "mention-panel-skill-source" : undefined}
 				>
 					<span style={{ direction: "ltr", unicodeBidi: "bidi-override" }}>
-						{getItemTypeDescription(item, t)}
+						{typeDescription}
 					</span>
 				</div>
 			)}

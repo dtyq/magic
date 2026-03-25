@@ -122,7 +122,7 @@ class DocxConverter(DocumentConverter):
 
     def _get_cache_path(self, source_file: Path) -> Path:
         """Generate unique cache file path"""
-        from agentlang.paths import PathManager
+        from agentlang.path_manager import PathManager
 
         # Create unique identifier to avoid path conflicts
         file_hash = hashlib.md5(str(source_file).encode()).hexdigest()[:8]
@@ -305,7 +305,7 @@ class DocxConverter(DocumentConverter):
     def _cleanup_old_cache(self):
         """Remove cache files older than CACHE_MAX_AGE_DAYS"""
         try:
-            from agentlang.paths import PathManager
+            from agentlang.path_manager import PathManager
 
             cache_dir = PathManager.get_cache_dir() / "docx_conversions"
             if not cache_dir.exists():

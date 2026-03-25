@@ -12,9 +12,16 @@ import type { LocalizeField, SkillIdentityData } from "../types"
 interface IdentityStepProps {
 	identity: SkillIdentityData
 	onChange: React.Dispatch<React.SetStateAction<SkillIdentityData>>
+	namePlaceholder?: string
+	descriptionPlaceholder?: string
 }
 
-function IdentityStep({ identity, onChange }: IdentityStepProps) {
+function IdentityStep({
+	identity,
+	onChange,
+	namePlaceholder,
+	descriptionPlaceholder,
+}: IdentityStepProps) {
 	const { t } = useTranslation("crew/market")
 	const iconInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,6 +119,7 @@ function IdentityStep({ identity, onChange }: IdentityStepProps) {
 								},
 							}))
 						}
+						placeholder={namePlaceholder}
 						data-testid="skill-name-input"
 					/>
 				</div>
@@ -145,6 +153,7 @@ function IdentityStep({ identity, onChange }: IdentityStepProps) {
 								},
 							}))
 						}
+						placeholder={descriptionPlaceholder}
 						className="min-h-[126px] resize-none"
 						data-testid="skill-description-textarea"
 					/>

@@ -497,18 +497,20 @@
       .speaker-tag-name {
         color: #333;
         font-weight: 500;
+        min-width: 60px;
+        max-width: 120px;
+        box-sizing: border-box;
+        font-size: 11px;
+        line-height: 1.4;
       }
 
       .speaker-tag-name.editable {
-        min-width: 60px;
-        max-width: 120px;
         padding: 2px 6px;
         background: white;
         border: 1px solid #ddd;
         border-radius: 3px;
         outline: none;
         cursor: text;
-        font-size: 11px;
         transition: all 0.2s;
       }
 
@@ -522,10 +524,14 @@
       }
 
       .speaker-tag-name.readonly {
-        min-width: 60px;
         color: #333;
         font-weight: 500;
         cursor: default;
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 6px;
+        border: 1px solid transparent;
+        border-radius: 3px;
       }
 
       .speaker-edit-btn {
@@ -2612,6 +2618,12 @@
         }
 
         .speaker-tag-name.editable {
+          min-width: 50px;
+          max-width: 100px;
+          font-size: 10px;
+        }
+
+        .speaker-tag-name.readonly {
           min-width: 50px;
           max-width: 100px;
           font-size: 10px;
@@ -5256,7 +5268,14 @@
       let isResizing = false;
       let startX = 0;
       let startWidth = 0;
+      let resizeStartExpandedWidth = 0;
       let savedLastActiveTab = null; // Store last active tab for restoration
+      const TOPICS_SECTION_WIDTH_KEY = "topicsSectionWidth";
+      const TOPICS_SECTION_EXPANDED_WIDTH_KEY = "topicsExpandedWidth";
+      const TOPICS_SECTION_COLLAPSED_KEY = "topicsCollapsed";
+      const TOPICS_SECTION_MIN_WIDTH = 200;
+      const TOPICS_SECTION_MAX_WIDTH = 800;
+      const TOPICS_SECTION_COLLAPSE_THRESHOLD = 150;
 
       // 说话人映射
       let speakerMapping = {
@@ -5395,6 +5414,78 @@
           currentTopic,
         };
         localStorage.setItem("meetingData", JSON.stringify(data));
+      }
+
+      function parseTopicsSectionWidth(rawWidth) {
+        const width = parseInt(rawWidth ?? "", 10);
+        if (Number.isNaN(width)) {
+          return null;
+        }
+        if (width < TOPICS_SECTION_MIN_WIDTH || width > TOPICS_SECTION_MAX_WIDTH) {
+          return null;
+        }
+        return width;
+      }
+
+      function getSavedTopicsExpandedWidth() {
+        return (
+          parseTopicsSectionWidth(localStorage.getItem(TOPICS_SECTION_EXPANDED_WIDTH_KEY)) ??
+          parseTopicsSectionWidth(localStorage.getItem(TOPICS_SECTION_WIDTH_KEY)) ??
+          TOPICS_SECTION_MIN_WIDTH
+        );
+      }
+
+      function saveTopicsExpandedWidth(width) {
+        const constrainedWidth = Math.max(
+          TOPICS_SECTION_MIN_WIDTH,
+          Math.min(TOPICS_SECTION_MAX_WIDTH, Math.round(width)),
+        );
+        const value = constrainedWidth.toString();
+        localStorage.setItem(TOPICS_SECTION_EXPANDED_WIDTH_KEY, value);
+        localStorage.setItem(TOPICS_SECTION_WIDTH_KEY, value);
+        return constrainedWidth;
+      }
+
+      function hasSavedTopicsCollapsedState() {
+        return localStorage.getItem(TOPICS_SECTION_COLLAPSED_KEY) !== null;
+      }
+
+      function getSavedTopicsCollapsed() {
+        return localStorage.getItem(TOPICS_SECTION_COLLAPSED_KEY) === "true";
+      }
+
+      function saveTopicsCollapsed(collapsed) {
+        localStorage.setItem(TOPICS_SECTION_COLLAPSED_KEY, collapsed ? "true" : "false");
+      }
+
+      function setTopicsSectionCollapsed(collapsed, options = {}) {
+        const { persist = true, restoreWidth = true } = options;
+        const topicsSection = document.querySelector(".topics-section");
+        const mainContent = document.querySelector(".main-content");
+
+        if (!topicsSection) {
+          return;
+        }
+
+        topicsSection.classList.toggle("collapsed", collapsed);
+        if (mainContent) {
+          mainContent.classList.toggle("topics-collapsed", collapsed);
+          if (!collapsed && restoreWidth) {
+            const expandedWidth = getSavedTopicsExpandedWidth();
+            mainContent.style.gridTemplateColumns = `${expandedWidth}px 6px 1fr`;
+          }
+        }
+
+        if (persist) {
+          saveTopicsCollapsed(collapsed);
+        }
+      }
+
+      function getInitialTopicsCollapsedState() {
+        if (hasSavedTopicsCollapsedState()) {
+          return getSavedTopicsCollapsed();
+        }
+        return window.innerWidth <= 768;
       }
 
       // ==================== 时间处理 ====================
@@ -5536,6 +5627,7 @@
             nameInput.className = "speaker-tag-name editable";
             nameInput.type = "text";
             nameInput.value = speakerMapping[speakerId];
+            nameInput.size = Math.max(6, Math.min(12, nameInput.value.length || speakerId.length));
             nameInput.placeholder = "输入名字";
             if (swatch) {
               nameInput.style.backgroundColor = "rgba(255, 255, 255, 0.92)";
@@ -5545,6 +5637,12 @@
             // 实时更新映射
             nameInput.addEventListener("input", () => {
               speakerMapping[speakerId] = nameInput.value.trim() || speakerId;
+            });
+
+            ["mousedown", "click", "focus"].forEach((eventName) => {
+              nameInput.addEventListener(eventName, (event) => {
+                event.stopPropagation();
+              });
             });
 
             tag.appendChild(nameInput);
@@ -5558,19 +5656,17 @@
 
           tag.appendChild(statsSpan);
 
-          // 点击筛选（只在非编辑模式下）
-          if (!isEditingMode) {
-            tag.addEventListener("click", (e) => {
-              filteredSpeaker = filteredSpeaker === speakerId ? null : speakerId;
-              renderSpeakerTags();
-              renderTimeline();
+          // 点击标签任意非输入区域都可筛选，编辑模式下也保留该能力
+          tag.addEventListener("click", () => {
+            filteredSpeaker = filteredSpeaker === speakerId ? null : speakerId;
+            renderSpeakerTags();
+            renderTimeline();
 
-              // If search is active, re-run search to update results based on new filter
-              if (searchInput.value.trim()) {
-                performSearch();
-              }
-            });
-          }
+            // If search is active, re-run search to update results based on new filter
+            if (searchInput.value.trim()) {
+              performSearch();
+            }
+          });
 
           speakerTags.appendChild(tag);
         });
@@ -8706,14 +8802,9 @@
 
         if (!resizer || !mainContent || !topicsSection) return;
 
-        // Load saved width from localStorage
-        const savedWidth = localStorage.getItem("topicsSectionWidth");
-        if (savedWidth) {
-          const width = parseInt(savedWidth, 10);
-          if (width >= 200 && width <= 800) {
-            // Reasonable bounds
-            mainContent.style.gridTemplateColumns = `${width}px 6px 1fr`;
-          }
+        if (!getInitialTopicsCollapsedState()) {
+          const expandedWidth = getSavedTopicsExpandedWidth();
+          mainContent.style.gridTemplateColumns = `${expandedWidth}px 6px 1fr`;
         }
 
         resizer.addEventListener("mousedown", (e) => {
@@ -8721,6 +8812,7 @@
           isResizing = true;
           startX = e.clientX;
           startWidth = topicsSection.offsetWidth;
+          resizeStartExpandedWidth = startWidth;
 
           // Add visual feedback
           resizer.style.background = "rgba(0, 0, 0, 0.05)";
@@ -8735,30 +8827,28 @@
           const newWidth = startWidth + deltaX;
 
           // 拖动到足够窄时自动收起
-          if (newWidth < 150) {
+          if (newWidth < TOPICS_SECTION_COLLAPSE_THRESHOLD) {
             isResizing = false;
             resizer.style.background = "transparent";
             document.body.style.cursor = "";
             document.body.style.userSelect = "";
-            
-            topicsSection.classList.add('collapsed');
-            mainContent.classList.add('topics-collapsed');
-            
-            // 记住收起前的最小宽度，以便展开和刷新时使用
-            localStorage.setItem("topicsSectionWidth", "200");
-            
+
+            saveTopicsExpandedWidth(resizeStartExpandedWidth);
+            setTopicsSectionCollapsed(true);
+
             setTimeout(() => {
               if (typeof adjustMainContentHeight === 'function') adjustMainContentHeight();
               if (typeof adjustContentPanelHeight === 'function') adjustContentPanelHeight();
             }, 0);
-            
+
             return;
           }
 
           // Set reasonable bounds: min 200px, max 800px
-          const minWidth = 200;
-          const maxWidth = 800;
-          const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+          const constrainedWidth = Math.max(
+            TOPICS_SECTION_MIN_WIDTH,
+            Math.min(TOPICS_SECTION_MAX_WIDTH, newWidth),
+          );
 
           // Update grid layout
           mainContent.style.gridTemplateColumns = `${constrainedWidth}px 6px 1fr`;
@@ -8772,9 +8862,9 @@
           document.body.style.cursor = "";
           document.body.style.userSelect = "";
 
-          // Save the width to localStorage
           const currentWidth = topicsSection.offsetWidth;
-          localStorage.setItem("topicsSectionWidth", currentWidth.toString());
+          saveTopicsExpandedWidth(currentWidth);
+          saveTopicsCollapsed(false);
 
           // Trigger panel height adjustment after resize
           setTimeout(() => {
@@ -9039,18 +9129,16 @@
       function initializeTopicsToggle() {
         const topicsHeader = document.getElementById('topics-header');
         const topicsSection = document.querySelector('.topics-section');
-        const mainContent = document.querySelector('.main-content');
         if (topicsHeader && topicsSection) {
-          // Default to collapsed on mobile
-          if (window.innerWidth <= 768) {
-            topicsSection.classList.add('collapsed');
-            if (mainContent) mainContent.classList.add('topics-collapsed');
-          }
+          setTopicsSectionCollapsed(getInitialTopicsCollapsedState(), { persist: false });
 
           topicsHeader.addEventListener('click', () => {
-            topicsSection.classList.toggle('collapsed');
-            if (mainContent) mainContent.classList.toggle('topics-collapsed');
-            
+            const nextCollapsed = !topicsSection.classList.contains('collapsed');
+            if (nextCollapsed) {
+              saveTopicsExpandedWidth(topicsSection.offsetWidth);
+            }
+            setTopicsSectionCollapsed(nextCollapsed);
+
             setTimeout(() => {
               if (typeof adjustMainContentHeight === 'function') adjustMainContentHeight();
               if (typeof adjustContentPanelHeight === 'function') adjustContentPanelHeight();

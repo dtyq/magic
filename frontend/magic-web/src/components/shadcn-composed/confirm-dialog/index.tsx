@@ -10,7 +10,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/shadcn-ui/alert-dialog"
-import { buttonVariants } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 
 interface ConfirmDialogOptions {
@@ -20,6 +19,10 @@ interface ConfirmDialogOptions {
 	cancelText?: string
 	/** Controls confirm button style; "destructive" for delete actions */
 	variant?: "default" | "destructive"
+	/** Soft red text on tinted bg (Figma dismiss sheet); default solid destructive */
+	destructivePresentation?: "solid" | "soft"
+	/** sm = equal-width footer buttons on narrow layouts */
+	dialogSize?: "default" | "sm"
 	onConfirm: () => void
 }
 
@@ -28,7 +31,7 @@ interface ConfirmDialogState extends ConfirmDialogOptions {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
-const noop = () => { }
+const noop = () => {}
 
 const INITIAL_STATE: ConfirmDialogState = {
 	open: false,
@@ -67,6 +70,8 @@ export function useConfirmDialog() {
 			confirmText={state.confirmText}
 			cancelText={state.cancelText}
 			variant={state.variant}
+			destructivePresentation={state.destructivePresentation}
+			dialogSize={state.dialogSize}
 			onConfirm={handleConfirm}
 			onCancel={handleCancel}
 		/>
@@ -82,6 +87,8 @@ interface ConfirmDialogProps {
 	confirmText?: string
 	cancelText?: string
 	variant?: "default" | "destructive"
+	destructivePresentation?: "solid" | "soft"
+	dialogSize?: "default" | "sm"
 	onConfirm: () => void
 	onCancel: () => void
 }
@@ -97,16 +104,23 @@ export function ConfirmDialog({
 	confirmText,
 	cancelText,
 	variant = "default",
+	destructivePresentation = "solid",
+	dialogSize = "default",
 	onConfirm,
 	onCancel,
 }: ConfirmDialogProps) {
 	const { t } = useTranslation("interface")
 
+	const useSoftDestructive = variant === "destructive" && destructivePresentation === "soft"
+
 	return (
 		<AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-			<AlertDialogContent data-testid="confirm-dialog">
+			<AlertDialogContent data-testid="confirm-dialog" size={dialogSize}>
 				<AlertDialogHeader>
-					<AlertDialogTitle data-testid="confirm-dialog-title">
+					<AlertDialogTitle
+						data-testid="confirm-dialog-title"
+						className={cn(useSoftDestructive && "font-semibold")}
+					>
 						{title ?? t("deleteConfirmTitle")}
 					</AlertDialogTitle>
 					{description && (
@@ -115,14 +129,31 @@ export function ConfirmDialog({
 						</AlertDialogDescription>
 					)}
 				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel onClick={onCancel} data-testid="confirm-dialog-cancel">
+				<AlertDialogFooter
+					className={cn(useSoftDestructive && "border-t border-border bg-muted")}
+				>
+					<AlertDialogCancel
+						onClick={onCancel}
+						className={cn(dialogSize === "sm" && "flex-1")}
+						size="sm"
+						data-testid="confirm-dialog-cancel"
+					>
 						{cancelText ?? t("button.cancel")}
 					</AlertDialogCancel>
 					<AlertDialogAction
 						onClick={onConfirm}
+						variant={
+							useSoftDestructive
+								? "ghost"
+								: variant === "destructive"
+									? "destructive"
+									: "default"
+						}
+						size="sm"
 						className={cn(
-							variant === "destructive" && buttonVariants({ variant: "destructive" }),
+							useSoftDestructive &&
+								"flex-1 border-0 bg-destructive/10 !text-destructive shadow-xs hover:bg-destructive/15 hover:!text-destructive sm:text-sm",
+							dialogSize === "sm" && "flex-1",
 						)}
 						data-testid="confirm-dialog-confirm"
 					>

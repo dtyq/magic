@@ -16,7 +16,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams
 from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.utils.magic_project_design_parser import ImageElement
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 T = TypeVar('T', bound=BaseToolParams)
 
 
-class BaseDesignTool(AbstractFileTool[T], WorkspaceGuardTool[T], Generic[T]):
+class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
     """设计模式工具基类
 
     提供的公共方法包括：
@@ -53,9 +53,7 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceGuardTool[T], Generic[T]):
             - 成功时: (Path 对象, None)
             - 失败时: (None, 错误消息)
         """
-        project_path, error = self.get_safe_path(project_path_str)
-        if error:
-            return None, error
+        project_path = self.resolve_path(project_path_str)
         return project_path, None
 
     async def _validate_project_exists(self, project_path: Path) -> Optional[str]:

@@ -14,11 +14,17 @@ export class CrewPlaybookStore {
 	scenesError: string | null = null
 
 	private readonly _getCrewCode: CrewCodeController["getCrewCode"]
+	private readonly _markCrewUpdated?: CrewCodeController["markCrewUpdated"]
 
-	constructor({ getCrewCode }: CrewCodeController) {
+	constructor({ getCrewCode, markCrewUpdated }: CrewCodeController) {
 		this._getCrewCode = getCrewCode
+		this._markCrewUpdated = markCrewUpdated
 
-		makeAutoObservable(this, { _getCrewCode: false }, { autoBind: true })
+		makeAutoObservable<this, "_getCrewCode" | "_markCrewUpdated">(
+			this,
+			{ _getCrewCode: false, _markCrewUpdated: false },
+			{ autoBind: true },
+		)
 	}
 
 	/** Fetch playbooks from API. Requires crewCode to be set. */
@@ -92,6 +98,7 @@ export class CrewPlaybookStore {
 
 		try {
 			await crewService.togglePlaybookEnabled(code, playbookId, scene.enabled)
+			this._markCrewUpdated?.()
 		} catch (error) {
 			scene.enabled = !scene.enabled
 
@@ -125,6 +132,7 @@ export class CrewPlaybookStore {
 
 		try {
 			await crewService.deletePlaybook(code, playbookId)
+			this._markCrewUpdated?.()
 			runInAction(() => {
 				this.playbookIdMap.delete(id)
 			})
@@ -169,6 +177,7 @@ export class CrewPlaybookStore {
 
 		try {
 			await crewService.reorderPlaybooks(code, playbookIds)
+			this._markCrewUpdated?.()
 		} catch (error) {
 			this.scenes = previousScenes
 
@@ -218,10 +227,12 @@ export class CrewPlaybookStore {
 		if (index === -1) return
 
 		const previousScene = this.scenes[index]
-		this.scenes[index] = scene
+		const nextScene = { ...scene }
+		this.scenes[index] = nextScene
 
 		try {
-			await crewService.updatePlaybook(code, playbookId, mapSceneToPlaybookParams(scene))
+			await crewService.updatePlaybook(code, playbookId, mapSceneToPlaybookParams(nextScene))
+			this._markCrewUpdated?.()
 		} catch (error) {
 			this.scenes[index] = previousScene
 
@@ -264,6 +275,7 @@ export class CrewPlaybookStore {
 				code,
 				mapSceneToPlaybookParams(scene) as CreatePlaybookParams,
 			)
+			this._markCrewUpdated?.()
 
 			runInAction(() => {
 				const tempSceneId = scene.id

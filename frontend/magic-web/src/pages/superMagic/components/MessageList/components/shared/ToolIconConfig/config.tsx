@@ -355,6 +355,22 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 		icon: SkillIcon,
 		bgColor: "#00B5C2",
 	},
+	skills_read: {
+		icon: SkillIcon,
+		bgColor: "#00B5C2",
+	},
+	read_skills: {
+		icon: SkillIcon,
+		bgColor: "#00B5C2",
+	},
+	skill_read_references: {
+		icon: SkillIcon,
+		bgColor: "#00B5C2",
+	},
+	skill_list: {
+		icon: SkillIcon,
+		bgColor: "#00B5C2",
+	},
 	get_agent_info: {
 		icon: AgentIcon,
 		bgColor: "#4B4EFC",

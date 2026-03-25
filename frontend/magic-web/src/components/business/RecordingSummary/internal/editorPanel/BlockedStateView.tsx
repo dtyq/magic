@@ -51,6 +51,9 @@ export function BlockedStateView({
 	onOpenCurrentRecording,
 }: BlockedStateViewProps) {
 	const { t } = useTranslation("super")
+	const recordingWarningText = isOtherTabRecording
+		? t("recordingSummary.superEditorPanel.warning.recordingInProgressOtherTab")
+		: t("recordingSummary.superEditorPanel.warning.recordingInProgress")
 
 	return (
 		<div
@@ -96,13 +99,7 @@ export function BlockedStateView({
 					) : (
 						<div className="flex items-center justify-center gap-1">
 							<RecordingIndicator />
-							{isOtherTabRecording
-								? t(
-									"recordingSummary.superEditorPanel.warning.recordingInProgressOtherTab",
-								)
-								: t(
-									"recordingSummary.superEditorPanel.warning.recordingInProgress",
-								)}
+							{recordingWarningText}
 						</div>
 					)}
 				</div>

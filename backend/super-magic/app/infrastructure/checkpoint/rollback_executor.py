@@ -21,7 +21,7 @@ from app.utils.async_file_utils import (
     async_copy2, async_rmtree, async_mkdir, async_unlink, async_rmdir, async_write_json
 )
 from app.core.exceptions import RollbackException, ErrorCode
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 from agentlang.logger import get_logger
 

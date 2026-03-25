@@ -13,7 +13,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, ToolDetail, TerminalContent
 
@@ -150,7 +150,7 @@ List of card updates (1-10 cards), each card must provide at least one field to 
 
 
 @tool()
-class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], WorkspaceGuardTool[UpdateDashboardCardsParams]):
+class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], WorkspaceTool[UpdateDashboardCardsParams]):
     """<!--zh
     更新Dashboard卡片工具
     
@@ -231,10 +231,7 @@ class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], Workspa
         """
         try:
             # 1. 获取项目路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-            
+            project_path = self.resolve_path(params.project_path)
             if not project_path.exists():
                 return ToolResult(
                     error=i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)

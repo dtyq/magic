@@ -276,10 +276,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	// 通用的文件上传处理函数（实际执行上传）- 用于普通文件上传（每个文件一个任务）
 	const processFilesUpload = useCallback(
 		async (files: File[], targetSuffixDir: string) => {
-			if (!workspaceId) {
-				magicToast.error(t("error.workspaceNotFound"))
-				return
-			}
 			// 为每个文件创建单独的任务
 			for (const file of files) {
 				try {
@@ -334,10 +330,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	// 文件夹上传处理函数（所有文件作为一个任务）
 	const processFolderUpload = useCallback(
 		async (files: File[], targetSuffixDir: string) => {
-			if (!workspaceId) {
-				magicToast.error(t("error.workspaceNotFound"))
-				return
-			}
 			try {
 				// 所有文件作为一个任务
 				await multiFolderUploadStore.createUploadTask(files, targetSuffixDir, {

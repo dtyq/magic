@@ -20,7 +20,7 @@ const MessageEditorWithTopicModeInvalidFallback = forwardRef<MessageEditorRef, M
 			!superMagicModeService.isModeValid(props.topicMode as TopicMode)
 		) {
 			return (
-				<div className="flex h-full min-h-[122px] flex-col items-center justify-center gap-2.5">
+				<div className="mx-4 flex h-full min-h-[122px] flex-col items-center justify-center gap-2.5">
 					<div className="text-xs leading-4 text-muted-foreground">
 						{t("messageEditor.modeNotAvailableMessage")}
 					</div>

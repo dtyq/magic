@@ -3,7 +3,7 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from app.service.mention.base import BaseMentionHandler, logger
 from app.utils.async_file_utils import async_exists, async_read_text
 

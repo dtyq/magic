@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { TopicMode, type ModeItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode, type CrewItem } from "@/pages/superMagic/pages/Workspace/types"
 import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
 import { cn } from "@/lib/utils"
@@ -28,7 +28,7 @@ function RoleSelector({ role, onActionClick }: RoleSelectorProps) {
 		[modeList, role],
 	)
 
-	const renderRoleIcon = (mode: ModeItem["mode"]) => {
+	const renderRoleIcon = (mode: CrewItem["mode"]) => {
 		if (mode.icon_type === IconType.Image && mode.icon_url) {
 			return (
 				<img
@@ -52,7 +52,7 @@ function RoleSelector({ role, onActionClick }: RoleSelectorProps) {
 				<Button
 					type="button"
 					variant="outline"
-					className="shadow-xs h-7 gap-2 rounded-md border-input bg-background px-4 py-2 text-sm font-medium leading-5 text-foreground hover:bg-background"
+					className="h-7 gap-2 rounded-md border-input bg-background px-4 py-2 text-sm font-medium leading-5 text-foreground shadow-xs hover:bg-background"
 					data-testid="super-message-panel-role-selector-trigger"
 					data-role={currentMode.mode.identifier}
 				>

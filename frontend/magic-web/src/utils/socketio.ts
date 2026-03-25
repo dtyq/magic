@@ -30,7 +30,7 @@ function genPayload(data: unknown, context: Record<string, unknown> = {}) {
 			timestamp: Date.now(),
 			authorization: userStore.user.authorization ?? "",
 			organization_code: organizationCode ?? "",
-			language: getCurrentLang(normalizeLocale(configStore.i18n.language)),
+			language: getCurrentLang(normalizeLocale(configStore.i18n.displayLanguage)),
 			// 可能后续用于消息的加密解密
 			signature: "",
 			...context,

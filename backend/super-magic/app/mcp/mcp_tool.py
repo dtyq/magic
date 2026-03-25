@@ -15,7 +15,7 @@ from pydantic import Field, create_model
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.tools.core.base_tool import BaseTool
 from app.tools.core.base_tool_params import BaseToolParams
 
@@ -396,7 +396,7 @@ class MCPTool(BaseTool):
         except Exception as e:
             error_msg = f"MCP 工具执行失败: {e}"
             logger.warning(f"执行 MCP 工具 '{self.get_effective_name()}' 失败: {e}")
-            return ToolResult(error=error_msg)  # type: ignore
+            return ToolResult.error(error_msg)  # type: ignore
 
     def __str__(self) -> str:
         """字符串表示"""

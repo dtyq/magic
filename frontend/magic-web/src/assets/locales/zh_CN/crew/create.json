@@ -98,7 +98,7 @@
 					"title": "选择颜色"
 				},
 				"description": "描述",
-				"descriptionPlaceholder": "粘贴 URL 获取即时摘要。",
+				"descriptionPlaceholder": "输入描述",
 				"enable": "启用",
 				"icon": "图标",
 				"iconPicker": {
@@ -125,7 +125,7 @@
 				"save": "保存",
 				"title": "基本信息"
 			},
-			"createPlaybook": "创建场景",
+			"createPlaybook": "编辑场景",
 			"enable": "启用",
 			"filter": {
 				"all": "全部",
@@ -392,12 +392,24 @@
 		"retry": "重试",
 		"searchPlaceholder": "搜索",
 		"selectAll": "全选",
+		"selectPlaybook": "请从左侧选择一个场景预设",
 		"title": "场景预设",
 		"untitled": "未命名",
 		"untitledDescription": "暂无描述",
 		"updatedAt": "更新于 {{date}}"
 	},
+	"publishNameDialog": {
+		"confirm": "确认并继续发布",
+		"description": "",
+		"placeholder": "请输入员工名称",
+		"required": "请输入员工名称",
+		"title": "发布前请命名员工"
+	},
 	"scenarioPresets": "场景预设",
+	"sidebarTabs": {
+		"advanced": "高级",
+		"files": "文件"
+	},
 	"skills": {
 		"addFromLibrary": "从技能库添加",
 		"addFromLibraryDesc": "直接在技能库中添加技能",
@@ -411,7 +423,9 @@
 		"importSkillDesc": "上传 .Skill、.Zip 或文件夹",
 		"install": "安装",
 		"library": "技能库",
+		"loadingMore": "加载更多中...",
 		"mySkills": "我的技能",
+		"noMoreData": "没有更多数据。",
 		"remove": "移除",
 		"title": "技能",
 		"uninstall": "卸载"

@@ -5,7 +5,14 @@
 		"previous": "上一步",
 		"submitting": "提交中..."
 	},
+	"configDialog": {
+		"description": "部分 AI 能力需要额外配置，您可以现在前往管理后台进行配置，或稍后在\"我的-管理后台\"中配置。",
+		"goToConfig": "前往配置",
+		"skip": "稍后配置",
+		"title": "初始化成功！"
+	},
 	"errors": {
+		"missingPreviousSteps": "请先完成前面的步骤，正在跳转到第一步...",
 		"submitFailed": "初始化失败，请重试"
 	},
 	"step1": {
@@ -35,8 +42,10 @@
 		"azureApiVersionHint": "Azure 的 API版本，遵循 YYYY-MM-DD 格式",
 		"azureApiVersionPlaceholder": "例如：2024-02-15",
 		"deploymentName": "部署名称",
-		"deploymentNameHint": "模型部署的标识名称（Azure OpenAI 必填）",
-		"deploymentNamePlaceholder": "例如：gpt-4-turbo",
+		"deploymentNameHint": "模型的部署名称或者模型ID",
+		"deploymentNamePlaceholder": "例如：gpt-4-turbo、gpt-4o、claude-3-opus",
+		"deploymentNameRequired": "请填写部署名称",
+		"deploymentNameTooltip": "模型的部署名称",
 		"errors": {
 			"missingConfig": "请先填写 API URL 和 API Key"
 		},
@@ -47,7 +56,8 @@
 			"DeepSeek": "DeepSeek",
 			"Gemini": "Google (AI Studio)",
 			"MicrosoftAzure": "Microsoft Azure",
-			"OpenAI": "OpenAI",
+			"OfficialOpenAI": "OpenAI 官方",
+			"OpenAI": "OpenAI 兼容",
 			"OpenRouter": "OpenRouter",
 			"Volcengine": "火山引擎"
 		},
@@ -98,6 +108,9 @@
 		"step3": "数字员工"
 	},
 	"subtitle": "让我们花几分钟时间完成初始化设置",
+	"success": {
+		"initialized": "初始化成功！"
+	},
 	"title": "MagiCrew",
 	"welcomeTo": "欢迎使用"
 }

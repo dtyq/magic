@@ -14,7 +14,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
 from app.utils.async_file_utils import async_copy2, async_stat
 
@@ -114,7 +114,7 @@ async def _copy_local_file_async(source_path: Path, target_path: Path) -> int:
 
 
 @tool()
-class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], WorkspaceGuardTool[DownloadFromMarkdownParams]):
+class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], WorkspaceTool[DownloadFromMarkdownParams]):
     """<!--zh
     从Markdown文件批量下载图片资源，请在下载多张图片时作为首选
 
@@ -173,24 +173,18 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
         """
         try:
             # Validate markdown file path
-            markdown_path, error = self.get_safe_path(params.markdown_file)
-            if error:
-                return ToolResult(error=error)
-
+            markdown_path = self.resolve_path(params.markdown_file)
             if not markdown_path.exists():
-                return ToolResult(error=f"Markdown文件不存在: {markdown_path}")
+                return ToolResult.error(f"Markdown文件不存在: {markdown_path}")
 
             # Validate target folder path
-            target_folder, error = self.get_safe_path(params.target_folder)
-            if error:
-                return ToolResult(error=error)
-
+            target_folder = self.resolve_path(params.target_folder)
             # Read markdown content
             try:
                 async with aiofiles.open(markdown_path, 'r', encoding='utf-8') as f:
                     markdown_content = await f.read()
             except Exception as e:
-                return ToolResult(error="Failed to read markdown file")
+                return ToolResult.error("Failed to read markdown file")
 
             # Parse resource information
             resources = self._parse_markdown_resources(markdown_content, params.file_extensions)
@@ -237,7 +231,7 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
 
         except Exception as e:
             logger.exception(f"执行Markdown图片下载失败: {e}")
-            return ToolResult(error="Download execution failed")
+            return ToolResult.error("Download execution failed")
 
     def _parse_markdown_resources(self, content: str, file_extensions: str) -> List[ResourceInfo]:
         """
@@ -497,16 +491,13 @@ class DownloadFromMarkdown(AbstractFileTool[DownloadFromMarkdownParams], Workspa
                 try:
                     workspace_root = self.base_dir.resolve()
                     relative_to_workspace = resolved_path.relative_to(workspace_root)
-                    safe_path, error = self.get_safe_path(str(relative_to_workspace))
+                    safe_path = self.resolve_path(str(relative_to_workspace))
                 except ValueError:
                     # Path is outside workspace
                     return None, f"路径超出工作区范围: {local_path}"
             else:
                 # Absolute path or workspace-relative path
-                safe_path, error = self.get_safe_path(local_path)
-
-            if error:
-                return None, f"路径安全检查失败: {error}"
+                safe_path = self.resolve_path(local_path)
 
             if not safe_path.exists():
                 return None, f"本地文件不存在: {local_path}"

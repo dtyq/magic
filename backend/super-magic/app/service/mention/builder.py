@@ -7,6 +7,7 @@ from app.service.mention.handlers import (
     AgentHandler,
     DesignMarkerHandler,
     ProjectDirectoryHandler,
+    SkillHandler,
 )
 
 
@@ -33,6 +34,7 @@ class MentionContextBuilder:
         self._handlers['agent'] = AgentHandler()
         self._handlers['design_marker'] = DesignMarkerHandler()
         self._handlers['project_directory'] = ProjectDirectoryHandler()
+        self._handlers['skill'] = SkillHandler()
 
     async def build(self, mentions: List[Dict[str, Any]]) -> str:
         """构建mentions的系统上下文信息（异步）

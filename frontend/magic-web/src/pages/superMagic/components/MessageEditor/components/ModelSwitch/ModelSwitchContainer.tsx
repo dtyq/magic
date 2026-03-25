@@ -110,7 +110,7 @@ function ModelSwitchContainer({
 				/>
 				<ModelConnectGuide
 					anchorRef={guideAnchorRef}
-					enabled={!isMobile}
+					enabled={false}
 					onConnect={handleConnectGuide}
 				/>
 			</div>
