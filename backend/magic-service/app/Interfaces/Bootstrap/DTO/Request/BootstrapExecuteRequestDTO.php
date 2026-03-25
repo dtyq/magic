@@ -168,7 +168,7 @@ class BootstrapExecuteRequestDTO extends AbstractRequestDTO
         return [
             'admin_account' => 'required|array',
             'admin_account.phone' => ['required', 'string', 'regex:/^1\d{10}$/'],
-            'admin_account.password' => 'required|string|min:8|max:32',
+            'admin_account.password' => 'required|string',
             'agent_info' => 'sometimes|array',
             'agent_info.name' => 'sometimes|nullable|string|max:255',
             'agent_info.description' => 'sometimes|nullable|string|max:1000',
@@ -186,8 +186,6 @@ class BootstrapExecuteRequestDTO extends AbstractRequestDTO
             'admin_account.phone.required' => 'admin_account.phone is required',
             'admin_account.phone.regex' => 'admin_account.phone is invalid',
             'admin_account.password.required' => 'admin_account.password is required',
-            'admin_account.password.min' => 'admin_account.password length must be at least 8',
-            'admin_account.password.max' => 'admin_account.password length must be at most 32',
             'agent_info.array' => 'agent_info must be an object',
             'agent_info.name.max' => 'agent_info.name length must be at most 255',
             'agent_info.description.max' => 'agent_info.description length must be at most 1000',
