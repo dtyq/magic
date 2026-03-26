@@ -305,6 +305,11 @@ func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace s
 // in an image-pull failure state (ImagePullBackOff / ErrImagePull). If so, the
 // DaemonSet is deleted so that the upcoming Helm install starts with a clean slate.
 func (s *MagicSandboxStage) cleanupStaleImagePrepull(ctx context.Context, namespace string) {
+	if s.d.kubeClient == nil {
+		s.d.log.Logw("deploy", "image-prepull stale-check skipped: kube client not initialized")
+		return
+	}
+
 	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 

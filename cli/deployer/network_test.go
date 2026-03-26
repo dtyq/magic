@@ -476,6 +476,60 @@ func TestPatchConfigProxySection_IdempotentOnSameInput(t *testing.T) {
 	assert.Equal(t, string(first), string(second), "second patch should not change the file")
 }
 
+func TestPatchConfigProxySection_FilePermission_TightenedTo0600(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	require.NoError(t, os.WriteFile(path, []byte("deploy: {}\n"), 0o644))
+
+	err := patchConfigProxySection(path, ProxyConfig{
+		Enabled: true,
+		Host:    ProxyEndpointConfig{URL: "http://proxy:8080"},
+	})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
+		"file written with 0644 source should be tightened to 0600")
+}
+
+func TestPatchConfigProxySection_FilePermission_OwnerOnlyPreserved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	require.NoError(t, os.WriteFile(path, []byte("deploy: {}\n"), 0o400))
+
+	err := patchConfigProxySection(path, ProxyConfig{
+		Enabled: true,
+		Host:    ProxyEndpointConfig{URL: "http://proxy:8080"},
+	})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o400), info.Mode().Perm(),
+		"existing owner-only permission 0400 should be preserved")
+}
+
+func TestPatchConfigProxySection_PreservesComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	orig := "# top-level comment\ndeploy:\n  # deploy comment\n  chartRepo:\n    url: https://example\n"
+	require.NoError(t, os.WriteFile(path, []byte(orig), 0o644))
+
+	err := patchConfigProxySection(path, ProxyConfig{
+		Enabled: true,
+		Host:    ProxyEndpointConfig{URL: "http://proxy:8080"},
+	})
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	content := string(data)
+
+	assert.Contains(t, content, "# top-level comment", "top-level comment must be preserved")
+	assert.Contains(t, content, "# deploy comment", "nested comment must be preserved")
+	assert.Contains(t, content, "chartRepo:", "unrelated key must be preserved")
+	assert.Contains(t, content, "https://example", "unrelated value must be preserved")
+	assert.Contains(t, content, "http://proxy:8080", "proxy URL must appear")
+}
+
 // ── test helpers ──────────────────────────────────────────────────────────────
 
 // nolog returns an empty LoggerGroup that silently discards all log calls.

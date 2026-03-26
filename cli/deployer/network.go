@@ -313,10 +313,12 @@ func checkContainerProxyEgress(ctx context.Context, proxyURL string) error {
 }
 
 // patchConfigProxySection writes the resolved proxy configuration back to the
-// config file. It unmarshals the file, replaces the deploy.proxy subtree, and
-// marshals back. Comments in the file are not preserved.
+// config file. It uses a yaml.Node AST to surgically update only the
+// deploy.proxy subtree, preserving all other content including comments.
 // It is a no-op when there is no effective proxy input and the config is not
 // explicitly disabled (i.e. nothing meaningful to persist).
+// The file is written with permissions of at most 0o600 (group/other bits
+// stripped) and via an atomic rename to guard against partial writes.
 func patchConfigProxySection(configPath string, cfg ProxyConfig) error {
 	if strings.TrimSpace(configPath) == "" {
 		return nil
@@ -327,50 +329,123 @@ func patchConfigProxySection(configPath string, cfg ProxyConfig) error {
 	}
 
 	configPath = util.ExpandTilde(configPath)
+
+	// Determine write permissions: tighten to at most 0o600 so that proxy
+	// credentials (if embedded in a URL) are not readable by other users.
+	fileMode := os.FileMode(0o600)
+	if info, statErr := os.Stat(configPath); statErr == nil {
+		if existing := info.Mode().Perm(); existing&0o077 == 0 {
+			fileMode = existing // already owner-only; preserve exact mode
+		}
+	}
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
 	}
 
-	var root map[string]any
-	if err := yaml.Unmarshal(data, &root); err != nil {
+	// Parse via yaml.Node to preserve comments and key ordering.
+	var rootNode yaml.Node
+	if err := yaml.Unmarshal(data, &rootNode); err != nil {
 		return err
 	}
-	if root == nil {
-		root = map[string]any{}
+	// Unmarshal of an empty document leaves rootNode.Kind == 0.
+	if rootNode.Kind == 0 {
+		rootNode = yaml.Node{
+			Kind:    yaml.DocumentNode,
+			Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}},
+		}
 	}
-	deployNode, _ := root["deploy"].(map[string]any)
-	if deployNode == nil {
-		deployNode = map[string]any{}
-		root["deploy"] = deployNode
+	docContent := rootNode.Content[0]
+	// Treat a top-level null scalar as an empty mapping.
+	if docContent.Kind == yaml.ScalarNode && docContent.Tag == "!!null" {
+		*docContent = yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	}
-	deployNode["proxy"] = map[string]any{
-		"enabled": cfg.Enabled,
-		"host": map[string]any{
-			"url": cfg.Host.URL,
-		},
-		"container": map[string]any{
-			"url": cfg.Container.URL,
-		},
-		"policy": map[string]any{
-			"useHostProxy":        cfg.Policy.UseHostProxy,
-			"requireReachability": cfg.Policy.RequireReachability,
-			"requireEgress":       cfg.Policy.RequireEgress,
-		},
+	if docContent.Kind != yaml.MappingNode {
+		return fmt.Errorf("config file root is not a YAML mapping")
 	}
 
-	newData, err := yaml.Marshal(root)
+	// Navigate/create deploy → proxy, then replace proxy with the marshaled cfg.
+	deployVal := upsertYAMLMappingKey(docContent, "deploy")
+	if deployVal.Kind != yaml.MappingNode {
+		// Overwrite non-mapping value (e.g. null scalar left by "deploy: ~")
+		*deployVal = yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	}
+	proxyNode, err := proxyConfigToYAMLNode(cfg)
+	if err != nil {
+		return err
+	}
+	proxyVal := upsertYAMLMappingKey(deployVal, "proxy")
+	*proxyVal = *proxyNode
+
+	newData, err := yaml.Marshal(&rootNode)
 	if err != nil {
 		return err
 	}
 	if bytes.Equal(bytes.TrimSpace(data), bytes.TrimSpace(newData)) {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
+	// Atomic write: create temp file → write → sync → close → rename.
+	tmp, err := os.CreateTemp(dir, ".config-proxy-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	// Best-effort cleanup if something goes wrong before rename.
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(fileMode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(newData); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, configPath)
+}
 
-	return os.WriteFile(configPath, newData, 0o644)
+// upsertYAMLMappingKey returns the value node for the given key within a YAML
+// mapping node. If the key does not exist, a new key/value pair is appended
+// and the new (empty mapping) value node is returned.
+func upsertYAMLMappingKey(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}
+	valNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	mapping.Content = append(mapping.Content, keyNode, valNode)
+	return mapping.Content[len(mapping.Content)-1]
+}
+
+// proxyConfigToYAMLNode marshals cfg into a yaml.Node suitable for replacing
+// a subtree in a document, preserving struct field ordering.
+func proxyConfigToYAMLNode(cfg ProxyConfig) (*yaml.Node, error) {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	if doc.Kind == yaml.DocumentNode && len(doc.Content) > 0 {
+		return doc.Content[0], nil
+	}
+	return &doc, nil
 }
 
 func runDockerWithTimeout(ctx context.Context, timeout time.Duration, args ...string) (string, error) {
