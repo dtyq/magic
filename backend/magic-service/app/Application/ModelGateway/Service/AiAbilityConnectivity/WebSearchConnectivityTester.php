@@ -22,7 +22,7 @@ class WebSearchConnectivityTester implements AiAbilityConnectivityTesterInterfac
     public function test(AiAbilityConnectivityTestRequestDTO $requestDTO): array
     {
         $searchRequestDTO = SearchRequestDTO::createDTO([
-            'query' => 'connectivity test',
+            'query' => 'cat',
             'count' => 1,
             'offset' => 0,
             'mkt' => 'en-US',

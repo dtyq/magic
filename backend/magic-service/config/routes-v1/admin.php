@@ -11,6 +11,7 @@ use App\Interfaces\Admin\Facade\AppMenu\AppMenuAdminApi;
 use App\Interfaces\Audit\Facade\AdminOperationLogApi;
 use App\Interfaces\Contact\Facade\Admin\PlatformUserApi;
 use App\Interfaces\Kernel\Facade\PlatformSettingsApi;
+use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
@@ -46,6 +47,7 @@ Router::addGroup('/api/v1/admin', static function () {
 
         // 其他功能
         Router::post('/connectivity-test', [ServiceProviderApi::class, 'connectivityTest']);
+        Router::post('/ability-connectivity-test', [OpenAIProxyApi::class, 'connectivityTest']);
         Router::post('/connectivity-tests/config-based', [ServiceProviderApi::class, 'connectivityTestByConfig']);
         Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);

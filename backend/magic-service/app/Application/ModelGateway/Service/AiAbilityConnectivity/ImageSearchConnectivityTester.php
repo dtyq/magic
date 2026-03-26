@@ -22,7 +22,7 @@ class ImageSearchConnectivityTester implements AiAbilityConnectivityTesterInterf
     public function test(AiAbilityConnectivityTestRequestDTO $requestDTO): array
     {
         $imageSearchRequestDTO = ImageSearchRequestDTO::createDTO([
-            'query' => 'connectivity test',
+            'query' => 'cat',
             'count' => 1,
             'offset' => 0,
         ]);

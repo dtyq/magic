@@ -197,7 +197,9 @@ class OpenAIProxyApi extends AbstractOpenApi
         $requestData = $request->all();
 
         $connectivityTestRequestDTO = AiAbilityConnectivityTestRequestDTO::createDTO($requestData);
-        $connectivityTestRequestDTO->setAccessToken($this->getAccessToken());
+        if (defined('MAGIC_ACCESS_TOKEN')) {
+            $connectivityTestRequestDTO->setAccessToken(MAGIC_ACCESS_TOKEN);
+        }
         $connectivityTestRequestDTO->setIps($this->getClientIps());
         $this->enrichRequestDTO($connectivityTestRequestDTO, $request->getHeaders());
 
