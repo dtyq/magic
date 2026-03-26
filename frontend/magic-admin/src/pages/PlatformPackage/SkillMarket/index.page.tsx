@@ -5,7 +5,7 @@ import type { SearchItem } from "components"
 import { SearchItemType, StatusTag, TableWithFilters } from "components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { Flex, InputNumber, Tooltip, message, type TableProps } from "antd"
+import { Flex, InputNumber, Select, Tooltip, message, type TableProps } from "antd"
 import { usePagination } from "@/hooks/usePagination"
 import { useApis } from "@/apis"
 import type { PlatformPackage } from "@/types/platformPackage"
@@ -35,6 +35,7 @@ function SkillMarketPage() {
 		{},
 	)
 	const [sortSavingIds, setSortSavingIds] = useState<Set<string>>(new Set())
+	const [featuredSavingIds, setFeaturedSavingIds] = useState<Set<string>>(new Set())
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
@@ -51,9 +52,9 @@ function SkillMarketPage() {
 			},
 		},
 	)
-	const { runAsync: updateSkillMarketSortOrder } = useRequest(
-		(id: string, sort_order: number) =>
-			PlatformPackageApi.updateSkillMarketSortOrder(id, { sort_order }),
+	const { runAsync: updateSkillMarketInfo } = useRequest(
+		(id: string, data: PlatformPackage.UpdateSkillMarketInfoParams) =>
+			PlatformPackageApi.updateSkillMarketInfo(id, data),
 		{
 			manual: true,
 		},
@@ -164,7 +165,7 @@ function SkillMarketPage() {
 			) => {
 				setSortSavingIds((prev) => new Set([...prev, recordId]))
 				try {
-					await updateSkillMarketSortOrder(recordId, sortOrder)
+					await updateSkillMarketInfo(recordId, { sort_order: sortOrder })
 					setData((prev) =>
 						prev.map((item) =>
 							item.id === recordId ? { ...item, sort_order: sortOrder } : item,
@@ -196,6 +197,27 @@ function SkillMarketPage() {
 		[debouncedAutoSaveSortOrder],
 	)
 
+	const handleChangeFeatured = useMemoizedFn(async (record: DataType, nextFeatured: boolean) => {
+		setFeaturedSavingIds((prev) => new Set([...prev, record.id]))
+		try {
+			await updateSkillMarketInfo(record.id, { is_featured: nextFeatured })
+			setData((prev) =>
+				prev.map((item) =>
+					item.id === record.id ? { ...item, is_featured: nextFeatured } : item,
+				),
+			)
+			run(params)
+		} catch {
+			message.error(tCommon("message.updateFailed"))
+		} finally {
+			setFeaturedSavingIds((prev) => {
+				const next = new Set(prev)
+				next.delete(record.id)
+				return next
+			})
+		}
+	})
+
 	const columns: TableProps<DataType>["columns"] = useMemo(
 		() => [
 			{
@@ -204,6 +226,13 @@ function SkillMarketPage() {
 				key: "skill_code",
 				width: 180,
 				render: (value: string) => value || "-",
+			},
+			{
+				title: t("packageName"),
+				dataIndex: "package_name",
+				key: "package_name",
+				width: 220,
+				render: (value?: string) => value || "-",
 			},
 			{
 				title: t("skillName"),
@@ -246,6 +275,33 @@ function SkillMarketPage() {
 				key: "publish_status",
 				width: 120,
 				render: (value: string) => renderStatus(value, publishStatusMap),
+			},
+			{
+				title: t("isFeatured"),
+				dataIndex: "is_featured",
+				key: "is_featured",
+				width: 130,
+				render: (value: boolean | undefined, record) => {
+					const saving = featuredSavingIds.has(record.id)
+					return (
+						<Select
+							size="small"
+							style={{ width: 88 }}
+							value={value ? "true" : "false"}
+							loading={saving}
+							disabled={saving}
+							options={[
+								{ label: t("yes"), value: "true" },
+								{ label: t("no"), value: "false" },
+							]}
+							onChange={(nextValue) => {
+								const nextFeatured = nextValue === "true"
+								if (nextFeatured === Boolean(value)) return
+								handleChangeFeatured(record, nextFeatured)
+							}}
+						/>
+					)
+				},
 			},
 			{
 				title: t("installCount"),
@@ -308,12 +364,22 @@ function SkillMarketPage() {
 			getSortOrderInputValue,
 			updateSortOrderDraft,
 			sortSavingIds,
+			featuredSavingIds,
+			handleChangeFeatured,
 			debouncedAutoSaveSortOrder,
 		],
 	)
 
 	const searchItems: SearchItem[] = useMemo(
 		() => [
+			{
+				type: SearchItemType.TEXT,
+				field: "package_name",
+				addonBefore: t("packageName"),
+				allowClear: true,
+				onChange: (e) =>
+					debouncedSearch({ package_name: e.target.value.trim() || undefined }),
+			},
 			{
 				type: SearchItemType.TEXT,
 				field: "name_i18n",

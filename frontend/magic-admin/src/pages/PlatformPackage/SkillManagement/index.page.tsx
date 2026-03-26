@@ -212,6 +212,13 @@ function SkillManagementPage() {
 				render: (value: PlatformPackage.NameI18N) => getLocalizedText(value),
 			},
 			{
+				title: t("packageName"),
+				dataIndex: "package_name",
+				key: "package_name",
+				width: 200,
+				render: (value?: string) => value || "-",
+			},
+			{
 				title: t("organization"),
 				dataIndex: "organization",
 				key: "organization",
@@ -336,6 +343,14 @@ function SkillManagementPage() {
 
 	const searchItems: SearchItem[] = useMemo(
 		() => [
+			{
+				type: SearchItemType.TEXT,
+				field: "package_name",
+				addonBefore: t("packageName"),
+				allowClear: true,
+				onChange: (e) =>
+					debouncedSearch({ package_name: e.target.value.trim() || undefined }),
+			},
 			{
 				type: SearchItemType.TEXT,
 				field: "version",

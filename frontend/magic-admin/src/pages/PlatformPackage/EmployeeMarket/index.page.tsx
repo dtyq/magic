@@ -5,7 +5,7 @@ import type { SearchItem } from "components"
 import { SearchItemType, StatusTag, TableWithFilters } from "components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { Flex, InputNumber, Tooltip, message, type TableProps } from "antd"
+import { Flex, InputNumber, Select, Tooltip, message, type TableProps } from "antd"
 import { usePagination } from "@/hooks/usePagination"
 import { useApis } from "@/apis"
 import type { PlatformPackage } from "@/types/platformPackage"
@@ -33,6 +33,7 @@ function EmployeeMarketPage() {
 	const [total, setTotal] = useState(0)
 	const [sortOrderMap, setSortOrderMap] = useState<Record<string, number>>({})
 	const [sortSavingIds, setSortSavingIds] = useState<Set<string>>(new Set())
+	const [featuredSavingIds, setFeaturedSavingIds] = useState<Set<string>>(new Set())
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
@@ -56,9 +57,9 @@ function EmployeeMarketPage() {
 		},
 	)
 
-	const { runAsync: updateAgentMarketSortOrder } = useRequest(
-		(id: string, data: PlatformPackage.UpdateAgentMarketSortOrderParams) =>
-			PlatformPackageApi.updateAgentMarketSortOrder(id, data),
+	const { runAsync: updateAgentMarketInfo } = useRequest(
+		(id: string, data: PlatformPackage.UpdateAgentMarketInfoParams) =>
+			PlatformPackageApi.updateAgentMarketInfo(id, data),
 		{
 			manual: true,
 		},
@@ -74,7 +75,7 @@ function EmployeeMarketPage() {
 			) => {
 				setSortSavingIds((prev) => new Set([...prev, recordId]))
 				try {
-					await updateAgentMarketSortOrder(recordId, {
+					await updateAgentMarketInfo(recordId, {
 						sort_order: sortOrder,
 					})
 					setData((prev) =>
@@ -107,6 +108,27 @@ function EmployeeMarketPage() {
 		},
 		[debouncedAutoSaveSortOrder],
 	)
+
+	const handleChangeFeatured = useMemoizedFn(async (record: DataType, nextFeatured: boolean) => {
+		setFeaturedSavingIds((prev) => new Set([...prev, record.id]))
+		try {
+			await updateAgentMarketInfo(record.id, { is_featured: nextFeatured })
+			setData((prev) =>
+				prev.map((item) =>
+					item.id === record.id ? { ...item, is_featured: nextFeatured } : item,
+				),
+			)
+			run(params)
+		} catch {
+			message.error(tCommon("message.updateFailed"))
+		} finally {
+			setFeaturedSavingIds((prev) => {
+				const next = new Set(prev)
+				next.delete(record.id)
+				return next
+			})
+		}
+	})
 
 	useMount(() => {
 		run(params)
@@ -254,6 +276,33 @@ function EmployeeMarketPage() {
 				render: (value: string) => renderStatus(value, publishStatusMap),
 			},
 			{
+				title: t("isFeatured"),
+				dataIndex: "is_featured",
+				key: "is_featured",
+				width: 130,
+				render: (value: boolean | undefined, record) => {
+					const saving = featuredSavingIds.has(record.id)
+					return (
+						<Select
+							size="small"
+							style={{ width: 88 }}
+							value={value ? "true" : "false"}
+							loading={saving}
+							disabled={saving}
+							options={[
+								{ label: t("yes"), value: "true" },
+								{ label: t("no"), value: "false" },
+							]}
+							onChange={(nextValue) => {
+								const nextFeatured = nextValue === "true"
+								if (nextFeatured === Boolean(value)) return
+								handleChangeFeatured(record, nextFeatured)
+							}}
+						/>
+					)
+				},
+			},
+			{
 				title: t("installCount"),
 				dataIndex: "install_count",
 				key: "install_count",
@@ -321,6 +370,8 @@ function EmployeeMarketPage() {
 			publisherTypeMap,
 			renderStatus,
 			publishStatusMap,
+			featuredSavingIds,
+			handleChangeFeatured,
 			sortOrderMap,
 			sortSavingIds,
 			debouncedAutoSaveSortOrder,

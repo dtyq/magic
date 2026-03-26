@@ -279,14 +279,14 @@ export const RequestUrl = {
 	reviewAgentVersion: "/api/v2/admin/super-magic/agents/versions/${id}/review",
 	/** 员工市场列表 */
 	getAgentMarketList: "/api/v2/admin/super-magic/agents/markets/queries",
-	/** 更新员工市场排序 */
-	updateAgentMarketSortOrder: "/api/v2/admin/super-magic/agents/markets/${id}/sort-order",
+	/** 更新员工市场信息 */
+	updateAgentMarketInfo: "/api/v2/admin/super-magic/agents/markets/${id}",
 	/** Skill版本列表 */
 	getSkillVersionList: "/api/v1/admin/skills/versions/queries",
 	/** Skill 市场列表 */
 	getSkillMarketList: "/api/v1/admin/skills/markets/queries",
-	/** 更新 Skill 市场排序 */
-	updateSkillMarketSortOrder: "/api/v1/admin/skills/markets/${id}/sort-order",
+	/** 更新 Skill 市场信息 */
+	updateSkillMarketInfo: "/api/v1/admin/skills/markets/${id}",
 	/** 审核 Skill 版本 */
 	reviewSkillVersion: "/api/v1/admin/skills/versions/${id}/review",
 	/** —————— 平台管理 - 组织管理 —————— */

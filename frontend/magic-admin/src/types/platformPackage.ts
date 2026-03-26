@@ -539,6 +539,7 @@ export namespace PlatformPackage {
 
 	/** Skill 管理 - 查询参数 */
 	export interface GetSkillVersionListParams extends Required<PageParams> {
+		package_name?: string
 		review_status?: string
 		publish_status?: string
 		publish_target_type?: string
@@ -585,6 +586,7 @@ export namespace PlatformPackage {
 
 	/** Skill 市场 - 查询参数 */
 	export interface GetSkillMarketListParams extends Required<PageParams> {
+		package_name?: string
 		publish_status?: string
 		organization_code?: string
 		name_i18n?: string
@@ -598,6 +600,8 @@ export namespace PlatformPackage {
 	/** Skill 市场 - 列表项 */
 	export interface SkillMarketItem {
 		id: string
+		package_name?: string
+		is_featured?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -622,9 +626,10 @@ export namespace PlatformPackage {
 		updated_at: string
 	}
 
-	/** Skill 市场 - 更新排序参数 */
-	export interface UpdateSkillMarketSortOrderParams {
-		sort_order: number
+	/** Skill 市场 - 更新信息参数 */
+	export interface UpdateSkillMarketInfoParams {
+		is_featured?: boolean
+		sort_order?: number
 	}
 
 	/** 员工市场 - 查询参数 */
@@ -642,6 +647,7 @@ export namespace PlatformPackage {
 	/** 员工市场 - 列表项 */
 	export interface AgentMarketItem {
 		id: string
+		is_featured?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -668,9 +674,10 @@ export namespace PlatformPackage {
 		updated_at: string
 	}
 
-	/** 员工市场 - 更新排序参数 */
-	export interface UpdateAgentMarketSortOrderParams {
-		sort_order: number
+	/** 员工市场 - 更新信息参数 */
+	export interface UpdateAgentMarketInfoParams {
+		is_featured?: boolean
+		sort_order?: number
 	}
 
 	/** 员工审核列表 - 查询参数 */
