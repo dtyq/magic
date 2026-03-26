@@ -1048,6 +1048,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 $entity = new SuperMagicAgentEntity();
                 $entity->setCode($config['code']);
                 $entity->setNameI18n($config['name_i18n']);
+                $entity->setRoleI18n($config['role_i18n']);
                 $entity->setDescriptionI18n($config['description_i18n']);
                 $entity->setIcon([
                     'type' => $config['icon'],
@@ -1083,13 +1084,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
                 // 直接调用 domain service 的 saveDirectly 方法保存
                 $entity = $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $entity);
-                $this->saveUserAgentOwnership(
-                    $dataIsolation,
-                    $entity->getCode(),
-                    $entity->getSourceType(),
-                    $entity->getSourceId(),
-                    $entity->getVersionId()
-                );
 
                 // 创建权限配置（全员可见）
                 $visibilityConfig = new VisibilityConfig();
@@ -1100,6 +1094,40 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                     $entity->getCode(),
                     $visibilityConfig
                 );
+
+                // 官方内置：发布到市场（不写 workspace 导出 file_key），并自动审核通过上架
+                $versionEntity = new AgentVersionEntity();
+                $versionEntity->setVersion('1.0.0');
+                $versionEntity->setVersionDescriptionI18n([]);
+                $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
+                $versionEntity->setPublishTargetValue(null);
+                $publishedVersion = $this->publishPreparedAgentVersion(
+                    $authorization,
+                    $dataIsolation,
+                    $entity->getCode(),
+                    $entity,
+                    $versionEntity,
+                    false
+                );
+                $reviewIsolation = clone $dataIsolation;
+                $this->superMagicAgentDomainService->reviewAgentVersion(
+                    $reviewIsolation->disabled(),
+                    (int) $publishedVersion->getId(),
+                    'APPROVED',
+                    $userId,
+                    PublisherType::OFFICIAL_BUILTIN->value,
+                    true,
+                    isset($config['sort_order']) ? (int) $config['sort_order'] : null
+                );
+
+                $this->saveUserAgentOwnership(
+                    $dataIsolation,
+                    $entity->getCode(),
+                    $entity->getSourceType(),
+                    $entity->getSourceId(),
+                    (int) $publishedVersion->getId()
+                );
+
                 // 创建成功
                 $results[] = [
                     'code' => $config['code'],
