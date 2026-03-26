@@ -670,9 +670,7 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         task_mode: currentTaskMode, // 保留兼容性
         agent_mode: currentAgentMode, // 新的 agent 模式
         attachments: [],
-        metadata: {
-            language: currentLanguage
-        }
+        language: currentLanguage
     };
 
     // Add model_id field if provided
