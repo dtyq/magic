@@ -259,6 +259,7 @@ class InitClientMessage(ClientMessage):
     metadata: Optional[Metadata] = None  # 元数据信息，使用强类型
     upload_config: Optional[Dict[str, Any]] = None  # 上传配置，可包含平台类型和临时凭证
     magic_service_host: Optional[str] = None  # Magic Service主机地址，可选字段
+    magic_service_ws_host: Optional[str] = None  # Magic Service WebSocket主机地址，可选字段
     chat_history_dir: Optional[str] = None  # 聊天历史目录，可选字段
     work_dir: Optional[str] = None  # 工作目录，可选字段
     fetch_history: bool = Field(
