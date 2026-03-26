@@ -7,9 +7,10 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service\AiAbilityConnectivity;
 
+use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Infrastructure\ExternalAPI\WebScrape\WebScrapeFactory;
-use RuntimeException;
 
 class WebScrapeConnectivityTester implements AiAbilityConnectivityTesterInterface
 {
@@ -18,26 +19,24 @@ class WebScrapeConnectivityTester implements AiAbilityConnectivityTesterInterfac
         return $aiAbilityCode === AiAbilityCode::WebScrape;
     }
 
-    public function test(array $aiAbilityConfig, array $enabledProviderConfig): array
+    public function test(AiAbilityConnectivityTestRequestDTO $requestDTO): array
     {
-        if (! WebScrapeFactory::validateConfig($aiAbilityConfig)) {
-            throw new RuntimeException('Web scrape configuration is invalid');
-        }
-
-        $webScrape = WebScrapeFactory::create($aiAbilityConfig);
-
-        $startTime = microtime(true);
-        $webScrape->scrape(
-            url: 'https://example.com',
-            formats: ['MARKDOWN'],
-            mode: 'fast',
-            options: []
-        );
+        $webScrapeRequestDTO = WebScrapeRequestDTO::createDTO([
+            'url' => 'https://example.com',
+            'formats' => ['MARKDOWN'],
+            'mode' => 'fast',
+            'options' => [],
+        ]);
+        $webScrapeRequestDTO->setAccessToken($requestDTO->getAccessToken());
+        $webScrapeRequestDTO->setIps($requestDTO->getIps());
+        $webScrapeRequestDTO->setBusinessParams($requestDTO->getBusinessParams());
+        $llmAppService = di(LLMAppService::class);
+        $response = $llmAppService->webScrape($webScrapeRequestDTO);
 
         return [
-            'provider' => $webScrape->getPlatformName(),
+            'provider' => (string) ($response['data']['provider'] ?? ''),
             'message' => 'connectivity test passed',
-            'duration_ms' => (int) ((microtime(true) - $startTime) * 1000),
+            'duration_ms' => (int) ($response['usage']['duration_ms'] ?? 0),
         ];
     }
 }

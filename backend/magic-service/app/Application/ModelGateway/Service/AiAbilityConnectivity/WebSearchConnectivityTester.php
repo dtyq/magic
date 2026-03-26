@@ -7,49 +7,39 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service\AiAbilityConnectivity;
 
+use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Infrastructure\ExternalAPI\Search\Factory\SearchEngineAdapterFactory;
-use RuntimeException;
 
 class WebSearchConnectivityTester implements AiAbilityConnectivityTesterInterface
 {
-    public function __construct(
-        private readonly SearchEngineAdapterFactory $searchEngineAdapterFactory,
-    ) {
-    }
-
     public function supports(AiAbilityCode $aiAbilityCode): bool
     {
         return $aiAbilityCode === AiAbilityCode::WebSearch;
     }
 
-    public function test(array $aiAbilityConfig, array $enabledProviderConfig): array
+    public function test(AiAbilityConnectivityTestRequestDTO $requestDTO): array
     {
-        $provider = (string) ($enabledProviderConfig['provider'] ?? '');
-        $adapter = $this->searchEngineAdapterFactory->create($provider, $enabledProviderConfig);
-
-        if (! $adapter->isAvailable()) {
-            throw new RuntimeException(sprintf(
-                "Search engine '%s' is not available (API key not configured or service unavailable)",
-                $adapter->getEngineName()
-            ));
-        }
-
-        $startTime = microtime(true);
-        $adapter->search(
-            query: 'connectivity test',
-            mkt: 'en-US',
-            count: 1,
-            offset: 0,
-            safeSearch: 'Off',
-            freshness: '',
-            setLang: 'en'
-        );
+        $searchRequestDTO = SearchRequestDTO::createDTO([
+            'query' => 'connectivity test',
+            'count' => 1,
+            'offset' => 0,
+            'mkt' => 'en-US',
+            'safe_search' => 'Off',
+            'set_lang' => 'en',
+        ]);
+        $searchRequestDTO->setAccessToken($requestDTO->getAccessToken());
+        $searchRequestDTO->setIps($requestDTO->getIps());
+        $searchRequestDTO->setBusinessParams($requestDTO->getBusinessParams());
+        $llmAppService = di(LLMAppService::class);
+        $response = $llmAppService->unifiedSearch($searchRequestDTO);
+        $metadata = $response->getMetadata() ?? [];
 
         return [
-            'provider' => $adapter->getEngineName(),
+            'provider' => (string) ($metadata['engine'] ?? ''),
             'message' => 'connectivity test passed',
-            'duration_ms' => (int) ((microtime(true) - $startTime) * 1000),
+            'duration_ms' => (int) ($metadata['responseTime'] ?? 0),
         ];
     }
 }

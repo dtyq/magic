@@ -9,12 +9,8 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Service\AiAbilityConnectivity\AiAbilityConnectivityTesterResolver;
 use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
-use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Domain\Provider\Service\AiAbilityDomainService;
-use App\Infrastructure\Core\DataIsolation\ProviderDataIsolation;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 use Throwable;
 
 class AiAbilityConnectivityTestAppService
@@ -24,7 +20,6 @@ class AiAbilityConnectivityTestAppService
     public function __construct(
         private readonly LoggerFactory $loggerFactory,
         private readonly LLMAppService $llmAppService,
-        private readonly AiAbilityDomainService $aiAbilityDomainService,
         private readonly AiAbilityConnectivityTesterResolver $testerResolver,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
@@ -47,18 +42,13 @@ class AiAbilityConnectivityTestAppService
                 $requestDTO->getBusinessParams()
             );
 
-            $aiAbilityConfig = $this->getAiAbilityConfig($aiAbilityCode);
-            $enabledProviderConfig = $this->getEnabledProviderConfig($aiAbilityConfig, $aiAbilityCode);
-            $provider = (string) ($enabledProviderConfig['provider'] ?? '');
-
             $this->logger->info('AiAbilityConnectivityTestRequest', [
                 'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'ai_ability' => $aiAbility,
-                'provider' => $provider,
             ]);
 
-            $result = $this->testerResolver->resolve($aiAbilityCode)->test($aiAbilityConfig, $enabledProviderConfig);
+            $result = $this->testerResolver->resolve($aiAbilityCode)->test($requestDTO);
 
             $response = $this->buildResponse(
                 success: true,
@@ -98,35 +88,6 @@ class AiAbilityConnectivityTestAppService
 
             return $response;
         }
-    }
-
-    private function getAiAbilityConfig(AiAbilityCode $aiAbilityCode): array
-    {
-        $providerDataIsolation = ProviderDataIsolation::create()->disabled();
-        $aiAbilityEntity = $this->aiAbilityDomainService->getByCode($providerDataIsolation, $aiAbilityCode);
-
-        if (! $aiAbilityEntity || ! $aiAbilityEntity->isEnabled()) {
-            throw new RuntimeException(sprintf('AI ability "%s" is not enabled', $aiAbilityCode->value));
-        }
-
-        $config = $aiAbilityEntity->getConfig();
-        if (empty($config)) {
-            throw new RuntimeException(sprintf('AI ability "%s" configuration is not set', $aiAbilityCode->value));
-        }
-
-        return $config;
-    }
-
-    private function getEnabledProviderConfig(array $aiAbilityConfig, AiAbilityCode $aiAbilityCode): array
-    {
-        $providers = $aiAbilityConfig['providers'] ?? [];
-        foreach ($providers as $providerConfig) {
-            if (($providerConfig['enable'] ?? false) === true) {
-                return $providerConfig;
-            }
-        }
-
-        throw new RuntimeException(sprintf('No enabled provider configuration found for ai_ability: %s', $aiAbilityCode->value));
     }
 
     /**

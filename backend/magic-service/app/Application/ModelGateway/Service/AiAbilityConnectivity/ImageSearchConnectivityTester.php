@@ -7,45 +7,36 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service\AiAbilityConnectivity;
 
+use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\ImageSearchRequestDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
-use App\Infrastructure\ExternalAPI\ImageSearch\Factory\ImageSearchEngineAdapterFactory;
-use RuntimeException;
 
 class ImageSearchConnectivityTester implements AiAbilityConnectivityTesterInterface
 {
-    public function __construct(
-        private readonly ImageSearchEngineAdapterFactory $imageSearchEngineAdapterFactory,
-    ) {
-    }
-
     public function supports(AiAbilityCode $aiAbilityCode): bool
     {
         return $aiAbilityCode === AiAbilityCode::ImageSearch;
     }
 
-    public function test(array $aiAbilityConfig, array $enabledProviderConfig): array
+    public function test(AiAbilityConnectivityTestRequestDTO $requestDTO): array
     {
-        $provider = (string) ($enabledProviderConfig['provider'] ?? '');
-        $adapter = $this->imageSearchEngineAdapterFactory->create($provider, $enabledProviderConfig);
-
-        if (! $adapter->isAvailable()) {
-            throw new RuntimeException(sprintf(
-                "Image search provider '%s' is not available (API key not configured or service unavailable)",
-                $adapter->getEngineName()
-            ));
-        }
-
-        $startTime = microtime(true);
-        $adapter->imageSearch(
-            query: 'connectivity test',
-            count: 1,
-            offset: 0
-        );
+        $imageSearchRequestDTO = ImageSearchRequestDTO::createDTO([
+            'query' => 'connectivity test',
+            'count' => 1,
+            'offset' => 0,
+        ]);
+        $imageSearchRequestDTO->setAccessToken($requestDTO->getAccessToken());
+        $imageSearchRequestDTO->setIps($requestDTO->getIps());
+        $imageSearchRequestDTO->setBusinessParams($requestDTO->getBusinessParams());
+        $llmAppService = di(LLMAppService::class);
+        $response = $llmAppService->imageSearch($imageSearchRequestDTO);
+        $metadata = $response->getMetadata() ?? [];
 
         return [
-            'provider' => $adapter->getEngineName(),
+            'provider' => (string) ($metadata['engine'] ?? ''),
             'message' => 'connectivity test passed',
-            'duration_ms' => (int) ((microtime(true) - $startTime) * 1000),
+            'duration_ms' => (int) ($metadata['responseTime'] ?? 0),
         ];
     }
 }
