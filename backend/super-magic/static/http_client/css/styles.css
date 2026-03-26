@@ -597,6 +597,91 @@ input[type="checkbox"] {
     overflow-y: auto;
 }
 
+/* 工具调用折叠块 */
+.tool-call-block {
+    align-self: flex-start;
+    max-width: 85%;
+    margin: 2px 0;
+}
+
+.tool-call-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.tool-call-block.tool-call-running .tool-call-header {
+    color: #d07a1a;
+    background-color: rgba(230, 126, 34, 0.06);
+    border: 1px solid rgba(230, 126, 34, 0.25);
+}
+
+.tool-call-block.tool-call-finished .tool-call-header {
+    color: #2471a3;
+    background-color: rgba(41, 128, 185, 0.06);
+    border: 1px solid rgba(41, 128, 185, 0.22);
+}
+
+.tool-call-header:hover {
+    filter: brightness(0.95);
+}
+
+.tool-call-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tool-call-running .tool-call-status-dot {
+    background-color: #e67e22;
+}
+
+.tool-call-finished .tool-call-status-dot {
+    background-color: #27ae60;
+}
+
+.tool-call-action {
+    font-weight: 500;
+}
+
+.tool-call-remark {
+    opacity: 0.75;
+}
+
+.tool-call-time {
+    opacity: 0.45;
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+.tool-call-arrow {
+    font-size: 9px;
+    opacity: 0.55;
+    flex-shrink: 0;
+    margin-left: 2px;
+}
+
+.tool-call-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: rgba(41, 128, 185, 0.04);
+    border: 1px solid rgba(41, 128, 185, 0.15);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #5d7d98;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
 /* 事件日志折叠条目 */
 .event-log {
     align-self: stretch;

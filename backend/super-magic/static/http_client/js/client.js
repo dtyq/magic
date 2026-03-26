@@ -84,6 +84,7 @@ function renderLogEntry(entry) {
         case 'client':    renderClientEntry(entry); break;
         case 'ai':        showAIMessage(entry.content, entry.timestamp, true); break;
         case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
+        case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true); break;
         case 'event':     showEventLog(entry.data, true); break;
         case 'system':    showSystemMessage(entry.text, true); break;
     }
@@ -1194,6 +1195,14 @@ function handleWebSocketMessage(event) {
             } else {
                 showEventLog(data);
             }
+        } else if (eventType === 'before_tool_call' || eventType === 'after_tool_call') {
+            // 工具调用事件 → 紧凑的工具调用块，detail 默认折叠
+            const tool = payload && payload.tool;
+            if (tool) {
+                showToolCallMessage(tool, eventType, payload.send_timestamp);
+            } else {
+                showEventLog(data);
+            }
         } else {
             // 其余所有事件 → 折叠日志条目
             showEventLog(data);
@@ -1329,6 +1338,73 @@ function showThinkingMessage(content, timestamp, _noLog = false) {
 
     wrapper.appendChild(summary);
     wrapper.appendChild(detail);
+    messageList.appendChild(wrapper);
+}
+
+// 显示工具调用消息块（before_tool_call / after_tool_call）
+function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
+
+    const timeStr = timestamp
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    const isRunning = tool.status === 'running';
+    const action = tool.action || tool.name || '工具调用';
+    const remark = tool.remark || '';
+    const detail = tool.detail || null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = `tool-call-block ${isRunning ? 'tool-call-running' : 'tool-call-finished'}`;
+
+    const header = document.createElement('div');
+    header.className = 'tool-call-header';
+
+    const statusDot = document.createElement('span');
+    statusDot.className = 'tool-call-status-dot';
+
+    const actionSpan = document.createElement('span');
+    actionSpan.className = 'tool-call-action';
+    actionSpan.textContent = action;
+
+    header.appendChild(statusDot);
+    header.appendChild(actionSpan);
+
+    if (remark) {
+        const remarkSpan = document.createElement('span');
+        remarkSpan.className = 'tool-call-remark';
+        remarkSpan.textContent = remark;
+        header.appendChild(remarkSpan);
+    }
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'tool-call-time';
+    timeSpan.textContent = timeStr;
+    header.appendChild(timeSpan);
+
+    wrapper.appendChild(header);
+
+    if (detail) {
+        const arrow = document.createElement('span');
+        arrow.className = 'tool-call-arrow';
+        arrow.textContent = '▶';
+        header.appendChild(arrow);
+
+        const detailEl = document.createElement('pre');
+        detailEl.className = 'tool-call-detail';
+        detailEl.style.display = 'none';
+        detailEl.textContent = JSON.stringify(detail, null, 2);
+
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', () => {
+            const isHidden = detailEl.style.display === 'none';
+            detailEl.style.display = isHidden ? 'block' : 'none';
+            arrow.textContent = isHidden ? '▼' : '▶';
+        });
+
+        wrapper.appendChild(detailEl);
+    }
+
     messageList.appendChild(wrapper);
 }
 
