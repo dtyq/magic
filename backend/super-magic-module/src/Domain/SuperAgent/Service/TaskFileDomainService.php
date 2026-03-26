@@ -2658,6 +2658,41 @@ class TaskFileDomainService
     }
 
     /**
+     * Navigate directory tree by path segments starting from project root.
+     * e.g. ".magic/skills/my-skill" will traverse root -> .magic -> skills -> my-skill.
+     *
+     * @param int $projectId Project ID
+     * @param string $path Relative path from project root (e.g. ".magic/skills/my-skill")
+     * @return null|TaskFileEntity Target directory entity or null if any segment not found
+     */
+    public function findDirectoryByPath(int $projectId, string $path): ?TaskFileEntity
+    {
+        $segments = array_filter(explode('/', trim($path, '/')), static fn (string $s) => $s !== '');
+        if (empty($segments)) {
+            return null;
+        }
+
+        $rootDir = $this->getRootFile($projectId);
+        if ($rootDir === null) {
+            return null;
+        }
+
+        $currentParentId = $rootDir->getFileId();
+        $currentEntity = $rootDir;
+
+        foreach ($segments as $segment) {
+            $found = $this->findDirectoryByParentIdAndName($currentParentId, $segment, $projectId);
+            if ($found === null) {
+                return null;
+            }
+            $currentParentId = $found->getFileId();
+            $currentEntity = $found;
+        }
+
+        return $currentEntity;
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *

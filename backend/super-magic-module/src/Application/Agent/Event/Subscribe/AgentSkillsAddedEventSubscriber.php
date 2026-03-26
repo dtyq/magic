@@ -14,6 +14,7 @@ use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsAddedEvent;
@@ -258,6 +259,10 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $extractDir = $tempDir . '/extracted';
             ZipUtil::extract($localZipPath, $extractDir);
 
+            // Strip wrapper directories in zip (e.g. SKILL-{code}/skill-name/)
+            // to find the actual content directory containing SKILL.md
+            $actualContentDir = SkillUtil::findSkillMdDirectory($extractDir) ?? $extractDir;
+
             $packageDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,
                 $skillsDirId,
@@ -276,7 +281,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $this->uploadExtractedFiles(
                 $dataIsolation,
                 $projectEntity,
-                $extractDir,
+                $actualContentDir,
                 $packageDirId,
                 $projectId,
                 'skills/' . $packageName,

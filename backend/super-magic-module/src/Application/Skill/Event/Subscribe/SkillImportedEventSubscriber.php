@@ -15,6 +15,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
@@ -170,6 +171,10 @@ class SkillImportedEventSubscriber implements ListenerInterface
             $extractDir = $tempDir . '/extracted';
             ZipUtil::extract($localZipPath, $extractDir);
 
+            // Strip wrapper directories in zip (e.g. SKILL-{code}/skill-name/)
+            // to find the actual content directory containing SKILL.md
+            $actualContentDir = SkillUtil::findSkillMdDirectory($extractDir) ?? $extractDir;
+
             $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                 $projectId,
                 $workDir,
@@ -179,11 +184,35 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 TaskFileSource::SKILL
             );
 
-            $packageDirId = $this->taskFileDomainService->createDirectory(
+            $magicDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,
                 $rootDirId,
+                '.magic',
+                '.magic',
+                $workDir,
+                $userId,
+                $organizationCode,
+                $projectOrgCode,
+                TaskFileSource::SKILL
+            );
+
+            $skillsDirId = $this->taskFileDomainService->createDirectory(
+                $projectId,
+                $magicDirId,
+                'skills',
+                '.magic/skills',
+                $workDir,
+                $userId,
+                $organizationCode,
+                $projectOrgCode,
+                TaskFileSource::SKILL
+            );
+
+            $packageDirId = $this->taskFileDomainService->createDirectory(
+                $projectId,
+                $skillsDirId,
                 $packageName,
-                $packageName,
+                '.magic/skills/' . $packageName,
                 $workDir,
                 $userId,
                 $organizationCode,
@@ -197,10 +226,10 @@ class SkillImportedEventSubscriber implements ListenerInterface
             $this->uploadExtractedFiles(
                 $contactDataIsolation,
                 $projectEntity,
-                $extractDir,
+                $actualContentDir,
                 $packageDirId,
                 $projectId,
-                $packageName,
+                '.magic/skills/' . $packageName,
                 $workDir,
                 $userId,
                 $organizationCode,
