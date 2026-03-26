@@ -311,6 +311,13 @@ class MessageProcessor:
             # 检查并发送延迟的 init 事件（沙箱预启动场景）。
             # chat 消息的语言优先于 init metadata 的语言，统一在此处决策。
             chat_language = message.metadata.language if message.metadata else None
+
+            # 每条 chat 消息都需要在当前 task 中设置语言。
+            # i18n._CURRENT_LANGUAGE 是 ContextVar，每个 asyncio task 独立，
+            if chat_language:
+                from app.i18n import i18n
+                i18n.set_language(chat_language)
+
             await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
 
             # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
