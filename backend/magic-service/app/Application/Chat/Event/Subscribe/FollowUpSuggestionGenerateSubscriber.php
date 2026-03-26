@@ -8,8 +8,6 @@ declare(strict_types=1);
 namespace App\Application\Chat\Event\Subscribe;
 
 use App\Application\Chat\Service\FollowUpSuggestionAppService;
-use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionType;
-use App\Domain\Chat\Repository\Persistence\MagicGeneratedSuggestionRepository;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\CoContext;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
@@ -29,7 +27,6 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
 
     public function __construct(
         private readonly FollowUpSuggestionAppService $followUpSuggestionAppService,
-        private readonly MagicGeneratedSuggestionRepository $generatedSuggestionRepository,
         private readonly TranslatorInterface $translator,
         LoggerFactory $loggerFactory,
     ) {
@@ -55,23 +52,17 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
                 $this->translator->setLocale($event->getLanguage());
             }
 
+            // 先生成一条保底数据库记录
             $dataIsolation = DataIsolation::simpleMake($event->getOrganizationCode(), $event->getUserId());
             $dataIsolation->setLanguage($event->getLanguage());
-            $this->generatedSuggestionRepository->createGenerating(
-                GeneratedSuggestionType::SUPER_MAGIC_TOPIC_FOLLOW_UP,
-                $event->getTopicId(),
+            $this->followUpSuggestionAppService->createSuperMagicTopicFollowUpGenerating(
                 $event->getTaskId(),
-                '',
-                [
-                    'task_id' => $event->getTaskId(),
-                    'topic_id' => (string) $event->getTopicId(),
-                    'source' => 'super_magic',
-                    'generator' => 'follow_up_generator',
-                    'language' => $event->getLanguage(),
-                ],
+                $event->getTopicId(),
+                $event->getLanguage(),
                 $event->getUserId() !== '' ? $event->getUserId() : null,
             );
 
+            // 调用生成推荐问题
             $this->followUpSuggestionAppService->generateAndPersist(
                 $dataIsolation,
                 $event->getTopicId(),

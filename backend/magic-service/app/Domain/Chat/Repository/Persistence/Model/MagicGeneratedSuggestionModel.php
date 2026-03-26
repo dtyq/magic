@@ -12,9 +12,7 @@ use Hyperf\DbConnection\Model\Model;
 /**
  * @property string $id
  * @property int $type
- * @property string $relation_key1
- * @property string $relation_key2
- * @property string $relation_key3
+ * @property string $relation_id
  * @property array $params
  * @property array $suggestions
  * @property int $status
@@ -29,9 +27,7 @@ class MagicGeneratedSuggestionModel extends Model
     protected array $fillable = [
         'id',
         'type',
-        'relation_key1',
-        'relation_key2',
-        'relation_key3',
+        'relation_id',
         'params',
         'suggestions',
         'status',

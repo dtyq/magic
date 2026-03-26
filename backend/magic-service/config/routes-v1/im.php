@@ -29,7 +29,7 @@ Router::addGroup('/api/v1/im', static function () {
         Router::post('/{conversationId}/messages/queries', [MagicChatHttpApi::class, 'messageQueries']);
         // (Temporary solution for frontend performance issues) Get the latest messages of several groups by conversation id.
         Router::post('/messages/queries', [MagicChatHttpApi::class, 'conversationsMessagesGroupQueries']);
-        // Query follow-up suggestions by topic/task
+        // Query follow-up suggestions by task_id
         Router::post('/follow-up-suggestions', [MagicChatHttpApi::class, 'followUpSuggestions']);
     });
 

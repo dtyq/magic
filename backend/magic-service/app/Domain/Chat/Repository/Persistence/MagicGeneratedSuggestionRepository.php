@@ -7,17 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Repository\Persistence;
 
+use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionStatus;
+use App\Domain\Chat\Repository\Facade\MagicGeneratedSuggestionRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\Model\MagicGeneratedSuggestionModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
-class MagicGeneratedSuggestionRepository
+class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepositoryInterface
 {
-    public const STATUS_GENERATING = 0;
-
-    public const STATUS_DONE = 1;
-
-    public const STATUS_FAILED = 2;
-
     public function __construct(
         private readonly MagicGeneratedSuggestionModel $model,
     ) {
@@ -25,17 +21,13 @@ class MagicGeneratedSuggestionRepository
 
     public function createGenerating(
         int $type,
-        int|string $relationKey1,
-        null|int|string $relationKey2 = '',
-        null|int|string $relationKey3 = '',
+        int|string $relationId,
         array $params = [],
         null|int|string $createdUid = null,
     ): array {
-        $relationKey1 = $this->normalizeKey($relationKey1);
-        $relationKey2 = $this->normalizeKey($relationKey2);
-        $relationKey3 = $this->normalizeKey($relationKey3);
+        $relationId = $this->normalizeKey($relationId);
 
-        $record = $this->findLatestByRelationKeys($type, $relationKey1, $relationKey2, $relationKey3);
+        $record = $this->findLatestByTypeAndRelationId($type, $relationId);
         if ($record !== null) {
             return $record;
         }
@@ -44,12 +36,10 @@ class MagicGeneratedSuggestionRepository
         $record = $this->model::query()->create([
             'id' => IdGenerator::getSnowId(),
             'type' => $type,
-            'relation_key1' => $relationKey1,
-            'relation_key2' => $relationKey2,
-            'relation_key3' => $relationKey3,
+            'relation_id' => $relationId,
             'params' => $params === [] ? null : $params,
             'suggestions' => null,
-            'status' => self::STATUS_GENERATING,
+            'status' => GeneratedSuggestionStatus::Generating->value,
             'created_uid' => $this->normalizeNullableKey($createdUid),
             'created_at' => $now,
             'updated_at' => $now,
@@ -58,29 +48,11 @@ class MagicGeneratedSuggestionRepository
         return $record->toArray();
     }
 
-    public function findLatestByTypeAndRelationKey1(int $type, int|string $relationKey1): ?array
+    public function findLatestByTypeAndRelationId(int $type, int|string $relationId): ?array
     {
         $record = $this->model::query()
             ->where('type', $type)
-            ->where('relation_key1', $this->normalizeKey($relationKey1))
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
-
-        return $record?->toArray();
-    }
-
-    public function findLatestByRelationKeys(
-        int $type,
-        int|string $relationKey1,
-        null|int|string $relationKey2 = '',
-        null|int|string $relationKey3 = '',
-    ): ?array {
-        $record = $this->model::query()
-            ->where('type', $type)
-            ->where('relation_key1', $this->normalizeKey($relationKey1))
-            ->where('relation_key2', $this->normalizeKey($relationKey2))
-            ->where('relation_key3', $this->normalizeKey($relationKey3))
+            ->where('relation_id', $this->normalizeKey($relationId))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first();
@@ -91,44 +63,26 @@ class MagicGeneratedSuggestionRepository
     /**
      * @param string[] $suggestions
      */
-    public function markDone(
+    public function updateStatus(
         int $type,
-        int|string $relationKey1,
-        null|int|string $relationKey2 = '',
-        null|int|string $relationKey3 = '',
+        int|string $relationId,
+        GeneratedSuggestionStatus $status,
         array $suggestions = [],
     ): void {
         $record = $this->model::query()
             ->where('type', $type)
-            ->where('relation_key1', $this->normalizeKey($relationKey1))
-            ->where('relation_key2', $this->normalizeKey($relationKey2))
-            ->where('relation_key3', $this->normalizeKey($relationKey3))
+            ->where('relation_id', $this->normalizeKey($relationId))
             ->first();
         if ($record === null) {
             return;
         }
 
-        $record->suggestions = array_values($suggestions);
-        $record->status = self::STATUS_DONE;
+        $record->status = $status->value;
         $record->updated_at = date('Y-m-d H:i:s');
+        if ($status === GeneratedSuggestionStatus::Done) {
+            $record->suggestions = array_values($suggestions);
+        }
         $record->save();
-    }
-
-    public function markFailed(
-        int $type,
-        int|string $relationKey1,
-        null|int|string $relationKey2 = '',
-        null|int|string $relationKey3 = '',
-    ): void {
-        $this->model::query()
-            ->where('type', $type)
-            ->where('relation_key1', $this->normalizeKey($relationKey1))
-            ->where('relation_key2', $this->normalizeKey($relationKey2))
-            ->where('relation_key3', $this->normalizeKey($relationKey3))
-            ->update([
-                'status' => self::STATUS_FAILED,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
     }
 
     private function normalizeKey(null|int|string $value): string
