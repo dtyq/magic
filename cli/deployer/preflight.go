@@ -7,6 +7,8 @@ import (
 	"github.com/dtyq/magicrew-cli/util"
 )
 
+const minDiskSpaceGB = 40
+
 // PreflightStage checks system preconditions and resolves chart references.
 type PreflightStage struct {
 	BaseStage
@@ -22,6 +24,8 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	if err := dockerCheck.Run(ctx); err != nil {
 		return fmt.Errorf("Docker is not running. Please start Docker and try again")
 	}
+
+	s.checkDiskSpace()
 
 	s.d.log.Logi("deploy", "checking docker daemon network...")
 	if err := checkDockerDaemonNetwork(ctx); err != nil {
@@ -42,4 +46,15 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	}
 
 	return s.d.resolveChartRefs()
+}
+
+func (s *PreflightStage) checkDiskSpace() {
+	availableGB, err := util.GetDiskAvailableGB()
+	if err != nil {
+		s.d.log.Logw("deploy", "failed to check disk space: %v", err)
+		return
+	}
+	if availableGB < minDiskSpaceGB {
+		s.d.log.Logw("deploy", "low disk space: only %dGB available (recommend >= %dGB)", availableGB, minDiskSpaceGB)
+	}
 }
