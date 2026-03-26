@@ -26,6 +26,9 @@ class PathManager(BasePathManager):
         .workspace/          ← 工作区（父类管理）
             .asr_states/     ← ASR 状态（按需创建）
             .magic/          ← Magic 配置（按需创建）
+                config/      ← Magic 全局配置
+                skills/      ← skills 配置
+                .env         ← Magic 全局环境变量
             .tmp/            ← 临时文件（按需创建）
 
     目录创建约定：
@@ -78,8 +81,10 @@ class PathManager(BasePathManager):
     # Magic 全局配置目录：.workspace/.magic（按需创建，未来考虑迁移到 ~/.magic/）
     _magic_dir_name: ClassVar[str] = ".magic"
     _magic_config_dir_name: ClassVar[str] = "config"
+    _magic_skills_dir_name: ClassVar[str] = "skills"
     _magic_dir: ClassVar[Optional[Path]] = None
     _magic_config_dir: ClassVar[Optional[Path]] = None
+    _magic_skills_dir: ClassVar[Optional[Path]] = None
 
     # 临时目录：.workspace/.tmp（按需创建）
     _tmp_dir_name: ClassVar[str] = ".tmp"
@@ -128,6 +133,7 @@ class PathManager(BasePathManager):
         cls._asr_states_dir = cls.get_workspace_dir() / cls._asr_states_dir_name
         cls._magic_dir = cls.get_workspace_dir() / cls._magic_dir_name
         cls._magic_config_dir = cls._magic_dir / cls._magic_config_dir_name
+        cls._magic_skills_dir = cls._magic_dir / cls._magic_skills_dir_name
         cls._tmp_dir = cls.get_workspace_dir() / cls._tmp_dir_name
 
         # 确保应用层预创建目录存在
@@ -394,6 +400,34 @@ class PathManager(BasePathManager):
         """获取 Magic 全局配置目录路径（.workspace/.magic/config，按需创建）"""
         cls._ensure_app_initialization()
         return cls._magic_config_dir
+
+    @classmethod
+    def get_magic_skills_dir(cls) -> Path:
+        """获取 skills 配置目录路径（.workspace/.magic/skills，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls._magic_skills_dir
+
+    @classmethod
+    def get_magic_env_file(cls) -> Path:
+        """获取 Magic 全局环境变量文件路径（.workspace/.magic/.env）"""
+        cls._ensure_app_initialization()
+        return cls._magic_dir / ".env"
+
+    @classmethod
+    def get_process_env_paths(cls) -> list[Path]:
+        """返回进程启动时叠加的用户环境变量文件路径列表，按优先级从低到高排列（后者覆盖前者）。
+
+        顺序（优先级从低到高，后者覆盖前者）：
+          1. .workspace/.magic/skills/.env — skills 专属配置（最低优先级）
+          2. .workspace/.env             — workspace 顶层配置
+          3. .workspace/.magic/.env      — magic 全局配置（最高优先级）
+        """
+        cls._ensure_app_initialization()
+        return [
+            cls._magic_skills_dir / ".env",
+            cls.get_workspace_dir() / ".env",
+            cls._magic_dir / ".env",
+        ]
 
     @classmethod
     def get_tmp_dir(cls) -> Path:

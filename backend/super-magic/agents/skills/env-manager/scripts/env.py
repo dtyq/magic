@@ -31,7 +31,8 @@ def _setup_project_root() -> Path:
     raise RuntimeError("无法定位项目根目录（未找到 setup.py 或 script_runner）")
 
 
-def get_env_file() -> Path:
+def _init_path_manager():
+    """初始化 PathManager 并返回模块引用。"""
     root = _setup_project_root()
     try:
         from app.path_manager import PathManager as _PM
@@ -40,7 +41,17 @@ def get_env_file() -> Path:
     except Exception:
         pass
     from app.path_manager import PathManager
-    return PathManager.get_workspace_dir() / ".magic" / "skills" / ".env"
+    return PathManager
+
+
+def get_env_file() -> Path:
+    """返回写操作目标文件（.workspace/.magic/.env）。"""
+    return _init_path_manager().get_magic_env_file()
+
+
+def get_env_paths() -> list[Path]:
+    """返回读取时的全部环境变量文件路径列表（按优先级从低到高）。"""
+    return _init_path_manager().get_process_env_paths()
 
 
 def cmd_set(key: str, value: str) -> None:
@@ -80,16 +91,17 @@ def cmd_unset(key: str) -> None:
 
 def cmd_list() -> None:
     from dotenv import dotenv_values
-    env_file = get_env_file()
-
-    if not env_file.exists():
-        print(json.dumps({"ok": True, "keys": []}, ensure_ascii=False))
-        return
 
     def mask(v: str) -> str:
         return v[:4] + "*" * (len(v) - 8) + v[-4:] if len(v) > 8 else "*" * len(v)
 
-    keys = [{"key": k, "value": mask(v) if v else ""} for k, v in dotenv_values(str(env_file)).items()]
+    # 按优先级从低到高合并，同名 key 后者覆盖前者
+    merged: dict[str, str] = {}
+    for env_path in get_env_paths():
+        if env_path.exists():
+            merged.update({k: v for k, v in dotenv_values(str(env_path)).items() if v is not None})
+
+    keys = [{"key": k, "value": mask(v) if v else ""} for k, v in merged.items()]
     print(json.dumps({"ok": True, "keys": keys}, ensure_ascii=False, indent=2))
 
 

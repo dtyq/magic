@@ -74,14 +74,13 @@ class ProcessExecutor:
             if key not in env_var_names_to_filter:
                 env_vars[key] = value
 
-        # 叠加用户持久化的环境变量（workspace/.skills/.env），覆盖同名系统变量
-        # 该文件在容器重启后依然存在，是 skill 运行所需 API key 等配置的持久化存储
+        # 按优先级从低到高叠加用户持久化环境变量，后者覆盖前者
         try:
-            user_env_file = PathManager.get_workspace_dir() / ".magic" / "skills" / ".env"
-            if user_env_file.exists():
-                user_env = dotenv_values(dotenv_path=str(user_env_file))
-                env_vars.update({k: v for k, v in user_env.items() if v is not None})
-                logger.debug(f"已加载用户持久化环境变量，共 {len(user_env)} 个: {user_env_file}")
+            for env_path in PathManager.get_process_env_paths():
+                if env_path.exists():
+                    user_env = dotenv_values(dotenv_path=str(env_path))
+                    env_vars.update({k: v for k, v in user_env.items() if v is not None})
+                    logger.debug(f"已加载用户持久化环境变量，共 {len(user_env)} 个: {env_path}")
         except Exception as e:
             logger.warning(f"加载用户持久化环境变量失败: {e}")
 
