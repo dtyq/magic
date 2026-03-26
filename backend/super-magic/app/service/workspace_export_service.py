@@ -16,9 +16,11 @@ from loguru import logger
 from app.infrastructure.storage.types import (
     AliyunCredentials,
     PlatformType,
+    S3Credentials,
     VolcEngineCredentials,
 )
 from app.infrastructure.storage.aliyun import AliyunOSSUploader
+from app.infrastructure.storage.s3 import S3Uploader
 from app.infrastructure.storage.volcengine import VolcEngineUploader
 from app.path_manager import PathManager
 
@@ -241,6 +243,9 @@ async def _package_and_upload(
         elif platform == PlatformType.aliyun:
             credentials = AliyunCredentials(**upload_config)
             uploader = AliyunOSSUploader()
+        elif platform == PlatformType.minio:
+            credentials = S3Credentials(**upload_config)
+            uploader = S3Uploader()
         else:
             raise ValueError(
                 f"Platform {platform_str!r} is not yet supported for workspace export."
