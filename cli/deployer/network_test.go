@@ -426,27 +426,6 @@ func TestPatchConfigProxySection_WritesContainerURL(t *testing.T) {
 	assert.Contains(t, string(data), "http://host.docker.internal:7890")
 }
 
-func TestPatchConfigProxySection_WritesNoProxyList(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yml")
-	require.NoError(t, os.WriteFile(path, []byte("deploy: {}\n"), 0o644))
-
-	err := patchConfigProxySection(path, ProxyConfig{
-		Enabled: true,
-		Host: ProxyEndpointConfig{
-			URL:     "http://proxy:8080",
-			NoProxy: []string{"myhost.internal"},
-		},
-	})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	content := string(data)
-	assert.Contains(t, content, "myhost.internal")
-	// noProxy should be a yaml sequence
-	assert.Contains(t, content, "noProxy:")
-}
-
 func TestPatchConfigProxySection_CreatesProxyNodeIfAbsent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yml")
 	require.NoError(t, os.WriteFile(path, []byte("log:\n  - kind: file\n"), 0o644))

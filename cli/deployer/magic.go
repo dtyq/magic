@@ -242,6 +242,9 @@ func (s *MagicSandboxStage) Exec(ctx context.Context) error {
 	// magic-sandbox images live in our image registry; always route through the local proxy.
 	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
 	namespace := chartNamespace(merged, releaseNameMagicSandbox, defaultMagicSandboxNamespace)
+	// Remove any stale image-prepull pods (e.g. ImagePullBackOff from a previous
+	// deploy) before (re)installing so Helm starts with a clean slate.
+	s.cleanupStaleImagePrepull(ctx, namespace)
 	ref, err := s.d.chartRef(releaseNameMagicSandbox)
 	if err != nil {
 		return err
@@ -292,10 +295,36 @@ func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace s
 		return
 	}
 	if err != nil {
-		s.d.log.Logw("deploy", "image pre-pull wait timed out or failed (%v); continue in background", err)
+		s.d.log.Logw("deploy", "image pre-pull wait timed out or failed (%v); continue deploy", err)
 		return
 	}
 	s.d.log.Logi("deploy", "image pre-pull wait condition satisfied (%s)", policy)
+}
+
+// cleanupStaleImagePrepull checks whether any existing image-prepull pods are stuck
+// in an image-pull failure state (ImagePullBackOff / ErrImagePull). If so, the
+// DaemonSet is deleted so that the upcoming Helm install starts with a clean slate.
+func (s *MagicSandboxStage) cleanupStaleImagePrepull(ctx context.Context, namespace string) {
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	hasStale, err := s.d.kubeClient.HasPodsWithImagePullFailure(checkCtx, namespace, imagePrepullLabelSelector)
+	if err != nil {
+		s.d.log.Logw("deploy", "image-prepull stale-check: %v", err)
+		return
+	}
+	if !hasStale {
+		return
+	}
+
+	s.d.log.Logi("deploy", "stale image-prepull pods detected (image pull failure); deleting pods before redeploy")
+	delCtx, delCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer delCancel()
+	if err := s.d.kubeClient.DeletePodsByLabel(delCtx, namespace, imagePrepullLabelSelector); err != nil {
+		s.d.log.Logw("deploy", "image-prepull pod cleanup: %v", err)
+	} else {
+		s.d.log.Logi("deploy", "stale image-prepull pods deleted")
+	}
 }
 
 func roleArn(bucket string) string {
