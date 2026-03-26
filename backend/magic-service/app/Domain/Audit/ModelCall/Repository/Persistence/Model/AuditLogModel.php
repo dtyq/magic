@@ -28,6 +28,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property null|array $detail_info 详情信息
  * @property null|string $access_scope 访问范围 api_platform / magic
  * @property null|string $magic_topic_id Magic 话题 ID
+ * @property null|string $request_id 请求/链路 ID
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 修改时间
  */
@@ -52,6 +53,7 @@ class AuditLogModel extends Model
         'detail_info',
         'access_scope',
         'magic_topic_id',
+        'request_id',
     ];
 
     protected array $casts = [
@@ -69,6 +71,7 @@ class AuditLogModel extends Model
         'detail_info' => 'array',      // JSON自动转数组
         'access_scope' => 'string',
         'magic_topic_id' => 'string',
+        'request_id' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

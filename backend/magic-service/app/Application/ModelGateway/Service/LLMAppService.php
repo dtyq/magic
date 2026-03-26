@@ -319,6 +319,21 @@ class LLMAppService extends AbstractLLMAppService
         if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes(), true)) {
             $auditCount = 1;
         }
+
+        $imageGenerateAuditBusinessParams = [
+            'source_id' => (string) ($data['source_id'] ?? ''),
+            'chain' => 'imageGenerate',
+        ];
+        if ((string) ($data['request_id'] ?? '') !== '') {
+            $imageGenerateAuditBusinessParams['request_id'] = (string) $data['request_id'];
+        }
+        if ((string) ($imageGenerateAuditBusinessParams['request_id'] ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $imageGenerateAuditBusinessParams['request_id'] = $requestId;
+            }
+        }
+
         $this->dispatchAuditEventOnce(
             userInfo: [
                 'organization_code' => $authorization->getOrganizationCode(),
@@ -340,10 +355,7 @@ class LLMAppService extends AbstractLLMAppService
                 null,
                 ['chain' => 'imageGenerate']
             ),
-            businessParams: [
-                'source_id' => (string) ($data['source_id'] ?? ''),
-                'chain' => 'imageGenerate',
-            ],
+            businessParams: $imageGenerateAuditBusinessParams,
             sourceMarker: 'imageGenerate'
         );
 
@@ -391,6 +403,22 @@ class LLMAppService extends AbstractLLMAppService
         $startTime = microtime(true);
         $imageUrl = $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+
+        $imageConvertHighAuditBusinessParams = [
+            'source_id' => $reqDTO->getSourceId(),
+            'chain' => 'imageConvertHigh',
+        ];
+        $reqRequestId = (string) ($reqDTO->getRequestId() ?? '');
+        if ($reqRequestId !== '') {
+            $imageConvertHighAuditBusinessParams['request_id'] = $reqRequestId;
+        }
+        if ((string) ($imageConvertHighAuditBusinessParams['request_id'] ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $imageConvertHighAuditBusinessParams['request_id'] = $requestId;
+            }
+        }
+
         $this->dispatchAuditEventOnce(
             userInfo: [
                 'organization_code' => $userAuthorization->getOrganizationCode(),
@@ -412,10 +440,7 @@ class LLMAppService extends AbstractLLMAppService
                 null,
                 ['chain' => 'imageConvertHigh']
             ),
-            businessParams: [
-                'source_id' => $reqDTO->getSourceId(),
-                'chain' => 'imageConvertHigh',
-            ],
+            businessParams: $imageConvertHighAuditBusinessParams,
             sourceMarker: 'imageConvertHigh'
         );
 
@@ -479,6 +504,13 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($offset < 0 || $offset > 1000) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Offset must be between 0 and 1000');
+        }
+
+        if ((string) ($businessParams['request_id'] ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $businessParams['request_id'] = $requestId;
+            }
         }
 
         // 3. Create data isolation object (for logging and permission control)
@@ -613,6 +645,13 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function webScrape(WebScrapeRequestDTO $webScrapeRequestDTO): array
     {
+        if ((string) ($webScrapeRequestDTO->getBusinessParam('request_id') ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $webScrapeRequestDTO->addBusinessParam('request_id', $requestId);
+            }
+        }
+
         // Create data isolation object
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($webScrapeRequestDTO->getAccessToken(), $webScrapeRequestDTO->getBusinessParams());
 
@@ -753,6 +792,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Validate search parameters
         $searchRequestDTO->validate();
+        if ((string) ($searchRequestDTO->getBusinessParam('request_id') ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $searchRequestDTO->addBusinessParam('request_id', $requestId);
+            }
+        }
         $businessParams = $searchRequestDTO->getBusinessParams();
 
         // Create data isolation object (for logging and permission control)
@@ -953,6 +998,12 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Validate search parameters
         $imageSearchRequestDTO->validate();
+        if ((string) ($imageSearchRequestDTO->getBusinessParam('request_id') ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $imageSearchRequestDTO->addBusinessParam('request_id', $requestId);
+            }
+        }
         $businessParams = $imageSearchRequestDTO->getBusinessParams();
 
         // Create data isolation object (for logging and permission control)
@@ -1195,6 +1246,13 @@ class LLMAppService extends AbstractLLMAppService
         $callTime = date('Y-m-d H:i:s');
         $startTime = microtime(true);
 
+        if ((string) ($textGenerateImageDTO->getBusinessParam('request_id') ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $textGenerateImageDTO->addBusinessParam('request_id', $requestId);
+            }
+        }
+
         $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModel->getConfig());
         try {
             $imageGenerateRequest->setModel($imageModel->getModelVersion());
@@ -1295,6 +1353,13 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
 
+        if ((string) ($imageEditDTO->getBusinessParam('request_id') ?? '') === '') {
+            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
+            if ($requestId !== '') {
+                $imageEditDTO->addBusinessParam('request_id', $requestId);
+            }
+        }
+
         $dataIsolation = LLMDataIsolation::create()->disabled();
 
         $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $imageEditDTO);
@@ -1349,7 +1414,6 @@ class LLMAppService extends AbstractLLMAppService
             $imageGenerateRequest->setModel($imageModel->getModelVersion());
             $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
             if (! empty($generateImageRaw)) {
-
                 $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
                 // Dispatch audit event for success
@@ -1390,7 +1454,6 @@ class LLMAppService extends AbstractLLMAppService
                     $accessTokenEntity
                 );
 
-             
                 return $generateImageRaw;
             }
         } catch (Exception $e) {
@@ -1644,10 +1707,6 @@ class LLMAppService extends AbstractLLMAppService
             }
 
             $detailExtras = ['original_model_id' => $originalModelId];
-            $requestId = (string) ($proxyModelRequest->getBusinessParam('request_id') ?? '');
-            if ($requestId !== '') {
-                $detailExtras['request_id'] = $requestId;
-            }
 
             // Dispatch audit event for success（流式首包后同步 INSERT，最终 usage 由 AuditLogSubscriber 在 AfterChatCompletionsStreamEvent 同步回填）
             $this->dispatchAuditEventOnce(

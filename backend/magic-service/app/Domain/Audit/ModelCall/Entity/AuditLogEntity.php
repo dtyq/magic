@@ -41,6 +41,8 @@ class AuditLogEntity extends AbstractEntity
 
     protected ?string $magicTopicId = null;
 
+    protected ?string $requestId = null;
+
     protected ?DateTime $createdAt = null;
 
     protected ?DateTime $updatedAt = null;
@@ -183,6 +185,16 @@ class AuditLogEntity extends AbstractEntity
     public function setMagicTopicId(?string $magicTopicId): void
     {
         $this->magicTopicId = $magicTopicId;
+    }
+
+    public function getRequestId(): ?string
+    {
+        return $this->requestId;
+    }
+
+    public function setRequestId(?string $requestId): void
+    {
+        $this->requestId = $requestId;
     }
 
     public function getCreatedAt(): ?DateTime

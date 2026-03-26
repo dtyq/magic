@@ -35,7 +35,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             ->where('status', 'SUCCESS')
             ->where('product_code', $productCode)
             ->where('detail_info->stream', true)
-            ->where('detail_info->extras->request_id', $requestId)
+            ->where('request_id', $requestId)
             ->orderByDesc('id')
             ->first();
 
@@ -81,6 +81,9 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
         if (! empty($filters['magic_topic_id'])) {
             $builder->where('magic_topic_id', (string) $filters['magic_topic_id']);
+        }
+        if (! empty($filters['request_id'])) {
+            $builder->where('request_id', (string) $filters['request_id']);
         }
         if (! empty($filters['start_operation_time'])) {
             $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
@@ -135,8 +138,8 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $item['usage'] = is_array($item['usage'] ?? null) ? $item['usage'] : [];
             $item['detail_info'] = is_array($item['detail_info'] ?? null) ? $item['detail_info'] : null;
             $item['access_scope'] = (string) ($item['access_scope'] ?? '');
-            $mtid = $item['magic_topic_id'] ?? null;
-            $item['magic_topic_id'] = $mtid !== null && $mtid !== '' ? (string) $mtid : null;
+            $item['magic_topic_id'] = (string) ($item['magic_topic_id'] ?? '');
+            $item['request_id'] = (string) ($item['request_id'] ?? '');
         }
 
         return $list;

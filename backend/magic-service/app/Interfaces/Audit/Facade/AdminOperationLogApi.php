@@ -84,6 +84,7 @@ class AdminOperationLogApi extends AbstractPermissionApi
         $userId = (string) $this->request->input('user_id', '');
         $accessScope = trim((string) $this->request->input('access_scope', ''));
         $magicTopicId = trim((string) $this->request->input('magic_topic_id', ''));
+        $requestId = trim((string) $this->request->input('request_id', ''));
         $organizationCode = trim((string) $this->request->input('organization_code', ''));
         $startDate = (string) $this->request->input('start_date', '');
         $endDate = (string) $this->request->input('end_date', '');
@@ -105,6 +106,9 @@ class AdminOperationLogApi extends AbstractPermissionApi
         }
         if ($magicTopicId !== '') {
             $filters['magic_topic_id'] = $magicTopicId;
+        }
+        if ($requestId !== '') {
+            $filters['request_id'] = $requestId;
         }
         if ($isOfficialOrganization && $organizationCode !== '') {
             $filters['organization_code'] = $organizationCode;

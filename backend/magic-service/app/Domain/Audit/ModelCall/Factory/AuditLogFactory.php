@@ -30,6 +30,7 @@ class AuditLogFactory
         ?array $detailInfo = null,
         ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
         ?string $magicTopicId = null,
+        ?string $requestId = null,
     ): AuditLogEntity {
         $now = new DateTime();
 
@@ -47,6 +48,7 @@ class AuditLogFactory
         $entity->setDetailInfo($detailInfo);
         $entity->setAccessScope($accessScope);
         $entity->setMagicTopicId($magicTopicId);
+        $entity->setRequestId($requestId);
         $entity->setCreatedAt($now);
         $entity->setUpdatedAt($now);
 

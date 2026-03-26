@@ -15,7 +15,6 @@ use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 enum ModelAuditAccessScope: string
 {
     case ApiPlatform = 'api_platform';
-
     case Magic = 'magic';
 
     public static function fromAccessTokenType(AccessTokenType $type): self

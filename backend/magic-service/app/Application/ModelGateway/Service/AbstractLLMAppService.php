@@ -217,7 +217,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
 
     protected function buildAuditDispatchKey(AuditType $type, array $businessParams = []): string
     {
-        $requestId = (string) ($businessParams['audit_request_id'] ?? $businessParams['request_id'] ?? '');
+        $requestId = (string) ($businessParams['request_id'] ?? '');
         if ($requestId === '') {
             return '';
         }

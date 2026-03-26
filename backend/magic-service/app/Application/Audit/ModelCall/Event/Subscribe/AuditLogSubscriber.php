@@ -104,6 +104,10 @@ class AuditLogSubscriber implements ListenerInterface
         $magicTopicId = is_string($raw) ? trim($raw) : '';
         $magicTopicId = $magicTopicId === '' ? null : $magicTopicId;
 
+        $requestRaw = $event->businessParams['request_id'] ?? null;
+        $requestId = $requestRaw !== null && $requestRaw !== '' ? trim((string) $requestRaw) : '';
+        $requestId = $requestId === '' ? null : $requestId;
+
         return AuditLogFactory::createNew(
             userId: $userId,
             organizationCode: $organizationCode,
@@ -118,6 +122,7 @@ class AuditLogSubscriber implements ListenerInterface
             detailInfo: $event->detailInfo,
             accessScope: $event->accessScope,
             magicTopicId: $magicTopicId,
+            requestId: $requestId,
         );
     }
 }

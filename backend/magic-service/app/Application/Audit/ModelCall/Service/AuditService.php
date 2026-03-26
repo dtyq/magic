@@ -47,7 +47,7 @@ class AuditService
      * @param AuditStatus $status 状态枚举
      * @param array $usage 用量信息
      * @param null|array $detailInfo 详情信息
-     * @param array $businessParams 业务参数（透传给订阅者，不落库）
+     * @param array $businessParams 业务参数（透传给订阅者）；其中 request_id、magic_topic_id 等会写入审计表列
      */
     public function dispatchAuditEvent(
         array $userInfo,
@@ -93,25 +93,6 @@ class AuditService
     }
 
     /**
-     * 审计落库 IP：逗号分隔链（X-Forwarded-For / 多来源拼接）只保留第一个非空段，避免重复段落库.
-     */
-    private function normalizeClientIpForAudit(string $ip): string
-    {
-        $ip = trim($ip);
-        if ($ip === '') {
-            return '';
-        }
-        foreach (explode(',', $ip) as $segment) {
-            $segment = trim($segment);
-            if ($segment !== '') {
-                return $segment;
-            }
-        }
-
-        return '';
-    }
-
-    /**
      * 管理端查询模型调用审计列表（行内为表字段 + 反查得到的 user_info）.
      *
      * @param array<string, mixed> $filters
@@ -139,6 +120,25 @@ class AuditService
             'page_size' => $pageVO->getPageNum(),
             'list' => $this->enrichUserInfoForAdminList($list),
         ];
+    }
+
+    /**
+     * 审计落库 IP：逗号分隔链（X-Forwarded-For / 多来源拼接）只保留第一个非空段，避免重复段落库.
+     */
+    private function normalizeClientIpForAudit(string $ip): string
+    {
+        $ip = trim($ip);
+        if ($ip === '') {
+            return '';
+        }
+        foreach (explode(',', $ip) as $segment) {
+            $segment = trim($segment);
+            if ($segment !== '') {
+                return $segment;
+            }
+        }
+
+        return '';
     }
 
     /**
