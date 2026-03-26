@@ -23,7 +23,7 @@ return new class extends Migration {
         }
 
         Schema::table('magic_super_magic_claw', function (Blueprint $table) {
-            $table->string('template_code', 64)->default('openclaw')->comment('Template code: openclaw or magicshock')->after('icon');
+            $table->string('template_code', 64)->default('openclaw')->comment('Template code: openclaw or magishock')->after('icon');
         });
     }
 
