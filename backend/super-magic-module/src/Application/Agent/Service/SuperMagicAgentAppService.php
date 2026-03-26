@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -437,6 +439,34 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $this->categorizeLatestVersionItems($items, $this->getOrderConfig($authorization));
+    }
+
+    /**
+     * 将指定员工列表追加到 frequent 末尾，并从 all 中移除。
+     *
+     * @param array<int, string> $codes
+     */
+    public function addToFrequent(Authenticatable $authorization, array $codes): void
+    {
+        $orderConfig = $this->getOrderConfig($authorization) ?? [];
+        $frequentCodes = $this->normalizeOrderCodes($orderConfig['frequent'] ?? []);
+        $allCodes = $this->normalizeOrderCodes($orderConfig['all'] ?? []);
+
+        foreach ($this->normalizeOrderCodes($codes) as $code) {
+            if (! in_array($code, $frequentCodes, true)) {
+                $frequentCodes[] = $code;
+            }
+        }
+
+        $allCodes = array_values(array_filter(
+            $allCodes,
+            static fn (string $currentCode): bool => ! in_array($currentCode, $frequentCodes, true)
+        ));
+
+        $this->saveOrderConfig($authorization, [
+            'frequent' => $frequentCodes,
+            'all' => $allCodes,
+        ]);
     }
 
     /**
@@ -917,7 +947,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         } else {
             $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $authorization->getId());
             $queryAgentCodes = array_values(array_unique(array_diff(
-                array_merge($accessibleAgentResult['accessible'], $builtinAgentCodes),
+                array_merge($accessibleAgentResult['codes'], $builtinAgentCodes),
                 $builtinAgentCodes
             )));
         }
@@ -1283,6 +1313,39 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $publisherUserMap;
+    }
+
+    /**
+     * @param array<mixed> $codes
+     * @return array<string>
+     */
+    private function normalizeOrderCodes(array $codes): array
+    {
+        $normalizedCodes = [];
+        foreach ($codes as $code) {
+            if (! is_string($code) || $code === '') {
+                continue;
+            }
+
+            if (! in_array($code, $normalizedCodes, true)) {
+                $normalizedCodes[] = $code;
+            }
+        }
+
+        return $normalizedCodes;
+    }
+
+    /**
+     * @param array{frequent: array<string>, all: array<string>} $orderConfig
+     */
+    private function saveOrderConfig(Authenticatable $authorization, array $orderConfig): void
+    {
+        $dataIsolation = $this->createContactDataIsolation($authorization);
+        $entity = new MagicUserSettingEntity();
+        $entity->setKey(UserSettingKey::SuperMagicAgentSort->value);
+        $entity->setValue($orderConfig);
+
+        $this->magicUserSettingDomainService->save($dataIsolation, $entity);
     }
 
     /**

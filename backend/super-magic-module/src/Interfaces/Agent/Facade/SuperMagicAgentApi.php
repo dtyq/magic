@@ -238,6 +238,17 @@ class SuperMagicAgentApi extends AbstractApi
         return $this->superMagicAgentAppService->sortListQueries($this->getAuthorization());
     }
 
+    /**
+     * 将一个或多个员工追加到 frequent 列表末尾，并从 all 列表中移除.
+     */
+    public function addToFrequent(): array
+    {
+        $codes = $this->request->input('codes');
+        $this->superMagicAgentAppService->addToFrequent($this->getAuthorization(), $codes);
+
+        return ['message' => 'Agent frequent saved successfully'];
+    }
+
     public function externalQueries(): array
     {
         $authorization = $this->getAuthorization();
