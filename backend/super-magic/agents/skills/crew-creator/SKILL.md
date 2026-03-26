@@ -19,16 +19,16 @@ description-cn: |
 <!--zh
 # Agent Prompt Manager（员工提示词管理器）
 
-管理 `.workspace/` 下的 4 个核心员工定义文件，帮助用户查看、编辑和优化员工的身份、指令、性格和工具配置。
+管理 `.magic/` 下的 4 个核心员工定义文件，帮助用户查看、编辑和优化员工的身份、指令、性格和工具配置。
 当工作区尚无员工定义文件时，还负责引导用户完成首次初始化。
 
 ## 员工初始化流程
 
-当 `.workspace/IDENTITY.md` 不存在时，说明工作区尚未创建员工，需要引导用户初始化。
+当 `.magic/IDENTITY.md` 不存在时，说明工作区尚未创建员工，需要引导用户初始化。
 
 ### 检测条件
 
-使用 `list_dir` 检查 `.workspace/` 目录。若 `IDENTITY.md` 不存在，进入初始化流程。
+使用 `list_dir` 检查 `.magic/` 目录。若 `IDENTITY.md` 不存在，进入初始化流程。
 
 ### 信息采集（通过对话向用户提问）
 
@@ -80,16 +80,16 @@ shell_exec(
 -->
 # Agent Prompt Manager
 
-Manages the 4 core employee definition files under `.workspace/`, helping users view, edit, and optimize their employee's identity, instructions, personality, and tool configuration.
+Manages the 4 core employee definition files under `.magic/`, helping users view, edit, and optimize their employee's identity, instructions, personality, and tool configuration.
 Also handles first-time employee initialization when the workspace has no definition files.
 
 ## Employee Initialization Flow
 
-When `.workspace/IDENTITY.md` does not exist, the workspace has no employee yet and you should guide the user through initialization.
+When `.magic/IDENTITY.md` does not exist, the workspace has no employee yet and you should guide the user through initialization.
 
 ### Detection
 
-Use `list_dir` to check `.workspace/`. If `IDENTITY.md` is missing, enter the initialization flow.
+Use `list_dir` to check `.magic/`. If `IDENTITY.md` is missing, enter the initialization flow.
 
 ### Information Gathering (ask the user conversationally)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Copy a built-in skill from agents/skills/<name>/ into the employee workspace
-at .workspace/skills/<dest>/ so it can be edited without touching the repo tree.
+at .workspace/.magic/skills/<dest>/ so it can be edited without touching the repo tree.
 
 Usage:
     python scripts/copy_skill_to_workspace.py <skill-name> [--dest-name NAME] [--overwrite]
@@ -36,7 +36,7 @@ def _setup_project_root() -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Copy agents/skills/<name> into .workspace/skills/ for crew editing.",
+        description="Copy agents/skills/<name> into .workspace/.magic/skills/ for crew editing.",
     )
     parser.add_argument(
         "skill_name",
@@ -45,7 +45,7 @@ def main() -> int:
     parser.add_argument(
         "--dest-name",
         default=None,
-        help="Destination folder name under .workspace/skills/ (default: same as skill_name).",
+        help="Destination folder name under .workspace/.magic/skills/ (default: same as skill_name).",
     )
     parser.add_argument(
         "--overwrite",
@@ -64,7 +64,7 @@ def main() -> int:
         return 2
 
     dest_name = args.dest_name or args.skill_name
-    ws_skills_root = project_root / ".workspace" / "skills"
+    ws_skills_root = project_root / ".workspace" / ".magic" / "skills"
     dest = ws_skills_root / dest_name
 
     if dest.exists():
