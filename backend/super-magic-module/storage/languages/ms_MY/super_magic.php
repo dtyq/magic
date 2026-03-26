@@ -77,4 +77,7 @@ return [
     'task' => [
         'prompt_length_exceeded' => 'Teks input terlalu panjang. Sila muat naik sebagai fail dan rujuk dalam dialog.',
     ],
+    'magic_claw' => [
+        'create_system_error' => 'Ralat sistem berlaku. Sila cuba lagi kemudian.',
+    ],
 ];

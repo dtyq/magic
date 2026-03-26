@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Core\Exception\Handler\AppExceptionHandler;
 use App\Infrastructure\Core\Exception\Handler\BusinessExceptionHandler;
+use App\Infrastructure\Core\Exception\Handler\EventExceptionHandler;
 use App\Infrastructure\Core\Exception\Handler\InvalidArgumentExceptionHandler;
 use App\Infrastructure\Core\Exception\Handler\OpenAIProxyExceptionHandler;
 use Hyperf\HttpServer\Exception\Handler\HttpExceptionHandler;
@@ -17,6 +18,7 @@ return [
             BusinessExceptionHandler::class,
             InvalidArgumentExceptionHandler::class,
             HttpExceptionHandler::class,
+            EventExceptionHandler::class,
             AppExceptionHandler::class,
         ],
         // ws的异常只对 ON_HAND_SHAKE 有效.

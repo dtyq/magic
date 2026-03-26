@@ -161,4 +161,7 @@ return [
     'task' => [
         'prompt_length_exceeded' => 'Input text is too long. Please upload it as a file and reference it in the dialog.',
     ],
+    'magic_claw' => [
+        'create_system_error' => 'A system error occurred. Please try again later.',
+    ],
 ];

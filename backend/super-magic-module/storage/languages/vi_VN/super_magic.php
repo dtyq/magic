@@ -77,4 +77,7 @@ return [
     'task' => [
         'prompt_length_exceeded' => 'Văn bản nhập vào quá dài. Vui lòng tải lên dưới dạng tệp và tham chiếu trong hộp thoại.',
     ],
+    'magic_claw' => [
+        'create_system_error' => 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.',
+    ],
 ];
