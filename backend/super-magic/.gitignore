@@ -103,7 +103,7 @@ docs
 
 # agent 的临时文件
 agents/SMA-*
-agents/crew/
+agents/crews/
 
 debug/
 backup/

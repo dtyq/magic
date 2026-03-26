@@ -291,12 +291,12 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_crew_root_dir(cls) -> Path:
-        """获取 crew 根目录路径（project_root/agents/crew）"""
-        return cls.get_agents_dir() / "crew"
+        """获取 crew 根目录路径（project_root/agents/crews）"""
+        return cls.get_agents_dir() / "crews"
 
     @classmethod
     def get_crew_agent_dir(cls, agent_code: str) -> Path:
-        """获取指定 crew agent 的目录路径（project_root/agents/crew/{agent_code}）"""
+        """获取指定 crew agent 的目录路径（project_root/agents/crews/{agent_code}）"""
         normalized_code = cls._normalize_agent_identifier(agent_code, field_name="agent_code")
         return cls.get_crew_root_dir() / normalized_code
 
