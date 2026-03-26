@@ -33,8 +33,8 @@ class SyncModelsToOfficialListener implements ListenerInterface
     public function listen(): array
     {
         return [
-            //            ProviderConfigCreatedEvent::class,
-            //            ProviderConfigUpdatedEvent::class,
+            ProviderConfigCreatedEvent::class,
+            ProviderConfigUpdatedEvent::class,
         ];
     }
 
