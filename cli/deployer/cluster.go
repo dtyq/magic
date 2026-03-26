@@ -24,7 +24,7 @@ func newBootstrapClusterStage(d *Deployer) *BootstrapClusterStage {
 
 func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 	registryCfg := s.d.opts.Registry
-	restoreContainerProxy, err := ApplyContainerProxyTemporarily(s.d.proxyPlan.ContainerProxyURL, []string{
+	restoreContainerProxy, err := applyContainerProxyTemporarily(s.d.opts.Proxy.Container.URL, []string{
 		registryCfg.Name,
 		registry.ContainerEndpoint(registryCfg),
 	})

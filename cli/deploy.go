@@ -83,6 +83,8 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		Registry:           cfg.Deploy.Registry,
 		Kind:               cfg.Deploy.Kind,
 		InfraUseProxy:      cfg.Deploy.InfraUseProxy,
+		ConfigFile:         cfgFile,
+		Proxy:              cfg.Deploy.Proxy,
 		AutoRecoverRelease: autoRecoverRelease,
 		Log:                lg,
 	}).Run(context.Background())

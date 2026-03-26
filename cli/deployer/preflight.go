@@ -24,23 +24,22 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	}
 
 	s.d.log.Logi("deploy", "checking docker daemon network...")
-	if err := CheckDockerDaemonNetwork(ctx); err != nil {
+	if err := checkDockerDaemonNetwork(ctx); err != nil {
 		s.d.log.Logw("deploy", "%s", err)
 	}
 
-	plan, err := BuildProxyPlan(ctx)
-	if err != nil {
-		s.d.log.Logw("deploy", "build proxy plan failed: %v", err)
-	} else {
-		s.d.proxyPlan = plan
-		for _, w := range plan.Warnings {
-			s.d.log.Logw("deploy", "%s", w)
-		}
-		if plan.ContainerProxyURL != "" {
-			s.d.log.Logi("deploy", "container proxy selected: %s", maskProxyURLForLog(plan.ContainerProxyURL))
-		} else if plan.HostProxyURL != "" {
-			s.d.log.Logi("deploy", "container proxy disabled due to failed reachability checks")
+	s.d.opts.Proxy = inheritEnvProxy(s.d.opts.Proxy)
+	s.d.opts.Proxy.Container.URL = resolveContainerProxy(ctx, s.d.log, s.d.opts.Proxy)
+
+	if s.d.opts.Proxy.Policy.UseHostProxy && s.d.opts.Proxy.Host.URL != "" {
+		if err := applyHostProxyForProcess(s.d.opts.Proxy.Host.URL, s.d.opts.Proxy.Host.NoProxy); err != nil {
+			s.d.log.Logw("deploy", "apply host proxy: %v", err)
 		}
 	}
+
+	if err := patchConfigProxySection(s.d.opts.ConfigFile, s.d.opts.Proxy); err != nil {
+		s.d.log.Logw("deploy", "persist proxy config: %v", err)
+	}
+
 	return s.d.resolveChartRefs()
 }

@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/dtyq/magicrew-cli/util"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
-	proxyEnvFilePath = "~/.config/magicrew/proxy.env"
-
 	envNameCLIHostProxyURL      = "MAGICREW_CLI_HOST_PROXY_URL"
 	envNameCLIContainerProxyURL = "MAGICREW_CLI_CONTAINER_PROXY_URL"
 
@@ -40,74 +40,73 @@ var proxyDefaultNoProxyEntries = []string{
 	"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
 }
 
-type ProxyPlan struct {
-	HostProxyURL      string
-	ContainerProxyURL string
-	Warnings          []string
+// inheritEnvProxy applies proxy-related environment variables on top of cfg.
+// Environment variables take priority over config file values. Fields are only
+// overridden when the corresponding env var is non-empty.
+func inheritEnvProxy(cfg ProxyConfig) ProxyConfig {
+	if envHost := firstProxyFromEnv(); envHost != "" {
+		cfg.Host.URL = envHost
+	}
+	if envContainer := strings.TrimSpace(os.Getenv(envNameCLIContainerProxyURL)); envContainer != "" {
+		cfg.Container.URL = envContainer
+	}
+	if envNoProxy := firstNonEmpty(os.Getenv("NO_PROXY"), os.Getenv("no_proxy")); envNoProxy != "" {
+		cfg.Host.NoProxy = splitCSV(envNoProxy)
+		cfg.Container.NoProxy = splitCSV(envNoProxy)
+	}
+	return cfg
 }
 
-// BuildProxyPlan resolves host/container proxy configuration with this priority:
-// 1) Current process env.
-// 2) ~/.config/magicrew/proxy.env (only when current env has no host proxy).
-// 3) Container proxy fallback to host proxy when not explicitly configured.
-//
-// After normalization, it probes container-reachable candidates (for localhost-like
-// host proxies it tries host.docker.internal / docker bridge gateway variants) and
-// returns the selected container proxy plus non-fatal warnings.
-func BuildProxyPlan(ctx context.Context) (ProxyPlan, error) {
-	plan := ProxyPlan{}
-	hostProxy := firstProxyFromEnv()
-	containerProxy := strings.TrimSpace(os.Getenv(envNameCLIContainerProxyURL))
-
-	if hostProxy == "" {
-		entries, err := readProxyEntriesFromFile(util.ExpandTilde(proxyEnvFilePath))
-		if err != nil {
-			plan.Warnings = append(plan.Warnings, fmt.Sprintf("read proxy env file failed: %v", err))
-		} else {
-			restore, applyErr := applyEnvTemporarily(entries)
-			if applyErr != nil {
-				plan.Warnings = append(plan.Warnings, fmt.Sprintf("apply proxy env entries failed: %v", applyErr))
-			} else {
-				defer restore()
-				hostProxy = firstProxyFromEnv()
-				if containerProxy == "" {
-					containerProxy = firstNonEmpty(
-						strings.TrimSpace(entries[envNameCLIContainerProxyURL]),
-						strings.TrimSpace(entries["MAGICREW_CONTAINER_PROXY_URL"]),
-					)
-				}
-			}
+// resolveContainerProxy determines the effective container proxy URL.
+// It normalises host/container proxy URLs, builds candidates from the host proxy
+// when the host is loopback, then probes each candidate according to policy.
+// Warnings are logged directly; nothing is returned for them.
+func resolveContainerProxy(ctx context.Context, log util.LoggerGroup, cfg ProxyConfig) string {
+	// Respect Enabled=false unless the shell environment explicitly provides a proxy.
+	if !cfg.Enabled {
+		envHasProxy := firstProxyFromEnv() != "" ||
+			strings.TrimSpace(os.Getenv(envNameCLIContainerProxyURL)) != ""
+		if !envHasProxy {
+			return ""
 		}
 	}
-	if hostProxy == "" {
-		return plan, nil
+	if strings.TrimSpace(cfg.Host.URL) == "" && strings.TrimSpace(cfg.Container.URL) == "" {
+		return ""
 	}
 
-	hostProxy, err := normalizeProxyURL(hostProxy)
-	if err != nil {
-		plan.Warnings = append(plan.Warnings, fmt.Sprintf("ignore invalid host proxy url %q", hostProxy))
-		return plan, nil
-	}
-	plan.HostProxyURL = hostProxy
-
-	if containerProxy != "" {
-		containerProxy, err = normalizeProxyURL(containerProxy)
+	hostProxy := ""
+	if cfg.Host.URL != "" {
+		var err error
+		hostProxy, err = normalizeProxyURL(cfg.Host.URL)
 		if err != nil {
-			plan.Warnings = append(plan.Warnings, fmt.Sprintf("ignore invalid container proxy url %q", containerProxy))
-			containerProxy = ""
+			log.Logw("deploy", "ignore invalid host proxy url %q: %v", cfg.Host.URL, err)
 		}
 	}
-	if containerProxy == "" {
-		containerProxy = hostProxy
+
+	containerProxy := ""
+	if cfg.Container.URL != "" {
+		var err error
+		containerProxy, err = normalizeProxyURL(cfg.Container.URL)
+		if err != nil {
+			log.Logw("deploy", "ignore invalid container proxy url %q: %v", cfg.Container.URL, err)
+		}
 	}
 
-	selected, warnings := chooseContainerProxy(ctx, hostProxy, containerProxy)
-	plan.ContainerProxyURL = selected
-	plan.Warnings = append(plan.Warnings, warnings...)
-	return plan, nil
+	if hostProxy == "" && containerProxy == "" {
+		return ""
+	}
+
+	selected := chooseContainerProxy(ctx, log, hostProxy, containerProxy, cfg.Policy)
+	if selected != "" {
+		log.Logi("deploy", "container proxy selected: %s", maskProxyURLForLog(selected))
+	} else if hostProxy != "" {
+		log.Logi("deploy", "container proxy disabled due to failed reachability checks")
+	}
+
+	return selected
 }
 
-func CheckDockerDaemonNetwork(ctx context.Context) error {
+func checkDockerDaemonNetwork(ctx context.Context) error {
 	_, err := runDockerWithTimeout(
 		ctx, dockerDaemonSmokeTimeout,
 		"run", "--rm", "--pull", "always", dockerProbeCurlImage, "curl", "--version",
@@ -118,7 +117,7 @@ func CheckDockerDaemonNetwork(ctx context.Context) error {
 	return fmt.Errorf("docker daemon network check failed: %w", err)
 }
 
-func ApplyContainerProxyTemporarily(proxyURL string, noProxyAdditions []string) (func(), error) {
+func applyContainerProxyTemporarily(proxyURL string, noProxyAdditions []string) (func(), error) {
 	proxyURL = strings.TrimSpace(proxyURL)
 	noProxy := mergeCSV(firstNonEmpty(
 		os.Getenv("NO_PROXY"),
@@ -138,8 +137,63 @@ func ApplyContainerProxyTemporarily(proxyURL string, noProxyAdditions []string) 
 	return applyEnvTemporarily(envs)
 }
 
-func chooseContainerProxy(ctx context.Context, hostProxy, preferredContainer string) (string, []string) {
-	warnings := make([]string, 0)
+func applyHostProxyForProcess(proxyURL string, noProxy []string) error {
+	proxyURL = strings.TrimSpace(proxyURL)
+	if proxyURL == "" {
+		return nil
+	}
+	mergedNoProxy := mergeCSV(
+		firstNonEmpty(os.Getenv("NO_PROXY"), os.Getenv("no_proxy")),
+		dedupCSVEntries(append(proxyDefaultNoProxyEntries, noProxy...)),
+	)
+	envs := map[string]string{
+		"HTTP_PROXY":  proxyURL,
+		"HTTPS_PROXY": proxyURL,
+		"ALL_PROXY":   proxyURL,
+		"http_proxy":  proxyURL,
+		"https_proxy": proxyURL,
+		"all_proxy":   proxyURL,
+		"NO_PROXY":    mergedNoProxy,
+		"no_proxy":    mergedNoProxy,
+	}
+	for key, value := range envs {
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func chooseContainerProxy(
+	ctx context.Context,
+	log util.LoggerGroup,
+	hostProxy, containerProxy string,
+	policy ProxyPolicyConfig,
+) string {
+	candidates := buildContainerProxyCandidates(ctx, hostProxy, containerProxy)
+	if len(candidates) == 0 {
+		return ""
+	}
+	for _, c := range candidates {
+		if policy.RequireReachability {
+			if err := checkContainerProxyConnectivity(ctx, c); err != nil {
+				log.Logw("deploy", "%s", err)
+				continue
+			}
+		}
+		if err := checkContainerProxyEgress(ctx, c); err != nil {
+			log.Logw("deploy", "%s", err)
+			if policy.RequireEgress {
+				continue
+			}
+		}
+		return c
+	}
+	log.Logw("deploy", "no usable container proxy candidate found; container proxy disabled")
+	return ""
+}
+
+func buildContainerProxyCandidates(ctx context.Context, hostProxy, containerProxy string) []string {
 	candidates := make([]string, 0)
 	appendUnique := func(v string) {
 		v = strings.TrimSpace(v)
@@ -153,58 +207,55 @@ func chooseContainerProxy(ctx context.Context, hostProxy, preferredContainer str
 		}
 		candidates = append(candidates, v)
 	}
-	appendUnique(preferredContainer)
-
+	if containerProxy != "" {
+		appendUnique(containerProxy)
+		return candidates
+	}
+	if strings.TrimSpace(hostProxy) == "" {
+		return candidates
+	}
+	appendUnique(hostProxy)
 	parsedHost, err := url.Parse(hostProxy)
-	if err == nil && parsedHost.Hostname() != "" {
-		hostName := strings.ToLower(parsedHost.Hostname())
-		if hostName == "localhost" || hostName == "127.0.0.1" || hostName == "::1" {
-			gateway := dockerBridgeGateway(ctx)
-			build := func(h string) string {
-				u := *parsedHost
-				if p := parsedHost.Port(); p != "" {
-					u.Host = h + ":" + p
-				} else {
-					u.Host = h
-				}
-				return u.String()
-			}
-			if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-				appendUnique(build("host.docker.internal"))
-				if gateway != "" {
-					appendUnique(build(gateway))
-				}
-			} else {
-				if gateway != "" {
-					appendUnique(build(gateway))
-				}
-				appendUnique(build("host.docker.internal"))
-			}
-		}
+	if err != nil || parsedHost.Hostname() == "" || !isLoopbackHost(parsedHost.Hostname()) {
+		return candidates
 	}
-
-	for _, c := range candidates {
-		ok, msg := checkContainerProxyConnectivity(ctx, c)
-		if !ok {
-			if msg != "" {
-				warnings = append(warnings, msg)
-			}
-			continue
+	gateway := dockerBridgeGateway(ctx)
+	build := func(h string) string {
+		u := *parsedHost
+		if p := parsedHost.Port(); p != "" {
+			u.Host = h + ":" + p
+		} else {
+			u.Host = h
 		}
-		egressOK, egressWarn := checkContainerProxyEgress(ctx, c)
-		if !egressOK && egressWarn != "" {
-			warnings = append(warnings, egressWarn)
-		}
-		return c, warnings
+		return u.String()
 	}
-	warnings = append(warnings, "no verified container proxy candidate found; container proxy disabled")
-	return "", warnings
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		appendUnique(build("host.docker.internal"))
+		if gateway != "" {
+			appendUnique(build(gateway))
+		}
+	} else {
+		if gateway != "" {
+			appendUnique(build(gateway))
+		}
+		appendUnique(build("host.docker.internal"))
+	}
+	return candidates
 }
 
-func checkContainerProxyConnectivity(ctx context.Context, proxyURL string) (bool, string) {
+func isLoopbackHost(host string) bool {
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
+}
+
+func checkContainerProxyConnectivity(ctx context.Context, proxyURL string) error {
 	u, err := url.Parse(proxyURL)
 	if err != nil || u.Hostname() == "" {
-		return false, fmt.Sprintf("invalid container proxy url %q", proxyURL)
+		return fmt.Errorf("invalid container proxy url %q", proxyURL)
 	}
 	port := u.Port()
 	if port == "" {
@@ -226,18 +277,18 @@ func checkContainerProxyConnectivity(ctx context.Context, proxyURL string) (bool
 		"-o", "/dev/null", target,
 	)
 	if err != nil {
-		return false, fmt.Sprintf("container cannot reach proxy endpoint %s:%s", u.Hostname(), port)
+		return fmt.Errorf("container cannot reach proxy endpoint %s:%s", u.Hostname(), port)
 	}
 	if outputShowsProxyEndpoint(out, u.Hostname(), port) {
-		return true, ""
+		return nil
 	}
-	return false, fmt.Sprintf("container cannot reach proxy endpoint %s:%s", u.Hostname(), port)
+	return fmt.Errorf("container cannot reach proxy endpoint %s:%s", u.Hostname(), port)
 }
 
-func checkContainerProxyEgress(ctx context.Context, proxyURL string) (bool, string) {
+func checkContainerProxyEgress(ctx context.Context, proxyURL string) error {
 	proxyHost, proxyPort, parseErr := proxyEndpointHostPort(proxyURL)
 	if parseErr != nil {
-		return false, fmt.Sprintf("invalid container proxy url %q", proxyURL)
+		return fmt.Errorf("invalid container proxy url %q", proxyURL)
 	}
 	noProxy := mergeCSV(firstNonEmpty(os.Getenv("NO_PROXY"), os.Getenv("no_proxy")), proxyNoProxyDefaultsWith())
 	for _, target := range containerProxyEgressTargets {
@@ -255,10 +306,71 @@ func checkContainerProxyEgress(ctx context.Context, proxyURL string) (bool, stri
 			continue
 		}
 		if outputShowsProxyEndpoint(out, proxyHost, proxyPort) {
-			return true, ""
+			return nil
 		}
 	}
-	return false, fmt.Sprintf("container proxy egress probe did not show proxy endpoint usage for %s", proxyURL)
+	return fmt.Errorf("container proxy egress probe did not show proxy endpoint usage for %s", proxyURL)
+}
+
+// patchConfigProxySection writes the resolved proxy configuration back to the
+// config file. It unmarshals the file, replaces the deploy.proxy subtree, and
+// marshals back. Comments in the file are not preserved.
+// It is a no-op when there is no effective proxy input and the config is not
+// explicitly disabled (i.e. nothing meaningful to persist).
+func patchConfigProxySection(configPath string, cfg ProxyConfig) error {
+	if strings.TrimSpace(configPath) == "" {
+		return nil
+	}
+	hasEffectiveInput := strings.TrimSpace(cfg.Host.URL) != "" || strings.TrimSpace(cfg.Container.URL) != ""
+	if !hasEffectiveInput && cfg.Enabled {
+		return nil
+	}
+
+	configPath = util.ExpandTilde(configPath)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	var root map[string]any
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return err
+	}
+	if root == nil {
+		root = map[string]any{}
+	}
+	deployNode, _ := root["deploy"].(map[string]any)
+	if deployNode == nil {
+		deployNode = map[string]any{}
+		root["deploy"] = deployNode
+	}
+	deployNode["proxy"] = map[string]any{
+		"enabled": cfg.Enabled,
+		"host": map[string]any{
+			"url": cfg.Host.URL,
+		},
+		"container": map[string]any{
+			"url": cfg.Container.URL,
+		},
+		"policy": map[string]any{
+			"useHostProxy":        cfg.Policy.UseHostProxy,
+			"requireReachability": cfg.Policy.RequireReachability,
+			"requireEgress":       cfg.Policy.RequireEgress,
+		},
+	}
+
+	newData, err := yaml.Marshal(root)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(bytes.TrimSpace(data), bytes.TrimSpace(newData)) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, newData, 0o644)
 }
 
 func runDockerWithTimeout(ctx context.Context, timeout time.Duration, args ...string) (string, error) {
@@ -334,40 +446,34 @@ func normalizeProxyURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
-func readProxyEntriesFromFile(path string) (map[string]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+func splitCSV(raw string) []string {
+	items := strings.Split(raw, ",")
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			out = append(out, item)
+		}
 	}
-	allowed := map[string]struct{}{
-		"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "ALL_PROXY": {}, "NO_PROXY": {},
-		"http_proxy": {}, "https_proxy": {}, "all_proxy": {}, "no_proxy": {},
-		envNameCLIHostProxyURL: {}, envNameCLIContainerProxyURL: {},
-	}
-	out := map[string]string{}
-	for _, rawLine := range strings.Split(string(data), "\n") {
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") {
+	return out
+}
+
+func dedupCSVEntries(entries []string) []string {
+	out := make([]string, 0, len(entries))
+	seen := map[string]struct{}{}
+	for _, e := range entries {
+		e = strings.TrimSpace(e)
+		if e == "" {
 			continue
 		}
-		k, v, ok := strings.Cut(line, "=")
-		if !ok {
+		k := strings.ToLower(e)
+		if _, ok := seen[k]; ok {
 			continue
 		}
-		k = strings.TrimSpace(k)
-		if _, ok := allowed[k]; !ok {
-			continue
-		}
-		v = strings.TrimSpace(v)
-		if len(v) >= 2 {
-			if (strings.HasPrefix(v, "\"") && strings.HasSuffix(v, "\"")) ||
-				(strings.HasPrefix(v, "'") && strings.HasSuffix(v, "'")) {
-				v = v[1 : len(v)-1]
-			}
-		}
-		out[k] = v
+		seen[k] = struct{}{}
+		out = append(out, e)
 	}
-	return out, nil
+	return out
 }
 
 func proxyNoProxyDefaultsWith(additions ...string) []string {
