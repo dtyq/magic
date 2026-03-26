@@ -70,7 +70,19 @@ class StreamingConfigGenerator:
             logger.error("Invalid Socket.IO host: missing netloc or hostname")
             return None, None
 
-        base_url = f"{protocol}://{parsed.netloc}"
+        # 如果原始 URL 携带端口号，说明是 IP 直连场景（无法通过域名路由区分
+        # HTTP 和 WS 服务）。当端口为默认 HTTP 服务端口 9501 时，固定映射到
+        # WS 服务端口 9502；其他端口保持不变。
+        # 没有端口号时是域名访问，直接改协议即可，保留 netloc 不变。
+        _DEFAULT_HTTP_PORT = 9501
+        _DEFAULT_WS_PORT = 9502
+        if convert_http_to_ws and parsed.port is not None:
+            ws_port = _DEFAULT_WS_PORT if parsed.port == _DEFAULT_HTTP_PORT else parsed.port
+            netloc = f"{parsed.hostname}:{ws_port}"
+        else:
+            netloc = parsed.netloc
+
+        base_url = f"{protocol}://{netloc}"
         normalized_path = parsed.path.rstrip("/")
         socketio_path = f"{normalized_path}/socket.io/" if normalized_path else "/socket.io/"
         return base_url, socketio_path
