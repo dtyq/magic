@@ -274,7 +274,7 @@ class FilesystemProxy extends Filesystem
         if ($this->isPublicRead && ! empty($this->publicDomain) && empty($downloadNames)) {
             foreach ($paths as $path) {
                 // Build base URL
-                if ($this->adapterName === AdapterName::FILE_SERVICE && $platform === 'minio') {
+                if ($platform === 'minio') {
                     $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . $path;
                 } else {
                     $uri = $this->publicDomain . '/' . $path;
