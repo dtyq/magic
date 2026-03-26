@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react"
 import { createStyles } from "antd-style"
 import { debounce } from "lodash-es"
-import type { SearchItem } from "components"
+import { IconReload } from "@tabler/icons-react"
+import type { SearchItem, TableButton } from "components"
 import { SearchItemType, StatusTag, TableWithFilters } from "components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
@@ -43,6 +44,7 @@ function EmployeeReviewPage() {
 	const [publisherType, setPublisherType] = useState<PlatformPackage.SkillPublisherType>()
 	const [reviewingId, setReviewingId] = useState<string>("")
 	const [reviewingAction, setReviewingAction] = useState<PlatformPackage.ReviewSkillAction>()
+	const [searchFormKey, setSearchFormKey] = useState(0)
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
@@ -151,6 +153,25 @@ function EmployeeReviewPage() {
 
 	const refreshCurrentList = useMemoizedFn(() => {
 		run(params)
+	})
+
+	const handleReset = useMemoizedFn(() => {
+		setSearchFormKey((prev) => prev + 1)
+		updateParams({
+			review_status: undefined,
+			publish_status: undefined,
+			publish_target_type: undefined,
+			version: undefined,
+			organization_code: undefined,
+			name_i18n: undefined,
+			order_by: "desc",
+			start_time: undefined,
+			end_time: undefined,
+		})
+	})
+
+	const handleRefresh = useMemoizedFn(() => {
+		refreshCurrentList()
 	})
 
 	const openApproveModal = useMemoizedFn((record: DataType) => {
@@ -431,6 +452,23 @@ function EmployeeReviewPage() {
 		[t, tCommon, updateParams, debouncedSearch],
 	)
 
+	const buttons: TableButton[] = useMemo(
+		() => [
+			{
+				text: tCommon("button.reset"),
+				type: "default",
+				onClick: handleReset,
+			},
+			{
+				text: tCommon("button.reload"),
+				type: "default",
+				icon: <IconReload size={16} />,
+				onClick: handleRefresh,
+			},
+		],
+		[handleRefresh, handleReset, tCommon],
+	)
+
 	const { paginationConfig } = usePagination({
 		params,
 		setParams,
@@ -442,7 +480,9 @@ function EmployeeReviewPage() {
 	return (
 		<div className={styles.container}>
 			<TableWithFilters<DataType>
+				key={searchFormKey}
 				search={searchItems}
+				buttons={buttons}
 				columns={columns}
 				dataSource={data}
 				rowKey="id"
