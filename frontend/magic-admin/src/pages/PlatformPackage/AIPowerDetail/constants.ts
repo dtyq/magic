@@ -78,3 +78,10 @@ export const ServiceConfigList = [
 	PlatformPackage.PowerCode.AUDIO_FILE_RECOGNITION,
 	PlatformPackage.PowerCode.IMAGE_SEARCH,
 ]
+
+// 支持联通性测试的工具类型
+export const ConnectivityTestCodes = [
+	PlatformPackage.PowerCode.WEB_SEARCH,
+	PlatformPackage.PowerCode.WEB_SCRAPE,
+	PlatformPackage.PowerCode.IMAGE_SEARCH,
+]

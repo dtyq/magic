@@ -211,6 +211,15 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			)
 		},
 
+		/** 能力管理联通性测试 */
+		testAiPowerConnection(code: string) {
+			return client.post<PlatformPackage.TestAiPowerConnection>(
+				RequestUrl.testAiPowerConnection,
+				{ ai_ability: code },
+				{ unwrapData: false },
+			)
+		},
+
 		/** 获取全局配置 */
 		getGlobalConfig() {
 			return client.get<PlatformPackage.GlobalConfig>(RequestUrl.getGlobalConfig)

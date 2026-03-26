@@ -926,6 +926,16 @@ export namespace PlatformPackage {
 		IMAGE_CONVERT_HIGH = "image_convert_high",
 	}
 
+	/** 能力管理联通性测试 */
+	export interface TestAiPowerConnection {
+		ai_ability: string
+		duration_ms: number
+		message: string
+		provider: string
+		success: boolean
+	}
+
+	/** AI能力 */
 	export interface AiPower {
 		code: PowerCode
 		description: string
@@ -934,6 +944,7 @@ export namespace PlatformPackage {
 		status: number
 	}
 
+	/** AI能力详情 */
 	export interface AiPowerDetail extends AiPower {
 		icon: string
 		config: AiPowerConfig

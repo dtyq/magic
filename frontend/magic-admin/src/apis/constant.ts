@@ -303,11 +303,13 @@ export const RequestUrl = {
 	addOrgPoints: "/api/v1/super-agent/admin/billing-manager/organization-credits",
 	/** 绑定套餐 */
 	bindPackage: "/api/v1/super-agent/admin/billing-manager/organizations-package",
-	/** —————— 平台管理 - AI管理 —————— */
+	/** —————— 平台管理 - 能力管理 —————— */
 	/** 获取AI能力列表 */
 	getAiPowerList: "/api/v1/admin/ai-abilities",
 	/** 更改/AI能力详情 */
 	updateAiPower: "/api/v1/admin/ai-abilities/${code}",
+	/** 能力管理联通性测试  */
+	testAiPowerConnection: "/api/v1/admin/service-providers/ability-connectivity-test",
 	/** —————— 平台管理 - 代理服务器 —————— */
 	/** 获取代理列表 */
 	getProxyServerList: "/api/v1/admin/proxy-servers/queries",
