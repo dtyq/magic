@@ -25,6 +25,7 @@ Router::addGroup('/v2', function () {
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
     Router::post('/images/convert-high', [OpenAIProxyApi::class, 'imageConvertHigh']);
+    Router::post('/connectivity-test', [OpenAIProxyApi::class, 'connectivityTest']);
     // Unified search endpoint - supports multiple search engines (bing, google, tavily, duckduckgo, jina)
     Router::get('/search', [OpenAIProxyApi::class, 'unifiedSearch']);
     // Image search endpoint - supports multiple providers (bing, google via serpapi)

@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
+use App\Application\ModelGateway\Service\AiAbilityConnectivityTestAppService;
 use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
@@ -36,6 +38,9 @@ class OpenAIProxyApi extends AbstractOpenApi
 
     #[Inject]
     protected ImageLLMAppService $imageLLMAppService;
+
+    #[Inject]
+    protected AiAbilityConnectivityTestAppService $aiAbilityConnectivityTestAppService;
 
     public function chatCompletions(RequestInterface $request)
     {
@@ -172,6 +177,31 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $response = $this->imageLLMAppService->imageConvertHighV2($imageConvertHighDTO);
         return $response->toArray();
+    }
+
+    /**
+     * Ability connectivity test endpoint.
+     *
+     * POST /v2/connectivity-test
+     *
+     * Request Body (JSON):
+     * - ai_ability: Ability code or alias (required)
+     *
+     * Headers:
+     * - Authorization: Bearer {access_token}
+     *
+     * @return array Unified connectivity test response
+     */
+    public function connectivityTest(RequestInterface $request): array
+    {
+        $requestData = $request->all();
+
+        $connectivityTestRequestDTO = AiAbilityConnectivityTestRequestDTO::createDTO($requestData);
+        $connectivityTestRequestDTO->setAccessToken($this->getAccessToken());
+        $connectivityTestRequestDTO->setIps($this->getClientIps());
+        $this->enrichRequestDTO($connectivityTestRequestDTO, $request->getHeaders());
+
+        return $this->aiAbilityConnectivityTestAppService->connectivityTest($connectivityTestRequestDTO);
     }
 
     /**
