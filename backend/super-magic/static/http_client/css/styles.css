@@ -795,19 +795,34 @@ textarea:focus {
 
 .input-controls-row {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     margin-bottom: 10px;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    /* 隐藏横向滚动条，但仍可滚动（开发工具场景） */
+    scrollbar-width: none;
+}
+
+.input-controls-row::-webkit-scrollbar {
+    display: none;
+}
+
+.input-controls-row .advanced-mode-toggle {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    flex-shrink: 0;
 }
 
 .input-controls-row .mode-switch {
     margin-bottom: 0;
-    flex: 0;
+    flex-shrink: 0;
 }
 
 .input-controls-row .model-config {
-    flex: 0;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -819,7 +834,6 @@ textarea:focus {
 }
 
 .input-controls-row .model-config input {
-    flex: 1;
     margin-bottom: 0;
     width: 150px;
 }

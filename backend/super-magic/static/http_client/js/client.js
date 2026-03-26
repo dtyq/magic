@@ -5,6 +5,9 @@ let currentAgentMode = "magic"; // 当前Agent模式，默认为 magic
 let currentLanguage = "zh_CN"; // 当前语言，默认中文
 let currentFileName = ""; // 存储当前上传的文件名
 let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
+let isImMode = false; // IM 渠道模拟模式
+let currentImChannel = "dingtalk"; // 当前 IM 渠道
+let currentImUserId = ""; // 当前 IM 用户 ID
 
 // 工作区挂载目录名，空字符串表示直接展示根目录
 let mountDirName = localStorage.getItem('mountDirName') ?? '.workspace';
@@ -95,9 +98,17 @@ function renderClientEntry(entry) {
     messageDiv.className = 'message client';
     const header = document.createElement('div');
     header.className = 'message-header';
-    const agentMode = entry.agentMode ? entry.agentMode.toUpperCase() : 'N/A';
-    const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
-    header.textContent = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
+    let headerText;
+    if (entry.imChannel) {
+        const channelLabel = { dingtalk: '钉钉', wechat: '微信', wecom: '企业微信', lark: '飞书' }[entry.imChannel] || entry.imChannel;
+        const userIdPart = entry.imUserId ? ` / user=${entry.imUserId}` : '';
+        headerText = `客户端消息 (${entry.time}) - IM渠道: ${channelLabel}${userIdPart}`;
+    } else {
+        const agentMode = entry.agentMode ? entry.agentMode.toUpperCase() : 'N/A';
+        const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
+        headerText = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
+    }
+    header.textContent = headerText;
     const content = document.createElement('div');
     content.className = 'message-content';
     content.textContent = entry.prompt;
@@ -129,6 +140,9 @@ const modelIdInput = document.getElementById('modelIdInput');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
 const languageSelect = document.getElementById('languageSelect');
+const imModeToggle = document.getElementById('imModeToggle');
+const imChannelSelect = document.getElementById('imChannelSelect');
+const imUserIdInput = document.getElementById('imUserIdInput');
 
 // 初始化配置折叠面板
 const configPanelToggle = document.getElementById('configPanelToggle');
@@ -356,6 +370,16 @@ document.addEventListener('DOMContentLoaded', () => {
         advancedModeToggle.addEventListener('change', toggleAdvancedMode);
     }
 
+    // IM 渠道模拟模式切换事件
+    if (imModeToggle) {
+        imModeToggle.addEventListener('change', toggleImMode);
+    }
+    if (imChannelSelect) {
+        imChannelSelect.addEventListener('change', () => {
+            currentImChannel = imChannelSelect.value;
+        });
+    }
+
     // 语言切换事件
     if (languageSelect) {
         // 从 localStorage 恢复上次选择的语言
@@ -533,8 +557,13 @@ async function sendMessage(contextType = ContextType.NORMAL) {
         return;
     }
 
-    // 创建聊天消息
-    const chatMessage = createChatMessage(message, contextType);
+    // IM 渠道模拟模式：只发最小字段
+    let chatMessage;
+    if (isImMode) {
+        chatMessage = createImChatMessage(message);
+    } else {
+        chatMessage = createChatMessage(message, contextType);
+    }
 
     // 显示客户端消息
     showClientMessage(chatMessage);
@@ -662,6 +691,63 @@ function updateFileNameDisplay() {
 }
 
 // 创建聊天消息
+// 切换 IM 渠道模拟模式
+function toggleImMode() {
+    isImMode = imModeToggle.checked;
+
+    const imChannelGroup = document.getElementById('imChannelGroup');
+    const imUserIdGroup = document.getElementById('imUserIdGroup');
+    const agentModeGroup = document.getElementById('agentModeGroup');
+    const modelIdGroup = document.getElementById('modelIdGroup');
+    const languageGroup = document.getElementById('languageGroup');
+
+    if (isImMode) {
+        // 显示 IM 专属控件，隐藏普通模式控件
+        imChannelGroup.style.display = '';
+        imUserIdGroup.style.display = '';
+        agentModeGroup.style.display = 'none';
+        if (agentCodeGroup) agentCodeGroup.style.display = 'none';
+        modelIdGroup.style.display = 'none';
+        languageGroup.style.display = 'none';
+        // IM 模式与高级模式互斥
+        if (isAdvancedMode) {
+            advancedModeToggle.checked = false;
+            toggleAdvancedMode();
+        }
+    } else {
+        imChannelGroup.style.display = 'none';
+        imUserIdGroup.style.display = 'none';
+        agentModeGroup.style.display = '';
+        modelIdGroup.style.display = '';
+        languageGroup.style.display = '';
+        // agentCodeGroup 的显示由 agent mode 决定，重新同步一次
+        changeAgentMode();
+    }
+}
+
+// 生成 IM 渠道风格的 message_id
+function generateImMessageId(channel, userId) {
+    const hex = () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+    const id = hex() + hex();
+    if (channel === 'wechat') {
+        return `wechat-${userId || 'user'}-${id.slice(0, 16)}`;
+    }
+    return `${channel}_${id.slice(0, 16)}`;
+}
+
+// 构造最小 IM 渠道消息
+function createImChatMessage(prompt) {
+    const userId = (imUserIdInput ? imUserIdInput.value.trim() : '') || `${currentImChannel}_user`;
+    return {
+        message_id: generateImMessageId(currentImChannel, userId),
+        type: MessageType.CHAT,
+        prompt: prompt,
+        metadata: {
+            agent_user_id: userId,
+        },
+    };
+}
+
 function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = null) {
     const message = {
         message_id: generateTimestampId(),
@@ -721,11 +807,15 @@ function toggleMessageControls(enabled) {
 // 显示客户端消息
 function showClientMessage(message) {
     const time = new Date().toLocaleTimeString();
+    const imChannel = message.metadata && !message.agent_mode ? currentImChannel : '';
+    const imUserId = imChannel && message.metadata ? (message.metadata.agent_user_id || '') : '';
     pushLog({
         type: 'client',
         prompt: message.prompt || '',
         agentMode: message.agent_mode || '',
         modelId: message.model_id || '',
+        imChannel,
+        imUserId,
         time,
     });
     renderClientEntry({
@@ -733,6 +823,8 @@ function showClientMessage(message) {
         prompt: message.prompt || '',
         agentMode: message.agent_mode || '',
         modelId: message.model_id || '',
+        imChannel,
+        imUserId,
         time,
     });
     scrollToBottom();
@@ -787,6 +879,11 @@ function toggleAdvancedMode() {
     const advancedFields = document.getElementById('advancedModeFields');
 
     if (isAdvancedMode) {
+        // 高级模式与 IM 模式互斥
+        if (isImMode) {
+            imModeToggle.checked = false;
+            toggleImMode();
+        }
         normalFields.style.display = 'none';
         advancedFields.style.display = 'block';
         showSystemMessage("已切换到高级模式：粘贴完整 JSON 后点击「发送消息」");
