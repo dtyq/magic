@@ -366,6 +366,7 @@ class AgentDispatcher(Base):
         template is copied from agents/claws/<claw_code>/ with SKIP strategy so
         that existing workspace files are never overwritten.
         """
+        from datetime import date
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
@@ -377,6 +378,18 @@ class AgentDispatcher(Base):
         # 始终补全缺失的模板文件，已有文件不会被覆盖
         claw_src = PathManager.get_claw_agent_dir(claw_code)
         await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
+
+        # Rename the placeholder memory file to today's date so the agent starts
+        # with a correctly named daily log file instead of the template sentinel.
+        placeholder = magic_dir / "memory" / "1900-01-01-none.md"
+        if placeholder.exists():
+            today_file = magic_dir / "memory" / f"{date.today().isoformat()}.md"
+            if not today_file.exists():
+                placeholder.rename(today_file)
+                logger.info(f"Renamed memory placeholder to: {today_file.name}")
+            else:
+                placeholder.unlink()
+                logger.info(f"Removed memory placeholder (today's file already exists: {today_file.name})")
 
         if output_agent_file.exists():
             logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
