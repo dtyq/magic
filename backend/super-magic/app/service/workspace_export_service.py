@@ -266,6 +266,7 @@ async def export_workspace(
     export_type: str,
     code: str,
     upload_config: Dict[str, Any],
+    source_path: str = "",
 ) -> Dict[str, Any]:
     """Package the workspace, upload it, and return the file key with extracted metadata.
 
@@ -273,6 +274,9 @@ async def export_workspace(
         export_type: "custom_agent" or "custom_skill".
         code: agent/skill identifier used in the archive filename (e.g. "SMA_XXXXXX").
         upload_config: upload_config block from the API request body.
+        source_path: relative path within the workspace root to export.
+                     When empty, the entire workspace root is exported.
+                     Path traversal (e.g. "../") is rejected with ValueError.
 
     Returns:
         Dict with keys:
@@ -280,9 +284,25 @@ async def export_workspace(
             "metadata"  — extracted i18n metadata dict.
 
     Raises:
-        ValueError: for unknown export_type or unsupported storage platform.
+        ValueError: for unknown export_type, unsupported storage platform,
+                    or invalid/unsafe source_path.
     """
-    workspace_dir = PathManager.get_workspace_dir()
+    workspace_root = PathManager.get_workspace_dir()
+
+    if source_path:
+        candidate = (workspace_root / source_path).resolve()
+        workspace_root_resolved = workspace_root.resolve()
+        if not str(candidate).startswith(str(workspace_root_resolved)):
+            raise ValueError(
+                f"source_path {source_path!r} resolves outside the workspace root."
+            )
+        if not candidate.exists():
+            raise ValueError(f"source_path {source_path!r} does not exist.")
+        if not candidate.is_dir():
+            raise ValueError(f"source_path {source_path!r} is not a directory.")
+        workspace_dir = candidate
+    else:
+        workspace_dir = workspace_root
 
     # Build the object key.
     # ZIP filename : {code}_{timestamp}.zip  (e.g. SMA-abc_20260319205908.zip)
