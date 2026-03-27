@@ -42,7 +42,7 @@ class ManageCronParams(BaseToolParams):
         description="""<!--zh: 操作类型及各自必填参数：
 - status: 无需额外参数
 - list: 可选 include_disabled
-- add: 必填 name / schedule / message，可选 payload_kind / agent_name / model_id / timeout_seconds / enabled / notify_main_agent
+- add: 必填 name / schedule / message，可选 payload_kind / model_id / timeout_seconds / enabled / notify_main_agent
 - update: 必填 job_id，其余字段按需传，省略则保持原值
 - remove: 必填 job_id
 - run: 必填 job_id（立即触发，忽略调度时间）
@@ -51,7 +51,7 @@ class ManageCronParams(BaseToolParams):
 Action to perform. Per-action required fields:
 - status: no extra params
 - list: optional include_disabled
-- add: name + schedule + message required; payload_kind/agent_name/model_id/timeout_seconds/enabled/notify_main_agent optional
+- add: name + schedule + message required; payload_kind/model_id/timeout_seconds/enabled/notify_main_agent optional
 - update: job_id required; any other field optional (omitted fields keep current value)
 - remove: job_id required
 - run: job_id required (triggers immediately, ignores schedule)
@@ -87,11 +87,6 @@ Schedule config. Required for add; optional for update (omit to keep unchanged).
         None,
         description="""<!--zh: 执行类型，默认 agent_turn（当前唯一可用值）-->
 Payload kind. Only "agent_turn" is currently supported (default)."""
-    )
-    agent_name: Optional[str] = Field(
-        None,
-        description="""<!--zh: 执行任务的 agent 类型，默认 magic-->
-Agent type to run the task. Defaults to "magic"."""
     )
     message: Optional[str] = Field(
         None,
@@ -301,10 +296,16 @@ CRITICAL CONSTRAINTS:
         if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
             user_timezone = agent_ctx.get_user_timezone() or None
 
+        # 继承当前 agent 的文件标识符（如 openclaw、magic），不暴露给 LLM 作为参数。
+        # 必须用 agent_ctx.agent_name（文件标识符），不能用 get_agent_name()（返回展示名，如"龙虾"）。
+        agent_name = "magic"
+        if agent_ctx and hasattr(agent_ctx, "agent_name") and agent_ctx.agent_name:
+            agent_name = agent_ctx.agent_name
+
         content = build_job_md(
             schedule=params.schedule,
             payload_kind=params.payload_kind or "agent_turn",
-            agent_name=params.agent_name or "magic",
+            agent_name=agent_name,
             model_id=model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
@@ -328,7 +329,7 @@ CRITICAL CONSTRAINTS:
             existing=existing,
             schedule=params.schedule,
             payload_kind=params.payload_kind,
-            agent_name=params.agent_name,
+            agent_name=None,  # agent_name 不允许通过 update 修改，创建时已绑定当前 agent
             model_id=params.model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
