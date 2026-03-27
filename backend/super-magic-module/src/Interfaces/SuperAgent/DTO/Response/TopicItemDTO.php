@@ -58,6 +58,11 @@ class TopicItemDTO extends AbstractDTO
     protected string $topicMode = '';
 
     /**
+     * @var string Agent code
+     */
+    protected string $agentCode = '';
+
+    /**
      * @var null|int 当前任务 token 使用总量快照
      */
     protected ?int $tokenUsed = null;
@@ -87,6 +92,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->setProjectId($entity->getProjectId() ? (string) $entity->getProjectId() : '');
         $dto->setWorkspaceId($entity->getWorkspaceId() ? (string) $entity->getWorkspaceId() : '');
         $dto->setTopicMode($entity->getTopicMode());
+        $dto->setAgentCode($entity->getAgentCode());
         $dto->setTokenUsed($entity->getTokenUsed());
         $dto->setSandboxId($entity->getSandboxId());
         $dto->setUpdatedAt($entity->getUpdatedAt());
@@ -192,6 +198,17 @@ class TopicItemDTO extends AbstractDTO
         return $this;
     }
 
+    public function getAgentCode(): string
+    {
+        return $this->agentCode;
+    }
+
+    public function setAgentCode(string $agentCode): self
+    {
+        $this->agentCode = $agentCode;
+        return $this;
+    }
+
     public function getTokenUsed(): ?int
     {
         return $this->tokenUsed;
@@ -247,6 +264,7 @@ class TopicItemDTO extends AbstractDTO
         $dto->projectId = isset($data['project_id']) ? (string) $data['project_id'] : '';
         $dto->workspaceId = isset($data['workspace_id']) ? (string) $data['workspace_id'] : '';
         $dto->topicMode = $data['topic_mode'] ?? 'general';
+        $dto->agentCode = $data['agent_code'] ?? '';
         $dto->tokenUsed = isset($data['token_used']) ? (int) $data['token_used'] : null;
         $dto->sandboxId = $data['sandbox_id'] ?? '';
         $dto->updatedAt = $data['updated_at'] ?? '';
@@ -270,6 +288,7 @@ class TopicItemDTO extends AbstractDTO
             'project_id' => $this->projectId,
             'workspace_id' => $this->workspaceId,
             'topic_mode' => $this->topicMode,
+            'agent_code' => $this->agentCode,
             'token_used' => $this->tokenUsed,
             'sandbox_id' => $this->sandboxId,
             'updated_at' => $this->updatedAt,
