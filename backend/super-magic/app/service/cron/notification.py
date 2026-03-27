@@ -186,6 +186,27 @@ async def try_notify_main_agent() -> None:
 
     prompt = t("cron.notify.intro") + "\n\n" + "\n\n---\n\n".join(task_blocks)
 
+    # 为所有已连接且有缓存上下文的 IM 渠道注册主动推送 stream/sink，
+    # 使 agent 的回复能同步推送到 IM，而不仅仅写入聊天历史文件。
+    from app.channel.base.registry import build_default_channel_registry
+    registry = build_default_channel_registry()
+    registered_channels: list[str] = []
+    for channel in registry.get_all():
+        try:
+            if not channel.is_connected:
+                continue
+            cleanup_key = f"cron_proactive_{channel.key}"
+            ok = await channel.create_proactive_streams(dispatcher.agent_context, cleanup_key)
+            if ok:
+                registered_channels.append(channel.key)
+        except Exception as e:
+            logger.warning(f"cron notify: channel {channel.key} error, skipping: {e}")
+
+    if registered_channels:
+        logger.info(f"cron notify: proactive streams registered for channels: {registered_channels}")
+    else:
+        logger.info("cron notify: no connected channels with cached context, reply goes to history only")
+
     import uuid
     from app.core.entity.message.client_message import ChatClientMessage
     chat_msg = ChatClientMessage(

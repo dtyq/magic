@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from app.channel.config import IMChannelsConfig
+    from app.core.context.agent_context import AgentContext
 
 
 class BaseChannel(ABC):
@@ -32,6 +33,15 @@ class BaseChannel(ABC):
     @abstractmethod
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         """按配置触发连接；有可用配置且已提交连接动作时返回 True。"""
+
+    async def create_proactive_streams(self, ctx: "AgentContext", cleanup_key: str) -> bool:
+        """用缓存的上下文创建主动推送 stream/sink，注入到 ctx。
+
+        供 cron 通知等没有 incoming message 的场景调用，让 agent 的回复能流出到 IM。
+        子类若支持主动推送，需在收到用户消息时缓存必要上下文，并在此方法中重建 stream/sink。
+        无缓存或创建失败时返回 False。
+        """
+        return False
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         """返回面向状态面板的展示文案。"""
