@@ -29,27 +29,10 @@ interface TaskMessageRepositoryInterface
     public function batchSave(array $messages): void;
 
     /**
-     * 根据任务ID获取消息列表.
-     * @return TaskMessageEntity[]
-     */
-    public function findByTaskId(string $taskId): array;
-
-    /**
      * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
      * @return TaskMessageEntity[]
      */
     public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
-
-    /**
-     * 获取某个话题下最新一条用户问题消息.
-     */
-    public function findLatestQuestionByTopicId(int $topicId): ?TaskMessageEntity;
-
-    /**
-     * 获取某个话题下最近的 after_agent_reply 消息.
-     * @return TaskMessageEntity[]
-     */
-    public function findRecentAfterAgentReplyMessagesByTopicId(int $topicId, int $limit = 3): array;
 
     /**
      * follow-up 摘录：最近 N 条用户提问（单表 magic_super_agent_message，与 IM 无关）。
@@ -57,16 +40,6 @@ interface TaskMessageRepositoryInterface
      * @return TaskMessageEntity[]
      */
     public function findFollowUpContextUserMessages(int $topicId, int $roundLimit): array;
-
-    /**
-     * 判断某个 super-agent topic 是否存在消息记录.
-     */
-    public function existsByTopicId(int $topicId): bool;
-
-    /**
-     * 在指定 assistant 消息之前，获取最近一条用户问题消息.
-     */
-    public function findLatestQuestionBeforeMessageId(int $topicId, int $beforeMessageId): ?TaskMessageEntity;
 
     /**
      * 根据话题ID获取消息列表，支持分页.

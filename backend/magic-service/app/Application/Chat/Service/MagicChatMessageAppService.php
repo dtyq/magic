@@ -1047,17 +1047,6 @@ class MagicChatMessageAppService extends MagicSeqAppService
         }
     }
 
-    protected function getMessageTextContent(MessageInterface $message): string
-    {
-        // 暂时只处理用户的输入，以及能获取纯文本的消息类型
-        if ($message instanceof TextContentInterface) {
-            $messageContent = $message->getTextContent();
-        } else {
-            $messageContent = '';
-        }
-        return $messageContent;
-    }
-
     /**
      * 为了保证收发双方的消息顺序一致性，如果是私聊，则同步生成 seq.
      * @throws Throwable
@@ -1116,6 +1105,17 @@ class MagicChatMessageAppService extends MagicSeqAppService
         }
 
         return $choiceContent;
+    }
+
+    private function getMessageTextContent(MessageInterface $message): string
+    {
+        // 暂时只处理用户的输入，以及能获取纯文本的消息类型
+        if ($message instanceof TextContentInterface) {
+            $messageContent = $message->getTextContent();
+        } else {
+            $messageContent = '';
+        }
+        return $messageContent;
     }
 
     /**

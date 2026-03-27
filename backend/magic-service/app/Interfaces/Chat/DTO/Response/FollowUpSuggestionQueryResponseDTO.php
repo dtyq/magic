@@ -9,7 +9,7 @@ namespace App\Interfaces\Chat\DTO\Response;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class FollowUpSuggestionQueryResultDTO extends AbstractDTO
+class FollowUpSuggestionQueryResponseDTO extends AbstractDTO
 {
     public int $type = 0;
 

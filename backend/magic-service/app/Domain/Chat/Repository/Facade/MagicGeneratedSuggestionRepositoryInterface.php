@@ -19,8 +19,6 @@ interface MagicGeneratedSuggestionRepositoryInterface
         null|int|string $createdUid = null,
     ): array;
 
-    public function findLatestByTypeAndRelationId(int $type, int|string $relationId): ?array;
-
     public function findLatestEntityByTypeAndRelationId(int $type, int|string $relationId): ?MagicGeneratedSuggestionEntity;
 
     /**

@@ -48,7 +48,6 @@ use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\UnknowControlMessage;
 use App\Domain\Chat\DTO\Message\IntermediateMessage\SuperMagicInstructionMessage;
 use App\Domain\Chat\DTO\Message\MessageInterface;
-use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\DTO\Request\ControlRequest;
 use App\Domain\Chat\Entity\MagicConversationEntity;
@@ -61,9 +60,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\ErrorCode\ChatErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Util\Tiptap\TiptapUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Hyperf\Codec\Json;
 use Throwable;
 
 class MessageAssembler
@@ -116,29 +113,6 @@ class MessageAssembler
             return null;
         }
         return new MagicMessageEntity($message);
-    }
-
-    public static function getPlainTextContent(
-        MessageInterface $message,
-        ?ChatMessageType $messageType = null,
-    ): string {
-        if ($message instanceof TextContentInterface) {
-            $messageContent = trim($message->getTextContent());
-            if ($messageContent !== '') {
-                return $messageContent;
-            }
-        }
-
-        if ($messageType !== ChatMessageType::RichText) {
-            return '';
-        }
-
-        if ($message instanceof RichTextMessage) {
-            return self::extractRichTextPlainText($message->getContent());
-        }
-
-        $messageArray = $message->toArray();
-        return self::extractRichTextPlainText($messageArray['content'] ?? $messageArray);
     }
 
     public static function getChatMessageDTOByRequest(
@@ -348,58 +322,5 @@ class MessageAssembler
         }
 
         return implode('', $limitedMessages);
-    }
-
-    private static function extractRichTextPlainText(array|string $content): string
-    {
-        if (is_string($content)) {
-            $trimmed = trim($content);
-            if ($trimmed === '') {
-                return '';
-            }
-            $decoded = Json::decode($trimmed);
-            if (! is_array($decoded)) {
-                return '';
-            }
-            $data = $decoded;
-        } else {
-            $data = $content;
-        }
-
-        if (isset($data['rich_text']) && is_string($data['rich_text'])) {
-            return trim(TiptapUtil::getTextContent($data['rich_text']));
-        }
-
-        if (($data['type'] ?? null) === 'doc') {
-            return trim(TiptapUtil::getTextContent(Json::encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
-        }
-
-        return trim(self::collectTextNodes($data));
-    }
-
-    private static function collectTextNodes(mixed $node, int $depth = 0): string
-    {
-        if ($depth > 64 || ! is_array($node)) {
-            return '';
-        }
-
-        $parts = [];
-        if (($node['type'] ?? null) === 'text' && isset($node['text']) && is_string($node['text'])) {
-            $parts[] = $node['text'];
-        }
-
-        $children = $node['content'] ?? [];
-        if (! is_array($children)) {
-            return implode('', $parts);
-        }
-
-        foreach ($children as $child) {
-            $text = self::collectTextNodes($child, $depth + 1);
-            if ($text !== '') {
-                $parts[] = $text;
-            }
-        }
-
-        return implode('', $parts);
     }
 }

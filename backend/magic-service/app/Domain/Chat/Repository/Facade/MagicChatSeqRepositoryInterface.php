@@ -136,9 +136,4 @@ interface MagicChatSeqRepositoryInterface
      * @return MagicSeqEntity[] 序列实体数组
      */
     public function getSequencesByConversationIdAndSeqIds(string $conversationId, array $seqIds): array;
-
-    /**
-     * 是否存在指定会话下的消息 seq（仅 magic_chat_sequences，一次查询）.
-     */
-    public function existsSeqForMagicMessageInConversation(string $conversationId, string $magicMessageId): bool;
 }

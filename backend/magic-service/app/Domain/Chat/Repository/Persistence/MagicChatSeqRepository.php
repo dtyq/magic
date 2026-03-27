@@ -193,21 +193,6 @@ class MagicChatSeqRepository implements MagicChatSeqRepositoryInterface
         return $this->getMessagesBySeqList($seqList, $order);
     }
 
-    public function existsSeqForMagicMessageInConversation(string $conversationId, string $magicMessageId): bool
-    {
-        if ($conversationId === '' || $magicMessageId === '') {
-            return false;
-        }
-        $rows = Db::select(
-            'SELECT 1 AS ok FROM magic_chat_sequences
-            WHERE conversation_id = ? AND magic_message_id = ? AND deleted_at IS NULL
-            LIMIT 1',
-            [$conversationId, $magicMessageId]
-        );
-
-        return $rows !== [];
-    }
-
     /**
      * 分组获取会话下最新的几条消息.
      */

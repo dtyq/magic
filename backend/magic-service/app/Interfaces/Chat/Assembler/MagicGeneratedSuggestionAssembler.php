@@ -9,7 +9,7 @@ namespace App\Interfaces\Chat\Assembler;
 
 use App\Domain\Chat\Entity\MagicGeneratedSuggestionEntity;
 use App\Interfaces\Chat\DTO\Request\FollowUpSuggestionsQueryRequestDTO;
-use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResultDTO;
+use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResponseDTO;
 
 class MagicGeneratedSuggestionAssembler
 {
@@ -22,9 +22,9 @@ class MagicGeneratedSuggestionAssembler
         return $entity;
     }
 
-    public static function entityToQueryResultDto(MagicGeneratedSuggestionEntity $entity): FollowUpSuggestionQueryResultDTO
+    public static function entityToQueryResponseDto(MagicGeneratedSuggestionEntity $entity): FollowUpSuggestionQueryResponseDTO
     {
-        $dto = new FollowUpSuggestionQueryResultDTO();
+        $dto = new FollowUpSuggestionQueryResponseDTO();
         $dto->type = $entity->getType();
         $dto->relationId = $entity->getRelationId();
         $dto->suggestions = $entity->getSuggestions();

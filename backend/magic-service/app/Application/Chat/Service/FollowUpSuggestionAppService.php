@@ -17,7 +17,7 @@ use App\Domain\Chat\Service\MagicGeneratedSuggestionDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
-use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResultDTO;
+use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResponseDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -131,11 +131,11 @@ PROMPT;
     /**
      * 通用查询入口：按 type + relation_id 查询建议结果。
      */
-    public function queryFollowUpSuggestions(MagicGeneratedSuggestionEntity $criteria): FollowUpSuggestionQueryResultDTO
+    public function queryFollowUpSuggestions(MagicGeneratedSuggestionEntity $criteria): FollowUpSuggestionQueryResponseDTO
     {
         $entity = $this->generatedSuggestionDomainService->queryByCriteria($criteria);
 
-        return MagicGeneratedSuggestionAssembler::entityToQueryResultDto($entity);
+        return MagicGeneratedSuggestionAssembler::entityToQueryResponseDto($entity);
     }
 
     /**

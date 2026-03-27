@@ -28,9 +28,9 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
     ): array {
         $relationId = $this->normalizeKey($relationId);
 
-        $record = $this->findLatestByTypeAndRelationId($type, $relationId);
-        if ($record !== null) {
-            return $record;
+        $entity = $this->findLatestEntityByTypeAndRelationId($type, $relationId);
+        if ($entity !== null) {
+            return $entity->toArray();
         }
 
         $now = date('Y-m-d H:i:s');
@@ -47,18 +47,6 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         ]);
 
         return $record->toArray();
-    }
-
-    public function findLatestByTypeAndRelationId(int $type, int|string $relationId): ?array
-    {
-        $record = $this->model::query()
-            ->where('type', $type)
-            ->where('relation_id', $this->normalizeKey($relationId))
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
-
-        return $record?->toArray();
     }
 
     public function findLatestEntityByTypeAndRelationId(int $type, int|string $relationId): ?MagicGeneratedSuggestionEntity

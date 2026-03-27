@@ -232,11 +232,6 @@ class MagicSeqDomainService extends AbstractDomainService
         return $seqEntities;
     }
 
-    public function existsSeqForMagicMessageInConversation(string $conversationId, string $magicMessageId): bool
-    {
-        return $this->magicSeqRepository->existsSeqForMagicMessageInConversation($conversationId, $magicMessageId);
-    }
-
     /**
      * Get the minimum seq_id record for the same user (object_id) based on magic_message_id
      * Used to find the original message when there are multiple edited versions.
