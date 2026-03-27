@@ -22,6 +22,13 @@ export const DefaultWebSearchProviderList = [
 		api_key: "",
 		enable: false,
 	},
+	{
+		provider: "baidu",
+		name: "Baidu",
+		request_url: "",
+		api_key: "",
+		enable: false,
+	},
 ]
 
 // OCR识别 - 默认服务商列表
