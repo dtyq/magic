@@ -632,10 +632,16 @@ readonly class SuperMagicAgentDomainService
      * @param string $code Agent code, e.g. "SMA-xxx"
      * @param int $projectId Associated project ID
      * @param string $fullWorkdir Full working directory path on object storage
+     * @param null|string $sourcePath Optional relative source path under workspace root
      * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
      */
-    public function exportAgentFromSandbox(SuperMagicAgentDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
-    {
+    public function exportAgentFromSandbox(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        int $projectId,
+        string $fullWorkdir,
+        ?string $sourcePath = null
+    ): array {
         // Build sandbox ID (same strategy as file converter)
         $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
 
@@ -651,7 +657,7 @@ readonly class SuperMagicAgentDomainService
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig, $sourcePath);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {
