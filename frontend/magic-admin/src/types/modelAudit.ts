@@ -6,6 +6,8 @@ export namespace ModelAudit {
 		end_date?: string
 		product_code?: string
 		organization_code?: string
+		access_scope?: string
+		magic_topic_id?: string
 	}
 
 	export interface ModelAuditUserInfo {
@@ -25,6 +27,9 @@ export namespace ModelAudit {
 		product_code: string
 		status: string
 		ak: string
+		access_scope?: string
+		points?: number
+		magic_topic_id?: string
 		operation_time: number
 		all_latency: number
 		usage: Record<string, unknown>

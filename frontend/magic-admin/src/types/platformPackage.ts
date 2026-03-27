@@ -602,6 +602,7 @@ export namespace PlatformPackage {
 		id: string
 		package_name?: string
 		is_featured?: boolean
+		is_hidden?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -629,6 +630,7 @@ export namespace PlatformPackage {
 	/** Skill 市场 - 更新信息参数 */
 	export interface UpdateSkillMarketInfoParams {
 		is_featured?: boolean
+		is_hidden?: boolean
 		sort_order?: number
 	}
 
@@ -648,6 +650,7 @@ export namespace PlatformPackage {
 	export interface AgentMarketItem {
 		id: string
 		is_featured?: boolean
+		is_hidden?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -677,6 +680,7 @@ export namespace PlatformPackage {
 	/** 员工市场 - 更新信息参数 */
 	export interface UpdateAgentMarketInfoParams {
 		is_featured?: boolean
+		is_hidden?: boolean
 		sort_order?: number
 	}
 

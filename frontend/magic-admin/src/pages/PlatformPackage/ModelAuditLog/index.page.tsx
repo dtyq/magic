@@ -83,6 +83,7 @@ function ModelAuditLogPage() {
 	const [localInputs, setLocalInputs] = useState({
 		product_code: "",
 		organization_code: "",
+		magic_topic_id: "",
 	})
 
 	const { run, loading } = useRequest(
@@ -132,12 +133,15 @@ function ModelAuditLogPage() {
 		setLocalInputs({
 			product_code: "",
 			organization_code: "",
+			magic_topic_id: "",
 		})
 		updateParams({
 			start_date: undefined,
 			end_date: undefined,
 			product_code: undefined,
 			organization_code: undefined,
+			access_scope: undefined,
+			magic_topic_id: undefined,
 		})
 	})
 
@@ -148,6 +152,13 @@ function ModelAuditLogPage() {
 	const openDetail = useMemoizedFn((record: ModelAudit.ModelAuditLogItem) => {
 		setDetailRecord(record)
 		setDetailOpen(true)
+	})
+
+	const formatAccessScope = useMemoizedFn((value?: string) => {
+		if (!value) return "-"
+		if (value === "api_platform") return t("accessScopeApiPlatform")
+		if (value === "magic") return t("accessScopeMagic")
+		return value
 	})
 
 	const columns: TableProps<ModelAudit.ModelAuditLogItem>["columns"] = useMemo(
@@ -175,9 +186,6 @@ function ModelAuditLogPage() {
 						<span className={styles.desc}>
 							{t("phone")}: {record.user_info?.phone || "-"}
 						</span>
-						<span className={styles.desc}>
-							{t("email")}: {record.user_info?.email || "-"}
-						</span>
 					</Flex>
 				),
 			},
@@ -197,6 +205,31 @@ function ModelAuditLogPage() {
 				key: "product_code",
 				width: 160,
 				ellipsis: true,
+			},
+			{
+				title: t("accessScope"),
+				dataIndex: "access_scope",
+				key: "access_scope",
+				width: 140,
+				render: (value?: string) => formatAccessScope(value),
+			},
+			{
+				title: t("magicTopicId"),
+				dataIndex: "magic_topic_id",
+				key: "magic_topic_id",
+				width: 180,
+				ellipsis: true,
+				render: (value?: string) => (
+					<span style={{ fontFamily: "monospace" }}>{value || "-"}</span>
+				),
+			},
+			{
+				title: t("points"),
+				dataIndex: "points",
+				key: "points",
+				width: 100,
+				align: "right",
+				render: (value?: number) => value ?? "-",
 			},
 			{
 				title: t("callType"),
@@ -268,7 +301,7 @@ function ModelAuditLogPage() {
 				),
 			},
 		],
-		[openDetail, styles.desc, t, tCommon],
+		[formatAccessScope, openDetail, styles.desc, t, tCommon],
 	)
 
 	const searchItems: SearchItem[] = useMemo(() => {
@@ -292,6 +325,30 @@ function ModelAuditLogPage() {
 				allowClear: true,
 				value: localInputs.product_code,
 				onChange: (e) => handleInputChange("product_code", e.target.value),
+			},
+			{
+				type: SearchItemType.SELECT,
+				field: "access_scope",
+				prefix: t("accessScope"),
+				placeholder: tCommon("all"),
+				allowClear: true,
+				value: params.access_scope,
+				options: [
+					{ label: t("accessScopeApiPlatform"), value: "api_platform" },
+					{ label: t("accessScopeMagic"), value: "magic" },
+				],
+				onChange: (value?: string) => {
+					updateParams({ access_scope: value || undefined })
+				},
+			},
+			{
+				type: SearchItemType.TEXT,
+				field: "magic_topic_id",
+				addonBefore: t("magicTopicId"),
+				placeholder: t("searchMagicTopicId"),
+				allowClear: true,
+				value: localInputs.magic_topic_id,
+				onChange: (e) => handleInputChange("magic_topic_id", e.target.value),
 			},
 		]
 
@@ -365,14 +422,20 @@ function ModelAuditLogPage() {
 					<Descriptions.Item label={t("phone")}>
 						{detailRecord?.user_info?.phone || "-"}
 					</Descriptions.Item>
-					<Descriptions.Item label={t("email")}>
-						{detailRecord?.user_info?.email || "-"}
-					</Descriptions.Item>
 					<Descriptions.Item label={t("callType")}>
 						{detailRecord?.type || "-"}
 					</Descriptions.Item>
 					<Descriptions.Item label={t("productCode")}>
 						{detailRecord?.product_code || "-"}
+					</Descriptions.Item>
+					<Descriptions.Item label={t("accessScope")}>
+						{formatAccessScope(detailRecord?.access_scope)}
+					</Descriptions.Item>
+					<Descriptions.Item label={t("magicTopicId")}>
+						{detailRecord?.magic_topic_id || "-"}
+					</Descriptions.Item>
+					<Descriptions.Item label={t("points")}>
+						{detailRecord?.points ?? "-"}
 					</Descriptions.Item>
 					<Descriptions.Item label={t("callStatus")}>
 						{detailRecord?.status || "-"}

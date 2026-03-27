@@ -5,7 +5,7 @@ import type { SearchItem } from "components"
 import { SearchItemType, StatusTag, TableWithFilters } from "components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { Flex, InputNumber, Select, Tooltip, message, type TableProps } from "antd"
+import { Flex, InputNumber, Switch, Tooltip, message, type TableProps } from "antd"
 import { usePagination } from "@/hooks/usePagination"
 import { useApis } from "@/apis"
 import type { PlatformPackage } from "@/types/platformPackage"
@@ -34,6 +34,7 @@ function EmployeeMarketPage() {
 	const [sortOrderMap, setSortOrderMap] = useState<Record<string, number>>({})
 	const [sortSavingIds, setSortSavingIds] = useState<Set<string>>(new Set())
 	const [featuredSavingIds, setFeaturedSavingIds] = useState<Set<string>>(new Set())
+	const [hiddenSavingIds, setHiddenSavingIds] = useState<Set<string>>(new Set())
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
@@ -123,6 +124,27 @@ function EmployeeMarketPage() {
 			message.error(tCommon("message.updateFailed"))
 		} finally {
 			setFeaturedSavingIds((prev) => {
+				const next = new Set(prev)
+				next.delete(record.id)
+				return next
+			})
+		}
+	})
+
+	const handleChangeHidden = useMemoizedFn(async (record: DataType, nextHidden: boolean) => {
+		setHiddenSavingIds((prev) => new Set([...prev, record.id]))
+		try {
+			await updateAgentMarketInfo(record.id, { is_hidden: nextHidden })
+			setData((prev) =>
+				prev.map((item) =>
+					item.id === record.id ? { ...item, is_hidden: nextHidden } : item,
+				),
+			)
+			run(params)
+		} catch {
+			message.error(tCommon("message.updateFailed"))
+		} finally {
+			setHiddenSavingIds((prev) => {
 				const next = new Set(prev)
 				next.delete(record.id)
 				return next
@@ -283,20 +305,35 @@ function EmployeeMarketPage() {
 				render: (value: boolean | undefined, record) => {
 					const saving = featuredSavingIds.has(record.id)
 					return (
-						<Select
+						<Switch
 							size="small"
-							style={{ width: 88 }}
-							value={value ? "true" : "false"}
+							checked={Boolean(value)}
 							loading={saving}
 							disabled={saving}
-							options={[
-								{ label: t("yes"), value: "true" },
-								{ label: t("no"), value: "false" },
-							]}
-							onChange={(nextValue) => {
-								const nextFeatured = nextValue === "true"
+							onChange={(nextFeatured) => {
 								if (nextFeatured === Boolean(value)) return
 								handleChangeFeatured(record, nextFeatured)
+							}}
+						/>
+					)
+				},
+			},
+			{
+				title: t("isHidden"),
+				dataIndex: "is_hidden",
+				key: "is_hidden",
+				width: 130,
+				render: (value: boolean | undefined, record) => {
+					const saving = hiddenSavingIds.has(record.id)
+					return (
+						<Switch
+							size="small"
+							checked={Boolean(value)}
+							loading={saving}
+							disabled={saving}
+							onChange={(nextHidden) => {
+								if (nextHidden === Boolean(value)) return
+								handleChangeHidden(record, nextHidden)
 							}}
 						/>
 					)
@@ -371,7 +408,9 @@ function EmployeeMarketPage() {
 			renderStatus,
 			publishStatusMap,
 			featuredSavingIds,
+			hiddenSavingIds,
 			handleChangeFeatured,
+			handleChangeHidden,
 			sortOrderMap,
 			sortSavingIds,
 			debouncedAutoSaveSortOrder,

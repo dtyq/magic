@@ -10,6 +10,7 @@
 	"publisherTypeOfficial": "官方",
 	"publishStatus": "发布状态",
 	"isFeatured": "是否精选",
+	"isHidden": "是否隐藏",
 	"yes": "是",
 	"no": "否",
 	"installCount": "安装次数",

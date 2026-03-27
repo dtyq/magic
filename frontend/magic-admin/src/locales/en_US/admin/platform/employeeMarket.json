@@ -10,6 +10,7 @@
 	"publisherTypeOfficial": "Official",
 	"publishStatus": "Publish Status",
 	"isFeatured": "Featured",
+	"isHidden": "Hidden",
 	"yes": "Yes",
 	"no": "No",
 	"installCount": "Install Count",
