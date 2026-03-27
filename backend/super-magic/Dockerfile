@@ -8,6 +8,8 @@ ARG TARGETARCH
 # 环境变量
 ARG TZ=Asia/Shanghai
 ENV TZ=${TZ} \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TIKTOKEN_CACHE_DIR=/app/tiktoken_cache \
