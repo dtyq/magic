@@ -384,6 +384,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
         $userId = $authorization->getId();
 
+        // 排序页的数据源由两部分组成：
+        // 1. 当前用户可见的 agent
+        // 2. 官方 agent
+        // 后续所有排序逻辑都只基于这份“当前有效集合”进行补齐。
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $userId);
         $officialCodes = $this->getOfficialAgentCodes($authorization);
         $queryCodes = array_values(array_unique(array_merge($accessibleAgentResult['codes'], $officialCodes)));
@@ -396,12 +400,16 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         $dataIsolation->disabled();
-        $nonOfficialCodes = array_values(array_diff($queryCodes, $officialCodes));
-        $nonOfficialVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $nonOfficialCodes);
-        $officialPublishedVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $officialCodes);
-
-        $this->updateAgentEntitiesIcon(array_values($officialPublishedVersions));
-        $builtinAgents = $this->updateAgentEntitiesIcon($this->getBuiltinAgent($dataIsolation));
+        // 统一查一次最新已发布版本，避免按官方 / 非官方拆开查询。
+        $publishedVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $queryCodes);
+        // 官方 agent 可能尚未发布，此时需要 builtin 配置兜底展示。
+        $builtinAgents = $this->getBuiltinAgent($dataIsolation);
+        $agentsForIconUpdate = array_values($publishedVersions);
+        foreach ($builtinAgents as $builtinAgent) {
+            $agentsForIconUpdate[] = $builtinAgent;
+        }
+        // icon 一次性批量转真实链接，避免不同分支重复处理。
+        $this->updateAgentEntitiesIcon($agentsForIconUpdate);
 
         $builtinAgentMap = [];
         foreach ($builtinAgents as $builtinAgent) {
@@ -410,22 +418,29 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $items = [];
         foreach ($officialCodes as $officialCode) {
-            $officialPublishedVersion = $officialPublishedVersions[$officialCode] ?? null;
+            $officialPublishedVersion = $publishedVersions[$officialCode] ?? null;
             if ($officialPublishedVersion !== null) {
+                // 官方 agent 优先使用发布版本快照，保证排序页展示的是线上版本数据。
                 $items[] = $this->buildSortListItem($officialPublishedVersion, $languageCode);
                 continue;
             }
 
             $officialAgent = $builtinAgentMap[$officialCode] ?? null;
             if ($officialAgent !== null) {
+                // 如果官方 agent 暂无发布版本，则退回 builtin 定义，保证官方位不会丢失。
                 $items[] = $this->buildSortListItem($officialAgent, $languageCode);
             }
         }
 
-        if ($nonOfficialVersions !== []) {
-            $nonOfficialVersionList = array_values($nonOfficialVersions);
-            $this->updateAgentEntitiesIcon($nonOfficialVersionList);
-            foreach ($nonOfficialVersionList as $entity) {
+        $officialCodeSet = array_fill_keys($officialCodes, true);
+        foreach ($queryCodes as $code) {
+            if (isset($officialCodeSet[$code])) {
+                continue;
+            }
+
+            // 非官方 agent 仅接受“已发布版本”，没有发布版本就不进入排序列表。
+            $entity = $publishedVersions[$code] ?? null;
+            if ($entity !== null) {
                 $items[] = $this->buildSortListItem($entity, $languageCode);
             }
         }
@@ -438,7 +453,16 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             ];
         }
 
-        return $this->categorizeLatestVersionItems($items, $this->getOrderConfig($authorization));
+        // 排序配置需要和当前“可见的 agent 集合”对齐：
+        // 1. frequent 为空时，全部进入 frequent，官方排前面
+        // 2. 不在 frequent 且不在 all 的可见 agent，视为新增，默认补进 frequent
+        $orderConfig = $this->resolveOrderConfigWithNewAgents(
+            $this->getOrderConfig($authorization),
+            array_map(static fn (array $item): string => $item['code'], $items),
+            $officialCodes
+        );
+
+        return $this->categorizeLatestVersionItems($items, $orderConfig);
     }
 
     /**
@@ -930,14 +954,27 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $orderConfig = $this->getOrderConfig($authorization);
-        $frequentCodes = array_values(array_unique($orderConfig['frequent'] ?? []));
 
         $dataIsolation->disabled();
+        // Featured 区需要同时考虑 builtin agent 和当前用户可见 agent。
+        // builtin code 在“常用为空”时会被放到 frequent 前面。
         $builtinAgents = $this->getBuiltinAgent($dataIsolation);
         $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
 
-        $accessibleAgentResult = null;
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $authorization->getId());
+        $availableCodes = array_values(array_unique(array_merge($accessibleAgentResult['codes'], $builtinAgentCodes)));
+
+        // Featured 区也要复用同一套排序补齐规则，避免首页和排序页行为不一致。
+        $orderConfig = $this->resolveOrderConfigWithNewAgents(
+            $orderConfig,
+            $availableCodes,
+            $builtinAgentCodes
+        );
+
+        $frequentCodes = $this->normalizeOrderCodes($orderConfig['frequent'] ?? []);
+
         if ($frequentCodes !== []) {
+            // frequent 一旦存在，Featured 区就严格只围绕 frequent 构建，保持首页顺序稳定。
             $builtinAgents = array_values(array_filter(
                 $builtinAgents,
                 static fn (SuperMagicAgentEntity $agent): bool => in_array($agent->getCode(), $frequentCodes, true)
@@ -945,7 +982,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
             $queryAgentCodes = array_values(array_diff($frequentCodes, $builtinAgentCodes));
         } else {
-            $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $authorization->getId());
+            // 正常情况下 helper 已经会把 frequent 补出来。
+            // 这里保留兜底逻辑，避免后续规则变更时首页数据直接为空。
             $queryAgentCodes = array_values(array_unique(array_diff(
                 array_merge($accessibleAgentResult['codes'], $builtinAgentCodes),
                 $builtinAgentCodes
@@ -989,6 +1027,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $frequentAgents = [];
             foreach ($frequentCodes as $code) {
                 if (isset($agentMap[$code])) {
+                    // 按 frequentCodes 的顺序回填，确保返回顺序与配置完全一致。
                     $agentMap[$code]->setCategory('frequent');
                     $frequentAgents[] = $agentMap[$code];
                 }
@@ -1361,6 +1400,96 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $normalizedCodes;
+    }
+
+    /**
+     * Append newly available agent codes to frequent when they are missing from both
+     * frequent and all in the stored order config.
+     *
+     * @param null|array{frequent?: array<string>, all?: array<string>} $orderConfig
+     * @param array<string> $availableCodes
+     * @param array<string> $preferredFrontCodes
+     * @return array{frequent: array<string>, all: array<string>}
+     */
+    private function resolveOrderConfigWithNewAgents(?array $orderConfig, array $availableCodes, array $preferredFrontCodes = []): array
+    {
+        $availableCodes = $this->normalizeOrderCodes($availableCodes);
+        if ($availableCodes === []) {
+            return [
+                'frequent' => [],
+                'all' => [],
+            ];
+        }
+        $availableCodeSet = array_fill_keys($availableCodes, true);
+        $preferredFrontCodes = array_values(array_filter(
+            $this->normalizeOrderCodes($preferredFrontCodes),
+            static fn (string $code): bool => isset($availableCodeSet[$code])
+        ));
+
+        $frequentCodes = array_values(array_filter(
+            $this->normalizeOrderCodes($orderConfig['frequent'] ?? []),
+            static fn (string $code): bool => isset($availableCodeSet[$code])
+        ));
+        $allCodes = array_values(array_filter(
+            $this->normalizeOrderCodes($orderConfig['all'] ?? []),
+            static fn (string $code): bool => isset($availableCodeSet[$code])
+        ));
+
+        // 如果原配置里 frequent 为空，则视为“当前没有常用列表”：
+        // 直接把当前全部可见 agent 放进 frequent，并让官方 agent 排在最前面。
+        if ($frequentCodes === []) {
+            // 先把 all 补齐为“当前全部可见 agent 集合”，后续 frequent 才能基于完整集合构建。
+            $knownAllCodes = array_fill_keys($allCodes, true);
+            foreach ($availableCodes as $code) {
+                if (! isset($knownAllCodes[$code])) {
+                    $allCodes[] = $code;
+                    $knownAllCodes[$code] = true;
+                }
+            }
+
+            // preferredFrontCodes（例如官方 / builtin）优先放到 frequent 头部。
+            $preferredFrontCodeSet = array_fill_keys($preferredFrontCodes, true);
+            $frequentCodes = $preferredFrontCodes;
+            $knownFrequentCodes = array_fill_keys($frequentCodes, true);
+            foreach ($allCodes as $code) {
+                if (isset($knownFrequentCodes[$code]) || isset($preferredFrontCodeSet[$code])) {
+                    continue;
+                }
+
+                $frequentCodes[] = $code;
+                $knownFrequentCodes[$code] = true;
+            }
+
+            return [
+                'frequent' => $frequentCodes,
+                // 既然全部 agent 都已经进入 frequent，就不再保留 all，避免前端处理重复数据。
+                'all' => [],
+            ];
+        }
+
+        // 其余情况保留原有 frequent / all 结构。
+        // 但如果某个可见 agent 既不在 frequent，也不在 all，说明它是新增的，
+        // 默认补到 frequent 末尾，避免新数据“消失”在排序配置之外。
+        $knownCodes = array_fill_keys(array_merge($frequentCodes, $allCodes), true);
+        foreach ($availableCodes as $code) {
+            if (isset($knownCodes[$code])) {
+                continue;
+            }
+
+            $frequentCodes[] = $code;
+            $knownCodes[$code] = true;
+        }
+
+        $frequentCodeSet = array_flip($frequentCodes);
+        $allCodes = array_values(array_filter(
+            $allCodes,
+            static fn (string $code): bool => ! isset($frequentCodeSet[$code])
+        ));
+
+        return [
+            'frequent' => $frequentCodes,
+            'all' => $allCodes,
+        ];
     }
 
     /**
