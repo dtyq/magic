@@ -39,6 +39,7 @@ function EmployeeMarketPage() {
 		page: 1,
 		page_size: 20,
 		order_by: "desc",
+		publish_status: "PUBLISHED",
 	})
 
 	const { run, loading } = useRequest(
@@ -67,40 +68,31 @@ function EmployeeMarketPage() {
 	)
 
 	const debouncedAutoSaveSortOrder = useRef(
-		debounce(
-			async (
-				recordId: string,
-				sortOrder: number,
-				currentParams: ParamsType,
-				previousSortOrder?: number,
-			) => {
-				setSortSavingIds((prev) => new Set([...prev, recordId]))
-				try {
-					await updateAgentMarketInfo(recordId, {
-						sort_order: sortOrder,
-					})
-					setData((prev) =>
-						prev.map((item) =>
-							item.id === recordId ? { ...item, sort_order: sortOrder } : item,
-						),
-					)
-					run(currentParams)
-				} catch {
-					setSortOrderMap((prev) => ({
-						...prev,
-						[recordId]: previousSortOrder ?? 0,
-					}))
-					message.error(tCommon("message.updateFailed"))
-				} finally {
-					setSortSavingIds((prev) => {
-						const next = new Set(prev)
-						next.delete(recordId)
-						return next
-					})
-				}
-			},
-			1000,
-		),
+		debounce(async (recordId: string, sortOrder: number, previousSortOrder?: number) => {
+			setSortSavingIds((prev) => new Set([...prev, recordId]))
+			try {
+				await updateAgentMarketInfo(recordId, {
+					sort_order: sortOrder,
+				})
+				setData((prev) =>
+					prev.map((item) =>
+						item.id === recordId ? { ...item, sort_order: sortOrder } : item,
+					),
+				)
+			} catch {
+				setSortOrderMap((prev) => ({
+					...prev,
+					[recordId]: previousSortOrder ?? 0,
+				}))
+				message.error(tCommon("message.updateFailed"))
+			} finally {
+				setSortSavingIds((prev) => {
+					const next = new Set(prev)
+					next.delete(recordId)
+					return next
+				})
+			}
+		}, 1000),
 	).current
 
 	useEffect(
@@ -365,12 +357,7 @@ function EmployeeMarketPage() {
 								[record.id]: nextSortOrder,
 							}))
 							if (nextSortOrder === (record.sort_order ?? 0)) return
-							debouncedAutoSaveSortOrder(
-								record.id,
-								nextSortOrder,
-								params,
-								record.sort_order,
-							)
+							debouncedAutoSaveSortOrder(record.id, nextSortOrder, record.sort_order)
 						}}
 					/>
 				),
@@ -454,7 +441,7 @@ function EmployeeMarketPage() {
 					{ label: t("published"), value: "PUBLISHED" },
 					{ label: t("offline"), value: "OFFLINE" },
 				],
-				defaultValue: "all",
+				defaultValue: "PUBLISHED",
 				onChange: (value) => {
 					updateParams({ publish_status: value === "all" ? undefined : value })
 				},

@@ -41,6 +41,7 @@ function SkillMarketPage() {
 		page: 1,
 		page_size: 20,
 		order_by: "desc",
+		publish_status: "PUBLISHED",
 	})
 
 	const { run, loading } = useRequest(
@@ -157,38 +158,29 @@ function SkillMarketPage() {
 	})
 
 	const debouncedAutoSaveSortOrder = useRef(
-		debounce(
-			async (
-				recordId: string,
-				sortOrder: number,
-				currentParams: ParamsType,
-				previousSortOrder?: number,
-			) => {
-				setSortSavingIds((prev) => new Set([...prev, recordId]))
-				try {
-					await updateSkillMarketInfo(recordId, { sort_order: sortOrder })
-					setData((prev) =>
-						prev.map((item) =>
-							item.id === recordId ? { ...item, sort_order: sortOrder } : item,
-						),
-					)
-					run(currentParams)
-				} catch {
-					setSortOrderDraftMap((prev) => ({
-						...prev,
-						[recordId]: previousSortOrder,
-					}))
-					message.error(tCommon("message.updateFailed"))
-				} finally {
-					setSortSavingIds((prev) => {
-						const next = new Set(prev)
-						next.delete(recordId)
-						return next
-					})
-				}
-			},
-			1000,
-		),
+		debounce(async (recordId: string, sortOrder: number, previousSortOrder?: number) => {
+			setSortSavingIds((prev) => new Set([...prev, recordId]))
+			try {
+				await updateSkillMarketInfo(recordId, { sort_order: sortOrder })
+				setData((prev) =>
+					prev.map((item) =>
+						item.id === recordId ? { ...item, sort_order: sortOrder } : item,
+					),
+				)
+			} catch {
+				setSortOrderDraftMap((prev) => ({
+					...prev,
+					[recordId]: previousSortOrder,
+				}))
+				message.error(tCommon("message.updateFailed"))
+			} finally {
+				setSortSavingIds((prev) => {
+					const next = new Set(prev)
+					next.delete(recordId)
+					return next
+				})
+			}
+		}, 1000),
 	).current
 
 	useEffect(
@@ -363,7 +355,7 @@ function SkillMarketPage() {
 							updateSortOrderDraft(record.id, value)
 							if (typeof value !== "number" || Number.isNaN(value)) return
 							if (value === (record.sort_order ?? 0)) return
-							debouncedAutoSaveSortOrder(record.id, value, params, record.sort_order)
+							debouncedAutoSaveSortOrder(record.id, value, record.sort_order)
 						}}
 					/>
 				),
@@ -454,7 +446,7 @@ function SkillMarketPage() {
 					{ label: t("published"), value: "PUBLISHED" },
 					{ label: t("offline"), value: "OFFLINE" },
 				],
-				defaultValue: "all",
+				defaultValue: "PUBLISHED",
 				onChange: (value) => {
 					updateParams({ publish_status: value === "all" ? undefined : value })
 				},
