@@ -23,10 +23,9 @@ export const RequestUrl = {
 	/** AI管理 */
 	/** AI管理 - 模型管理 */
 	/** 获取服务提供商（非官方数据） */
-	getServiceProvider: "/api/v1/admin/service-providers/non-official/queries",
+	getServiceProvider: "/api/v1/admin/service-providers/templates/queries",
 	/** 非官方组织获取服务提供商 */
-	getServiceProviderNonOfficial:
-		"/api/v1/organization/admin/service-providers/non-official/queries",
+	getServiceProviderNonOfficial: "/api/v1/organization/admin/service-providers/templates/queries",
 	/** 官方组织获取服务商列表 */
 	getServiceProviderList: "/api/v1/admin/service-providers",
 	/** 非官方组织获取服务商列表 */
