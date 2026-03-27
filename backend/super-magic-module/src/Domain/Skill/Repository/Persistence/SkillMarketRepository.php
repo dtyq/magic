@@ -148,7 +148,8 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         Page $page
     ): array {
         $builder = $this->skillMarketModel::query()
-            ->where('publish_status', PublishStatus::PUBLISHED->value);
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false);
 
         $keyword = $query->getKeyword() ?? '';
         $publisherType = $query->getPublisherType() ?? '';
@@ -355,6 +356,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $model->is_featured = $payload['is_featured'];
         }
 
+        if (array_key_exists('is_hidden', $payload)) {
+            $model->is_hidden = $payload['is_hidden'];
+        }
+
         if (array_key_exists('category_id', $payload)) {
             $model->category_id = $payload['category_id'];
         }
@@ -386,6 +391,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'install_count' => $entity->getInstallCount(),
             'sort_order' => $entity->getSortOrder(),
             'is_featured' => $entity->isFeatured(),
+            'is_hidden' => $entity->isHidden(),
         ];
     }
 
@@ -423,6 +429,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'install_count' => $data['install_count'] ?? 0,
             'sort_order' => $data['sort_order'] ?? null,
             'is_featured' => $data['is_featured'] ?? false,
+            'is_hidden' => $data['is_hidden'] ?? false,
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,

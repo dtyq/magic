@@ -514,6 +514,98 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNull($marketItemAfterDelete['user_code']);
     }
 
+    public function testAdminAgentMarketCanUpdateIsHiddenAndPublicListExcludesHiddenItem(): void
+    {
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $agentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($agentCode, '5.0.0', $headers, true);
+
+        $marketRecord = AgentMarketModel::query()
+            ->where('agent_code', $agentCode)
+            ->first();
+        $this->assertNotNull($marketRecord);
+
+        $adminQueryResponse = $this->post(
+            '/api/v2/admin/super-magic/agents/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'agent_code' => $agentCode,
+            ],
+            $headers
+        );
+
+        if (isset($adminQueryResponse['code']) && in_array($adminQueryResponse['code'], [401, 403, 2179, 3035, 4001, 4003], true)) {
+            $this->markTestSkipped('接口需要管理员权限，跳过测试');
+            return;
+        }
+
+        $this->assertEquals(1000, $adminQueryResponse['code'], $adminQueryResponse['message'] ?? '');
+        $this->assertArrayHasKey('data', $adminQueryResponse);
+        $this->assertIsArray($adminQueryResponse['data']['list'] ?? null);
+        $this->assertNotEmpty($adminQueryResponse['data']['list']);
+
+        $marketItem = null;
+        foreach ($adminQueryResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $agentCode) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem, '应该能在管理后台市场列表中查到目标员工');
+        $this->assertArrayHasKey('is_hidden', $marketItem);
+        $this->assertFalse($marketItem['is_hidden']);
+
+        $adminUpdateResponse = $this->put(
+            '/api/v2/admin/super-magic/agents/markets/' . $marketRecord->id,
+            ['is_hidden' => true],
+            $headers
+        );
+        $this->assertEquals(1000, $adminUpdateResponse['code'], $adminUpdateResponse['message'] ?? '');
+
+        $marketRecord->refresh();
+        $this->assertTrue((bool) $marketRecord->is_hidden);
+
+        $adminQueryAfterUpdateResponse = $this->post(
+            '/api/v2/admin/super-magic/agents/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'agent_code' => $agentCode,
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $adminQueryAfterUpdateResponse['code'], $adminQueryAfterUpdateResponse['message'] ?? '');
+
+        $updatedMarketItem = null;
+        foreach ($adminQueryAfterUpdateResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $agentCode) {
+                $updatedMarketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($updatedMarketItem);
+        $this->assertTrue($updatedMarketItem['is_hidden']);
+
+        $publicQueryResponse = $this->post(
+            '/api/v2/super-magic/agent-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'keyword' => 'Market Agent',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $publicQueryResponse['code'], $publicQueryResponse['message'] ?? '');
+
+        foreach ($publicQueryResponse['data']['list'] as $item) {
+            $this->assertNotSame($agentCode, $item['agent_code'] ?? null);
+        }
+    }
+
     /**
      * 测试更新员工基本信息.
      */
