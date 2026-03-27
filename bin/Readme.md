@@ -2,4 +2,4 @@
 
 **DEPRECATED**
 
-Use Magicrew CLI instead
+Use [Magicrew CLI](../cli) instead
