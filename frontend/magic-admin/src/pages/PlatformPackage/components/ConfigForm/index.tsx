@@ -98,6 +98,7 @@ const providersByCategory = {
 			AiModel.ServiceProvider.GoogleImage,
 			AiModel.ServiceProvider.Qwen,
 			AiModel.ServiceProvider.OpenRouter,
+			AiModel.ServiceProvider.Official,
 		],
 		apiVersion: [AiModel.ServiceProvider.MicrosoftAzure],
 		accessKey: [AiModel.ServiceProvider.MiracleVision, AiModel.ServiceProvider.Volcengine],
