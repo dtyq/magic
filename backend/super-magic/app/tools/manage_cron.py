@@ -134,8 +134,48 @@ For list: include disabled jobs. Defaults to false (only enabled jobs shown)."""
 
 @tool()
 class ManageCron(BaseTool[ManageCronParams]):
-    """<!--zh: 管理定时 cron 任务。每个任务存储为 Markdown 文件。-->
+    """<!--zh
+管理定时 cron 任务。每个任务存储为 .workspace/.magic/cron/ 下的 Markdown 文件。
+
+何时使用 — 遇到以下情况应立即调用此工具，不能只回复文字：
+- 用户说"在某个时间提醒我"或"某件事前提醒我"   → add，kind=at
+- 用户说"每天/每周/每小时提醒我"               → add，kind=cron 或 kind=every
+- 用户想设置任何周期性或一次性定时任务          → add
+- 用户问"我有哪些提醒/定时任务"                → list
+- 用户想取消或删除某个提醒                      → remove
+- 用户想暂时停用某个提醒                        → update，enabled=false
+- 用户询问某个提醒是否已触发或想查看执行历史    → runs
+
+快速参考：
+  status                                   → 调度器状态 + 各任务摘要
+  list   [include_disabled]                → 列出任务
+  add    name schedule message [opts]      → 创建任务
+  update job_id [schedule] [message] [..] → 更新任务（省略的字段保持原值）
+  remove job_id                            → 删除任务文件
+  run    job_id                            → 立即触发（忽略调度时间）
+  runs   job_id                            → 执行历史（含状态和耗时）
+
+调度类型：
+  {"kind":"cron",  "expr":"0 9 * * 1-5", "tz":"Asia/Shanghai"}   cron 表达式
+  {"kind":"every", "every_ms":3600000}                            固定间隔（毫秒）
+  {"kind":"at",    "at":"2024-12-31T09:00:00+08:00"}             一次性指定时间
+
+重要约束：
+- 最小调度粒度为 1 分钟，every_ms < 60000 会被调度器忽略。
+- payload_kind 目前只支持 "agent_turn"。
+- job_id 在创建时由 name 派生，不能通过 update 修改。
+- 修改调度/内容/启用状态用 update；重命名任务用 remove + add。
+-->
 Manage scheduled cron jobs. Each job is stored as a Markdown file under .workspace/.magic/cron/.
+
+WHEN TO USE — call this tool immediately (do not just reply with text):
+- User says "remind me at [time]" or "remind me before [event]" → add, kind=at
+- User says "remind me every day/week/hour"                     → add, kind=cron or kind=every
+- User wants to set up any recurring or one-shot scheduled task → add
+- User asks "what reminders/tasks do I have scheduled"         → list
+- User wants to cancel or delete a reminder                    → remove
+- User wants to temporarily pause a reminder                   → update, enabled=false
+- User asks whether a reminder fired or wants to see history   → runs
 
 QUICK REFERENCE:
   status                                   → scheduler status + per-job summary
