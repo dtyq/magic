@@ -19,35 +19,13 @@ final class SkillProjectConfigUtil
     public const CONFIG_PATH = self::SKILLS_ROOT_PATH . '/' . self::CONFIG_FILE_NAME;
 
     /**
-     * @return array{skill: array{
-     *     dir: string,
-     *     name: string,
-     *     description: string,
-     *     name-cn: string,
-     *     description-cn: string,
-     *     name-en: string,
-     *     description-en: string
-     * }}
+     * @return array{skill: array{dir: string}}
      */
     public static function buildConfig(SkillEntity $skillEntity): array
     {
-        $packageName = $skillEntity->getPackageName();
-        $nameI18n = $skillEntity->getNameI18n();
-        $descriptionI18n = $skillEntity->getDescriptionI18n() ?? [];
-        $descriptionEn = self::firstNonEmpty(
-            $descriptionI18n['en_US'] ?? null,
-            $skillEntity->getPackageDescription(),
-        );
-
         return [
             'skill' => [
-                'dir' => $packageName,
-                'name' => $packageName,
-                'description' => $descriptionEn,
-                'name-cn' => (string) ($nameI18n['zh_CN'] ?? ''),
-                'description-cn' => (string) ($descriptionI18n['zh_CN'] ?? ''),
-                'name-en' => self::firstNonEmpty($nameI18n['en_US'] ?? null, $packageName),
-                'description-en' => $descriptionEn,
+                'dir' => $skillEntity->getPackageName(),
             ],
         ];
     }
@@ -62,14 +40,6 @@ final class SkillProjectConfigUtil
         return implode("\n", [
             'skill:',
             sprintf('  dir: "%s"', self::escapeValue($skill['dir'] ?? '')),
-            sprintf('  name: "%s"', self::escapeValue($skill['name'] ?? '')),
-            sprintf('  description: "%s"', self::escapeValue($skill['description'] ?? '')),
-            '',
-            sprintf('  name-cn: "%s"', self::escapeValue($skill['name-cn'] ?? '')),
-            sprintf('  description-cn: "%s"', self::escapeValue($skill['description-cn'] ?? '')),
-            '',
-            sprintf('  name-en: "%s"', self::escapeValue($skill['name-en'] ?? '')),
-            sprintf('  description-en: "%s"', self::escapeValue($skill['description-en'] ?? '')),
             '',
         ]);
     }
@@ -133,16 +103,5 @@ final class SkillProjectConfigUtil
     private static function escapeValue(string $value): string
     {
         return addcslashes($value, "\\\"\n\r\t");
-    }
-
-    private static function firstNonEmpty(?string ...$values): string
-    {
-        foreach ($values as $value) {
-            if ($value !== null && $value !== '') {
-                return $value;
-            }
-        }
-
-        return '';
     }
 }
