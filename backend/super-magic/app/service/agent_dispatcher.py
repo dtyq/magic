@@ -69,6 +69,7 @@ class AgentDispatcher(Base):
         # 标记 init 事件是否已经发送过（用于沙箱预启动场景的延迟发送）
         self.init_event_dispatched: bool = False
 
+
         # 设置为单例实例
         self.__class__._instance = self
 
@@ -417,6 +418,36 @@ class AgentDispatcher(Base):
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
             logger.info("Falling back to default agent profile")
 
+    @staticmethod
+    def _last_dispatch_message_file():
+        from app.path_manager import PathManager
+        return PathManager.get_chat_history_dir() / "last_dispatch_message.json"
+
+    async def get_last_dispatch_message(self) -> Optional[Dict]:
+        """获取上次 dispatch 的消息快照，文件不存在时返回 None。"""
+        from app.utils.async_file_utils import async_exists, async_read_json
+        path = self._last_dispatch_message_file()
+        if not await async_exists(path):
+            return None
+        try:
+            data = await async_read_json(path)
+            return data if isinstance(data, dict) else None
+        except Exception as e:
+            logger.warning(f"[AgentDispatcher] 读取上次 dispatch 消息快照失败，忽略: {e}")
+            return None
+
+    async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
+        """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
+        from app.utils.async_file_utils import async_write_json
+        new_data = message.model_dump(mode="json")
+        # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
+        existing = await self.get_last_dispatch_message() or {}
+        merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
+        try:
+            await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"[AgentDispatcher] 保存 dispatch 消息快照失败，忽略: {e}")
+
     async def submit_message(self, message: ChatClientMessage) -> None:
         """
         Standard entry point for channel adapters to submit an inbound message.
@@ -431,6 +462,18 @@ class AgentDispatcher(Base):
         agent_context.register_run_cleanup() immediately after this method returns —
         it will run when the new run ends or is interrupted.
         """
+        # 用上次保存的消息快照补全本次未显式设置的字段（白名单控制，后续扩展在此处加 case）
+        last = await self.get_last_dispatch_message() or {}
+        if last:
+            # agent_mode：当前未携带时从 last 取
+            if not message.agent_mode and last.get("agent_mode"):
+                message.agent_mode = last["agent_mode"]
+            # agent_code：当前未携带时从 last 取
+            current_agent_code = (message.dynamic_config or {}).get("agent_code")
+            last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
+            if not current_agent_code and last_agent_code:
+                message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+
         await self.agent_context.stop_run(reason="new message")
         self.agent_context.reset_run_state()
 
@@ -517,6 +560,9 @@ class AgentDispatcher(Base):
 
         # Compile agent files and set AgentProfile before loading the agent instance
         await self._prepare_agent(str(message.agent_mode), agent_code)
+
+        # 保存本次 dispatch 的完整消息快照（存储全量，补全侧用白名单控制应用范围）
+        await self._save_last_dispatch_message(message)
 
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
