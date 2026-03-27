@@ -8,12 +8,15 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service;
 
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
+use App\Domain\Chat\Entity\MagicGeneratedSuggestionEntity;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionStatus;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionType;
 use App\Domain\Chat\Service\FollowUpContextDomainService;
 use App\Domain\Chat\Service\MagicGeneratedSuggestionDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
+use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResultDTO;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -132,11 +135,13 @@ PROMPT;
     }
 
     /**
-     * 通用查询入口：直接按 type + relation_id 查询建议结果。
+     * 通用查询入口：按 type + relation_id 查询建议结果。
      */
-    public function queryByRelationId(int $type, string $relationId): array
+    public function queryFollowUpSuggestions(MagicGeneratedSuggestionEntity $criteria): FollowUpSuggestionQueryResultDTO
     {
-        return $this->generatedSuggestionDomainService->queryByRelationId($type, $relationId);
+        $entity = $this->generatedSuggestionDomainService->queryByCriteria($criteria);
+
+        return MagicGeneratedSuggestionAssembler::entityToQueryResultDto($entity);
     }
 
     /**

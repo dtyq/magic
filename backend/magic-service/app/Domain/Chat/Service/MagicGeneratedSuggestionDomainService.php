@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Service;
 
+use App\Domain\Chat\Entity\MagicGeneratedSuggestionEntity;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionStatus;
-use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionType;
 use App\Domain\Chat\Repository\Facade\MagicGeneratedSuggestionRepositoryInterface;
 
 class MagicGeneratedSuggestionDomainService
@@ -18,38 +18,22 @@ class MagicGeneratedSuggestionDomainService
     ) {
     }
 
-    public function queryByRelationId(int $type, string $relationId): array
+    public function queryByCriteria(MagicGeneratedSuggestionEntity $criteria): MagicGeneratedSuggestionEntity
     {
-        $record = $this->generatedSuggestionRepository->findLatestByTypeAndRelationId(
+        $type = $criteria->getType();
+        $relationId = $criteria->getRelationId();
+
+        $entity = $this->generatedSuggestionRepository->findLatestEntityByTypeAndRelationId(
             $type,
             $relationId,
         );
 
-        if ($record === null) {
-            return [
-                'type' => $type,
-                'type_label' => GeneratedSuggestionType::label($type),
-                'relation_id' => $relationId,
-                'params' => [],
-                'task_id' => $relationId,
-                'topic_id' => null,
-                'status' => null,
-                'suggestions' => [],
-                'updated_at' => '',
-            ];
+        // 兼容之前没有对应推荐问题的消息
+        if ($entity === null) {
+            return MagicGeneratedSuggestionEntity::emptyForMissingQuery($type, $relationId);
         }
 
-        return [
-            'type' => (int) ($record['type'] ?? $type),
-            'type_label' => GeneratedSuggestionType::label((int) ($record['type'] ?? $type)),
-            'relation_id' => (string) ($record['relation_id'] ?? $relationId),
-            'params' => $record['params'] ?? [],
-            'task_id' => (string) ($record['relation_id'] ?? $relationId),
-            'topic_id' => isset($record['params']['topic_id']) ? (int) $record['params']['topic_id'] : null,
-            'status' => (int) ($record['status'] ?? GeneratedSuggestionStatus::Generating->value),
-            'suggestions' => array_values($record['suggestions'] ?? []),
-            'updated_at' => $record['updated_at'] ?? '',
-        ];
+        return $entity;
     }
 
     public function createGenerating(

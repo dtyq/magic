@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Chat\Repository\Facade;
 
+use App\Domain\Chat\Entity\MagicGeneratedSuggestionEntity;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionStatus;
 
 interface MagicGeneratedSuggestionRepositoryInterface
@@ -19,6 +20,8 @@ interface MagicGeneratedSuggestionRepositoryInterface
     ): array;
 
     public function findLatestByTypeAndRelationId(int $type, int|string $relationId): ?array;
+
+    public function findLatestEntityByTypeAndRelationId(int $type, int|string $relationId): ?MagicGeneratedSuggestionEntity;
 
     /**
      * @param string[] $suggestions

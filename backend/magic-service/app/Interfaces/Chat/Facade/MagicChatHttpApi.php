@@ -32,7 +32,10 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\ConversationAssembler;
+use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
+use App\Interfaces\Chat\DTO\Request\FollowUpSuggestionsQueryRequestDTO;
+use App\Interfaces\Chat\FormRequest\FollowUpSuggestionsFormRequest;
 use Carbon\Carbon;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Codec\Json;
@@ -438,21 +441,13 @@ class MagicChatHttpApi extends AbstractApi
     /**
      * 查询追问建议状态与结果.
      */
-    public function followUpSuggestions(RequestInterface $request): array
+    public function followUpSuggestions(FollowUpSuggestionsFormRequest $request): array
     {
-        $params = $request->all();
-        $rules = [
-            'type' => 'required|integer',
-            'task_id' => 'required|string',
-        ];
-        $params = $this->checkParams($params, $rules);
-        $type = (int) ($params['type'] ?? 0);
-        $taskId = (string) ($params['task_id'] ?? '');
+        $dto = FollowUpSuggestionsQueryRequestDTO::fromArray($request->validated());
+        $criteria = MagicGeneratedSuggestionAssembler::createQueryCriteria($dto);
+        $result = $this->followUpSuggestionAppService->queryFollowUpSuggestions($criteria);
 
-        return $this->followUpSuggestionAppService->queryByRelationId(
-            $type,
-            $taskId,
-        );
+        return $result->toArray();
     }
 
     /**
