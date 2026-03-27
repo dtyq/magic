@@ -106,6 +106,15 @@ async def _do_generate(
                 loaded_names.add(ws_skill.name)
                 logger.info(f"扫描追加 workspace skill: {ws_skill.name}")
 
+    # ── 3b. 过滤 excluded_skills（仅针对 system 来源，crew/workspace 不受影响）──
+    excluded_names = set(skills_config.excluded_skills)
+    if excluded_names:
+        before_names = {s.name for s in skills_metadata}
+        skills_metadata = [s for s in skills_metadata if s.name not in excluded_names]
+        actually_excluded = excluded_names & before_names
+        if actually_excluded:
+            logger.info(f"已排除 {len(actually_excluded)} 个 system skill: {actually_excluded}")
+
     if not skills_metadata:
         logger.warning("未能加载任何 skills")
         return None

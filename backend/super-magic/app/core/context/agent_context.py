@@ -200,6 +200,7 @@ class AgentContext(BaseAgentContext):
             "thinking_start_time": (None, Optional[float]),  # 思考开始时间
             # Skills 管理
             "loaded_skills": ([], List[str]),  # 已加载的 skills 列表
+            "excluded_skills": ([], List[str]),  # 当前 agent 排除的 system skill 名称列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
             # Agent Master 管理
@@ -349,6 +350,24 @@ class AgentContext(BaseAgentContext):
         """
         loaded_skills = self.get_loaded_skills()
         return skill_name in loaded_skills
+
+    def set_excluded_skills(self, skills: List[str]) -> None:
+        """设置当前 agent 排除的 system skill 名称列表
+
+        Args:
+            skills: 排除的 skill 名称列表
+        """
+        self.shared_context.update_field("excluded_skills", list(skills) if skills else [])
+        logger.debug(f"已更新 excluded_skills: {skills}")
+
+    def get_excluded_skills(self) -> List[str]:
+        """获取当前 agent 排除的 system skill 名称列表
+
+        Returns:
+            List[str]: 排除的 skill 名称列表
+        """
+        excluded = self.shared_context.get_field("excluded_skills")
+        return excluded if excluded is not None else []
 
     def get_init_client_message(self) -> Optional[InitClientMessage]:
         """获取初始化客户端消息

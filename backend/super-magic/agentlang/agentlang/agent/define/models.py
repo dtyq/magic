@@ -25,12 +25,14 @@ class SkillsConfig:
     - system_skills_scan: 内部字段，由 parser 从 system_skills: "*" 派生，不直接对应 YAML key
     - crew_skills: 值为 "*" 时扫描整个 crew skills 目录；None 表示不纳入 prompt
     - workspace_skills: 值为 "*" 时扫描整个 workspace skills 目录；None 表示不纳入 prompt
+    - excluded_skills: 排除的 system skill 名称列表；扫描/加载后过滤，不进入 prompt 也不在 skill_list 中显示
     """
 
     system_skills: List[SystemSkillEntry] = field(default_factory=list)
     system_skills_scan: Optional[str] = None
     crew_skills: Optional[str] = None
     workspace_skills: Optional[str] = None
+    excluded_skills: List[str] = field(default_factory=list)
 
     def is_empty(self) -> bool:
         return (

@@ -75,13 +75,19 @@ class SkillList(BaseTool[SkillListParams]):
         if source_filter not in _VALID_SOURCES:
             source_filter = "all"
 
+        # 从当前 agent 上下文中读取 excluded_skills，保证多 agent 实例隔离
+        excluded_system_skills: set = set()
+        agent_context = tool_context.get_extension("agent_context")
+        if agent_context and hasattr(agent_context, "get_excluded_skills"):
+            excluded_system_skills = set(agent_context.get_excluded_skills())
+
         skills: List[SkillItem] = []
         system_skills: List[SkillItem] = []
         crew_skills: List[SkillItem] = []
         workspace_skills: List[SkillItem] = []
 
         if source_filter in ("all", "system"):
-            system_skills = await self._list_system_skills()
+            system_skills = await self._list_system_skills(excluded_system_skills)
             skills.extend(system_skills)
 
         if source_filter in ("all", "crew"):
@@ -145,10 +151,11 @@ class SkillList(BaseTool[SkillListParams]):
 
         return ToolResult(content="\n".join(lines))
 
-    async def _list_system_skills(self) -> List[SkillItem]:
+    async def _list_system_skills(self, excluded: set = None) -> List[SkillItem]:
         """列出 agents/skills/ 目录下的 system skill（与 skill_sources.system_skills 一致）"""
         system_dir = PathManager.get_agents_dir() / "skills"
         metas = await discover_skills_in_directory(system_dir)
+        excluded_set = excluded or set()
         results = [
             SkillItem(
                 name=meta.name,
@@ -158,6 +165,7 @@ class SkillList(BaseTool[SkillListParams]):
                 path=str(meta.skill_dir / "SKILL.md") if meta.skill_dir else "",
             )
             for meta in metas
+            if meta.name not in excluded_set
         ]
         results.sort(key=lambda x: x.name)
         logger.info(f"system skills: {len(results)} 个")
