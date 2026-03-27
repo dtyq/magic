@@ -156,6 +156,7 @@ class SkillAssembler
         string $fileKey = '',
         ?string $fileUrl = null,
         string $packageName = '',
+        string $latestVersion = '',
         array $sourceI18n = [],
     ): SkillMarketListItemDTO {
         $language = CoContext::getLanguage();
@@ -186,6 +187,7 @@ class SkillAssembler
             fileKey: $fileKey,
             fileUrl: $fileUrl,
             packageName: $packageName,
+            latestVersion: $latestVersion,
         );
     }
 
@@ -411,6 +413,7 @@ class SkillAssembler
             $fileKey = (string) ($version?->getFileKey() ?? '');
             $fileUrl = $version?->getFileUrl();
             $packageName = (string) ($version?->getPackageName() ?? '');
+            $latestVersion = (string) ($version?->getVersion() ?? '');
             $sourceI18n = $version?->getSourceI18n() ?? [];
 
             $listItems[] = self::createMarketListItemDTO(
@@ -422,6 +425,7 @@ class SkillAssembler
                 fileKey: $fileKey,
                 fileUrl: $fileUrl,
                 packageName: $packageName,
+                latestVersion: $latestVersion,
                 sourceI18n: $sourceI18n,
             );
         }

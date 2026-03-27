@@ -1462,6 +1462,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('is_creator', $item);
             $this->assertArrayHasKey('created_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
+            $this->assertArrayHasKey('latest_version', $item);
 
             // 验证字段类型
             $this->assertIsString($item['id']);
@@ -1471,6 +1472,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertIsString($item['publisher_type']);
             $this->assertIsArray($item['publisher']);
             $this->assertIsString($item['publish_status']);
+            $this->assertIsString($item['latest_version']);
             $this->assertIsBool($item['is_added']);
             $this->assertIsBool($item['need_upgrade']);
             $this->assertIsBool($item['is_creator']);
@@ -1820,6 +1822,30 @@ class UserSkillApiTest extends AbstractApiTest
 
         $this->assertNotNull($marketItem, '应该能通过 package_name 模糊搜索到目标技能');
         $this->assertSame($storeSkill['package_name'], $marketItem['package_name'] ?? null);
+    }
+
+    public function testPublicSkillMarketQueriesReturnLatestVersion(): void
+    {
+        $storeSkill = $this->createPublishedStoreSkillRecord();
+        $headers = $this->getCommonHeaders();
+
+        $response = $this->post(
+            '/api/v1/skill-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'codes' => [$storeSkill['skill_code']],
+            ],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertSame(1, $response['data']['total']);
+        $this->assertCount(1, $response['data']['list']);
+
+        $item = $response['data']['list'][0];
+        $this->assertSame($storeSkill['skill_code'], $item['skill_code'] ?? null);
+        $this->assertSame('1.0.0', $item['latest_version'] ?? null);
     }
 
     /**
