@@ -192,6 +192,10 @@ class CronService:
         # 8. 更新下次最近到期时间，供 _compute_sleep 使用
         _update_next_due(self, state)
 
+        # 定期兜底：若有未发出的通知且主 agent 未运行，则触发（异步，不阻塞 tick）
+        from app.service.cron.notification import try_notify_main_agent
+        asyncio.create_task(try_notify_main_agent(), name="cron-tick-notify")
+
     async def _execute_and_update(self, job: CronJob) -> None:
         """
         执行单个 job 并回写状态。

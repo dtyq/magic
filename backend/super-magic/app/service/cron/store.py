@@ -115,6 +115,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             agent_name=payload_cfg.get("agent_name", "magic"),
             model_id=payload_cfg.get("model_id"),
             timeout_seconds=payload_cfg.get("timeout_seconds"),
+            notify_main_agent=bool(payload_cfg.get("notify_main_agent", True)),
         )
 
         enabled = meta.get("enabled", True)
@@ -256,6 +257,7 @@ def build_job_md(
     name: Optional[str],
     body: str,
     timezone: Optional[str] = None,
+    notify_main_agent: bool = False,
 ) -> str:
     """构建新 cron job MD 文件内容。"""
     import yaml
@@ -285,6 +287,8 @@ def build_job_md(
         frontmatter["payload"]["model_id"] = model_id
     if timeout_seconds is not None:
         frontmatter["payload"]["timeout_seconds"] = timeout_seconds
+    if not notify_main_agent:
+        frontmatter["payload"]["notify_main_agent"] = False
 
     fm_str = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False).rstrip()
     return f"---\n{fm_str}\n---\n\n{body.strip()}\n"
@@ -299,6 +303,7 @@ def patch_job_md(
     timeout_seconds: Optional[int],
     enabled: Optional[bool],
     body: Optional[str],
+    notify_main_agent: Optional[bool] = None,
 ) -> str:
     """
     对已有 MD 文件进行局部更新。
@@ -336,6 +341,11 @@ def patch_job_md(
         payload["model_id"] = model_id
     if timeout_seconds is not None:
         payload["timeout_seconds"] = timeout_seconds
+    if notify_main_agent is not None:
+        if not notify_main_agent:
+            payload["notify_main_agent"] = False
+        else:
+            payload.pop("notify_main_agent", None)
     meta["payload"] = payload
 
     new_body = body.strip() if body is not None else old_body

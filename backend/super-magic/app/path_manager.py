@@ -463,6 +463,12 @@ class PathManager(BasePathManager):
         return cls.get_cron_result_dir() / date_dir / f"{job_id}-{ts}.md"
 
     @classmethod
+    def get_cron_pending_notifications_file(cls) -> Path:
+        """获取 cron 待发送通知文件路径（.workspace/.magic/cron-result/.pending-notifications.jsonl）。
+        每行一条 JSON，任务完成且 notify_main_agent=True 时追加，消费后清空。"""
+        return cls.get_cron_result_dir() / ".pending-notifications.jsonl"
+
+    @classmethod
     def get_wechat_im_uploads_dir(cls) -> Path:
         """获取微信 IM 媒体存储根目录（.workspace/uploads/im-channels/wechat/，按需创建）"""
         cls._ensure_app_initialization()

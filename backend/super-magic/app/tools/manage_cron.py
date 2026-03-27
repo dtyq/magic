@@ -42,7 +42,7 @@ class ManageCronParams(BaseToolParams):
         description="""<!--zh: 操作类型及各自必填参数：
 - status: 无需额外参数
 - list: 可选 include_disabled
-- add: 必填 name / schedule / message，可选 payload_kind / agent_name / model_id / timeout_seconds / enabled
+- add: 必填 name / schedule / message，可选 payload_kind / agent_name / model_id / timeout_seconds / enabled / notify_main_agent
 - update: 必填 job_id，其余字段按需传，省略则保持原值
 - remove: 必填 job_id
 - run: 必填 job_id（立即触发，忽略调度时间）
@@ -51,7 +51,7 @@ class ManageCronParams(BaseToolParams):
 Action to perform. Per-action required fields:
 - status: no extra params
 - list: optional include_disabled
-- add: name + schedule + message required; payload_kind/agent_name/model_id/timeout_seconds/enabled optional
+- add: name + schedule + message required; payload_kind/agent_name/model_id/timeout_seconds/enabled/notify_main_agent optional
 - update: job_id required; any other field optional (omitted fields keep current value)
 - remove: job_id required
 - run: job_id required (triggers immediately, ignores schedule)
@@ -64,8 +64,12 @@ Job ID (filename without .md). Required for update/remove/run/runs."""
     )
     name: Optional[str] = Field(
         None,
-        description="""<!--zh: add 时用于生成文件名的任务名称，例如 "daily sales report" → daily-sales-report.md。必填于 add。-->
-Human-readable name used to derive the job ID (e.g. "daily sales report" → daily-sales-report.md). Required for add."""
+        description="""<!--zh: add 时用于生成文件名的任务名称。必填于 add。
+kind=at 的一次性任务必须在名称中包含触发时间，例如 "remind me to review PR at 2026-03-27 14:00"，
+这样生成的 job_id 才能唯一标识该任务，避免同名覆盖。-->
+Human-readable name used to derive the job ID. Required for add.
+For kind=at one-shot jobs, the name must include the trigger time so the job ID is unique and self-describing,
+e.g. "remind me to review PR at 2026-03-27 14:00" → remind-me-to-review-pr-at-2026-03-27-1400.md."""
     )
     schedule: Optional[Dict[str, Any]] = Field(
         None,
@@ -113,6 +117,11 @@ Optional per-run timeout in seconds. Omit or null for no timeout."""
         None,
         description="""<!--zh: list 时是否包含已禁用的任务，默认只列出启用的-->
 For list: include disabled jobs. Defaults to false (only enabled jobs shown)."""
+    )
+    notify_main_agent: Optional[bool] = Field(
+        None,
+        description="""<!--zh: 任务完成后是否通知主 agent。默认 true（即默认通知）。仅对不需要告知用户结果的后台周期性任务显式设为 false。-->
+Whether to notify the main agent when this job completes. Defaults to true. Set to false only for silent background jobs whose results do not need to be reported to the user."""
     )
 
     @field_validator("schedule", mode="before")
@@ -165,6 +174,7 @@ class ManageCron(BaseTool[ManageCronParams]):
 - payload_kind 目前只支持 "agent_turn"。
 - job_id 在创建时由 name 派生，不能通过 update 修改。
 - 修改调度/内容/启用状态用 update；重命名任务用 remove + add。
+- notify_main_agent 默认 true（默认通知）；仅对不需要告知用户结果的后台任务显式设为 false。
 -->
 Manage scheduled cron jobs. Each job is stored as a Markdown file under .workspace/.magic/cron/.
 
@@ -195,7 +205,8 @@ CRITICAL CONSTRAINTS:
 - Minimum scheduling unit is 1 minute (every_ms < 60000 is ignored by scheduler).
 - payload_kind only supports "agent_turn" currently.
 - job_id is derived from name at creation time and cannot be changed via update.
-- Use update to change schedule/message/enabled; use remove+add to rename a job."""
+- Use update to change schedule/message/enabled; use remove+add to rename a job.
+- notify_main_agent defaults to true; set notify_main_agent=false only for silent background jobs whose results should not be reported to the user."""
 
     async def execute(self, tool_context: ToolContext, params: ManageCronParams) -> ToolResult:
         try:
@@ -300,6 +311,7 @@ CRITICAL CONSTRAINTS:
             name=params.name,
             body=params.message,
             timezone=user_timezone,
+            notify_main_agent=True if params.notify_main_agent is None else params.notify_main_agent,
         )
         await async_write_text(path, content)
         return ToolResult(content=f"Created cron job '{job_id}' at {path}")
@@ -321,6 +333,7 @@ CRITICAL CONSTRAINTS:
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
             body=params.message,
+            notify_main_agent=params.notify_main_agent,
         )
         await async_write_text(path, updated)
         return ToolResult(content=f"Updated cron job '{params.job_id}'")
