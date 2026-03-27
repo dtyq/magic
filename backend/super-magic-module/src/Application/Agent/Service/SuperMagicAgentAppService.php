@@ -1584,7 +1584,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'id' => $builtinSkill->value,
                 'code' => $builtinSkill->value,
                 'name' => $builtinSkill->getSkillName(),
-                'package_name' => $builtinSkill->getSkillName(),
+                'package_name' => $builtinSkill->value,
                 'description' => $builtinSkill->getSkillDescription(),
                 'logo' => $builtinSkill->getSkillIcon() !== '' ? $builtinSkill->getSkillIcon() : null,
                 'mention_source' => SkillMentionSource::SYSTEM->value,
