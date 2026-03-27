@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
+use App\Application\Kernel\Enum\MagicOperationEnum;
+use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\ModelGateway\Service\AiAbilityConnectivityTestAppService;
 use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
@@ -22,6 +24,7 @@ use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\RequestCoContext;
+use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Infrastructure\Util\RequestUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
@@ -192,7 +195,8 @@ class OpenAIProxyApi extends AbstractOpenApi
      *
      * @return array Unified connectivity test response
      */
-    public function connectivityTest(RequestInterface $request): array
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::QUERY)]
+    public function connectivityTest(RequestInterface $request)
     {
         $requestData = $request->all();
 
