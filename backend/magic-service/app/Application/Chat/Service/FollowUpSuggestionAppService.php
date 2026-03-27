@@ -9,14 +9,16 @@ namespace App\Application\Chat\Service;
 
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use App\Domain\Chat\Entity\MagicGeneratedSuggestionEntity;
+use App\Domain\Chat\Entity\ValueObject\FollowUpContextLine;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionStatus;
 use App\Domain\Chat\Entity\ValueObject\GeneratedSuggestionType;
-use App\Domain\Chat\Service\FollowUpContextDomainService;
+use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Chat\Service\MagicGeneratedSuggestionDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
 use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResultDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -26,7 +28,8 @@ class FollowUpSuggestionAppService extends AbstractAppService
 {
     public function __construct(
         protected LoggerInterface $logger,
-        protected readonly FollowUpContextDomainService $followUpContextDomainService,
+        protected readonly TaskMessageDomainService $taskMessageDomainService,
+        protected readonly MagicChatDomainService $magicChatDomainService,
         protected readonly MagicGeneratedSuggestionDomainService $generatedSuggestionDomainService,
     ) {
         try {
@@ -51,18 +54,9 @@ class FollowUpSuggestionAppService extends AbstractAppService
             return;
         }
 
-        // 查询当前话题下最近的6条问题消息作为上下文
-        $historyContext = $this->followUpContextDomainService->buildFollowUpContextExcerptByTopicId($topicId, 3);
-        if ($historyContext === '') {
-            $this->updateSuperMagicTopicFollowUpStatus(
-                $taskId,
-                GeneratedSuggestionStatus::Failed,
-            );
-            return;
-        }
-
         // 构建上下文
         $currentTime = date('Y-m-d H:i:s');
+        $historyContext = $this->buildFollowUpHistoryContextExcerpt($topicId, 3);
         $userPrompt = <<<PROMPT
 请基于以下用户问题摘录，生成3个最自然的后续追问。
 
@@ -142,6 +136,31 @@ PROMPT;
         $entity = $this->generatedSuggestionDomainService->queryByCriteria($criteria);
 
         return MagicGeneratedSuggestionAssembler::entityToQueryResultDto($entity);
+    }
+
+    /**
+     * 查询当前话题下的最近3轮对话问 + 答.
+     */
+    private function buildFollowUpHistoryContextExcerpt(int $topicId, int $roundLimit = 3): string
+    {
+        $userLines = $this->taskMessageDomainService->buildFollowUpContextUserLines($topicId, $roundLimit);
+        $assistantLines = $this->magicChatDomainService->buildFollowUpAssistantContextLines($topicId, $roundLimit);
+        $merged = array_merge($userLines, $assistantLines);
+        if ($merged === []) {
+            return '';
+        }
+
+        usort($merged, [FollowUpContextLine::class, 'compare']);
+
+        $lines = [];
+        foreach ($merged as $line) {
+            if ($line->content === '') {
+                continue;
+            }
+            $lines[] = $line->toPromptLine();
+        }
+
+        return $lines === [] ? '' : implode("\n", $lines);
     }
 
     /**

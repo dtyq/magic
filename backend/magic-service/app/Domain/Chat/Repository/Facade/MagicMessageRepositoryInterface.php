@@ -9,6 +9,8 @@ namespace App\Domain\Chat\Repository\Facade;
 
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicMessageVersionEntity;
+use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
+use Hyperf\Database\Model\Collection;
 
 interface MagicMessageRepositoryInterface
 {
@@ -32,6 +34,15 @@ interface MagicMessageRepositoryInterface
     public function getMagicMessageIdByAppMessageId(string $appMessageId, string $messageType = ''): string;
 
     public function getMessageByAppMessageId(string $appMessageId, string $messageType = ''): ?MagicMessageEntity;
+
+    /**
+     * follow-up：助手 after_agent_reply 且已落 IM 的消息。
+     * 主表为 magic_chat_messages（MagicMessageModel），INNER JOIN magic_super_agent_message 仅用于
+     * topic_id、event、sender_type 等条件；返回行以 CM 为主，并附带 sam_id、sam_send_timestamp。
+     *
+     * @return Collection<int, MagicMessageModel>
+     */
+    public function findFollowUpAssistantMessagesWithImByTopicId(int $topicId, int $roundLimit): Collection;
 
     /**
      * Get messages by magic message IDs.

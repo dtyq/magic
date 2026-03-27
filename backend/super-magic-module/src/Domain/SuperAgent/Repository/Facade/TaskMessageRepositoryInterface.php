@@ -52,15 +52,16 @@ interface TaskMessageRepositoryInterface
     public function findRecentAfterAgentReplyMessagesByTopicId(int $topicId, int $limit = 3): array;
 
     /**
+     * follow-up 摘录：最近 N 条用户提问（单表 magic_super_agent_message，与 IM 无关）。
+     *
+     * @return TaskMessageEntity[]
+     */
+    public function findFollowUpContextUserMessages(int $topicId, int $roundLimit): array;
+
+    /**
      * 判断某个 super-agent topic 是否存在消息记录.
      */
     public function existsByTopicId(int $topicId): bool;
-
-    /**
-     * 获取 follow-up 场景需要的最近三轮上下文行.
-     * @return array<int, array{source_id:int, sort_ts:int, msg_role:string, display_time:string, content:?string}>
-     */
-    public function findFollowUpContextRowsByTopicId(int $topicId, int $roundLimit = 3): array;
 
     /**
      * 在指定 assistant 消息之前，获取最近一条用户问题消息.
