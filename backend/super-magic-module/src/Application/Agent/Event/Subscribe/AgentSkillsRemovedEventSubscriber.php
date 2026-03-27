@@ -128,8 +128,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         $projectOrgCode = $projectEntity->getUserOrganizationCode();
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
 
-        $skillsDirFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, 'skills');
-        $skillsDirFileKey = ltrim($skillsDirFileKey, '/') . '/';
+        $skillsDirFileKeys = $this->resolveSkillsDirectoryFileKeys($projectId, $fullPrefix, $workDir);
 
         $userId = $dataIsolation->getCurrentUserId();
         $contactDataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
@@ -152,26 +151,28 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                     continue;
                 }
 
-                $targetPath = $skillsDirFileKey . $packageName . '/';
+                foreach ($skillsDirFileKeys as $skillsDirFileKey) {
+                    $targetPath = $skillsDirFileKey . $packageName . '/';
 
-                $filesToDelete = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath);
-                $fileIds = array_map(fn ($entity) => $entity->getFileId(), $filesToDelete);
-                $allDeletedFileIds = array_merge($allDeletedFileIds, $fileIds);
+                    $filesToDelete = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath);
+                    $fileIds = array_map(fn ($entity) => $entity->getFileId(), $filesToDelete);
+                    $allDeletedFileIds = array_merge($allDeletedFileIds, $fileIds);
 
-                $this->taskFileDomainService->deleteDirectoryFiles(
-                    $contactDataIsolation,
-                    $workDir,
-                    $projectId,
-                    $targetPath,
-                    $projectOrgCode
-                );
+                    $this->taskFileDomainService->deleteDirectoryFiles(
+                        $contactDataIsolation,
+                        $workDir,
+                        $projectId,
+                        $targetPath,
+                        $projectOrgCode
+                    );
 
-                $this->logger->info('Skill files removed', [
-                    'skill_code' => $skillCode,
-                    'package_name' => $packageName,
-                    'target_path' => $targetPath,
-                    'files_deleted' => count($fileIds),
-                ]);
+                    $this->logger->info('Skill files removed', [
+                        'skill_code' => $skillCode,
+                        'package_name' => $packageName,
+                        'target_path' => $targetPath,
+                        'files_deleted' => count($fileIds),
+                    ]);
+                }
             } catch (Throwable $e) {
                 $this->logger->error('Failed to remove skill files', [
                     'skill_code' => $skillCode,
@@ -263,6 +264,29 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Resolve skill directory file keys for deletion.
+     * If ".magic" exists, delete both ".magic/skills" and legacy "skills" paths.
+     *
+     * @return string[]
+     */
+    private function resolveSkillsDirectoryFileKeys(int $projectId, string $fullPrefix, string $workDir): array
+    {
+        $relativePaths = ['skills'];
+        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+        if ($magicDir !== null) {
+            $relativePaths = ['.magic/skills', 'skills'];
+        }
+
+        $fileKeys = [];
+        foreach ($relativePaths as $relativePath) {
+            $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
+            $fileKeys[] = ltrim($fileKey, '/') . '/';
+        }
+
+        return array_values(array_unique($fileKeys));
     }
 
     private function getMagicIdByUserId(string $userId): string
