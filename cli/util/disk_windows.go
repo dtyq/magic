@@ -2,10 +2,18 @@
 
 package util
 
-import "golang.org/x/sys/windows"
+import (
+	"path/filepath"
 
-func GetDiskAvailableGB() (uint64, error) {
-	rootPtr, err := windows.UTF16PtrFromString(`C:\`)
+	"golang.org/x/sys/windows"
+)
+
+func GetDiskAvailableBytes(path string) (uint64, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return 0, err
+	}
+	rootPtr, err := windows.UTF16PtrFromString(absPath)
 	if err != nil {
 		return 0, err
 	}
@@ -13,5 +21,5 @@ func GetDiskAvailableGB() (uint64, error) {
 	if err := windows.GetDiskFreeSpaceEx(rootPtr, &freeBytesAvailable, &totalBytes, &totalFreeBytes); err != nil {
 		return 0, err
 	}
-	return freeBytesAvailable / (1024 * 1024 * 1024), nil
+	return freeBytesAvailable, nil
 }

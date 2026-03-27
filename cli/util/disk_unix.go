@@ -2,12 +2,21 @@
 
 package util
 
-import "syscall"
+import (
+	"path/filepath"
+	"syscall"
+)
 
-func GetDiskAvailableGB() (uint64, error) {
+func GetDiskAvailableBytes(path string) (uint64, error) {
 	var stat syscall.Statfs_t
-	if err := syscall.Statfs("/", &stat); err != nil {
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
 		return 0, err
 	}
-	return stat.Bavail * uint64(stat.Bsize) / (1024 * 1024 * 1024), nil
+
+	if err := syscall.Statfs(absPath, &stat); err != nil {
+		return 0, err
+	}
+	return stat.Bavail * uint64(stat.Bsize), nil
 }

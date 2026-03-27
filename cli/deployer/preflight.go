@@ -3,11 +3,12 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/dtyq/magicrew-cli/util"
 )
 
-const minDiskSpaceGB = 40
+const minDiskSpaceBytes = 40 * 1024 * 1024 * 1024
 
 // PreflightStage checks system preconditions and resolves chart references.
 type PreflightStage struct {
@@ -49,12 +50,19 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 }
 
 func (s *PreflightStage) checkDiskSpace() {
-	availableGB, err := util.GetDiskAvailableGB()
+	// since we use user home dir to install this, so we check the disk space of the home dir
+	// see resolveRegistryDataDir NormalizeKindCluster LocalPathProvisionerHostDir ClusterNodeDataHostDir
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		s.d.log.Logw("deploy", "failed to check disk space: %v", err)
+		s.d.log.Logw("deploy", "failed to get home dir: %v", err)
 		return
 	}
-	if availableGB < minDiskSpaceGB {
-		s.d.log.Logw("deploy", "low disk space: only %dGB available (recommend >= %dGB)", availableGB, minDiskSpaceGB)
+	availableBytes, err := util.GetDiskAvailableBytes(homeDir)
+	if err != nil {
+		s.d.log.Logw("deploy", "failed to check free disk space: %v", err)
+		return
+	}
+	if availableBytes < minDiskSpaceBytes {
+		s.d.log.Logw("deploy", "low disk space: only %s available (recommend >= %s)", util.HumanSize(availableBytes), util.HumanSize(minDiskSpaceBytes))
 	}
 }
