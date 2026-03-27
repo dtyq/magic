@@ -176,7 +176,12 @@ class MagicClawApi extends AbstractApi
 
         $list = [];
         foreach ($result['list'] as $item) {
-            $list[] = MagicClawAssembler::toListItem($item['entity'], $item['status'], $item['topic_id'] ?? null);
+            $list[] = MagicClawAssembler::toListItem(
+                $item['entity'],
+                $item['status'],
+                $item['topic_id'] ?? null,
+                (bool) ($item['need_upgrade'] ?? false)
+            );
         }
 
         return [

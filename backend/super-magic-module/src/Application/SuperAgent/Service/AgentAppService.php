@@ -9,13 +9,12 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
-use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
@@ -36,7 +35,8 @@ readonly class AgentAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
-        private readonly TaskDomainService $taskDomainService
+        private readonly TaskDomainService $taskDomainService,
+        private readonly SandboxVersionDomainService $sandboxVersionDomainService,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -85,23 +85,18 @@ readonly class AgentAppService
      */
     public function checkSandboxVersion(int $topicId): array
     {
-        $topicEntity = $this->topicDomainService->getTopicById($topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-        }
+        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+    }
 
-        $currentImage = $topicEntity->getAgentImage() ?? '';
-        $latestImage = $this->agentDomainService->getLatestAgentImage();
-
-        $currentVersion = self::extractImageVersion($currentImage);
-        $latestVersion = self::extractImageVersion($latestImage);
-
-        return [
-            'current_version' => $currentVersion,
-            'latest_version' => $latestVersion,
-            // 网关有最新版本时：当前版本未知（agent_image 未入库）或版本不一致，均视为需要更新
-            'needs_update' => ! empty($latestVersion) && $currentVersion !== $latestVersion,
-        ];
+    /**
+     * 批量检查话题沙箱镜像版本，返回每个 topic_id 是否需要升级.
+     *
+     * @param int[] $topicIds
+     * @return array<int, bool> topicId => needUpgrade
+     */
+    public function checkSandboxVersionsByTopicIds(array $topicIds): array
+    {
+        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
     }
 
     /**
@@ -464,18 +459,5 @@ readonly class AgentAppService
         }
 
         return $response;
-    }
-
-    /**
-     * 从镜像字符串中提取版本号（冒号后面的部分）.
-     * 例如：registry.example.com/agent:v1.2.3 → v1.2.3.
-     */
-    private static function extractImageVersion(string $image): string
-    {
-        if (empty($image)) {
-            return '';
-        }
-        $pos = strrpos($image, ':');
-        return $pos !== false ? substr($image, $pos + 1) : '';
     }
 }

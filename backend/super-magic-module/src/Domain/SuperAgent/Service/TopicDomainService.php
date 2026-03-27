@@ -62,6 +62,21 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    /**
+     * Batch get topics by ids.
+     *
+     * @param int[] $ids
+     * @return TopicEntity[]
+     */
+    public function getTopicsByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        return $this->topicRepository->getTopicsByIds($ids);
+    }
+
     public function getTopicWithDeleted(int $id): ?TopicEntity
     {
         return $this->topicRepository->getTopicWithDeleted($id);
