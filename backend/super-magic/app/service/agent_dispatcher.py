@@ -369,24 +369,19 @@ class AgentDispatcher(Base):
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_copytree, async_exists, async_read_markdown, CopyConflict
+        from app.utils.async_file_utils import async_copytree, async_read_markdown, CopyConflict
 
         magic_dir = PathManager.get_magic_dir()
-        identity_file = magic_dir / "IDENTITY.md"
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
+
+        # 始终补全缺失的模板文件，已有文件不会被覆盖
+        claw_src = PathManager.get_claw_agent_dir(claw_code)
+        await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
 
         if output_agent_file.exists():
             logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
-            if not await async_exists(identity_file):
-                logger.warning(f"IDENTITY.md not found in workspace magic dir: {identity_file}")
-                return
-            identity_meta = (await async_read_markdown(identity_file)).meta
+            identity_meta = (await async_read_markdown(magic_dir / "IDENTITY.md")).meta
         else:
-            if not await async_exists(identity_file):
-                claw_src = PathManager.get_claw_agent_dir(claw_code)
-                logger.info(f"Copying claw template to workspace: {claw_src} -> {magic_dir}")
-                await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
-
             compiler = ClawAgentCompiler()
             identity_meta = await compiler.compile(claw_code, magic_dir)
 
