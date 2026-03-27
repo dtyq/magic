@@ -69,26 +69,6 @@ const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) 
 
 	return (
 		<>
-			{/* 用户输入地址 */}
-			{isOfficial && (
-				<Flex justify="space-between" gap={50} align="center">
-					<div className={cx(styles.label, styles.labelText, styles.required)}>
-						{t("form.userInputUrl")}
-					</div>
-					<Form.Item
-						name={["config", "url"]}
-						className={styles.formItem}
-						rules={[
-							{
-								required: true,
-								message: t("form.userInputUrlPlaceholder"),
-							},
-						]}
-					>
-						<Input placeholder={t("form.userInputUrlPlaceholder")} />
-					</Form.Item>
-				</Flex>
-			)}
 			{/* 别名 */}
 			{category === AiModel.ServiceProviderCategory.LLM && !isOfficial && (
 				<Flex justify="space-between" gap={50} align="center">

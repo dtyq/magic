@@ -75,6 +75,7 @@ const providersByCategory = {
 			AiModel.ServiceProvider.Gemini,
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
+			AiModel.ServiceProvider.Official,
 		],
 		apiVersion: [AiModel.ServiceProvider.MicrosoftAzure],
 		accessKey: [AiModel.ServiceProvider.AWSBedrock],
