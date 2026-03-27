@@ -273,11 +273,8 @@ class SandboxPreWarmAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
 
-        // 验证项目存在且当前用户有访问权限
+        // 验证项目存在且当前用户有访问权限（不存在或无权限时 getProject 内部会抛异常）
         $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
-        if ($projectEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.not_found');
-        }
 
         // 获取或创建该项目下的预热隐藏话题（每个项目最多1个，由 ensureHiddenTopic 内部控制）
         try {
