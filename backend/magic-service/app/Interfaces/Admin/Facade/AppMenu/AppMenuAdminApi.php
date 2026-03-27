@@ -55,7 +55,6 @@ class AppMenuAdminApi extends AbstractApi
             total: $result['total'],
             list: $result['list'],
             page: $page,
-            icons: $result['icons'],
         );
     }
 
@@ -119,12 +118,8 @@ class AppMenuAdminApi extends AbstractApi
     {
         $organizationCode = $authorization->getOrganizationCode();
         $users = $this->appMenuAppService->getUsers($organizationCode, [$entity->getCreatorId()]);
-        $icons = [];
-        if ($entity->isImageIcon() && $entity->getIconUrl() !== '') {
-            $icons = $this->appMenuAppService->getIcons($organizationCode, [$entity->getIconUrl()]);
-        }
 
-        return AppMenuAssembler::createDTO($entity, $users, $icons);
+        return AppMenuAssembler::createDTO($entity, $users);
     }
 
     private static function parseId(null|int|string $id): int
