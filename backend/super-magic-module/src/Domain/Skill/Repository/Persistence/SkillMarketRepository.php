@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterf
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillMarketModel;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
 use Dtyq\SuperMagic\Infrastructure\Utils\DateFormatUtil;
 use Hyperf\Codec\Json;
 use RuntimeException;
@@ -208,48 +209,58 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         string $orderBy,
         Page $page
     ): array {
+        $marketTable = $this->skillMarketModel->getTable();
+        $versionTable = $this->resolveSkillVersionTable();
+
         $builder = $this->skillMarketModel::query()
-            ->whereNull('deleted_at');
+            ->leftJoin($versionTable . ' as skill_versions', $marketTable . '.skill_version_id', '=', 'skill_versions.id')
+            ->select($marketTable . '.*', 'skill_versions.package_name')
+            ->whereNull($marketTable . '.deleted_at');
 
         $publishStatus = trim((string) $publishStatus);
         if ($publishStatus !== '') {
-            $builder->where('publish_status', $publishStatus);
+            $builder->where($marketTable . '.publish_status', $publishStatus);
         }
 
         $organizationCode = trim((string) $organizationCode);
         if ($organizationCode !== '') {
-            $builder->where('organization_code', $organizationCode);
+            $builder->where($marketTable . '.organization_code', $organizationCode);
         }
 
         $publisherType = trim((string) $publisherType);
         if ($publisherType !== '') {
-            $builder->where('publisher_type', $publisherType);
+            $builder->where($marketTable . '.publisher_type', $publisherType);
         }
 
         $skillCode = trim((string) $skillCode);
         if ($skillCode !== '') {
-            $builder->where('skill_code', $skillCode);
+            $builder->where($marketTable . '.skill_code', $skillCode);
+        }
+
+        $packageName = trim((string) $packageName);
+        if ($packageName !== '') {
+            $builder->where('skill_versions.package_name', 'LIKE', '%' . $packageName . '%');
         }
 
         $name18n = trim((string) $name18n);
         if ($name18n !== '') {
-            $builder->where('search_text', 'LIKE', '%' . $name18n . '%');
+            $builder->where($marketTable . '.search_text', 'LIKE', '%' . $name18n . '%');
         }
 
         $startTime = trim((string) $startTime);
         if ($startTime !== '') {
-            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+            $builder->where($marketTable . '.created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
         }
 
         $endTime = trim((string) $endTime);
         if ($endTime !== '') {
-            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+            $builder->where($marketTable . '.created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
         $idOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
-        $builder->orderBy('is_featured', $idOrder);
-        $builder->orderBy('sort_order', $idOrder);
-        $builder->orderBy('id', $idOrder);
+        $builder->orderBy($marketTable . '.is_featured', $idOrder);
+        $builder->orderBy($marketTable . '.sort_order', $idOrder);
+        $builder->orderBy($marketTable . '.id', $idOrder);
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -434,5 +445,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,
         ]);
+    }
+
+    private function resolveSkillVersionTable(): string
+    {
+        return (new SkillVersionModel())->getTable();
     }
 }

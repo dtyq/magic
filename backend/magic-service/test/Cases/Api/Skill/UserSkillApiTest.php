@@ -1736,6 +1736,7 @@ class UserSkillApiTest extends AbstractApiTest
         }
 
         $this->assertNotNull($marketItem, '应该能在管理后台市场列表中查到目标技能');
+        $this->assertSame($storeSkill['package_name'], $marketItem['package_name'] ?? null);
         $this->assertArrayHasKey('is_hidden', $marketItem);
         $this->assertFalse($marketItem['is_hidden']);
 
@@ -1784,6 +1785,41 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals(1000, $publicQueryResponse['code'], $publicQueryResponse['message'] ?? '');
         $this->assertSame(0, $publicQueryResponse['data']['total']);
         $this->assertSame([], $publicQueryResponse['data']['list']);
+    }
+
+    public function testAdminSkillMarketQueriesCanSearchByPackageName(): void
+    {
+        $storeSkill = $this->createPublishedStoreSkillRecord();
+        $headers = $this->getCommonHeaders();
+
+        $response = $this->post(
+            '/api/v1/admin/skills/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'package_name' => substr($storeSkill['package_name'], -12),
+            ],
+            $headers
+        );
+
+        if (isset($response['code']) && in_array($response['code'], [401, 403, 2179, 3035, 4001, 4003], true)) {
+            $this->markTestSkipped('接口需要管理员权限，跳过测试');
+            return;
+        }
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertIsArray($response['data']['list'] ?? null);
+
+        $marketItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['skill_code'] ?? null) === $storeSkill['skill_code']) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem, '应该能通过 package_name 模糊搜索到目标技能');
+        $this->assertSame($storeSkill['package_name'], $marketItem['package_name'] ?? null);
     }
 
     /**
@@ -2351,7 +2387,7 @@ MD;
     /**
      * 直接创建已发布的市场技能记录，避免依赖发布链路中的无关逻辑.
      *
-     * @return array{store_skill_id: int, skill_code: string, version_id: int}
+     * @return array{store_skill_id: int, skill_code: string, version_id: int, package_name: string}
      */
     private function createPublishedStoreSkillRecord(): array
     {
@@ -2454,6 +2490,7 @@ MD;
             'store_skill_id' => $storeSkillId,
             'skill_code' => $skillCode,
             'version_id' => $versionId,
+            'package_name' => $packageName,
         ];
     }
 
