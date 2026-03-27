@@ -164,9 +164,18 @@ Codify the know-how and workflows of legal, finance, sales, operations, and ever
 
 ### Self-Hosted Deployment
 
-We built a lightweight local Kubernetes deployment stack on top of [kind](https://kind.sigs.k8s.io/). The `magicrew-cli` tool handles the full pipeline in one command: environment checks, local image registry, cluster creation, infrastructure provisioning (MySQL / Redis / RabbitMQ / MinIO), and service deployment — ready out of the box.
+**Requirements:** Docker + curl. Supports macOS and Linux (Windows support is coming soon).
 
-The deployment toolchain is being finalized and will be open-sourced shortly. Stay tuned.
+```bash
+curl -fsSL https://getmagicrew.sh | bash
+```
+
+The script handles everything — cluster creation, infrastructure, and service deployment. Once complete:
+
+- Web UI: **http://localhost:38080**
+- Teardown: `magicrew teardown`
+
+→ [Full deployment guide](./docs/en/development/deploy/docker.md)
 
 ### Cloud Service
 

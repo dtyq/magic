@@ -164,9 +164,18 @@
 
 ### 自托管部署
 
-我们基于 [kind](https://kind.sigs.k8s.io/) 构建了一套轻量本地 Kubernetes 部署方案，通过 `magicrew-cli` 一键完成环境检查、本地镜像仓库、集群创建、基础设施（MySQL / Redis / RabbitMQ / MinIO）及业务服务的全流程编排，开箱即用。
+**前置要求：** Docker + curl，支持 macOS 和 Linux（Windows 支持即将上线）。
 
-部署工具链目前正在整理中，即将开源，敬请期待。
+```bash
+curl -fsSL https://getmagicrew.sh | bash
+```
+
+一条命令搞定一切——集群创建、基础设施、服务部署，全程自动。完成后：
+
+- Web 访问：**http://localhost:38080**
+- 清理环境：`magicrew teardown`
+
+→ [完整部署指南](./docs/zh/development/deploy/docker.md)
 
 ### 云服务版本
 
