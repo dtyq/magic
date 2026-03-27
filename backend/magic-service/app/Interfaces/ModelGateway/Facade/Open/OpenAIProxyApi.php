@@ -7,13 +7,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
-use App\Application\Kernel\Enum\MagicOperationEnum;
-use App\Application\Kernel\Enum\MagicResourceEnum;
-use App\Application\ModelGateway\Service\AiAbilityConnectivityTestAppService;
 use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
-use App\Domain\ModelGateway\Entity\Dto\AiAbilityConnectivityTestRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
@@ -24,7 +20,6 @@ use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Infrastructure\Util\Context\RequestCoContext;
-use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Infrastructure\Util\RequestUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
@@ -41,9 +36,6 @@ class OpenAIProxyApi extends AbstractOpenApi
 
     #[Inject]
     protected ImageLLMAppService $imageLLMAppService;
-
-    #[Inject]
-    protected AiAbilityConnectivityTestAppService $aiAbilityConnectivityTestAppService;
 
     public function chatCompletions(RequestInterface $request)
     {
@@ -180,34 +172,6 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         $response = $this->imageLLMAppService->imageConvertHighV2($imageConvertHighDTO);
         return $response->toArray();
-    }
-
-    /**
-     * Ability connectivity test endpoint.
-     *
-     * POST /v2/connectivity-test
-     *
-     * Request Body (JSON):
-     * - ai_ability: Ability code or alias (required)
-     *
-     * Headers:
-     * - Authorization: Bearer {access_token}
-     *
-     * @return array Unified connectivity test response
-     */
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::QUERY)]
-    public function connectivityTest(RequestInterface $request)
-    {
-        $requestData = $request->all();
-
-        $connectivityTestRequestDTO = AiAbilityConnectivityTestRequestDTO::createDTO($requestData);
-        if (defined('MAGIC_ACCESS_TOKEN')) {
-            $connectivityTestRequestDTO->setAccessToken(MAGIC_ACCESS_TOKEN);
-        }
-        $connectivityTestRequestDTO->setIps($this->getClientIps());
-        $this->enrichRequestDTO($connectivityTestRequestDTO, $request->getHeaders());
-
-        return $this->aiAbilityConnectivityTestAppService->connectivityTest($connectivityTestRequestDTO);
     }
 
     /**
