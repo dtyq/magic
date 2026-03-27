@@ -122,7 +122,7 @@
 		"supportVision": "支持视觉识别",
 		"supportVisionDesc": "是否支持识别完全取决于模型本身，请自行测试该模型的视觉识别能力可用性",
 		"uploadModalIcon": "上传新图标",
-		"uploadModalIconDesc": "尺寸不可小于 128*128 像素，格式支持 JPG/PNG，最大 200 KB",
+		"uploadModalIconDesc": "上传格式支持 JPG/PNG",
 		"uploadSizeError": "图片尺寸不可小于 128*128 像素！",
 		"uploadSizeError2": "图片必须小于 200KB！",
 		"uploadTypeError": "图片必须为 JPG/PNG 格式！",

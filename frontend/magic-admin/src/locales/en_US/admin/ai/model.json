@@ -121,7 +121,7 @@
 		"supportVision": "Support Visual Recognition",
 		"supportVisionDesc": "Whether it supports recognition depends entirely on the model itself. Please test the visual recognition capability availability of this model yourself",
 		"uploadModalIcon": "Upload New Icon",
-		"uploadModalIconDesc": "Size must not be smaller than 128*128 pixels, formats supported are JPG/PNG, maximum 200 KB",
+		"uploadModalIconDesc": "Upload formats supported are JPG/PNG",
 		"uploadSizeError": "Image size must not be smaller than 128*128 pixels!",
 		"uploadSizeError2": "Image must be less than 200KB!",
 		"uploadTypeError": "Image must be in JPG/PNG format!",
