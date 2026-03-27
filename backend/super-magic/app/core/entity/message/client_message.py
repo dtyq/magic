@@ -139,7 +139,7 @@ class ChatClientMessage(ClientMessage):
     mentions: List[Dict[str, Any]] = []  # 新增mentions字段，支持file/mcp/agent等类型的mention
     context_type: ContextType = ContextType.NORMAL  # 默认为普通消息
     task_mode: TaskMode = TaskMode.PLAN  # 任务模式，默认为规划模式（保留但不再使用）
-    agent_mode: Union[AgentMode, str] = AgentMode.GENERAL  # Agent模式，支持枚举或自定义Agent ID
+    agent_mode: Optional[Union[AgentMode, str]] = None  # Agent模式，支持枚举或自定义Agent ID；None 表示未显式携带，运行时归一化为 GENERAL
     remark: Optional[str] = None  # 备注信息，用于中断消息等场景
     mcp_config: Optional[Dict[str, Any]] = None  # MCP 服务器配置，格式与 config/mcp.json 保持一致
     metadata: Optional[Metadata] = None  # 元数据信息，使用强类型

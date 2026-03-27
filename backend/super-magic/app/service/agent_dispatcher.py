@@ -436,6 +436,20 @@ class AgentDispatcher(Base):
             logger.warning(f"[AgentDispatcher] 读取上次 dispatch 消息快照失败，忽略: {e}")
             return None
 
+    async def _fill_from_last_dispatch_message(self, message: ChatClientMessage) -> None:
+        """用上次保存的消息快照补全本次未显式设置的字段（白名单控制，后续扩展在此处加 case）。"""
+        last = await self.get_last_dispatch_message() or {}
+        if not last:
+            return
+        # agent_mode：当前未显式携带（None）时从 last 取
+        if message.agent_mode is None and last.get("agent_mode"):
+            message.agent_mode = last["agent_mode"]
+        # agent_code：当前未携带时从 last 取
+        current_agent_code = (message.dynamic_config or {}).get("agent_code")
+        last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
+        if not current_agent_code and last_agent_code:
+            message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+
     async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
         """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
         from app.utils.async_file_utils import async_write_json
@@ -462,18 +476,6 @@ class AgentDispatcher(Base):
         agent_context.register_run_cleanup() immediately after this method returns —
         it will run when the new run ends or is interrupted.
         """
-        # 用上次保存的消息快照补全本次未显式设置的字段（白名单控制，后续扩展在此处加 case）
-        last = await self.get_last_dispatch_message() or {}
-        if last:
-            # agent_mode：当前未携带时从 last 取
-            if not message.agent_mode and last.get("agent_mode"):
-                message.agent_mode = last["agent_mode"]
-            # agent_code：当前未携带时从 last 取
-            current_agent_code = (message.dynamic_config or {}).get("agent_code")
-            last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
-            if not current_agent_code and last_agent_code:
-                message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
-
         await self.agent_context.stop_run(reason="new message")
         self.agent_context.reset_run_state()
 
@@ -548,6 +550,13 @@ class AgentDispatcher(Base):
                     ),
                 )
                 return
+
+
+        await self._fill_from_last_dispatch_message(message)
+
+        # fill 后仍为 None 说明历史快照也没有，归一化为默认模式
+        if message.agent_mode is None:
+            message.agent_mode = AgentMode.GENERAL
 
         self.agent_context.set_chat_client_message(message)
 
