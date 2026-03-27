@@ -1,6 +1,7 @@
 <div align="left">
   <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9" height="20"></a>
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9" height="20"></a>
+  <a href="#自托管部署"><img alt="现在部署！" src="https://img.shields.io/badge/现在部署%21-red" height="20"></a>
 </div>
 
 # 🔥 超级麦吉 - 企业级开源 AI Agent 平台
@@ -23,7 +24,7 @@
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
     <a href="https://www.magicrew.ai" target="_blank">
-      <img alt="Static Badge" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
+      <img alt="Static Badge" src="https://img.shields.io/badge/Built with Magic 🔮-301AD2">
     </a>
   </p>
 </div>
