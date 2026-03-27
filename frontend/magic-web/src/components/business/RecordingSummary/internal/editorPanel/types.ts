@@ -19,7 +19,6 @@ export interface RecordSummaryEditorPanelProps {
 	iconSize: number
 	topicMode?: TopicMode
 	isTaskRunning?: boolean
-	onInterrupt?: () => void
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => ReactNode
 	selectedModel?: ModelItem | null
 	selectedImageModel?: ModelItem | null

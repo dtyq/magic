@@ -13,6 +13,7 @@ import useSyncEditorStoreState from "./hooks/useSyncEditorStoreState"
 import useEditorSlotContent from "./hooks/useEditorSlotContent"
 import useUploadMentionFlow from "./hooks/useUploadMentionFlow"
 import useMessageSendHandler from "./hooks/useMessageSendHandler"
+import useCompressContext from "./hooks/useCompressContext"
 import useMessageEditorImperativeRef from "./hooks/useMessageEditorImperativeRef"
 import {
 	EDITOR_ICON_SIZE_MAP,
@@ -26,10 +27,7 @@ import {
 	ModelItem,
 	ToolbarButton,
 } from "./types"
-import {
-	McpMentionData,
-	MentionItemType,
-} from "@/components/business/MentionPanel/types"
+import { McpMentionData, MentionItemType } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -47,6 +45,9 @@ import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import useMessageEditorPubSub from "./hooks/useMessageEditorPubSub"
 import { useMessageEditorMarker } from "./hooks/useMessageEditorMarker"
 import { hasToolbarButton, resolveMessageEditorModules } from "./utils/moduleConfig"
+import { userStore } from "@/models/user"
+import { useTaskInterrupt } from "../../hooks/useTaskInterrupt"
+import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 
 export type MessageEditorRef = MessageEditorRefType & {
 	/**
@@ -72,7 +73,6 @@ export const MessageEditorContainer = observer(
 				placeholder,
 				onFileUpload,
 				isTaskRunning = false,
-				onInterrupt,
 				selectedTopic,
 				selectedProject,
 				draftKey,
@@ -89,6 +89,7 @@ export const MessageEditorContainer = observer(
 				isEditingQueueItem = false,
 				editorModeSwitch,
 				mentionPanelStore = GlobalMentionPanelStore,
+				projectFilesStore,
 				layoutConfig,
 				enableMessageSendByContent = false,
 			},
@@ -138,9 +139,13 @@ export const MessageEditorContainer = observer(
 			const uploadEnabled = resolvedModules.upload.enabled
 			const mcpButtonConfig = resolvedModules.mcp
 			const voiceInputEnabled = resolvedModules.voiceInput.enabled
+			const sendEnabled = resolvedModules.send.enabled
 			const shouldConfirmUploadDelete = resolvedModules.upload.confirmDelete
 
-			const { store, parentStore } = useResolvedEditorStore({ mentionPanelStore })
+			const { store, parentStore } = useResolvedEditorStore({
+				mentionPanelStore,
+				projectFilesStore,
+			})
 
 			const isMountedRef = useRef(true)
 			const isProjectContext = Boolean(selectedProject?.id)
@@ -185,6 +190,9 @@ export const MessageEditorContainer = observer(
 				fileUploadStore,
 				getEditor,
 				isProjectContext,
+				// The main editor can enqueue messages while loading, but it is
+				// still not a dedicated queue draft editor.
+				isQueueDraftMode: false,
 				confirmDelete: shouldConfirmUploadDelete,
 				onFileUpload,
 				runWithoutMentionRemoveSync,
@@ -218,6 +226,7 @@ export const MessageEditorContainer = observer(
 			)
 
 			const canSendMessage = useMemo(() => {
+				if (!sendEnabled) return false
 				if (hasLoadingMarker) return false
 				if (isEditingQueueItem) {
 					return isAllFilesUploaded && !isSending
@@ -230,6 +239,7 @@ export const MessageEditorContainer = observer(
 				store.editorStore.value,
 				isAllFilesUploaded,
 				isSending,
+				sendEnabled,
 			])
 
 			const sendButtonDisabled = !canSendMessage
@@ -262,8 +272,8 @@ export const MessageEditorContainer = observer(
 				enableFileDrop: uploadEnabled,
 				onFilesDropped: uploadEnabled
 					? (files) => {
-						addFiles(Array.from(files))
-					}
+							addFiles(Array.from(files))
+						}
 					: undefined,
 				onDataDropped: (data) => {
 					insertMentionFromDroppedData({ editor: tiptapEditorRef.current, data })
@@ -309,11 +319,13 @@ export const MessageEditorContainer = observer(
 				selectedTopic,
 				onKeyboardInput: handleKeyboardInput,
 				shouldEnableMention,
+				sendEnabled,
 				aiCompletionEnabled,
 				isOAuthInProgress: store.editorStore.isOAuthInProgress,
 				onFocus,
 				onBlur: handleBlur,
 				size,
+				topicMode,
 				mentionPanelStore,
 				shouldSkipRemoveSync: () => shouldSkipMentionRemoveSyncRef.current,
 				shouldRestoreRemovedMention,
@@ -335,6 +347,11 @@ export const MessageEditorContainer = observer(
 
 			const updateContent = useMemoizedFn((content: JSONContent | undefined) => {
 				store.editorStore.updateContent(content)
+			})
+
+			const { handleCompressContext } = useCompressContext({
+				updateContent,
+				handleSend,
 			})
 
 			const handleSendMessageByContent = useMemoizedFn(
@@ -488,14 +505,11 @@ export const MessageEditorContainer = observer(
 				setModels,
 			})
 
-			const handleInterrupt = useMemoizedFn(() => {
-				if (store.stopEventLoading) {
-					return
-				}
-				store.setStopEventLoading(true)
-				onInterrupt?.(() => {
-					store.setStopEventLoading(false)
-				})
+			const { handleInterrupt } = useTaskInterrupt({
+				selectedTopic: selectedTopic ?? null,
+				userId: userStore.user.userInfo?.user_id,
+				isStopping: store.stopEventLoading,
+				setIsStopping: store.setStopEventLoading,
 			})
 
 			const handleFileUploadClick = useCallback(
@@ -546,29 +560,55 @@ export const MessageEditorContainer = observer(
 				})
 			})
 
-			const handleClick = useMemoizedFn((e: React.MouseEvent) => {
-				const targetElement = e.target as HTMLElement
-				const target = targetElement.closest(
+			const handleProjectFileMentionClick = useMemoizedFn((target: EventTarget | null) => {
+				const targetElement =
+					target instanceof HTMLElement
+						? target
+						: target instanceof Text
+							? target.parentElement
+							: null
+
+				const mentionElement = targetElement?.closest(
 					"[data-mention-suggestion-char]",
 				) as HTMLElement | null
-				if (target) {
-					if (target.dataset && target.dataset.type === MentionItemType.PROJECT_FILE) {
-						try {
-							const data = JSON.parse(target.dataset.data || "{}")
-							const type = target.dataset.type
-							switch (type) {
-								case MentionItemType.PROJECT_FILE:
-									onFileClick?.(data)
-									break
-								default:
-									break
-							}
-						} catch (error) {
-							console.error(error)
-						}
+
+				if (
+					!mentionElement ||
+					mentionElement.dataset.type !== MentionItemType.PROJECT_FILE
+				) {
+					return false
+				}
+
+				try {
+					const data = JSON.parse(mentionElement.dataset.data || "{}")
+					if (openMessageFile(data)) {
+						return true
 					}
+
+					onFileClick?.(data)
+					return true
+				} catch (error) {
+					console.error(error)
+					return false
 				}
 			})
+
+			useEffect(() => {
+				const handleNativeClick = (event: MouseEvent) => {
+					handleProjectFileMentionClick(event.target)
+				}
+
+				let currentEditorDom: HTMLElement | null = null
+				const frameId = window.requestAnimationFrame(() => {
+					currentEditorDom = domRef.current?.querySelector(".ProseMirror") ?? null
+					currentEditorDom?.addEventListener("click", handleNativeClick, true)
+				})
+
+				return () => {
+					window.cancelAnimationFrame(frameId)
+					currentEditorDom?.removeEventListener("click", handleNativeClick, true)
+				}
+			}, [domRef, handleProjectFileMentionClick, tiptapEditor])
 
 			const handleCompositionStart = useMemoizedFn(() => {
 				store.editorStore.handleCompositionStart()
@@ -598,6 +638,7 @@ export const MessageEditorContainer = observer(
 				fileUploadStore: store.fileUploadStore,
 				shouldEnableMention,
 				uploadEnabled,
+				sendEnabled,
 				sendButtonDisabled,
 				showLoading,
 				isTaskRunning,
@@ -615,6 +656,7 @@ export const MessageEditorContainer = observer(
 				handleRemoveUploadedFile,
 				handleSend,
 				handleInterrupt,
+				handleCompressContext,
 				editorModeSwitch,
 				t,
 				updateEditorValue,
@@ -647,7 +689,6 @@ export const MessageEditorContainer = observer(
 					onPaste={handlePaste}
 					onCompositionStart={handleCompositionStart}
 					onCompositionEnd={handleCompositionEnd}
-					onClick={handleClick}
 					topBarLeftContent={topBarLeftContent}
 					topBarRightContent={topBarRightContent}
 					bottomLeftContent={bottomLeftContent}

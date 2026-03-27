@@ -12,6 +12,11 @@ from .get_skill_file_urls_parameter import GetSkillFileUrlsParameter
 from .import_skill_from_agent_parameter import ImportSkillFromAgentParameter
 from .add_agent_skills_parameter import AddAgentSkillsParameter
 from .delete_agent_skills_parameter import DeleteAgentSkillsParameter
+from .share_resource_id_parameter import ShareResourceIdParameter
+from .create_share_parameter import CreateShareParameter, TargetId
+from .find_similar_share_parameter import FindSimilarShareParameter
+from .cancel_share_parameter import CancelShareParameter
+from .get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
 
 __all__ = [
     'GetAgentDetailsParameter',
@@ -23,4 +28,10 @@ __all__ = [
     'ImportSkillFromAgentParameter',
     'AddAgentSkillsParameter',
     'DeleteAgentSkillsParameter',
+    'ShareResourceIdParameter',
+    'CreateShareParameter',
+    'TargetId',
+    'FindSimilarShareParameter',
+    'CancelShareParameter',
+    'GetLatestPublishedSkillVersionsParameter',
 ]

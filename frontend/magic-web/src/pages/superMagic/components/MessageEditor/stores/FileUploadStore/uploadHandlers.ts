@@ -1,7 +1,7 @@
 import { t } from "i18next"
 import { FileApi } from "@/apis"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import projectFilesStore from "@/stores/projectFiles"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { logger as Logger } from "@/utils/log"
 import { superMagicUploadTokenService } from "../../services/UploadTokenService"
 import {
@@ -18,6 +18,7 @@ interface UploadHandlersContext {
 	getTopicId: () => string
 	getStorageType: () => "workspace" | "topic"
 	getSource: () => UploadSource | undefined
+	getProjectFilesStore: () => ProjectFilesStore
 	trackSavedProjectFileId: (fileId?: string) => void
 	setFilesWithLimit: (updater: (prev: FileData[]) => FileData[]) => void
 	onFileProgressUpdate?: (
@@ -106,6 +107,7 @@ export function createUploadHandlers(context: UploadHandlersContext): UploadHand
 			}
 
 			pubsub.publish(PubSubEvents.Update_Attachments)
+			const projectFilesStore = context.getProjectFilesStore()
 
 			if (saveRes && projectFilesStore.currentSelectedProject?.id === projectId) {
 				const isAlreadyInList = saveRes.file_id
@@ -176,7 +178,7 @@ export function createUploadHandlers(context: UploadHandlersContext): UploadHand
 			typeof error === "string"
 				? error
 				: (error as { message?: string })?.message ||
-				t("fileUpload.uploadFailed", { ns: "super" })
+					t("fileUpload.uploadFailed", { ns: "super" })
 
 		context.setFilesWithLimit((prev) => {
 			const newFiles = [...prev]

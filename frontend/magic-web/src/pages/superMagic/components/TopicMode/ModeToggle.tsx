@@ -11,7 +11,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { isString } from "lodash-es"
 import { useMemoizedFn } from "ahooks"
 import { Check, ChevronsUpDown, MessageCirclePlus } from "lucide-react"
-import { ModeItem, TopicMode } from "../../pages/Workspace/types"
+import { CrewItem, TopicMode } from "../../pages/Workspace/types"
 import { useModeList } from "../MessagePanel/hooks/usePatternTabs"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent/index"
@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MessageEditorSize } from "../MessageEditor/types"
 import { DrawerTitle } from "@/components/shadcn-ui/drawer"
+import ModeAvatar from "../ModeAvatar"
 
 const TRIGGER_SIZE_MAP: Record<MessageEditorSize, string> = {
 	small: "h-6 px-1.5 py-1",
@@ -63,7 +64,7 @@ function ModeToggle({
 	const [open, setOpen] = useState(false)
 	const [showNewTopicModal, setShowNewTopicModal] = useState<{
 		visible: boolean
-		mode: ModeItem["mode"] | null
+		mode: CrewItem["mode"] | null
 	}>({
 		visible: false,
 		mode: null,
@@ -99,7 +100,7 @@ function ModeToggle({
 	})
 
 	const handleModeChange = useMemoizedFn(
-		(mode: ModeItem["mode"], event?: ReactMouseEvent<HTMLElement>) => {
+		(mode: CrewItem["mode"], event?: ReactMouseEvent<HTMLElement>) => {
 			if (allowChangeMode) {
 				onModeChange?.(mode.identifier as TopicMode)
 				setOpen(false)
@@ -152,14 +153,12 @@ function ModeToggle({
 		}, 0)
 	})
 
-	const renderModeIcon = useMemoizedFn((mode: ModeItem["mode"], iconSize: number) => {
+	const renderModeIcon = useMemoizedFn((mode: CrewItem["mode"], iconSize: number) => {
 		return (
-			<IconComponent
-				iconType={mode.icon_type}
-				iconUrl={mode.icon_url}
-				selectedIcon={mode.icon}
-				size={iconSize}
-				iconColor={mode.color}
+			<ModeAvatar
+				mode={mode}
+				iconSize={iconSize}
+				data-testid={`mode-toggle-icon-${mode.identifier}`}
 			/>
 		)
 	})
@@ -189,9 +188,9 @@ function ModeToggle({
 	})
 
 	const renderModeItemInner = useMemoizedFn(
-		(tab: ModeItem, isSelected: boolean, compact: boolean) => {
+		(tab: CrewItem, isSelected: boolean, compact: boolean) => {
 			const modeLabel = resolveModeText(tab.mode.name, tCrewCreate("untitledCrew"))
-			const modeDescription = resolveModeText(tab.mode.placeholder)
+			const modeDescription = resolveModeText(tab.mode.description)
 
 			return (
 				<>
@@ -201,9 +200,7 @@ function ModeToggle({
 							compact ? "items-center" : "items-start",
 						)}
 					>
-						<div className="flex size-5 shrink-0 items-center justify-center">
-							{renderModeIcon(tab.mode, 20)}
-						</div>
+						{renderModeIcon(tab.mode, 40)}
 						<div
 							className={cn(
 								"min-w-0 flex-1",
@@ -230,7 +227,7 @@ function ModeToggle({
 	)
 
 	const renderDropdownModeItem = useCallback(
-		(tab: ModeItem) => {
+		(tab: CrewItem) => {
 			const isSelected = topicMode === tab.mode.identifier
 
 			return (
@@ -258,7 +255,7 @@ function ModeToggle({
 	)
 
 	const renderStaticModeItem = useCallback(
-		(tab: ModeItem) => {
+		(tab: CrewItem) => {
 			const isSelected = topicMode === tab.mode.identifier
 
 			return (
@@ -364,7 +361,7 @@ function ModeToggle({
 		return (
 			<div
 				className={cn(
-					"[WebkitTapHighlightColor:transparent] flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-background shadow-xs outline-none hover:bg-sidebar/50 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-sidebar dark:hover:bg-muted",
+					"[WebkitTapHighlightColor:transparent] flex shrink-0 cursor-pointer items-center gap-2 outline-none hover:bg-sidebar/50 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-sidebar dark:hover:bg-muted",
 					TRIGGER_SIZE_MAP[size],
 				)}
 				data-testid="mode-toggle-button"

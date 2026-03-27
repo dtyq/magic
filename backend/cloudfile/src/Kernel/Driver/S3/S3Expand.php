@@ -392,6 +392,8 @@ class S3Expand implements ExpandInterface
 
     private function downloadFileDirectly(string $filePath, string $localPath): void
     {
+        $localFile = null;
+
         try {
             $result = $this->client->getObject([
                 'Bucket' => $this->getBucket(),
@@ -407,10 +409,12 @@ class S3Expand implements ExpandInterface
                 $result['Body'],
                 Utils::streamFor($localFile)
             );
-
-            fclose($localFile);
         } catch (Exception $e) {
             throw ChunkDownloadException::createTempFileOperationFailed('Failed to download file directly: ' . $e->getMessage(), '');
+        } finally {
+            if (is_resource($localFile)) {
+                fclose($localFile);
+            }
         }
     }
 

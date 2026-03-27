@@ -1,9 +1,11 @@
 import { ChevronLeft } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useMemoizedFn } from "ahooks"
+import { useEffect } from "react"
 import { useNavigate } from "@/routes/hooks/useNavigate"
 import { Button } from "@/components/shadcn-ui/button"
 import { useTranslation } from "react-i18next"
+import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import { useGlobalLanguage, useSupportLanguageOptions } from "@/models/config/hooks"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
@@ -13,6 +15,7 @@ import { Checkbox } from "@/components/shadcn-ui/checkbox"
 function LanguageSelector() {
 	const { t } = useTranslation("interface")
 	const navigate = useNavigate()
+	const isLanguageSwitchVisible = isLanguageSwitchEnabled()
 
 	const currentLanguage = useGlobalLanguage()
 	const options = useSupportLanguageOptions()
@@ -31,6 +34,12 @@ function LanguageSelector() {
 	const handleLanguageChange = useMemoizedFn((language: Config.LanguageValue) => {
 		service.get<ConfigService>("configService").setLanguage(language)
 	})
+
+	useEffect(() => {
+		if (!isLanguageSwitchVisible) handleBack()
+	}, [handleBack, isLanguageSwitchVisible])
+
+	if (!isLanguageSwitchVisible) return null
 
 	return (
 		<div className="flex h-full w-full flex-col bg-sidebar">

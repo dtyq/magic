@@ -10,7 +10,6 @@ import {
 	IconFile,
 	IconMessageCircleShare,
 	IconMessageCirclePlus,
-	IconAlertTriangleFilled,
 	IconFolderSymlink,
 	IconReplace,
 	IconFolders,
@@ -18,7 +17,7 @@ import {
 } from "@tabler/icons-react"
 import IconOpenWindow from "@/enhance/tabler/icons-react/icons/IconOpenWindow"
 import MagicIcon from "@/components/base/MagicIcon"
-import { Flex, type MenuProps } from "antd"
+import { Flex } from "antd"
 import { AttachmentSource, type AttachmentItem } from "./types"
 import { useStyles } from "../style"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -29,8 +28,10 @@ import VIPTag from "../../VIPTag"
 import { IMAGE_EXTENSIONS } from "../../Detail/hooks/useDetailActions"
 import { DownloadImageMode } from "../../../pages/Workspace/types"
 import { createFileMenuItems } from "../components/hooks/useFileMenuItems"
+import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { normalizeMenuItems, type TopicFilesMenuItem } from "../utils/menu-items"
 
-type MenuItem = NonNullable<MenuProps["items"]>[number]
+type MenuItem = TopicFilesMenuItem
 
 interface UseContextMenuOptions {
 	handleUploadFile: (item?: AttachmentItem) => void
@@ -164,6 +165,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const isMobile = useIsMobile()
+	const { hideAddToNewChat, hideCopyTo, hideMoveTo, hideShare } = useFileActionVisibility()
 	const {
 		handleUploadFile,
 		handleUploadFolder,
@@ -308,7 +310,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => handleStartRename(item),
 					disabled: isMoving,
 				},
-				...(handleMoveFile
+				...(handleMoveFile && !hideMoveTo
 					? [
 							{
 								key: "moveFile",
@@ -321,7 +323,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]
 					: []),
-				...(onCopyFile
+				...(onCopyFile && !hideCopyTo
 					? [
 							{
 								key: "copyFile",
@@ -360,7 +362,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								),
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
-						]
+						].filter((menuItem) =>
+							hideAddToNewChat ? menuItem.key !== "addSelectedToNewChat" : true,
+						)
 					: [
 							{
 								key: "addToCurrentChat",
@@ -419,7 +423,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								),
 								onClick: () => handleAddToNewChat(item),
 							},
-						]),
+						].filter((menuItem) =>
+							hideAddToNewChat ? menuItem.key !== "addToNewChat" : true,
+						)),
 				{ type: "divider" as const },
 				// 文件夹下载菜单：根据metadata决定显示方式
 				...(item.metadata
@@ -478,12 +484,16 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]),
 				{ type: "divider" as const },
-				{
-					key: "share",
-					label: t("topicFiles.contextMenu.shareFile"),
-					icon: <MagicIcon component={IconShare} stroke={2} size={18} />,
-					onClick: () => handleShareItem(item),
-				},
+				...(!hideShare
+					? [
+							{
+								key: "share",
+								label: t("topicFiles.contextMenu.shareFile"),
+								icon: <MagicIcon component={IconShare} stroke={2} size={18} />,
+								onClick: () => handleShareItem(item),
+							},
+						]
+					: []),
 				...(handleEnterMultiSelectMode && !isSelectMode
 					? [
 							{
@@ -535,7 +545,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 			)
 
-			return filterMenuItems?.(menuItems) || menuItems
+			return normalizeMenuItems(filterMenuItems?.(menuItems) || menuItems)
 		} else {
 			// 文件菜单
 			const canConvertToPdf = isConvertiblePdf(item.file_extension)
@@ -556,7 +566,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => handleStartRename(item),
 					disabled: isMoving,
 				},
-				...(handleMoveFile
+				...(handleMoveFile && !hideMoveTo
 					? [
 							{
 								key: "moveFile",
@@ -569,7 +579,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]
 					: []),
-				...(onCopyFile
+				...(onCopyFile && !hideCopyTo
 					? [
 							{
 								key: "copyFile",
@@ -619,7 +629,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								),
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
-						]
+						].filter((menuItem) =>
+							hideAddToNewChat ? menuItem.key !== "addSelectedToNewChat" : true,
+						)
 					: [
 							{
 								key: "addToCurrentChat",
@@ -678,7 +690,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								),
 								onClick: () => handleAddToNewChat(item),
 							},
-						]),
+						].filter((menuItem) =>
+							hideAddToNewChat ? menuItem.key !== "addToNewChat" : true,
+						)),
 				{ type: "divider" as const },
 			)
 
@@ -767,12 +781,16 @@ export function useContextMenu(options: UseContextMenuOptions) {
 
 			menuItems.push(
 				{ type: "divider" as const },
-				{
-					key: "share",
-					label: t("topicFiles.contextMenu.shareFile"),
-					icon: <MagicIcon component={IconShare} stroke={2} size={18} />,
-					onClick: () => handleShareItem(item),
-				},
+				...(!hideShare
+					? [
+							{
+								key: "share",
+								label: t("topicFiles.contextMenu.shareFile"),
+								icon: <MagicIcon component={IconShare} stroke={2} size={18} />,
+								onClick: () => handleShareItem(item),
+							},
+						]
+					: []),
 				...(handleEnterMultiSelectMode && !isSelectMode
 					? [
 							{
@@ -825,7 +843,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			)
 		}
 
-		return filterMenuItems?.(menuItems) || menuItems
+		return normalizeMenuItems(filterMenuItems?.(menuItems) || menuItems)
 	}
 
 	return {

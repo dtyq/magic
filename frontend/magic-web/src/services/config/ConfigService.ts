@@ -7,7 +7,10 @@ import { configStore } from "@/models/config/stores"
 import { isString } from "lodash-es"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import { Config } from "@/models/config/types"
+import { getForcedLanguage, resolveLanguageSelection } from "@/models/config/languagePolicy"
+import { SupportLocales } from "@/constants/locale"
 import { env } from "@/utils/env"
+import { normalizeLocale } from "@/utils/locale"
 
 export class ConfigService {
 	private readonly commonApi: typeof apis.CommonApi
@@ -41,15 +44,54 @@ export class ConfigService {
 		}
 
 		// 国际化语言初始化
+		const initialLanguage = configStore.i18n.language
+
+		const temporaryLanguage = this.getTemporaryLanguageFromUrl()
+		if (temporaryLanguage) {
+			// Apply URL language before any persisted sync.
+			configStore.i18n.setTemporaryLanguage(temporaryLanguage)
+		}
+
 		const locale = await config.getLocaleConfig()
+		const forcedLanguage = getForcedLanguage()
+		if (forcedLanguage) {
+			await config.setLocaleConfig(forcedLanguage as Config.LanguageValue)
+			// Keep the session override while syncing storage.
+			configStore.i18n.syncLanguage(forcedLanguage)
+			return
+		}
+
 		if (!locale) {
-			const defaultLocale = configStore.i18n.language
+			const defaultLocale = initialLanguage
 			await config.setLocaleConfig(
 				options.initializeI18n || (defaultLocale as Config.LanguageValue),
 			)
-			configStore.i18n.setLanguage(options.initializeI18n || defaultLocale)
+			configStore.i18n.syncLanguage(options.initializeI18n || defaultLocale)
 		} else {
-			configStore.i18n.setLanguage(locale)
+			configStore.i18n.syncLanguage(locale)
+		}
+	}
+
+	private getTemporaryLanguageFromUrl(): Config.LanguageValue | null {
+		if (typeof window === "undefined") return null
+
+		try {
+			const searchParams = new URL(window.location.href).searchParams
+			const rawLanguage = searchParams.get("lang") || searchParams.get("locale")
+			if (!rawLanguage) return null
+
+			const normalizedLanguage = normalizeLocale(rawLanguage.trim())
+			if (
+				normalizedLanguage !== SupportLocales.zhCN &&
+				normalizedLanguage !== SupportLocales.enUS
+			) {
+				return null
+			}
+
+			return normalizedLanguage
+		} catch (error) {
+			console.error("Failed to get temporary language from URL:", error)
+			return null
 		}
 	}
 
@@ -151,16 +193,19 @@ export class ConfigService {
 	 * @description 设置国际化语言
 	 */
 	setLanguage(lang: Config.LanguageValue) {
-		if (configStore.i18n.language === lang) {
+		const targetLanguage = resolveLanguageSelection(lang) as Config.LanguageValue
+		const hasTemporaryLanguage = Boolean(configStore.i18n.temporaryLanguage)
+
+		if (!hasTemporaryLanguage && configStore.i18n.language === targetLanguage) {
 			return
 		}
 		const config = new ConfigRepository()
-		config.setLocaleConfig(lang).catch(console.error)
-		configStore.i18n.setLanguage(lang)
-		BroadcastChannelSender.switchLanguage(lang)
+		config.setLocaleConfig(targetLanguage).catch(console.error)
+		configStore.i18n.setLanguage(targetLanguage)
+		BroadcastChannelSender.switchLanguage(targetLanguage)
 		import("@/lib/dayjs")
 			.then((module) => {
-				module.switchLanguage?.(lang)
+				module.switchLanguage?.(targetLanguage)
 			})
 			.catch(console.error)
 	}

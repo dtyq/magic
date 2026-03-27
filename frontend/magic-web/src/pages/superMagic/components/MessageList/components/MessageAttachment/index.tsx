@@ -9,8 +9,9 @@ import FolderIcon from "@/pages/superMagic/assets/svg/file-folder.svg"
 import { useTranslation } from "react-i18next"
 import { getAttachmentType } from "./utils"
 import { isEmpty } from "lodash-es"
-import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/useIsMobile"
+import { openMessageFile } from "../../utils/openMessageFile"
 
 export const Attachment = ({
 	attachments,
@@ -22,6 +23,7 @@ export const Attachment = ({
 	onFileClick?: (fileItem: any) => void
 }) => {
 	const { t } = useTranslation("super")
+	const isMobile = useIsMobile()
 	const [expanded, setExpanded] = useState(false)
 	const toggleExpanded = (e: any) => {
 		e.stopPropagation()
@@ -40,10 +42,13 @@ export const Attachment = ({
 	const show = Array.isArray(attachments) && attachments.length > 0
 
 	const handleOpenFile = (item: any) => {
+		if (!isMobile && item.file_id) {
+			openMessageFile(item)
+			return
+		}
+
 		if (onFileClick && item.file_id) {
 			onFileClick(item)
-
-			pubsub.publish(PubSubEvents.Locate_File_In_Tree, item.file_id)
 			return
 		}
 

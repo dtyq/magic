@@ -207,7 +207,7 @@ class RemoteTool(BaseTool):
         except Exception as e:
             error_msg = f"远程工具执行异常: {str(e)}"
             logger.error(f"执行远程工具 '{self.get_effective_name()}' 异常: {e}")
-            return ToolResult(error=error_msg)
+            return ToolResult.error(error_msg)
 
     def __str__(self) -> str:
         """字符串表示"""

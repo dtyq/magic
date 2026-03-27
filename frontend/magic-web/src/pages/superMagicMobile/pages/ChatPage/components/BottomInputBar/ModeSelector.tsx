@@ -1,16 +1,13 @@
 import { useState } from "react"
 import { ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import IconComponent from "@/pages/superMagic/components/IconViewComponent/index"
-import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
+import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import { roleStore } from "@/pages/superMagic/stores/RoleStore"
 import CrewSelectModal from "../CrewSelectModal"
 import { useMemoizedFn } from "ahooks"
-import { ModeItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { CrewItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { observer } from "mobx-react-lite"
-
-const crewIconWrapperVariants = "flex shrink-0 items-center justify-center size-5"
 
 interface ModeSelectorProps {
 	className?: string
@@ -25,56 +22,47 @@ export default observer(function ModeSelector({
 }: ModeSelectorProps) {
 	const currentCrew = roleStore.currentRole
 
-	const selectedMode = superMagicModeService.getModeConfigWithLegacy(currentCrew)
+	const selectedCrew = superMagicModeService.getModeConfigWithLegacy(currentCrew)
 
-	const [modeSelectOpen, setModeSelectOpen] = useState(false)
+	const [crewSelectOpen, setCrewSelectOpen] = useState(false)
 
-	const handleCrewSelect = useMemoizedFn((mode: ModeItem) => {
-		roleStore.setCurrentRole(mode.mode.identifier as TopicMode)
+	const handleCrewSelect = useMemoizedFn((crew: CrewItem) => {
+		roleStore.setCurrentRole(crew.mode.identifier as TopicMode)
 	})
 
 	const handleClick = useMemoizedFn(() => {
-		setModeSelectOpen(true)
+		setCrewSelectOpen(true)
 	})
 
 	return (
 		<>
 			<div
 				className={cn(
-					"flex h-10 shrink-0 items-center gap-1 px-2.5",
-					showBorder && "rounded-full border border-foreground",
+					"flex h-10 shrink-0 items-center",
+					showBorder
+						? "gap-1 rounded-full border-2 border-foreground bg-background px-1 py-1 shadow-sm"
+						: "gap-1 pl-1.5 pr-2.5",
 					className,
 				)}
+				data-testid="mobile-mode-selector-trigger"
 				onClick={handleClick}
 			>
-				{selectedMode && (
-					<div className={cn(crewIconWrapperVariants)}>
-						{selectedMode.mode.icon_url ? (
-							<img
-								src={selectedMode.mode.icon_url}
-								alt="icon"
-								width={iconSize}
-								height={iconSize}
-								draggable={false}
-							/>
-						) : (
-							<IconComponent
-								selectedIcon={selectedMode.mode.icon || ""}
-								size={iconSize}
-								iconColor={selectedMode.mode.color || "#000"}
-							/>
-						)}
-					</div>
+				{selectedCrew && (
+					<ModeAvatar
+						mode={selectedCrew.mode}
+						iconSize={iconSize}
+						data-testid="mobile-mode-selector-avatar"
+					/>
 				)}
-				<ChevronsUpDown size={16} />
+				<ChevronsUpDown size={16} className="text-foreground" />
 			</div>
 
 			{/* 角色选择弹窗 */}
 			<CrewSelectModal
-				visible={modeSelectOpen}
+				visible={crewSelectOpen}
 				modes={superMagicModeService.modeList}
 				selectedCrew={currentCrew}
-				onClose={() => setModeSelectOpen(false)}
+				onClose={() => setCrewSelectOpen(false)}
 				onSelectCrew={handleCrewSelect}
 			/>
 		</>

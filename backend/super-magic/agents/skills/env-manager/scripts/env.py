@@ -34,12 +34,12 @@ def _setup_project_root() -> Path:
 def get_env_file() -> Path:
     root = _setup_project_root()
     try:
-        from app.paths import PathManager as _PM
+        from app.path_manager import PathManager as _PM
         if not getattr(_PM, "_initialized", False):
             _PM.set_project_root(root)
     except Exception:
         pass
-    from app.paths import PathManager
+    from app.path_manager import PathManager
     return PathManager.get_workspace_dir() / ".magic" / "skills" / ".env"
 
 

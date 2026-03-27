@@ -7,7 +7,9 @@ import {
 } from "./types"
 
 function MentionNodeView(props: ReactNodeViewProps) {
-	const attrs = props.node.attrs as TiptapMentionAttributes
+	const attrs = props.node.attrs as TiptapMentionAttributes & {
+		mentionSuggestionChar?: string
+	}
 	const options = props.extension.options as MentionPanelPluginOptions
 	const Renderer = options.nodeViewRenderers?.[attrs.type]
 
@@ -19,6 +21,7 @@ function MentionNodeView(props: ReactNodeViewProps) {
 		<NodeViewWrapper
 			as="span"
 			className="magic-mention"
+			data-mention-suggestion-char={attrs.mentionSuggestionChar || "@"}
 			data-type={attrs.type}
 			data-data={JSON.stringify(attrs.data || {})}
 			contentEditable={false}

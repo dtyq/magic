@@ -16,7 +16,7 @@ from agentlang.utils.retry import retry_with_exponential_backoff
 from agentlang.utils.tool_param_utils import parse_multiline_kv
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, TerminalContent, ToolDetail
 from app.utils.async_file_utils import async_copy2, async_exists, async_write_text, async_read_text, async_try_read_text
@@ -472,7 +472,7 @@ Usage scenarios:
 
 
 @tool()
-class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], WorkspaceGuardTool[AnalyzeAudioProjectParams]):
+class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], WorkspaceTool[AnalyzeAudioProjectParams]):
     """<!--zh
     执行音频分析，并行调用多个AI智能体执行生成章节分析、内容总结及可选分析（权力动态、意图、量化数据、思维导图、洞察、金句）文件。
     最后生成 index.html 完成 Magic Project 构建。
@@ -499,29 +499,26 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
             logger.info(f"使用模型进行音频分析: {model_id}")
 
             # 2. 获取安全路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-
+            project_path = self.resolve_path(params.project_path)
             # 3. 读取项目配置
             config = await self._load_project_config(project_path)
             if not config:
-                return ToolResult(error=f"无法读取项目配置文件: {project_path}/magic.project.js")
+                return ToolResult.error(f"无法读取项目配置文件: {project_path}/magic.project.js")
 
             # 4. 读取录音文字稿（必须）
             transcript_file = config.get("files", {}).get("transcript")
             if not transcript_file:
-                return ToolResult(error="项目配置中缺少文字稿文件路径")
+                return ToolResult.error("项目配置中缺少文字稿文件路径")
 
             transcript_path = project_path / transcript_file
             transcript = await async_try_read_text(transcript_path)
             if not transcript:
-                return ToolResult(error=f"无法读取文字稿文件: {transcript_path}，此文件是必须的")
+                return ToolResult.error(f"无法读取文字稿文件: {transcript_path}，此文件是必须的")
 
             # 5. 校验转写纠错指导（必填，且不允许空字符串）
             transcript_correction_guidance = params.transcript_correction_guidance.strip()
             if not transcript_correction_guidance:
-                return ToolResult(error="参数 transcript_correction_guidance 不能为空。即使未发现错误，也请传入说明。")
+                return ToolResult.error("参数 transcript_correction_guidance 不能为空。即使未发现错误，也请传入说明。")
 
             # 6. 读取附加上下文文件（可选）
             context_contents = await self._read_context_files(project_path, params.context_files, config)
@@ -624,7 +621,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
                         logger.warning(f"分析类型 {analysis_type} 未在项目配置中定义，已跳过")
 
             if not tasks:
-                return ToolResult(error="没有可执行的分析任务，请检查 specified_analysis_types 参数")
+                return ToolResult.error("没有可执行的分析任务，请检查 specified_analysis_types 参数")
 
             logger.info(f"准备执行 {len(tasks)} 个分析任务: {task_names}")
 
@@ -681,7 +678,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
                 failed_core_tasks = [task for task in core_tasks if task in task_names and task in failed_tasks]
                 error_msg = f"核心分析任务全部失败: {', '.join(failed_core_tasks)}。至少需要完成 topics 或 summary 中的一个。"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             logger.info(f"核心任务完成情况: {completed_core_tasks}")
 
@@ -758,7 +755,7 @@ class AnalyzeAudioProject(AbstractFileTool[AnalyzeAudioProjectParams], Workspace
 - 说话人标识用 Speaker-1、Speaker-2 等
 - 不要死板套用格式，根据内容灵活组织"""
 
-            return ToolResult(error=error_msg)
+            return ToolResult.error(error_msg)
 
     async def _load_project_config(self, project_path: Path) -> Optional[Dict]:
         """读取项目配置文件"""
@@ -976,12 +973,8 @@ if (typeof window.magicProjectConfigure === 'function') {{
             if not relative_path or not relative_path.strip():
                 continue
 
-            # 使用 get_safe_path 获取相对于工作空间的安全路径
-            file_path, error = self.get_safe_path(relative_path)
-            if error:
-                logger.warning(f"上下文文件路径不安全，已跳过: {relative_path}")
-                continue
-
+            # 使用 resolve_path 解析路径（相对→workspace，绝对→直接使用）
+            file_path = self.resolve_path(relative_path)
             content = await async_try_read_text(file_path)
             if content:
                 context_contents[relative_path] = content

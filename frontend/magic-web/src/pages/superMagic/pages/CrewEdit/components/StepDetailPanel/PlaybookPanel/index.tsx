@@ -126,7 +126,7 @@ export const PlaybookPanel = observer(function PlaybookPanel() {
 
 	return (
 		<div
-			className="mr-2 flex h-full flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-background p-3.5"
+			className="flex h-full flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-background p-3.5"
 			data-testid="playbook-panel"
 		>
 			{confirmDialog}

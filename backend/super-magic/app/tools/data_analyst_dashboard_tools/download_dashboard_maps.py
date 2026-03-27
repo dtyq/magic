@@ -15,7 +15,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 
 from app.tools.data_analyst_dashboard_tools.validators import (
@@ -60,7 +60,7 @@ Area names to download (1-10), supports: China, provinces (e.g. Guangdong Provin
 
 @tool()
 class DownloadDashboardMaps(
-    AbstractFileTool[DownloadDashboardMapsParams], WorkspaceGuardTool[DownloadDashboardMapsParams]
+    AbstractFileTool[DownloadDashboardMapsParams], WorkspaceTool[DownloadDashboardMapsParams]
 ):
     """<!--zh
     手动下载Dashboard地图GeoJSON工具
@@ -125,15 +125,13 @@ class DownloadDashboardMaps(
         self, tool_context: ToolContext, params: DownloadDashboardMapsParams
     ) -> ToolResult:
         try:
-            project_dir, path_error = self.get_safe_path(params.project_path)
-            if path_error:
-                return ToolResult(error=path_error)
+            project_dir = self.resolve_path(params.project_path)
             if not project_dir or not project_dir.exists():
-                return ToolResult(error=f"Project does not exist: {params.project_path}")
+                return ToolResult.error(f"Project does not exist: {params.project_path}")
 
             magic_project_path = project_dir / "magic.project.js"
             if not magic_project_path.exists():
-                return ToolResult(error="magic.project.js does not exist")
+                return ToolResult.error("magic.project.js does not exist")
 
             geo_dir = project_dir / "geo"
             geo_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +180,7 @@ class DownloadDashboardMaps(
                     )
                 except Exception as e:
                     logger.warning("更新 geo 配置失败: %s", e)
-                    return ToolResult(error=f"Failed to update geo config: {e}")
+                    return ToolResult.error(f"Failed to update geo config: {e}")
 
             summary_parts = [
                 f"Downloaded: {len(downloaded_files)}, "
@@ -205,4 +203,4 @@ class DownloadDashboardMaps(
             )
         except Exception as e:
             logger.error("手动下载地图失败: %s", e, exc_info=True)
-            return ToolResult(error=f"Failed to download maps: {e}")
+            return ToolResult.error(f"Failed to download maps: {e}")

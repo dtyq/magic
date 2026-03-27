@@ -18,7 +18,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string, truncate_text_by_token
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from magic_use.magic_browser import MagicBrowser, MagicBrowserConfig
 from app.tools.use_browser_operations.content import ContentOperations, VisualQueryParams
 
@@ -47,7 +47,7 @@ Question or analysis requirements about webpage content, e.g., 'Describe the lay
 
 
 @tool()
-class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpageParams]):
+class VisualUnderstandingWebpage(WorkspaceTool[VisualUnderstandingWebpageParams]):
     """<!--zh
     网页视觉理解工具
 
@@ -165,9 +165,9 @@ class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpagePa
                 # 验证本地文件是否存在
                 local_file_path = self.base_dir / target
                 if not local_file_path.exists():
-                    return ToolResult(error=f"本地文件不存在: {target}")
+                    return ToolResult.error(f"本地文件不存在: {target}")
                 if not local_file_path.is_file():
-                    return ToolResult(error=f"指定路径不是文件: {target}")
+                    return ToolResult.error(f"指定路径不是文件: {target}")
 
                 target_url = self._prepare_file_url(str(local_file_path))
                 logger.debug(f"使用本地文件: {target} -> {target_url}")
@@ -177,7 +177,7 @@ class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpagePa
             goto_result = await browser.goto(page_id=None, url=target_url)
 
             if hasattr(goto_result, 'error'):
-                return ToolResult(error=f"页面导航失败: {goto_result.error}")
+                return ToolResult.error(f"页面导航失败: {goto_result.error}")
 
             # 等待页面加载完成
             await asyncio.sleep(2)
@@ -185,7 +185,7 @@ class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpagePa
             # 获取活跃页面ID
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="无法获取活跃页面ID")
+                return ToolResult.error("无法获取活跃页面ID")
 
             # 获取页面HTML内容作为参考信息
             html_content = ""
@@ -237,7 +237,7 @@ class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpagePa
             visual_result = await content_ops.visual_query(browser, visual_params)
 
             if not visual_result.ok:
-                return ToolResult(error=f"视觉分析失败: {visual_result.content}")
+                return ToolResult.error(f"视觉分析失败: {visual_result.content}")
 
             # 格式化结果
             html_info = ""
@@ -250,7 +250,7 @@ class VisualUnderstandingWebpage(WorkspaceGuardTool[VisualUnderstandingWebpagePa
 
         except Exception as e:
             logger.error(f"网页视觉理解分析失败: {e}", exc_info=True)
-            return ToolResult(error="Analysis failed")
+            return ToolResult.error("Analysis failed")
 
         finally:
             # 清理浏览器资源

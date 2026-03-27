@@ -15,7 +15,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
 /**
- * Skill 版本实体.
+ * Skill version entity.
  */
 class SkillVersionEntity extends AbstractEntity
 {
@@ -65,6 +65,11 @@ class SkillVersionEntity extends AbstractEntity
     protected ?array $descriptionI18n = null;
 
     /**
+     * @var null|array Source information in i18n format
+     */
+    protected ?array $sourceI18n = null;
+
+    /**
      * @var null|string 统一小写搜索字段
      */
     protected ?string $searchText = null;
@@ -78,6 +83,11 @@ class SkillVersionEntity extends AbstractEntity
      * @var string 压缩包在对象存储中的 key
      */
     protected ?string $fileKey = null;
+
+    /**
+     * @var null|string Skill.md file key snapshot
+     */
+    protected ?string $skillFileKey = null;
 
     protected ?string $fileUrl = null;
 
@@ -176,9 +186,11 @@ class SkillVersionEntity extends AbstractEntity
             'version' => $this->version,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'search_text' => $this->searchText,
             'logo' => $this->logo,
             'file_key' => $this->fileKey,
+            'skill_file_key' => $this->skillFileKey,
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus?->value,
             'publish_target_type' => $this->publishTargetType->value,
@@ -304,6 +316,17 @@ class SkillVersionEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSourceI18n(): ?array
+    {
+        return $this->sourceI18n;
+    }
+
+    public function setSourceI18n(?array $sourceI18n): self
+    {
+        $this->sourceI18n = $sourceI18n;
+        return $this;
+    }
+
     public function getSearchText(): ?string
     {
         return $this->searchText;
@@ -334,6 +357,16 @@ class SkillVersionEntity extends AbstractEntity
     public function setFileKey(?string $fileKey): void
     {
         $this->fileKey = $fileKey;
+    }
+
+    public function getSkillFileKey(): ?string
+    {
+        return $this->skillFileKey;
+    }
+
+    public function setSkillFileKey(?string $skillFileKey): void
+    {
+        $this->skillFileKey = $skillFileKey;
     }
 
     /**

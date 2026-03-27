@@ -23,18 +23,10 @@ import { shouldDisableGlobalSafeArea } from "./components/GlobalSafeArea/utils"
 const MobileTabBar = lazy(() => import("./components/MobileTabBar"))
 
 const ShareManagementContainer = lazy(
-	() =>
-		import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
+	() => import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
 )
 
 const keepAliveRoutes: KeepAliveRoute[] = [RoutePathMobile.MobileTabs]
-
-// 单槽位路由：这些路由只允许缓存一个实例，相互替换
-// 例如 /super/workspace/:workspaceId、/super/:projectId、/super/:projectId/:topicId
-// 不同的参数组合会相互替换缓存，而不是各自缓存
-const singleSlotRoutes: KeepAliveRoute[] = [
-	// /^(\/global)?\/super\/\d+/, // 匹配所有 super 路由（支持集群前缀）
-]
 
 const BaseLayoutMobile = () => {
 	const navigate = useNavigate()
@@ -70,6 +62,7 @@ const BaseLayoutMobile = () => {
 		// 添加 MobileTabs 路由到 TabBar 显示列表
 		return [
 			RouteName.MobileTabs,
+			RouteName.MagiClaw,
 			RouteName.Super,
 			RouteName.SuperWorkspaceState,
 			RouteName.Chat,

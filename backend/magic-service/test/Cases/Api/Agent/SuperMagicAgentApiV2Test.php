@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Agent;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
+use App\Domain\Contact\Repository\Persistence\Model\UserSettingModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentMarketModel;
@@ -22,6 +24,188 @@ use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
 class SuperMagicAgentApiV2Test extends AbstractApiTest
 {
     private const BASE_URI = '/api/v2/super-magic/agents';
+
+    public function testSortListQueriesOnlyReturnsPublishedCurrentVersions(): void
+    {
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+
+        $frequentAgentCode = $this->createTestAgent();
+        $allAgentCode = $this->createTestAgent();
+        $hiddenAgentCode = $this->createTestAgent();
+        $organizationCode = $headers['organization-code'];
+        $userId = $headers['user-id'];
+        $magicId = $headers['magic-id'];
+
+        $frequentVersionId = IdGenerator::getSnowId();
+        AgentVersionModel::query()->create([
+            'id' => $frequentVersionId,
+            'code' => $frequentAgentCode,
+            'organization_code' => $organizationCode,
+            'version' => '1.0.0',
+            'name' => 'Frequent version',
+            'description' => 'Frequent version',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '常用员工',
+                'en_US' => 'Frequent Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '常用员工描述',
+                'en_US' => 'Frequent agent description',
+            ],
+            'publish_status' => PublishStatus::PUBLISHED->value,
+            'review_status' => 'APPROVED',
+            'publish_target_type' => 'PRIVATE',
+            'publisher_user_id' => $userId,
+            'published_at' => '2026-03-24 09:00:00',
+            'is_current_version' => true,
+            'created_at' => '2026-03-24 09:00:00',
+            'updated_at' => '2026-03-24 09:00:00',
+        ]);
+
+        AgentVersionModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'code' => $hiddenAgentCode,
+            'organization_code' => $organizationCode,
+            'version' => '1.0.0',
+            'name' => 'Hidden version',
+            'description' => 'Hidden version',
+            'icon' => [
+                'type' => 'IconBookFilled',
+                'url' => '',
+                'color' => '#10B981',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '未发布员工',
+                'en_US' => 'Hidden Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '未发布员工描述',
+                'en_US' => 'Hidden agent description',
+            ],
+            'publish_status' => PublishStatus::UNPUBLISHED->value,
+            'review_status' => 'APPROVED',
+            'publish_target_type' => 'PRIVATE',
+            'publisher_user_id' => $userId,
+            'published_at' => null,
+            'is_current_version' => true,
+            'created_at' => '2026-03-25 09:00:00',
+            'updated_at' => '2026-03-25 09:00:00',
+        ]);
+
+        $allVersionId = IdGenerator::getSnowId();
+        AgentVersionModel::query()->create([
+            'id' => $allVersionId,
+            'code' => $allAgentCode,
+            'organization_code' => $organizationCode,
+            'version' => '1.0.0',
+            'name' => 'All list version',
+            'description' => 'All list version',
+            'icon' => [
+                'type' => 'IconTeamFilled',
+                'url' => '',
+                'color' => '#F59E0B',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '全部列表员工',
+                'en_US' => 'All List Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '全部列表描述',
+                'en_US' => 'All list description',
+            ],
+            'publish_status' => PublishStatus::PUBLISHED->value,
+            'review_status' => 'APPROVED',
+            'publish_target_type' => 'PRIVATE',
+            'publisher_user_id' => $userId,
+            'published_at' => '2026-03-25 10:00:00',
+            'is_current_version' => true,
+            'created_at' => '2026-03-25 10:00:00',
+            'updated_at' => '2026-03-25 10:00:00',
+        ]);
+
+        UserSettingModel::query()->updateOrCreate(
+            [
+                'organization_code' => $organizationCode,
+                'user_id' => $userId,
+                'key' => UserSettingKey::SuperMagicAgentSort->value,
+            ],
+            [
+                'magic_id' => $magicId,
+                'value' => [
+                    'frequent' => [$frequentAgentCode, $hiddenAgentCode],
+                    'all' => [$frequentAgentCode, $hiddenAgentCode, $allAgentCode],
+                ],
+                'creator' => $userId,
+                'modifier' => $userId,
+                'created_at' => '2026-03-25 08:00:00',
+                'updated_at' => '2026-03-25 08:00:00',
+            ]
+        );
+
+        $response = $this->get(
+            self::BASE_URI . '/featured/sort-list',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+
+        $this->assertSame(2, $response['data']['total']);
+        $this->assertCount(1, $response['data']['frequent']);
+        $this->assertCount(1, $response['data']['all']);
+
+        $frequentItem = $response['data']['frequent'][0];
+        $allItem = $response['data']['all'][0];
+
+        $this->assertSame((string) $frequentVersionId, $frequentItem['id']);
+        $this->assertSame('Frequent Agent', $frequentItem['name']);
+        $this->assertArrayHasKey('logo', $frequentItem);
+        $this->assertSame(['id', 'name', 'logo'], array_keys($frequentItem));
+
+        $this->assertSame((string) $allVersionId, $allItem['id']);
+        $this->assertSame('All List Agent', $allItem['name']);
+        $this->assertSame(['id', 'name', 'logo'], array_keys($allItem));
+        $this->assertNotContains('Hidden Agent', array_column($response['data']['frequent'], 'name'));
+        $this->assertNotContains('Hidden Agent', array_column($response['data']['all'], 'name'));
+    }
 
     public function testQueryAgentMarketUsesUserAgentOwnershipWithoutCreatingDuplicateLocalAgent(): void
     {

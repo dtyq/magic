@@ -101,6 +101,10 @@ cache/
 docs
 .runtime/
 
+# agent 的临时文件
+agents/SMA-*
+agents/crew/
+
 debug/
 backup/
 qdrant_data/

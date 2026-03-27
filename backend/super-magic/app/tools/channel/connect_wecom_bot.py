@@ -16,13 +16,25 @@ logger = get_logger(__name__)
 
 
 class ConnectWecomBotParams(BaseToolParams):
-    bot_id: str = Field(..., description="企业微信后台获取的 AI Bot ID")
-    secret: str = Field(..., description="企业微信后台获取的 AI Bot Secret")
+    bot_id: str = Field(
+        ...,
+        description="""<!--zh: 企业微信后台获取的 AI Bot ID-->
+The WeCom AI Bot ID from the WeCom admin console.""",
+    )
+    secret: str = Field(
+        ...,
+        description="""<!--zh: 企业微信后台获取的 AI Bot Secret-->
+The WeCom AI Bot secret from the WeCom admin console.""",
+    )
 
 
 @tool()
 class ConnectWecomBot(BaseTool[ConnectWecomBotParams]):
-    """建立企业微信 AI Bot WebSocket 长连接。仅供 Skill snippet 调用，不挂载到 LLM。"""
+    """<!--zh
+    建立企业微信 AI Bot WebSocket 长连接。仅供 Skill snippet 调用，不挂载到 LLM。
+    -->
+    Start the WeCom AI Bot WebSocket connection. Intended for skill snippets only and not exposed as a normal LLM tool.
+    """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWecomBotParams) -> ToolResult:
         try:
@@ -38,8 +50,11 @@ class ConnectWecomBot(BaseTool[ConnectWecomBotParams]):
             await save_config(config)
 
             return ToolResult(
-                content=f"企业微信机器人连接请求已提交（bot_id={params.bot_id}），请稍候在企微中确认是否可对话"
+                content=(
+                    f"The WeCom bot connection request has been submitted (bot_id={params.bot_id}). "
+                    "Tell the user to verify the conversation in WeCom shortly."
+                )
             )
         except Exception as e:
             logger.error(f"[ConnectWecomBot] 连接失败: {e}")
-            return ToolResult.error(f"连接失败: {e}")
+            return ToolResult.error(f"WeCom connection failed: {e}")

@@ -8,7 +8,7 @@ from typing import List
 from app.core.context.agent_context import AgentContext
 from app.infrastructure.storage.base import AbstractStorage, BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.api.http_dto.file_download_dto import FileDownloadItem, FileDownloadResult, FileDownloadResponse
 from agentlang.logger import get_logger
 

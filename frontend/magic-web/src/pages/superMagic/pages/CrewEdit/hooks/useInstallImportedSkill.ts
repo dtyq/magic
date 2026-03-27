@@ -40,6 +40,12 @@ export function useInstallImportedSkill() {
 						skills.removeSkill(skillCode)
 						throw error
 					}
+
+					try {
+						await skills.refreshSkills()
+					} catch {
+						// Keep optimistic state when sync fails transiently.
+					}
 				}
 
 				if (options?.openSkillsStep) {

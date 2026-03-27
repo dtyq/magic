@@ -23,6 +23,11 @@ export const en: I18nTexts = {
 	// Hints
 	mcpHint: "@extension only take effect once",
 	skillHint: "@skill only takes effect once",
+	skillSources: {
+		system: "System Skill",
+		agent: "Crew Skill",
+		mine: "My Skill",
+	},
 
 	// Panel titles
 	panelTitles: {

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.utils.async_file_utils import async_read_json, async_write_json, async_exists
 
 logger = get_logger(__name__)
@@ -42,10 +42,22 @@ class LarkCredential:
 
 
 @dataclass
+class WechatCredential:
+    bot_token: str
+    ilink_bot_id: str
+    # getupdates 使用的域名，由 get_qrcode_status 返回
+    base_url: str
+    ilink_user_id: str = ""
+    enabled: bool = True
+    sandbox_id: str = ""
+
+
+@dataclass
 class IMChannelsConfig:
     wecom: Optional[WeComCredential] = None
     dingtalk: Optional[DingTalkCredential] = None
     lark: Optional[LarkCredential] = None
+    wechat: Optional[WechatCredential] = None
 
 
 async def load_config() -> IMChannelsConfig:
@@ -59,6 +71,7 @@ async def load_config() -> IMChannelsConfig:
             wecom=WeComCredential(**data["wecom"]) if "wecom" in data else None,
             dingtalk=DingTalkCredential(**data["dingtalk"]) if "dingtalk" in data else None,
             lark=LarkCredential(**data["lark"]) if "lark" in data else None,
+            wechat=WechatCredential(**data["wechat"]) if "wechat" in data else None,
         )
     except Exception as e:
         logger.warning(f"[IMConfig] 读取配置失败，忽略: {e}")
@@ -75,5 +88,7 @@ async def save_config(config: IMChannelsConfig) -> None:
         data["dingtalk"] = asdict(config.dingtalk)
     if config.lark:
         data["lark"] = asdict(config.lark)
+    if config.wechat:
+        data["wechat"] = asdict(config.wechat)
     await async_write_json(path, data, indent=2, ensure_ascii=False)
     logger.info(f"[IMConfig] 已保存配置到 {path}")

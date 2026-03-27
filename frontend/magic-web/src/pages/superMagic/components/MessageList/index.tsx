@@ -46,6 +46,8 @@ interface MessageListProps {
 	/** True while the initial message fetch is in-flight; suppresses the empty fallback */
 	isMessagesLoading?: boolean
 	fallbackRender?: ReactNode
+	/** Override BackToLatestButton position (e.g. clear bottom fade above editor) */
+	backToLatestButtonClassName?: string
 }
 
 // Shared base classes for the revoked-messages action buttons
@@ -93,6 +95,7 @@ const MessageList = observer(
 		onFileClick,
 		stickyMessageClassName,
 		children,
+		backToLatestButtonClassName,
 	}: MessageListProps) => {
 		const { t } = useTranslation("super")
 		const isMobile = useIsMobile()
@@ -522,8 +525,7 @@ const MessageList = observer(
 		return (
 			<div
 				className={cn(
-					"relative flex w-full flex-1 overflow-hidden",
-					"h-[calc(100%-50px)]",
+					"relative flex h-full w-full flex-1 overflow-hidden",
 					"message-list-container",
 					className,
 				)}
@@ -679,6 +681,7 @@ const MessageList = observer(
 				</div>
 				<BackToLatestButton
 					visible={showBackToLatest}
+					className={backToLatestButtonClassName}
 					onClick={() => {
 						autoScrollBottom.current = true
 						scrollToBottom(nodesPanelRef.current?.scrollHeight || MAX_SCROLL_TOP, {

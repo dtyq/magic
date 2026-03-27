@@ -7,10 +7,12 @@
 import asyncio
 import os
 import json
+import time
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
+from agentlang.context.shared_context import create_agent_shared_context
 from app.core.config.communication_config import STSTokenRefreshConfig
 from app.core.entity.agent_profile import AgentProfile, DEFAULT_AGENT_PROFILE
 from app.core.entity.attachment import Attachment
@@ -20,13 +22,17 @@ from agentlang.event.event import Event, EventType, StoppableEvent
 from agentlang.event.common import BaseEventData
 from app.core.stream import Stream
 from agentlang.logger import get_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
+from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry, RunCancellationHandle
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
 from agentlang.llms.token_usage.report import TokenUsageReport
 
 # 获取日志记录器
 logger = get_logger(__name__)
+
+# stop_run 等待 cancel_blocker 归零的最长时间（秒）
+_CANCEL_BLOCKER_WAIT_TIMEOUT_S: float = 10.0
 
 
 async def _auto_manage_correlation_id(event_type: EventType, data: BaseEventData) -> None:
@@ -87,17 +93,26 @@ class AgentContext(BaseAgentContext):
     实现 AgentContextInterface 接口，提供用户和代理相关信息
     """
 
-    def __init__(self):
+    def __init__(self, isolated: bool = False):
         """
-        初始化代理上下文
-        """
-        super().__init__()
+        初始化代理上下文。
 
-        # 初始化字段并注册到 shared_context
+        Args:
+            isolated: 若为 True，使用独立的 AgentSharedContext 实例而非全局单例。
+                      子 Agent 并行运行时必须设为 True，避免 current_llm_request_id、
+                      cancel_blocker_count 等字段被并发写入冲突。
+                      主 Agent 始终使用默认值 False（全局单例）。
+        """
+        shared_context = create_agent_shared_context() if isolated else None
+        super().__init__(shared_context=shared_context)
+
+        # 普通路径与隔离路径都走同一初始化逻辑；共享实例由 is_initialized 保护避免重复注册。
         self._init_shared_fields()
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
+        self._subagent_depth = 0
+        self._subagent_parent_agent_name: Optional[str] = None
 
         # 设置工作空间目录
         try:
@@ -121,6 +136,27 @@ class AgentContext(BaseAgentContext):
 
         # Agent Profile 配置
         self._agent_profile: AgentProfile = DEFAULT_AGENT_PROFILE
+
+        # run-level interruption 框架，每次新 run 通过 reset_run_state() 重置
+        self._run_cancel_state: RunCancelState = RunCancelState()
+        self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
+        self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
+
+    def set_subagent_depth(self, depth: int) -> None:
+        """设置子 Agent 深度。"""
+        self._subagent_depth = max(depth, 0)
+
+    def get_subagent_depth(self) -> int:
+        """获取当前子 Agent 深度。主 Agent 固定为 0。"""
+        return self._subagent_depth
+
+    def set_subagent_parent_agent_name(self, agent_name: Optional[str]) -> None:
+        """记录调用当前子 Agent 的父 Agent 名称。"""
+        self._subagent_parent_agent_name = agent_name
+
+    def get_subagent_parent_agent_name(self) -> Optional[str]:
+        """获取父 Agent 名称；主 Agent 返回 None。"""
+        return self._subagent_parent_agent_name
 
     def _init_shared_fields(self):
         """初始化共享字段并注册到 shared_context"""
@@ -166,6 +202,8 @@ class AgentContext(BaseAgentContext):
             "loaded_skills": ([], List[str]),  # 已加载的 skills 列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
+            # Agent Master 管理
+            "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
         })
 
         # 标记初始化完成
@@ -206,6 +244,23 @@ class AgentContext(BaseAgentContext):
             Optional[asyncio.Queue]: 中断队列
         """
         return self.shared_context.get_field("interrupt_queue")
+
+    def set_agent_code(self, agent_code: str) -> None:
+        """设置当前自定义 Agent 的 agent_code
+
+        Args:
+            agent_code: Agent 编码（如 sma-xxxxx）
+        """
+        self.shared_context.update_field("agent_code", agent_code)
+        logger.debug(f"已更新 agent_code: {agent_code}")
+
+    def get_agent_code(self) -> Optional[str]:
+        """获取当前自定义 Agent 的 agent_code
+
+        Returns:
+            Optional[str]: agent_code
+        """
+        return self.shared_context.get_field("agent_code")
 
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID
@@ -880,70 +935,62 @@ class AgentContext(BaseAgentContext):
         """
         return self.shared_context.get_field("cancel_blocker_count")
 
-    async def handle_user_interruption(self, cancel_task_func, reason: str = "用户主动中断", timeout: float = 10.0) -> bool:
-        """处理用户中断请求，包含完整的中断流程
+    # ====== Run-level interruption 框架 ======
 
-        该方法封装了完整的用户中断处理逻辑：
-        1. 设置中断信号
-        2. 检查并等待阻止操作完成
-        3. 执行任务取消
-        4. 恢复中断信号状态
+    def register_run_cleanup(self, key: str, handler) -> None:
+        """注册当前 run 的 cleanup handler（按 key 可替换）。"""
+        self._run_cleanup_registry.register(key, handler)
 
-        Args:
-            cancel_task_func: 取消任务的函数（通常是MessageProcessor.cancel_task）
-            reason: 中断原因，默认为"用户主动中断"
-            timeout: 等待阻止操作完成的超时时间（秒），默认10秒
+    def register_worker_cancel(self, cb) -> None:
+        """注册当前 run 的 worker cancel callback，worker task 创建后立即调用。"""
+        self._run_cancellation_handle.register(cb)
 
-        Returns:
-            bool: 是否成功处理了中断请求
+    async def stop_run(self, reason: str = "") -> None:
+        """停止当前 run（幂等）：
+        1. 标记中断，通知所有等待中断事件的协程
+        2. 等待 cancel blocker 归零（最多 10 秒）
+        3. 执行业务 cleanup registry
+        4. 执行 worker cancel
+        5. 标记完成
         """
-        import time
-        import asyncio
+        if self._run_cancel_state.cleanup_started:
+            logger.debug(f"[AgentContext] stop_run already in progress, skip (reason={reason})")
+            return
 
-        try:
-            # 1. 设置终止信号
-            logger.info(f"开始处理用户中断请求: {reason}")
-            self.set_interruption_request(True, reason)
+        self._run_cancel_state.requested = True
+        self._run_cancel_state.reason = reason
+        self._run_cancel_state.cleanup_started = True
+        self.shared_context.update_field("interruption_requested", True)
+        self.shared_context.update_field("interruption_reason", reason)
+        self._interruption_event.set()
+        logger.info(f"[AgentContext] stop_run started: {reason}")
 
-            # 2. 检查当前阻止计数
-            current_count = self.get_cancel_blocker_count()
-            logger.info(f"当前cancel_blocker_count={current_count}")
+        # 等待 cancel blocker 归零（超时后强制继续）
+        start = time.time()
+        while not self.is_cancelable():
+            if time.time() - start > _CANCEL_BLOCKER_WAIT_TIMEOUT_S:
+                logger.warning(
+                    f"[AgentContext] cancel_blocker timeout after {_CANCEL_BLOCKER_WAIT_TIMEOUT_S}s "
+                    f"(count={self.get_cancel_blocker_count()}), proceeding"
+                )
+                break
+            await asyncio.sleep(0.05)
 
-            if self.is_cancelable():  # count == 0
-                # 可以立即cancel
-                logger.info("当前可以cancel，立即执行")
-                await cancel_task_func()
-            else:
-                # 不可以cancel，轮询等待计数变为0
-                logger.info(f"当前不可cancel(count={current_count})，等待阻止操作完成")
-                start_time = time.time()
+        # 先 cleanup 再 cancel worker，确保业务子系统内部异步延续点先被切断
+        await self._run_cleanup_registry.run_all()
+        await self._run_cancellation_handle.cancel()
 
-                while not self.is_cancelable():
-                    current_count = self.get_cancel_blocker_count()
-                    if time.time() - start_time > timeout:
-                        logger.warning(f"等待cancel_blocker_count=0超时(当前count={current_count})，执行强制取消")
-                        break
-                    await asyncio.sleep(0.05)  # 优化：从100ms减少到50ms，提高中断响应速度
+        self._run_cancel_state.cleanup_finished = True
+        logger.info("[AgentContext] stop_run completed")
 
-                final_count = self.get_cancel_blocker_count()
-                if self.is_cancelable():
-                    logger.info(f"所有阻止操作已完成(count={final_count})，开始cancel")
-                else:
-                    logger.warning(f"超时后仍有阻止操作(count={final_count})，强制执行cancel")
-
-                # 执行cancel_task
-                await cancel_task_func()
-
-            logger.info("用户中断处理完成")
-            return True
-
-        except Exception as e:
-            logger.error(f"处理用户中断时发生错误: {e}", exc_info=True)
-            return False
-        finally:
-            # 3. 恢复终止信号状态
-            logger.debug("恢复中断信号状态")
-            self.set_interruption_request(False)
+    def reset_run_state(self) -> None:
+        """复位 run interruption 状态，启动新 run 前调用。"""
+        self._run_cancel_state = RunCancelState()
+        self._run_cleanup_registry = RunCleanupRegistry()
+        # cancellation handle 不重置，由 register_worker_cancel 在新 worker 创建时覆盖
+        self.shared_context.update_field("interruption_requested", False)
+        self.shared_context.update_field("interruption_reason", None)
+        self._interruption_event.clear()
 
     # ====== 思考状态管理方法 ======
 

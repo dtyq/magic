@@ -69,6 +69,7 @@ describe("useDataSource", () => {
 			getFolderItems: vi.fn(),
 			getMcpExtensions: vi.fn(),
 			getAgents: vi.fn(),
+			refreshSkills: vi.fn(),
 			preLoadList: vi.fn(),
 		}
 	})

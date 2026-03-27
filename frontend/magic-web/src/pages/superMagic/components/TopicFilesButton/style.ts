@@ -344,6 +344,19 @@ export const useStyles = createStyles(({ token }) => ({
 		},
 		gap: 6,
 	},
+	rowTitleText: {
+		display: "flex",
+		alignItems: "center",
+		flex: 1,
+		minWidth: 0,
+	},
+	rowTagSlot: {
+		display: "flex",
+		alignItems: "center",
+		flexShrink: 0,
+		marginLeft: "auto",
+		marginRight: "4px",
+	},
 	activeFileItemWrapper: {
 		// backgroundColor: "#EEF3FD",
 	},

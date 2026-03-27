@@ -69,12 +69,19 @@ function ScenePanelContainer({
 		[sceneStateStore],
 	)
 
+	const emptyContent = useMemo(() => {
+		if (variant && [ScenePanelVariant.Mobile, ScenePanelVariant.TopicPage].includes(variant)) {
+			return null
+		}
+		return <div className="flex min-h-8 flex-col gap-4" />
+	}, [variant])
+
 	// 第一次加载时显示骨架屏
 	if (loading) {
 		return <SkillPanelSkeleton variant={variant} />
 	}
 
-	if (!panels || panels.length === 0) return null
+	if (!panels || panels.length === 0) return emptyContent
 
 	if (variant && [ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(variant)) {
 		const fieldPanels = panels.flatMap((config, index) =>
@@ -83,7 +90,7 @@ function ScenePanelContainer({
 				: [],
 		)
 
-		if (fieldPanels?.length === 0) return null
+		if (fieldPanels?.length === 0) return emptyContent
 
 		// 只渲染 FIELD 类型
 		return (
@@ -105,7 +112,7 @@ function ScenePanelContainer({
 	}
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex min-h-8 flex-col gap-4">
 			{panels?.map((config, index) => {
 				// Generate stable key using type, title and index
 				const key = `${config.type}-${lt(config.title) ?? ""}-${index}`

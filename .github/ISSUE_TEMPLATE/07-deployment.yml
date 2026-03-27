@@ -20,13 +20,8 @@ body:
       label: Deployment Type
       description: What type of deployment are you attempting?
       options:
-        - Docker Compose (Recommended)
-        - Source installation
-        - Kubernetes
-        - Cloud deployment (AWS/GCP/Azure)
-        - Local development setup
-        - Production deployment
-        - Update/Upgrade process
+        - Kind new install
+        - Kind update/upgrade process
         - Other
     validations:
       required: true
@@ -105,11 +100,6 @@ body:
         DATABASE_HOST=mysql
         # [other relevant configs - please redact API keys and passwords]
         ```
-        
-        Docker Compose overrides:
-        ```yaml
-        # Any custom docker-compose configurations
-        ```
     validations:
       required: false
 
@@ -133,19 +123,23 @@ body:
       label: System Status
       description: Provide output from relevant system status commands
       placeholder: |
-        Docker Status:
+        Docker Status (if applicable):
         ```bash
         $ docker --version
-        $ docker-compose --version
         $ docker ps
-        $ docker logs magic-service
         ```
-        
+
+        Kubernetes Status (if applicable):
+        ```bash
+        $ kubectl version
+        $ kubectl get nodes
+        $ kubectl get pods -A
+        ```
+
         System Resources:
         ```bash
         $ df -h
         $ free -h
-        $ ulimit -a
         ```
     validations:
       required: false

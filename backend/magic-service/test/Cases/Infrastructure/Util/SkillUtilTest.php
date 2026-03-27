@@ -67,9 +67,9 @@ class SkillUtilTest extends TestCase
     }
 
     /**
-     * 深层子目录包含 SKILL.md 时应递归查找并返回该目录路径.
+     * 深层子目录包含 SKILL.md 时不应再被识别.
      */
-    public function testFindSkillMdInNestedSubdirectory(): void
+    public function testFindSkillMdInNestedSubdirectoryReturnsNull(): void
     {
         $nestedDir = $this->tempBaseDir . '/level1/level2/skill-dir';
         mkdir($nestedDir, 0755, true);
@@ -77,7 +77,7 @@ class SkillUtilTest extends TestCase
 
         $result = SkillUtil::findSkillMdDirectory($this->tempBaseDir);
 
-        $this->assertSame($nestedDir, $result);
+        $this->assertNull($result);
     }
 
     /**

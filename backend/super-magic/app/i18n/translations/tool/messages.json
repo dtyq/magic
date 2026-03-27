@@ -795,61 +795,65 @@
         "zh_CN": "深度写作问题: {{question}}",
         "en_US": "Deep writing question: {{question}}"
     },
-    "call_agent.start": {
-        "zh_CN": "调用智能体: {{agent_name}}",
-        "en_US": "Calling agent: {{agent_name}}"
+    "call_subagent.start": {
+        "zh_CN": "{{agent_name}} 已接收任务",
+        "en_US": "Calling sub-agent: {{agent_name}}"
     },
-    "call_agent.error": {
-        "zh_CN": "代理调用失败: {{error}}",
-        "en_US": "Agent call failed: {{error}}"
+    "call_subagent.error": {
+        "zh_CN": "分配子智能体任务失败: {{error}}",
+        "en_US": "Sub-agent call failed: {{error}}"
     },
-    "call_agent.unknown_agent": {
-        "zh_CN": "未知智能体",
-        "en_US": "Unknown agent"
+    "call_subagent.assign": {
+        "zh_CN": "分配给 {{agent_name}} 子智能体",
+        "en_US": "Assign to sub-agent {{agent_name}}"
+    },
+    "call_subagent.running": {
+        "zh_CN": "{{agent_name}} 正在执行任务",
+        "en_US": "{{agent_name}} is working on the task"
+    },
+    "call_subagent.done": {
+        "zh_CN": "{{agent_name}} 已完成任务",
+        "en_US": "{{agent_name}} completed the task"
+    },
+    "call_subagent.failed": {
+        "zh_CN": "{{agent_name}} 执行失败：{{error}}",
+        "en_US": "{{agent_name}} failed to complete the task: {{error}}"
+    },
+    "call_subagent.interrupted": {
+        "zh_CN": "{{agent_name}} 的任务已中断",
+        "en_US": "{{agent_name}} was interrupted"
+    },
+    "call_subagent.unknown_agent": {
+        "zh_CN": "未知子智能体",
+        "en_US": "Unknown sub-agent"
+    },
+    "get_sub_agent_results.error": {
+        "zh_CN": "获取子智能体任务进展失败: {{error}}",
+        "en_US": "Failed to query sub-agent results: {{error}}"
     },
     "compact_chat_history.remark": {
         "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
         "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency. It's recommended to start a new topic when handling new tasks."
     },
-    "skills_read.success": {
+    "read_skills.success": {
         "zh_CN": "技能学习成功",
         "en_US": "Skill learned"
     },
-    "skills_read.success_multiple": {
+    "read_skills.success_multiple": {
         "zh_CN": "已学习 {{skill_name}} 等 {{count}} 个技能",
         "en_US": "Learned {{skill_name}} and {{count}} other Skills"
     },
-    "skills_read.success_single": {
+    "read_skills.success_single": {
         "zh_CN": "已学习技能 {{skill_name}}",
         "en_US": "Learned Skill {{skill_name}}"
     },
-    "skills_read.error": {
+    "read_skills.error": {
         "zh_CN": "技能学习失败",
         "en_US": "Failed to learn Skill"
     },
-    "skills_read.error_with_name": {
+    "read_skills.error_with_name": {
         "zh_CN": "学习技能 {{skill_name}} 失败",
         "en_US": "Failed to learn Skill {{skill_name}}"
-    },
-    "skill_read_references.success": {
-        "zh_CN": "深入学习技能成功",
-        "en_US": "Skill references explored"
-    },
-    "skill_read_references.success_multiple": {
-        "zh_CN": "已深入学习 {{skill_name}} 等 {{count}} 份技能参考文档",
-        "en_US": "Explored {{skill_name}} and {{count}} other Skill references"
-    },
-    "skill_read_references.success_single": {
-        "zh_CN": "已深入学习 {{skill_name}} 技能参考文档",
-        "en_US": "Explored {{skill_name}} Skill references"
-    },
-    "skill_read_references.error": {
-        "zh_CN": "深入学习技能失败",
-        "en_US": "Failed to explore Skill references"
-    },
-    "skill_read_references.error_with_name": {
-        "zh_CN": "深入学习 {{skill_name}} 技能参考文档失败",
-        "en_US": "Failed to explore {{skill_name}} Skill references"
     },
     "create_memory.success": {
         "zh_CN": "{{preview}}",
@@ -1046,5 +1050,69 @@
     "video.project_path_not_directory": {
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
+    },
+    "skill_list.success": {
+        "zh_CN": "已列出可用技能",
+        "en_US": "Skills listed"
+    },
+    "skill_list.error": {
+        "zh_CN": "列出技能失败",
+        "en_US": "Failed to list skills"
+    },
+    "upgrade_sandbox.success": {
+        "zh_CN": "沙箱升级请求已提交",
+        "en_US": "Sandbox upgrade initiated"
+    },
+    "upgrade_sandbox.error": {
+        "zh_CN": "沙箱升级失败",
+        "en_US": "Sandbox upgrade failed"
+    },
+    "manage_cron.status": {
+        "zh_CN": "查看定时任务状态",
+        "en_US": "Checking cron job status"
+    },
+    "manage_cron.list": {
+        "zh_CN": "列出定时任务",
+        "en_US": "Listing cron jobs"
+    },
+    "manage_cron.add": {
+        "zh_CN": "创建定时任务",
+        "en_US": "Creating cron job"
+    },
+    "manage_cron.update": {
+        "zh_CN": "更新定时任务",
+        "en_US": "Updating cron job"
+    },
+    "manage_cron.remove": {
+        "zh_CN": "删除定时任务",
+        "en_US": "Removing cron job"
+    },
+    "manage_cron.run": {
+        "zh_CN": "立即触发定时任务",
+        "en_US": "Triggering cron job"
+    },
+    "manage_cron.runs": {
+        "zh_CN": "查看定时任务执行记录",
+        "en_US": "Listing cron job runs"
+    },
+    "manage_cron.added": {
+        "zh_CN": "已创建定时任务 {{job_id}}",
+        "en_US": "Created cron job {{job_id}}"
+    },
+    "manage_cron.updated": {
+        "zh_CN": "已更新定时任务 {{job_id}}",
+        "en_US": "Updated cron job {{job_id}}"
+    },
+    "manage_cron.removed": {
+        "zh_CN": "已删除定时任务 {{job_id}}",
+        "en_US": "Removed cron job {{job_id}}"
+    },
+    "manage_cron.triggered": {
+        "zh_CN": "已触发定时任务 {{job_id}}",
+        "en_US": "Triggered cron job {{job_id}}"
+    },
+    "manage_cron.error": {
+        "zh_CN": "定时任务操作失败: {{error}}",
+        "en_US": "Cron job operation failed: {{error}}"
     }
 }

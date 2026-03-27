@@ -1,5 +1,9 @@
 # File Driver Usage Guide
 
+**STALE DOCUMENT**
+
+**This document is stale and will be updated soon.**
+
 This document provides detailed information about the file storage drivers supported in the Magic Service project, configuration methods, and usage scenarios.
 
 ## Overview

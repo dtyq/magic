@@ -24,7 +24,9 @@ export default function RecordSummaryEditorContainer({
 	editorContext,
 	editorNodes,
 }: RecordSummaryEditorContainerProps) {
-	const selectedTopic = editorContext?.selectedTopic ?? topicStore.selectedTopic
+	const scopedTopicStore = editorContext?.topicStore ?? topicStore
+
+	const selectedTopic = editorContext?.selectedTopic ?? scopedTopicStore.selectedTopic
 	const selectedProject = editorContext?.selectedProject ?? projectStore.selectedProject
 	const selectedWorkspace =
 		editorContext?.selectedWorkspace ??
@@ -69,6 +71,7 @@ export default function RecordSummaryEditorContainer({
 		selectedTopic,
 		selectedProject,
 		selectedWorkspace,
+		topicStore: scopedTopicStore,
 		topicMode: editorContext?.topicMode ?? TopicMode.RecordSummary,
 		setTopicMode: effectiveSetTopicMode,
 		size: editorSize,
@@ -88,7 +91,6 @@ export default function RecordSummaryEditorContainer({
 				iconSize={EDITOR_ICON_SIZE_MAP[editorSize]}
 				topicMode={editorContext?.topicMode ?? TopicMode.RecordSummary}
 				isTaskRunning={editorContext?.showLoading}
-				onInterrupt={editorContext?.onInterrupt}
 				editorModeSwitch={editorModeSwitch}
 				attachments={editorContext?.attachments}
 				taskDataNode={editorNodes?.taskDataNode}

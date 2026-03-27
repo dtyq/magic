@@ -509,6 +509,8 @@ readonly class SuperMagicAgentDomainService
      * @param string $action 审核操作：APPROVED=通过, REJECTED=拒绝
      * @param string $modifier 修改者
      * @param null|string $publisherType 发布者类型（仅在 action=APPROVED 时有效）
+     * @param null|bool $marketIsFeatured 上架市场时的「是否精选」；为 null 且已有市场记录时保留原值
+     * @param null|int $marketSortOrder 上架市场时的排序权重（越大越靠前）；为 null 且已有市场记录时保留原值
      */
     #[Transactional]
     public function reviewAgentVersion(
@@ -516,7 +518,9 @@ readonly class SuperMagicAgentDomainService
         int $versionId,
         string $action,
         string $modifier,
-        ?string $publisherType = null
+        ?string $publisherType = null,
+        ?bool $marketIsFeatured = null,
+        ?int $marketSortOrder = null
     ): void {
         $dataIsolation->disabled();
 
@@ -606,6 +610,18 @@ readonly class SuperMagicAgentDomainService
             if ($existingStoreAgent) {
                 // 如果已存在，设置 ID 以便更新
                 $storeAgentEntity->setId($existingStoreAgent->getId());
+            }
+
+            if ($marketIsFeatured !== null) {
+                $storeAgentEntity->setIsFeatured($marketIsFeatured);
+            } elseif ($existingStoreAgent !== null) {
+                $storeAgentEntity->setIsFeatured($existingStoreAgent->isFeatured());
+            }
+
+            if ($marketSortOrder !== null) {
+                $storeAgentEntity->setSortOrder($marketSortOrder);
+            } elseif ($existingStoreAgent !== null) {
+                $storeAgentEntity->setSortOrder($existingStoreAgent->getSortOrder());
             }
 
             $this->storeAgentRepository->saveOrUpdate($dataIsolation, $storeAgentEntity);

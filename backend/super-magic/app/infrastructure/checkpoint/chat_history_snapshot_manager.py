@@ -11,7 +11,7 @@
 """
 
 from pathlib import Path
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from app.utils.async_file_utils import (
     async_rmtree, async_mkdir, async_copy2, async_copytree, async_exists, async_scandir
 )

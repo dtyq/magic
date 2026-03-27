@@ -1,11 +1,16 @@
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useDebounce, useThrottle } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { SkillsApi } from "@/apis"
-import type { ImportSkillResponse, StoreSkillItem } from "@/apis/modules/skills"
+import type { SkillLastVersionItem, StoreSkillItem } from "@/apis/modules/skills"
 import type { CrewI18nText } from "@/apis/modules/crew"
 import { buildCrewI18nText } from "@/apis/modules/crew"
-import { useInstallImportedSkill } from "../../../hooks/useInstallImportedSkill"
 import { CREW_SKILLS_TAB, type CrewSkillsTab } from "../../../store"
+
+const SKILLS_PANEL_PAGE_SIZE = 20
+/** Debounce after pause; throttle caps request rate for auto-search. */
+const SKILLS_SEARCH_DEBOUNCE_MS = 300
+const SKILLS_SEARCH_THROTTLE_MS = 400
 
 export type SkillInstallStatus = "not-installed" | "installed"
 
@@ -30,26 +35,16 @@ export interface SkillPanelItem {
 	status: SkillInstallStatus
 }
 
-function resolveLocalizedText(
-	textObj: Record<string, string> | undefined,
-	language: string,
-): string {
-	if (!textObj) return ""
-	if (language.startsWith("zh")) return textObj.zh_CN || textObj.en_US || ""
-	return textObj.en_US || textObj.zh_CN || ""
+interface PaginationStateItem {
+	page: number
+	total: number
+	loading: boolean
+	loadingMore: boolean
 }
 
-function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
-	return {
-		id: item.id,
-		skillCode: item.skill_code,
-		userSkillCode: item.user_skill_code ?? undefined,
-		isInUserLibrary: item.is_added,
-		name: resolveLocalizedText(item.name_i18n, language),
-		description: resolveLocalizedText(item.description_i18n, language),
-		logo: item.logo,
-		status: "not-installed",
-	}
+interface SkillsPanelPaginationState {
+	library: PaginationStateItem
+	mySkills: PaginationStateItem
 }
 
 interface UseSkillsPanelOptions {
@@ -74,7 +69,85 @@ interface UseSkillsPanelOptions {
 	onAddSkillToAgent: (skillCode: string) => Promise<void>
 	/** Persist removal of a single skill code to the backend (API 6.2). */
 	onRemoveSkillFromAgent: (skillCode: string) => Promise<void>
+	/** Refresh bound crew skills from backend after persistence succeeds. */
+	onRefreshSkills?: () => Promise<void>
 	language: string
+	/**
+	 * Optional full replacement for install (after list item click).
+	 * Use for non-crew agent targets; still runs onRefreshSkills on success.
+	 */
+	overrideInstall?: (skillCode: string) => Promise<void>
+	/**
+	 * Optional full replacement for uninstall.
+	 * Use for non-crew agent targets; still runs onRefreshSkills on success.
+	 */
+	overrideUninstall?: (skillCode: string) => Promise<void>
+}
+
+function resolveLocalizedText(
+	textObj: Record<string, string> | undefined,
+	language: string,
+): string {
+	if (!textObj) return ""
+	if (language.startsWith("zh")) return textObj.zh_CN || textObj.en_US || ""
+	return textObj.en_US || textObj.zh_CN || ""
+}
+
+function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
+	return {
+		id: item.id,
+		skillCode: item.skill_code,
+		userSkillCode: item.user_skill_code ?? undefined,
+		isInUserLibrary: item.is_added,
+		name: resolveLocalizedText(item.name_i18n, language),
+		description: resolveLocalizedText(item.description_i18n, language),
+		logo: item.logo,
+		status: "not-installed",
+	}
+}
+
+function mapLatestPublishedSkill(item: SkillLastVersionItem, language: string): SkillPanelItem {
+	return {
+		id: item.id,
+		skillCode: item.code,
+		userSkillCode: item.code,
+		isInUserLibrary: true,
+		name: resolveLocalizedText(item.name_i18n, language) || item.name || "",
+		description:
+			resolveLocalizedText(item.description_i18n, language) || item.description || "",
+		logo: item.logo,
+		status: "not-installed",
+	}
+}
+
+function replacePageItems(params: {
+	items: SkillPanelItem[]
+	pageItems: SkillPanelItem[]
+	page: number
+	pageSize: number
+}): SkillPanelItem[] {
+	const { items, pageItems, page, pageSize } = params
+	const startIndex = (page - 1) * pageSize
+	const nextItems = [...items]
+	nextItems.splice(startIndex, pageItems.length, ...pageItems)
+	return nextItems
+}
+
+function createInitialPaginationState(): SkillsPanelPaginationState {
+	return {
+		library: {
+			page: 1,
+			total: 0,
+			loading: false,
+			loadingMore: false,
+		},
+		mySkills: {
+			page: 1,
+			total: 0,
+			loading: false,
+			loadingMore: false,
+		},
+	}
 }
 
 export function useSkillsPanel({
@@ -85,73 +158,139 @@ export function useSkillsPanel({
 	onRemoveSkill,
 	onAddSkillToAgent,
 	onRemoveSkillFromAgent,
+	onRefreshSkills,
 	language,
+	overrideInstall,
+	overrideUninstall,
 }: UseSkillsPanelOptions) {
-	const installImportedSkill = useInstallImportedSkill()
 	const [searchQuery, setSearchQuery] = useState("")
-
+	const [isSearchComposing, setIsSearchComposing] = useState(false)
+	const debouncedSearchQuery = useDebounce(searchQuery, { wait: SKILLS_SEARCH_DEBOUNCE_MS })
+	const throttledSearchQuery = useThrottle(debouncedSearchQuery, {
+		wait: SKILLS_SEARCH_THROTTLE_MS,
+	})
+	/** Last applied keyword; keeps load-more aligned with list query. */
+	const appliedKeywordRef = useRef("")
 	const [rawLibrary, setRawLibrary] = useState<SkillPanelItem[]>([])
 	const [rawMySkills, setRawMySkills] = useState<SkillPanelItem[]>([])
-	const [loading, setLoading] = useState(false)
+	const [paginationState, setPaginationState] = useState<SkillsPanelPaginationState>(
+		createInitialPaginationState,
+	)
 
 	/** Per-skill busy flag (during install / uninstall network requests) */
 	const [busySkills, setBusySkills] = useState<Set<string>>(new Set())
 
-	// ─── Fetch helpers ───────────────────────────────────────────────────────
+	const updatePaginationState = useCallback(
+		(
+			tab: keyof SkillsPanelPaginationState,
+			updater: (state: PaginationStateItem) => PaginationStateItem,
+		) => {
+			setPaginationState((prev) => ({
+				...prev,
+				[tab]: updater(prev[tab]),
+			}))
+		},
+		[],
+	)
 
 	const fetchLibrary = useCallback(
-		async (keyword?: string) => {
-			setLoading(true)
+		async ({
+			keyword,
+			page = 1,
+			append = false,
+		}: {
+			keyword?: string
+			page?: number
+			append?: boolean
+		} = {}) => {
+			updatePaginationState("library", (state) => ({
+				...state,
+				loading: append ? state.loading : true,
+				loadingMore: append,
+			}))
+
 			try {
-				const res = await SkillsApi.getStoreSkills({ keyword, page_size: 50 })
-				setRawLibrary(res.list.map((item) => mapStoreSkill(item, language)))
+				const res = await SkillsApi.getStoreSkills({
+					keyword,
+					page,
+					page_size: SKILLS_PANEL_PAGE_SIZE,
+				})
+				const nextItems = res.list.map((item) => mapStoreSkill(item, language))
+				setRawLibrary((prev) => (append ? [...prev, ...nextItems] : nextItems))
+				updatePaginationState("library", (state) => ({
+					...state,
+					page: res.page,
+					total: res.total,
+				}))
 			} catch {
 				// Non-critical; list stays empty
 			} finally {
-				setLoading(false)
+				updatePaginationState("library", (state) => ({
+					...state,
+					loading: false,
+					loadingMore: false,
+				}))
 			}
 		},
-		[language],
+		[language, updatePaginationState],
 	)
 
-	const fetchMySkills = useCallback(async () => {
-		setLoading(true)
-		try {
-			const res = await SkillsApi.getSkills({ page_size: 100 })
-			setRawMySkills(
-				res.list.map((item) => ({
-					id: item.id,
-					skillCode: item.code,
-					userSkillCode: item.code,
-					isInUserLibrary: true,
-					name: resolveLocalizedText(item.name_i18n, language),
-					description: resolveLocalizedText(item.description_i18n, language),
-					logo: item.logo,
-					status: "not-installed",
-				})),
-			)
-		} catch {
-			// Non-critical; list stays empty
-		} finally {
-			setLoading(false)
-		}
-	}, [language])
+	const fetchMySkills = useCallback(
+		async ({ page = 1, append = false }: { page?: number; append?: boolean } = {}) => {
+			updatePaginationState("mySkills", (state) => ({
+				...state,
+				loading: append ? state.loading : true,
+				loadingMore: append,
+			}))
 
-	// Re-fetch when the active tab changes
+			try {
+				const res = await SkillsApi.getSkillLastVersions({
+					page,
+					page_size: SKILLS_PANEL_PAGE_SIZE,
+				})
+				const nextItems = res.list.map((item) => mapLatestPublishedSkill(item, language))
+				setRawMySkills((prev) => (append ? [...prev, ...nextItems] : nextItems))
+				updatePaginationState("mySkills", (state) => ({
+					...state,
+					page: res.page,
+					total: res.total,
+				}))
+			} catch {
+				// Non-critical; list stays empty
+			} finally {
+				updatePaginationState("mySkills", (state) => ({
+					...state,
+					loading: false,
+					loadingMore: false,
+				}))
+			}
+		},
+		[language, updatePaginationState],
+	)
+
 	useEffect(() => {
-		if (activeTab === "library") {
-			void fetchLibrary()
-		} else {
-			void fetchMySkills()
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [activeTab])
+		appliedKeywordRef.current = ""
+		setSearchQuery("")
+		setIsSearchComposing(false)
+		if (activeTab === CREW_SKILLS_TAB.Library) return
+		void fetchMySkills({ page: 1 })
+	}, [activeTab, fetchMySkills])
 
-	// ─── Derived display data ────────────────────────────────────────────────
+	// Library: debounce + throttle; skip while IME is composing (CJK input).
+	useEffect(() => {
+		if (activeTab !== CREW_SKILLS_TAB.Library) return
+		if (isSearchComposing) return
+		const kw = throttledSearchQuery.trim()
+		appliedKeywordRef.current = kw
+		void fetchLibrary({ keyword: kw || undefined, page: 1 })
+	}, [activeTab, throttledSearchQuery, fetchLibrary, isSearchComposing])
+
+	const onSearchCompositionStart = useCallback(() => setIsSearchComposing(true), [])
+	const onSearchCompositionEnd = useCallback(() => setIsSearchComposing(false), [])
 
 	/** Overlay live agent-assignment status onto raw fetched items */
 	const displayItems = useMemo<SkillPanelItem[]>(() => {
-		const raw = activeTab === "library" ? rawLibrary : rawMySkills
+		const raw = activeTab === CREW_SKILLS_TAB.Library ? rawLibrary : rawMySkills
 		return raw.map((item) => {
 			// Agent skills are stored with userSkillCode as the ID.
 			// For library items we must check userSkillCode (not the store's skill_code).
@@ -166,16 +305,14 @@ export function useSkillsPanel({
 		})
 	}, [activeTab, rawLibrary, rawMySkills, agentSkillCodes])
 
-	const filteredItems = useMemo(() => {
-		if (activeTab !== "library" || !searchQuery.trim()) return displayItems
-		const lower = searchQuery.toLowerCase()
-		return displayItems.filter(
-			(s) =>
-				s.name.toLowerCase().includes(lower) || s.description.toLowerCase().includes(lower),
-		)
-	}, [displayItems, activeTab, searchQuery])
-
-	// ─── Actions ─────────────────────────────────────────────────────────────
+	const activePaginationState =
+		activeTab === CREW_SKILLS_TAB.Library ? paginationState.library : paginationState.mySkills
+	const loading = activePaginationState.loading
+	const loadingMore = activePaginationState.loadingMore
+	const hasMore =
+		activeTab === CREW_SKILLS_TAB.Library
+			? rawLibrary.length < paginationState.library.total
+			: rawMySkills.length < paginationState.mySkills.total
 
 	const setBusy = useCallback((skillCode: string, busy: boolean) => {
 		setBusySkills((prev) => {
@@ -188,34 +325,65 @@ export function useSkillsPanel({
 
 	const handleInstall = useCallback(
 		async (skillCode: string) => {
-			const skill = displayItems.find((s) => s.skillCode === skillCode)
+			const skill = displayItems.find((item) => item.skillCode === skillCode)
 			if (!skill || busySkills.has(skillCode)) return
 
+			if (overrideInstall) {
+				setBusy(skillCode, true)
+				try {
+					await overrideInstall(skillCode)
+					try {
+						await onRefreshSkills?.()
+					} catch {
+						// Keep UI when sync fails transiently.
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : undefined
+					if (msg) magicToast.error(msg)
+				} finally {
+					setBusy(skillCode, false)
+				}
+				return
+			}
+
 			setBusy(skillCode, true)
-			// Track the resolved agent skill ID outside try for rollback access
 			let agentSkillId: string | undefined
+
 			try {
-				if (activeTab === "library") {
-					// Step 1: Add the skill to the user's own skill library (if not yet added)
+				if (activeTab === CREW_SKILLS_TAB.Library) {
 					if (!skill.isInUserLibrary) {
 						await SkillsApi.addSkillFromStore({ store_skill_id: skill.id })
 					}
 
-					// Step 2: Re-fetch the store skill list to obtain the user's skill code
-					// (user_skill_code may differ from the store's skill_code and is the
-					// correct ID for addAgentSkills / deleteAgentSkills)
-					const refreshed = await SkillsApi.getStoreSkills({ page_size: 50 })
-					const updatedItems = refreshed.list.map((item) => mapStoreSkill(item, language))
-					setRawLibrary(updatedItems)
+					const rawIndex = rawLibrary.findIndex((item) => item.skillCode === skillCode)
+					const targetPage =
+						rawIndex >= 0 ? Math.floor(rawIndex / SKILLS_PANEL_PAGE_SIZE) + 1 : 1
+					const refreshed = await SkillsApi.getStoreSkills({
+						page: targetPage,
+						page_size: SKILLS_PANEL_PAGE_SIZE,
+						keyword: appliedKeywordRef.current || undefined,
+					})
+					const refreshedPageItems = refreshed.list.map((item) =>
+						mapStoreSkill(item, language),
+					)
 
-					const updatedSkill = refreshed.list.find((s) => s.skill_code === skillCode)
+					setRawLibrary((prev) =>
+						replacePageItems({
+							items: prev,
+							pageItems: refreshedPageItems,
+							page: targetPage,
+							pageSize: SKILLS_PANEL_PAGE_SIZE,
+						}),
+					)
+
+					const updatedSkill = refreshed.list.find(
+						(item) => item.skill_code === skillCode,
+					)
 					agentSkillId = updatedSkill?.user_skill_code ?? skillCode
 				} else {
-					// "My Skills" tab: skillCode is already the user's skill code
 					agentSkillId = skillCode
 				}
 
-				// Step 3: Optimistic local update
 				onAddSkill({
 					skill_code: agentSkillId,
 					name_i18n: buildCrewI18nText(skill.name),
@@ -223,10 +391,13 @@ export function useSkillsPanel({
 					logo: skill.logo,
 				})
 
-				// Step 4: Persist via incremental add API (API 6.1)
 				await onAddSkillToAgent(agentSkillId)
+				try {
+					await onRefreshSkills?.()
+				} catch {
+					// Keep optimistic state when sync fails transiently.
+				}
 			} catch (err) {
-				// Rollback: remove the skill from local state if it was already added
 				if (agentSkillId) onRemoveSkill(agentSkillId)
 				const msg = err instanceof Error ? err.message : undefined
 				if (msg) magicToast.error(msg)
@@ -236,12 +407,15 @@ export function useSkillsPanel({
 		},
 		[
 			activeTab,
-			displayItems,
 			busySkills,
+			displayItems,
 			language,
 			onAddSkill,
-			onRemoveSkill,
 			onAddSkillToAgent,
+			onRefreshSkills,
+			onRemoveSkill,
+			overrideInstall,
+			rawLibrary,
 			setBusy,
 		],
 	)
@@ -250,19 +424,37 @@ export function useSkillsPanel({
 		async (skillCode: string) => {
 			if (busySkills.has(skillCode)) return
 
-			const skill = displayItems.find((s) => s.skillCode === skillCode)
-			// Agent skills are keyed by userSkillCode; fall back to skillCode only when
-			// userSkillCode is absent (e.g. a "my-skills" item where they are the same).
+			const skill = displayItems.find((item) => item.skillCode === skillCode)
 			const agentSkillId = skill?.userSkillCode ?? skillCode
 
+			if (overrideUninstall) {
+				setBusy(skillCode, true)
+				try {
+					await overrideUninstall(skillCode)
+					try {
+						await onRefreshSkills?.()
+					} catch {
+						// Keep UI when sync fails transiently.
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : undefined
+					if (msg) magicToast.error(msg)
+				} finally {
+					setBusy(skillCode, false)
+				}
+				return
+			}
+
 			setBusy(skillCode, true)
-			// Optimistic local remove before API call
 			onRemoveSkill(agentSkillId)
 			try {
-				// Persist via incremental remove API (API 6.2)
 				await onRemoveSkillFromAgent(agentSkillId)
+				try {
+					await onRefreshSkills?.()
+				} catch {
+					// Keep optimistic state when sync fails transiently.
+				}
 			} catch (err) {
-				// Rollback: re-add the skill with its original info
 				onAddSkill({
 					skill_code: agentSkillId,
 					name_i18n: buildCrewI18nText(skill?.name ?? ""),
@@ -275,43 +467,82 @@ export function useSkillsPanel({
 				setBusy(skillCode, false)
 			}
 		},
-		[displayItems, busySkills, onRemoveSkill, onAddSkill, onRemoveSkillFromAgent, setBusy],
+		[
+			busySkills,
+			displayItems,
+			onAddSkill,
+			onRefreshSkills,
+			onRemoveSkill,
+			onRemoveSkillFromAgent,
+			overrideUninstall,
+			setBusy,
+		],
 	)
 
-	function handleSearch() {
-		if (activeTab === "library") {
-			void fetchLibrary(searchQuery.trim() || undefined)
+	const handleLoadMore = useCallback(() => {
+		if (loading || loadingMore || !hasMore) return
+		if (activeTab === CREW_SKILLS_TAB.Library && isSearchComposing) return
+
+		const keyword = appliedKeywordRef.current || undefined
+		if (activeTab === CREW_SKILLS_TAB.Library) {
+			void fetchLibrary({
+				page: paginationState.library.page + 1,
+				append: true,
+				keyword,
+			})
+			return
 		}
-	}
+
+		void fetchMySkills({
+			page: paginationState.mySkills.page + 1,
+			append: true,
+		})
+	}, [
+		activeTab,
+		fetchLibrary,
+		fetchMySkills,
+		hasMore,
+		loading,
+		loadingMore,
+		paginationState.library.page,
+		paginationState.mySkills.page,
+		isSearchComposing,
+	])
+
+	/** Immediate search (Enter / button) before debounce catches up. */
+	const handleSearch = useCallback(() => {
+		if (activeTab !== CREW_SKILLS_TAB.Library) return
+		if (isSearchComposing) return
+		const keyword = searchQuery.trim()
+		appliedKeywordRef.current = keyword
+		void fetchLibrary({ keyword: keyword || undefined, page: 1 })
+	}, [activeTab, fetchLibrary, searchQuery, isSearchComposing])
 
 	/**
-	 * Called after a skill is imported via the import dialog.
-	 * Auto-installs the newly imported skill to the current agent,
-	 * then switches to "My Skills" tab and refreshes the list.
+	 * After import: refresh "My Skills" list only. Install-to-agent is manual;
+	 * publish prompt is handled by SkillActionDropdown (ImportSkillPublishPromptDialog).
 	 */
-	const handleImportSuccess = useCallback(
-		async (result: ImportSkillResponse) => {
-			await installImportedSkill(result, {
-				onInstalled: async () => {
-					onTabChange(CREW_SKILLS_TAB.MySkills)
-					await fetchMySkills()
-				},
-			})
-		},
-		[fetchMySkills, installImportedSkill, onTabChange],
-	)
+	const handleImportSuccess = useCallback(async () => {
+		onTabChange(CREW_SKILLS_TAB.MySkills)
+		await fetchMySkills({ page: 1 })
+	}, [fetchMySkills, onTabChange])
 
 	return {
 		activeTab,
 		setActiveTab: onTabChange,
 		searchQuery,
 		setSearchQuery,
-		filteredItems,
+		filteredItems: displayItems,
 		loading,
+		loadingMore,
+		hasMore,
 		busySkills,
 		handleInstall,
 		handleUninstall,
+		handleLoadMore,
 		handleSearch,
 		handleImportSuccess,
+		onSearchCompositionStart,
+		onSearchCompositionEnd,
 	}
 }

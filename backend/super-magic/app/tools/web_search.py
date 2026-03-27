@@ -15,7 +15,7 @@ from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
 from app.core.entity.message.server_message import ToolDetail
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.tool.tool_result import WebSearchToolResult
+from app.core.entity.tool.tool_result_types import WebSearchToolResult
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.utils.xml_escape_fixer import XMLEscapeFixer
@@ -1033,7 +1033,7 @@ class WebSearch(BaseTool[WebSearchParams]):
             try:
                 requirements_data, xml_fix_message = _parse_search_requirements_xml(params.requirements_xml)
             except ValueError as e:
-                return WebSearchToolResult(error=f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
+                return WebSearchToolResult.error(f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
 
             if not requirements_data:
                 return WebSearchToolResult(content="搜索需求不能为空，请在修正XML数据后重新执行")
@@ -1101,7 +1101,7 @@ class WebSearch(BaseTool[WebSearchParams]):
 
         except Exception as e:
             logger.exception(f"搜索操作失败: {e!s}")
-            return WebSearchToolResult(error="Search operation failed")
+            return WebSearchToolResult.error("Search operation failed")
 
     def _handle_queries_results(self, queries: List[str], all_results: List[List[Dict[str, Any]]]) -> WebSearchToolResult:
         """

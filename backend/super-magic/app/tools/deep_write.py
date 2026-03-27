@@ -11,7 +11,7 @@ from app.core.entity.message.server_message import ToolDetail
 from agentlang.tools.tool_result import ToolResult
 from agentlang.llms.factory import LLMFactory
 from agentlang.logger import get_logger
-from app.core.entity.tool.tool_result import DeepWriteToolResult
+from app.core.entity.tool.tool_result_types import DeepWriteToolResult
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.read_file import ReadFile, ReadFileParams
 
@@ -108,7 +108,7 @@ class DeepWrite(BaseTool[DeepWriteParams]):
             if len(reference_files) < 3:
                 error_msg = "为确保深度写作的结果有可靠的来源依据，参考文件的数量不得小于三个，建议使用 list_dir 工具查看工作区，获取足够的信息源后再进行深度写作"
                 logger.warning(f"深度写作中止：{error_msg} (提供了 {len(reference_files)} 个文件)")
-                return DeepWriteToolResult(error=error_msg)
+                return DeepWriteToolResult.error(error_msg)
 
             # Get configuration from AI ability config
             from app.core.ai_abilities import AIAbility, get_ability_config
@@ -183,7 +183,7 @@ class DeepWrite(BaseTool[DeepWriteParams]):
 
             # 处理响应
             if not response or not response.choices or len(response.choices) == 0:
-                return DeepWriteToolResult(error="没有从模型收到有效响应")
+                return DeepWriteToolResult.error("没有从模型收到有效响应")
 
             # 获取模型原生的深度写作内容和结论
             message = response.choices[0].message
@@ -264,7 +264,7 @@ class DeepWrite(BaseTool[DeepWriteParams]):
 
         except Exception as e:
             logger.exception(f"深度写作操作失败: {e!s}")
-            return DeepWriteToolResult(error="Deep write operation failed")
+            return DeepWriteToolResult.error("Deep write operation failed")
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         """

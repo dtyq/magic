@@ -34,25 +34,6 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
     ) {
     }
 
-    /**
-     * 根据 code 查找最新版本的 Agent 版本（按 version 字段降序）.
-     */
-    public function findLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity
-    {
-        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
-        /** @var null|AgentVersionModel $model */
-        $model = $builder
-            ->where('code', $code)
-            ->orderBy('version', 'DESC')
-            ->first();
-
-        if (! $model) {
-            return null;
-        }
-
-        return $this->toEntity($model->toArray());
-    }
-
     public function countByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int
     {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
@@ -85,9 +66,8 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         /** @var null|AgentVersionModel $model */
         $model = $builder
             ->where('code', $code)
+            ->where('is_current_version', 1)
             ->whereNull('deleted_at')
-            ->orderBy('is_current_version', 'DESC')
-            ->orderBy('created_at', 'DESC')
             ->first();
 
         if (! $model) {
@@ -107,10 +87,38 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
         $models = $builder
             ->whereIn('code', $codes)
+            ->where('is_current_version', 1)
             ->whereNull('deleted_at')
             ->orderBy('code')
-            ->orderBy('is_current_version', 'DESC')
-            ->orderBy('created_at', 'DESC')
+            ->get();
+
+        $result = [];
+        /** @var AgentVersionModel $model */
+        foreach ($models as $model) {
+            $code = (string) $model->code;
+            if (isset($result[$code])) {
+                continue;
+            }
+            $result[$code] = $this->toEntity($model->toArray());
+        }
+
+        return $result;
+    }
+
+    public function findLatestPublishedByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
+    {
+        $codes = array_values(array_unique(array_filter($codes)));
+        if ($codes === []) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        $models = $builder
+            ->whereIn('code', $codes)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_current_version', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('code')
             ->get();
 
         $result = [];
@@ -139,11 +147,15 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $keyword = trim((string) ($query->getKeyword() ?? ''));
         $languageCode = $query->getLanguageCode() ?: 'en_US';
         $isCurrentVersions = $query->getIsCurrentVersions() ?? true;
+        $publishedOnly = $query->getPublishedOnly() ?? false;
 
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
         $builder->whereIn('code', $codes)->whereNull('deleted_at');
         if ($isCurrentVersions) {
             $builder->where('is_current_version', 1);
+        }
+        if ($publishedOnly) {
+            $builder->where('publish_status', PublishStatus::PUBLISHED->value);
         }
 
         if ($keyword !== '') {

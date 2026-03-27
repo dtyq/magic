@@ -49,12 +49,16 @@ class SkillMetadata:
     async def has_reference(self) -> bool:
         """检查是否包含参考文档目录（异步）
 
+        同时兼容 references（复数）和 reference（单数）两种目录命名。
+
         Returns:
-            bool: 如果存在 reference 目录返回 True
+            bool: 如果存在 references 或 reference 目录返回 True
         """
         if self.skill_dir:
-            reference_path = self.skill_dir / "reference"
-            return await asyncio.to_thread(reference_path.exists)
+            for dirname in ("references", "reference"):
+                path = self.skill_dir / dirname
+                if await asyncio.to_thread(path.exists):
+                    return True
         return False
 
     async def has_resources(self) -> bool:
@@ -81,11 +85,16 @@ class SkillMetadata:
     async def get_reference_dir(self) -> Optional[Path]:
         """获取参考文档目录路径（异步）
 
+        同时兼容 references（复数）和 reference（单数）两种目录命名。
+
         Returns:
             Optional[Path]: 参考文档目录路径，如果不存在返回 None
         """
-        if await self.has_reference():
-            return self.skill_dir / "reference"
+        if self.skill_dir:
+            for dirname in ("references", "reference"):
+                path = self.skill_dir / dirname
+                if await asyncio.to_thread(path.exists):
+                    return path
         return None
 
     async def get_resources_dir(self) -> Optional[Path]:

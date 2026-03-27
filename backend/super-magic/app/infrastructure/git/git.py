@@ -141,7 +141,7 @@ class GitService:
         """获取项目根目录的绝对路径"""
         try:
             # 尝试使用 PathManager 获取项目根目录
-            from agentlang.paths import PathManager
+            from agentlang.path_manager import PathManager
             return PathManager.get_project_root()
         except Exception:
             # 如果 PathManager 不可用，使用项目标志文件查找项目根目录

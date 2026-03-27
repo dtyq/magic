@@ -5,6 +5,7 @@ import {
 	createSkillArchiveFromSelectedFolderFiles,
 	IMPORT_SKILL_DROP_ERROR,
 	ImportSkillDropError,
+	normalizeSkillImportFile,
 } from "../utils"
 
 function createFolderFile(path: string, content: string) {
@@ -20,8 +21,18 @@ function createFolderFile(path: string, content: string) {
 	return file
 }
 
+async function createArchiveFile(name: string, entries: Array<{ path: string; content: string }>) {
+	const zip = new JSZip()
+	for (const entry of entries) {
+		zip.file(entry.path, entry.content)
+	}
+
+	const blob = await zip.generateAsync({ type: "blob" })
+	return new File([blob], name, { type: "application/zip" })
+}
+
 describe("ImportSkillDialog utils", () => {
-	it("archives folder files with their relative paths preserved", async () => {
+	it("archives folder contents at zip root; folder name is only the archive file name", async () => {
 		const archive = await createSkillArchiveFromFolder({
 			type: "folder",
 			name: "demo-skill",
@@ -34,14 +45,9 @@ describe("ImportSkillDialog utils", () => {
 		expect(archive.name).toBe("demo-skill.zip")
 
 		const zip = await JSZip.loadAsync(archive)
-		expect(Object.keys(zip.files).sort()).toEqual([
-			"demo-skill/",
-			"demo-skill/SKILL.md",
-			"demo-skill/assets/",
-			"demo-skill/assets/icon.png",
-		])
-		expect(await zip.file("demo-skill/SKILL.md")?.async("string")).toBe("# Skill")
-		expect(await zip.file("demo-skill/assets/icon.png")?.async("string")).toBe("icon")
+		expect(Object.keys(zip.files).sort()).toEqual(["SKILL.md", "assets/", "assets/icon.png"])
+		expect(await zip.file("SKILL.md")?.async("string")).toBe("# Skill")
+		expect(await zip.file("assets/icon.png")?.async("string")).toBe("icon")
 	})
 
 	it("rejects empty folders", async () => {
@@ -67,11 +73,32 @@ describe("ImportSkillDialog utils", () => {
 		expect(archive.name).toBe("selected-skill.zip")
 
 		const zip = await JSZip.loadAsync(archive)
-		expect(Object.keys(zip.files).sort()).toEqual([
-			"selected-skill/",
-			"selected-skill/SKILL.md",
-			"selected-skill/config/",
-			"selected-skill/config/schema.json",
+		expect(Object.keys(zip.files).sort()).toEqual(["SKILL.md", "config/", "config/schema.json"])
+	})
+
+	it("normalizes uploaded archives without affecting folder packing logic", async () => {
+		const archiveFile = await createArchiveFile("selected-skill.zip", [
+			{ path: "__MACOSX/._SKILL.md", content: "" },
+			{ path: "selected-skill/selected-skill/SKILL.md", content: "# Selected Skill" },
+			{ path: "selected-skill/selected-skill/config/schema.json", content: "{}" },
 		])
+
+		const normalizedArchive = await normalizeSkillImportFile(archiveFile)
+		const zip = await JSZip.loadAsync(normalizedArchive)
+
+		expect(normalizedArchive.name).toBe("selected-skill.zip")
+		expect(Object.keys(zip.files).sort()).toEqual(["SKILL.md", "config/", "config/schema.json"])
+	})
+
+	it("keeps already normalized uploaded archives unchanged", async () => {
+		const archiveFile = await createArchiveFile("selected-skill.zip", [
+			{ path: "SKILL.md", content: "# Selected Skill" },
+			{ path: "config/schema.json", content: "{}" },
+		])
+
+		const normalizedArchive = await normalizeSkillImportFile(archiveFile)
+		const zip = await JSZip.loadAsync(normalizedArchive)
+
+		expect(Object.keys(zip.files).sort()).toEqual(["SKILL.md", "config/", "config/schema.json"])
 	})
 })

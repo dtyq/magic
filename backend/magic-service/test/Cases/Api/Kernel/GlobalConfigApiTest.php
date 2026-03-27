@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Kernel;
 
+use App\Application\Kernel\DTO\GlobalConfig;
+use App\Application\Kernel\Service\MagicSettingAppService;
+use Hyperf\Context\ApplicationContext;
 use HyperfTest\Cases\Api\AbstractHttpTest;
 
 /**
@@ -17,8 +20,27 @@ class GlobalConfigApiTest extends AbstractHttpTest
 {
     private string $url = '/api/v1/settings/global';
 
+    private ?GlobalConfig $originalGlobalConfig = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->originalGlobalConfig = clone $this->getMagicSettingAppService()->getWithoutCache();
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalGlobalConfig !== null) {
+            $this->getMagicSettingAppService()->save($this->originalGlobalConfig);
+        }
+
+        parent::tearDown();
+    }
+
     public function testGetGlobalConfigDefault(): void
     {
+        $this->setBootstrapStatus('');
+
         $response = $this->get($this->url, [], $this->getCommonHeaders());
         $this->assertSame(1000, $response['code']);
         $data = $response['data'];
@@ -27,6 +49,43 @@ class GlobalConfigApiTest extends AbstractHttpTest
             'maintenance_description' => '',
             'need_initial' => true,
         ], $data, '默认全局配置结构不符', false, true);
+    }
+
+    public function testGetGlobalConfigReturnsFreshNeedInitial(): void
+    {
+        $this->setBootstrapStatus('fresh');
+
+        $response = $this->get($this->url, [], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $data = $response['data'];
+        $this->assertSame('fresh', $data['bootstrap_status']);
+        $this->assertTrue($data['need_initial']);
+    }
+
+    public function testGetGlobalConfigReturnsInitializedNeedInitialFalse(): void
+    {
+        $this->setBootstrapStatus('initialized');
+
+        $response = $this->get($this->url, [], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $data = $response['data'];
+        $this->assertSame('initialized', $data['bootstrap_status']);
+        $this->assertFalse($data['need_initial']);
+    }
+
+    public function testGetAllGlobalConfigReturnsLegacyNeedInitialFalse(): void
+    {
+        $this->setBootstrapStatus('legacy');
+
+        $response = $this->get('/api/v1/settings/all', [], $this->getCommonHeaders());
+        $this->assertSame(1000, $response['code']);
+
+        $data = $response['data'];
+        $this->assertArrayHasKey('global_config', $data);
+        $this->assertSame('legacy', $data['global_config']['bootstrap_status']);
+        $this->assertFalse($data['global_config']['need_initial']);
     }
 
     public function testUpdateGlobalConfig(): void
@@ -82,6 +141,7 @@ class GlobalConfigApiTest extends AbstractHttpTest
         $this->assertArrayHasKey('is_maintenance', $data);
         $this->assertArrayHasKey('maintenance_description', $data);
         $this->assertArrayHasKey('need_initial', $data);
+        $this->assertArrayHasKey('bootstrap_status', $data);
 
         // 验证包含平台设置
         $this->assertArrayHasKey('logo', $data);
@@ -111,11 +171,13 @@ class GlobalConfigApiTest extends AbstractHttpTest
         $this->assertIsArray($data);
         $this->assertArrayHasKey('is_maintenance', $data);
         $this->assertArrayHasKey('maintenance_description', $data);
+        $this->assertArrayHasKey('bootstrap_status', $data);
 
         // 验证类型
         $this->assertIsBool($data['is_maintenance']);
         $this->assertIsString($data['maintenance_description']);
         $this->assertIsBool($data['need_initial']);
+        $this->assertIsString($data['bootstrap_status']);
 
         // 如果有平台设置，验证其结构
         if (isset($data['logo'])) {
@@ -127,5 +189,17 @@ class GlobalConfigApiTest extends AbstractHttpTest
         if (isset($data['default_language'])) {
             $this->assertIsString($data['default_language']);
         }
+    }
+
+    private function getMagicSettingAppService(): MagicSettingAppService
+    {
+        return ApplicationContext::getContainer()->get(MagicSettingAppService::class);
+    }
+
+    private function setBootstrapStatus(string $status): void
+    {
+        $config = $this->getMagicSettingAppService()->getWithoutCache();
+        $config->setBootstrapStatus($status);
+        $this->getMagicSettingAppService()->save($config);
     }
 }

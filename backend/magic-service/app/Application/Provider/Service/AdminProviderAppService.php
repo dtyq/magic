@@ -361,7 +361,7 @@ readonly class AdminProviderAppService
     public function queriesServiceProviderTemplates(?Category $category, string $organizationCode): array
     {
         // 获取所有非官方服务商
-        $serviceProviders = $this->adminProviderDomainService->queriesServiceProviderTemplates($category);
+        $serviceProviders = $this->adminProviderDomainService->queriesServiceProviderTemplates($organizationCode, $category);
 
         if (empty($serviceProviders)) {
             return [];

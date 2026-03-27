@@ -129,7 +129,7 @@ export const formatRelativeTime = (lang?: string) => {
 		}
 
 		dayjs.locale(
-			(lang ?? getCurrentLang(configStore.i18n.language))
+			(lang ?? getCurrentLang(configStore.i18n.displayLanguage))
 				.toLocaleLowerCase()
 				.replace("_", "-"),
 		)

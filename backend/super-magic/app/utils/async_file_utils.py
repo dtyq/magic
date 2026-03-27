@@ -7,13 +7,17 @@
 """
 
 import asyncio
+import re
 import aiofiles
 import aiofiles.os
 import shutil
 import json
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union, Any, Dict, Optional
+
+import yaml
 
 from agentlang.logger import get_logger
 
@@ -321,6 +325,48 @@ async def async_write_text(file_path: Union[str, Path], content: str, encoding: 
         raise
 
 
+async def async_write_bytes(
+    file_path: Union[str, Path],
+    content: bytes | bytearray | memoryview,
+) -> None:
+    """
+    异步写入二进制文件
+
+    Args:
+        file_path: 文件路径
+        content: 二进制内容
+
+    Raises:
+        PermissionError: 权限不足
+        IOError: IO操作失败
+        TypeError: 内容不是 bytes / bytearray / memoryview
+    """
+    path_obj = Path(file_path)
+
+    try:
+        logger.debug(f"开始异步写入二进制文件: {path_obj}")
+
+        if isinstance(content, bytes):
+            normalized_content = content
+        elif isinstance(content, (bytearray, memoryview)):
+            normalized_content = bytes(content)
+        else:
+            raise TypeError("二进制内容必须是 bytes、bytearray 或 memoryview 类型")
+
+        # 确保目录存在
+        await async_mkdir(path_obj.parent, parents=True, exist_ok=True)
+
+        # 异步写入文件
+        async with aiofiles.open(path_obj, 'wb') as f:
+            await f.write(normalized_content)
+
+        logger.debug(f"异步写入二进制文件完成: {path_obj}, 写入了 {len(normalized_content)} 字节")
+
+    except Exception as e:
+        logger.error(f"异步写入二进制文件失败 {path_obj}: {e}")
+        raise
+
+
 async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') -> str:
     """
     异步读取文本文件
@@ -559,3 +605,48 @@ async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     except Exception as e:
         logger.error(f"异步遍历目录失败 {path_str}: {e}")
         raise
+
+
+# ── Markdown with YAML frontmatter ───────────────────────────────────────────
+
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+
+
+@dataclass
+class MarkdownFile:
+    """Parsed Markdown file with optional YAML frontmatter.
+
+    Attributes:
+        raw:  Original file content as-is.
+        meta: Parsed YAML frontmatter dict; empty if none present.
+        body: Content after stripping the frontmatter block.
+    """
+    raw: str
+    meta: Dict[str, Any] = field(default_factory=dict)
+    body: str = ""
+
+
+def _parse_markdown(raw: str) -> MarkdownFile:
+    m = _FRONTMATTER_RE.match(raw)
+    if not m:
+        return MarkdownFile(raw=raw, meta={}, body=raw)
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError:
+        meta = {}
+    return MarkdownFile(raw=raw, meta=meta, body=raw[m.end():])
+
+
+async def async_read_markdown(file_path: Union[str, Path]) -> MarkdownFile:
+    """Read and parse a Markdown file with optional YAML frontmatter.
+
+    Raises:
+        FileNotFoundError: if the file does not exist.
+    """
+    return _parse_markdown(await async_read_text(file_path))
+
+
+async def async_try_read_markdown(file_path: Union[str, Path]) -> Optional[MarkdownFile]:
+    """Read and parse a Markdown file; return None if the file does not exist."""
+    raw = await async_try_read_text(file_path)
+    return _parse_markdown(raw) if raw is not None else None

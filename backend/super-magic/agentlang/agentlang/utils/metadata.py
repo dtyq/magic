@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 from agentlang.logger import get_logger
 from agentlang.config.config import config
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 
 logger = get_logger(__name__)
 

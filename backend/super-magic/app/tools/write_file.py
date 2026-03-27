@@ -13,7 +13,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 
 logger = get_logger(__name__)
@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 class WriteFileParams(BaseToolParams):
     file_path: str = Field(
         ...,
-        description="""<!--zh: 要写入的文件路径，相对于工作目录或绝对路径，不要包含工作目录-->
-File path to write, relative to workspace or absolute, do not include workspace path"""
+        description="""<!--zh: 要写入的文件路径：相对路径解析到 .workspace（如 `report.md`）；.workspace 外的文件使用绝对路径-->
+File path to write: relative paths resolve to .workspace (e.g., `report.md`); use absolute paths for files outside .workspace"""
     )
     content: str = Field(
         ...,
@@ -82,7 +82,7 @@ class WriteResult(NamedTuple):
 
 
 @tool()
-class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceGuardTool[WriteFileParams]):
+class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams]):
     """<!--zh
     将文件写入本地文件系统。
     - 如果提供的路径中存在现有文件，此工具将覆盖该文件。
@@ -122,10 +122,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceGuardTool[WriteFileP
         """
         try:
             # 使用父类方法获取安全的文件路径
-            file_path, error = self.get_safe_path(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path = self.resolve_path(params.file_path)
             # 创建目录（如果需要）
             await self._create_directories(file_path)
 
@@ -167,7 +164,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceGuardTool[WriteFileP
 
         except Exception as e:
             logger.exception(f"写入文件失败: {e!s}")
-            return ToolResult(error="Failed to write file.\n\n"
+            return ToolResult.error("Failed to write file.\n\n"
                 "If the error is content length related, the content is too long and exceeds token limits.\n\n"
                 "SOLUTION:\n"
                 "1. Use write_file to create basic framework\n"

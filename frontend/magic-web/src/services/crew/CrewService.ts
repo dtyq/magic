@@ -6,11 +6,16 @@ import {
 	type CrewI18nArrayText,
 	type CrewI18nText,
 	type CrewIconObject,
+	type CrewPublisherType,
 	type CrewSourceType,
 	type GetAgentsParams,
+	type GetAgentVersionsParams,
+	type GetAgentVersionsResponse,
 	type GetPlaybooksParams,
 	type GetStoreAgentsParams,
 	type CreateAgentParams,
+	type PublishAgentParams,
+	type PublishAgentPrefillResponse,
 	type UpdateAgentInfoParams,
 	type UpdateAgentSkillsParams,
 	type AddAgentSkillsParams,
@@ -20,6 +25,7 @@ import {
 	type UpdatePlaybookParams,
 	type StoreCategoryItem,
 	type StoreAgentItem,
+	type StoreAgentMarketDetailResponse,
 	type AgentItem,
 	type AgentDetailResponse,
 	type PlaybookItem,
@@ -39,16 +45,18 @@ export interface CategoryView {
 export interface StoreAgentView {
 	id: string
 	agentCode: string
-	agentVersionId?: string
+	userCode: string | null
+	latestVersionCode: string | null
 	name: string
 	role: string
 	description: string
 	icon: string | null
 	playbooks: CrewPlaybookView[]
 	publisherType: string
+	publisherName: string | null
 	categoryId: string | null
 	isAdded: boolean
-	needUpgrade: boolean
+	allowDelete: boolean
 	updatedAt: string
 }
 
@@ -61,9 +69,14 @@ export interface MyCrewView {
 	icon: string | null
 	playbooks: CrewPlaybookView[]
 	sourceType: CrewSourceType
+	publisherType: CrewPublisherType | null
+	publisherName: string | null
 	enabled: boolean
 	isStoreOffline: boolean | null
 	needUpgrade: boolean
+	allowDelete: boolean
+	latestVersionCode: string | null
+	latestPublishedAt: string | null
 	pinnedAt: string | null
 	updatedAt: string
 }
@@ -82,6 +95,18 @@ export interface AgentDetailView {
 	pinnedAt: string | null
 	skills: AgentSkillView[]
 	features: PlaybookView[]
+}
+
+export interface StoreAgentMarketDetailView {
+	id: string
+	agentCode: string
+	name: string
+	role: string
+	description: string
+	icon: string | null
+	versionCode: string
+	publishedAt: string | null
+	createdAt: string
 }
 
 export interface AgentSkillView {
@@ -148,10 +173,25 @@ export class CrewService {
 		return CrewApi.hireStoreAgent({ code })
 	}
 
+	async getStoreAgentMarketDetail(code: string): Promise<StoreAgentMarketDetailView> {
+		const data = await CrewApi.getStoreAgentMarketDetail({ code })
+		return this.mapStoreAgentMarketDetail(data)
+	}
+
 	// ─── User Agents ─────────────────────────────────────────────────────────
 
-	async getMyAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
+	async getCreatedAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
 		const data = await CrewApi.getAgents(params)
+		return {
+			list: data.list.map((item) => this.mapMyAgent(item)),
+			page: data.page,
+			pageSize: data.page_size,
+			total: data.total,
+		}
+	}
+
+	async getExternalAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
+		const data = await CrewApi.getExternalAgents(params)
 		return {
 			list: data.list.map((item) => this.mapMyAgent(item)),
 			page: data.page,
@@ -202,8 +242,19 @@ export class CrewService {
 		return CrewApi.upgradeAgent({ code })
 	}
 
-	publishAgent(code: string) {
-		return CrewApi.publishAgent({ code })
+	publishAgent(code: string, params: PublishAgentParams) {
+		return CrewApi.publishAgent({ code, ...params })
+	}
+
+	getAgentPublishPrefill(code: string): Promise<PublishAgentPrefillResponse> {
+		return CrewApi.getAgentPublishPrefill({ code })
+	}
+
+	getAgentVersions(
+		code: string,
+		params: GetAgentVersionsParams = {},
+	): Promise<GetAgentVersionsResponse> {
+		return CrewApi.getAgentVersions({ code, ...params })
 	}
 
 	offlineAgent(code: string) {
@@ -273,25 +324,49 @@ export class CrewService {
 
 	private mapStoreAgent(item: StoreAgentItem): StoreAgentView {
 		const iconUrl = this.resolveIconUrl(item.icon)
+		const featureRows = item.features ?? item.playbooks ?? []
 		return {
 			id: String(item.id),
 			agentCode: item.agent_code,
-			agentVersionId:
-				item.agent_version_id !== undefined ? String(item.agent_version_id) : undefined,
+			userCode: item.user_code ?? null,
+			latestVersionCode: item.latest_version_code,
 			name: this.mapI18nText(item.name_i18n),
 			role: this.mapI18nArrayText(item.role_i18n),
 			description: this.mapI18nText(item.description_i18n),
 			icon: iconUrl,
-			playbooks: item.features.map((f) => ({
+			playbooks: featureRows.map((f) => ({
 				name: this.mapI18nText(f.name_i18n),
 				icon: f.icon,
 				themeColor: f.theme_color,
 			})),
 			publisherType: item.publisher_type,
+			publisherName: item.publisher?.name?.trim() || null,
 			categoryId: item.category_id,
 			isAdded: item.is_added,
-			needUpgrade: item.need_upgrade,
+			allowDelete: item.allow_delete,
 			updatedAt: item.updated_at,
+		}
+	}
+
+	private mapStoreAgentMarketDetail(
+		item: StoreAgentMarketDetailResponse,
+	): StoreAgentMarketDetailView {
+		const localizedRole = item.role_i18n
+			? this.mapI18nArrayText(item.role_i18n)
+			: normalizeCrewI18nArrayValue(item.role)
+		const localizedDescription = item.description_i18n
+			? this.mapI18nText(item.description_i18n)
+			: item.description
+		return {
+			id: String(item.id),
+			agentCode: item.agent_code,
+			name: this.mapI18nText(item.name_i18n) || item.name,
+			role: localizedRole,
+			description: localizedDescription,
+			icon: this.resolveIconUrl(item.icon),
+			versionCode: item.version_code,
+			publishedAt: item.published_at,
+			createdAt: item.created_at,
 		}
 	}
 
@@ -309,10 +384,15 @@ export class CrewService {
 				icon: f.icon,
 				themeColor: f.theme_color,
 			})),
-			sourceType: item.source_type,
+			sourceType: this.normalizeSourceType(item.source_type),
+			publisherType: item.publisher_type ?? null,
+			publisherName: item.publisher?.name?.trim() || null,
 			enabled: item.enabled,
 			isStoreOffline: item.is_store_offline,
 			needUpgrade: item.need_upgrade,
+			allowDelete: item.allow_delete,
+			latestVersionCode: item.latest_version_code,
+			latestPublishedAt: item.latest_published_at,
 			pinnedAt: item.pinned_at,
 			updatedAt: item.updated_at,
 		}
@@ -320,6 +400,8 @@ export class CrewService {
 
 	private mapAgentDetail(item: AgentDetailResponse): AgentDetailView {
 		const iconUrl = this.resolveIconUrl(item.icon)
+		const skills = item.skills ?? []
+		const features = item.features ?? []
 		return {
 			id: String(item.id),
 			agentCode: item.agent_code,
@@ -329,10 +411,10 @@ export class CrewService {
 			icon: iconUrl,
 			prompt: resolveCrewAgentPromptText(item.prompt),
 			enabled: item.enabled,
-			sourceType: item.source_type,
+			sourceType: this.normalizeSourceType(item.source_type),
 			isStoreOffline: item.is_store_offline,
 			pinnedAt: item.pinned_at,
-			skills: item.skills.map((s) => ({
+			skills: skills.map((s) => ({
 				id: String(s.id),
 				skillId: String(s.skill_id),
 				skillCode: s.skill_code,
@@ -341,7 +423,7 @@ export class CrewService {
 				logo: s.logo,
 				sortOrder: s.sort_order,
 			})),
-			features: item.features.map((p) => this.mapPlaybook(p)),
+			features: features.map((p) => this.mapPlaybook(p)),
 		}
 	}
 
@@ -360,6 +442,11 @@ export class CrewService {
 			createdAt: item.created_at,
 			updatedAt: item.updated_at,
 		}
+	}
+
+	private normalizeSourceType(sourceType: string | null | undefined): CrewSourceType {
+		if (sourceType === "LOCAL_CREATE") return "LOCAL_CREATE"
+		return "MARKET"
 	}
 
 	private mapI18nText(text: CrewI18nText | null | undefined): string {

@@ -5,6 +5,7 @@ import magicAdminRoutes from "@/routes/modules/admin/routes"
 import magiClawRoutes from "@/routes/modules/magi-claw/routes"
 import { RouteName } from "@/routes/constants"
 import { routesRedirection, teamEditionRedirection } from "@/routes/helpers"
+import { superMagicCrewRoutes } from "@/routes/modules/superMagicCrewRoutes"
 
 /**
  * @description 路由处理器，需要异步渲染，等待路由生成再渲染再执行对应业务流程
@@ -39,17 +40,13 @@ const ContactsLayout = lazy(() => import("@/pages/contacts/layouts"))
 /** 通讯录 */
 const Contacts = lazy(() => import("@/pages/contacts/lazy/Contacts"))
 /** 通讯录 */
-const ContactsOrganization = lazy(
-	() => import("@/pages/contacts/lazy/ContactsOrganization"),
-)
+const ContactsOrganization = lazy(() => import("@/pages/contacts/lazy/ContactsOrganization"))
 /** 通讯录 */
 const ContactsFriend = lazy(() => import("@/pages/contacts/myFriends"))
 /** 通讯录 */
 const ContactsMyGroups = lazy(() => import("@/pages/contacts/lazy/ContactsMyGroups"))
 /** Ai 助手 */
-const ContactsAiAssistant = lazy(
-	() => import("@/pages/contacts/lazy/ContactsAiAssistant"),
-)
+const ContactsAiAssistant = lazy(() => import("@/pages/contacts/lazy/ContactsAiAssistant"))
 /** 用户详情 */
 const UserInfoDetailPage = lazy(() => import("@/pages/mobile/user-detail"))
 
@@ -73,21 +70,15 @@ const MCP = lazy(() => import("@/pages/flow/pages/mcp"))
  */
 const VectorKnowledgeLayout = lazy(() => import("@/pages/vectorKnowledge/layouts"))
 /** 创建 */
-const VectorKnowledgeCreate = lazy(
-	() => import("@/pages/vectorKnowledge/components/Create"),
-)
+const VectorKnowledgeCreate = lazy(() => import("@/pages/vectorKnowledge/components/Create"))
 /** 详情 */
-const VectorKnowledgeDetail = lazy(
-	() => import("@/pages/vectorKnowledge/components/Details"),
-)
+const VectorKnowledgeDetail = lazy(() => import("@/pages/vectorKnowledge/components/Details"))
 
 /** 无授权访问 */
 const NotAuthPage = lazy(() => import("@/pages/exception/forbidden"))
 
 /** 超级麦吉 - 通用布局 */
-const SuperMagicCommonLayout = lazy(
-	() => import("@/pages/superMagic/layouts/MainLayout"),
-)
+const SuperMagicCommonLayout = lazy(() => import("@/pages/superMagic/layouts/MainLayout"))
 /** 超级麦吉 - 项目跳转页面 */
 const ProjectPage = lazy(() => import("@/pages/superMagic/lazy/ProjectPage"))
 /** 移动端 - 个人中心 */
@@ -95,9 +86,7 @@ const Profile = lazy(() => import("@/pages/user/pages/my/lazy/Profile"))
 /** 移动端 - 个人中心 - 个人信息 */
 const ProfileInfo = lazy(() => import("@/pages/user/pages/my/components/AccountInfo"))
 /** 移动端 - 个人中心 - 登录设备 */
-const ProfileLoginDevices = lazy(
-	() => import("@/pages/user/pages/my/components/LoginDevices"),
-)
+const ProfileLoginDevices = lazy(() => import("@/pages/user/pages/my/components/LoginDevices"))
 /** 移动端 - 个人中心 - 设置 */
 const ProfileSettings = lazy(() => import("@/pages/user/pages/my/components/Settings"))
 /** 移动端 - 个人中心 - 设置 - 语言 */
@@ -112,26 +101,8 @@ const ProfileSettingsTimezone = lazy(
 const ProfileAccountSecurity = lazy(
 	() => import("@/pages/user/pages/my/components/AccountSecurity"),
 )
-const SuperMagicNavigate = lazy(
-	() => import("@/pages/superMagic/lazy/SuperMagicNavigate"),
-)
+const SuperMagicNavigate = lazy(() => import("@/pages/superMagic/lazy/SuperMagicNavigate"))
 const SuperRootRedirect = lazy(() => import("@/pages/superMagic/lazy/SuperRootRedirect"))
-/** Crew Market - 员工市场 */
-const CrewMarketPage = lazy(
-	() => import("@/pages/superMagic/pages/CrewMarket/index.desktop"),
-)
-/** Crew Edit - 编辑 Crew */
-const CrewEditPage = lazy(
-	() => import("@/pages/superMagic/pages/CrewEdit/index.desktop"),
-)
-/** My Skills - 我的技能 */
-const MySkillsPage = lazy(
-	() => import("@/pages/superMagic/pages/MySkillsPage/index.desktop"),
-)
-/** My Crew - 我的员工 */
-const MyCrewPage = lazy(
-	() => import("@/pages/superMagic/pages/MyCrewPage/index.desktop"),
-)
 const WorkspacePage = lazy(() => import("@/pages/superMagic/lazy/WorkspacePage"))
 const TopicPage = lazy(() => import("@/pages/superMagic/lazy/TopicPage"))
 const MobileTabs = lazy(() => import("@/pages/mobileTabs"))
@@ -152,12 +123,8 @@ const ClusterLayout = lazy(() => import("@/layouts/ClusterLayout"))
 const BaseLayout = lazy(() => import("@/layouts/BaseLayout"))
 
 /** 平台布局（用于分发不同平台入口） */
-const MagicPlatformLayout = lazy(
-	() => import("@/layouts/PlatformLayout/MagicPlatformLayout"),
-)
-const AdminPlatformLayout = lazy(
-	() => import("@/layouts/PlatformLayout/AdminPlatformLayout"),
-)
+const MagicPlatformLayout = lazy(() => import("@/layouts/PlatformLayout/MagicPlatformLayout"))
+const AdminPlatformLayout = lazy(() => import("@/layouts/PlatformLayout/AdminPlatformLayout"))
 
 interface RouteConfig {
 	isPersonalOrganization?: boolean
@@ -392,36 +359,7 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 					},
 				],
 			},
-			{
-				name: RouteName.CrewMarket,
-				path: `/:clusterCode${RoutePath.CrewMarket}`,
-				element: <Navigate name={RouteName.CrewMarketCrew} replace />,
-			},
-			{
-				name: RouteName.CrewMarketCrew,
-				path: `/:clusterCode${RoutePath.CrewMarketCrew}`,
-				element: <CrewMarketPage />,
-			},
-			{
-				name: RouteName.CrewMarketSkills,
-				path: `/:clusterCode${RoutePath.CrewMarketSkills}`,
-				element: <CrewMarketPage />,
-			},
-			{
-				name: RouteName.CrewEdit,
-				path: `/:clusterCode${RoutePath.CrewEdit}`,
-				element: <CrewEditPage />,
-			},
-			{
-				name: RouteName.MySkills,
-				path: `/:clusterCode${RoutePath.MySkills}`,
-				element: <MySkillsPage />,
-			},
-			{
-				name: RouteName.MyCrew,
-				path: `/:clusterCode${RoutePath.MyCrew}`,
-				element: <MyCrewPage />,
-			},
+			...superMagicCrewRoutes,
 			...magiClawRoutes,
 			{
 				name: RouteName.SuperMagicNavigate,

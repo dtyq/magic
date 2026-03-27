@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Kernel\Facade;
 
 use App\Application\Agent\Service\AgentAppService;
+use App\Application\Bootstrap\Service\BootstrapStatusService;
 use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Flow\Service\MagicFlowAppService;
@@ -81,13 +82,14 @@ class GlobalConfigApi extends AbstractApi
 
     public function __construct(
         private readonly MagicSettingAppService $magicSettingAppService,
+        private readonly BootstrapStatusService $bootstrapStatusService,
     ) {
     }
 
     public function getGlobalConfig(): array
     {
         $config = $this->magicSettingAppService->get();
-        $result = $config->toArray();
+        $result = $this->appendBootstrapState($config->toArray());
 
         // 合并平台设置
         try {
@@ -139,6 +141,7 @@ class GlobalConfigApi extends AbstractApi
             }, 'menu_modules');
 
             $result = $parallel->wait();
+            $result['global_config'] = $this->appendBootstrapState((array) ($result['global_config'] ?? []));
 
             // Cache the result for 5 minutes (300 seconds) - longer TTL since it's global
             GlobalConfigCacheUtil::setGlobalConfig($result);
@@ -443,7 +446,7 @@ class GlobalConfigApi extends AbstractApi
 
         $this->magicSettingAppService->save($config);
 
-        return $config->toArray();
+        return $this->appendBootstrapState($config->toArray());
     }
 
     public function getMenuModules(): array
@@ -508,5 +511,14 @@ class GlobalConfigApi extends AbstractApi
             }
         }
         return $resp;
+    }
+
+    private function appendBootstrapState(array $result): array
+    {
+        $status = $this->bootstrapStatusService->getStatus();
+        $result['bootstrap_status'] = $status->value;
+        $result['need_initial'] = $status->needInitial();
+
+        return $result;
     }
 }

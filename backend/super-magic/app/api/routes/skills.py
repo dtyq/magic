@@ -319,6 +319,107 @@ async def get_mcp_tools(server_name: Optional[str] = None):
         )
 
 
+class McpAddServerRequest(BaseModel):
+    """添加 MCP 服务器请求模型"""
+    name: str = Field(..., description="MCP 服务器名称")
+    type: str = Field(..., description="连接类型: stdio 或 http")
+    command: Optional[str] = Field(None, description="启动命令（stdio 类型必填）")
+    args: Optional[List[str]] = Field(None, description="命令参数列表（stdio 类型可选）")
+    url: Optional[str] = Field(None, description="服务器 URL（http 类型必填）")
+    env: Optional[Dict[str, str]] = Field(None, description="环境变量字典")
+    label_name: Optional[str] = Field(None, description="服务器显示名称")
+
+
+@router.post("/mcp_add_server", response_model=BaseResponse)
+async def mcp_add_server(request: McpAddServerRequest):
+    """
+    动态添加 MCP 服务器
+
+    运行时将新服务器加入全局 MCP 管理器，同名服务器会先断开旧连接再重建。
+    """
+    try:
+        from app.mcp.manager import initialize_global_mcp_manager
+
+        # 参数校验
+        server_type = request.type.lower()
+        if server_type not in ("stdio", "http"):
+            return create_error_response(
+                message=f"不支持的服务器类型: {request.type}，仅支持 stdio 或 http",
+                data={"ok": False, "error": f"不支持的服务器类型: {request.type}"}
+            )
+
+        if server_type == "stdio" and not request.command:
+            return create_error_response(
+                message="stdio 类型服务器必须提供 command 参数",
+                data={"ok": False, "error": "stdio 类型服务器必须提供 command 参数"}
+            )
+
+        if server_type == "http" and not request.url:
+            return create_error_response(
+                message="http 类型服务器必须提供 url 参数",
+                data={"ok": False, "error": "http 类型服务器必须提供 url 参数"}
+            )
+
+        # 构建服务器配置字典
+        server_config: Dict[str, Any] = {
+            "name": request.name,
+            "type": server_type,
+            "source": "client_config",
+        }
+        if request.command:
+            server_config["command"] = request.command
+        if request.args:
+            server_config["args"] = request.args
+        if request.url:
+            server_config["url"] = request.url
+        if request.env:
+            server_config["env"] = request.env
+        if request.label_name:
+            server_config["server_options"] = {"label_name": request.label_name}
+
+        logger.info(f"动态添加 MCP 服务器: {request.name} (type={server_type})")
+
+        # 以追加模式初始化，只添加/更新这一个服务器
+        success = await initialize_global_mcp_manager(
+            mcp_servers=[server_config],
+            append_mode=True,
+        )
+
+        if not success:
+            return create_error_response(
+                message=f"添加 MCP 服务器失败: {request.name}",
+                data={"ok": False, "error": f"服务器 {request.name} 连接失败，请检查配置"}
+            )
+
+        # 查询新增服务器的工具列表
+        manager = get_global_mcp_manager()
+        tools: List[str] = []
+        if manager and manager.has_server(request.name):
+            tools = manager.get_server_tools(request.name)
+        elif manager and request.name in manager.failed_servers:
+            return create_error_response(
+                message=f"MCP 服务器 {request.name} 连接失败",
+                data={"ok": False, "error": f"服务器 {request.name} 连接失败，请检查配置和网络"}
+            )
+
+        return create_success_response(
+            message=f"MCP 服务器 {request.name} 添加成功，共 {len(tools)} 个工具",
+            data={
+                "ok": True,
+                "name": request.name,
+                "tool_count": len(tools),
+                "tools": tools,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"添加 MCP 服务器时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"添加 MCP 服务器失败: {str(e)}",
+            data={"ok": False, "error": str(e)}
+        )
+
+
 @router.get("/mcp_tool_schema", response_model=BaseResponse)
 async def get_mcp_tool_schema(server_name: str, tool_name: str):
     """

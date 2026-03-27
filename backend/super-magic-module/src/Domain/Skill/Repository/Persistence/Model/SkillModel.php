@@ -20,6 +20,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property null|string $package_description Skill 包描述
  * @property array $name_i18n 多语言展示名
  * @property null|array $description_i18n 多语言展示描述
+ * @property null|array $source_i18n Source information in i18n format
  * @property null|string $search_text 统一小写搜索字段
  * @property null|string $logo Logo 图片 URL
  * @property string $file_key 压缩包在对象存储中的 key
@@ -51,6 +52,7 @@ class SkillModel extends AbstractModel
         'package_description',
         'name_i18n',
         'description_i18n',
+        'source_i18n',
         'search_text',
         'logo',
         'file_key',
@@ -74,6 +76,7 @@ class SkillModel extends AbstractModel
         'package_description' => 'string',
         'name_i18n' => 'array',
         'description_i18n' => 'array',
+        'source_i18n' => 'array',
         'search_text' => 'string',
         'logo' => 'string',
         'file_key' => 'string',

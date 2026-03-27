@@ -26,12 +26,20 @@ import { localeTextToDisplayString } from "@/pages/superMagic/components/MainInp
 import { cn } from "@/lib/tiptap-utils"
 import { Badge } from "@/components/shadcn-ui/badge"
 
+const INSPIRATION_THEME_LABEL_KEY: Record<string, string> = {
+	grid: "playbook.edit.inspiration.config.themeOptions.grid",
+	text_list: "playbook.edit.inspiration.config.themeOptions.textList",
+	waterfall: "playbook.edit.inspiration.config.themeOptions.waterfall",
+}
+
 export const InspirationPanel = observer(function InspirationPanel() {
 	const { t, i18n } = useTranslation("crew/create")
 	const store = useSceneEditStore()
 	const config = store.inspiration
+	const viewType = config?.demo?.view_type ?? "grid"
+	const viewTypeLabelKey = INSPIRATION_THEME_LABEL_KEY[viewType]
 
-	const groups: OptionGroup[] = config?.demo?.groups ?? []
+	const groups = useMemo<OptionGroup[]>(() => config?.demo?.groups ?? [], [config?.demo?.groups])
 	const defaultGroupKey = config?.demo?.default_selected_group_key ?? groups[0]?.group_key ?? null
 
 	const [activeGroupKey, setActiveGroupKey] = useState<string | null>(defaultGroupKey)
@@ -40,8 +48,6 @@ export const InspirationPanel = observer(function InspirationPanel() {
 	const defaultGroupName = useMemo<LocaleText>(
 		() => ({
 			default: t("playbook.edit.inspiration.defaultGroup"),
-			zh_CN: t("playbook.edit.inspiration.defaultGroup", { lng: "zh_CN" }),
-			en_US: t("playbook.edit.inspiration.defaultGroup", { lng: "en_US" }),
 		}),
 		[t],
 	)
@@ -184,12 +190,9 @@ export const InspirationPanel = observer(function InspirationPanel() {
 				<Badge variant="outline" className="gap-1 px-2 py-0.5">
 					<ViewIcon className="h-4 w-4" />
 					<span className="text-xs font-semibold">
-						{t(
-							`playbook.edit.inspiration.config.themeOptions.${config?.demo?.view_type}`,
-							{
-								defaultValue: config?.demo?.view_type,
-							},
-						)}
+						{viewTypeLabelKey
+							? t(viewTypeLabelKey, { defaultValue: viewType })
+							: viewType}
 					</span>
 				</Badge>
 				<Button
@@ -222,7 +225,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 					<div className="flex items-center gap-2">
 						<Button
 							variant="outline"
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							onClick={handleCancelSelection}
 							data-testid="inspiration-cancel-selection-button"
 						>
@@ -230,7 +233,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 						</Button>
 						<Button
 							variant="destructive"
-							className="shadow-xs h-9 gap-2"
+							className="h-9 gap-2 shadow-xs"
 							onClick={handleBatchDelete}
 							data-testid="inspiration-batch-delete-button"
 						>
@@ -248,13 +251,13 @@ export const InspirationPanel = observer(function InspirationPanel() {
 								value={searchValue}
 								onChange={(e) => setSearchValue(e.target.value)}
 								placeholder={t("playbook.edit.filter.search")}
-								className="shadow-xs h-9 w-[280px] pl-9"
+								className="h-9 w-[280px] pl-9 shadow-xs"
 								data-testid="inspiration-search-input"
 							/>
 						</div>
 						<Button
 							variant="outline"
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							onClick={handleReset}
 							data-testid="inspiration-reset-button"
 						>
@@ -262,7 +265,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 						</Button>
 						<Separator orientation="vertical" className="!h-5" />
 						<Button
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							onClick={openCreateItem}
 							data-testid="inspiration-create-button"
 						>
@@ -278,7 +281,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 				{/* Toolbar: Create Group + scrollable group tabs */}
 				<div className="flex shrink-0 items-center gap-3">
 					<Button
-						className="shadow-xs h-9 shrink-0 rounded-full"
+						className="h-9 shrink-0 rounded-full shadow-xs"
 						onClick={openCreateGroup}
 						data-testid="inspiration-create-group-button"
 					>
@@ -293,7 +296,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 						{groups.length === 0 ? (
 							<Button
 								variant="outline"
-								className="shadow-xs h-9 shrink-0 gap-2"
+								className="h-9 shrink-0 gap-2 shadow-xs"
 								data-testid="inspiration-default-group"
 							>
 								<Circle className="h-4 w-4" />
@@ -431,7 +434,7 @@ function GroupTab({ group, isActive, lang, onClick, onEdit, onDelete }: GroupTab
 			<Button
 				variant="outline"
 				className={cn(
-					"shadow-xs h-9 shrink-0 gap-2 rounded-full border-[2px] px-4 text-foreground",
+					"h-9 shrink-0 gap-2 rounded-full border-[2px] px-4 text-foreground shadow-xs",
 					isActive && "border-foreground dark:border-white",
 				)}
 				onClick={onClick}
@@ -452,7 +455,7 @@ function GroupTab({ group, isActive, lang, onClick, onEdit, onDelete }: GroupTab
 						<Button
 							variant="outline"
 							size="icon"
-							className={cn("shadow-xs size-6 shrink-0 rounded-full border-none")}
+							className={cn("size-6 shrink-0 rounded-full border-none shadow-xs")}
 							data-testid={`inspiration-group-menu-${group.group_key}`}
 							onClick={(e) => e.stopPropagation()}
 						>

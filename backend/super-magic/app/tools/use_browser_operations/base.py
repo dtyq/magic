@@ -109,7 +109,7 @@ def operation(
                     error_msg = self._generate_friendly_validation_error(e, name or func.__name__.lstrip('_'), params_class)
 
                     # 返回友好的错误结果 - 使用ToolResult
-                    return ToolResult(error=error_msg)
+                    return ToolResult.error(error_msg)
 
             return await func(self, browser, params, *args, **kwargs)
 
@@ -347,7 +347,7 @@ class OperationGroup(ABC):
             if error_reason:
                 error_msg = f"{error_reason}，请确认页面 ID 是否正确，或先使用 goto 打开一个页面。"
                 logger.warning(f"页面验证失败 ({params.__class__.__name__}): {error_msg}")
-                return None, ToolResult(error=error_msg)
+                return None, ToolResult.error(error_msg)
 
             # 页面有效，返回页面对象
             return page, None
@@ -355,7 +355,7 @@ class OperationGroup(ABC):
         except Exception as e:
             # 捕获 browser 调用可能出现的意外错误
             logger.error(f"验证页面时发生意外错误: {e}", exc_info=True)
-            return None, ToolResult(error=f"获取或验证页面时发生内部错误: {e}")
+            return None, ToolResult.error(f"获取或验证页面时发生内部错误: {e}")
 
     # --- 结束新增 ---
 

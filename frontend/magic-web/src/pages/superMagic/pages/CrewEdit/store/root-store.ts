@@ -1,5 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import type { AgentDetailResponse } from "@/apis/modules/crew"
+import { createMentionPanelStore } from "@/components/business/MentionPanel/store"
+import { ProjectFilesStore } from "@/stores/projectFiles"
 import { crewService } from "@/services/crew/CrewService"
 import { CREW_EDIT_ERROR } from "../constants/errors"
 import { CrewConversationStore } from "./conversation-store"
@@ -8,6 +10,7 @@ import { CrewLayoutStore } from "./layout-store"
 import { CrewPlaybookStore } from "./playbook-store"
 import { CrewSkillsStore } from "./skills-store"
 import { loadCrewEditBootstrap } from "./services/load-crew-edit-bootstrap"
+import { hasCrewUnpublishedChanges } from "../utils/publish-status"
 import {
 	CREW_EDIT_STEP,
 	mapAgentSkillItem,
@@ -20,12 +23,16 @@ export class CrewEditRootStore {
 	crewCode: string | null = null
 	initLoading = false
 	initError: CrewEditAsyncError | null = null
+	latestPublishedAt: AgentDetailResponse["latest_published_at"] = null
+	lastUpdatedAt: AgentDetailResponse["updated_at"] | null = null
 
 	readonly layout: CrewLayoutStore
 	readonly identity: CrewIdentityStore
 	readonly skills: CrewSkillsStore
 	readonly playbook: CrewPlaybookStore
 	readonly conversation: CrewConversationStore
+	readonly projectFilesStore: ProjectFilesStore
+	readonly mentionPanelStore: ReturnType<typeof createMentionPanelStore>
 
 	constructor() {
 		this.layout = new CrewLayoutStore()
@@ -34,16 +41,21 @@ export class CrewEditRootStore {
 			setCrewCode: (crewCode) => {
 				this.crewCode = crewCode
 			},
+			markCrewUpdated: this.markCrewUpdated,
 		})
 		this.skills = new CrewSkillsStore({
 			getCrewCode: () => this.crewCode,
 			setCrewCode: () => undefined,
+			markCrewUpdated: this.markCrewUpdated,
 		})
 		this.playbook = new CrewPlaybookStore({
 			getCrewCode: () => this.crewCode,
 			setCrewCode: () => undefined,
+			markCrewUpdated: this.markCrewUpdated,
 		})
 		this.conversation = new CrewConversationStore()
+		this.projectFilesStore = new ProjectFilesStore()
+		this.mentionPanelStore = createMentionPanelStore(this.projectFilesStore)
 
 		makeAutoObservable(
 			this,
@@ -53,12 +65,16 @@ export class CrewEditRootStore {
 				skills: false,
 				playbook: false,
 				conversation: false,
+				projectFilesStore: false,
+				mentionPanelStore: false,
 			},
 			{ autoBind: true },
 		)
 	}
 
 	private hydrateAgentDetail(agentDetail: AgentDetailResponse) {
+		this.latestPublishedAt = agentDetail.latest_published_at
+		this.lastUpdatedAt = agentDetail.updated_at
 		this.identity.hydrate({
 			name_i18n: agentDetail.name_i18n,
 			role_i18n: agentDetail.role_i18n,
@@ -67,6 +83,13 @@ export class CrewEditRootStore {
 			prompt: agentDetail.prompt,
 		})
 		this.skills.hydrate(agentDetail.skills.map((skill) => mapAgentSkillItem(skill)))
+	}
+
+	get hasUnpublishedChanges() {
+		return hasCrewUnpublishedChanges({
+			latestPublishedAt: this.latestPublishedAt,
+			updatedAt: this.lastUpdatedAt,
+		})
 	}
 
 	async initFromCrewCode(crewCode: string): Promise<void> {
@@ -116,6 +139,15 @@ export class CrewEditRootStore {
 		})
 	}
 
+	markCrewUpdated(updatedAt: string = new Date().toISOString()) {
+		this.lastUpdatedAt = updatedAt
+	}
+
+	markCrewPublished(publishedAt: string = new Date().toISOString()) {
+		this.latestPublishedAt = publishedAt
+		this.lastUpdatedAt = publishedAt
+	}
+
 	setTopicName(name: string) {
 		this.topicName = name
 	}
@@ -125,11 +157,14 @@ export class CrewEditRootStore {
 		this.crewCode = null
 		this.initLoading = false
 		this.initError = null
+		this.latestPublishedAt = null
+		this.lastUpdatedAt = null
 		this.layout.reset()
 		this.identity.reset()
 		this.skills.reset()
 		this.playbook.reset()
 		this.conversation.reset()
+		this.projectFilesStore.setSelectedProject(null)
 	}
 
 	dispose() {

@@ -9,7 +9,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.entity.message.server_message import DisplayType, ToolDetail, TerminalContent
 from app.tools.data_analyst_dashboard_tools.validators import (
     DataJsValidator,
@@ -53,7 +53,7 @@ Dashboard project directory path to validate, relative to workspace root"""
 
 
 @tool()
-class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceGuardTool[ValidateDashboardParams]):
+class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool[ValidateDashboardParams]):
     """<!--zh
     验证dashboard项目配置工具
 
@@ -79,10 +79,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceGuar
     async def execute(self, tool_context: ToolContext, params: ValidateDashboardParams) -> ToolResult:
         """执行地图数据设置"""
         try:
-            # 步骤1: 验证项目目录（使用 get_safe_path 限制在工作区内，防止路径穿越）
-            project_dir, path_error = self.get_safe_path(params.project_path)
-            if path_error:
-                return ToolResult(error=path_error)
+            # 步骤1: 验证项目目录（使用 resolve_path 解析路径）
+            project_dir = self.resolve_path(params.project_path)
             if not project_dir or not project_dir.exists():
                 return ToolResult(
                     error=f"Project does not exist: {params.project_path}"

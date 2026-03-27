@@ -43,7 +43,7 @@ function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
 						onClick={handleLogoClick}
 						data-testid="sidebar-header-logo"
 					>
-						<Logo className="max-h-10 max-w-8" variant="minimal" />
+						<Logo className="size-full" variant="minimal" />
 					</a>
 
 					<Button
@@ -65,7 +65,7 @@ function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
 						onClick={handleLogoClick}
 						data-testid="sidebar-header-logo"
 					>
-						<Logo className="h-10 w-fit" variant="full" />
+						<Logo className="h-9 w-fit" variant="full" />
 					</a>
 
 					<Button

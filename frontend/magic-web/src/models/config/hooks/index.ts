@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState } from "react"
 import { reaction } from "mobx"
 import { normalizeLocale } from "@/utils/locale"
 import { useTranslation } from "react-i18next"
+import type { Config } from "@/models/config/types"
 import { magic } from "@/enhance/magicElectron"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
@@ -12,17 +13,16 @@ import { configStore } from "../stores"
  * @param includeAuto 是否包含自动
  */
 export function useGlobalLanguage<T>(includeAuto: T = true as T) {
-	const [language, setLanguage] = useState(configStore.i18n.language)
+	const [language, setLanguage] = useState(getObservableGlobalLanguage(Boolean(includeAuto)))
 
 	useEffect(() => {
 		return reaction(
-			() => configStore.i18n.language,
+			() => getObservableGlobalLanguage(Boolean(includeAuto)),
 			(newLanguage) => setLanguage(newLanguage),
 		)
-	}, [])
+	}, [includeAuto])
 
-	if (includeAuto) return language
-	return language === "auto" ? normalizeLocale(window.navigator.language) : language
+	return language as T extends false ? string : string
 }
 
 /**
@@ -32,14 +32,14 @@ export function useGlobalLanguage<T>(includeAuto: T = true as T) {
 export function useSupportLanguageOptions(includeAuto = true) {
 	const { t } = useTranslation("interface")
 	const [state, setState] = useState({
-		language: configStore.i18n.language,
+		language: getObservableGlobalLanguage(true),
 		languages: configStore.i18n.languages,
 	})
 
 	useEffect(() => {
 		return reaction(
 			() => ({
-				language: configStore.i18n.language,
+				language: getObservableGlobalLanguage(true),
 				languages: configStore.i18n.languages,
 			}),
 			(newState) => setState(newState),
@@ -69,7 +69,7 @@ export function useSupportLanguageOptions(includeAuto = true) {
  */
 export function setGlobalLanguage(lang: string) {
 	magic?.language?.setLanguage?.(lang)
-	service.get<ConfigService>("configService").setLanguage(lang)
+	service.get<ConfigService>("configService").setLanguage(lang as Config.LanguageValue)
 }
 
 /**
@@ -152,4 +152,22 @@ export function useAreaCodes() {
 	}, [])
 
 	return { areaCodes }
+}
+
+function getObservableGlobalLanguage(includeAuto: boolean): string {
+	const { language, temporaryLanguage, displayLanguage } = configStore.i18n
+
+	// Prefer the active session language everywhere.
+	if (temporaryLanguage) return temporaryLanguage
+	if (includeAuto && !temporaryLanguage && !isLanguageForced()) return language
+	return displayLanguage
+}
+
+function isLanguageForced(): boolean {
+	return (
+		configStore.i18n.displayLanguage !==
+			(configStore.i18n.language === "auto"
+				? normalizeLocale(window.navigator.language)
+				: configStore.i18n.language) && !configStore.i18n.temporaryLanguage
+	)
 }

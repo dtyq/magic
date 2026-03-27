@@ -382,7 +382,7 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         if element.src:
             # element.src 是相对于工作区根目录的路径，需要使用 workspace_dir
             import asyncio
-            from agentlang.paths import PathManager
+            from agentlang.path_manager import PathManager
             workspace_dir = PathManager.get_workspace_dir()
 
             # 标准化路径：去除开头的 /，兼容两种格式（/path 和 path）

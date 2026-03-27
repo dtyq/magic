@@ -2,6 +2,7 @@ package chart
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,10 @@ import (
 	"helm.sh/helm/v4/pkg/getter"
 	"helm.sh/helm/v4/pkg/kube"
 	"helm.sh/helm/v4/pkg/registry"
+	ri "helm.sh/helm/v4/pkg/release"
+	"helm.sh/helm/v4/pkg/release/common"
+	releasev1 "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -310,15 +315,17 @@ func UpgradeInstall(ctx context.Context, releaseName, namespace string, config *
 
 	histClient := action.NewHistory(cfg)
 	histClient.Max = 1
-	_, err = histClient.Run(releaseName)
+	history, err := histClient.Run(releaseName)
+	useUpgrade, replaceInstall := shouldUseUpgrade(history, err)
 
 	var upgradeErr error
-	if err != nil {
+	if !useUpgrade {
 		// No existing release — install
 		install := action.NewInstall(cfg)
 		install.ReleaseName = releaseName
 		install.Namespace = namespace
 		install.CreateNamespace = true
+		install.Replace = replaceInstall
 		install.Timeout = defaultTimeout
 		install.WaitStrategy = kube.HookOnlyStrategy
 		install.WaitForJobs = false
@@ -333,6 +340,102 @@ func UpgradeInstall(ctx context.Context, releaseName, namespace string, config *
 		_, upgradeErr = upgrade.RunWithContext(ctx, releaseName, ch, values)
 	}
 	return upgradeErr
+}
+
+// shouldUseUpgrade decides whether release operation should be upgrade or install.
+// If latest history status is uninstalled/failed, Helm requires install with Replace=true.
+func shouldUseUpgrade(history []ri.Releaser, historyErr error) (useUpgrade bool, replaceInstall bool) {
+	if historyErr != nil || len(history) == 0 {
+		return false, false
+	}
+
+	var latest *releasev1.Release
+	for _, reli := range history {
+		rel, ok := reli.(*releasev1.Release)
+		if !ok || rel == nil {
+			continue
+		}
+		if latest == nil || rel.Version > latest.Version {
+			latest = rel
+		}
+	}
+	if latest == nil || latest.Info == nil {
+		return false, false
+	}
+
+	switch latest.Info.Status {
+	case common.StatusUninstalled, common.StatusFailed:
+		return false, true
+	default:
+		return true, false
+	}
+}
+
+// GetReleaseStatus returns the current release information.
+// When the release does not exist, it returns (nil, nil).
+func GetReleaseStatus(ctx context.Context, releaseName, namespace string, config *rest.Config) (*releasev1.Release, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	cfg, err := newActionConfig(namespace, config)
+	if err != nil {
+		return nil, err
+	}
+	st := action.NewStatus(cfg)
+	reli, err := st.Run(releaseName)
+	if err != nil {
+		if errors.Is(err, driver.ErrReleaseNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	rel, ok := reli.(*releasev1.Release)
+	if !ok {
+		return nil, fmt.Errorf("unexpected release type %T", reli)
+	}
+	return rel, nil
+}
+
+// RollbackRelease rolls back a release to the given revision.
+// revision=0 means rollback to previous revision.
+func RollbackRelease(ctx context.Context, releaseName, namespace string, config *rest.Config, revision int) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	cfg, err := newActionConfig(namespace, config)
+	if err != nil {
+		return err
+	}
+	rollback := action.NewRollback(cfg)
+	rollback.Timeout = defaultTimeout
+	rollback.WaitStrategy = kube.HookOnlyStrategy
+	rollback.WaitForJobs = false
+	rollback.Version = revision
+	return rollback.Run(releaseName)
+}
+
+// UninstallRelease uninstalls the release and keeps history for diagnostics.
+func UninstallRelease(ctx context.Context, releaseName, namespace string, config *rest.Config) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	cfg, err := newActionConfig(namespace, config)
+	if err != nil {
+		return err
+	}
+	uninstall := action.NewUninstall(cfg)
+	uninstall.Timeout = defaultTimeout
+	uninstall.WaitStrategy = kube.HookOnlyStrategy
+	uninstall.IgnoreNotFound = true
+	uninstall.KeepHistory = true
+	_, err = uninstall.Run(releaseName)
+	return err
 }
 
 func newActionConfig(namespace string, config *rest.Config) (*action.Configuration, error) {

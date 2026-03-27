@@ -22,6 +22,7 @@ from app.api.middleware import RequestLoggingMiddleware
 from app.api.routes import api_router
 from app.service.agent_dispatcher import AgentDispatcher
 from agentlang.logger import get_logger
+from app.service.cron.service import CronService
 from app.service.idle_monitor_service import IdleMonitorService
 from agentlang.utils.process_manager import ProcessManager
 from app.infrastructure.observability import (
@@ -42,6 +43,15 @@ logger = get_logger(__name__)
 ws_server = None
 _app = None  # 存储FastAPI应用实例的内部变量
 
+async def cleanup_stale_files_on_startup():
+    """启动时残留文件清理检查，用于清理上次运行遗留的临时文件"""
+    # 清理 .visual 目录中超过 1 小时的残留文件
+    try:
+        from app.tools.visual_understanding_utils.file_operations_utils import cleanup_stale_visual_files
+        await cleanup_stale_visual_files()
+        logger.info(".visual 目录残留文件检查完成")
+    except Exception as e:
+        logger.error(f".visual 目录残留文件清理失败: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,12 +81,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"启动时迁移任务失败: {e}")
 
+    # 执行启动时残留文件清理检查
+    await cleanup_stale_files_on_startup()
+
     logger.info("HTTP API服务将监听端口：8002")
     yield
     # 关闭时
     logger.info("服务正在关闭...")
     shutdown_telemetry()
-
 
 def create_app() -> FastAPI:
     """创建并配置FastAPI应用实例"""
@@ -125,7 +137,6 @@ def create_app() -> FastAPI:
 
     return app
 
-
 def create_workspace_static_server() -> FastAPI:
     """
     创建专门用于服务.workspace目录的静态文件服务器
@@ -160,7 +171,6 @@ def create_workspace_static_server() -> FastAPI:
 
     return static_app
 
-
 async def start_workspace_static_server(port: int = 8003):
     """
     启动.workspace静态文件服务器
@@ -189,7 +199,6 @@ async def start_workspace_static_server(port: int = 8003):
     except Exception as e:
         logger.error(f"❌ 启动.workspace静态文件服务器失败: {e}")
 
-
 def get_app() -> FastAPI:
     """获取FastAPI应用实例，避免循环导入
 
@@ -200,7 +209,6 @@ def get_app() -> FastAPI:
     if _app is None:
         _app = create_app()
     return _app
-
 
 class CustomServer(uvicorn.Server):
     """自定义 uvicorn Server 类，用于正确处理信号"""
@@ -213,7 +221,6 @@ class CustomServer(uvicorn.Server):
         """尝试优雅地关闭服务器"""
         logger.info("正在关闭 uvicorn 服务器...")
         await super().shutdown(sockets=sockets)
-
 
 def start_ws_server():
     """启动WebSocket服务器"""
@@ -245,6 +252,8 @@ def start_ws_server():
 
             logger.info(f"找到 {len(process_entry_points)} 个 ws_server 进程 entry_points")
 
+            # 检查是否启用 filebase watcher
+
             # 加载所有找到的entry_points
             for entry_point in process_entry_points:
                 logger.info(f"正在加载进程: {entry_point.name}")
@@ -273,6 +282,10 @@ def start_ws_server():
             del os.environ["STARTUP_START_TIME"]
 
         IdleMonitorService.get_instance().start()
+
+        # 启动 cron 调度服务
+        cron_service = CronService()
+        cron_service.start()
 
         # 使用与原main()函数相似的代码，但只启动WebSocket服务
         # 创建并配置WebSocket socket
@@ -344,6 +357,7 @@ def start_ws_server():
 
             # 停止所有服务
             await process_manager.stop_all()
+            await cron_service.stop()
             IdleMonitorService.get_instance().stop()
 
             try:

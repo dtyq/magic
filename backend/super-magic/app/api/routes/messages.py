@@ -31,7 +31,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.snowflake import Snowflake
 from app.core.stream.websocket_stream import WebSocketStream
 from agentlang.config.dynamic_config import dynamic_config
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 router = APIRouter(prefix="/v1/messages", tags=["消息处理"])
 
@@ -46,8 +46,6 @@ class MessageProcessor:
     _MESSAGE_DEDUP_TTL: float = 600.0
 
     def __init__(self):
-        self.worker_task: Optional[asyncio.Task] = None
-
         self.agent_dispatcher = AgentDispatcher.get_instance()
 
         # 进程内中断互斥锁，用于进行中防抖
@@ -56,15 +54,6 @@ class MessageProcessor:
         # Message deduplication cache: message_id -> (start_timestamp, is_processing)
         # Used to prevent duplicate message processing when client retries
         self._processing_messages: Dict[str, tuple[float, bool]] = {}
-
-    async def cancel_task(self):
-        """取消任务"""
-        if self.worker_task and not self.worker_task.done():
-            self.worker_task.cancel()
-            try:
-                await self.worker_task
-            except asyncio.CancelledError:
-                logger.info("已取消正在运行的worker任务")
 
     def _cleanup_expired_messages(self) -> None:
         """Clean up expired message entries from deduplication cache"""
@@ -221,6 +210,18 @@ class MessageProcessor:
         try:
             from agentlang.context.tool_context import ToolContext
             from agentlang.event.data import BeforeInitEventData, AfterInitEventData
+            from app.i18n import i18n
+
+            # Restore language from saved init metadata before dispatching init events.
+            # ContextVar changes made inside asyncio.create_task() (INIT handler) are
+            # task-local and do not propagate to this new request's context, so we must
+            # re-apply the language here to ensure i18n translations use the correct locale.
+            if metadata and metadata.language:
+                i18n.set_language(metadata.language)
+                logger.info(f"延迟 init 事件：从 metadata 恢复用户语言: {metadata.language}")
+            else:
+                i18n.set_language("zh_CN")
+                logger.info("延迟 init 事件：metadata 无语言设置，使用默认语言: zh_CN")
 
             # 创建 ToolContext
             tool_context = ToolContext(metadata=agent_context.get_metadata())
@@ -303,6 +304,17 @@ class MessageProcessor:
             # 检查并发送延迟的 init 事件（沙箱预启动场景）
             await self._dispatch_delayed_init_event_if_needed(agent_context)
 
+            # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
+            try:
+                agent_code_val = None
+                if message.dynamic_config:
+                    agent_code_val = message.dynamic_config.get("agent_code")
+                if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
+                    agent_context.set_agent_code(agent_code_val.strip())
+                    logger.info(f"已注入 agent_code: {agent_code_val.strip()}")
+            except Exception as e:
+                logger.warning(f"注入 agent_code 失败: {e}")
+
             # 🔥 ASR 录音纪要聊天模式路由：检测 asr_task_key 并切换 agent
             try:
                 if message.dynamic_config and message.dynamic_config.get("asr_task_key"):
@@ -323,16 +335,7 @@ class MessageProcessor:
 
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP, ContextType.CONTINUE]:
 
-                success = await agent_context.handle_user_interruption(
-                    cancel_task_func=self.cancel_task,
-                    reason=message.remark or "新消息打断",
-                    timeout=5
-                )
-
-                if not success:
-                    logger.error("用户中断处理失败，但将继续执行后续逻辑")
-
-                self.worker_task = asyncio.create_task(self._dispatch_agent_task(message))
+                await self.agent_dispatcher.submit_message(message)
                 return create_success_response("消息处理成功")
 
             elif message.context_type == ContextType.INTERRUPT:
@@ -350,23 +353,16 @@ class MessageProcessor:
 
                 try:
                     async with self._interrupt_lock:
-                        success = await agent_context.handle_user_interruption(
-                            cancel_task_func=self.cancel_task,
-                            reason=message.remark or "",
-                            timeout=5
-                        )
-                        if success:
-                            await agent_context.dispatch_event(
-                                EventType.AGENT_SUSPENDED,
-                                AgentSuspendedEventData(
-                                    agent_context=agent_context,
-                                    remark=message.remark,
-                                )
+                        # 停止当前 run（不 reset：中断状态保留到下次 stop_run）
+                        await agent_context.stop_run(reason=message.remark or "用户主动中断")
+                        await agent_context.dispatch_event(
+                            EventType.AGENT_SUSPENDED,
+                            AgentSuspendedEventData(
+                                agent_context=agent_context,
+                                remark=message.remark,
                             )
-                            return create_success_response("任务已中断")
-                        else:
-                            logger.info("中断已在进行或已完成，跳过重复触发")
-                            return create_success_response("任务已中断")
+                        )
+                        return create_success_response("任务已中断")
                 except Exception as e:
                     logger.error(f"中断处理异常: {e}")
                     logger.error(traceback.format_exc())
@@ -429,38 +425,6 @@ class MessageProcessor:
             logger.error(traceback.format_exc())
             return create_error_response("继续指令处理失败")
 
-    async def _dispatch_agent_task(self, message: ChatClientMessage):
-        """在异步任务中调度 agent"""
-        try:
-            # 调度 agent
-            await self.agent_dispatcher.dispatch_agent(message)
-        except Exception as e:
-            logger.error(f"异步任务执行失败: {e}")
-            logger.error(traceback.format_exc())
-
-            # 发送错误事件和消息，确保用户能收到失败反馈
-            try:
-                agent_context = self.agent_dispatcher.agent_context
-                if agent_context:
-                    # 使用通用的错误消息，不暴露内部错误细节
-                    error_message = "Failed to process the request. Please contact the administrator."
-
-                    # 触发错误事件
-                    await agent_context.dispatch_event(
-                        EventType.ERROR,
-                        ErrorEventData(
-                            agent_context=agent_context,
-                            error_message=error_message,
-                            exception=e
-                        )
-                    )
-                    logger.info("已发送错误事件和消息到客户端")
-                else:
-                    logger.warning("agent_context 不可用，无法发送错误消息")
-            except Exception as notify_error:
-                logger.error(f"发送错误通知失败: {notify_error}")
-                logger.error(traceback.format_exc())
-
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串
 
@@ -508,16 +472,6 @@ class MessageProcessor:
             logger.error(f"❌ 动态配置注入异常: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
             logger.info("🔄 动态配置注入失败，将使用全局配置继续聊天流程")
-
-        # 保存 dynamic_config.skill 列表到 workspace，按 agent_type 隔离（容错）
-        try:
-            skill_list = dynamic_config_data.get("skill") or dynamic_config_data.get("skills")
-            if isinstance(skill_list, list) and skill_list:
-                from app.core.skill_manager import save_dynamic_config_skills
-                await save_dynamic_config_skills(skill_list, agent_type)
-                logger.info(f"✅ 已保存 dynamic_config skills: {len(skill_list)} 个 (agent_type={agent_type or 'default'})")
-        except Exception as e:
-            logger.error(f"❌ 保存 dynamic_config skills 失败: {e}")
 
     async def _handle_dynamic_model_selection(self, model_id: Optional[str], agent_context):
         """处理动态模型选择（容错模式：失败不影响聊天流程）"""

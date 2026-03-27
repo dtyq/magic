@@ -262,6 +262,7 @@ class AdminSuperMagicAgentAssembler
             publishStatus: $entity->getPublishStatus()->value,
             installCount: $entity->getInstallCount(),
             sortOrder: $entity->getSortOrder(),
+            isFeatured: $entity->isFeatured(),
             publisher: $publisher,
             createdAt: $entity->getCreatedAt(),
             updatedAt: $entity->getUpdatedAt()

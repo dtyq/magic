@@ -95,7 +95,7 @@ class FileService(Base):
 
             try:
                 # Load from init_client_message.json for STS config and metadata
-                from app.paths import PathManager
+                from app.path_manager import PathManager
 
                 init_client_path = PathManager.get_init_client_message_file()
                 init_client_data = MagicServiceConfigLoader.load_config_data(str(init_client_path))

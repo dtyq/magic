@@ -20,7 +20,7 @@ from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader, ConfigurationError
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.utils.init_client_message_util import InitClientMessageUtil
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.logger import get_logger
 from app.core.exceptions import RollbackException, ErrorCode
 

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react"
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { act, renderHook } from "@testing-library/react"
-import type { TiptapMentionAttributes } from "@/opensource/components/business/MentionPanel/tiptap-plugin"
-import { MentionItemType } from "@/opensource/components/business/MentionPanel/types"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { FileUploadStore } from "../../stores/FileUploadStore"
 import useUploadMentionFlow from "../useUploadMentionFlow"
 
@@ -12,7 +12,7 @@ const { confirmMock, deleteProjectFileMock, removeUploadMentionNodesMock } = vi.
 	removeUploadMentionNodesMock: vi.fn(),
 }))
 
-vi.mock("@/opensource/components/base/MagicModal", () => ({
+vi.mock("@/components/base/MagicModal", () => ({
 	default: {
 		confirm: confirmMock.mockImplementation(() => ({
 			destroy: vi.fn(),
@@ -224,6 +224,38 @@ describe("useUploadMentionFlow", () => {
 			}),
 		)
 
+		expect(
+			result.current.shouldRestoreRemovedMention(
+				createProjectFileMention() as TiptapMentionAttributes,
+				false,
+			),
+		).toBe(false)
+	})
+
+	it("should remove only when in queue draft mode", () => {
+		const fileUploadStore = createFileUploadStore()
+		fileUploadStore.isCurrentSessionProjectFile.mockReturnValue(true)
+
+		const { result } = renderHook(() =>
+			useUploadMentionFlow({
+				fileUploadStore: fileUploadStore as unknown as FileUploadStore,
+				getEditor: () => null,
+				isProjectContext: true,
+				isQueueDraftMode: true,
+				runWithoutMentionRemoveSync: (callback) => callback(),
+				selectedProjectId: "project-1",
+				selectedTopicId: "topic-1",
+				t: (key: string) => key,
+			}),
+		)
+
+		act(() => {
+			result.current.handleRemoveFile(createProjectFileMention() as TiptapMentionAttributes)
+		})
+
+		expect(confirmMock).not.toHaveBeenCalled()
+		expect(fileUploadStore.removeUploadedFile).toHaveBeenCalledWith("project-file-1")
+		expect(deleteProjectFileMock).not.toHaveBeenCalled()
 		expect(
 			result.current.shouldRestoreRemovedMention(
 				createProjectFileMention() as TiptapMentionAttributes,

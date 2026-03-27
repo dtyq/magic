@@ -21,15 +21,6 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation
 interface AgentVersionRepositoryInterface
 {
     /**
-     * 根据 code 查找最新版本的 Agent 版本（按 version 字段降序）.
-     *
-     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
-     * @param string $code Agent code
-     * @return null|AgentVersionEntity 不存在返回 null
-     */
-    public function findLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
-
-    /**
      * 统计某 Agent 下版本记录总数（未软删）.
      */
     public function countByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): int;
@@ -39,16 +30,29 @@ interface AgentVersionRepositoryInterface
      */
     public function findLatestByCreatedAtDesc(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
+    /**
+     * 取当前生效版本（is_current_version = 1）.
+     */
     public function findCurrentOrLatestByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?AgentVersionEntity;
 
     /**
+     * 批量取当前生效版本（is_current_version = 1）.
+     *
      * @param array<string> $codes
      * @return array<string, AgentVersionEntity>
      */
     public function findCurrentOrLatestByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
 
     /**
-     * 在指定 code 集合内每 code 取一条版本（由 AgentVersionQuery.is_current_versions 等决定），支持关键词与分页.
+     * 批量取当前生效且已发布的版本.
+     *
+     * @param array<string> $codes
+     * @return array<string, AgentVersionEntity>
+     */
+    public function findLatestPublishedByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 在指定 code 集合内每 code 取一条版本（由 AgentVersionQuery.is_current_versions、published_only 等决定），支持关键词与分页.
      *
      * @return array{total: int, list: AgentVersionEntity[]}
      */

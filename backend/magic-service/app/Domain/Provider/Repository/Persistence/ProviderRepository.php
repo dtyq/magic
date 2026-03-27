@@ -166,7 +166,6 @@ class ProviderRepository extends AbstractModelRepository implements ProviderRepo
         $query->when($category, function (Builder $query) use ($category) {
             $query->where('category', $category->value);
         })
-            ->where('provider_type', '!=', ProviderType::Official->value)
             ->orderBy('sort_order', 'desc');
 
         $result = Db::select($query->toSql(), $query->getBindings());

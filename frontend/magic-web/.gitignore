@@ -43,9 +43,11 @@ public/config.js
 CLAUDE.local.md
 
 # Auto-generated Tabler Icons data
-src/opensource/assets/tabler-icons/
+src/assets/tabler-icons/
 
 # Authentication tokens
 .npmrc
 
 .vite-inspect
+
+pnpm-lock.yaml

@@ -50,6 +50,7 @@ export interface ButtonRendererContext {
 	fileUploadStore: FileUploadStore
 	shouldEnableMention: boolean
 	uploadEnabled: boolean
+	sendEnabled: boolean
 	sendButtonDisabled: boolean
 	showLoading: boolean
 	isTaskRunning: boolean
@@ -71,7 +72,7 @@ export interface ButtonRendererContext {
 	handleRemoveUploadedFile: (file: FileData) => void
 	handleSend: () => void
 	handleInterrupt: () => void
-	handleCompressContext?: () => void
+	handleCompressContext: () => void
 
 	// Props passthrough
 	modelSwitch?: React.ReactNode
@@ -172,6 +173,8 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 		ctx.editorModeSwitch?.({ disabled: false }) ?? null,
 
 	[ToolbarButton.SEND_BUTTON]: (ctx) => {
+		if (!ctx.sendEnabled) return null
+
 		// Dynamic rendering: show interrupt button when task is running and editor is empty
 		// Otherwise show send button
 		const shouldShowInterrupt = ctx.isTaskRunning && isEmptyJSONContent(ctx.value)

@@ -120,7 +120,7 @@
 		"myApps": "我的应用",
 		"noDescription": "暂无描述",
 		"openApp": "打开",
-		"powerBy": "由 ${company} 提供技术支持"
+		"powerBy": "由 {{company}} 提供"
 	},
 	"backHome": "返回首页",
 	"bonusPointsModal": {
@@ -2162,13 +2162,16 @@
 		"message": "消息",
 		"mobileTabBar": {
 			"approval": "审批",
+			"apps": "Apps",
 			"calendar": "日程",
 			"chat": "即时消息",
 			"cloudDrive": "云盘",
 			"contacts": "通讯录",
 			"favorites": "收藏",
 			"knowledge": "知识库",
+			"magiClaw": "超级龙虾",
 			"more": "更多",
+			"noOtherApps": "暂无其它应用",
 			"profile": "我的",
 			"recording": "AI 录音",
 			"super": "$t(common:platform.name)",

@@ -29,9 +29,27 @@ export enum TopicMode {
 	/** 设计模式 */
 	Design = "design",
 	/** 员工主导模式
-	 * 不会在员工列表中存在，只用于创建员工时使用
+	 * 不会在列表中存在，只用于创建员工时使用
 	 */
-	AgentManager = "agent-manager",
+	CrewCreator = "crew-creator",
+
+	/**
+	 * 技能主导模式
+	 * 不会在列表中存在，只用于创建技能时使用
+	 */
+	SkillCreator = "skill-creator",
+
+	/**
+	 * 超级龙虾模式
+	 * 不会在列表中存在，只用于超级龙虾页面对话使用
+	 */
+	MagiClaw = "magiclaw",
+
+	/**
+	 * 默认模式
+	 * 用于获取默认模式模型列表
+	 */
+	Default = "default",
 }
 
 export enum AgentType {
@@ -54,6 +72,7 @@ export interface ModeModelGroupItemResponse {
 	image_model_ids: string[]
 }
 
+// 历史模式列表类型，新版本已废弃，使用 CrewItem 替代
 export interface ModeItem {
 	agent: {
 		type: AgentType

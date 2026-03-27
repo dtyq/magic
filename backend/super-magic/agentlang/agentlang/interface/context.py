@@ -283,17 +283,8 @@ class AgentContextInterface(ABC):
         pass
 
     @abstractmethod
-    async def handle_user_interruption(self, cancel_task_func, reason: str = "用户主动中断", timeout: float = 10.0) -> bool:
-        """处理用户中断请求，包含完整的中断流程
-
-        Args:
-            cancel_task_func: 取消任务的函数
-            reason: 中断原因
-            timeout: 等待超时时间（秒）
-
-        Returns:
-            bool: 是否成功处理了中断请求
-        """
+    async def stop_run(self, reason: str = "") -> None:
+        """停止当前 run：等待 blocker 归零 → 执行 cleanup → cancel worker。"""
         pass
 
     # ====== LLM Request ID 相关接口 ======

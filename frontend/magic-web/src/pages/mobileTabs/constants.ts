@@ -7,6 +7,7 @@ import { RouteName } from "@/routes/constants"
 export const MobileTabParam = {
 	Chat: "chat",
 	Approval: "approval",
+	MagiClaw: "magi-claw",
 	Recording: "recording",
 	Contacts: "contacts",
 	Super: "super",
@@ -23,6 +24,7 @@ export enum MobileTabBarKey {
 	Chat = RouteName.Chat,
 	Super = RouteName.Super,
 	Approval = RouteName.MagicApproval,
+	MagiClaw = RouteName.MagiClaw,
 	Contacts = RouteName.Contacts,
 	Profile = RouteName.Profile,
 	Recording = RouteName.MobileTabsRecording,
@@ -32,12 +34,15 @@ export enum MobileTabBarKey {
  * Mapping from MobileTabBarKey to native app tab bar key
  * MobileTabBarKey 到 原生App 的 Tab Bar 键值的映射
  */
-export const APP_TAB_BAR_KEYS_MAP: Record<
-	MobileTabBarKey,
-	"chat" | "super" | "approval" | "contacts" | "profile" | "ai_recording"
+export const APP_TAB_BAR_KEYS_MAP: Partial<
+	Record<
+		MobileTabBarKey,
+		"chat" | "super" | "approval" | "contacts" | "profile" | "ai_recording" | "magic_claw"
+	>
 > = {
 	[MobileTabBarKey.Chat]: "chat",
 	[MobileTabBarKey.Super]: "super",
+	[MobileTabBarKey.MagiClaw]: "magic_claw",
 	[MobileTabBarKey.Approval]: "approval",
 	[MobileTabBarKey.Contacts]: "contacts",
 	[MobileTabBarKey.Profile]: "profile",
@@ -51,6 +56,7 @@ export const APP_TAB_BAR_KEYS_MAP: Record<
 export const TAB_PARAM_TO_TAB_KEY: Record<MobileTabParamValue, MobileTabBarKey> = {
 	[MobileTabParam.Chat]: MobileTabBarKey.Chat,
 	[MobileTabParam.Approval]: MobileTabBarKey.Approval,
+	[MobileTabParam.MagiClaw]: MobileTabBarKey.MagiClaw,
 	[MobileTabParam.Contacts]: MobileTabBarKey.Contacts,
 	[MobileTabParam.Super]: MobileTabBarKey.Super,
 	[MobileTabParam.Profile]: MobileTabBarKey.Profile,
@@ -64,6 +70,7 @@ export const TAB_PARAM_TO_TAB_KEY: Record<MobileTabParamValue, MobileTabBarKey> 
 export const ROUTE_NAME_TO_TAB_PARAM: Record<MobileTabBarKey, MobileTabParamValue> = {
 	[RouteName.Chat]: MobileTabParam.Chat,
 	[RouteName.MagicApproval]: MobileTabParam.Approval,
+	[RouteName.MagiClaw]: MobileTabParam.MagiClaw,
 	[RouteName.Contacts]: MobileTabParam.Contacts,
 	[RouteName.Super]: MobileTabParam.Super,
 	[RouteName.Profile]: MobileTabParam.Profile,

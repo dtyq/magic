@@ -11,7 +11,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.core.entity.message.server_message import DisplayType, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.file import (
     is_text_file, format_file_size
 )
@@ -38,7 +38,7 @@ Whether to filter binary files (images, videos, etc.), showing only text/code fi
 
 
 @tool()
-class ListDir(WorkspaceGuardTool[ListDirParams]):
+class ListDir(WorkspaceTool[ListDirParams]):
     """<!--zh
     查看目录内容的工具，建议使用 level=3 来获取足够多的文件信息。
 
@@ -138,9 +138,9 @@ class ListDir(WorkspaceGuardTool[ListDirParams]):
     def _scan_directory_tree(self, relative_workspace_path: str, level: int, filter_binary: bool) -> FileTreeContent:
         """扫描目录并返回结构化的FileTreeContent数据"""
         # 路径验证
-        target_path, error = self.get_safe_path(relative_workspace_path)
+        target_path = self.resolve_path(relative_workspace_path)
 
-        if error or not target_path.exists() or not target_path.is_dir():
+        if not target_path.exists() or not target_path.is_dir():
             logger.warning(f"Path invalid or does not exist: {relative_workspace_path}")
             # 返回空的FileTreeContent
             return FileTreeContent(
@@ -187,9 +187,7 @@ class ListDir(WorkspaceGuardTool[ListDirParams]):
         """根据FileTreeContent获取字符串结果，处理错误情况"""
         # 处理错误情况
         if not file_tree_content.tree and file_tree_content.total_files == 0 and file_tree_content.total_dirs == 0:
-            target_path, error = self.get_safe_path(relative_workspace_path)
-            if error:
-                return error
+            target_path = self.resolve_path(relative_workspace_path)
             if not target_path.exists():
                 return f"错误：路径不存在: {target_path}"
             if not target_path.is_dir():

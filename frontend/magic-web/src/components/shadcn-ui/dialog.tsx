@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+// PROJECT OVERRIDE — direct @radix-ui/react-dialog vs upstream radix-ui barrel.
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
@@ -30,6 +31,7 @@ function DialogOverlay({
 		<DialogPrimitive.Overlay
 			data-slot="dialog-overlay"
 			className={cn(
+				// PROJECT OVERRIDE — z-modal stack token vs upstream z-50.
 				"fixed inset-0 z-modal bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 				className,
 			)}
@@ -51,7 +53,7 @@ function DialogContent({
 	overlayClassName?: string
 	overlayStyle?: React.CSSProperties
 }) {
-	// 从 style 中提取 zIndex，用于同步设置 overlay 和 content 的层级
+	// PROJECT OVERRIDE — sync overlay z-index with content style for stacking.
 	const zIndex = style?.zIndex
 
 	return (
@@ -60,7 +62,10 @@ function DialogContent({
 			<DialogPrimitive.Content
 				data-slot="dialog-content"
 				className={cn(
-					"fixed left-[50%] top-[50%] z-modal grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:max-w-lg",
+					// PROJECT OVERRIDE — retain when merging upstream shadcn/ui dialog.
+					// Keyframes use (0,0) translate; layout centers with -50% on the box.
+					// --tw-* vars align anim translate with centering; avoids corner skew.
+					"fixed left-[50%] top-[50%] z-modal grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:[--tw-enter-translate-x:-50%] data-[state=open]:[--tw-enter-translate-y:-50%] data-[state=closed]:[--tw-exit-translate-x:-50%] data-[state=closed]:[--tw-exit-translate-y:-50%] sm:max-w-lg",
 					className,
 				)}
 				style={style}
@@ -92,6 +97,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+	// PROJECT OVERRIDE — layout only; upstream may add footer showCloseButton API.
 	return (
 		<div
 			data-slot="dialog-footer"

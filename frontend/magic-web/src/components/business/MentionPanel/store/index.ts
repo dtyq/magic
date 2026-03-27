@@ -1,11 +1,9 @@
 import { makeAutoObservable } from "mobx"
 import { createDefaultItems } from "../constants"
-import {
-	MentionItemType,
+import { MentionItemType, PanelState, BuiltinItemId } from "../types"
+import type {
 	MentionItem,
-	PanelState,
 	ProjectFileMentionData,
-	BuiltinItemId,
 	McpMentionData,
 	AgentMentionData,
 	SkillMentionData,
@@ -13,29 +11,28 @@ import {
 	DirectoryMentionData,
 	DataService,
 } from "../types"
-import { BotApi, FlowApi, GlobalApi } from "@/apis"
-import { I18nTexts } from "../i18n"
-import { UseableToolSet } from "@/types/flow"
+import { BotApi, CrewApi, FlowApi, GlobalApi } from "@/apis"
+import type { I18nTexts } from "../i18n"
+import type { UseableToolSet } from "@/types/flow"
 import { LRUCache, createLRUCache } from "../utils/LRUCache"
 import {
-	MentionListItem,
 	getMentionDisplayName,
 	getMentionIcon,
 	getMentionDescription,
 	getMentionUniqueId,
 } from "../tiptap-plugin/types"
+import type { MentionListItem } from "../tiptap-plugin/types"
 import { platformKey } from "@/utils/storage"
 import { userStore } from "@/models/user"
 import { keyBy } from "lodash-es"
-import {
+import type {
 	TabItem,
 	PlaybackTabItem,
 } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { WorkspaceFile, WorkspaceFolder } from "@/stores/projectFiles/types"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { getAttachmentType } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
-import { skillsService } from "@/services/skills/SkillsService"
-import type { UserSkillView } from "@/services/skills/SkillsService"
+import type { MentionSkillItem } from "@/apis/modules/crew"
 
 export type { WorkspaceFile, WorkspaceFolder }
 
@@ -47,6 +44,18 @@ interface McpItem {
 	require_fields?: unknown
 	check_require_fields?: unknown
 	check_auth?: boolean
+}
+
+const DEFAULT_SKILL_QUERY_KEY = "__default__"
+
+function resolveSkillAgentCode(topicMode?: string) {
+	const normalizedTopicMode = topicMode?.trim()
+	if (!normalizedTopicMode || normalizedTopicMode === "default") return undefined
+	return normalizedTopicMode
+}
+
+function getSkillQueryKey(topicMode?: string) {
+	return resolveSkillAgentCode(topicMode) ?? DEFAULT_SKILL_QUERY_KEY
 }
 
 function mapAgentToMention(item: Bot.UserAvailableAgentInfo): MentionItem {
@@ -87,22 +96,24 @@ function mapMcpToMention(item: McpItem): MentionItem {
 	}
 }
 
-function mapSkillToMention(item: UserSkillView): MentionItem {
+function mapSkillToMention(item: MentionSkillItem): MentionItem {
+	const skillId = item.code || item.id
+
 	return {
-		id: item.userSkillId,
+		id: skillId,
 		type: MentionItemType.SKILL,
 		name: item.name,
-		icon: item.thumbnail,
+		icon: item.logo || undefined,
 		description: item.description,
 		hasChildren: false,
 		isFolder: false,
-		createdAt: item.createdAt,
-		modifiedAt: item.updatedAt,
 		data: {
-			id: item.userSkillId,
+			id: skillId,
 			name: item.name,
-			icon: item.logo,
+			icon: item.logo || "",
 			description: item.description,
+			mention_source: item.mention_source,
+			package_name: item.package_name || "",
 		} as SkillMentionData,
 	}
 }
@@ -149,12 +160,14 @@ export class MentionPanelStore implements DataService {
 	mcpList: MentionItem[] = []
 	agentList: MentionItem[] = []
 	skillList: MentionItem[] = []
+	private skillListCache = new Map<string, MentionItem[]>()
+	private currentSkillQueryKey = DEFAULT_SKILL_QUERY_KEY
 
 	toolItems: UseableToolSet.Item[] = []
 	uploadFiles: MentionItem[] = []
 
 	currentTabs: TabItem[] = []
-	private fetchSkillsPromise: Promise<void> | null = null
+	private fetchSkillsPromise: Promise<MentionItem[]> | null = null
 
 	// 历史记录缓存实例（多个命名空间）
 	private historyCaches = new Map<string, LRUCache<MentionHistoryItem>>()
@@ -253,21 +266,37 @@ export class MentionPanelStore implements DataService {
 		})
 	}
 
-	fetchSkills() {
+	setSkillQueryContext(topicMode?: string) {
+		const nextSkillQueryKey = getSkillQueryKey(topicMode)
+		if (this.currentSkillQueryKey === nextSkillQueryKey) return
+
+		this.currentSkillQueryKey = nextSkillQueryKey
+		this.fetchSkillsPromise = null
+		this.skillList = this.getSkillListByQueryKey(nextSkillQueryKey)
+	}
+
+	fetchSkills(options?: { forceRefresh?: boolean }): Promise<MentionItem[]> {
+		const forceRefresh = options?.forceRefresh ?? false
 		if (this.fetchSkillsPromise) return this.fetchSkillsPromise
+		if (!forceRefresh && this.skillListCache.has(this.currentSkillQueryKey))
+			return Promise.resolve(this.getCurrentSkillList())
 
-		this.fetchSkillsPromise = this.loadAllSkills()
-			.then((list) => {
-				this.skillList = list.map(mapSkillToMention)
-			})
-			.finally(() => {
-				this.fetchSkillsPromise = null
-			})
+		const requestKey = this.currentSkillQueryKey
+		const fetchPromise = this.loadAllSkills({ requestKey }).finally(() => {
+			this.fetchSkillsPromise = null
+		})
+		this.fetchSkillsPromise = fetchPromise
 
-		return this.fetchSkillsPromise
+		return fetchPromise
 	}
 
 	preLoadList() {
+		void this.fetchSkills().catch(() => {
+			if (this.skillList.length === 0) {
+				this.skillList = []
+			}
+		})
+
 		return Promise.all([
 			GlobalApi.getSettingsGlobalData({
 				query_type: ["available_agents", "available_mcp_servers", "available_tool_sets"],
@@ -280,9 +309,6 @@ export class MentionPanelStore implements DataService {
 					res?.available_mcp_servers?.list ?? [],
 					res?.available_tool_sets?.list ?? [],
 				)
-			}),
-			this.fetchSkills().catch(() => {
-				this.skillList = []
 			}),
 		]).then(() => undefined)
 	}
@@ -349,10 +375,19 @@ export class MentionPanelStore implements DataService {
 	}
 
 	async getSkills() {
-		await this.fetchSkills().catch(() => {
-			this.skillList = []
+		if (!this.skillListCache.has(this.currentSkillQueryKey)) {
+			await this.fetchSkills().catch(() => {
+				if (!this.skillListCache.has(this.currentSkillQueryKey)) this.skillList = []
+			})
+		}
+		return this.getCurrentSkillList()
+	}
+
+	async refreshSkills() {
+		await this.fetchSkills({ forceRefresh: true }).catch(() => {
+			if (!this.skillListCache.has(this.currentSkillQueryKey)) this.skillList = []
 		})
-		return this.skillList
+		return this.getCurrentSkillList()
 	}
 
 	getToolItems(collectionId: string) {
@@ -1200,28 +1235,33 @@ export class MentionPanelStore implements DataService {
 		this.initializeHistoryCache()
 	}
 
-	private async loadAllSkills() {
-		const list: UserSkillView[] = []
-		let page = 1
-		let hasNextPage = true
-		const pageSize = 100
+	private async loadAllSkills(params: { requestKey: string }) {
+		const { requestKey } = params
+		const agentCode = this.getSkillAgentCode(requestKey)
+		const data = await CrewApi.getMentionSkills(agentCode ? { agent_code: agentCode } : {})
+		return this.updateSkillList(data, requestKey)
+	}
 
-		while (hasNextPage) {
-			const response = await skillsService.getUserSkills({
-				page,
-				page_size: pageSize,
-			})
-			list.push(...response.list)
+	private getSkillAgentCode(skillQueryKey: string) {
+		if (skillQueryKey === DEFAULT_SKILL_QUERY_KEY) return undefined
+		return skillQueryKey
+	}
 
-			const loadedCount = response.page * response.pageSize
-			hasNextPage = loadedCount < response.total && response.list.length > 0
+	private getSkillListByQueryKey(skillQueryKey: string) {
+		return this.skillListCache.get(skillQueryKey) ?? []
+	}
 
-			if (hasNextPage) {
-				page += 1
-			}
-		}
+	private getCurrentSkillList() {
+		return this.getSkillListByQueryKey(this.currentSkillQueryKey)
+	}
 
-		return list
+	private updateSkillList(list: MentionSkillItem[], requestKey: string) {
+		const nextSkillList = list.map(mapSkillToMention)
+		this.skillListCache.set(requestKey, nextSkillList)
+		if (requestKey !== this.currentSkillQueryKey) return this.getCurrentSkillList()
+
+		this.skillList = nextSkillList
+		return nextSkillList
 	}
 }
 
@@ -1232,7 +1272,7 @@ export function createMentionPanelStore(projectFilesStore: ProjectFilesStore): M
 
 // Re-import projectFilesStore for singleton instance
 import projectFilesStore from "@/stores/projectFiles"
-import { Bot } from "@/types/bot"
+import type { Bot } from "@/types/bot"
 
 const mentionPanelStore = createMentionPanelStore(projectFilesStore)
 

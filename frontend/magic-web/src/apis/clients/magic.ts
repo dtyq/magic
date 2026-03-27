@@ -17,7 +17,7 @@ export class MagicHttpClient extends HttpClient {
 		this.addRequestInterceptor(function request(config) {
 			// 设置通用请求头
 			config.headers?.set("Content-Type", "application/json")
-			config.headers?.set("language", getCurrentLang(configStore.i18n.language))
+			config.headers?.set("language", getCurrentLang(configStore.i18n.displayLanguage))
 
 			if (!config.headers?.get("authorization")) {
 				const authorization = userStore.user.authorization?.trim()

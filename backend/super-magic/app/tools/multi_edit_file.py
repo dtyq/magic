@@ -19,7 +19,7 @@ from agentlang.utils.syntax_checker import SyntaxChecker
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
@@ -59,7 +59,7 @@ class MultiEditFileParams(BaseToolParams):
 
 
 @tool()
-class MultiEditFile(AbstractFileTool[MultiEditFileParams], WorkspaceGuardTool[MultiEditFileParams]):
+class MultiEditFile(AbstractFileTool[MultiEditFileParams], WorkspaceTool[MultiEditFileParams]):
     """
     This is a tool for making multiple edits to a single file in one operation. It is built
     on top of the edit_file tool and allows you to perform multiple find-and-replace operations
@@ -116,10 +116,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
             # Check if file exists
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
@@ -133,7 +130,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
             is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             # Read original content
             original_content = await self._read_file(file_path)
@@ -175,7 +172,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                 # 直接从验证结果中获取错误类型
                 error_type = validation_result.get('error_type', "edit_file.error_validation_failed")
                 tool_context.set_metadata("error_type", error_type)
-                return ToolResult(error=validation_result['error'])
+                return ToolResult.error(validation_result['error'])
 
             # Apply edits sequentially
             working_content = original_content
@@ -214,7 +211,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
 
                     if punctuation_error:
                         error_msg = f"Edit {i+1}/{len(params.edits)} failed:\n{punctuation_error}"
-                        return ToolResult(error=error_msg)
+                        return ToolResult.error(error_msg)
 
                     error_msg = f"Edit {i+1}/{len(params.edits)} failed:\n"
                     error_msg += f"old_string not found in current content.\n"
@@ -234,7 +231,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                             "Remove the extra escape characters from your strings."
                         )
 
-                    return ToolResult(error=error_msg)
+                    return ToolResult.error(error_msg)
 
                 if occurrences != edit.expected_replacements:
                     tool_context.set_metadata("error_type", "edit_file.error_replacements_mismatch")
@@ -356,7 +353,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         except Exception as e:
             logger.exception(f"Failed to execute multi-edit: {e}")
             tool_context.set_metadata("error_type", "edit_file.error_unexpected")
-            return ToolResult(error="The multi_edit_file tool encountered an unexpected error. Try using multiple edit_file calls, shell commands (e.g., sed -i; avoid piping sed to cat -A for multi-byte characters), or write a Python script to perform these edits instead.")
+            return ToolResult.error("The multi_edit_file tool encountered an unexpected error. Try using multiple edit_file calls, shell commands (e.g., sed -i; avoid piping sed to cat -A for multi-byte characters), or write a Python script to perform these edits instead.")
 
     def _validate_all_edits(self, edits: List[EditOperation], content: str) -> dict:
         """

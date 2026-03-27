@@ -8,7 +8,7 @@ from typing import List
 from datetime import datetime
 
 from app.core.entity.todo import TodoItem, TodoFile
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)

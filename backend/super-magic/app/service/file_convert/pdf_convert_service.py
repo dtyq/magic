@@ -499,6 +499,211 @@ class PdfConvertService(BaseConvertService):
                 "hasVerticalScroll": False,
             }
 
+    @staticmethod
+    async def _inject_pdf_pagination_css(page) -> None:
+        """
+        注入更适合 PDF 导出的分页 CSS。
+
+        默认打印 CSS 会禁止整张表格分页，导致大表格被整体推到下一页，
+        在当前页底部留下大块空白。这里改为允许 table 跨页，但尽量避免拆分单行。
+        """
+        try:
+            await page.add_style_tag(
+                content="""
+                @media print {
+                    table {
+                        page-break-inside: auto !important;
+                        break-inside: auto !important;
+                    }
+                    thead {
+                        display: table-header-group !important;
+                    }
+                    tfoot {
+                        display: table-footer-group !important;
+                    }
+                    tr,
+                    td,
+                    th {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid-page !important;
+                    }
+                }
+            """
+            )
+        except Exception as e:
+            logger.debug(f"注入PDF分页CSS失败: {e}")
+
+    @staticmethod
+    def _get_pdf_page_count(pdf_path: Path) -> int:
+        """
+        获取 PDF 页数。
+        """
+        try:
+            with fitz.open(str(pdf_path)) as pdf_doc:
+                return pdf_doc.page_count
+        except Exception as e:
+            logger.warning(f"读取PDF页数失败 {pdf_path}: {e}")
+            return 0
+
+    @staticmethod
+    def _select_screenshot_device_scale_factor(css_height_px: int) -> float:
+        """
+        根据页面高度动态选择截图倍率。
+
+        阈值依据当前 1920px 宽度页面的本地压测结果设定：
+        - 13420px 高度在 2.0x 下峰值 RSS 约 2GB
+        """
+        short_page_max_height_px = 13420
+
+        if css_height_px <= short_page_max_height_px:
+            return 2.0
+        return 1.0
+
+    @staticmethod
+    def _build_screenshot_scale_fallback_chain(preferred_scale_factor: float) -> list[float]:
+        """
+        构建截图倍率降级链。
+
+        例如：
+        - 2.0 -> [2.0, 1.0]
+        - 1.0 -> [1.0]
+        """
+        fallback_candidates = [2.0, 1.0]
+        return [scale for scale in fallback_candidates if scale <= preferred_scale_factor]
+
+    @staticmethod
+    async def _capture_full_page_screenshot_bytes(
+        page, target_device_scale_factor: float = 2.0
+    ) -> tuple[bytes, int, int]:
+        """
+        获取整页截图字节数据，以及对应的 CSS 像素尺寸。
+
+        优先在独立的高 DPR 上下文中重新加载当前页面，以提升截图型 PDF 的文字清晰度。
+        若首选倍率失败，则依次降级到更低倍率继续尝试。
+        只有所有截图倍率都失败时，才抛出异常，由调用方回退为浏览器打印 PDF。
+        """
+        screenshot_options = {
+            "full_page": True,
+            "type": "png",
+            "animations": "disabled",
+            "caret": "hide",
+        }
+
+        current_dimensions = await page.evaluate("""
+            () => {
+                const body = document.body;
+                const html = document.documentElement;
+                return {
+                    scrollWidth: Math.max(body.scrollWidth || 0, html.scrollWidth || 0),
+                    scrollHeight: Math.max(body.scrollHeight || 0, html.scrollHeight || 0),
+                };
+            }
+        """)
+        selected_device_scale_factor = PdfConvertService._select_screenshot_device_scale_factor(
+            current_dimensions["scrollHeight"]
+        )
+        # 外部传入值只作为上限，避免误把动态降级再次抬高
+        selected_device_scale_factor = min(selected_device_scale_factor, target_device_scale_factor)
+        fallback_scale_chain = PdfConvertService._build_screenshot_scale_fallback_chain(selected_device_scale_factor)
+
+        page_url = page.url
+        browser = page.context.browser
+        viewport_size = page.viewport_size or {"width": 1920, "height": 3000}
+        user_agent = await page.evaluate("navigator.userAgent")
+        screenshot_errors: list[str] = []
+
+        for scale_factor in fallback_scale_chain:
+            if scale_factor > 1.0:
+                temp_context = None
+                try:
+                    temp_context = await browser.new_context(
+                        viewport=viewport_size,
+                        device_scale_factor=scale_factor,
+                        user_agent=user_agent,
+                        locale="zh-CN",
+                        timezone_id="Asia/Shanghai",
+                    )
+                    temp_page = await temp_context.new_page()
+                    await temp_page.goto(page_url, wait_until="networkidle")
+                    await temp_page.wait_for_timeout(1000)
+                    temp_dimensions = await temp_page.evaluate("""
+                        () => {
+                            const body = document.body;
+                            const html = document.documentElement;
+                            return {
+                                scrollWidth: Math.max(body.scrollWidth || 0, html.scrollWidth || 0),
+                                scrollHeight: Math.max(body.scrollHeight || 0, html.scrollHeight || 0),
+                            };
+                        }
+                    """)
+                    screenshot_bytes = await temp_page.screenshot(**screenshot_options)
+                    logger.info(
+                        f"📸 整页截图成功: {viewport_size['width']}×{viewport_size['height']} @ {scale_factor}x"
+                    )
+                    return screenshot_bytes, temp_dimensions["scrollWidth"], temp_dimensions["scrollHeight"]
+                except Exception as e:
+                    screenshot_errors.append(f"{scale_factor}x: {e}")
+                    logger.warning(f"整页截图失败，准备降级到更低倍率: {scale_factor}x - {e}")
+                finally:
+                    if temp_context:
+                        await temp_context.close()
+                continue
+
+            try:
+                screenshot_bytes = await page.screenshot(**screenshot_options)
+                logger.info("📸 整页截图成功: 使用当前页面 1.0x")
+                return screenshot_bytes, current_dimensions["scrollWidth"], current_dimensions["scrollHeight"]
+            except Exception as e:
+                screenshot_errors.append(f"1.0x: {e}")
+                logger.warning(f"当前页面 1.0x 整页截图失败: {e}")
+
+        raise RuntimeError(f"所有截图倍率均失败: {'; '.join(screenshot_errors)}")
+
+    @classmethod
+    async def _render_single_page_pdf_from_screenshot(cls, page, output_pdf_path: Path) -> bool:
+        """
+        使用整页截图重新生成单页 PDF。
+
+        该方案直接复用屏幕态渲染结果，规避 Chromium 打印分页对复杂 HTML
+        （尤其是表格、overflow 容器）造成的额外分页。
+        若截图链路失败，则返回 False，由调用方保留浏览器打印 PDF 结果。
+        """
+        temp_pdf_path = output_pdf_path.with_name(f"{output_pdf_path.stem}.single-page.tmp.pdf")
+        try:
+            screenshot_bytes, css_width_px, css_height_px = await cls._capture_full_page_screenshot_bytes(
+                page, target_device_scale_factor=2.0
+            )
+
+            pixmap = fitz.Pixmap(screenshot_bytes)
+            pdf_width_pt = css_width_px * 0.75
+            pdf_height_pt = css_height_px * 0.75
+
+            pdf_doc = fitz.open()
+            pdf_page = pdf_doc.new_page(width=pdf_width_pt, height=pdf_height_pt)
+            pdf_page.insert_image(pdf_page.rect, stream=screenshot_bytes)
+            pdf_doc.save(
+                str(temp_pdf_path),
+                deflate=True,
+                garbage=3,
+                use_objstms=1,
+            )
+            pdf_doc.close()
+
+            temp_pdf_path.replace(output_pdf_path)
+            logger.info(
+                f"🖼️ 使用整页截图回退生成单页PDF: {output_pdf_path.name} "
+                f"(截图 {pixmap.width}×{pixmap.height}px, 页面 {css_width_px}×{css_height_px}px)"
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"整页截图回退生成单页PDF失败 {output_pdf_path}: {e}")
+            if temp_pdf_path.exists():
+                try:
+                    temp_pdf_path.unlink()
+                except Exception:
+                    pass
+            return False
+
     def _calculate_optimal_pdf_options(self, dimensions: Dict[str, Any]) -> Dict[str, Any]:
         """
         根据内容尺寸直接确定PDF选项，不依赖外部配置
@@ -817,6 +1022,10 @@ class PdfConvertService(BaseConvertService):
                             await self._inject_print_css(page)
                         except Exception as css_error:
                             logger.debug(f"注入打印CSS失败: {css_error}")
+                        try:
+                            await self._inject_pdf_pagination_css(page)
+                        except Exception as css_error:
+                            logger.debug(f"注入PDF分页CSS失败: {css_error}")
 
                         # 🎯 PPT项目优化：使用固定视口尺寸，避免底部空白区域
                         if is_ppt_project:
@@ -927,6 +1136,10 @@ class PdfConvertService(BaseConvertService):
                             await self._inject_print_css(page)
                         except Exception as css_error:
                             logger.debug(f"注入打印CSS失败: {css_error}")
+                        try:
+                            await self._inject_pdf_pagination_css(page)
+                        except Exception as css_error:
+                            logger.debug(f"注入PDF分页CSS失败: {css_error}")
 
                         # Markdown文件使用标准A4配置，无边距
                         markdown_pdf_options = {
@@ -955,6 +1168,21 @@ class PdfConvertService(BaseConvertService):
                             return None, f"文件 {file_key}: PDF文件生成失败或文件为空"
                     except Exception as pdf_error:
                         return None, f"文件 {file_key}: PDF生成失败 - {str(pdf_error)}"
+
+                    if self.enable_full_page and file_suffix in [".html", ".htm"]:
+                        generated_page_count = self._get_pdf_page_count(generated_pdf_path)
+                        if generated_page_count > 1:
+                            logger.info(
+                                f"📄 [{local_file_path.name}] 长截图模式下仍生成 {generated_page_count} 页，"
+                                "回退为整页截图单页PDF"
+                            )
+                            screenshot_fallback_ok = await self._render_single_page_pdf_from_screenshot(
+                                page, generated_pdf_path
+                            )
+                            if not screenshot_fallback_ok:
+                                logger.warning(
+                                    f"⚠️ [{local_file_path.name}] 整页截图单页PDF回退失败，保留原始多页PDF输出"
+                                )
 
                     # 嵌入AIGC签名元数据到PDF文件（必须成功，否则整个转换失败）
                     await self._embed_aigc_metadata_with_logging(

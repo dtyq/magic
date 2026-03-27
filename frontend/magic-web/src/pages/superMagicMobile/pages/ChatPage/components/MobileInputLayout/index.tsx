@@ -31,8 +31,8 @@ const MobileInputLayout = observer(function MobileInputLayout({
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.Mobile}>
 			<div className="flex w-full flex-col gap-2.5">
 				{/* Plugin Tips or Selected Skill Badge */}
-				<div className="flex items-center gap-2 px-2.5 pt-2.5">
-					<ModeSelector className="h-7" showBorder iconSize={16} />
+				<div className="flex items-center gap-2 pr-2.5 pt-2.5">
+					<ModeSelector className="h-7" iconSize={28} />
 					{scenes && scenes.length > 0 && <div className="h-5 w-[1px] bg-border" />}
 					{selectedScene ? (
 						<CurrentSceneBadge

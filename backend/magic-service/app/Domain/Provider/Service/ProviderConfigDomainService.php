@@ -146,9 +146,9 @@ class ProviderConfigDomainService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        if ($provider->getProviderType() === ProviderType::Official) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError);
-        }
+        //        if ($provider->getProviderType() === ProviderType::Official) {
+        //            ExceptionBuilder::throw(ServiceProviderErrorCode::SystemError);
+        //        }
 
         $providerConfigEntity->setStatus(Status::Enabled);
 

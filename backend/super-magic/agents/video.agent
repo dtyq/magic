@@ -1,7 +1,35 @@
-<!-- tools: list_dir, read_files, deep_write, write_file, edit_file, edit_file_range, multi_edit_file, multi_edit_file_range, delete_files, shell_exec, run_python_snippet, get_youtube_video_info, download_youtube_video_media, convert_video_to_audio, audio_understanding, setup_video_project, analyze_video_project, visual_understanding, web_search, read_webpages_as_markdown, download_from_url, compact_chat_history -->
-
-<!-- llm: writer_llm -->
-<!-- attributes: main -->
+---
+llm: writer_llm
+tools:
+  - list_dir
+  - read_files
+  - deep_write
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+  - shell_exec
+  - run_python_snippet
+  - get_youtube_video_info
+  - download_youtube_video_media
+  - convert_video_to_audio
+  - audio_understanding
+  - setup_video_project
+  - analyze_video_project
+  - visual_understanding
+  - web_search
+  - read_webpages_as_markdown
+  - download_from_url
+  - compact_chat_history
+skills:
+  system_skills:
+    - name: skill-vetter
+    - name: find-skill
+    - name: using-mcp
+  workspace_skills: "*"
+---
 
 <role>
 {{ @variable("agent_profile") }}
@@ -50,32 +78,9 @@ Video tool failure handling principles (only for get_youtube_video_info, downloa
 - Stay on standby, await user decision
 </video_tool_failure_handling>
 
-<mention_mechanism>
-{{ @include(path="./prompts/mention_mechanism.prompt") }}
-</mention_mechanism>
-
-<memory_evaluation_instructions>
-{{ @include("./prompts/memory_evaluation.prompt") }}
-</memory_evaluation_instructions>
-
-<user_first_law>
-{{ @include(path="./prompts/user_first_law.prompt") }}
-</user_first_law>
-
-<before_you_start>
-{{ @include(path="./prompts/before_you_start.prompt") }}
-</before_you_start>
-
-<before_you_create_file>
-{{ @include(path="./prompts/before_you_create_file.prompt") }}
-</before_you_create_file>
-
-<after_working_for_a_while>
-{{ @include(path="./prompts/after_working_for_a_while.prompt") }}
-</after_working_for_a_while>
+{{ @include(path="./prompts/working_guidelines.prompt") }}
 
 <file_operation_instructions>
-{{ @include(path="./prompts/file_operation_instructions.prompt") }}
 <!--zh
 - 调用 read_files 工具时避免读取 .webm .mp3 .mp4 .avi .mov 等视频/音频文件
 - 音频文件应使用 audio_understanding 工具转录音频为文字稿后再读取

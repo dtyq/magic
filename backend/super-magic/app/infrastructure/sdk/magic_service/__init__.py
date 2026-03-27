@@ -14,6 +14,7 @@ from .factory import (
 # API classes
 from .api.agent_api import AgentApi
 from .api.message_schedule_api import MessageScheduleApi
+from .api.share_api import ShareApi
 
 # Parameter classes
 from .parameter.get_agent_details_parameter import GetAgentDetailsParameter
@@ -26,6 +27,10 @@ from .parameter.message_schedule_parameter import (
     UpdateMessageScheduleParameter,
     DeleteMessageScheduleParameter,
 )
+from .parameter.share_resource_id_parameter import ShareResourceIdParameter
+from .parameter.create_share_parameter import CreateShareParameter, TargetId
+from .parameter.find_similar_share_parameter import FindSimilarShareParameter
+from .parameter.cancel_share_parameter import CancelShareParameter
 
 # Result classes
 from .result.agent_details_result import (
@@ -37,6 +42,12 @@ from .result.message_schedule_result import (
     MessageScheduleResult,
     MessageScheduleListResult,
     DeleteMessageScheduleResult,
+)
+from .result.share_result import (
+    ShareResourceIdResult,
+    ShareResult,
+    CancelShareResult,
+    FindSimilarSharesResult,
 )
 
 # Kernel classes
@@ -64,6 +75,7 @@ __all__ = [
     # API classes
     'AgentApi',
     'MessageScheduleApi',
+    'ShareApi',
 
     # Parameter classes
     'GetAgentDetailsParameter',
@@ -74,6 +86,11 @@ __all__ = [
     'GetMessageScheduleDetailParameter',
     'UpdateMessageScheduleParameter',
     'DeleteMessageScheduleParameter',
+    'ShareResourceIdParameter',
+    'CreateShareParameter',
+    'TargetId',
+    'FindSimilarShareParameter',
+    'CancelShareParameter',
 
     # Result classes
     'AgentDetailsResult',
@@ -82,6 +99,10 @@ __all__ = [
     'MessageScheduleResult',
     'MessageScheduleListResult',
     'DeleteMessageScheduleResult',
+    'ShareResourceIdResult',
+    'ShareResult',
+    'CancelShareResult',
+    'FindSimilarSharesResult',
 
     # Kernel classes
     'MagicServiceException',

@@ -11,6 +11,10 @@ interface SearchBarProps {
 	value?: string
 	placeholder?: string
 	"data-testid"?: string
+	/** When true, submit button triggers search (Crew Market keeps it disabled). */
+	enableSearchSubmit?: boolean
+	onCompositionStart?: () => void
+	onCompositionEnd?: () => void
 }
 
 function SearchBar({
@@ -19,6 +23,9 @@ function SearchBar({
 	value,
 	placeholder,
 	"data-testid": dataTestId,
+	enableSearchSubmit = false,
+	onCompositionStart,
+	onCompositionEnd,
 }: SearchBarProps) {
 	const { t } = useTranslation("crew/market")
 	const isControlled = value !== undefined
@@ -35,7 +42,7 @@ function SearchBar({
 	}
 
 	function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-		if (e.key === "Enter") handleSearch()
+		if (e.key === "Enter" && !e.nativeEvent.isComposing) handleSearch()
 	}
 
 	return (
@@ -55,6 +62,8 @@ function SearchBar({
 				<Input
 					value={query}
 					onChange={(e) => handleChange(e.target.value)}
+					onCompositionStart={onCompositionStart}
+					onCompositionEnd={onCompositionEnd}
 					onKeyDown={handleKeyDown}
 					placeholder={placeholder ?? t("aiSearchPlaceholder")}
 					className="min-w-0 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
@@ -63,10 +72,10 @@ function SearchBar({
 			</div>
 			<Button
 				size="icon"
-				className="h-9 w-9 shrink-0 opacity-50"
+				className={enableSearchSubmit ? "h-9 w-9 shrink-0" : "h-9 w-9 shrink-0 opacity-50"}
 				onClick={handleSearch}
 				data-testid="search-bar-submit"
-				disabled
+				disabled={!enableSearchSubmit}
 			>
 				<Search className="h-4 w-4" />
 			</Button>

@@ -61,6 +61,14 @@ class SkillMarketDomainService
     }
 
     /**
+     * Find the latest published market skill by skill code.
+     */
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity
+    {
+        return $this->skillMarketRepository->findPublishedBySkillCode($skillCode);
+    }
+
+    /**
      * 保存市场技能.
      */
     public function saveStoreSkill(SkillMarketEntity $entity): SkillMarketEntity
@@ -171,5 +179,15 @@ class SkillMarketDomainService
     public function updateSortOrderById(int $id, int $sortOrder): bool
     {
         return $this->skillMarketRepository->updateSortOrderById($id, $sortOrder);
+    }
+
+    /**
+     * 按传入字段部分更新市场 Skill 信息.
+     *
+     * @param array{sort_order?: null|int, is_featured?: bool} $payload
+     */
+    public function updateInfoById(int $id, array $payload): bool
+    {
+        return $this->skillMarketRepository->updateInfoById($id, $payload);
     }
 }

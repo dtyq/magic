@@ -120,6 +120,9 @@ export function routesPathMatch(
 	includeChildRoutes?: boolean,
 ): boolean {
 	const info = routesMap?.[routeName]
+	// if (!info) {
+	// 	return false
+	// }
 	if (info?.path) {
 		if (includeChildRoutes && info.children && !matchPath(info.path, pathname)) {
 			return info.children.some(

@@ -10,7 +10,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
@@ -24,7 +24,7 @@ Fuzzy file name to search"""
 
 
 @tool()
-class FileSearch(WorkspaceGuardTool[FileSearchParams]):
+class FileSearch(WorkspaceTool[FileSearchParams]):
     """<!--zh
     基于对文件路径的模糊匹配的快速文件搜索。
     如果你知道文件路径的一部分但不确切知道它的位置，请使用此工具。响应将限制为10个结果。如果需要进一步过滤结果，请使查询更具体。

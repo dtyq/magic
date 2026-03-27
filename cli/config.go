@@ -7,6 +7,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/dtyq/magicrew-cli/cluster"
+	"github.com/dtyq/magicrew-cli/deployer"
 	"github.com/dtyq/magicrew-cli/deps"
 	"github.com/dtyq/magicrew-cli/i18n"
 	"github.com/dtyq/magicrew-cli/registry"
@@ -44,6 +45,7 @@ type DeployConfig struct {
 	Kind          cluster.KindClusterConfig    `yaml:"kind"`
 	Charts        map[string]DeployChartConfig `yaml:"charts"`
 	InfraUseProxy bool                         `yaml:"infraUseProxy"`
+	Proxy         deployer.ProxyConfig         `yaml:"proxy"`
 }
 
 // defaultDeployCharts 返回 deploy.charts 的默认值；当配置文件为空或未配置 charts 时使用。
@@ -52,6 +54,17 @@ func defaultDeployCharts() map[string]DeployChartConfig {
 		"infra":         {Name: "infra", Version: ""},
 		"magic":         {Name: "magic", Version: ""},
 		"magic-sandbox": {Name: "magic-sandbox", Version: ""},
+	}
+}
+
+func defaultDeployProxyConfig() deployer.ProxyConfig {
+	return deployer.ProxyConfig{
+		Enabled: true,
+		Policy: deployer.ProxyPolicyConfig{
+			UseHostProxy:        true,
+			RequireReachability: true,
+			RequireEgress:       false,
+		},
 	}
 }
 
@@ -99,6 +112,16 @@ deploy:
       name: magic-sandbox
       version: "0.0.2"
   infraUseProxy: false
+  proxy:
+    enabled: true
+    host:
+      url: ""
+    container:
+      url: ""
+    policy:
+      useHostProxy: true
+      requireReachability: true
+      requireEgress: false
 `
 
 func initConfig() {
@@ -181,6 +204,7 @@ func init() {
 			Registry:  registry.NormalizeConfig(registry.Config{}),
 			Kind:      cluster.NormalizeKindCluster(cluster.KindClusterConfig{}),
 			Charts:    defaultDeployCharts(),
+			Proxy:     defaultDeployProxyConfig(),
 		},
 	}
 	lg, err = util.NewLoggers(

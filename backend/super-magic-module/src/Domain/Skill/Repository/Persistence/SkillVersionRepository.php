@@ -568,6 +568,11 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             $descriptionI18n = Json::decode($descriptionI18n);
         }
 
+        $sourceI18n = $data['source_i18n'] ?? null;
+        if (is_string($sourceI18n)) {
+            $sourceI18n = Json::decode($sourceI18n);
+        }
+
         $sourceMeta = $data['source_meta'] ?? null;
         if (is_string($sourceMeta)) {
             $sourceMeta = Json::decode($sourceMeta);
@@ -593,9 +598,11 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'version' => $data['version'] ?? '1.0.0',
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'source_i18n' => $sourceI18n,
             'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'file_key' => $data['file_key'] ?? '',
+            'skill_file_key' => $data['skill_file_key'] ?? null,
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'review_status' => $data['review_status'] ?? ReviewStatus::PENDING->value,
             'publish_target_type' => $data['publish_target_type'] ?? PublishTargetType::MARKET->value,
@@ -638,9 +645,11 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'version' => $entity->getVersion(),
             'name_i18n' => $entity->getNameI18n(),
             'description_i18n' => $entity->getDescriptionI18n(),
+            'source_i18n' => $entity->getSourceI18n(),
             'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'file_key' => $entity->getFileKey(),
+            'skill_file_key' => $entity->getSkillFileKey(),
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()?->value,
             'publish_target_type' => $entity->getPublishTargetType()->value,

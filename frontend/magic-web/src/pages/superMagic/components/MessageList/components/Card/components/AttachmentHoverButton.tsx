@@ -8,9 +8,9 @@ import type {
 	ProjectFileMentionData,
 	UploadFileMentionData,
 } from "@/components/business/MentionPanel/types"
-import pubsub from "@/utils/pubsub"
 import { handleProjectFileMention } from "@/pages/superMagic/components/MessageEditor/utils"
 import { useTranslation } from "react-i18next"
+import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 
 interface AttachmentHoverButtonProps {
 	attachments: MentionListItem[]
@@ -28,18 +28,7 @@ function AttachmentHoverButton({ attachments, t, className }: AttachmentHoverBut
 	const handleFileClick = (mentionData: ProjectFileMentionData | UploadFileMentionData) => {
 		// 处理文件 mention 数据
 		const result = handleProjectFileMention(mentionData as ProjectFileMentionData, tSuper)
-
-		// 切换到文件面板
-		pubsub.publish("super_magic_switch_detail_mode", "files")
-
-		// 打开文件
-		const fileId = result?.data?.file_id || result?.currentFileId
-		if (result && fileId) {
-			pubsub.publish("super_magic_open_file_tab", {
-				fileId,
-				fileData: result,
-			})
-		}
+		openMessageFile(result)
 
 		// 关闭弹窗
 		setOpen(false)

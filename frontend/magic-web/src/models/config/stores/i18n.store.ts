@@ -1,12 +1,15 @@
 import { makeAutoObservable } from "mobx"
 import { createI18nNext } from "@/assets/locales/create"
 import { normalizeLocale } from "@/utils/locale"
+import { getForcedLanguage, resolveLanguageSelection } from "@/models/config/languagePolicy"
 import type { Config } from "../types"
 import { languageHelper } from "../utils"
 import { env } from "@/utils/env"
 
 export class I18nStore {
-	language = env("MAGIC_DEFAULT_LANGUAGE") || "auto"
+	language = getForcedLanguage() || env("MAGIC_DEFAULT_LANGUAGE") || "auto"
+
+	temporaryLanguage: Config.LanguageValue | null = null
 
 	languages: Array<Config.LanguageOption> = []
 
@@ -21,18 +24,37 @@ export class I18nStore {
 	}
 
 	get displayLanguage() {
+		// URL language wins for the current session.
+		if (this.temporaryLanguage) return this.temporaryLanguage
+
+		const forcedLanguage = getForcedLanguage()
+		if (forcedLanguage) return forcedLanguage
+
 		return languageHelper.transform(
 			this.language === "auto" ? normalizeLocale(window.navigator.language) : this.language,
 		)
 	}
 
+	setTemporaryLanguage(lang: Config.LanguageValue | null) {
+		this.temporaryLanguage = lang
+		this.i18n.instance.changeLanguage(this.displayLanguage)
+	}
+
+	// Sync persisted language without dropping URL overrides.
+	syncLanguage(lang: string) {
+		this.language = resolveLanguageSelection(lang)
+		this.i18n.instance.changeLanguage(this.displayLanguage)
+	}
+
+	// Explicit user changes should clear URL overrides.
 	setLanguage(lang: string) {
-		this.language = lang
+		this.language = resolveLanguageSelection(lang)
+		this.temporaryLanguage = null
 		this.i18n.instance.changeLanguage(this.displayLanguage)
 	}
 
 	setLanguages(languages: Config.LanguageOption[]) {
-		this.languages =
+		const supportedLanguages =
 			languages
 				// 目前只支持简体中文和英文
 				?.filter((lang) => ["zh_CN", "en_US"].includes(lang.locale))
@@ -43,6 +65,11 @@ export class I18nStore {
 						translations: lang?.translations,
 					}
 				}) || []
+
+		const forcedLanguage = getForcedLanguage()
+		this.languages = forcedLanguage
+			? supportedLanguages.filter((lang) => lang.locale === forcedLanguage)
+			: supportedLanguages
 	}
 
 	setAreaCodes(areaCodes: Config.AreaCodeOption[]) {

@@ -10,7 +10,7 @@ import aiohttp
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 

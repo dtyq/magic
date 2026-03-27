@@ -21,6 +21,8 @@ export namespace ActionsPopup {
 		variant?: "default" | "danger"
 		/** 是否禁用 */
 		disabled?: boolean
+		/** Stable selector for tests */
+		"data-testid"?: string
 	}
 
 	// ActionsPopup specific interfaces

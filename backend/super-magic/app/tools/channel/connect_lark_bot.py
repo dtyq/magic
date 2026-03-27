@@ -16,13 +16,25 @@ logger = get_logger(__name__)
 
 
 class ConnectLarkBotParams(BaseToolParams):
-    app_id: str = Field(..., description="飞书开放平台企业自建应用的 App ID")
-    app_secret: str = Field(..., description="飞书开放平台企业自建应用的 App Secret")
+    app_id: str = Field(
+        ...,
+        description="""<!--zh: 飞书开放平台企业自建应用的 App ID-->
+The Lark self-built app ID from the Lark developer console.""",
+    )
+    app_secret: str = Field(
+        ...,
+        description="""<!--zh: 飞书开放平台企业自建应用的 App Secret-->
+The Lark self-built app secret from the Lark developer console.""",
+    )
 
 
 @tool()
 class ConnectLarkBot(BaseTool[ConnectLarkBotParams]):
-    """建立飞书 WebSocket 长连接。仅供 Skill snippet 调用，不挂载到 LLM。"""
+    """<!--zh
+    建立飞书 WebSocket 长连接。仅供 Skill snippet 调用，不挂载到 LLM。
+    -->
+    Start the Lark WebSocket connection. Intended for skill snippets only and not exposed as a normal LLM tool.
+    """
 
     async def execute(self, tool_context: ToolContext, params: ConnectLarkBotParams) -> ToolResult:
         try:
@@ -34,7 +46,8 @@ class ConnectLarkBot(BaseTool[ConnectLarkBotParams]):
             if perm_error:
                 logger.error(f"[ConnectLarkBot] 权限检测失败: {perm_error}")
                 return ToolResult.error(
-                    f"飞书机器人连接请求已提交，但检测到缺少必要权限，消息可能无法正常回复：\n{perm_error}"
+                    "The Lark bot connection request was submitted, but required permissions are still missing, "
+                    f"so replies may fail:\n{perm_error}"
                 )
 
             config = await load_config()
@@ -46,8 +59,11 @@ class ConnectLarkBot(BaseTool[ConnectLarkBotParams]):
             await save_config(config)
 
             return ToolResult(
-                content=f"飞书机器人连接请求已提交（app_id={params.app_id}），请稍后在飞书中发消息确认是否可用"
+                content=(
+                    f"The Lark bot connection request has been submitted (app_id={params.app_id}). "
+                    "Tell the user to send a message in Lark shortly to confirm it works."
+                )
             )
         except Exception as e:
             logger.error(f"[ConnectLarkBot] 连接失败: {e}")
-            return ToolResult.error(f"连接失败: {e}")
+            return ToolResult.error(f"Lark connection failed: {e}")

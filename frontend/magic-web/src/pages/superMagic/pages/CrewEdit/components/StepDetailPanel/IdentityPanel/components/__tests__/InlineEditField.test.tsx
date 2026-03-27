@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { InlineEditField } from "../InlineEditField"
@@ -74,5 +74,31 @@ describe("InlineEditField", () => {
 		expect(handleClick).toHaveBeenCalledTimes(1)
 		expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
 		expect(screen.getByText("Crew")).toBeInTheDocument()
+	})
+
+	it("submits only once when enter is followed by blur", async () => {
+		const handleSave = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InlineEditField
+				value="Crew"
+				placeholder="Enter name"
+				textClassName="text-sm"
+				onSave={handleSave}
+				testId="inline-edit-field"
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("inline-edit-field"))
+
+		const input = screen.getByRole("textbox")
+		fireEvent.change(input, { target: { value: "Skill" } })
+		fireEvent.keyDown(input, { key: "Enter" })
+		fireEvent.blur(input)
+
+		await waitFor(() => {
+			expect(handleSave).toHaveBeenCalledTimes(1)
+		})
+		expect(handleSave).toHaveBeenCalledWith("Skill")
 	})
 })

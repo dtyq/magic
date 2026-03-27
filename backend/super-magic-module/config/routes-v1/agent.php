@@ -31,6 +31,8 @@ Router::addGroup('/api/v1/super-magic', static function () {
 
 Router::addGroup('/api/v2/super-magic', static function () {
     Router::addGroup('/agents', static function () {
+        Router::get('/featured/sort-list', [SuperMagicAgentApi::class, 'sortListQueries']);
+        Router::put('/featured/frequent', [SuperMagicAgentApi::class, 'addToFrequent']);
         Router::post('/queries', [SuperMagicAgentApi::class, 'queries']);
         Router::post('/external/queries', [SuperMagicAgentApi::class, 'externalQueries']);
         Router::post('/import', [SuperMagicAgentApi::class, 'import']);

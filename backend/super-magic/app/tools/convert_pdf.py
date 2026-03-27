@@ -16,13 +16,13 @@ from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from agentlang.tools.tool_result import ToolResult
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.utils.pdf_converter_utils import convert_pdf_locally
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.summarize import Summarize
-from app.paths import PathManager
+from app.path_manager import PathManager
 from agentlang.utils.file import generate_safe_filename
 
 logger = get_logger(__name__)
@@ -69,7 +69,7 @@ Whether to override when output file already exists. Only effective when `output
     )
 
 @tool()
-class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertPdfParams]):
+class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceTool[ConvertPdfParams]):
     """<!--zh
     PDF 转换工具，将指定的 PDF 文件（本地路径或 URL）转换为 Markdown 格式。
 
@@ -173,11 +173,9 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                 logger.info(f"输入 '{input_location}' 被识别为本地路径，强制使用 'normal' 模式。")
                 effective_mode = "normal"
                 # 验证本地路径安全
-                safe_path, error = self.get_safe_path(input_location)
-                if error:
-                    return ToolResult(error=error)
+                safe_path = self.resolve_path(input_location)
                 if not await aiofiles.os.path.exists(safe_path) or await aiofiles.os.path.isdir(safe_path):
-                    return ToolResult(error=f"本地文件不存在或不是文件：'{input_location}'")
+                    return ToolResult.error(f"本地文件不存在或不是文件：'{input_location}'")
                 pdf_source_path = safe_path
             elif effective_mode == "normal":
                 # URL 输入，但指定了 normal 模式，需要先下载
@@ -185,7 +183,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                 # 此处需要调用 DownloadFromUrl
                 pass # 下载逻辑将在后面实现
             elif effective_mode != "smart":
-                 return ToolResult(error=f"无效的模式 '{params.mode}'。请选择 'smart' 或 'normal'。")
+                 return ToolResult.error(f"无效的模式 '{params.mode}'。请选择 'smart' 或 'normal'。")
 
             logger.info(f"执行 PDF 转换: 输入='{input_location}', 模式='{effective_mode}', 输出到='{target_output_path_str or '自动处理'}'")
 
@@ -197,13 +195,13 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                 # 智能模式：调用外部 API (仅支持 URL)
                 if not is_url:
                     # 理论上不会到这里，因为本地文件会强制 normal
-                    return ToolResult(error="内部错误：Smart 模式不应用于本地文件。")
+                    return ToolResult.error("内部错误：Smart 模式不应用于本地文件。")
 
                 # 获取 API 配置
                 api_key = config.get("pdf_understanding.api_key")
                 api_url = config.get("pdf_understanding.api_url")
                 if not api_key or not api_url:
-                    return ToolResult(error="智能 PDF 转换服务未配置，请联系管理员。")
+                    return ToolResult.error("智能 PDF 转换服务未配置，请联系管理员。")
 
                 headers = { "api-key": api_key, "Content-Type": "application/json" }
 
@@ -218,10 +216,10 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                     response_data = response.json()
                 except httpx.HTTPStatusError as e:
                     logger.exception(f"智能 PDF 转换 API 请求失败: 状态码={e.response.status_code}, 响应={e.response.text}")
-                    return ToolResult(error="智能 PDF 转换失败，与处理服务通信时出错。")
+                    return ToolResult.error("智能 PDF 转换失败，与处理服务通信时出错。")
                 except httpx.RequestError as e:
                     logger.exception(f"智能 PDF 转换 API 请求无法发送: {e}")
-                    return ToolResult(error="智能 PDF 转换失败，无法连接到处理服务。")
+                    return ToolResult.error("智能 PDF 转换失败，无法连接到处理服务。")
 
                 # 解析 API 响应
                 # --- API Response Parsing START ---
@@ -232,11 +230,11 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                         logger.info("Smart 模式 API 调用成功并提取内容。")
                     except (KeyError, IndexError, TypeError) as e:
                         logger.error(f"解析智能 PDF 转换 API 响应结构失败: {e}, 响应: {response_data}")
-                        return ToolResult(error="未能成功解析智能 PDF 处理服务的响应。")
+                        return ToolResult.error("未能成功解析智能 PDF 处理服务的响应。")
                 else:
                     error_message = response_data.get("message", "未知的 API 错误")
                     logger.error(f"智能 PDF 转换 API 错误: code={response_data.get('code')}, message={error_message}, 响应: {response_data}")
-                    return ToolResult(error="智能 PDF 转换失败，处理服务返回错误。")
+                    return ToolResult.error("智能 PDF 转换失败，处理服务返回错误。")
                 # --- API Response Parsing END ---
 
             elif effective_mode == "normal":
@@ -265,14 +263,14 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                     download_result = await download_tool.execute_purely(download_params)
                     if not download_result.ok:
                         logger.error(f"Normal 模式下载 PDF 失败: {download_result.content}")
-                        return ToolResult(error=f"下载 PDF 文件失败: {download_result.content}")
+                        return ToolResult.error(f"下载 PDF 文件失败: {download_result.content}")
                     pdf_source_path = temp_download_path # 更新源路径为下载的文件
                     logger.info(f"PDF 已成功下载到: {pdf_source_path}")
                     # --- 下载结束 ---
 
                 # --- 调用本地转换 ---
                 if not pdf_source_path or not await aiofiles.os.path.exists(pdf_source_path):
-                    return ToolResult(error=f"内部错误：无法找到用于本地转换的源 PDF 文件。")
+                    return ToolResult.error(f"内部错误：无法找到用于本地转换的源 PDF 文件。")
 
                 logger.info(f"Normal 模式调用本地转换获取文本: {pdf_source_path}")
                 # 直接获取 Markdown 文本内容
@@ -280,7 +278,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
 
                 if markdown_content is None:
                     logger.error(f"Normal 模式本地转换失败: {pdf_source_path}")
-                    return ToolResult(error=f"使用本地库转换 PDF 文件 '{pdf_source_path.name}' 失败。")
+                    return ToolResult.error(f"使用本地库转换 PDF 文件 '{pdf_source_path.name}' 失败。")
 
                 logger.info(f"Normal 模式本地转换成功，已获取 Markdown 文本。")
                 # 在 normal 模式下，md_cache_path 是潜在的输出文件之一
@@ -291,7 +289,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
             if markdown_content is None: # Sanity check, should have been caught above
                 logger.error(f"未能成功获取 Markdown 内容 (模式: {effective_mode})，输入: {input_location}")
                 #返回更具体的错误信息
-                return ToolResult(error=f"PDF 转换失败（模式: {effective_mode}），未能获取有效内容。")
+                return ToolResult.error(f"PDF 转换失败（模式: {effective_mode}），未能获取有效内容。")
 
             # --- 4. 检测并分析提取的图片 ---
             enhanced_markdown_content = await self._enhance_with_image_analysis(markdown_content)
@@ -320,15 +318,11 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
             try:
                 if target_output_path_str:
                     # 用户指定了路径
-                    safe_output_path, error = self.get_safe_path(target_output_path_str)
-                    if error:
-                         logger.error(f"指定的输出路径不安全或在工作空间之外: {target_output_path_str}")
-                         return ToolResult(error=f"指定的输出路径 '{target_output_path_str}' 不安全或无效: {error}")
-
+                    safe_output_path = self.resolve_path(target_output_path_str)
                     # 检查文件是否存在以及是否允许覆盖
                     if await aiofiles.os.path.exists(safe_output_path) and not override_output:
                          logger.warning(f"输出文件已存在且不允许覆盖: {safe_output_path}")
-                         return ToolResult(error=f"输出文件 '{target_output_path_str}' 已存在。如需覆盖请设置 override=True。")
+                         return ToolResult.error(f"输出文件 '{target_output_path_str}' 已存在。如需覆盖请设置 override=True。")
 
                     # 确保父目录存在
                     await asyncio.to_thread(safe_output_path.parent.mkdir, parents=True, exist_ok=True)
@@ -339,14 +333,14 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                     # if effective_mode == "normal":
                     #     # Normal 模式下，如果没有指定输出，结果就是 cache 文件
                     #     if not md_cache_path: # Sanity check
-                    #          return ToolResult(error="内部错误：无法确定 normal 模式的默认输出路径。")
+                    #          return ToolResult.error("内部错误：无法确定 normal 模式的默认输出路径。")
                     #     final_output_path = md_cache_path
                     #     logger.info(f"Normal 模式未指定输出路径，将使用缓存文件: {final_output_path}")
                     #
                     # elif effective_mode == "smart":
                     #     # Smart 模式 (必然是 URL 来源)，保存在 .webview-reports
                     #     if not is_url: # Sanity check
-                    #         return ToolResult(error="内部错误：Smart 模式应只处理 URL。")
+                    #         return ToolResult.error("内部错误：Smart 模式应只处理 URL。")
                     #
                         # 新逻辑：所有默认输出都放入 .webview-reports
                         logger.info("未指定输出路径，将在 .webview-reports 中自动生成文件名。")
@@ -387,7 +381,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
                 )
             except Exception as e:
                 logger.error(f"确定或创建保存路径时发生意外错误: {e}", exc_info=True)
-                return ToolResult(error="处理文件保存路径时发生内部错误。")
+                return ToolResult.error("处理文件保存路径时发生内部错误。")
 
             # --- 7. 构建返回结果 ---
             ai_content = f"**PDF 内容摘要**:\n{summary}"
@@ -408,7 +402,7 @@ class ConvertPdf(AbstractFileTool[ConvertPdfParams], WorkspaceGuardTool[ConvertP
 
         except Exception as e:
             logger.exception(f"PDF 转换操作意外失败: {e!s}")
-            return ToolResult(error="执行 PDF 转换时发生未预料的内部错误。")
+            return ToolResult.error("执行 PDF 转换时发生未预料的内部错误。")
         finally:
              # --- 清理下载的临时文件 ---
              if temp_download_path and await aiofiles.os.path.exists(temp_download_path):

@@ -98,9 +98,9 @@ export interface InitializationAgentInfo {
 
 /** 初始化流程 - 服务商配置 */
 export interface InitializationServiceProviderConfig {
-	url: string
-	api_key: string
-	[key: string]: string
+	url?: string
+	api_key?: string
+	[key: string]: string | undefined
 }
 
 /** 初始化流程 - 服务商模型数据 */
@@ -120,9 +120,9 @@ export interface InitializationData {
 
 /** LLM 连接测试请求 */
 export interface LLMConnectivityTestRequest {
-	service_provider_config: InitializationServiceProviderConfig
-	model_version: string
-	provider_code: string
+	service_provider_config?: InitializationServiceProviderConfig
+	model_version?: string
+	provider_code?: string
 }
 
 /** LLM 连接测试响应 */

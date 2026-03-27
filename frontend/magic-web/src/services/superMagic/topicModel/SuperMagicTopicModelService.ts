@@ -3,10 +3,7 @@ import { logger as Logger } from "@/utils/log"
 import superMagicTopicModelCacheService from "./SuperMagicTopicModelCacheService"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import superMagicModeService from "../SuperMagicModeService"
-import {
-	ModelItem,
-	ModelStatusEnum,
-} from "@/pages/superMagic/components/MessageEditor/types"
+import { ModelItem, ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import { reaction } from "mobx"
 import { DEFAULT_TOPIC_ID } from "./constants"

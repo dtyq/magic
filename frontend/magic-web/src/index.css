@@ -114,6 +114,7 @@
 		/** 兼容ant-mobile的popup z-index */
 		--adm-popup-z-index: var(--z-index-popup);
 		--adm-mask-z-index: var(--z-index-popup);
+		--z-index-sheet: var(--z-index-popup);
 
 		/** 兼容ant-mobile的popup 和 shadcn/ui的浮窗共存嵌套场景 */
 		.adm-popup {

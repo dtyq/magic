@@ -218,16 +218,35 @@ class SuperMagicAgentApi extends AbstractApi
         $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
             $result['agents'],
             $result['playbooks_map'],
-            $result['store_agents_map'],
+            $result['agent_market_map'],
             $result['latest_versions_map'],
             $result['user_agents_map'] ?? [],
-            $result['page'],
-            $result['page_size'],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
             $result['total']
         );
 
         // 返回数组格式
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 查询员工排序列表，并按 frequent/all 返回轻量数据.
+     */
+    public function sortListQueries(): array
+    {
+        return $this->superMagicAgentAppService->sortListQueries($this->getAuthorization());
+    }
+
+    /**
+     * 将一个或多个员工追加到 frequent 列表末尾，并从 all 列表中移除.
+     */
+    public function addToFrequent(): array
+    {
+        $codes = $this->request->input('codes');
+        $this->superMagicAgentAppService->addToFrequent($this->getAuthorization(), $codes);
+
+        return ['message' => 'Agent frequent saved successfully'];
     }
 
     public function externalQueries(): array
@@ -238,12 +257,12 @@ class SuperMagicAgentApi extends AbstractApi
         $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
             $result['agents'],
             $result['playbooks_map'],
-            $result['store_agents_map'],
+            $result['agent_market_map'],
             $result['latest_versions_map'],
             $result['user_agents_map'] ?? [],
             $authorization->getId(),
-            $result['page'],
-            $result['page_size'],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
             $result['total'],
             $result['publisher_user_map'] ?? []
         );

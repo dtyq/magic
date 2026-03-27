@@ -4,11 +4,7 @@ import type { Editor, JSONContent } from "@tiptap/react"
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import type { MentionPanelStore } from "@/components/business/MentionPanel/store"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import type { DraftStore } from "../stores"
 import type { FileUploadStore } from "../stores/FileUploadStore"
 import type { FileData, MessageEditorSize } from "../types"
@@ -25,6 +21,7 @@ interface UseMessageEditorToolbarContextParams {
 	fileUploadStore: FileUploadStore
 	shouldEnableMention: boolean
 	uploadEnabled: boolean
+	sendEnabled: boolean
 	sendButtonDisabled: boolean
 	showLoading: boolean
 	isTaskRunning: boolean
@@ -42,6 +39,7 @@ interface UseMessageEditorToolbarContextParams {
 	handleRemoveUploadedFile: (file: FileData) => void
 	handleSend: () => void
 	handleInterrupt: () => void
+	handleCompressContext: () => void
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => React.ReactNode
 	modelSwitch?: React.ReactNode
 	t: (key: string, options?: Record<string, unknown>) => string
@@ -59,6 +57,7 @@ function useMessageEditorToolbarContext({
 	fileUploadStore,
 	shouldEnableMention,
 	uploadEnabled,
+	sendEnabled,
 	sendButtonDisabled,
 	showLoading,
 	isTaskRunning,
@@ -76,6 +75,7 @@ function useMessageEditorToolbarContext({
 	handleRemoveUploadedFile,
 	handleSend,
 	handleInterrupt,
+	handleCompressContext,
 	editorModeSwitch,
 	modelSwitch,
 	t,
@@ -93,6 +93,7 @@ function useMessageEditorToolbarContext({
 			fileUploadStore,
 			shouldEnableMention,
 			uploadEnabled,
+			sendEnabled,
 			sendButtonDisabled,
 			showLoading,
 			isTaskRunning,
@@ -110,6 +111,7 @@ function useMessageEditorToolbarContext({
 			handleRemoveUploadedFile,
 			handleSend,
 			handleInterrupt,
+			handleCompressContext,
 			editorModeSwitch,
 			modelSwitch,
 			t,
@@ -126,6 +128,7 @@ function useMessageEditorToolbarContext({
 			fileUploadStore,
 			shouldEnableMention,
 			uploadEnabled,
+			sendEnabled,
 			sendButtonDisabled,
 			showLoading,
 			isTaskRunning,
@@ -143,6 +146,7 @@ function useMessageEditorToolbarContext({
 			handleRemoveUploadedFile,
 			handleSend,
 			handleInterrupt,
+			handleCompressContext,
 			editorModeSwitch,
 			modelSwitch,
 			t,

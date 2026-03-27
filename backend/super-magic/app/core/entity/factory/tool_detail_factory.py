@@ -14,7 +14,7 @@ from app.core.entity.message.server_message import (
     TerminalContent,
     ToolDetail,
 )
-from app.core.entity.tool.tool_result import SearchResult
+from app.core.entity.tool.tool_result_types import SearchResult
 
 
 class ToolDetailFactory:

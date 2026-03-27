@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Skill\Assembler;
 
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
@@ -22,6 +23,7 @@ use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillMarketDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillMarketListItemDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillMarketListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\SkillVersionListItemDTO;
@@ -42,6 +44,7 @@ class SkillAssembler
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
         $descriptionI18n = $entity->getDescriptionI18n() ?? [];
+        $sourceI18n = $entity->getSourceI18n() ?? [];
         $name = $entity->getI18nName($language);
         $description = $entity->getI18nDescription($language);
 
@@ -52,6 +55,7 @@ class SkillAssembler
             description: $description,
             nameI18n: $nameI18n,
             descriptionI18n: $descriptionI18n,
+            sourceI18n: $sourceI18n,
             logo: $entity->getLogo() ?? '',
             sourceType: $entity->getSourceType()->value,
             isEnabled: $entity->getIsEnabled() ? 1 : 0,
@@ -69,11 +73,14 @@ class SkillAssembler
         SkillVersionEntity $entity,
         ?string $sourceType = null,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null
+        ?string $latestVersion = null,
+        ?string $publisherType = null,
+        ?array $publisher = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
         $descriptionI18n = $entity->getDescriptionI18n() ?? [];
+        $sourceI18n = $entity->getSourceI18n() ?? [];
         $name = $nameI18n[$language] ?? '';
         $description = $descriptionI18n[$language] ?? '';
 
@@ -84,6 +91,7 @@ class SkillAssembler
             description: $description,
             nameI18n: $nameI18n,
             descriptionI18n: $descriptionI18n,
+            sourceI18n: $sourceI18n,
             logo: $entity->getLogo() ?? '',
             sourceType: $sourceType ?? $entity->getSourceType()->value,
             isEnabled: 1,
@@ -93,7 +101,9 @@ class SkillAssembler
             latestPublishedAt: $entity->getPublishedAt(),
             latestVersion: $latestVersion ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
-            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
+            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt()),
+            publisherType: $publisherType,
+            publisher: $publisher
         );
     }
 
@@ -109,6 +119,7 @@ class SkillAssembler
             $entity->getPinnedAt(),
             $entity->getNameI18n(),
             $entity->getDescriptionI18n() ?? [],
+            $entity->getSourceI18n() ?? [],
             $entity->getLogo() ?? '',
             $entity->getPackageName(),
             $entity->getPackageDescription(),
@@ -145,6 +156,7 @@ class SkillAssembler
         string $fileKey = '',
         ?string $fileUrl = null,
         string $packageName = '',
+        array $sourceI18n = [],
     ): SkillMarketListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -160,6 +172,7 @@ class SkillAssembler
             description: $description,
             nameI18n: $nameI18n,
             descriptionI18n: $descriptionI18n,
+            sourceI18n: $sourceI18n,
             logo: $entity->getLogo() ?? '',
             publisherType: $entity->getPublisherType()->value,
             publisher: $publisher,
@@ -167,6 +180,7 @@ class SkillAssembler
             isAdded: $isAdded,
             needUpgrade: $needUpgrade,
             isCreator: $isCurrentUserCreator,
+            isFeatured: $entity->isFeatured(),
             createdAt: $entity->getCreatedAt() ?? '',
             updatedAt: $entity->getUpdatedAt() ?? '',
             fileKey: $fileKey,
@@ -219,15 +233,32 @@ class SkillAssembler
         int $total,
         ?string $sourceType = null,
         array $creatorUserMap = [],
-        array $latestVersionMap = []
+        array $latestVersionMap = [],
+        array $marketEntityMap = [],
+        array $publisherUserMap = []
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillVersionEntities as $entity) {
+            $publisherType = null;
+            $publisher = null;
+
+            $marketEntity = $marketEntityMap[$entity->getCode()] ?? null;
+            if ($marketEntity instanceof SkillMarketEntity) {
+                $publisherType = $marketEntity->getPublisherType()->value;
+                $publisher = self::buildPublisher(
+                    $marketEntity->getPublisherType(),
+                    $marketEntity->getPublisherId(),
+                    $publisherUserMap[$marketEntity->getPublisherId()] ?? null
+                );
+            }
+
             $listItems[] = self::createListItemDTOFromVersion(
                 $entity,
                 $sourceType,
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion()
+                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
+                $publisherType,
+                $publisher
             );
         }
 
@@ -380,6 +411,7 @@ class SkillAssembler
             $fileKey = (string) ($version?->getFileKey() ?? '');
             $fileUrl = $version?->getFileUrl();
             $packageName = (string) ($version?->getPackageName() ?? '');
+            $sourceI18n = $version?->getSourceI18n() ?? [];
 
             $listItems[] = self::createMarketListItemDTO(
                 $skillMarketEntity,
@@ -390,6 +422,7 @@ class SkillAssembler
                 fileKey: $fileKey,
                 fileUrl: $fileUrl,
                 packageName: $packageName,
+                sourceI18n: $sourceI18n,
             );
         }
 
@@ -398,6 +431,47 @@ class SkillAssembler
             page: $page,
             pageSize: $pageSize,
             total: $total
+        );
+    }
+
+    /**
+     * Build the market detail DTO from the market snapshot and version snapshot.
+     */
+    public static function createMarketDetailResponseDTO(
+        SkillMarketEntity $skillMarket,
+        SkillVersionEntity $skillVersion,
+        bool $isAdded,
+        bool $isCreator,
+        ?MagicUserEntity $publisherUser = null,
+        string $skillFileUrl = ''
+    ): SkillMarketDetailResponseDTO {
+        $language = CoContext::getLanguage() ?: LanguageEnum::EN_US->value;
+        $nameI18n = $skillMarket->getNameI18n() ?? $skillVersion->getNameI18n();
+        $descriptionI18n = $skillMarket->getDescriptionI18n() ?? $skillVersion->getDescriptionI18n() ?? [];
+        $sourceI18n = $skillVersion->getSourceI18n() ?? [];
+
+        return new SkillMarketDetailResponseDTO(
+            code: $skillMarket->getSkillCode(),
+            name: self::resolveLocalizedText($nameI18n, $language),
+            description: self::resolveLocalizedText($descriptionI18n, $language),
+            source: self::resolveLocalizedText($sourceI18n, $language),
+            nameI18n: $nameI18n,
+            descriptionI18n: $descriptionI18n,
+            sourceI18n: $sourceI18n,
+            skillFileUrl: $skillFileUrl,
+            versionCode: $skillVersion->getVersion(),
+            packageName: $skillVersion->getPackageName(),
+            versionCreatedAt: $skillVersion->getCreatedAt() ?? '',
+            logo: $skillMarket->getLogo() ?? $skillVersion->getLogo() ?? '',
+            publisherType: $skillMarket->getPublisherType()->value,
+            publisher: self::buildPublisher(
+                $skillMarket->getPublisherType(),
+                $skillMarket->getPublisherId(),
+                $publisherUser
+            ),
+            isAdded: $isAdded,
+            isCreator: $isCreator,
+            isFeatured: $skillMarket->isFeatured(),
         );
     }
 
@@ -454,26 +528,30 @@ class SkillAssembler
      */
     private static function buildPublisher(PublisherType $publisherType, string $publisherId, ?MagicUserEntity $userEntity = null): array
     {
-        // 官方类型，头像为空
-        if ($publisherType === PublisherType::OFFICIAL) {
+        // 如果有用户实体，使用用户信息
+        if ($publisherType->isUser() && $userEntity) {
             return [
-                'name' => PublisherType::OFFICIAL->value,
+                'name' => $userEntity->getNickname() ?? PublisherType::USER->value,
                 'avatar' => '',
             ];
         }
 
-        // 如果有用户实体，使用用户信息
-        if ($userEntity !== null) {
-            return [
-                'name' => $userEntity->getNickname() ?? PublisherType::USER->value,
-                'avatar' => $userEntity->getAvatarUrl() ?? '',
-            ];
-        }
-
-        // 如果没有用户实体，返回默认值（理论上不应该走到这里，因为已经批量查询了）
         return [
-            'name' => PublisherType::USER->value,
+            'name' => $publisherType->value,
             'avatar' => '',
         ];
+    }
+
+    /**
+     * Resolve the current language text with a default-language fallback.
+     */
+    private static function resolveLocalizedText(?array $i18n, string $language): string
+    {
+        if ($i18n === null || $i18n === []) {
+            return '';
+        }
+
+        $localizedValue = $i18n[$language] ?? $i18n[LanguageEnum::DEFAULT->value] ?? null;
+        return is_string($localizedValue) ? $localizedValue : '';
     }
 }

@@ -906,7 +906,7 @@
 	"messageEditor": {
 		"addAttachment": "添加附件",
 		"addModel": {
-			"addModel": "添加模型",
+			"addModel": "自定义模型",
 			"addProvider": "添加厂商",
 			"addProviderHint": "添加你的模型服务厂商信息",
 			"apiKey": "API Key",
@@ -2491,6 +2491,18 @@
 		"batchOperation": "批量操作",
 		"batchOperations": "批量操作",
 		"cancelSelect": "取消",
+		"clawPlaygroundTags": {
+			"aboutYou": "关于你",
+			"guidelines": "指南",
+			"identityInfo": "身份信息",
+			"initialSetup": "初始化设置",
+			"installedSkills": "已安装技能",
+			"proactiveExecution": "主动执行",
+			"prompts": "提示词",
+			"scheduledTasks": "定时任务",
+			"skillList": "技能清单",
+			"toolList": "工具列表"
+		},
 		"collapseTitle": "收起",
 		"contentTranslation": "内容翻译",
 		"contentTranslationDescription": "AI 将内容转换为我需要的语言",
@@ -2891,6 +2903,7 @@
 		"readAgreement": "请先阅读本协议后操作"
 	},
 	"waterfallCard": {
+		"imageUnavailable": "暂无预览",
 		"loadingImage": "加载图片中...",
 		"tryNow": "立即试用"
 	},

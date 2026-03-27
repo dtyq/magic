@@ -7,9 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -39,6 +41,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
@@ -292,17 +295,23 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 查询员工列表.
-     */
-    /**
+     * 查询“我创建的员工”列表。
+     *
+     * 作用：
+     * - 供“我的员工 / 我创建的员工”列表接口使用
+     * - 只查询当前用户自己创建的 Agent
+     * - 一次性补齐列表渲染需要的关联数据，避免接口层再散落查询
+     *
+     * 与 externalQueries 的区别：
+     * - queries 面向“当前用户创建的数据”
+     * - externalQueries 面向“当前用户可见但不一定由自己创建的数据”
+     *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     agent_market_map: array<string, AgentMarketEntity>,
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
      *     total: int
      * }
      */
@@ -315,24 +324,171 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $query->setLanguageCode($languageCode);
         $query->setCreatorId($dataIsolation->getCurrentUserId());
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+
         $result = $this->superMagicAgentDomainService->queries($dataIsolation, $query, $page);
-        return $this->buildAgentListResult(
-            dataIsolation: $dataIsolation,
-            requestDTO: $requestDTO,
-            agents: $result['list'],
-            total: $result['total']
-        );
+        $agents = $result['list'];
+        $total = $result['total'];
+
+        // Normalize icons before building the list payload.
+        $this->updateAgentEntitiesIcon($agents);
+        if ($agents === []) {
+            return [
+                'agents' => [],
+                'playbooks_map' => [],
+                'agent_market_map' => [],
+                'user_agents_map' => [],
+                'latest_versions_map' => [],
+                'total' => $total,
+            ];
+        }
+
+        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
+
+        // Batch load playbooks once for all list items used by the API assembler.
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+
+        // Agent codes are already available above; repository returns map keyed by agent_code.
+        $agentMarketMap = $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes($agentCodes);
+
+        // Batch load user agent ownership once for all list items used by the API assembler.
+        $userAgentsMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, $agentCodes);
+
+        // Batch load versions once for all list items used by the API assembler.
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
+
+        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
+
+        return [
+            'agents' => $agents,
+            'playbooks_map' => $playbooksMap,
+            'agent_market_map' => $agentMarketMap,
+            'user_agents_map' => $userAgentsMap,
+            'latest_versions_map' => $latestVersionsMap,
+            'publisher_user_map' => $publisherUserMap,
+            'total' => $total,
+        ];
     }
 
     /**
+     * 查询当前用户排序列表，并按 frequent/all 返回轻量数据.
+     *
+     * @return array{
+     *     frequent: array<int, array{id: string, name: string, logo: ?string}>,
+     *     all: array<int, array{id: string, name: string, logo: ?string}>,
+     *     total: int
+     * }
+     */
+    public function sortListQueries(Authenticatable $authorization): array
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
+        $userId = $authorization->getId();
+
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $userId);
+        $officialCodes = $this->getOfficialAgentCodes($authorization);
+        $queryCodes = array_values(array_unique(array_merge($accessibleAgentResult['codes'], $officialCodes)));
+        if ($queryCodes === []) {
+            return [
+                'frequent' => [],
+                'all' => [],
+                'total' => 0,
+            ];
+        }
+
+        $dataIsolation->disabled();
+        $nonOfficialCodes = array_values(array_diff($queryCodes, $officialCodes));
+        $nonOfficialVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $nonOfficialCodes);
+        $officialPublishedVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $officialCodes);
+
+        $this->updateAgentEntitiesIcon(array_values($officialPublishedVersions));
+        $builtinAgents = $this->updateAgentEntitiesIcon($this->getBuiltinAgent($dataIsolation));
+
+        $builtinAgentMap = [];
+        foreach ($builtinAgents as $builtinAgent) {
+            $builtinAgentMap[$builtinAgent->getCode()] = $builtinAgent;
+        }
+
+        $items = [];
+        foreach ($officialCodes as $officialCode) {
+            $officialPublishedVersion = $officialPublishedVersions[$officialCode] ?? null;
+            if ($officialPublishedVersion !== null) {
+                $items[] = $this->buildSortListItem($officialPublishedVersion, $languageCode);
+                continue;
+            }
+
+            $officialAgent = $builtinAgentMap[$officialCode] ?? null;
+            if ($officialAgent !== null) {
+                $items[] = $this->buildSortListItem($officialAgent, $languageCode);
+            }
+        }
+
+        if ($nonOfficialVersions !== []) {
+            $nonOfficialVersionList = array_values($nonOfficialVersions);
+            $this->updateAgentEntitiesIcon($nonOfficialVersionList);
+            foreach ($nonOfficialVersionList as $entity) {
+                $items[] = $this->buildSortListItem($entity, $languageCode);
+            }
+        }
+
+        if ($items === []) {
+            return [
+                'frequent' => [],
+                'all' => [],
+                'total' => 0,
+            ];
+        }
+
+        return $this->categorizeLatestVersionItems($items, $this->getOrderConfig($authorization));
+    }
+
+    /**
+     * 将指定员工列表追加到 frequent 末尾，并从 all 中移除。
+     *
+     * @param array<int, string> $codes
+     */
+    public function addToFrequent(Authenticatable $authorization, array $codes): void
+    {
+        $orderConfig = $this->getOrderConfig($authorization) ?? [];
+        $frequentCodes = $this->normalizeOrderCodes($orderConfig['frequent'] ?? []);
+        $allCodes = $this->normalizeOrderCodes($orderConfig['all'] ?? []);
+
+        foreach ($this->normalizeOrderCodes($codes) as $code) {
+            if (! in_array($code, $frequentCodes, true)) {
+                $frequentCodes[] = $code;
+            }
+        }
+
+        $allCodes = array_values(array_filter(
+            $allCodes,
+            static fn (string $currentCode): bool => ! in_array($currentCode, $frequentCodes, true)
+        ));
+
+        $this->saveOrderConfig($authorization, [
+            'frequent' => $frequentCodes,
+            'all' => $allCodes,
+        ]);
+    }
+
+    /**
+     * 查询“当前用户可见的外部员工”列表。
+     *
+     * 作用：
+     * - 供“可见员工 / 外部员工 / 可安装员工”列表接口使用
+     * - 查询当前用户有访问权限的 Agent，以及官方内置 Agent
+     * - 先按版本视角筛出可见数据，再转换成列表页需要的 Agent 结构
+     *
+     * 与 queries 的区别：
+     * - externalQueries 不要求 Agent 由当前用户创建
+     * - externalQueries 需要结合可见范围、安装关系、官方内置员工一起计算
+     *
+     * 实现上会复用前面已经查出的版本和用户归属数据，只补查缺失部分，避免重复查询。
+     *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
+     *     agent_market_map: array<string, AgentMarketEntity>,
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
      *     total: int
      * }
      */
@@ -345,19 +501,18 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $currentUserId);
         $queryCodes = $accessibleAgentResult['accessible'];
 
-        // 官方员工，后续官方员工要放入到可见数据里
+        // Get official agent codes.
         $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
 
+        // Merge official agent codes into query codes.
         $queryCodes = array_merge($queryCodes, $officialAgentCodes);
         if ($queryCodes === []) {
             return [
                 'agents' => [],
                 'playbooks_map' => [],
-                'store_agents_map' => [],
+                'agent_market_map' => [],
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
                 'total' => 0,
             ];
         }
@@ -366,14 +521,12 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionQuery->setCodes($queryCodes);
         $versionQuery->setKeyword(trim($requestDTO->getKeyword()));
         $versionQuery->setLanguageCode($languageCode);
+        $versionQuery->setPublishedOnly(true);
 
         $versionPage = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
         $dataIsolation->disabled();
-        $versionQueryResult = $this->superMagicAgentVersionDomainService->queries(
-            $dataIsolation,
-            $versionQuery,
-            $versionPage
-        );
+        $versionQueryResult = $this->superMagicAgentVersionDomainService->queries($dataIsolation, $versionQuery, $versionPage);
+
         $versionList = $versionQueryResult['list'];
         $total = $versionQueryResult['total'];
 
@@ -385,28 +538,51 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return [
                 'agents' => [],
                 'playbooks_map' => [],
-                'store_agents_map' => [],
+                'agent_market_map' => [],
                 'user_agents_map' => [],
                 'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
                 'total' => $total,
             ];
         }
 
+        // Build external visible agents from versions.
         $agents = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $currentVersionsMap);
-        $userAgentOwnershipMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes(
-            $dataIsolation,
-            array_keys($currentVersionsMap)
-        );
+
+        // Batch load user agent ownership once for all list items used by the API assembler.
+        $userAgentOwnershipMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, array_keys($currentVersionsMap));
+
+        // Convert visible versions to list agents, then mark market-installed ones in place.
         $agents = $this->markInstalledMarketAgents($agents, $userAgentOwnershipMap);
 
-        return $this->buildAgentListResult(
-            dataIsolation: $dataIsolation,
-            requestDTO: $requestDTO,
-            agents: $agents,
-            total: $total,
-        );
+        // Normalize icons before building the list payload.
+        $this->updateAgentEntitiesIcon($agents);
+
+        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
+
+        // Batch load playbooks once for all list items used by the API assembler.
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
+
+        // Keep logic consistent with queries(): lookup market map and latest versions by agent codes directly.
+        $agentMarketMap = $this->superMagicAgentDomainService->getStoreAgentsByAgentCodes($agentCodes);
+
+        // Batch load publisher user map once for all list items used by the API assembler.
+        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
+
+        foreach ($agentMarketMap as $agentCode => $agentMarket) {
+            if (in_array($agentCode, $officialAgentCodes)) {
+                $agentMarket->setPublisherType(PublisherType::OFFICIAL_BUILTIN);
+            }
+        }
+
+        return [
+            'agents' => $agents,
+            'playbooks_map' => $playbooksMap,
+            'agent_market_map' => $agentMarketMap,
+            'user_agents_map' => $userAgentOwnershipMap,
+            'latest_versions_map' => $currentVersionsMap,
+            'publisher_user_map' => $publisherUserMap,
+            'total' => $total,
+        ];
     }
 
     /**
@@ -753,26 +929,42 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     public function getFeaturedAgent(Authenticatable $authorization): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $userId = $authorization->getId();
-
-        // 获取用户可访问的智能体编码列表
-        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $userId);
-        $accessibleAgentCodes = $accessibleAgentResult['codes'];
+        $orderConfig = $this->getOrderConfig($authorization);
+        $frequentCodes = array_values(array_unique($orderConfig['frequent'] ?? []));
 
         $dataIsolation->disabled();
-        $versionEntities = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $accessibleAgentCodes);
+        $builtinAgents = $this->getBuiltinAgent($dataIsolation);
+        $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
+
+        $accessibleAgentResult = null;
+        if ($frequentCodes !== []) {
+            $builtinAgents = array_values(array_filter(
+                $builtinAgents,
+                static fn (SuperMagicAgentEntity $agent): bool => in_array($agent->getCode(), $frequentCodes, true)
+            ));
+            $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
+            $queryAgentCodes = array_values(array_diff($frequentCodes, $builtinAgentCodes));
+        } else {
+            $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $authorization->getId());
+            $queryAgentCodes = array_values(array_unique(array_diff(
+                array_merge($accessibleAgentResult['codes'], $builtinAgentCodes),
+                $builtinAgentCodes
+            )));
+        }
+
+        $versionEntities = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $queryAgentCodes);
         $agentEntities = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $versionEntities);
 
-        foreach ($agentEntities as $agentEntity) {
-            // 设置是否为公开的智能体
-            if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
-                $agentEntity->setType(SuperMagicAgentType::Public->value);
+        if ($accessibleAgentResult !== null) {
+            foreach ($agentEntities as $agentEntity) {
+                // 设置是否为公开的智能体
+                if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
+                    $agentEntity->setType(SuperMagicAgentType::Public->value);
+                }
             }
         }
 
         // 合并内置模型
-        $builtinAgents = $this->getBuiltinAgent($dataIsolation);
-        $builtinAgentCodes = array_map(fn ($agent) => $agent->getCode(), $builtinAgents);
         foreach ($agentEntities as $agentIndex => $agent) {
             if (in_array($agent->getCode(), $builtinAgentCodes)) {
                 unset($agentEntities[$agentIndex]);
@@ -788,7 +980,29 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $agentVersionIds = array_map(fn ($agentEntity) => $agentEntity->getId(), $versionEntities);
         $agentCodeMapPlaybookEntities = $this->getAgentPlaybooksByAgentVersionIds($agentVersionIds);
 
-        $featuredAgentResult = $this->categorizeAgents($result['list'], $result['total'], null);
+        if ($frequentCodes !== []) {
+            $agentMap = [];
+            foreach ($result['list'] as $agentEntity) {
+                $agentMap[$agentEntity->getCode()] = $agentEntity;
+            }
+
+            $frequentAgents = [];
+            foreach ($frequentCodes as $code) {
+                if (isset($agentMap[$code])) {
+                    $agentMap[$code]->setCategory('frequent');
+                    $frequentAgents[] = $agentMap[$code];
+                }
+            }
+
+            $featuredAgentResult = [
+                'frequent' => $frequentAgents,
+                'all' => [],
+                'total' => count($frequentAgents),
+            ];
+        } else {
+            $featuredAgentResult = $this->categorizeAgents($result['list'], $result['total'], null);
+        }
+
         $featuredAgentResult['playbooks'] = $agentCodeMapPlaybookEntities;
         return $featuredAgentResult;
     }
@@ -834,6 +1048,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 $entity = new SuperMagicAgentEntity();
                 $entity->setCode($config['code']);
                 $entity->setNameI18n($config['name_i18n']);
+                $entity->setRoleI18n($config['role_i18n']);
                 $entity->setDescriptionI18n($config['description_i18n']);
                 $entity->setIcon([
                     'type' => $config['icon'],
@@ -869,13 +1084,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
                 // 直接调用 domain service 的 saveDirectly 方法保存
                 $entity = $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $entity);
-                $this->saveUserAgentOwnership(
-                    $dataIsolation,
-                    $entity->getCode(),
-                    $entity->getSourceType(),
-                    $entity->getSourceId(),
-                    $entity->getVersionId()
-                );
 
                 // 创建权限配置（全员可见）
                 $visibilityConfig = new VisibilityConfig();
@@ -886,6 +1094,40 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                     $entity->getCode(),
                     $visibilityConfig
                 );
+
+                // 官方内置：发布到市场（不写 workspace 导出 file_key），并自动审核通过上架
+                $versionEntity = new AgentVersionEntity();
+                $versionEntity->setVersion('1.0.0');
+                $versionEntity->setVersionDescriptionI18n([]);
+                $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
+                $versionEntity->setPublishTargetValue(null);
+                $publishedVersion = $this->publishPreparedAgentVersion(
+                    $authorization,
+                    $dataIsolation,
+                    $entity->getCode(),
+                    $entity,
+                    $versionEntity,
+                    false
+                );
+                $reviewIsolation = clone $dataIsolation;
+                $this->superMagicAgentDomainService->reviewAgentVersion(
+                    $reviewIsolation->disabled(),
+                    (int) $publishedVersion->getId(),
+                    'APPROVED',
+                    $userId,
+                    PublisherType::OFFICIAL_BUILTIN->value,
+                    true,
+                    isset($config['sort_order']) ? (int) $config['sort_order'] : null
+                );
+
+                $this->saveUserAgentOwnership(
+                    $dataIsolation,
+                    $entity->getCode(),
+                    $entity->getSourceType(),
+                    $entity->getSourceId(),
+                    (int) $publishedVersion->getId()
+                );
+
                 // 创建成功
                 $results[] = [
                     'code' => $config['code'],
@@ -1073,101 +1315,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @param array<SuperMagicAgentEntity> $agents
-     * @return array{
-     *     agents: array<int, SuperMagicAgentEntity>,
-     *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
-     *     store_agents_map: array<string, AgentMarketEntity>,
-     *     user_agents_map: array<string, UserAgentEntity>,
-     *     latest_versions_map: array<string, AgentVersionEntity>,
-     *     page: int,
-     *     page_size: int,
-     *     total: int
-     * }
-     */
-    private function buildAgentListResult(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        QueryAgentsRequestDTO $requestDTO,
-        array $agents,
-        int $total
-    ): array {
-        $this->updateAgentEntitiesIcon($agents);
-        if ($agents === []) {
-            return [
-                'agents' => [],
-                'playbooks_map' => [],
-                'store_agents_map' => [],
-                'user_agents_map' => [],
-                'latest_versions_map' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
-                'total' => $total,
-            ];
-        }
-
-        $agentCodes = array_map(static fn (SuperMagicAgentEntity $agent): string => $agent->getCode(), $agents);
-        $rawPlaybooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentCodesForCurrentVersion($dataIsolation, $agentCodes, true);
-        $playbooksMap = [];
-        foreach ($rawPlaybooksMap as $agentCode => $playbooks) {
-            $playbooksMap[(string) $agentCode] = array_values($playbooks);
-        }
-
-        $storeSourceCodesByAgentCode = [];
-        $marketSourceIds = [];
-        $latestVersionLookupCodes = [];
-        foreach ($agents as $agent) {
-            $versionLookupCode = $agent->getCode();
-            if ($agent->getSourceType()->isMarket()) {
-                if ($agent->getSourceId() !== null) {
-                    $marketSourceIds[$agent->getCode()] = $agent->getSourceId();
-                }
-            }
-            $latestVersionLookupCodes[] = $versionLookupCode;
-        }
-
-        $marketSourceRecords = [];
-        if ($marketSourceIds !== []) {
-            $marketSourceRecords = $this->superMagicAgentDomainService->getStoreAgentsByIds(array_values($marketSourceIds));
-            foreach ($marketSourceIds as $agentCode => $sourceId) {
-                $marketSourceRecord = $marketSourceRecords[$sourceId] ?? null;
-                if ($marketSourceRecord === null) {
-                    continue;
-                }
-
-                $storeSourceCodesByAgentCode[$agentCode] = $marketSourceRecord->getAgentCode();
-                $latestVersionLookupCodes[] = $marketSourceRecord->getAgentCode();
-            }
-        }
-
-        $storeAgentsMap = [];
-        foreach ($marketSourceIds as $agentCode => $sourceId) {
-            $storeAgent = $marketSourceRecords[$sourceId] ?? null;
-            if ($storeAgent !== null) {
-                $storeAgentsMap[$agentCode] = $storeAgent;
-            }
-        }
-        $userAgentsMap = $this->userAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, $agentCodes);
-        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes(
-            $dataIsolation,
-            array_values(array_unique($latestVersionLookupCodes))
-        );
-
-        $publisherUserMap = $this->loadAgentPublisherUserMap($agents);
-
-        return [
-            'agents' => $agents,
-            'playbooks_map' => $playbooksMap,
-            'store_agents_map' => $storeAgentsMap,
-            'user_agents_map' => $userAgentsMap,
-            'latest_versions_map' => $latestVersionsMap,
-            'publisher_user_map' => $publisherUserMap,
-            'page' => $requestDTO->getPage(),
-            'page_size' => $requestDTO->getPageSize(),
-            'total' => $total,
-        ];
-    }
-
-    /**
      * 批量加载 Agent 创建者的用户信息，用于构建发布者数据.
      *
      * @param SuperMagicAgentEntity[] $agents
@@ -1194,6 +1341,154 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $publisherUserMap;
+    }
+
+    /**
+     * @param array<mixed> $codes
+     * @return array<string>
+     */
+    private function normalizeOrderCodes(array $codes): array
+    {
+        $normalizedCodes = [];
+        foreach ($codes as $code) {
+            if (! is_string($code) || $code === '') {
+                continue;
+            }
+
+            if (! in_array($code, $normalizedCodes, true)) {
+                $normalizedCodes[] = $code;
+            }
+        }
+
+        return $normalizedCodes;
+    }
+
+    /**
+     * @param array{frequent: array<string>, all: array<string>} $orderConfig
+     */
+    private function saveOrderConfig(Authenticatable $authorization, array $orderConfig): void
+    {
+        $dataIsolation = $this->createContactDataIsolation($authorization);
+        $entity = new MagicUserSettingEntity();
+        $entity->setKey(UserSettingKey::SuperMagicAgentSort->value);
+        $entity->setValue($orderConfig);
+
+        $this->magicUserSettingDomainService->save($dataIsolation, $entity);
+    }
+
+    /**
+     * @param array<int, array{code: string, id: string, name: string, logo: ?string, type: int}> $items
+     * @param null|array{frequent?: array<string>, all?: array<string>} $orderConfig
+     * @return array{
+     *     frequent: array<int, array{id: string, name: string, logo: ?string}>,
+     *     all: array<int, array{id: string, name: string, logo: ?string}>,
+     *     total: int
+     * }
+     */
+    private function categorizeLatestVersionItems(array $items, ?array $orderConfig): array
+    {
+        if (empty($orderConfig)) {
+            $orderConfig = $this->buildLatestVersionDefaultOrderConfig($items);
+        }
+
+        $itemMap = [];
+        foreach ($items as $item) {
+            $itemMap[$item['code']] = $item;
+        }
+
+        $frequentCodes = $orderConfig['frequent'] ?? [];
+        $allOrder = $orderConfig['all'] ?? [];
+
+        $frequent = [];
+        foreach ($frequentCodes as $code) {
+            if (isset($itemMap[$code])) {
+                $frequent[] = $this->stripLatestVersionListItem($itemMap[$code]);
+            }
+        }
+
+        $all = [];
+        $frequentCodesSet = array_flip($frequentCodes);
+        if ($allOrder !== []) {
+            foreach ($allOrder as $code) {
+                if (isset($itemMap[$code]) && ! isset($frequentCodesSet[$code])) {
+                    $all[] = $this->stripLatestVersionListItem($itemMap[$code]);
+                }
+            }
+
+            foreach ($items as $item) {
+                $code = $item['code'];
+                if (! in_array($code, $allOrder, true) && ! isset($frequentCodesSet[$code])) {
+                    $all[] = $this->stripLatestVersionListItem($item);
+                }
+            }
+        } else {
+            foreach ($items as $item) {
+                if (! isset($frequentCodesSet[$item['code']])) {
+                    $all[] = $this->stripLatestVersionListItem($item);
+                }
+            }
+        }
+
+        return [
+            'frequent' => $frequent,
+            'all' => $all,
+            'total' => count($items),
+        ];
+    }
+
+    /**
+     * @param array<int, array{code: string, id: string, name: string, logo: ?string, type: int}> $items
+     * @return array{frequent: array<string>, all: array<string>}
+     */
+    private function buildLatestVersionDefaultOrderConfig(array $items): array
+    {
+        $builtinCodes = [];
+        $customCodes = [];
+
+        foreach ($items as $item) {
+            if ($item['type'] === SuperMagicAgentType::Built_In->value) {
+                $builtinCodes[] = $item['code'];
+                continue;
+            }
+
+            $customCodes[] = $item['code'];
+        }
+
+        return [
+            'frequent' => array_slice($builtinCodes, 0, 6),
+            'all' => array_merge($builtinCodes, $customCodes),
+        ];
+    }
+
+    /**
+     * @return array{code: string, id: string, name: string, logo: ?string, type: int}
+     */
+    private function buildSortListItem(AgentVersionEntity|SuperMagicAgentEntity $entity, string $languageCode): array
+    {
+        $icon = $entity->getIcon() ?? [];
+        $type = $entity instanceof SuperMagicAgentEntity ? $entity->getType()->value : $entity->getType();
+
+        return [
+            'code' => $entity->getCode(),
+            'id' => $entity->getCode(),
+            'name' => $entity->getI18nName($languageCode),
+            'logo' => $icon['url'] ?? $icon['value'] ?? null,
+            'type' => $type,
+        ];
+    }
+
+    /**
+     * @param array{code: string, id: string, name: string, logo: ?string, type: int} $item
+     * @return array{id: string, name: string, logo: ?string}
+     */
+    private function stripLatestVersionListItem(array $item): array
+    {
+        return [
+            'id' => $item['code'],
+            'code' => $item['code'],
+            'name' => $item['name'],
+            'logo' => $item['logo'],
+        ];
     }
 
     /**
@@ -1309,7 +1604,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'id' => $builtinSkill->value,
                 'code' => $builtinSkill->value,
                 'name' => $builtinSkill->getSkillName(),
-                'package_name' => $builtinSkill->getSkillName(),
+                'package_name' => $builtinSkill->value,
                 'description' => $builtinSkill->getSkillDescription(),
                 'logo' => $builtinSkill->getSkillIcon() !== '' ? $builtinSkill->getSkillIcon() : null,
                 'mention_source' => SkillMentionSource::SYSTEM->value,
@@ -1332,7 +1627,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return [];
         }
 
-        $agentVersion = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $employeeCode);
+        $agentVersions = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, [$employeeCode]);
+        $agentVersion = $agentVersions[$employeeCode] ?? null;
         if ($agentVersion === null || $agentVersion->getId() === null) {
             return [];
         }
