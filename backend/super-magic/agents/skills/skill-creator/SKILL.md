@@ -335,39 +335,17 @@ Keep SKILL.md concise. Move complex content to `references/`, with clear pointer
 
 所有 skill 文件写入完成后，立即将以下内容写入（覆盖）`<workspace-skills-dir>/skill_config.yaml`。
 
-内容规则：
-- 第一个字段固定为 `dir`，值为 skill 的目录名（即 `<skill-name>`，不含路径前缀），用于标识当前 skill 所在目录
-- 其余字段从 SKILL.md frontmatter 中原样读取，顺序与 frontmatter 保持一致
-- frontmatter 有哪些字段就写哪些字段，不增不减
-
-示例（含多语言字段）：
+只写入 `dir` 字段，该文件仅用于记录最新创建的 skill 目录是哪个：
 -->
 **Write skill_config.yaml:**
 
 After all skill files are written, immediately write (overwrite if exists) `<workspace-skills-dir>/skill_config.yaml` with YAML content.
 
-Rules:
-- First field is always `dir`, value is the skill directory name (e.g. `my-skill`)
-- All other fields are copied directly from SKILL.md frontmatter, in the same order
-- Include exactly what is in the frontmatter — no more, no less
-
-Example with i18n fields:
+Only write the `dir` field — this file tracks which skill directory was most recently created:
 
 ```yaml
 skill:
   dir: "my-skill"
-  name: "my-skill"
-  description: "English description..."
-  description-cn: "中文描述..."
-```
-
-Example without i18n fields:
-
-```yaml
-skill:
-  dir: "my-skill"
-  name: "my-skill"
-  description: "English description..."
 ```
 
 ---
